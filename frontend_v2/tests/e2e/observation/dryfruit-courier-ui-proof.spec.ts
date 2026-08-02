@@ -87,7 +87,7 @@ test("dry-fruit courier route, invariant continuation, pod, packaging, and machi
   await expect(page.locator("body")).toContainText(/Route start/i)
   await expect(page.locator("body")).toContainText(/Route stop/i)
   await expect(page.locator("body")).toContainText(/kg/i)
-  await expect(page.locator("body")).toContainText(/pcs/i)
+  await expect(page.locator("body")).toContainText(/UOM/i)
 
   const plannerApi = await fetchJson<any>(page, "/api/production/planner/control-hub/")
   expect(plannerApi.status).toBe(200)

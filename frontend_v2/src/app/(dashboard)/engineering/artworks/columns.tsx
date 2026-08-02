@@ -33,15 +33,6 @@ export const getColumns = ({
     header: "Customer",
   },
   {
-    accessorKey: "version",
-    header: "Version",
-    cell: ({ row }) => (
-      <div className="w-12 text-center bg-muted rounded text-xs py-0.5">
-        v{row.getValue("version")}
-      </div>
-    ),
-  },
-  {
     accessorKey: "colors_count",
     header: "Colors",
   },

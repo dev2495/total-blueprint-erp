@@ -331,7 +331,7 @@ class MRPService:
                 }
             demand_map[mat_id_str]['total_qty'] += qty
         except InventoryMaterial.DoesNotExist:
-            pass
+            logger.warning("MRP demand references missing material=%s", mat_id, exc_info=True)
 
     @staticmethod
     def _get_available_stock(material: InventoryMaterial, plant_id: str = None) -> Decimal:
@@ -558,7 +558,7 @@ class MRPService:
                         vendor = pkg_tx.vendor
                         last_rate = Decimal(str(pkg_tx.avg_cost or 0))
                 except Exception:
-                    pass
+                    logger.warning("Unable to resolve packaging vendor for MRP suggestion=%s", getattr(suggestion, "id", None), exc_info=True)
 
             if not vendor:
                 vendor = Vendor.objects.filter(status='ACTIVE').order_by('name').first()

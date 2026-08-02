@@ -1,6 +1,9 @@
 import { PAGE_GUIDES } from "@/help/content/pages";
+import { isLegacyRedirectRoute } from "@/help/legacy-routes";
 
-export const DASHBOARD_ROUTE_PATTERNS = PAGE_GUIDES.map((guide) => guide.routePattern);
+export const DASHBOARD_ROUTE_PATTERNS = PAGE_GUIDES
+  .map((guide) => guide.routePattern)
+  .filter((route) => !isLegacyRedirectRoute(route));
 
 export const MAIN_NAV_ROUTES = new Set<string>([
   "/production/planner",

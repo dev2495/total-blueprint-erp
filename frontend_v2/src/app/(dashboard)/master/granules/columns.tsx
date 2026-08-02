@@ -33,13 +33,13 @@ export const getColumns = ({
   },
   {
     id: "quality_codes",
-    header: "Granule Codes",
+    header: "Internal grades/codes",
     cell: ({ row }) => {
       const codes = row.original.quality_codes || [];
       if (!codes.length)
         return (
           <div className="text-xs font-semibold text-content-4">
-            No code stock yet
+            No internal grade codes yet
           </div>
         );
       return (
@@ -95,7 +95,7 @@ export const getColumns = ({
             onClick: () => onEdit(row.original),
           },
           {
-            label: "Manage Quality Codes",
+            label: "Manage internal grade codes",
             icon: Tags,
             onClick: () => onManageCodes(row.original),
           },

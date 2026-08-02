@@ -9,6 +9,7 @@
  * the caller instead of being masked by mock records.
  */
 import { api } from "@/lib/api";
+import { evaluateQtyFormula } from "@/lib/qty-formula.mjs";
 import type { Artwork } from "@/services/engineering";
 
 type MaybePaginated<T> = T[] | { results?: T[] } | unknown;
@@ -122,6 +123,8 @@ export interface VariantAxisDef {
 export interface ProductMaster {
     id: string;
     code: string;
+    /** Stable customer-facing identity; internal revision codes never need to be shown in the UI. */
+    display_code?: string;
     name: string;
     version_group?: string;
     version?: number;
@@ -157,6 +160,8 @@ export interface ProductMaster {
 
 export interface ProductMasterClonePayload extends Partial<ProductMaster> {
     disable_source?: boolean;
+    /** Required only for the exceptional workflow that intentionally retires the source master. */
+    confirm_new_revision?: boolean;
     copy_sizes?: boolean;
     copy_variants?: boolean;
     sizes?: Array<Partial<ProductMasterSize>>;
@@ -171,6 +176,18 @@ export interface ProductMasterCloneResponse extends ProductMaster {
         skipped: number;
         failed: number;
         details?: Array<{ item_id?: string; order_number?: string; status?: string; reason?: string }>;
+    };
+}
+
+export interface ProductMasterWorkspaceSaveResponse extends ProductMaster {
+    size_summary?: { created: number; updated: number; retired: number };
+    revision_summary?: {
+        checked: number;
+        refreshed: number;
+        failed: number;
+        skipped?: number;
+        queues_rebuilt?: number;
+        queues_frozen?: number;
     };
 }
 
@@ -1014,6 +1031,41 @@ export const productMasterService = {
         );
     },
 
+    workspaceSave: async (id: string, payload: Partial<ProductMaster> & { sizes: Array<Partial<ProductMasterSize>> }) => {
+        return tryRequest(
+            async () => {
+                const { data } = await api.post<ProductMasterWorkspaceSaveResponse>(
+                    `/api/master/products/${id}/workspace-save/`,
+                    payload,
+                );
+                return data ? graftCatalogAxes(data, id) as ProductMasterWorkspaceSaveResponse : data;
+            },
+            () => {
+                const idx = STATE.masters.findIndex((master) => master.id === id);
+                if (idx === -1) throw new Error("Product master not found");
+                const { sizes, ...masterPayload } = payload;
+                STATE.masters[idx] = {
+                    ...STATE.masters[idx],
+                    ...masterPayload,
+                    code: STATE.masters[idx].code,
+                    updated_at: new Date().toISOString(),
+                };
+                STATE.sizes[id] = (sizes || []).map((size, index) => ({
+                    ...(size as ProductMasterSize),
+                    id: size.id || generateId("size"),
+                    product_master: id,
+                    active: size.active ?? true,
+                    sort_order: size.sort_order ?? index + 1,
+                }));
+                return {
+                    ...clone(STATE.masters[idx]),
+                    size_summary: { created: 0, updated: STATE.sizes[id].length, retired: 0 },
+                    revision_summary: { checked: 0, refreshed: 0, failed: 0, skipped: 0, queues_rebuilt: 0, queues_frozen: 0 },
+                } as ProductMasterWorkspaceSaveResponse;
+            },
+        );
+    },
+
     clone: async (id: string, payload: ProductMasterClonePayload = {}) => {
         return tryRequest(
             async () => {
@@ -1152,21 +1204,14 @@ export const productMasterService = {
                 if (def.qty_per_pcs != null) {
                     qty = Math.ceil(total_pouches * def.qty_per_pcs);
                 } else if (def.qty_formula) {
-                    try {
-                        const pcsPerInner = Number(overlay?.pcs_per_inner ?? 24);
-                        const tokens: Record<string, number> = {
-                            total_pouches: total_pouches,
-                            total_pcs: total_pouches,
-                            pcs_per_inner: pcsPerInner,
-                        };
-                        const safe = def.qty_formula.replace(/[a-z_][a-z0-9_]*/gi, (m) => (tokens[m] !== undefined ? String(tokens[m]) : "0"));
-                        const ceiled = safe.replace(/ceil\(([^)]+)\)/gi, "Math.ceil($1)").replace(/floor\(([^)]+)\)/gi, "Math.floor($1)").replace(/round\(([^)]+)\)/gi, "Math.round($1)");
-                        // eslint-disable-next-line no-new-func
-                        qty = Number(new Function(`return (${ceiled || 0});`)());
-                        if (!Number.isFinite(qty)) qty = 0;
-                    } catch {
-                        qty = 0;
-                    }
+                    const pcsPerInner = Number(overlay?.pcs_per_inner ?? 24);
+                    qty = evaluateQtyFormula(def.qty_formula, {
+                        total_pouches: total_pouches,
+                        total_pcs: total_pouches,
+                        pcs_per_inner: pcsPerInner,
+                        fixed_qty: Number(overlay?.fixed_qty ?? 0),
+                        total_kg: Number(overlay?.total_kg ?? 0),
+                    });
                 }
                 lines.push({
                     axis: String(def.axis),

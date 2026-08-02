@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+import logging
 
 from django.core.exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -32,7 +35,7 @@ def first_artwork_step_index(template) -> int | None:
                 if process and bool(getattr(process, "has_artwork", False) or getattr(process, "print_capable", False)):
                     return index
         except Exception:
-            pass
+            logger.warning("Unable to inspect template process steps for artwork gate", exc_info=True)
 
     ordered = getattr(getattr(template, "routing_rule", None), "ordered_processes", None) or []
     if not ordered:
@@ -50,7 +53,7 @@ def first_artwork_step_index(template) -> int | None:
             if process and bool(process.has_artwork or process.print_capable):
                 return index
     except Exception:
-        pass
+        logger.warning("Unable to inspect route process metadata for artwork gate", exc_info=True)
 
     for index, code in enumerate(codes):
         if _legacy_code_looks_artwork(code):

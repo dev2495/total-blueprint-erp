@@ -747,10 +747,22 @@ def _sales_row(control_payload: dict, sales_order: SalesOrder):
     raise RuntimeError(f"Sales order {sales_order.order_number} not found in planner queue.")
 
 
-def _plan_and_release(client: APIClient, sales_order: SalesOrder, option: str, row: dict, allocations: list[dict] | None = None):
+def _plan_and_release(
+    client: APIClient,
+    sales_order: SalesOrder,
+    option: str,
+    row: dict,
+    allocations: list[dict] | None = None,
+    *,
+    start_step_index: int | None = None,
+):
     plan_payload = {
         "option": option,
-        "start_step_index": int(row.get("required_start_step") or 0),
+        "start_step_index": int(
+            row.get("required_start_step") or 0
+            if start_step_index is None
+            else start_step_index
+        ),
         "stop_step_index": int(row.get("route_last_step_index") or 0),
         "allocations": allocations or [],
     }
@@ -893,18 +905,33 @@ def main():
     if not fg_candidate:
         raise RuntimeError("Dry-fruit FG batch was not offered as an FG candidate.")
 
+    wip_source_bucket = str(wip_candidate.get("source_bucket") or "").upper()
+    wip_option = (
+        "UPSTREAM_STOCK"
+        if wip_source_bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK"
+        else "SHARED_INVARIANT"
+        if wip_source_bucket == "SHARED_INVARIANT_ROLL_STOCK"
+        else "WIP_CONTINUE"
+    )
+    wip_start_step = min(
+        int(row_wip.get("route_last_step_index") or 0),
+        int(wip_candidate.get("completed_step_index") or 0) + 1,
+    )
     wip_result = _plan_and_release(
         client,
         so_wip,
-        "WIP_CONTINUE",
+        wip_option,
         row_wip,
         allocations=[
             {
                 "inventory_type": "ROLL",
                 "inventory_id": str(invariant_roll.id),
                 "allocated_qty_kg": float(_d(row_wip.get("required_qty_kg") or 0)),
+                "source_bucket": wip_candidate.get("source_bucket"),
+                "signature_match_mode": wip_candidate.get("signature_match_mode"),
             }
         ],
+        start_step_index=wip_start_step,
     )
     fg_result = _plan_and_release(
         client,

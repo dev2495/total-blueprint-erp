@@ -504,7 +504,7 @@ export function AddonsWorkspaceV36() {
     <div className="space-y-4 pb-12">
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="addons" />
       <GradientHero
-        eyebrow="Inventory · V3.6 · add-ons"
+        eyebrow="Inventory · add-ons"
         title="Inks · adhesives · solvents"
         subtitle="Process consumables that ride along with rolls — colour-coded for inks, lot-tracked for adhesives, expiry-aware for solvents."
         palette="violet"

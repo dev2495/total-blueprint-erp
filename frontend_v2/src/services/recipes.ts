@@ -22,6 +22,17 @@ export interface ExtrusionRecipe {
     thickness_max_micron: number;
     components: ExtrusionRecipeComponent[];
     is_active: boolean;
+    bom_refresh?: {
+        matched_items: number;
+        checked: number;
+        refreshed: number;
+        failed: number;
+        skipped: number;
+        queues_rebuilt: number;
+        queues_frozen: number;
+        queues_planning_required: number;
+        still_blocked: number;
+    } | null;
 }
 
 export interface CreateExtrusionRecipeDto {

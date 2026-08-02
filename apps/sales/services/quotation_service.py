@@ -263,6 +263,8 @@ class QuotationService:
         a V37-authored quote.
         """
         from apps.materials.models import PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant
+        from apps.materials.services_pouch_style import formula_axis_contract_error
+        from apps.materials.services_product_variant import compute_geometry
         from apps.templates.models import TemplateBlueprint
         import hashlib
         import json as _json
@@ -330,6 +332,17 @@ class QuotationService:
                     {"items": f"{item.line_name or 'Ad-hoc line'} uses an invalid or unapproved pouch style master."}
                 )
             resolved_style = selected_style or (getattr(base_size, "pouch_style_master", None) if base_size else None)
+            if resolved_style:
+                contract_error = formula_axis_contract_error(
+                    default_roll_axis=resolved_style.default_roll_axis,
+                    formula_kind=resolved_style.formula_kind,
+                    formula_params=resolved_style.formula_params,
+                    formula_ast=resolved_style.formula_ast,
+                )
+                if contract_error:
+                    raise ValidationError(
+                        {"items": f"{item.line_name or 'Ad-hoc line'} pouch style is invalid: {contract_error}"}
+                    )
             if spec.get("save_as_master") and not spec.get("product_master_id") and resolved_style is None:
                 raise ValidationError(
                     {"items": f"{item.line_name or 'Ad-hoc line'} must pick an approved pouch style master before Product Master promotion."}
@@ -499,6 +512,9 @@ class QuotationService:
                     slit_policy=slit_policy,
                     sort_order=1,
                 )
+                # Freeze the same canonical geometry used by sales preview and
+                # order creation, including explicit web axis and cut pitch.
+                geometry_snapshot = compute_geometry(pm, {"size": size.code})
                 variant_signature = hashlib.sha256(
                     _json.dumps(
                         {

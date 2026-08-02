@@ -311,16 +311,16 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
       return pouchStyleService.update(id!, body);
     },
     onSuccess: (saved) => {
-      const versionMsg =
+      const revisionMessage =
         saved.version &&
         existing &&
         existing.version &&
         saved.version > existing.version
-          ? ` · new v${saved.version} created (v${existing.version} preserved)`
-          : ` · v${saved.version}`;
+          ? " · changes saved; prior configuration preserved"
+          : " · configuration saved";
       toast({
         title: isNew ? "Pouch style created" : "Saved",
-        description: `${saved.code}${versionMsg}`,
+        description: `${saved.code}${revisionMessage}`,
       });
       setDraft(saved);
       qc.setQueryData(["pouch-style", saved.id], saved);
@@ -346,7 +346,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
     onSuccess: (saved) => {
       toast({
         title: "Approved + locked",
-        description: `${saved.code} v${saved.version} can now be used on Product Master sizes.`,
+        description: `${saved.code} can now be used on Product Master sizes.`,
       });
       qc.invalidateQueries({ queryKey: ["pouch-styles"] });
       qc.invalidateQueries({ queryKey: ["pouch-style", id] });
@@ -373,7 +373,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
     onSuccess: (saved) => {
       toast({
         title: "Approved + locked",
-        description: `${saved.code} v${saved.version} is ready for Product Master sizes.`,
+        description: `${saved.code} is ready for Product Master sizes.`,
       });
       qc.setQueryData(["pouch-style", saved.id], saved);
       qc.invalidateQueries({ queryKey: ["pouch-styles"] });
@@ -513,15 +513,8 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
               ? {
                   icon: <Lock className="h-4 w-4" />,
                   label: "Locked",
-                  value: "v" + (draft.version || 1),
+                  value: "In use",
                   tone: "info",
-                }
-              : null,
-            !isNew
-              ? {
-                  label: "Version",
-                  value: `v${draft.version || 1}`,
-                  tone: "violet",
                 }
               : null,
             !isNew
@@ -557,7 +550,10 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
               >
                 {versions.map((v) => (
                   <option key={v.id} value={v.id} className="text-content-1">
-                    v{v.version} · {v.locked ? "locked" : "draft"}
+                    {v.locked ? "Approved configuration" : "Draft configuration"}
+                    {v.updated_at
+                      ? ` · ${new Date(v.updated_at).toLocaleDateString()}`
+                      : ""}
                     {v.deprecated ? " · disabled" : ""}
                   </option>
                 ))}
@@ -570,14 +566,13 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
       {isLocked && !isNew ? (
         <div className="mt-4 rounded-2xl border-2 border-warning-border bg-warning-bg px-4 py-3 text-[12px] text-warning-fg">
           <div className="flex items-center gap-2 font-bold">
-            <Lock className="h-3.5 w-3.5" /> This version is locked because
+            <Lock className="h-3.5 w-3.5" /> This configuration is locked because
             product sizes are using it.
           </div>
           <p className="mt-1 text-[11px]">
-            Saving real changes creates a{" "}
-            <b>new draft v{(draft.version || 1) + 1}</b> and hides this v
-            {draft.version || 1} from new pickers. Old sizes keep their existing
-            snapshot.
+            Saving real changes creates a <b>new draft</b> for new pickers.
+            Existing sizes keep their saved snapshot until the approved change
+            is propagated safely.
           </p>
         </div>
       ) : null}
@@ -623,7 +618,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                 />
                 {!isNew && isLocked ? (
                   <div className="mt-1 text-[10px] text-warning-fg">
-                    Code is fixed across versions.
+                    Code stays fixed through configuration history.
                   </div>
                 ) : null}
               </Field>
@@ -1002,7 +997,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                     ? "Create draft"
                     : isLocked
                       ? hasMeaningfulChanges
-                        ? `Save as draft v${(draft.version || 1) + 1}`
+                        ? "Save as new draft"
                         : "No changes to save"
                       : hasMeaningfulChanges
                         ? "Save draft"

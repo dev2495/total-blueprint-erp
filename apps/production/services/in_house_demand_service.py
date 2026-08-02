@@ -76,7 +76,7 @@ class InHouseDemandService:
         try:
             items = items.select_related("product_master")  # type: ignore[attr-defined]
         except AttributeError:
-            pass
+            logger.debug("Order items are already materialized; skipping select_related")
         for item in items:
             cls._ensure_packaging(item, created, skipped, user=user)
             cls._ensure_pod(item, created, skipped, user=user)
@@ -431,6 +431,12 @@ class InHouseDemandService:
                     if code in option_codes:
                         return master
         except Exception:
+            logger.warning(
+                "Packaging product-master lookup failed material_id=%s material_code=%s",
+                getattr(material, "id", None),
+                code,
+                exc_info=True,
+            )
             return None
         return None
 
@@ -472,7 +478,7 @@ class InHouseDemandService:
             if steps:
                 return max(int(step.sequence_number or 0) for step in steps)
         except Exception:
-            pass
+            logger.warning("Unable to resolve route steps for template=%s", getattr(template, "id", None), exc_info=True)
         try:
             route_steps = getattr(getattr(template, "routing_rule", None), "ordered_processes", None) or []
             return max(0, len(route_steps) - 1)
@@ -490,6 +496,12 @@ class InHouseDemandService:
             total = qs.aggregate(total=Sum("qty")).get("total") or Decimal("0")
             return Decimal(str(total))
         except Exception:
+            logger.warning(
+                "Available packaging stock lookup failed material_id=%s plant_id=%s",
+                getattr(material, "id", None),
+                plant_id,
+                exc_info=True,
+            )
             return Decimal("0")
 
     @staticmethod
@@ -503,6 +515,12 @@ class InHouseDemandService:
             total = qs.aggregate(total=Sum("qty_kg")).get("total") or Decimal("0")
             return Decimal(str(total))
         except Exception:
+            logger.warning(
+                "Available bulk stock lookup failed material_id=%s plant_id=%s",
+                getattr(material, "id", None),
+                plant_id,
+                exc_info=True,
+            )
             return Decimal("0")
 
     @staticmethod
@@ -544,6 +562,12 @@ class InHouseDemandService:
                     if code in option_codes:
                         return master
         except Exception:
+            logger.warning(
+                "POD product-master lookup failed variant_id=%s variant_code=%s",
+                getattr(variant, "id", None),
+                code,
+                exc_info=True,
+            )
             return None
         return None
 
@@ -612,6 +636,12 @@ class InHouseDemandService:
                 if row:
                     return row
         except Exception:
+            logger.warning(
+                "Product-master default lookup failed product_master_id=%s product_master_code=%s",
+                product_master_id or None,
+                product_master_code or None,
+                exc_info=True,
+            )
             return None
         return None
 
@@ -636,7 +666,7 @@ class InHouseDemandService:
                 try:
                     thicknesses[key] = float(Decimal(str(thickness)))
                 except Exception:
-                    pass
+                    logger.warning("Invalid thickness in in-house demand layer=%s", index, exc_info=True)
             width = layer.get("input_roll_width_mm") or layer.get("roll_width_mm") or roll_width
             if width not in (None, ""):
                 try:
@@ -644,7 +674,7 @@ class InHouseDemandService:
                     if width_dec > 0:
                         widths[key] = float(width_dec)
                 except Exception:
-                    pass
+                    logger.warning("Invalid roll width in in-house demand layer=%s", index, exc_info=True)
             grade = str(layer.get("default_grade") or layer.get("grade_name") or layer.get("grade") or "").strip()
             if grade:
                 grades[key] = grade
@@ -698,19 +728,19 @@ class InHouseDemandService:
                 updated_fields.append("qty_uom")
             if updated_fields:
                 existing.save(update_fields=updated_fields)
-            try:
-                if getattr(existing, "planned_stock_order_id", None):
-                    stock_updates = []
-                    if Decimal(str(existing.planned_stock_order.target_qty or 0)) != target_qty:
-                        existing.planned_stock_order.target_qty = target_qty
-                        stock_updates.append("target_qty")
-                    if str(existing.planned_stock_order.quantity_uom or "").upper() != order_uom:
-                        existing.planned_stock_order.quantity_uom = order_uom
-                        stock_updates.append("quantity_uom")
-                    if stock_updates:
-                        existing.planned_stock_order.save(update_fields=stock_updates)
-            except Exception:
-                pass
+            if getattr(existing, "planned_stock_order_id", None):
+                stock_updates = []
+                if Decimal(str(existing.planned_stock_order.target_qty or 0)) != target_qty:
+                    existing.planned_stock_order.target_qty = target_qty
+                    stock_updates.append("target_qty")
+                if str(existing.planned_stock_order.quantity_uom or "").upper() != order_uom:
+                    existing.planned_stock_order.quantity_uom = order_uom
+                    stock_updates.append("quantity_uom")
+                if stock_updates:
+                    # Confirmation and master propagation own the surrounding
+                    # transaction. Never report an updated demand link while
+                    # its pre-release planner order is still stale.
+                    existing.planned_stock_order.save(update_fields=stock_updates)
             return existing, False
 
         order_uom = uom if uom in {"KG", "PCS", "METER"} else "PCS"

@@ -899,7 +899,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-kpi-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -1540,7 +1542,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-process-rates-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -1667,7 +1671,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -1794,7 +1800,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-costing-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -1921,7 +1929,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-dispatch-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2048,7 +2058,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-downtime-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2174,7 +2186,9 @@
       "/system/report-center",
       "/dashboard/owner"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-interplant-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2301,7 +2315,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-inventory-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2428,7 +2444,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-mrp-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2555,7 +2573,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-oee-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2682,7 +2702,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-operator-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2809,7 +2831,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-production-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -2936,7 +2960,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-sales-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -3063,7 +3089,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-reports-scrap-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -3190,7 +3218,9 @@
       "/analytics/costing",
       "/analytics/inventory-health"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "analytics-scrap-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -5484,7 +5514,9 @@
       "/engineering/artworks",
       "/engineering/cylinders"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "engineering-approvals-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -7808,7 +7840,9 @@
       "/inventory/bulk-transactions",
       "/inventory/grn"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "inventory-alerts-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -7935,7 +7969,9 @@
       "/inventory/alerts",
       "/inventory/grn"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "inventory-bulk-transactions-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -7969,8 +8005,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -8113,8 +8149,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -8607,7 +8643,9 @@
       "/inventory/alerts",
       "/inventory/bulk-transactions"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "inventory-ledger-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -8734,7 +8772,9 @@
       "/inventory/alerts",
       "/inventory/bulk-transactions"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "inventory-movements-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -8768,8 +8808,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -8912,8 +8952,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -9056,8 +9096,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -9293,7 +9333,9 @@
       "/inventory/alerts",
       "/inventory/bulk-transactions"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "inventory-vendors-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -9543,7 +9585,9 @@
       "/logistics/packing",
       "/logistics/transit"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "logistics-dispatch-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -9577,8 +9621,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -9721,8 +9765,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -9956,7 +10000,9 @@
       "/logistics/dispatch",
       "/logistics/packing"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "logistics-transit-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -10340,7 +10386,9 @@
       "/master/add-ons",
       "/master/film-families"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-adhesives-solvents-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -10463,7 +10511,9 @@
       "/master",
       "/system/audit"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-commercial-families-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -10590,7 +10640,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-film-families-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -10717,7 +10769,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-film-variants-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -10844,7 +10898,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-granules-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -10971,7 +11027,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-inks-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -11098,7 +11156,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-packaging-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -11225,7 +11285,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-pod-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -11259,8 +11321,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -11878,7 +11940,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-recipes-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -12005,7 +12069,9 @@
       "/master/add-ons",
       "/master/adhesives-solvents"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "master-vendors-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -12918,8 +12984,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -14469,8 +14535,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -15584,7 +15650,9 @@
       "/system/role-matrix",
       "/system/users"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "system-settings-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -15872,8 +15940,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -16016,8 +16084,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -16160,8 +16228,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -16304,8 +16372,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -16446,8 +16514,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -16586,8 +16654,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -16726,8 +16794,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -16833,7 +16901,9 @@
       "/inventory/stock-lifecycle",
       "/inventory/traceability"
     ],
-    "screenshotKeys": [],
+    "screenshotKeys": [
+      "production-planner-gang-builder-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"
@@ -16867,8 +16937,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17008,8 +17078,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17149,8 +17219,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17290,8 +17360,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17434,8 +17504,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17575,8 +17645,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17716,8 +17786,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17857,8 +17927,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -17996,8 +18066,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -18135,8 +18205,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -18274,8 +18344,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -18414,8 +18484,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -18554,8 +18624,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -18694,8 +18764,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -18833,8 +18903,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -18972,8 +19042,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -19111,8 +19181,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -19250,8 +19320,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -19389,8 +19459,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -19530,8 +19600,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -19673,8 +19743,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -19816,8 +19886,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -19956,8 +20026,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -20096,8 +20166,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -20236,8 +20306,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -20376,8 +20446,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -20516,8 +20586,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -20655,8 +20725,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -20794,8 +20864,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -20933,8 +21003,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -21072,8 +21142,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -21212,8 +21282,8 @@
         "hi": "Confirm the correct plant, role, period, and source record before posting."
       },
       {
-        "en": "Use the current V36 workspace route for new work.",
-        "hi": "Use the current V36 workspace route for new work."
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
       },
       {
         "en": "Review visible validation errors before submit and keep source proof ready for audit.",
@@ -21320,6 +21390,1149 @@
       "/inventory/traceability"
     ],
     "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/engineering/route-dispatch",
+    "title": {
+      "en": "Route Dispatch Setup",
+      "hi": "Route Dispatch Setup"
+    },
+    "module": "Engineering",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "ENGINEERING",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Route Dispatch Setup reviews each template step's allowed and default work centers before planner release.",
+      "hi": "Route Dispatch Setup reviews each template step's allowed and default work centers before planner release."
+    },
+    "purpose": {
+      "en": "Use safe template editing to correct dispatch choices, then complete review and publish so eligible pre-release orders receive the current route.",
+      "hi": "Use safe template editing to correct dispatch choices, then complete review and publish so eligible pre-release orders receive the current route."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "master-data-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "engineering-route-dispatch-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/bulk-v36",
+    "title": {
+      "en": "Bulk Workspace Compatibility Route",
+      "hi": "Bulk Workspace Compatibility Route"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "This compatibility route opens the current bulk inventory workspace for older bookmarks.",
+      "hi": "This compatibility route opens the current bulk inventory workspace for older bookmarks."
+    },
+    "purpose": {
+      "en": "Use the current bulk filters and stock cards; new navigation should use /inventory/bulk.",
+      "hi": "Use the current bulk filters and stock cards; new navigation should use /inventory/bulk."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "inventory-bulk-v36-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/ink-floor",
+    "title": {
+      "en": "Ink Floor Stock",
+      "hi": "Ink Floor Stock"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Ink Floor Stock shows work-center ink availability, issue context, and return status.",
+      "hi": "Ink Floor Stock shows work-center ink availability, issue context, and return status."
+    },
+    "purpose": {
+      "en": "Use it to verify current floor stock before issuing, consuming, returning, or escalating an ink shortage.",
+      "hi": "Use it to verify current floor stock before issuing, consuming, returning, or escalating an ink shortage."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "inventory-ink-floor-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/packaging-v36",
+    "title": {
+      "en": "Packaging Workspace Compatibility Route",
+      "hi": "Packaging Workspace Compatibility Route"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "This compatibility route opens the current packaging workspace for older bookmarks.",
+      "hi": "This compatibility route opens the current packaging workspace for older bookmarks."
+    },
+    "purpose": {
+      "en": "Use the current packaging stock and supply-mode view; new navigation should use /inventory/packaging.",
+      "hi": "Use the current packaging stock and supply-mode view; new navigation should use /inventory/packaging."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "inventory-packaging-v36-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/rolls-v36",
+    "title": {
+      "en": "Rolls Workspace Compatibility Route",
+      "hi": "Rolls Workspace Compatibility Route"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "This compatibility route opens the current roll inventory workspace for older bookmarks.",
+      "hi": "This compatibility route opens the current roll inventory workspace for older bookmarks."
+    },
+    "purpose": {
+      "en": "Use the current roll matrix, stock card, and traceability actions; new navigation should use /inventory/rolls.",
+      "hi": "Use the current roll matrix, stock card, and traceability actions; new navigation should use /inventory/rolls."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "inventory-rolls-v36-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/inventory/stock-conversions",
+    "title": {
+      "en": "Stock Conversions",
+      "hi": "Stock Conversions"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Stock Conversions records controlled physical-form changes such as opening tubes, splitting sheets, and slitting rolls.",
+      "hi": "Stock Conversions records controlled physical-form changes such as opening tubes, splitting sheets, and slitting rolls."
+    },
+    "purpose": {
+      "en": "Select the exact source stock, conversion operation, quantities, and destination so genealogy and balances remain traceable.",
+      "hi": "Select the exact source stock, conversion operation, quantities, and destination so genealogy and balances remain traceable."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "inventory-stock-conversions-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/production/ink-control",
+    "title": {
+      "en": "Production Ink Control",
+      "hi": "Production Ink Control"
+    },
+    "module": "Production",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "STORE",
+      "WORK_CENTER_MANAGER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Production Ink Control coordinates planned ink requirements, floor issues, returns, and consumption evidence.",
+      "hi": "Production Ink Control coordinates planned ink requirements, floor issues, returns, and consumption evidence."
+    },
+    "purpose": {
+      "en": "Use job and work-center context to issue the approved ink, record actual use, and return recoverable balance without bypassing stock history.",
+      "hi": "Use job and work-center context to issue the approved ink, record actual use, and return recoverable balance without bypassing stock history."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "production-ink-control-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/system/shift-timing",
+    "title": {
+      "en": "Shift Timing",
+      "hi": "Shift Timing"
+    },
+    "module": "System",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Shift Timing maintains the operating windows used by production and reporting.",
+      "hi": "Shift Timing maintains the operating windows used by production and reporting."
+    },
+    "purpose": {
+      "en": "Review downstream reporting and active scheduling before changing a shift, then keep effective timing and active status explicit.",
+      "hi": "Review downstream reporting and active scheduling before changing a shift, then keep effective timing and active status explicit."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the correct plant, role, period, and source record before posting.",
+        "hi": "Confirm the correct plant, role, period, and source record before posting."
+      },
+      {
+        "en": "Use the current workspace route for new work.",
+        "hi": "Use the current workspace route for new work."
+      },
+      {
+        "en": "Review visible validation errors before submit and keep source proof ready for audit.",
+        "hi": "Review visible validation errors before submit and keep source proof ready for audit."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open the current workspace and check the summary, filters, and selected context.",
+        "hi": "Open the current workspace and check the summary, filters, and selected context."
+      },
+      {
+        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
+        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+      },
+      {
+        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
+        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Context",
+          "hi": "Context"
+        },
+        "help": {
+          "en": "Plant, warehouse, stock class, route, and role decide which records and actions are valid.",
+          "hi": "Plant, warehouse, stock class, route, and role decide which records and actions are valid."
+        }
+      },
+      {
+        "field": {
+          "en": "Quantity",
+          "hi": "Quantity"
+        },
+        "help": {
+          "en": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM.",
+          "hi": "Use the UOM shown by the selected material. Rolls use gross/tare/net where applicable; bulk and packaging use their master UOM."
+        }
+      },
+      {
+        "field": {
+          "en": "Audit note",
+          "hi": "Audit note"
+        },
+        "help": {
+          "en": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record.",
+          "hi": "Write the reason when a transaction changes stock, closes a period, or corrects a posted record."
+        }
+      }
+    ],
+    "decisionFlowId": "system-governance-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "No selectable item",
+          "hi": "No selectable item"
+        },
+        "reason": {
+          "en": "The selected filter, plant, or material class does not match active stock or master data.",
+          "hi": "The selected filter, plant, or material class does not match active stock or master data."
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed",
+          "hi": "Validation failed"
+        },
+        "reason": {
+          "en": "A required source, quantity, location, UOM, or approval step is missing.",
+          "hi": "A required source, quantity, location, UOM, or approval step is missing."
+        }
+      },
+      {
+        "error": {
+          "en": "Action hidden",
+          "hi": "Action hidden"
+        },
+        "reason": {
+          "en": "Role permissions, period status, or route state blocks the next step.",
+          "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and reselect plant, warehouse, and class filters.",
+        "hi": "Refresh the page and reselect plant, warehouse, and class filters."
+      },
+      {
+        "en": "Use the inline help flow and field help to confirm the expected action.",
+        "hi": "Use the inline help flow and field help to confirm the expected action."
+      },
+      {
+        "en": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review.",
+        "hi": "If still blocked, capture route, payload context, screenshot, and timestamp for admin review."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory",
+      "/inventory/grn",
+      "/inventory/stock-lifecycle",
+      "/inventory/traceability"
+    ],
+    "screenshotKeys": [
+      "system-shift-timing-workflow"
+    ],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"

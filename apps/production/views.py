@@ -1,11 +1,13 @@
 import re
+import logging
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.db import connection
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -19,6 +21,9 @@ from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, Planne
 from .services import JobService, WCManagerService, OperatorService
 from .services.services_execution import ExecutionService
 from apps.factory.models import Machine
+from .renderers import EpsonRawRenderer
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_sales_order_number(so_id):
@@ -30,6 +35,7 @@ def _safe_sales_order_number(so_id):
             row = cursor.fetchone()
             return row[0] if row and row[0] else "N/A"
     except Exception:
+        logger.warning("Unable to resolve sales order number for sales_order_id=%s", so_id, exc_info=True)
         return "N/A"
 
 
@@ -271,6 +277,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
                     "parent_width_strategy": getattr(policy, "parent_width_strategy", "CALCULATED"),
                 }
         except Exception:
+            logger.warning("Unable to resolve target width/policy for job=%s", getattr(job, "id", None), exc_info=True)
             target_w = None
         # Surface job's remaining quantity in kg so the dialog's coverage card
         # can compute "needed / picked / still need" without a second round-trip.
@@ -281,6 +288,7 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             if remaining is not None and uom == "KG":
                 remaining_qty_kg = float(remaining)
         except Exception:
+            logger.warning("Unable to resolve remaining quantity for job=%s", getattr(job, "id", None), exc_info=True)
             remaining_qty_kg = None
         return Response({
             "candidates": payload,
@@ -556,6 +564,7 @@ class OperatorViewSet(viewsets.ViewSet):
             jobs = OperatorService.get_operator_dashboard(wc_id, machine_id, user_machine_ids=machine_scope_ids)
             return Response(ProductionJobSerializer(jobs, many=True).data)
         except Exception as e:
+            logger.exception("Unable to load operator dashboard work queue")
             return Response([])
 
     @action(detail=True, methods=['post'])
@@ -694,6 +703,7 @@ class PackingViewSet(viewsets.ViewSet):
                 try:
                     summary = FGDispatchService.get_packing_units_by_so(row["id"])
                 except Exception:
+                    logger.warning("Unable to load packing summary for sales_order_id=%s", row.get("id"), exc_info=True)
                     continue
                 pending = summary.get("packing_pending", {})
                 ready = summary.get("ready_for_dispatch", {})
@@ -1140,13 +1150,13 @@ class PackingViewSet(viewsets.ViewSet):
                 d = datetime.fromisoformat(date_from)
                 qs = qs.filter(created_at__gte=d)
             except ValueError:
-                pass
+                logger.warning("Invalid packaging history date_from filter: %r", date_from, exc_info=True)
         if date_to:
             try:
                 d = datetime.fromisoformat(date_to) + timedelta(days=1)
                 qs = qs.filter(created_at__lt=d)
             except ValueError:
-                pass
+                logger.warning("Invalid packaging history date_to filter: %r", date_to, exc_info=True)
 
         # Optional limit (default 200, ceiling 1000)
         try:
@@ -1209,14 +1219,14 @@ class PackingViewSet(viewsets.ViewSet):
                 gonny_qs = gonny_qs.filter(created_at__gte=d)
                 roll_qs = roll_qs.filter(packed_at__gte=d)
             except ValueError:
-                pass
+                logger.warning("Invalid dispatch history date_from filter: %r", date_from, exc_info=True)
         if date_to:
             try:
                 d = datetime.fromisoformat(date_to) + timedelta(days=1)
                 gonny_qs = gonny_qs.filter(created_at__lt=d)
                 roll_qs = roll_qs.filter(packed_at__lt=d)
             except ValueError:
-                pass
+                logger.warning("Invalid dispatch history date_to filter: %r", date_to, exc_info=True)
 
         material_ids = set()
         mark_payloads = []
@@ -1275,6 +1285,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
     API for Delivery Challan management.
     """
     queryset = ProductionJob.objects.none() # Dummy for DRF consistency
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer, EpsonRawRenderer]
     
     @action(detail=False, methods=['get'])
     def so_with_fg(self, request):
@@ -1319,6 +1330,12 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 try:
                     summary = FGDispatchService.get_dispatchable_units_by_so(row["id"])
                 except Exception:
+                    logger.warning(
+                        "Unable to load dispatchable-unit summary for sales_order_id=%s; "
+                        "omitting that dispatch-board card",
+                        row.get("id"),
+                        exc_info=True,
+                    )
                     continue
                 ready = summary.get("available_for_dispatch", {})
                 pending = summary.get("packing_pending", {})
@@ -1376,6 +1393,11 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                     'dispatch_notes': ch.dispatch_notes or "",
                     'ship_to_address_snapshot': ch.ship_to_address_snapshot or {},
                     'dispatch_date': ch.dispatch_date.isoformat() if ch.dispatch_date else None,
+                    'received_date': ch.received_date.isoformat() if ch.received_date else None,
+                    'pod_confirmed_at': ch.pod_confirmed_at.isoformat() if ch.pod_confirmed_at else None,
+                    'pod_received_by': ch.pod_received_by or "",
+                    'pod_reference': ch.pod_reference or "",
+                    'pod_notes': ch.pod_notes or "",
                     'plant_name': ch.plant.name if ch.plant else "N/A",
                     'so_number': _safe_sales_order_number(ch.sales_order_id)
                 })
@@ -1510,6 +1532,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 "id": str(challan.id),
                 "dc_no": challan.dc_no,
                 "status": challan.status,
+                "order_closed": bool(getattr(challan, 'order_closed', False)),
                 "message": f"Challan {challan.dc_no} status updated to {challan.status}"
             })
         except ValueError as e:
@@ -1521,13 +1544,56 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         from .services.dispatch_service import FGDispatchService
         
         try:
-            challan = FGDispatchService.mark_received(pk, request.user)
+            challan = FGDispatchService.confirm_pod(
+                pk,
+                user=request.user,
+                received_by=request.data.get('received_by', ''),
+                reference=request.data.get('reference', ''),
+                notes=request.data.get('notes', ''),
+            )
             return Response({
                 "id": str(challan.id),
                 "dc_no": challan.dc_no,
                 "status": challan.status,
                 "received_date": challan.received_date.isoformat() if challan.received_date else None,
-                "message": f"Challan {challan.dc_no} marked as received"
+                "pod_confirmed_at": challan.pod_confirmed_at.isoformat() if challan.pod_confirmed_at else None,
+                "order_closed": bool(getattr(challan, 'order_closed', False)),
+                "sales_order_status": challan.sales_order.status if challan.sales_order else None,
+                "message": f"POD confirmed for {challan.dc_no}"
+            })
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='confirm-pod')
+    def confirm_pod(self, request, pk=None):
+        """Confirm delivery proof and close the order only after full line fulfilment."""
+        from .services.dispatch_service import FGDispatchService
+
+        if request.data.get('confirmed') is not True:
+            return Response(
+                {"error": "confirmed=true is required to confirm physical delivery"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            challan = FGDispatchService.confirm_pod(
+                pk,
+                user=request.user,
+                received_by=request.data.get('received_by', ''),
+                reference=request.data.get('reference', ''),
+                notes=request.data.get('notes', ''),
+            )
+            return Response({
+                "id": str(challan.id),
+                "dc_no": challan.dc_no,
+                "status": challan.status,
+                "pod_confirmed_at": challan.pod_confirmed_at.isoformat() if challan.pod_confirmed_at else None,
+                "order_closed": bool(getattr(challan, 'order_closed', False)),
+                "sales_order_status": challan.sales_order.status if challan.sales_order else None,
+                "message": (
+                    f"POD confirmed and {challan.sales_order.order_number} closed"
+                    if getattr(challan, 'order_closed', False) and challan.sales_order
+                    else f"POD confirmed for {challan.dc_no}; order remains open for balance quantity"
+                ),
             })
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -1606,6 +1672,35 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return Response({"error": "Challan not found"}, status=status.HTTP_404_NOT_FOUND)
 
         try:
+            print_format = (
+                request.query_params.get("print_format")
+                or request.query_params.get("output")
+                or request.query_params.get("format")
+                or "pdf"
+            ).strip().lower()
+            if print_format in {"html", "print"}:
+                html = DispatchListPDFService.render_html(challan)
+                return HttpResponse(html, content_type="text/html; charset=utf-8")
+            if print_format in {"txt", "text"}:
+                text = DispatchListPDFService.render_text(challan)
+                response = HttpResponse(text, content_type="text/plain; charset=us-ascii")
+                response["Content-Disposition"] = f'inline; filename="{challan.dc_no}-dispatch-list.txt"'
+                return response
+            if print_format in {"tpp", "epson"}:
+                print_buffer = DispatchListPDFService.render_tpp_print(challan)
+                filename = f"{challan.dc_no}-dispatch-list.tppprint"
+                response = FileResponse(
+                    print_buffer,
+                    as_attachment=True,
+                    filename=filename,
+                    content_type="application/vnd.totalpolyprint.epson-raw",
+                )
+                response["Cache-Control"] = "no-store"
+                return response
+            if print_format in {"escp", "prn"}:
+                escp_buffer = DispatchListPDFService.render_escp(challan)
+                filename = f"{challan.dc_no}-dispatch-list.prn"
+                return FileResponse(escp_buffer, as_attachment=True, filename=filename, content_type="application/octet-stream")
             pdf_buffer = DispatchListPDFService.render(challan)
         except RuntimeError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -1634,10 +1729,57 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             return ids
 
         try:
+            print_format = (
+                request.query_params.get("print_format")
+                or request.query_params.get("output")
+                or request.query_params.get("format")
+                or "pdf"
+            ).strip().lower()
+            roll_ids = query_ids("roll_ids")
+            gonny_ids = query_ids("gonny_ids")
+            if print_format in {"html", "print"}:
+                html = DispatchListPDFService.render_ready_slip_html(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                return HttpResponse(html, content_type="text/html; charset=utf-8")
+            if print_format in {"txt", "text"}:
+                text = DispatchListPDFService.render_ready_slip_text(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                response = HttpResponse(text, content_type="text/plain; charset=us-ascii")
+                response["Content-Disposition"] = f'inline; filename="material-ready-{sales_order_id}.txt"'
+                return response
+            if print_format in {"tpp", "epson"}:
+                print_buffer = DispatchListPDFService.render_ready_slip_tpp_print(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                filename = f"material-ready-{sales_order_id}.tppprint"
+                response = FileResponse(
+                    print_buffer,
+                    as_attachment=True,
+                    filename=filename,
+                    content_type="application/vnd.totalpolyprint.epson-raw",
+                )
+                response["Cache-Control"] = "no-store"
+                return response
+            if print_format in {"escp", "prn"}:
+                escp_buffer = DispatchListPDFService.render_ready_slip_escp(
+                    sales_order_id,
+                    roll_ids=roll_ids,
+                    gonny_ids=gonny_ids,
+                )
+                filename = f"material-ready-{sales_order_id}.prn"
+                return FileResponse(escp_buffer, as_attachment=True, filename=filename, content_type="application/octet-stream")
             pdf_buffer = DispatchListPDFService.render_ready_slip(
                 sales_order_id,
-                roll_ids=query_ids("roll_ids"),
-                gonny_ids=query_ids("gonny_ids"),
+                roll_ids=roll_ids,
+                gonny_ids=gonny_ids,
             )
         except RuntimeError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

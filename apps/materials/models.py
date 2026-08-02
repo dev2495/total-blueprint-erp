@@ -1,6 +1,10 @@
 import hashlib
 import json
+import logging
+import re
+import unicodedata
 from django.db import models
+from django.db.utils import OperationalError, ProgrammingError
 from django.core.exceptions import ValidationError
 import uuid
 from decimal import Decimal
@@ -20,6 +24,15 @@ from .stock_forms import (
     normalize_stock_form,
     normalize_width_basis,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def canonical_granule_quality_code(value):
+    """Return the separator-insensitive identity used for granule grade codes."""
+    normalized = unicodedata.normalize("NFKC", str(value or "")).strip().upper()
+    normalized = re.sub(r"[\s_\-\u2010-\u2015]+", "-", normalized)
+    return normalized.strip("-")[:100]
 
 
 class CommercialFamily(models.Model):
@@ -528,6 +541,19 @@ class PouchStyleMaster(models.Model):
     def __str__(self):
         return f"{self.name} ({self.code}) v{self.version}"
 
+    def clean(self):
+        super().clean()
+        from .services_pouch_style import formula_axis_contract_error
+
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=self.default_roll_axis,
+            formula_kind=self.formula_kind,
+            formula_params=self.formula_params,
+            formula_ast=self.formula_ast,
+        )
+        if contract_error:
+            raise ValidationError({"default_roll_axis": contract_error})
+
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80).upper()
         self.default_stock_form = normalize_stock_form(self.default_stock_form)
@@ -633,6 +659,7 @@ class ProductMasterSize(models.Model):
         ]
 
     def clean(self):
+        super().clean()
         if self.product_master_id and str(getattr(self.product_master, "product_kind", "") or "").upper() == "POUCH":
             missing = {}
             if self.width_mm is None:
@@ -641,6 +668,18 @@ class ProductMasterSize(models.Model):
                 missing["height_mm"] = "Pouch size requires height_mm."
             if missing:
                 raise ValidationError(missing)
+        style = getattr(self, "pouch_style_master", None)
+        if style is not None:
+            from .services_pouch_style import formula_axis_contract_error
+
+            contract_error = formula_axis_contract_error(
+                default_roll_axis=style.default_roll_axis,
+                formula_kind=style.formula_kind,
+                formula_params=style.formula_params,
+                formula_ast=style.formula_ast,
+            )
+            if contract_error:
+                raise ValidationError({"pouch_style_master": contract_error})
 
     def __str__(self):
         return f"{self.product_master.code} / {self.code}"
@@ -910,6 +949,14 @@ class InventoryMaterial(models.Model):
         return uom
 
     def save(self, *args, **kwargs):
+        previous_code = ""
+        if self.pk and not self._state.adding:
+            try:
+                previous_code = str(
+                    type(self).objects.filter(pk=self.pk).values_list("code", flat=True).first() or ""
+                )
+            except Exception:
+                previous_code = ""
         self.code = normalize_code(self.code, max_length=100)
         self.base_uom = self.normalize_master_uom(self.base_uom or 'KG')
         if self.category == 'ADDON':
@@ -917,6 +964,22 @@ class InventoryMaterial(models.Model):
             self.addon_purchase_uom = self.normalize_master_uom(self.addon_purchase_uom or 'KG')
             self.base_uom = self.addon_purchase_uom if self.addon_is_purchased else 'KG'
         super().save(*args, **kwargs)
+        if previous_code and previous_code != self.code:
+            try:
+                MaterialCodeAlias.objects.update_or_create(
+                    alias=previous_code,
+                    defaults={
+                        "material": self,
+                        "category": self.category,
+                        "active": True,
+                        "notes": "Automatically retained when material code changed.",
+                    },
+                )
+            # During an upgrade, an older migration may update a material
+            # before the alias table is created. The deterministic repair
+            # command seeds those historical aliases after migration.
+            except (OperationalError, ProgrammingError):
+                logger.debug("Material alias table unavailable while retaining previous code=%s", previous_code, exc_info=True)
 
     def clean(self):
         # 1. FILM_FAMILY Density Validation
@@ -1009,6 +1072,42 @@ class InventoryMaterial(models.Model):
                 raise ValidationError(invalid_pod)
 
 
+class MaterialCodeAlias(models.Model):
+    """A durable former-code -> material identity mapping.
+
+    Material codes are used inside historical Product Master layer JSON and
+    saved sales snapshots.  Renaming a material must therefore never make an
+    otherwise valid master or order impossible to resolve.  Aliases are kept
+    as an explicit business record instead of guessing from material names.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    alias = models.CharField(max_length=100, unique=True, db_index=True)
+    material = models.ForeignKey(
+        InventoryMaterial,
+        on_delete=models.CASCADE,
+        related_name="code_aliases",
+    )
+    category = models.CharField(max_length=20, choices=InventoryMaterial.CATEGORY_CHOICES, db_index=True)
+    active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "inventory_material_code_aliases"
+        ordering = ["alias"]
+
+    def save(self, *args, **kwargs):
+        self.alias = normalize_code(self.alias, max_length=100)
+        if self.material_id and not self.category:
+            self.category = self.material.category
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.alias} -> {self.material.code}"
+
+
 class GranuleQualityCode(models.Model):
     """
     Quality code registry for a granule master.
@@ -1024,7 +1123,16 @@ class GranuleQualityCode(models.Model):
         limit_choices_to={"category": "GRANULE"},
     )
     code = models.CharField(max_length=80, db_index=True)
+    canonical_key = models.CharField(max_length=100, db_index=True, editable=False)
     status = models.CharField(max_length=10, default="ACTIVE", choices=[("ACTIVE", "Active"), ("INACTIVE", "Inactive")])
+    merged_into = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="merged_aliases",
+        help_text="Canonical record when this legacy spelling has been merged.",
+    )
     notes = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -1033,15 +1141,26 @@ class GranuleQualityCode(models.Model):
         db_table = "material_granule_quality_codes"
         ordering = ["granule__name", "code"]
         constraints = [
-            models.UniqueConstraint(fields=["granule", "code"], name="uniq_granule_quality_code"),
+            models.UniqueConstraint(
+                fields=["granule", "canonical_key"],
+                condition=models.Q(status="ACTIVE"),
+                name="uniq_active_granule_canonical_code",
+            ),
         ]
 
     def clean(self):
         if self.granule_id and str(getattr(self.granule, "category", "") or "").upper() != "GRANULE":
             raise ValidationError({"granule": "Quality codes can only be attached to GRANULE materials."})
+        if self.merged_into_id and str(self.merged_into_id) == str(self.id):
+            raise ValidationError({"merged_into": "A quality code cannot be merged into itself."})
+        if self.merged_into_id and self.status == "ACTIVE":
+            raise ValidationError({"status": "A merged quality-code alias must be inactive."})
 
     def save(self, *args, **kwargs):
         self.code = str(self.code or "").strip().upper()
+        self.canonical_key = canonical_granule_quality_code(self.code)
+        if not self.canonical_key:
+            raise ValidationError({"code": "Quality code is required."})
         super().save(*args, **kwargs)
 
     def __str__(self):

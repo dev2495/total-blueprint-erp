@@ -6,7 +6,7 @@ const reportSuffix = process.env.UI_E2E_REPORT_SUFFIX ? `-${process.env.UI_E2E_R
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL
 const disableVideo = process.env.PLAYWRIGHT_DISABLE_VIDEO === "1"
 const sharedUse = {
-  baseURL: process.env.UI_BASE_URL || "http://127.0.0.1:3000",
+  baseURL: process.env.UI_BASE_URL || "http://127.0.0.1:3001",
   headless: true,
   browserName: "chromium" as const,
   ...(browserChannel ? { channel: browserChannel } : {}),

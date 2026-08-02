@@ -251,7 +251,7 @@ export function ProductMasterCreateModal({
       ]);
       toast({
         title: "Product master created",
-        description: `${master.code} ready to configure.`,
+        description: `${master.name} is ready to configure.`,
       });
       onCreated?.(master);
       onOpenChange(false);

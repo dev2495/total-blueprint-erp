@@ -175,6 +175,7 @@ export function ProductMasterCloneDialog({
         },
         description,
         disable_source: disableSource,
+        confirm_new_revision: disableSource,
         copy_sizes: true,
         copy_variants: false,
       };
@@ -189,7 +190,7 @@ export function ProductMasterCloneDialog({
         queryKey: ["product-master-sizes", created.id],
       });
       toast({
-        title: disableSource ? "New version created" : "Product master cloned",
+        title: disableSource ? "Product master revised" : "Product master cloned",
         description: disableSource
           ? "The old master is disabled and kept in the audit tab."
           : "Sizes were copied; variants can be regenerated or linked on the new master.",
@@ -524,7 +525,7 @@ export function ProductMasterCloneDialog({
             ) : (
               <Copy className="h-4 w-4" />
             )}
-            {disableSource ? "Create version" : "Create clone"}
+            {disableSource ? "Revise master" : "Create clone"}
           </Button>
         </DialogFooter>
       </DialogContent>

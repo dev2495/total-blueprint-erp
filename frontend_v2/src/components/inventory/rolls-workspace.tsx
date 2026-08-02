@@ -664,7 +664,7 @@ export function RollsWorkspaceV36() {
     <div className="space-y-4 pb-12">
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="rolls" />
       <GradientHero
-        eyebrow="Inventory · V3.6 · rolls"
+        eyebrow="Inventory · rolls"
         title="Roll workspace"
         subtitle="Variant × thickness matrix, every roll filterable by family, role, status, plant, age, and dimensions."
         palette="blue"

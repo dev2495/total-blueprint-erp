@@ -1,4 +1,5 @@
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 from typing import Any, List
 
@@ -6,6 +7,8 @@ from django.conf import settings
 from rest_framework import serializers
 
 from .models import Artwork, ArtworkImage
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_list(value: Any) -> List[str]:
@@ -20,7 +23,7 @@ def _coerce_list(value: Any) -> List[str]:
             if isinstance(parsed, list):
                 return [str(v).strip() for v in parsed if str(v).strip()]
         except Exception:
-            pass
+            logger.debug("Artwork list value was not JSON; falling back to comma-separated parsing", exc_info=True)
         return [chunk.strip() for chunk in raw.split(",") if chunk.strip()]
     return []
 

@@ -6,6 +6,7 @@ from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 
 from .models import Quotation, QuotationItem
@@ -21,9 +22,10 @@ def _safe_dec(value):
     if value in (None, ""):
         return None
     try:
-        return Decimal(str(value))
+        parsed = Decimal(str(value))
     except Exception:
         return None
+    return parsed if parsed.is_finite() else None
 
 
 def _effective_layer_gsm(layer):
@@ -181,13 +183,26 @@ class QuotationViewSet(viewsets.ModelViewSet):
         from decimal import Decimal
         data = request.data or {}
         spec = data.get("spec") or {}
-        qty = _safe_dec(data.get("qty")) or Decimal("100")
+        raw_qty = data.get("qty")
+        qty = Decimal("100") if raw_qty in (None, "") else _safe_dec(raw_qty)
+        if qty is None or qty < 0:
+            raise DRFValidationError({"qty": "Enter a finite, non-negative number."})
         qty_uom = (data.get("qty_uom") or "KG").upper()
+        if qty_uom not in {"KG", "PCS"}:
+            raise DRFValidationError({"qty_uom": "Use KG or PCS."})
+
+        def _preview_decimal(value, field, *, default=Decimal("0")):
+            if value in (None, ""):
+                return default
+            parsed = _safe_dec(value)
+            if parsed is None or parsed < 0:
+                raise DRFValidationError({field: "Enter a finite, non-negative number."})
+            return parsed
 
         # ── Pouch geometry → area ──
-        width = _safe_dec(spec.get("width_mm")) or Decimal("0")
-        height = _safe_dec(spec.get("height_mm")) or Decimal("0")
-        gusset = _safe_dec(spec.get("gusset_mm")) or Decimal("0")
+        width = _preview_decimal(spec.get("width_mm"), "spec.width_mm")
+        height = _preview_decimal(spec.get("height_mm"), "spec.height_mm")
+        gusset = _preview_decimal(spec.get("gusset_mm"), "spec.gusset_mm")
         # web length per pouch (approx, single-face flat or two-faces folded)
         web_length_mm = height + gusset
         # finished web width (mm) = pouch width + gusset (per side approximation)
@@ -198,6 +213,9 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
         # ── Layer GSM → grams per pouch ──
         layers = spec.get("layers") or []
+        for index, layer in enumerate(layers, start=1):
+            if not isinstance(layer, dict):
+                raise DRFValidationError({"spec": f"Layer {index} is invalid."})
         try:
             from apps.materials.models import InventoryMaterial
         except Exception:
@@ -209,22 +227,19 @@ class QuotationViewSet(viewsets.ModelViewSet):
             if layer.get("material_id")
         ]
         if material_ids and InventoryMaterial is not None:
-            try:
-                material_map = {
-                    str(mat.id): mat
-                    for mat in InventoryMaterial.objects.only(
-                        "id", "code", "name", "density_gcm3"
-                    ).filter(id__in=material_ids)
-                }
-            except Exception:
-                material_map = {}
+            material_map = {
+                str(mat.id): mat
+                for mat in InventoryMaterial.objects.only(
+                    "id", "code", "name", "density_gcm3"
+                ).filter(id__in=material_ids)
+            }
 
         def _layer_gsm(layer):
-            gsm = _safe_dec(layer.get("gsm")) or Decimal("0")
+            gsm = _preview_decimal(layer.get("gsm"), "spec.layers.gsm")
             if gsm > 0:
                 return gsm
-            micron = _safe_dec(layer.get("micron")) or Decimal("0")
-            density = _safe_dec(layer.get("density_gcm3")) or Decimal("0")
+            micron = _preview_decimal(layer.get("micron"), "spec.layers.micron")
+            density = _preview_decimal(layer.get("density_gcm3"), "spec.layers.density_gcm3")
             mat = material_map.get(str(layer.get("material_id") or ""))
             if density <= 0 and mat is not None:
                 density = _safe_dec(getattr(mat, "density_gcm3", None)) or Decimal("0")
@@ -234,12 +249,9 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
         total_gsm = Decimal("0")
         for layer in layers:
-            try:
-                total_gsm += _layer_gsm(layer)
-            except Exception:
-                pass
+            total_gsm += _layer_gsm(layer)
         for extra in ("adhesive_gsm", "ink_gsm"):
-            total_gsm += _safe_dec(spec.get(extra)) or Decimal("0")
+            total_gsm += _preview_decimal(spec.get(extra), f"spec.{extra}")
         grams_per_pouch = area_m2 * total_gsm  # gsm = g/m² × m² = grams
         weight_per_pouch_kg = grams_per_pouch / Decimal("1000")
 

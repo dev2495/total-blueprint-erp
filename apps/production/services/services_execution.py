@@ -1,6 +1,8 @@
+import logging
+
 from django.db import transaction
 from django.core.exceptions import ValidationError
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
 from django.db.models import Sum, Q, Max
 from apps.artwork.print_contract import validate_frozen_printing_snapshot
 from apps.production.models import (
@@ -20,11 +22,15 @@ from apps.inventory.models import (
     RollConsumption,
     RollMovement,
     InventoryLocation,
+    InterPlantChallanItem,
 )
 from apps.materials.models import InventoryMaterial
 from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
 from apps.inventory.services.bulk_service import BulkService
 from apps.production.services.stock_form_resolver import StockFormResolver
+from apps.production.services.granule_availability import GranuleAvailabilityService
+
+logger = logging.getLogger(__name__)
 
 class ExecutionService:
     """
@@ -481,25 +487,22 @@ class ExecutionService:
             return 0
         current_idx = int(getattr(job, "current_step_index", 0) or 0)
         pass_index = 0
-        try:
-            ordered_codes = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
-            if ordered_codes:
-                from apps.factory.models import Process
+        ordered_codes = list(getattr(getattr(job, "routing_rule", None), "ordered_processes", None) or [])
+        if ordered_codes:
+            from apps.factory.models import Process
 
-                combine_codes = set(
-                    Process.objects.filter(
-                        code__in=ordered_codes,
-                        roll_behavior="MULTI_INPUT_COMBINE",
-                    ).values_list("code", flat=True)
-                )
-                for idx, code in enumerate(ordered_codes):
-                    if idx > current_idx:
-                        break
-                    if code in combine_codes:
-                        pass_index += 1
-                return max(pass_index, 1)
-        except Exception:
-            pass
+            combine_codes = set(
+                Process.objects.filter(
+                    code__in=ordered_codes,
+                    roll_behavior="MULTI_INPUT_COMBINE",
+                ).values_list("code", flat=True)
+            )
+            for idx, code in enumerate(ordered_codes):
+                if idx > current_idx:
+                    break
+                if code in combine_codes:
+                    pass_index += 1
+            return max(pass_index, 1)
         return 1
 
     @classmethod
@@ -601,41 +604,38 @@ class ExecutionService:
             spec["output_grade_name"] = None
             spec["fixed_thickness_micron"] = None
 
-        try:
-            from apps.templates.models import TemplateProcessStep
+        from apps.templates.models import TemplateProcessStep
 
-            if job.template_id:
-                step = TemplateProcessStep.objects.select_related(
-                    "roll_spec",
-                ).filter(
-                    template_id=job.template_id,
-                    sequence_number=job.current_step_index + 1,
-                ).first()
-                if step:
-                    spec["template_step_id"] = str(step.id)
-                    rs = getattr(step, "roll_spec", None)
-                    if rs:
-                        # V2 hard-cut: template roll spec is policy-only. Keep runtime
-                        # identity/dimensions sourced from sales or stock-order snapshots.
-                        spec.update({
-                            "input_roll_count": int(rs.input_roll_count or 0),
-                            "combine_mode": getattr(rs, "combine_mode", None) or spec.get("combine_mode"),
-                            "input_lane_count": int(getattr(rs, "input_lane_count", 0) or 0),
-                            "lamination_pass_index": int(getattr(rs, "lamination_pass_index", 0) or 0),
-                            "active_min_layer_count": int(getattr(rs, "active_min_layer_count", 0) or 0),
-                            "adhesive_split_pct": getattr(rs, "adhesive_split_pct", None),
-                            "solvent_split_pct": getattr(rs, "solvent_split_pct", None),
-                            "lane_schema": getattr(rs, "lane_schema", None) or [],
-                            "source": "STEP_SPEC",
-                        })
-                        if rs.thickness_rule and rs.thickness_rule != "TEMPLATE_DEFAULT":
-                            spec["thickness_rule"] = rs.thickness_rule
-                        if rs.width_rule and rs.width_rule != "TEMPLATE_DEFAULT":
-                            spec["width_rule"] = rs.width_rule
-                        if rs.operator_entry_mode and rs.operator_entry_mode != "PROCESS_DEFAULT":
-                            spec["operator_entry_mode"] = rs.operator_entry_mode
-        except Exception:
-            pass
+        if job.template_id:
+            step = TemplateProcessStep.objects.select_related(
+                "roll_spec",
+            ).filter(
+                template_id=job.template_id,
+                sequence_number=job.current_step_index + 1,
+            ).first()
+            if step:
+                spec["template_step_id"] = str(step.id)
+                rs = getattr(step, "roll_spec", None)
+                if rs:
+                    # V2 hard-cut: template roll spec is policy-only. Keep runtime
+                    # identity/dimensions sourced from sales or stock-order snapshots.
+                    spec.update({
+                        "input_roll_count": int(rs.input_roll_count or 0),
+                        "combine_mode": getattr(rs, "combine_mode", None) or spec.get("combine_mode"),
+                        "input_lane_count": int(getattr(rs, "input_lane_count", 0) or 0),
+                        "lamination_pass_index": int(getattr(rs, "lamination_pass_index", 0) or 0),
+                        "active_min_layer_count": int(getattr(rs, "active_min_layer_count", 0) or 0),
+                        "adhesive_split_pct": getattr(rs, "adhesive_split_pct", None),
+                        "solvent_split_pct": getattr(rs, "solvent_split_pct", None),
+                        "lane_schema": getattr(rs, "lane_schema", None) or [],
+                        "source": "STEP_SPEC",
+                    })
+                    if rs.thickness_rule and rs.thickness_rule != "TEMPLATE_DEFAULT":
+                        spec["thickness_rule"] = rs.thickness_rule
+                    if rs.width_rule and rs.width_rule != "TEMPLATE_DEFAULT":
+                        spec["width_rule"] = rs.width_rule
+                    if rs.operator_entry_mode and rs.operator_entry_mode != "PROCESS_DEFAULT":
+                        spec["operator_entry_mode"] = rs.operator_entry_mode
 
         if spec.get("operator_entry_mode") == "PROCESS_DEFAULT":
             spec["operator_entry_mode"] = cls._behavior_entry_mode(behavior)
@@ -810,6 +810,12 @@ class ExecutionService:
             try:
                 return Decimal(str(family_density))
             except Exception:
+                logger.warning(
+                    "Invalid family density for auto-roll resolution roll_id=%s value=%r",
+                    getattr(roll, "id", None),
+                    family_density,
+                    exc_info=True,
+                )
                 return None
 
         material_density = getattr(material, "density_gcm3", None)
@@ -817,6 +823,12 @@ class ExecutionService:
             try:
                 return Decimal(str(material_density))
             except Exception:
+                logger.warning(
+                    "Invalid material density for auto-roll resolution roll_id=%s value=%r",
+                    getattr(roll, "id", None),
+                    material_density,
+                    exc_info=True,
+                )
                 return None
         return None
 
@@ -828,7 +840,11 @@ class ExecutionService:
                 try:
                     return Decimal(str(existing))
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Invalid stored roll density for roll=%s",
+                        getattr(roll, "id", None),
+                        exc_info=True,
+                    )
             resolved = cls._resolve_roll_density(roll)
             if resolved is not None:
                 return resolved
@@ -841,19 +857,27 @@ class ExecutionService:
                 try:
                     return Decimal(str(family_density))
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Invalid film-family density for material=%s",
+                        getattr(ref_material, "id", None),
+                        exc_info=True,
+                    )
             material_density = getattr(ref_material, "density_gcm3", None)
             if material_density not in (None, ""):
                 try:
                     return Decimal(str(material_density))
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Invalid material density for material=%s",
+                        getattr(ref_material, "id", None),
+                        exc_info=True,
+                    )
 
         if fallback not in (None, ""):
             try:
                 return Decimal(str(fallback))
             except Exception:
-                pass
+                logger.warning("Invalid fallback density value=%r", fallback, exc_info=True)
         return None
 
     @classmethod
@@ -910,7 +934,11 @@ class ExecutionService:
                     h = Decimal(str(base.get('height_mm', 0)))
                     area_m2 = (w * h) / Decimal('1000000')
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Unable to derive layer area for job=%s",
+                        getattr(job, "id", None),
+                        exc_info=True,
+                    )
 
                 for l in layer_snap:
                     if not isinstance(l, dict): continue
@@ -938,6 +966,12 @@ class ExecutionService:
                     
             return Decimal("0")
         except Exception:
+            logger.warning(
+                "Invalid current_step_index while resolving upstream target job_id=%s value=%r",
+                getattr(job, "id", None),
+                getattr(job, "current_step_index", None),
+                exc_info=True,
+            )
             return Decimal("0")
 
     @classmethod
@@ -1104,6 +1138,13 @@ class ExecutionService:
                 if prev_target > best_target:
                     best_target = prev_target
             except Exception:
+                logger.warning(
+                    "Previous-step execution profile failed while resolving upstream target "
+                    "job_id=%s previous_job_id=%s",
+                    getattr(job, "id", None),
+                    getattr(prev_job, "id", None),
+                    exc_info=True,
+                )
                 continue
         return best_target
 
@@ -1233,10 +1274,9 @@ class ExecutionService:
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
 
         # Keep requirements in sync with category mapping + SO BOM material identity.
-        try:
-            cls.calculate_requirements(job.id)
-        except Exception:
-            pass
+        # An execution profile based on stale requirements can release the wrong
+        # materials, so calculation failures must block the profile.
+        cls.calculate_requirements(job.id)
 
         qty_uom = str(job.uom or "KG").upper()
         qty_value = Decimal(str(job.quantity or 0))
@@ -1593,7 +1633,11 @@ class ExecutionService:
                             mats = InventoryMaterial.objects.filter(id__in=p_v_ids).only('id', 'density_gcm3')
                             density_map = {str(m.id): Decimal(str(m.density_gcm3 or 0)) for m in mats}
                     except Exception:
-                        pass
+                        logger.warning(
+                            "Unable to resolve density from purchased film masters for job=%s",
+                            getattr(job, "id", None),
+                            exc_info=True,
+                        )
 
                 for film in films:
                     if not isinstance(film, dict):
@@ -2037,6 +2081,13 @@ class ExecutionService:
                     cls.assign_roll_to_job(str(job.id), str(roll.id), user=user, manual_override=False)
                     assigned_ids.append(str(roll.id))
                 except Exception:
+                    logger.warning(
+                        "Automatic roll assignment failed job_id=%s roll_id=%s "
+                        "during roll-to-bulk allocation; continuing candidate search",
+                        getattr(job, "id", None),
+                        getattr(roll, "id", None),
+                        exc_info=True,
+                    )
                     continue
             if 0 < len(assigned_ids) < to_assign:
                 _rollback_auto_reservations(assigned_ids)
@@ -2141,6 +2192,13 @@ class ExecutionService:
                 assigned_ids.append(str(roll.id))
             except Exception:
                 # Keep searching next candidate; final shortage will drive manual fallback.
+                logger.warning(
+                    "Automatic roll assignment failed job_id=%s roll_id=%s; "
+                    "continuing candidate search",
+                    getattr(job, "id", None),
+                    getattr(roll, "id", None),
+                    exc_info=True,
+                )
                 continue
 
         # Avoid partial auto-allocation: either satisfy the full requirement or
@@ -2359,6 +2417,12 @@ class ExecutionService:
             )
             return fg.id if fg else None
         except Exception:
+            logger.warning(
+                "Terminal finished-goods location lookup failed job_id=%s plant_id=%s",
+                getattr(job, "id", None),
+                getattr(getattr(job, "work_center", None), "plant_id", None),
+                exc_info=True,
+            )
             return None
 
     @classmethod
@@ -2390,6 +2454,12 @@ class ExecutionService:
                     if max(roll_stage_idx, roll_current_idx, roll_completed_idx) < source_idx:
                         continue
                 except Exception:
+                    logger.warning(
+                        "Invalid source step index in roll compatibility spec roll_id=%s value=%r",
+                        getattr(roll, "id", None),
+                        source_step_index,
+                        exc_info=True,
+                    )
                     continue
 
             if str(spec.get("source_role") or "").upper() == "LAMINATED_WIP":
@@ -2424,6 +2494,12 @@ class ExecutionService:
                     if int(float(roll_thickness or 0)) != int(float(spec.get("thickness_micron") or 0)):
                         continue
                 except Exception:
+                    logger.warning(
+                        "Invalid thickness compatibility spec roll_id=%s value=%r",
+                        getattr(roll, "id", None),
+                        spec.get("thickness_micron"),
+                        exc_info=True,
+                    )
                     continue
 
             # Width gate: minimum width is always enforced.
@@ -2433,6 +2509,12 @@ class ExecutionService:
                     if float(roll_width or 0) < float(min_width):
                          continue
                 except Exception:
+                    logger.warning(
+                        "Invalid minimum-width compatibility spec roll_id=%s value=%r",
+                        getattr(roll, "id", None),
+                        min_width,
+                        exc_info=True,
+                    )
                     continue
 
             # Auto-allocation window: keep automatic picks within +10% width.
@@ -2445,6 +2527,12 @@ class ExecutionService:
                         if float(roll_width or 0) > float(max_auto_width):
                             continue
                     except Exception:
+                        logger.warning(
+                            "Invalid auto-width compatibility spec roll_id=%s value=%r",
+                            getattr(roll, "id", None),
+                            max_auto_width,
+                            exc_info=True,
+                        )
                         continue
 
             return True
@@ -3174,7 +3262,7 @@ class ExecutionService:
             try:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
             except Exception:
-                roll_step_index = 0
+                return False
             if current_step_index > 0 and not cls._is_piece_primary_roll_to_bulk_job(job, process=process):
                 if is_remainder and not is_processed_remainder:
                     return False
@@ -3187,7 +3275,11 @@ class ExecutionService:
                 if int(roll_step_index) > max_allowed_step:
                     return False
             except Exception:
-                pass
+                logger.warning(
+                    "roll-to-bulk step bound could not be evaluated for job=%s",
+                    getattr(job, "id", None),
+                    exc_info=True,
+                )
             return True
 
         if not target_specs:
@@ -3203,7 +3295,7 @@ class ExecutionService:
             try:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
             except Exception:
-                roll_step_index = 0
+                return False
             if (
                 roll_behavior != "MULTI_INPUT_COMBINE"
                 and roll_step_index < current_step_index
@@ -3218,7 +3310,11 @@ class ExecutionService:
             if roll_step is not None and int(roll_step) > max_allowed_step:
                 return False
         except Exception:
-            pass
+            logger.warning(
+                "roll lineage step bound could not be evaluated for job=%s",
+                getattr(job, "id", None),
+                exc_info=True,
+            )
 
         return cls._roll_matches_target_specs(roll, target_specs)
 
@@ -4547,7 +4643,11 @@ class ExecutionService:
                             layer["family_name"] = layer.get("family_name") or matched.get("name")
                             family_ids.add(str(matched["id"]))
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not resolve layer material tokens for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             variant_map = {}
             family_map = {}
@@ -4566,6 +4666,11 @@ class ExecutionService:
                             }
                             family_map[str(mat.id)] = mat.name
                 except Exception:
+                    logger.warning(
+                        "get_job_context could not hydrate material names for job=%s",
+                        job_id,
+                        exc_info=True,
+                    )
                     variant_map = {}
                     family_map = {}
 
@@ -4576,6 +4681,11 @@ class ExecutionService:
                     with transaction.atomic():
                         grade_map = {str(g.id): g.name for g in RecipeGrade.objects.filter(id__in=list(grade_ids))}
                 except Exception:
+                    logger.warning(
+                        "get_job_context could not hydrate grade names for job=%s",
+                        job_id,
+                        exc_info=True,
+                    )
                     grade_map = {}
 
             normalized_layers = []
@@ -4843,7 +4953,11 @@ class ExecutionService:
                     target_roll_spec["min_width_mm"] = target_roll_specs[0].get("min_width_mm")
                     target_roll_spec["max_auto_width_mm"] = target_roll_specs[0].get("max_auto_width_mm")
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not derive roll widths for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             # Human-friendly names for UI.
             try:
@@ -4862,7 +4976,11 @@ class ExecutionService:
                             if f:
                                 spec["family_name"] = f.name
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not hydrate roll material display names for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             try:
                 with transaction.atomic():
@@ -4873,7 +4991,11 @@ class ExecutionService:
                             if g:
                                 spec["grade_name"] = g.name
             except Exception:
-                pass
+                logger.warning(
+                    "get_job_context could not hydrate roll grade display names for job=%s",
+                    job_id,
+                    exc_info=True,
+                )
 
             # Keep legacy single-spec field for existing UI consumers.
             if target_roll_specs:
@@ -4901,8 +5023,13 @@ class ExecutionService:
         try:
             cls.calculate_requirements(job.id)
         except Exception:
-            # Never block WCM UI due to requirement calculation issues.
-            pass
+            # Never block WCM UI due to requirement calculation issues, but do
+            # retain job-specific evidence so the degraded context is visible.
+            logger.warning(
+                "get_job_context requirement recalculation failed for job=%s",
+                job_id,
+                exc_info=True,
+            )
             
         # 1. Requirements
         reqs = job.material_requirements.select_related('material', 'process_step').filter(
@@ -4985,7 +5112,11 @@ class ExecutionService:
                 grades = RecipeGrade.objects.filter(id__in=spec_grade_ids)
                 grade_name_by_id = {str(g.id): g.name for g in grades}
         except Exception:
-            pass
+            logger.warning(
+                "get_job_context could not hydrate eligible-roll grade names for job=%s",
+                job_id,
+                exc_info=True,
+            )
 
         # Step-1 manual allocation must still include all BOM-compatible variants,
         # even when strict grade/thickness data is incomplete in snapshots.
@@ -5061,6 +5192,12 @@ class ExecutionService:
                         if roll_thickness in (None, 0, Decimal('0')) or int(roll_thickness) != int(spec["thickness_micron"]):
                             continue
                     except Exception:
+                        logger.warning(
+                            "Invalid thickness compatibility spec while matching roll=%s value=%r",
+                            getattr(roll, "id", None),
+                            spec.get("thickness_micron"),
+                            exc_info=True,
+                        )
                         continue
 
                 # Width guardrail REMOVED based on operator feedback (Phase 73).
@@ -6380,11 +6517,9 @@ class ExecutionService:
         # Reconcile old assignment links into reservation source-of-truth.
         cls.reconcile_assignment_reservations(job)
 
-        # Ensure step requirements are up-to-date for bulk preview.
-        try:
-            cls.calculate_requirements(job.id)
-        except Exception:
-            pass
+        # Ensure step requirements are up-to-date for bulk preview. Readiness is
+        # a release gate, so stale requirements must never be treated as ready.
+        cls.calculate_requirements(job.id)
 
         # WIP pool = strict lineage/spec eligible rolls for this job/step.
         # Keep satisfaction counters aligned with this strict pool to prevent
@@ -6543,7 +6678,11 @@ class ExecutionService:
                 if direct and getattr(direct, "capture_mode", None):
                     return str(direct.capture_mode).upper()
             except Exception:
-                pass
+                logger.warning(
+                    "direct material capture-mode lookup failed for requirement=%s",
+                    getattr(req, "id", None),
+                    exc_info=True,
+                )
             try:
                 if category:
                     mapped = step.materials.filter(
@@ -6553,7 +6692,11 @@ class ExecutionService:
                     if mapped and getattr(mapped, "capture_mode", None):
                         return str(mapped.capture_mode).upper()
             except Exception:
-                pass
+                logger.warning(
+                    "category material capture-mode lookup failed for requirement=%s",
+                    getattr(req, "id", None),
+                    exc_info=True,
+                )
         if category == "GRANULE":
             return "AUTO_ESTIMATED_CONFIRM"
         if category in {"INK", "CHEMICAL"}:
@@ -6575,6 +6718,156 @@ class ExecutionService:
             if material_id and material_id not in by_material:
                 by_material[material_id] = row
         return by_requirement, by_material
+
+    @classmethod
+    def _granule_code_allocations(cls, confirmation):
+        """Return a stable, code-wise allocation from the WCM issue confirmation."""
+        raw_allocations = (
+            (confirmation or {}).get("granule_code_allocations")
+            or (confirmation or {}).get("code_allocations")
+            or []
+        )
+        ordered_codes = []
+        quantities = {}
+        for allocation in raw_allocations:
+            if not isinstance(allocation, dict):
+                continue
+            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
+            try:
+                allocation_qty = Decimal(
+                    str(allocation.get("qty_kg") or allocation.get("quantity") or 0)
+                ).quantize(Decimal("0.0001"))
+            except Exception as exc:
+                raise ValueError("A saved granule grade/code allocation has an invalid quantity.") from exc
+            if not code_id or allocation_qty <= 0:
+                continue
+            if code_id not in quantities:
+                ordered_codes.append(code_id)
+                quantities[code_id] = Decimal("0")
+            quantities[code_id] += allocation_qty
+        return [
+            {"granule_code_id": code_id, "qty": quantities[code_id].quantize(Decimal("0.0001"))}
+            for code_id in ordered_codes
+        ]
+
+    @classmethod
+    def _granule_code_target_split(cls, allocations, target_qty, material_name="granule"):
+        """
+        Split a cumulative consumption target across the exact WCM-issued codes.
+
+        ROUND_DOWN for every row except the balancing row keeps every partial
+        output deterministic and guarantees that repeated output logs reconcile
+        to the same four-decimal totals as one full output log.
+        """
+        target_qty = Decimal(str(target_qty or 0)).quantize(Decimal("0.0001"))
+        if target_qty < 0:
+            raise ValueError(f"Consumption for {material_name} cannot be negative.")
+        allocated_total = sum(
+            (Decimal(str(row.get("qty") or 0)) for row in allocations),
+            Decimal("0"),
+        ).quantize(Decimal("0.0001"))
+        if allocated_total <= 0:
+            if target_qty == 0:
+                return {}
+            raise ValueError(f"WCM grade/code allocation is missing for {material_name}.")
+        if target_qty > allocated_total:
+            raise ValueError(
+                f"WCM grade/code allocation for {material_name} covers {allocated_total} kg, "
+                f"but {target_qty} kg is required. Return this job to WCM and correct the issue split."
+            )
+
+        split = {}
+        assigned = Decimal("0")
+        for index, allocation in enumerate(allocations):
+            code_id = str(allocation["granule_code_id"])
+            if index == len(allocations) - 1:
+                code_qty = target_qty - assigned
+            else:
+                code_qty = (
+                    target_qty * Decimal(str(allocation["qty"])) / allocated_total
+                ).quantize(Decimal("0.0001"), rounding=ROUND_DOWN)
+                assigned += code_qty
+            split[code_id] = code_qty.quantize(Decimal("0.0001"))
+        return split
+
+    @classmethod
+    def _reconcile_granule_code_consumption(
+        cls,
+        *,
+        job,
+        requirement,
+        allocations,
+        current_consumed,
+        desired_consumed,
+        consumption_location_id,
+        location,
+        estimated_flag,
+        consume_reference,
+    ):
+        """Move coded stock to the cumulative target without asking the operator twice."""
+        material_name = getattr(requirement.material, "name", None) or getattr(
+            requirement.material, "code", "granule"
+        )
+        current_split = cls._granule_code_target_split(
+            allocations,
+            current_consumed,
+            material_name=material_name,
+        )
+        desired_split = cls._granule_code_target_split(
+            allocations,
+            desired_consumed,
+            material_name=material_name,
+        )
+        step_seq = (job.current_step_index or 0) + 1
+        for allocation in allocations:
+            code_id = str(allocation["granule_code_id"])
+            delta = (
+                desired_split.get(code_id, Decimal("0"))
+                - current_split.get(code_id, Decimal("0"))
+            ).quantize(Decimal("0.0001"))
+            if delta > 0:
+                BulkService.consume_bulk(
+                    material_id=requirement.material_id,
+                    granule_code_id=code_id,
+                    qty=delta,
+                    location_id=consumption_location_id,
+                    job_id=job.id,
+                    reference=consume_reference,
+                    qty_uom=requirement.uom,
+                )
+                MaterialConsumptionLog.objects.create(
+                    production_job=job,
+                    material=requirement.material,
+                    granule_code_id=code_id,
+                    quantity=delta,
+                    uom=requirement.uom,
+                    is_estimated=estimated_flag,
+                )
+            elif delta < 0:
+                if not location:
+                    raise ValueError(
+                        f"Cannot return actual remainder for {material_name}: source location is invalid."
+                    )
+                return_qty = abs(delta)
+                BulkService.add_bulk(
+                    material_id=requirement.material_id,
+                    granule_code_id=code_id,
+                    qty=return_qty,
+                    plant_id=location.plant_id,
+                    location_id=consumption_location_id,
+                    cost=0,
+                    reference=f"Actual Return: Step {step_seq} {job.job_number}",
+                    job_id=job.id,
+                    qty_uom=requirement.uom,
+                )
+                MaterialConsumptionLog.objects.create(
+                    production_job=job,
+                    material=requirement.material,
+                    granule_code_id=code_id,
+                    quantity=-return_qty,
+                    uom=requirement.uom,
+                    is_estimated=estimated_flag,
+                )
 
     @classmethod
     def reconcile_step_material_actuals(
@@ -6628,67 +6921,57 @@ class ExecutionService:
                     desired_returned = Decimal(str(confirmation.get("actual_returned_qty") or 0)).quantize(Decimal("0.0001"))
                     desired_scrap = Decimal(str(confirmation.get("actual_scrap_qty") or 0)).quantize(Decimal("0.0001"))
                     estimated_flag = bool(confirmation.get("is_estimated"))
-                    raw_allocations = confirmation.get("granule_code_allocations") or confirmation.get("code_allocations") or []
-                    if raw_allocations:
+                    granule_code_allocations = cls._granule_code_allocations(confirmation)
+                    if granule_code_allocations:
                         if str(getattr(req.material, "category", "") or "").upper() != "GRANULE":
                             raise ValueError(f"Granule code allocation is only allowed for granule material rows, not {req.material.name}.")
-                        for allocation in raw_allocations:
-                            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
-                            allocation_qty = Decimal(str(allocation.get("qty_kg") or allocation.get("quantity") or 0)).quantize(Decimal("0.0001"))
-                            if code_id and allocation_qty > 0:
-                                granule_code_allocations.append({
-                                    "granule_code_id": code_id,
-                                    "qty": allocation_qty,
-                                })
                 if desired_issued < 0 or desired_returned < 0 or desired_scrap < 0:
                     raise ValueError(f"Actual quantities for {req.material.name} must be zero or positive.")
                 desired_consumed = max(Decimal("0"), desired_issued - desired_returned).quantize(Decimal("0.0001"))
+
+            if granule_code_allocations:
+                allocated_total = sum(
+                    (row["qty"] for row in granule_code_allocations),
+                    Decimal("0"),
+                ).quantize(Decimal("0.0001"))
+                if allocated_total != desired_issued:
+                    raise ValueError(
+                        f"Granule grade/code allocations for {req.material.name} must total the issued "
+                        f"quantity {desired_issued} kg, got {allocated_total} kg."
+                    )
 
             delta = (desired_consumed - current_consumed).quantize(Decimal("0.0001"))
             if delta != 0:
                 if not consumption_location_id:
                     raise ValueError(f"Cannot reconcile actual usage for {req.material.name}: source location is missing.")
-                if delta > 0:
-                    if granule_code_allocations:
-                        allocated_total = sum((row["qty"] for row in granule_code_allocations), Decimal("0")).quantize(Decimal("0.0001"))
-                        if allocated_total != delta:
-                            raise ValueError(
-                                f"Granule code allocations for {req.material.name} must total {delta} kg, got {allocated_total} kg."
-                            )
-                        for allocation in granule_code_allocations:
-                            BulkService.consume_bulk(
-                                material_id=req.material_id,
-                                granule_code_id=allocation["granule_code_id"],
-                                qty=allocation["qty"],
-                                location_id=consumption_location_id,
-                                job_id=job.id,
-                                reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
-                                qty_uom=req.uom,
-                            )
-                            MaterialConsumptionLog.objects.create(
-                                production_job=job,
-                                material=req.material,
-                                granule_code_id=allocation["granule_code_id"],
-                                quantity=allocation["qty"],
-                                uom=req.uom,
-                                is_estimated=estimated_flag,
-                            )
-                    else:
-                        BulkService.consume_bulk(
-                            material_id=req.material_id,
-                            qty=delta,
-                            location_id=consumption_location_id,
-                            job_id=job.id,
-                            reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
-                            qty_uom=req.uom,
-                        )
-                        MaterialConsumptionLog.objects.create(
-                            production_job=job,
-                            material=req.material,
-                            quantity=delta,
-                            uom=req.uom,
-                            is_estimated=estimated_flag,
-                        )
+                if granule_code_allocations:
+                    cls._reconcile_granule_code_consumption(
+                        job=job,
+                        requirement=req,
+                        allocations=granule_code_allocations,
+                        current_consumed=current_consumed,
+                        desired_consumed=desired_consumed,
+                        consumption_location_id=consumption_location_id,
+                        location=location,
+                        estimated_flag=estimated_flag,
+                        consume_reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                    )
+                elif delta > 0:
+                    BulkService.consume_bulk(
+                        material_id=req.material_id,
+                        qty=delta,
+                        location_id=consumption_location_id,
+                        job_id=job.id,
+                        reference=f"Actual Reconcile: Step {step_seq} {job.job_number}",
+                        qty_uom=req.uom,
+                    )
+                    MaterialConsumptionLog.objects.create(
+                        production_job=job,
+                        material=req.material,
+                        quantity=delta,
+                        uom=req.uom,
+                        is_estimated=estimated_flag,
+                    )
                 else:
                     return_qty = abs(delta)
                     if not location:
@@ -6700,6 +6983,7 @@ class ExecutionService:
                         location_id=consumption_location_id,
                         cost=0,
                         reference=f"Actual Return: Step {step_seq} {job.job_number}",
+                        job_id=job.id,
                         qty_uom=req.uom,
                     )
                     MaterialConsumptionLog.objects.create(
@@ -6923,27 +7207,29 @@ class ExecutionService:
             estimated_actual_qty = (Decimal(str(req.required_qty or 0)) * ratio).quantize(Decimal("0.0001"))
             required = max(Decimal(str(req.required_qty)) - Decimal(str(req.consumed_qty)), Decimal('0'))
             
+            allocatable_stock = (
+                InventoryBulk.objects
+                .filter(material=req.material, qty_kg__gt=0, location__is_active=True)
+                .exclude(location__code="IN_TRANSIT")
+            )
+
             # Source-location availability (exact consuming location)
             available = 0
             if location_id:
-                available = InventoryBulk.objects.filter(
-                    location_id=location_id,
-                    material=req.material
-                ).aggregate(total=Sum('qty_kg')).get('total') or 0
+                available = allocatable_stock.filter(location_id=location_id).aggregate(
+                    total=Sum('qty_kg')
+                ).get('total') or 0
 
             # Current-plant availability (all active locations in same plant)
             plant_id = job.work_center.plant_id if job.work_center else None
             plant_available = 0
             if plant_id:
-                plant_available = InventoryBulk.objects.filter(
-                    plant_id=plant_id,
-                    material=req.material
-                ).aggregate(total=Sum('qty_kg')).get('total') or 0
+                plant_available = allocatable_stock.filter(plant_id=plant_id).aggregate(
+                    total=Sum('qty_kg')
+                ).get('total') or 0
 
             # Global availability (all plants)
-            global_available = InventoryBulk.objects.filter(
-                material=req.material
-            ).aggregate(total=Sum('qty_kg')).get('total') or 0
+            global_available = allocatable_stock.aggregate(total=Sum('qty_kg')).get('total') or 0
 
             other_plants_available = Decimal(str(global_available)) - Decimal(str(plant_available))
             if other_plants_available < 0:
@@ -6953,27 +7239,34 @@ class ExecutionService:
                 req_uom = "KG"
 
             granule_code_options = []
+            interplant_transfers = []
             if str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
-                code_stock = (
-                    InventoryBulk.objects
-                    .select_related("granule_code", "location", "plant")
-                    .filter(material=req.material, granule_code__isnull=False, qty_kg__gt=0)
+                granule_code_options = GranuleAvailabilityService.options(
+                    req.material,
+                    issue_location_id=location_id,
+                    issue_plant_id=plant_id,
                 )
-                if location_id:
-                    code_stock = code_stock.filter(location_id=location_id)
-                elif plant_id:
-                    code_stock = code_stock.filter(plant_id=plant_id)
-                for stock in code_stock.order_by("granule_code__code", "location__name", "plant__name"):
-                    granule_code = stock.granule_code
-                    granule_code_options.append({
-                        "granule_code_id": str(granule_code.id),
-                        "code": granule_code.code,
-                        "available_qty_kg": float(stock.qty_kg or 0),
-                        "location_id": str(stock.location_id),
-                        "location_name": stock.location.name if stock.location else "",
-                        "plant_id": str(stock.plant_id),
-                        "plant_name": stock.plant.name if stock.plant else "",
-                    })
+                transfer_items = (
+                    InterPlantChallanItem.objects
+                    .select_related("challan", "granule_code", "from_location", "to_location")
+                    .filter(
+                        challan__target_job=job,
+                        material=req.material,
+                        line_type="BULK",
+                        challan__status__in=["DRAFT", "APPROVED", "IN_TRANSIT"],
+                    )
+                    .order_by("created_at")
+                )
+                interplant_transfers = [{
+                    "challan_id": str(item.challan_id),
+                    "dc_no": item.challan.dc_no or "",
+                    "status": item.challan.status,
+                    "granule_code_id": str(item.granule_code_id) if item.granule_code_id else None,
+                    "code": item.granule_code.code if item.granule_code else "",
+                    "qty_kg": float(item.dispatched_qty_kg or 0),
+                    "from_location_name": item.from_location.name if item.from_location else "",
+                    "to_location_name": item.to_location.name if item.to_location else "",
+                } for item in transfer_items]
 
             preview.append({
                 'material_id': str(req.material_id),
@@ -7032,6 +7325,7 @@ class ExecutionService:
                 'capture_mode': capture_mode,
                 'estimated_actual_qty_kg': float(estimated_actual_qty),
                 'granule_code_options': granule_code_options,
+                'interplant_transfers': interplant_transfers,
             })
 
         return preview
@@ -7047,7 +7341,7 @@ class ExecutionService:
         return category == "INK"
 
     @classmethod
-    def top_up_bulk_source_location(cls, job_id):
+    def top_up_bulk_source_location(cls, job_id, material_confirmations=None):
         """
         Ensure current-step bulk requirements are physically available at the job source location.
         Pulls stock from other same-plant locations before execution readiness checks.
@@ -7071,8 +7365,47 @@ class ExecutionService:
         moved_lines = 0
         moved_qty = Decimal("0")
 
+        confirmations_by_requirement = {
+            str(row.get("requirement_id")): row
+            for row in (material_confirmations or [])
+            if isinstance(row, dict) and row.get("requirement_id")
+        }
+
         for req in reqs:
             if cls._is_floor_count_theory_requirement(req):
+                continue
+
+            confirmation = confirmations_by_requirement.get(str(req.id))
+            allocations = (
+                confirmation.get("granule_code_allocations") or confirmation.get("code_allocations") or []
+                if confirmation
+                else []
+            )
+            if allocations and str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
+                for allocation in allocations:
+                    code_id = allocation.get("granule_code_id") or allocation.get("id")
+                    allocation_qty = Decimal(str(allocation.get("qty_kg") or allocation.get("quantity") or 0))
+                    donor_location_id = allocation.get("source_location_id") or allocation.get("location_id") or job.from_location_id
+                    if allocation_qty <= 0 or not code_id or not donor_location_id:
+                        continue
+                    if str(donor_location_id) == str(job.from_location_id):
+                        continue
+                    donor_location = InventoryLocation.objects.filter(id=donor_location_id, is_active=True).first()
+                    if not donor_location or str(donor_location.plant_id) != str(plant_id):
+                        raise ValidationError(
+                            f"Complete the inter-plant transfer for {req.material.name} before releasing {job.job_number}."
+                        )
+                    BulkService.transfer_bulk(
+                        material_id=str(req.material_id),
+                        qty=allocation_qty,
+                        from_location_id=str(donor_location_id),
+                        to_location_id=str(job.from_location_id),
+                        reference=f"WCM-CODE-ISSUE {job.job_number}",
+                        granule_code_id=str(code_id),
+                        qty_uom=req.uom,
+                    )
+                    moved_lines += 1
+                    moved_qty += allocation_qty
                 continue
 
             needed = max(Decimal(str(req.required_qty)) - Decimal(str(req.consumed_qty)), Decimal("0"))
@@ -7119,6 +7452,7 @@ class ExecutionService:
                     from_location_id=str(donor.location_id),
                     to_location_id=str(job.from_location_id),
                     reference=f"WCM-READY-TOPUP {job.job_number}",
+                    granule_code_id=str(donor.granule_code_id) if donor.granule_code_id else None,
                     qty_uom=req.uom,
                 )
                 moved_lines += 1
@@ -7697,6 +8031,9 @@ class ExecutionService:
                 .exclude(material__category='FILM_FAMILY')
                 .exclude(material__category='INK')
             )
+            confirmations_by_requirement, confirmations_by_material = cls._build_material_confirmation_map(
+                getattr(job, "current_step_material_confirmations", None) or []
+            )
             for req in bulk_reqs:
                 if not consumption_location_id:
                     raise ValueError("Cannot resolve consumption location for bulk materials.")
@@ -7715,25 +8052,47 @@ class ExecutionService:
                 if consume_qty <= 0:
                     continue
 
-                BulkService.consume_bulk(
-                    material_id=req.material.id,
-                    qty=consume_qty,
-                    location_id=consumption_location_id,
-                    job_id=job.id,
-                    reference=f"Auto-Consume: Step {step_index} {job.job_number}",
-                    qty_uom=req.uom,
+                current_consumed = Decimal(str(req.consumed_qty or 0)).quantize(Decimal("0.0001"))
+                desired_consumed = (current_consumed + consume_qty).quantize(Decimal("0.0001"))
+                confirmation = (
+                    confirmations_by_requirement.get(str(req.id))
+                    or confirmations_by_material.get(str(req.material_id))
                 )
+                granule_code_allocations = cls._granule_code_allocations(confirmation)
+                if granule_code_allocations:
+                    cls._reconcile_granule_code_consumption(
+                        job=job,
+                        requirement=req,
+                        allocations=granule_code_allocations,
+                        current_consumed=current_consumed,
+                        desired_consumed=desired_consumed,
+                        consumption_location_id=consumption_location_id,
+                        location=InventoryLocation.objects.filter(
+                            id=consumption_location_id,
+                            is_active=True,
+                        ).first(),
+                        estimated_flag=False,
+                        consume_reference=f"Auto-Consume: Step {step_index} {job.job_number}",
+                    )
+                else:
+                    BulkService.consume_bulk(
+                        material_id=req.material.id,
+                        qty=consume_qty,
+                        location_id=consumption_location_id,
+                        job_id=job.id,
+                        reference=f"Auto-Consume: Step {step_index} {job.job_number}",
+                        qty_uom=req.uom,
+                    )
 
-                from apps.production.models import MaterialConsumptionLog
-                MaterialConsumptionLog.objects.create(
-                    production_job=job,
-                    material=req.material,
-                    quantity=consume_qty,
-                    uom=req.uom,
-                    is_estimated=False
-                )
+                    MaterialConsumptionLog.objects.create(
+                        production_job=job,
+                        material=req.material,
+                        quantity=consume_qty,
+                        uom=req.uom,
+                        is_estimated=False
+                    )
 
-                req.consumed_qty += consume_qty
+                req.consumed_qty = desired_consumed
                 req.save(update_fields=['consumed_qty'])
 
             # 2. Resolve input rolls (STRICT: must be reserved to avoid phantom consumption)

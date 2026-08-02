@@ -4,11 +4,13 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     UI_API_BASE_URL=http://backend:8000
 
 WORKDIR /app/frontend_v2
+RUN chown node:node /app/frontend_v2
 
-COPY frontend_v2/package.json frontend_v2/package-lock.json ./
+COPY --chown=node:node frontend_v2/package.json frontend_v2/package-lock.json ./
+USER node
 RUN npm ci
 
-COPY frontend_v2 ./
+COPY --chown=node:node frontend_v2 ./
 RUN npm run build
 
 EXPOSE 3000

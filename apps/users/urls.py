@@ -9,6 +9,7 @@ from .views import (
     NotificationViewSet,
     ProfileChangeRequestViewSet,
     RoleViewSet,
+    SessionStatusView,
     UserViewSet,
 )
 
@@ -21,6 +22,7 @@ router.register(r'profile-change-requests', ProfileChangeRequestViewSet, basenam
 urlpatterns = [
     path('csrf/', CsrfCookieView.as_view(), name='csrf_cookie'),
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('token/refresh/session/', SessionStatusView.as_view(), name='session-status'),
     path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),

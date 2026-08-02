@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 from math import ceil
 from django.db import transaction
@@ -6,6 +7,8 @@ from django.utils import timezone
 from apps.production.models import PackingUnit, FinishedGoodsBatch
 from apps.inventory.services.packaging_service import PackagingService
 from apps.materials.models import InventoryMaterial
+
+logger = logging.getLogger(__name__)
 
 
 class PackingService:
@@ -47,9 +50,19 @@ class PackingService:
         try:
             packed_qty = sum(int(getattr(unit, "qty_pcs", 0) or 0) for unit in fg_batch.packing_units.all())
         except Exception:
+            logger.warning(
+                "Packing totals query failed fg_batch_id=%s; retrying aggregate query",
+                getattr(fg_batch, "id", None),
+                exc_info=True,
+            )
             try:
                 packed_qty = int(fg_batch.packing_units.aggregate(total=Sum("qty_pcs")).get("total") or 0)
             except Exception:
+                logger.warning(
+                    "Packing totals aggregate query failed fg_batch_id=%s; using zero packed quantity",
+                    getattr(fg_batch, "id", None),
+                    exc_info=True,
+                )
                 packed_qty = 0
         return int(getattr(fg_batch, "qty_pcs", 0) or 0) + packed_qty
 
@@ -68,10 +81,22 @@ class PackingService:
         try:
             material = InventoryMaterial.objects.get(id=material_id)
         except Exception:
+            logger.warning(
+                "Packaging material lookup failed material_id=%s while calculating packing tare",
+                material_id,
+                exc_info=True,
+            )
             return Decimal("0")
         try:
             base_qty, _ = PackagingService._resolve_base_qty(material, qty, input_uom=input_uom)
         except Exception:
+            logger.warning(
+                "Packaging base-quantity resolution failed material_id=%s qty=%s input_uom=%s",
+                material_id,
+                qty,
+                input_uom,
+                exc_info=True,
+            )
             base_qty = Decimal("0")
 
         base_uom = str(getattr(material, "base_uom", "") or "").upper()

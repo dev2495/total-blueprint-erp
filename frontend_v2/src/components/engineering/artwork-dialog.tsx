@@ -811,12 +811,12 @@ export function ArtworkDialog({
             <div>
               <DialogTitle className="text-xl font-black uppercase text-content-2">
                 {artwork
-                  ? `New Version: ${artwork.design_code}`
+                  ? `Revise Artwork: ${artwork.design_code}`
                   : "New Artwork"}
               </DialogTitle>
               <DialogDescription className="text-xs font-medium text-content-3">
                 {artwork
-                  ? `Existing usage stays on v${artwork.version || 1}; saving creates the next artwork version.`
+                  ? "Existing usage stays unchanged; saving creates a new artwork draft."
                   : "Manage visual definition, side colors, and print method."}
               </DialogDescription>
             </div>
@@ -842,7 +842,7 @@ export function ArtworkDialog({
                   variant="outline"
                   className="text-warning-fg bg-warning-bg"
                 >
-                  V{Number(artwork.version || 1) + 1} DRAFT
+                  NEW DRAFT
                 </Badge>
               )}
             </div>
@@ -1492,7 +1492,7 @@ export function ArtworkDialog({
                   try {
                     await mutation.mutateAsync(v as ArtworkFormValues);
                     toast({
-                      title: artwork ? "Version draft saved" : "Draft saved",
+                      title: "Draft saved",
                     });
                     onOpenChange(false);
                   } catch {

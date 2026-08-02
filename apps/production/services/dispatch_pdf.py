@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import OrderedDict
 from decimal import Decimal
+from html import escape
 from io import BytesIO
 from typing import Any
 
@@ -12,11 +13,12 @@ from apps.production.models import DeliveryChallan, DeliveryChallanItem, Packing
 from apps.production.serializers import _sales_item_display_label
 
 try:
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.units import inch, mm
     from reportlab.pdfgen import canvas
 except Exception:  # pragma: no cover
     A4 = None
+    landscape = None
     inch = None
     mm = None
     canvas = None
@@ -177,18 +179,21 @@ def _line_spec(sales_order_item: Any, *, fallback_width: Any = None) -> dict[str
     product_master = getattr(sales_order_item, "product_master", None)
     product_variant = getattr(sales_order_item, "product_variant", None)
     template = getattr(sales_order_item, "template", None)
+    overlay = getattr(sales_order_item, "customer_product_overlay", None)
 
     product_code = _text(
+        getattr(overlay, "customer_item_code", ""),
         getattr(product_variant, "code", ""),
         getattr(product_master, "code", ""),
         getattr(template, "code", ""),
     ) or "-"
     description = _text(
+        getattr(overlay, "customer_display_name", ""),
         _sales_item_display_label(sales_order_item),
         getattr(sales_order_item, "line_name", ""),
         getattr(product_master, "name", ""),
-        getattr(product_variant, "code", ""),
         getattr(template, "name", ""),
+        getattr(product_variant, "code", ""),
         product_code,
         "SALES PRODUCT",
     )
@@ -210,9 +215,54 @@ class DispatchListPDFService:
     decorative assets so it prints predictably on shop-floor printers.
     """
 
-    DOT_MATRIX_PAGE_SIZE = A4 if A4 is not None else None
-    TEXT_RENDER_MODE_FILL_STROKE = 2
-    TEXT_STROKE_WIDTH = 0.36
+    DOT_MATRIX_PAGE_SIZE = (15 * inch, 5.5 * inch) if inch is not None else A4
+    PDF_PAGE_SIZE = landscape(A4) if landscape is not None and A4 is not None else A4
+    # Vector PDF text must remain native fill-only text. The former 0.82 pt
+    # outline expanded every Courier glyph by several printer pixels when the
+    # Windows driver rasterized it for the FX-2175II, producing the blurred,
+    # over-struck output seen on the physical form.
+    TEXT_RENDER_MODE_FILL = 0
+    TEXT_DARKEN_OFFSETS = ((0.0, 0.0),)
+    # The legacy slip is an intentionally compact 110-column business form.
+    # 132 columns made descriptions, group headings, and balances visually
+    # merge even though the printer was correctly operating at 10 CPI.
+    DOT_MATRIX_COLUMNS = 110
+    DOT_MATRIX_ENTRIES_PER_PAGE = 18
+    DOT_MATRIX_LINES_PER_PAGE = 31
+    PDF_FONT_NAME = "Courier"
+    PDF_BOLD_FONT_NAME = "Courier-Bold"
+    PDF_FONT_SIZE = 12.0
+    PDF_LINE_LEADING = 14.0
+    # Keep office-printer content outside typical hardware non-printable
+    # edges.  The 110-column form still fits A4 landscape at 10 CPI.
+    PDF_MARGIN_LEFT = 24.0
+    PDF_MARGIN_TOP = 30.0
+    ESC = "\x1b"
+    # Keep the original prefix first so helpers already installed at the
+    # customer site continue to accept jobs generated after this upgrade.
+    # The quality profile that follows is deliberately explicit: RAW spooler
+    # jobs bypass the driver's graphic-quality choices, and ESC @ otherwise
+    # restores the printer's configured (often Draft/Bi-D) defaults.
+    ESC_P_LEGACY_COMPAT_PREFIX = "\x1b@\x12\x1bP\x1b2\x1bC!\x1bO\x1bE\x1bG"
+    # ESC x 1 = NLQ, ESC k 0 = Roman, ESC U 1 = unidirectional. NLQ provides
+    # the density; unidirectional motion prevents horizontal registration
+    # drift. The legacy prefix must remain byte-for-byte first because the
+    # helper already installed at the customer validates it.
+    ESC_P_QUALITY_PROFILE = "\x1bx\x01\x1bk\x00\x1bU\x01"
+    # ESC F / ESC H explicitly cancel emphasized and double-strike after the
+    # compatibility prefix. Combining simulated bold with NLQ caused multiple
+    # impacts to visually merge on the photographed continuous stationery.
+    ESC_P_CLARITY_PROFILE = "\x1bF\x1bH"
+    ESC_P_PREFIX = ESC_P_LEGACY_COMPAT_PREFIX + ESC_P_QUALITY_PROFILE + ESC_P_CLARITY_PROFILE
+    # Restore direction/enhancement state after form feed without resetting or
+    # moving the continuous paper again.
+    ESC_P_SUFFIX = "\x1bU\x00\x1bH\x1bF\x12"
+    TPP_PRINT_PACKAGE_HEADER = (
+        b"TPPPRINT/1\n"
+        b"printer=EPSON-FX-2175II\n"
+        b"paper=15x5.5\n"
+        b"language=ESC/P\n\n"
+    )
 
     @staticmethod
     def _fmt_dt(value):
@@ -258,6 +308,8 @@ class DispatchListPDFService:
             gross = net + tare
         return {
             **spec,
+            "sales_order_item_id": str(getattr(sales_order_item, "id", "") or ""),
+            "sales_order_id": str(getattr(sales_order_item, "sales_order_id", "") or ""),
             "unit_type": "ROLL",
             "unit_id": _text(pack_meta.get("dispatch_unit_no"), f"RDU-{getattr(roll, 'batch_no', '') or getattr(roll, 'label_id', '')}", getattr(roll, "label_id", "")),
             "batch_ref": _text(getattr(roll, "batch_no", ""), getattr(roll, "label_id", "")),
@@ -284,6 +336,8 @@ class DispatchListPDFService:
             tare = gross - net
         return {
             **spec,
+            "sales_order_item_id": str(getattr(sales_order_item, "id", "") or ""),
+            "sales_order_id": str(getattr(sales_order_item, "sales_order_id", "") or ""),
             "unit_type": "BAG",
             "unit_id": _text(meta.get("dispatch_unit_no"), getattr(gonny, "label_id", "")),
             "batch_ref": _text(getattr(getattr(gonny, "fg_batch", None), "batch_number", ""), getattr(gonny, "label_id", "")),
@@ -319,6 +373,9 @@ class DispatchListPDFService:
             tare = gross - net
         return {
             "line_key": str(item.get("sales_order_item_id") or "LEGACY"),
+            "sales_order_item_id": str(item.get("sales_order_item_id") or ""),
+            "sales_order_id": str(item.get("sales_order_id") or ""),
+            "so_line_no": str(item.get("so_line_no") or ""),
             "description": _text(item.get("description"), item.get("material_name"), "SALES PRODUCT"),
             "product_code": _text(item.get("product_code"), "-"),
             "size": _text(item.get("size"), "-"),
@@ -345,16 +402,19 @@ class DispatchListPDFService:
                 "roll__sales_order_item__template",
                 "roll__sales_order_item__product_master",
                 "roll__sales_order_item__product_variant",
+                "roll__sales_order_item__customer_product_overlay",
                 "packing_unit__location",
                 "packing_unit__fg_batch",
                 "packing_unit__sales_order_item__sales_order",
                 "packing_unit__sales_order_item__template",
                 "packing_unit__sales_order_item__product_master",
                 "packing_unit__sales_order_item__product_variant",
+                "packing_unit__sales_order_item__customer_product_overlay",
                 "sales_order_item__sales_order",
                 "sales_order_item__template",
                 "sales_order_item__product_master",
                 "sales_order_item__product_variant",
+                "sales_order_item__customer_product_overlay",
             )
             .order_by("created_at", "id")
         )
@@ -369,6 +429,10 @@ class DispatchListPDFService:
                 rows.append(
                     {
                         **spec,
+                        "sales_order_item_id": str(getattr(item, "sales_order_item_id", "") or ""),
+                        "sales_order_id": str(
+                            getattr(getattr(item, "sales_order_item", None), "sales_order_id", "") or ""
+                        ),
                         "unit_type": "BATCH",
                         "unit_id": getattr(getattr(item, "fg_batch", None), "batch_number", "") or "-",
                         "batch_ref": getattr(getattr(item, "fg_batch", None), "batch_number", "") or "-",
@@ -380,6 +444,39 @@ class DispatchListPDFService:
                     }
                 )
         return rows
+
+    @staticmethod
+    def _sales_order_line_numbers(sales_order: Any) -> dict[str, int]:
+        manager = getattr(sales_order, "items", None)
+        if manager is None:
+            return {}
+        try:
+            line_ids = manager.order_by("created_at", "id").values_list("id", flat=True)
+        except Exception:
+            return {}
+        return {str(line_id): index for index, line_id in enumerate(line_ids, start=1)}
+
+    @classmethod
+    def _decorate_rows_for_sales_order(
+        cls,
+        sales_order: Any,
+        rows: list[dict[str, Any]],
+        *,
+        require_lineage: bool = True,
+    ) -> list[dict[str, Any]]:
+        expected_order_id = str(getattr(sales_order, "id", "") or "")
+        line_numbers = cls._sales_order_line_numbers(sales_order)
+        decorated: list[dict[str, Any]] = []
+        for source in rows:
+            row = dict(source)
+            row_order_id = str(row.get("sales_order_id") or "")
+            if require_lineage and (not row_order_id or row_order_id != expected_order_id):
+                raise RuntimeError("Dispatch document blocked: a physical unit is not linked to the selected sales order.")
+            line_id = str(row.get("sales_order_item_id") or row.get("line_key") or "")
+            row["sales_order_id"] = row_order_id or expected_order_id
+            row["so_line_no"] = str(line_numbers.get(line_id) or row.get("so_line_no") or "-")
+            decorated.append(row)
+        return decorated
 
     @classmethod
     def _load_ready_rows(
@@ -400,11 +497,18 @@ class DispatchListPDFService:
         if roll_ids is not None or gonny_ids is not None:
             requested_roll_ids = {str(value) for value in (roll_ids or []) if value}
             requested_gonny_ids = {str(value) for value in (gonny_ids or []) if value}
+            unavailable_roll_ids = requested_roll_ids.difference(ready_roll_ids)
+            unavailable_gonny_ids = requested_gonny_ids.difference(ready_gonny_ids)
+            if unavailable_roll_ids or unavailable_gonny_ids:
+                raise ValueError("Packing slip blocked: one or more selected units no longer belong to this sales order or are no longer dispatch-ready.")
             ready_roll_ids = [value for value in ready_roll_ids if value in requested_roll_ids]
             ready_gonny_ids = [value for value in ready_gonny_ids if value in requested_gonny_ids]
 
+        if not ready_roll_ids and not ready_gonny_ids:
+            raise ValueError("Packing slip blocked: no dispatch-ready units were selected.")
+
         rows: list[dict[str, Any]] = []
-        for roll in (
+        rolls = list(
             InventoryRoll.objects.filter(id__in=ready_roll_ids)
             .select_related(
                 "location",
@@ -412,12 +516,16 @@ class DispatchListPDFService:
                 "sales_order_item__template",
                 "sales_order_item__product_master",
                 "sales_order_item__product_variant",
+                "sales_order_item__customer_product_overlay",
             )
             .order_by("created_at", "id")
-        ):
+        )
+        if len(rolls) != len(set(ready_roll_ids)):
+            raise RuntimeError("Packing slip blocked: selected roll data is incomplete.")
+        for roll in rolls:
             rows.append(cls._row_from_roll(roll, roll.sales_order_item))
 
-        for gonny in (
+        gonnies = list(
             PackingUnit.objects.filter(id__in=ready_gonny_ids)
             .select_related(
                 "location",
@@ -426,11 +534,15 @@ class DispatchListPDFService:
                 "sales_order_item__template",
                 "sales_order_item__product_master",
                 "sales_order_item__product_variant",
+                "sales_order_item__customer_product_overlay",
             )
             .order_by("created_at", "id")
-        ):
+        )
+        if len(gonnies) != len(set(ready_gonny_ids)):
+            raise RuntimeError("Packing slip blocked: selected packing-unit data is incomplete.")
+        for gonny in gonnies:
             rows.append(cls._row_from_gonny(gonny))
-        return sales_order, rows
+        return sales_order, cls._decorate_rows_for_sales_order(sales_order, rows)
 
     @staticmethod
     def _group_rows(rows: list[dict[str, Any]]) -> OrderedDict[str, list[dict[str, Any]]]:
@@ -452,6 +564,166 @@ class DispatchListPDFService:
         }
 
     @staticmethod
+    def _json_row(row: dict[str, Any]) -> dict[str, Any]:
+        """Return the stable, JSON-safe business fields used by every renderer."""
+        return {
+            "sales_order_id": str(row.get("sales_order_id") or ""),
+            "sales_order_item_id": str(row.get("sales_order_item_id") or row.get("line_key") or ""),
+            "line_key": str(row.get("line_key") or row.get("sales_order_item_id") or "UNLINKED"),
+            "so_line_no": str(row.get("so_line_no") or "-"),
+            "description": _text(row.get("description"), "SALES PRODUCT"),
+            "product_code": _text(row.get("product_code"), "-"),
+            "size": _text(row.get("size"), "-"),
+            "thickness": _text(row.get("thickness"), "-"),
+            "grade": _text(row.get("grade"), "-"),
+            "unit_type": _text(row.get("unit_type"), "UNIT").upper(),
+            "unit_id": _text(row.get("unit_id"), "-"),
+            "batch_ref": _text(row.get("batch_ref"), "-"),
+            "location": _text(row.get("location"), "-"),
+            "pcs": _int(row.get("pcs")),
+            "net_kg": _compact(row.get("net_kg"), 4),
+            "tare_kg": _compact(row.get("tare_kg"), 4),
+            "gross_kg": _compact(row.get("gross_kg"), 4),
+        }
+
+    @staticmethod
+    def _challan_item_net(item: DeliveryChallanItem) -> Decimal:
+        if getattr(item, "roll_id", None):
+            roll = item.roll
+            return _dec(getattr(roll, "net_weight_kg", None) or getattr(roll, "weight_kg", 0))
+        if getattr(item, "packing_unit_id", None):
+            gonny = item.packing_unit
+            return _dec(getattr(gonny, "net_product_weight_kg", None) or getattr(gonny, "weight_kg", 0))
+        return _dec(getattr(item, "weight_kg", 0))
+
+    @classmethod
+    def _balance_rows(cls, challan: DeliveryChallan, rows: list[dict[str, Any]]) -> list[dict[str, str]]:
+        sales_order = getattr(challan, "sales_order", None)
+        if not sales_order:
+            return []
+
+        current_by_line: dict[str, dict[str, Decimal]] = {}
+        for row in rows:
+            line_id = str(row.get("sales_order_item_id") or row.get("line_key") or "")
+            if not line_id:
+                continue
+            bucket = current_by_line.setdefault(line_id, {"KG": Decimal("0"), "PCS": Decimal("0")})
+            bucket["KG"] += _dec(row.get("net_kg"))
+            bucket["PCS"] += Decimal(str(_int(row.get("pcs"))))
+
+        prior_by_line: dict[str, dict[str, Decimal]] = {}
+        prior_items = (
+            DeliveryChallanItem.objects.filter(
+                challan__sales_order_id=sales_order.id,
+                challan__status__in=["DISPATCHED", "IN_TRANSIT", "DELIVERED"],
+            )
+            .exclude(challan_id=challan.id)
+            .select_related("roll", "packing_unit")
+        )
+        for item in prior_items:
+            line_id = str(getattr(item, "sales_order_item_id", "") or "")
+            if not line_id:
+                continue
+            bucket = prior_by_line.setdefault(line_id, {"KG": Decimal("0"), "PCS": Decimal("0")})
+            bucket["KG"] += cls._challan_item_net(item)
+            bucket["PCS"] += Decimal(str(_int(getattr(item, "qty_pcs", 0))))
+
+        balance_rows: list[dict[str, str]] = []
+        for index, item in enumerate(sales_order.items.select_related(
+            "template", "product_master", "product_variant", "customer_product_overlay"
+        ).order_by("created_at", "id"), start=1):
+            if str(getattr(item, "line_status", "") or "").upper() == "CANCELLED":
+                continue
+            line_id = str(item.id)
+            # A dispatch document is evidence for the units physically loaded
+            # on this challan. Printing every other open line from the parent
+            # SO produced BAL L1..L13 on an eight-roll/two-item challan, made
+            # one SO look like many orders, and forced a mostly blank page 1.
+            if line_id not in current_by_line:
+                continue
+            uom = str(getattr(item, "qty_uom", "KG") or "KG").upper()
+            if uom not in {"KG", "PCS"}:
+                uom = "KG"
+            ordered = max(
+                _dec(getattr(item, "qty_value", 0))
+                - _dec(getattr(item, "qty_cancelled", 0))
+                - _dec(getattr(item, "qty_short_closed", 0)),
+                Decimal("0"),
+            )
+            previous = prior_by_line.get(line_id, {}).get(uom, Decimal("0"))
+            current = current_by_line.get(line_id, {}).get(uom, Decimal("0"))
+            balance = max(ordered - previous - current, Decimal("0"))
+            spec = _line_spec(item)
+            balance_rows.append(
+                {
+                    "line": str(index),
+                    "sales_order_item_id": line_id,
+                    "description": _clip(spec.get("description"), 28),
+                    "uom": uom,
+                    "ordered": _compact(ordered),
+                    "previous": _compact(previous),
+                    "current": _compact(current),
+                    "balance": _compact(balance),
+                }
+            )
+        return balance_rows
+
+    @classmethod
+    def build_challan_snapshot(cls, challan: DeliveryChallan) -> dict[str, Any]:
+        """Build the immutable dispatch document stored when the vehicle leaves."""
+        sales_order = getattr(challan, "sales_order", None)
+        if not sales_order or str(getattr(sales_order, "id", "") or "") != str(getattr(challan, "sales_order_id", "") or ""):
+            raise RuntimeError("Dispatch document blocked: challan has no valid parent sales order.")
+        source_rows = cls._decorate_rows_for_sales_order(sales_order, cls._load_item_rows(challan.id))
+        if not source_rows:
+            raise RuntimeError("Dispatch document blocked: challan has no physical units.")
+        rows = [cls._json_row(row) for row in source_rows]
+        document_date = getattr(challan, "dispatch_date", None) or getattr(challan, "created_at", None) or timezone.now()
+        return {
+            "version": 2,
+            "document_type": "DISPATCH_SLIP",
+            "document_ref": challan.dc_no,
+            "document_date": document_date.isoformat(),
+            "customer_name": challan.customer_name or "-",
+            "sales_order_no": cls._safe_sales_order_number(challan),
+            "sales_order_id": str(challan.sales_order_id),
+            "plant_name": challan.plant.name if challan.plant else "-",
+            "rows": rows,
+            "balance_rows": cls._balance_rows(challan, source_rows),
+        }
+
+    @classmethod
+    def _challan_document(cls, challan: DeliveryChallan) -> dict[str, Any]:
+        snapshot = _dict(getattr(challan, "print_snapshot", None))
+        if not snapshot:
+            return cls.build_challan_snapshot(challan)
+
+        expected_order_id = str(getattr(challan, "sales_order_id", "") or "")
+        expected_ref = str(getattr(challan, "dc_no", "") or "")
+        if snapshot.get("version") != 2:
+            raise RuntimeError("Dispatch document blocked: frozen snapshot uses an unsupported version.")
+        if str(snapshot.get("document_type") or "") != "DISPATCH_SLIP":
+            raise RuntimeError("Dispatch document blocked: frozen snapshot has an invalid document type.")
+        if not expected_ref or str(snapshot.get("document_ref") or "") != expected_ref:
+            raise RuntimeError("Dispatch document blocked: frozen snapshot reference does not match this challan.")
+        snapshot_order_id = str(snapshot.get("sales_order_id") or "")
+        if not expected_order_id or not snapshot_order_id or snapshot_order_id != expected_order_id:
+            raise RuntimeError("Dispatch document blocked: frozen snapshot belongs to a different sales order.")
+        rows = snapshot.get("rows")
+        if not isinstance(rows, list) or not rows:
+            raise RuntimeError("Dispatch document blocked: frozen snapshot has no physical units.")
+        for row in rows:
+            if not isinstance(row, dict):
+                raise RuntimeError("Dispatch document blocked: frozen snapshot contains an invalid row.")
+            row_order_id = str(row.get("sales_order_id") or "")
+            row_item_id = str(row.get("sales_order_item_id") or "")
+            if row_order_id != expected_order_id or not row_item_id:
+                raise RuntimeError(
+                    "Dispatch document blocked: frozen snapshot contains foreign or unlinked sales-order data."
+                )
+        return snapshot
+
+    @staticmethod
     def _prime_black_ink(pdf):
         pdf.setFillGray(0)
         pdf.setStrokeGray(0)
@@ -462,27 +734,35 @@ class DispatchListPDFService:
         text = str(value or "")
         if not text:
             return
-        font_name = getattr(pdf, "_fontname", "Courier-Bold")
+        font_name = getattr(pdf, "_fontname", "Courier")
         font_size = getattr(pdf, "_fontsize", 8.8)
         origin_x = x - pdf.stringWidth(text, font_name, font_size) if right else x
 
         pdf.saveState()
         pdf.setFillGray(0)
-        pdf.setStrokeGray(0)
-        pdf.setLineWidth(DispatchListPDFService.TEXT_STROKE_WIDTH)
-        text_object = pdf.beginText()
-        text_object.setTextOrigin(origin_x, y)
-        text_object.setFont(font_name, font_size)
         try:
-            text_object.setTextRenderMode(DispatchListPDFService.TEXT_RENDER_MODE_FILL_STROKE)
-            text_object.textOut(text)
-            pdf.drawText(text_object)
+            for dx, dy in DispatchListPDFService.TEXT_DARKEN_OFFSETS:
+                text_object = pdf.beginText()
+                text_object.setTextOrigin(origin_x + dx, y + dy)
+                text_object.setFont(font_name, font_size)
+                text_object.setTextRenderMode(DispatchListPDFService.TEXT_RENDER_MODE_FILL)
+                text_object.textOut(text)
+                pdf.drawText(text_object)
         except Exception:
             pdf.restoreState()
             draw = pdf.drawRightString if right else pdf.drawString
             draw(x, y, text)
             return
         pdf.restoreState()
+
+    @staticmethod
+    def _is_emphasis_line(line: str) -> bool:
+        clean_line = str(line or "").strip()
+        return bool(
+            clean_line.startswith("TOTAL POLY PRINT")
+            or clean_line.startswith("NO. ")
+            or clean_line.startswith("BAGS:")
+        )
 
     @classmethod
     def _render_rows_pdf(
@@ -496,200 +776,361 @@ class DispatchListPDFService:
         rows: list[dict[str, Any]],
         transport_lines: list[str] | None = None,
         footer_note: str = "",
+        document_date: Any = None,
+        balance_rows: list[dict[str, Any]] | None = None,
+        signature_labels: tuple[str, str, str] | None = None,
     ) -> BytesIO:
         if canvas is None:
             raise RuntimeError("PDF engine unavailable: reportlab is not installed.")
-
-        normalized_rows = [cls._row_from_legacy_dict(row) if "gross_kg" not in row else row for row in rows]
-        grouped = cls._group_rows(normalized_rows)
-        show_group = len(grouped) > 1
+        text = cls._render_rows_text(
+            title=title,
+            doc_ref=doc_ref,
+            customer_name=customer_name,
+            sales_order_no=sales_order_no,
+            plant_name=plant_name,
+            rows=rows,
+            transport_lines=transport_lines,
+            footer_note=footer_note,
+            document_date=document_date,
+            balance_rows=balance_rows,
+            signature_labels=signature_labels,
+        )
         buffer = BytesIO()
-        page_size = cls.DOT_MATRIX_PAGE_SIZE or A4
+        # PDF is the office-printer path. A4 landscape prevents a standard
+        # printer driver from shrinking a 15-inch Epson form to the page.
+        # Native tractor geometry is emitted only by the RAW ESC/P path.
+        page_size = cls.PDF_PAGE_SIZE or A4
         pdf = canvas.Canvas(buffer, pagesize=page_size, pageCompression=0)
-        width, height = page_size
-        margin = 5.2 * mm
-        cls._prime_black_ink(pdf)
-        row_step = 4.55 * mm
-        row_font = 8.4
-        header_font = 8.5
-        entries: list[dict[str, Any]] = []
-        line_no = 0
-        row_no = 0
-        for group_rows in grouped.values():
-            if not group_rows:
-                continue
-            line_no += 1
-            first = group_rows[0]
-            if show_group:
-                entries.append({"kind": "group", "line_no": line_no, "row": first})
-            for row in group_rows:
-                row_no += 1
-                entries.append({"kind": "row", "row_no": row_no, "row": row})
-            if show_group:
-                entries.append({"kind": "subtotal", "subtotal": cls._totals(group_rows)})
-
-        entries_per_page = 40
-        pages = [
-            entries[index : index + entries_per_page]
-            for index in range(0, len(entries), entries_per_page)
-        ] or [[]]
-        page_count = len(pages)
-        totals = cls._totals(normalized_rows)
-
-        def draw_page(page_entries: list[dict[str, Any]], page_number: int):
-            cls._prime_black_ink(pdf)
-            bottom = 18.0 * mm
-            y = height - 8.0 * mm
-            pdf.setFont("Courier-Bold", 13.2)
-            cls._heavy_text(pdf, margin, y, "TOTAL POLY PRINT PVT LTD")
-            pdf.setFont("Courier-Bold", 12.4)
-            cls._heavy_text(pdf, width - margin, y, title, right=True)
-            y -= 5.0 * mm
-            pdf.setDash(3, 1.4)
-            pdf.line(margin, y, width - margin, y)
-            pdf.setDash()
-            y -= 4.8 * mm
-            pdf.setFont("Courier-Bold", 9.0)
-            cls._heavy_text(pdf, margin, y, f"REF : {_clip(doc_ref, 27)}")
-            cls._heavy_text(pdf, 73 * mm, y, f"SO : {_clip(sales_order_no, 23)}")
-            cls._heavy_text(pdf, 134 * mm, y, f"DATE : {timezone.localdate().strftime('%d/%m/%y')}")
-            cls._heavy_text(pdf, width - margin, y, f"PAGE : {page_number}/{page_count}", right=True)
-            y -= 4.7 * mm
-            cls._heavy_text(pdf, margin, y, f"CUSTOMER : {_clip(customer_name, 44)}")
-            cls._heavy_text(pdf, 116 * mm, y, f"PLANT : {_clip(plant_name, 20)}")
-            cls._heavy_text(pdf, width - margin, y, f"PRINT : {cls._fmt_dt(timezone.now())}", right=True)
-            for line in transport_lines or []:
-                y -= 4.2 * mm
-                cls._heavy_text(pdf, margin, y, _clip(line, 92))
-            y -= 4.9 * mm
-            cls._draw_table_header(pdf, y, margin, width, header_font)
-            y -= 4.7 * mm
-
-            for entry in page_entries:
-                kind = entry["kind"]
-                if kind == "group":
-                    first = entry["row"]
-                    pdf.setFont("Courier-Bold", 7.9)
-                    cls._heavy_text(
-                        pdf,
-                        margin,
-                        y,
-                        _clip(
-                            f"LINE {entry['line_no']}: {first.get('product_code')} / {first.get('description')}  {first.get('size')}  {first.get('thickness')}  {first.get('grade')}",
-                            92,
-                        ),
-                    )
-                elif kind == "subtotal":
-                    subtotal = entry["subtotal"]
-                    pdf.setFont("Courier-Bold", 7.8)
-                    cls._heavy_text(
-                        pdf,
-                        width - margin,
-                        y,
-                        f"LINE TOTAL  PCS {subtotal['pcs']}  GROSS {_compact(subtotal['gross'])}  TARE {_compact(subtotal['tare'])}  NET {_compact(subtotal['net'])}",
-                        right=True,
-                    )
-                else:
-                    cls._draw_row(pdf, y, margin, width, entry["row"], entry["row_no"], row_font)
-                y -= row_step
-
-            if page_number < page_count:
-                pdf.setFont("Courier-Bold", 8.0)
-                cls._heavy_text(pdf, margin, bottom + 10 * mm, "CONTINUED ON NEXT PAGE")
-                return
-
-            # Continuous stationery printers often advance near the perforation
-            # before the PDF bottom margin. Keep totals directly after the table
-            # and reserve a physical-printer safe band at the bottom.
-            totals_y = max(y - 2.5 * mm, bottom + 18 * mm)
-            pdf.setLineWidth(1.05)
-            pdf.line(margin, totals_y, width - margin, totals_y)
-            totals_y -= 4.3 * mm
-            pdf.setFont("Courier-Bold", 9.0)
-            cls._heavy_text(
-                pdf,
-                margin,
-                totals_y,
-                f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}",
-            )
-            cls._heavy_text(
-                pdf,
-                width - margin,
-                totals_y,
-                f"GROSS KG: {_compact(totals['gross'])}  TARE KG: {_compact(totals['tare'])}  NET KG: {_compact(totals['net'])}",
-                right=True,
-            )
-            totals_y -= 6.1 * mm
-            pdf.setFont("Courier-Bold", 8.1)
-            cls._heavy_text(pdf, margin, totals_y, "Dispatch Incharge: __________________")
-            cls._heavy_text(pdf, 78 * mm, totals_y, "Driver: ______________")
-            cls._heavy_text(pdf, 136 * mm, totals_y, "Receiver: ______________")
-            if footer_note:
-                totals_y -= 4.0 * mm
-                pdf.setFont("Courier-Bold", 7.4)
-                cls._heavy_text(
-                    pdf,
-                    margin,
-                    totals_y,
-                    _clip(footer_note, 92),
+        _, height = page_size
+        pages = text.rstrip("\r\n").split("\f")
+        for page_number, page in enumerate(pages):
+            if page_number:
+                pdf.showPage()
+            # Twelve-point Courier is exactly 10 CPI and keeps the canonical
+            # 110-column form inside A4 landscape without viewer scaling.
+            y = height - cls.PDF_MARGIN_TOP
+            for line in page.replace("\r\n", "\n").split("\n"):
+                pdf.setFont(
+                    cls.PDF_BOLD_FONT_NAME if cls._is_emphasis_line(line) else cls.PDF_FONT_NAME,
+                    cls.PDF_FONT_SIZE,
                 )
-
-        for page_number, page_entries in enumerate(pages, start=1):
-            if page_number > 1:
-                cls._prime_black_ink(pdf)
-            draw_page(page_entries, page_number)
-            pdf.showPage()
-
+                cls._heavy_text(pdf, cls.PDF_MARGIN_LEFT, y, line)
+                y -= cls.PDF_LINE_LEADING
         pdf.save()
         buffer.seek(0)
         return buffer
 
-    @staticmethod
-    def _draw_table_header(pdf, y, margin, width, font_size: float = 8.8):
-        pdf.setFont("Courier-Bold", font_size)
-        DispatchListPDFService._heavy_text(pdf, margin, y, "NO.")
-        DispatchListPDFService._heavy_text(pdf, 13 * mm, y, "PS.NO.")
-        DispatchListPDFService._heavy_text(pdf, 34 * mm, y, "DESCRIPTION")
-        DispatchListPDFService._heavy_text(pdf, 83 * mm, y, "GRADE")
-        DispatchListPDFService._heavy_text(pdf, 103 * mm, y, "SIZE")
-        DispatchListPDFService._heavy_text(pdf, 127 * mm, y, "GSM")
-        DispatchListPDFService._heavy_text(pdf, 151 * mm, y, "GROSS", right=True)
-        DispatchListPDFService._heavy_text(pdf, 165 * mm, y, "PCS", right=True)
-        DispatchListPDFService._heavy_text(pdf, 181 * mm, y, "TARE", right=True)
-        DispatchListPDFService._heavy_text(pdf, width - margin, y, "NET", right=True)
-        pdf.line(margin, y - 1.8 * mm, width - margin, y - 1.8 * mm)
+    @classmethod
+    def _render_rows_text(
+        cls,
+        *,
+        title: str,
+        doc_ref: str,
+        customer_name: str,
+        sales_order_no: str,
+        plant_name: str,
+        rows: list[dict[str, Any]],
+        transport_lines: list[str] | None = None,
+        footer_note: str = "",
+        document_date: Any = None,
+        balance_rows: list[dict[str, Any]] | None = None,
+        signature_labels: tuple[str, str, str] | None = None,
+    ) -> str:
+        normalized_rows = [cls._row_from_legacy_dict(row) if "gross_kg" not in row else dict(row) for row in rows]
+        fallback_line_numbers: dict[str, int] = {}
+        entries: list[dict[str, Any]] = []
+        for row_no, row in enumerate(normalized_rows, start=1):
+            line_key = str(row.get("sales_order_item_id") or row.get("line_key") or "UNLINKED")
+            if line_key not in fallback_line_numbers:
+                fallback_line_numbers[line_key] = len(fallback_line_numbers) + 1
+            row["so_line_no"] = str(row.get("so_line_no") or fallback_line_numbers[line_key])
+            entries.append({"row_no": row_no, "row": row})
 
-    @staticmethod
-    def _draw_row(pdf, y, margin, width, row: dict[str, Any], line_no: int, font_size: float = 8.8):
-        pdf.setFont("Courier-Bold", font_size)
-        DispatchListPDFService._heavy_text(pdf, margin, y, str(line_no))
-        DispatchListPDFService._heavy_text(pdf, 13 * mm, y, _clip(_display_unit_id(row.get("unit_id"), row.get("unit_type")), 9))
-        DispatchListPDFService._heavy_text(pdf, 34 * mm, y, _clip(row.get("description"), 23))
-        DispatchListPDFService._heavy_text(pdf, 83 * mm, y, _clip(row.get("grade"), 8))
-        DispatchListPDFService._heavy_text(pdf, 103 * mm, y, _clip(row.get("size"), 10))
-        DispatchListPDFService._heavy_text(pdf, 127 * mm, y, _clip(row.get("thickness"), 7))
-        DispatchListPDFService._heavy_text(pdf, 151 * mm, y, _compact(row.get("gross_kg")), right=True)
-        DispatchListPDFService._heavy_text(pdf, 165 * mm, y, str(_int(row.get("pcs")) or "-"), right=True)
-        DispatchListPDFService._heavy_text(pdf, 181 * mm, y, _compact(row.get("tare_kg")), right=True)
-        DispatchListPDFService._heavy_text(pdf, width - margin, y, _compact(row.get("net_kg")), right=True)
+        totals = cls._totals(normalized_rows)
+        printed_at = cls._fmt_dt(timezone.now())
+        if hasattr(document_date, "strftime"):
+            slip_date = document_date.strftime("%d/%m/%y")
+        else:
+            raw_date = str(document_date or "")[:10]
+            try:
+                slip_date = timezone.datetime.fromisoformat(raw_date).strftime("%d/%m/%y")
+            except (TypeError, ValueError):
+                slip_date = timezone.localdate().strftime("%d/%m/%y")
+
+        def clean(value: Any) -> str:
+            return re.sub(r"\s+", " ", str(value or "").replace("\n", " ")).strip().encode("ascii", "replace").decode("ascii")
+
+        def cell(value: Any, width: int, align: str = "left") -> str:
+            text = clean(value)
+            if len(text) > width:
+                text = text[: max(0, width - 1)] + "."
+            return text.rjust(width) if align == "right" else text.ljust(width)
+
+        def row_line(values: list[tuple[Any, int, str]]) -> str:
+            return " ".join(cell(value, width, align) for value, width, align in values).rstrip()
+
+        def divider(char: str = "-") -> str:
+            return char * cls.DOT_MATRIX_COLUMNS
+
+        table_header = row_line(
+            [
+                ("NO.", 3, "left"),
+                ("ITEM", 4, "left"),
+                ("UNIT NO.", 10, "left"),
+                ("ITEM DESCRIPTION", 31, "left"),
+                ("GRADE", 10, "left"),
+                ("SIZE", 10, "left"),
+                ("MIC", 6, "right"),
+                ("GROSS", 7, "right"),
+                ("PCS", 6, "right"),
+                ("TARE", 6, "right"),
+                ("NET", 7, "right"),
+            ]
+        )
+
+        balance_lines = []
+        for balance in balance_rows or []:
+            balance_lines.append(
+                clean(
+                    f"SO ITEM {balance.get('line') or '-'} BALANCE: "
+                    f"ORDER {_compact(balance.get('ordered'))} | PREVIOUS {_compact(balance.get('previous'))} | "
+                    f"THIS {_compact(balance.get('current'))} | BALANCE {_compact(balance.get('balance'))} {balance.get('uom') or ''}"
+                )
+            )
+
+        fixed_header_lines = 6 + len(transport_lines or [])
+        final_footer_lines = 5 + len(balance_lines) + (1 if footer_note else 0)
+        final_capacity = cls.DOT_MATRIX_LINES_PER_PAGE - fixed_header_lines - final_footer_lines
+        regular_capacity = cls.DOT_MATRIX_LINES_PER_PAGE - fixed_header_lines - 2
+        if final_capacity < 1:
+            raise RuntimeError("Dispatch slip has too many balance lines for the configured form length.")
+        pages: list[list[dict[str, Any]]] = []
+        remaining = list(entries)
+        while len(remaining) > final_capacity:
+            take = min(regular_capacity, len(remaining) - final_capacity)
+            pages.append(remaining[:take])
+            remaining = remaining[take:]
+        pages.append(remaining)
+        page_count = len(pages)
+
+        rendered_pages: list[str] = []
+        for page_number, page_entries in enumerate(pages, start=1):
+            lines: list[str] = []
+            lines.append(row_line([("TOTAL POLY PRINT PVT LTD", 54, "left"), (title, 55, "right")]))
+            lines.append(divider("="))
+            lines.append(
+                row_line(
+                    [
+                        (f"REF : {doc_ref}", 32, "left"),
+                        (f"ONE SO : {sales_order_no}", 30, "left"),
+                        (f"DATE : {slip_date}", 20, "left"),
+                        (f"PAGE : {page_number}/{page_count}", 25, "right"),
+                    ]
+                )
+            )
+            lines.append(
+                row_line(
+                    [
+                        (f"CUSTOMER : {customer_name}", 46, "left"),
+                        (f"PLANT : {plant_name}", 25, "left"),
+                        (f"PRINT : {printed_at}", 37, "right"),
+                    ]
+                )
+            )
+            for line in transport_lines or []:
+                lines.append(cell(line, cls.DOT_MATRIX_COLUMNS))
+            lines.append(table_header)
+            lines.append(divider("-"))
+
+            for entry in page_entries:
+                row = entry["row"]
+                lines.append(
+                    row_line(
+                        [
+                            (entry["row_no"], 3, "left"),
+                            (f"L{row.get('so_line_no') or '-'}", 4, "left"),
+                            (_display_unit_id(row.get("unit_id"), row.get("unit_type")), 10, "left"),
+                            (row.get("description"), 31, "left"),
+                            (row.get("grade"), 10, "left"),
+                            (row.get("size"), 10, "left"),
+                            (row.get("thickness"), 6, "right"),
+                            (_compact(row.get("gross_kg")), 7, "right"),
+                            ("N/A" if row.get("unit_type") == "ROLL" else str(_int(row.get("pcs")) or "-"), 6, "right"),
+                            (_compact(row.get("tare_kg")), 6, "right"),
+                            (_compact(row.get("net_kg")), 7, "right"),
+                        ]
+                    )
+                )
+
+            if page_number < page_count:
+                lines.append("")
+                lines.append("CONTINUED ON NEXT PAGE")
+                rendered_pages.append("\r\n".join(lines))
+                continue
+
+            lines.append(divider("-"))
+            lines.append(
+                row_line(
+                    [
+                        (f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}", 54, "left"),
+                        (f"GROSS: {_compact(totals['gross'])} KG  TARE: {_compact(totals['tare'])} KG  NET: {_compact(totals['net'])} KG", 55, "right"),
+                    ]
+                )
+            )
+            lines.extend(balance_lines)
+            lines.append("")
+            signatures = signature_labels or ("Dispatch Incharge", "Security", "Receiver")
+            lines.append(
+                row_line(
+                    [
+                        (f"{signatures[0]}: ____________", 36, "left"),
+                        (f"{signatures[1]}: ____________", 36, "left"),
+                        (f"{signatures[2]}: ____________", 36, "left"),
+                    ]
+                )
+            )
+            if footer_note:
+                lines.append(clean(footer_note))
+            if len(lines) > cls.DOT_MATRIX_LINES_PER_PAGE:
+                raise RuntimeError(f"Dispatch slip page {page_number} exceeds the configured form length.")
+            rendered_pages.append("\r\n".join(lines))
+
+        text = "\f".join(rendered_pages).rstrip() + "\r\n"
+        for page_number, page in enumerate(text.rstrip("\r\n").split("\f"), start=1):
+            for line_number, line in enumerate(page.split("\r\n"), start=1):
+                if len(line) > cls.DOT_MATRIX_COLUMNS:
+                    raise RuntimeError(f"Dispatch slip page {page_number} line {line_number} exceeds {cls.DOT_MATRIX_COLUMNS} columns.")
+        return text
+
+    @classmethod
+    def _render_rows_text_html(cls, text: str, *, title: str) -> str:
+        pages = [page.replace("\r\n", "\n") for page in text.rstrip("\r\n").split("\f") if page]
+        if not pages:
+            pages = [""]
+        page_html = "\n".join(f'  <pre class="sheet">{escape(page)}</pre>' for page in pages)
+        return f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>{escape(title)}</title>
+  <style>
+    @page {{ size: A4 landscape; margin: 0.2in; }}
+    html, body {{ margin: 0; background: #fff; color: #000; }}
+    body {{ padding: 0; }}
+    .toolbar {{ display: flex; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #111; font: 12px Arial, sans-serif; }}
+    .toolbar button {{ border: 1px solid #111; background: #fff; color: #000; padding: 5px 9px; font-weight: 700; cursor: pointer; }}
+    pre.sheet {{
+      margin: 0;
+      padding: 0;
+      color: #000;
+      background: #fff;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 12pt;
+      font-weight: 400;
+      line-height: 14pt;
+      letter-spacing: 0;
+      white-space: pre;
+      text-rendering: geometricPrecision;
+      -webkit-font-smoothing: none;
+      font-synthesis-weight: auto;
+      page-break-after: always;
+    }}
+    pre.sheet:last-of-type {{
+      page-break-after: auto;
+    }}
+    @media print {{
+      .toolbar {{ display: none; }}
+      pre.sheet {{
+        font-size: 12pt;
+        font-weight: 400;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Print</button>
+    <span>A4 landscape fallback for a normal office printer. For continuous paper use Epson tractor print in the ERP.</span>
+  </div>
+{page_html}
+  <script>
+    window.addEventListener("load", function () {{
+      setTimeout(function () {{ window.print(); }}, 200);
+    }});
+  </script>
+</body>
+</html>"""
+
+    @classmethod
+    def _render_rows_escp(cls, text: str) -> BytesIO:
+        if "\n" in text.replace("\r\n", ""):
+            raise RuntimeError("Epson dispatch text must use CRLF line endings.")
+        # Keep detail rows in single-impact NLQ. Only the short heading and
+        # totals lines receive emphasis, immediately cancelled with ESC F.
+        # This prevents the global over-strike that blurred the photographed
+        # output while preserving strong visual anchors.
+        styled_pages: list[str] = []
+        for page in text.split("\f"):
+            styled_lines: list[str] = []
+            for line in page.split("\r\n"):
+                if line and cls._is_emphasis_line(line):
+                    styled_lines.append(f"{cls.ESC}E{line}{cls.ESC}F")
+                else:
+                    styled_lines.append(line)
+            styled_pages.append("\r\n".join(styled_lines))
+        styled_text = "\f".join(styled_pages)
+        payload = (cls.ESC_P_PREFIX + styled_text + "\f" + cls.ESC_P_SUFFIX).encode("ascii", "replace")
+        return BytesIO(payload)
+
+    @classmethod
+    def _package_escp(cls, escp_buffer: BytesIO) -> BytesIO:
+        """Wrap a native ESC/P job in the validated contract used by the Windows helper."""
+        return BytesIO(cls.TPP_PRINT_PACKAGE_HEADER + escp_buffer.getvalue())
 
     @classmethod
     def render(cls, challan: DeliveryChallan) -> BytesIO:
-        rows = cls._load_item_rows(challan.id)
-        transport_lines = [
-            f"VEHICLE : {getattr(challan, 'vehicle_no', '') or '-'}   TRANSPORTER : {getattr(challan, 'transporter_name', '') or '-'}   LR : {getattr(challan, 'lr_number', '') or '-'}",
-            f"DRIVER  : {getattr(challan, 'driver_name', '') or '-'} / {getattr(challan, 'driver_phone', '') or '-'}   DISPATCH : {cls._fmt_dt(getattr(challan, 'dispatch_date', None))}",
-        ]
+        document = cls._challan_document(challan)
         return cls._render_rows_pdf(
-            title="PACKING LIST",
-            doc_ref=challan.dc_no,
-            customer_name=challan.customer_name or "-",
-            sales_order_no=cls._safe_sales_order_number(challan),
-            plant_name=challan.plant.name if challan.plant else "-",
-            rows=rows,
-            transport_lines=transport_lines,
-            footer_note="System generated dispatch slip. Verify physical loading before vehicle release.",
+            title="DISPATCH SLIP",
+            doc_ref=document["document_ref"],
+            customer_name=document["customer_name"],
+            sales_order_no=document["sales_order_no"],
+            plant_name=document["plant_name"],
+            rows=document["rows"],
+            document_date=document.get("document_date"),
+            balance_rows=document.get("balance_rows") or [],
+            footer_note="Dispatch slip only. Transport and e-way details are carried on the accounting bill.",
         )
+
+    @classmethod
+    def render_text(cls, challan: DeliveryChallan) -> str:
+        document = cls._challan_document(challan)
+        return cls._render_rows_text(
+            title="DISPATCH SLIP",
+            doc_ref=document["document_ref"],
+            customer_name=document["customer_name"],
+            sales_order_no=document["sales_order_no"],
+            plant_name=document["plant_name"],
+            rows=document["rows"],
+            document_date=document.get("document_date"),
+            balance_rows=document.get("balance_rows") or [],
+            footer_note="Dispatch slip only. Transport and e-way details are carried on the accounting bill.",
+        )
+
+    @classmethod
+    def render_html(cls, challan: DeliveryChallan) -> str:
+        return cls._render_rows_text_html(cls.render_text(challan), title=f"{challan.dc_no} dispatch slip")
+
+    @classmethod
+    def render_escp(cls, challan: DeliveryChallan) -> BytesIO:
+        return cls._render_rows_escp(cls.render_text(challan))
+
+    @classmethod
+    def render_tpp_print(cls, challan: DeliveryChallan) -> BytesIO:
+        return cls._package_escp(cls.render_escp(challan))
 
     @classmethod
     def render_ready_slip(
@@ -705,12 +1146,75 @@ class DispatchListPDFService:
             gonny_ids=gonny_ids,
         )
         return cls._render_rows_pdf(
-            title="MATERIAL READY LIST",
-            doc_ref=f"READY-{sales_order.order_number}",
+            title="PACKING SLIP",
+            doc_ref=f"PACK-{sales_order.order_number}",
             customer_name=sales_order.customer_name or "-",
             sales_order_no=sales_order.order_number or "-",
             plant_name="-",
             rows=rows,
-            transport_lines=["CLIENT PREVIEW ONLY - NOT A DISPATCH CHALLAN"],
-            footer_note="Material shown is physically ready in Packing Yard / Dispatch Bay as of print time.",
+            document_date=timezone.localdate(),
+            signature_labels=("Packed By", "Checked By", "Dispatch Incharge"),
+            footer_note="Packing verification slip. Create the dispatch slip only after physical loading.",
         )
+
+    @classmethod
+    def render_ready_slip_text(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> str:
+        sales_order, rows = cls._load_ready_rows(
+            sales_order_id,
+            roll_ids=roll_ids,
+            gonny_ids=gonny_ids,
+        )
+        return cls._render_rows_text(
+            title="PACKING SLIP",
+            doc_ref=f"PACK-{sales_order.order_number}",
+            customer_name=sales_order.customer_name or "-",
+            sales_order_no=sales_order.order_number or "-",
+            plant_name="-",
+            rows=rows,
+            document_date=timezone.localdate(),
+            signature_labels=("Packed By", "Checked By", "Dispatch Incharge"),
+            footer_note="Packing verification slip. Create the dispatch slip only after physical loading.",
+        )
+
+    @classmethod
+    def render_ready_slip_html(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> str:
+        text = cls.render_ready_slip_text(sales_order_id, roll_ids=roll_ids, gonny_ids=gonny_ids)
+        return cls._render_rows_text_html(text, title=f"packing-slip-{sales_order_id}")
+
+    @classmethod
+    def render_ready_slip_escp(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> BytesIO:
+        text = cls.render_ready_slip_text(sales_order_id, roll_ids=roll_ids, gonny_ids=gonny_ids)
+        return cls._render_rows_escp(text)
+
+    @classmethod
+    def render_ready_slip_tpp_print(
+        cls,
+        sales_order_id: str,
+        *,
+        roll_ids: list[str] | None = None,
+        gonny_ids: list[str] | None = None,
+    ) -> BytesIO:
+        escp_buffer = cls.render_ready_slip_escp(
+            sales_order_id,
+            roll_ids=roll_ids,
+            gonny_ids=gonny_ids,
+        )
+        return cls._package_escp(escp_buffer)

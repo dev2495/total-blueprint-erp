@@ -7,6 +7,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+        --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
@@ -16,16 +23,24 @@ RUN apt-get update \
         libpq5 \
         libxml2 \
         libxslt1.1 \
+        openssl \
+        postgresql-client-16 \
         zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system --gid 10001 tpp \
+    && useradd --system --uid 10001 --gid tpp --create-home --home-dir /home/tpp tpp
+
 COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip setuptools wheel \
-    && pip install -r /app/requirements.txt
+    && pip install --require-hashes -r /app/requirements.txt
 
-COPY . /app
+COPY --chown=tpp:tpp . /app
 
-RUN mkdir -p /var/data/media /app/staticfiles
+RUN mkdir -p /var/data/media /var/log/tpp-erp /var/backups/tpp-erp /app/staticfiles \
+    && chown -R tpp:tpp /var/data/media /var/log/tpp-erp /var/backups/tpp-erp /app/staticfiles
+
+USER tpp
 
 EXPOSE 8000
 

@@ -17,9 +17,14 @@ Everything is computed in a small fixed number of grouped queries so the queue
 endpoint stays cheap even with side-effect-free reads (no state mutation).
 """
 
+import logging
+
 from django.utils import timezone
 
 from .stalled_jobs import _last_activity_map, is_job_stalled
+
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_committed_artwork(job):
@@ -28,14 +33,25 @@ def _resolve_committed_artwork(job):
         item = getattr(job, "sales_order_item", None)
         if item is not None and getattr(item, "assigned_artwork_id", None):
             return item.assigned_artwork
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "queue_enrichment: sales-order artwork lookup failed for job %s: %s",
+            getattr(job, "id", None),
+            exc,
+            exc_info=True,
+        )
+
     try:
         mts = getattr(job, "mts_order", None)
         if mts is not None and getattr(mts, "committed_artwork_id", None):
             return mts.committed_artwork
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "queue_enrichment: MTS artwork lookup failed for job %s: %s",
+            getattr(job, "id", None),
+            exc,
+            exc_info=True,
+        )
     return None
 
 
@@ -163,8 +179,13 @@ def _material_block(job):
         missing_rolls = int(meta.get("missing_rolls") or 0)
         if missing_rolls > 0 and str(getattr(process, "input_form", "") or "").upper() == "ROLL":
             reasons.append(f"Roll shortage: {missing_rolls} more roll(s) required.")
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "queue_enrichment: roll material readiness lookup failed for job %s: %s",
+            getattr(job, "id", None),
+            exc,
+            exc_info=True,
+        )
 
     # Bulk inputs: any required bulk material with insufficient available qty.
     try:
@@ -180,8 +201,13 @@ def _material_block(job):
                 name = item.get("material") or item.get("material_name") or "material"
                 reasons.append(f"Insufficient {name}: need {float(required):g} kg, have {float(available):g} kg.")
                 break
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "queue_enrichment: bulk material readiness lookup failed for job %s: %s",
+            getattr(job, "id", None),
+            exc,
+            exc_info=True,
+        )
 
     if reasons:
         return True, " ".join(reasons)

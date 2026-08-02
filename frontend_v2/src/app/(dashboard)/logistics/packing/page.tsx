@@ -134,7 +134,9 @@ const lineScopeSpec = (row: any) =>
     .filter((part) => part && part !== "-")
     .join(" · ") || "Order line";
 const productionBatchLabel = (row: any) => {
-  const batch = clean(row?.production_batch_number);
+  const batch = clean(
+    row?.production_batch_number || row?.batch_number || row?.batch_no,
+  );
   return batch ? `Batch ${batch}` : "";
 };
 const routeNodeLabel = (row: any) => {

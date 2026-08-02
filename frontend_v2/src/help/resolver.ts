@@ -2,6 +2,7 @@ import { DECISION_FLOWS } from "@/help/content/flows";
 import { FAQ_ITEMS } from "@/help/content/faq";
 import { PAGE_GUIDES } from "@/help/content/pages";
 import { ROLE_GUIDES } from "@/help/content/roles";
+import { canonicalHelpRoute } from "@/help/legacy-routes";
 import type {
   DecisionFlow,
   FAQItem,
@@ -73,7 +74,7 @@ export function getRoleGuide(roleCode?: string | null): RoleGuide | undefined {
 }
 
 export function resolvePageGuide(pathname: string, roleCode?: string | null): PageGuide | undefined {
-  const normalizedPath = normalizePath(pathname);
+  const normalizedPath = canonicalHelpRoute(normalizePath(pathname));
   const normalizedRole = String(roleCode || "").toUpperCase();
 
   const exactMatches = PAGE_GUIDES.filter((guide) => guide.routePattern === normalizedPath);

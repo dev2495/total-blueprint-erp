@@ -1,16 +1,17 @@
 import copy
 import logging
 
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets, filters
+from rest_framework import status, viewsets, filters, serializers as drf_serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 import json
 import uuid
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
 from apps.sales.models import CustomerProductOverlay
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
@@ -46,16 +47,14 @@ def _refresh_open_sales_snapshots_for_product(product, *, reason):
     try:
         from apps.sales.services.order_service import SalesOrderService
 
-        return SalesOrderService.refresh_open_snapshots_for_product_master(product, reason=reason)
-    except Exception as exc:
-        logger.warning(
-            "Failed to refresh open sales snapshots for Product Master %s after %s: %s",
-            getattr(product, "id", None),
-            reason,
-            exc,
-            exc_info=True,
+        return SalesOrderService.refresh_open_snapshots_for_product_master(
+            product,
+            reason=reason,
+            raise_on_error=True,
         )
-        return {"checked": 0, "refreshed": 0, "failed": 0}
+    except DjangoValidationError as exc:
+        detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+        raise drf_serializers.ValidationError(detail) from exc
 
 
 def _safe_float(value, default=0.0):
@@ -64,6 +63,7 @@ def _safe_float(value, default=0.0):
             return None if default is None else float(default)
         return float(value)
     except Exception:
+        logger.debug("Unable to coerce material master numeric value=%r", value, exc_info=True)
         return None if default is None else float(default)
 
 
@@ -330,6 +330,7 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             page_size = int(request.query_params.get("page_size") or 50)
         except Exception:
+            logger.warning("Invalid material master page_size filter: %r", request.query_params.get("page_size"), exc_info=True)
             page_size = 50
         page_size = max(1, min(page_size, 200))
 
@@ -356,7 +357,7 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
                 for row in rows:
                     stock_map[str(row["material_id"])] = float(row.get("total") or 0)
             except Exception:
-                pass
+                logger.warning("Unable to load material stock balances for the master list", exc_info=True)
 
         out = []
         for mat in qs:
@@ -369,6 +370,7 @@ class MaterialLibraryViewSet(viewsets.ReadOnlyModelViewSet):
                         parent_family_id=mat.id, status="ACTIVE"
                     ).count()
                 except Exception:
+                    logger.warning("Unable to count active product variants for material=%s", getattr(mat, "id", None), exc_info=True)
                     sub_count = 0
             out.append({
                 "id": mid,
@@ -433,6 +435,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(
                 models.Q(name__icontains=q)
                 | models.Q(code__icontains=q)
+                | models.Q(version_group__icontains=q)
                 | models.Q(description__icontains=q)
                 | models.Q(commercial_family__name__icontains=q)
             )
@@ -442,13 +445,135 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        with transaction.atomic():
-            product = serializer.save()
-            self._retire_other_versions(product)
+        try:
+            with transaction.atomic():
+                product = serializer.save()
+                self._retire_other_versions(product)
+                self._audit_master_change("CREATE", product)
+        except IntegrityError as exc:
+            if "product_masters_code_key" in str(exc):
+                raise drf_serializers.ValidationError(
+                    {"code": "Product Master code already exists. Try a different code."}
+                ) from exc
+            raise
 
     def perform_update(self, serializer):
         product = serializer.save()
-        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_EDIT")
+        revision_summary = _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_MASTER_EDIT")
+        self._audit_master_change("UPDATE", product, extra_details={"revision_summary": revision_summary})
+
+    @action(detail=True, methods=["post"], url_path="workspace-save")
+    def workspace_save(self, request, pk=None):
+        """Save the editable Product Master workspace without creating a version.
+
+        Product Master revisions are business changes to the same current
+        identity.  Cloning remains an explicit action for a deliberately new
+        product/version, but the normal editor must never retire the source or
+        recreate every size as a side effect of Save.
+        """
+        product = self.get_object()
+        body = request.data if isinstance(request.data, dict) else {}
+        if not body:
+            raise drf_serializers.ValidationError({"detail": "Product Master save payload is required."})
+        supplied_code = self._payload_value(body, "code")
+        if supplied_code not in (None, "", product.code):
+            raise drf_serializers.ValidationError(
+                {"code": "Product Master code is an internal immutable identity. Update the name instead."}
+            )
+
+        writable_master_fields = {
+            "name",
+            "product_kind",
+            "packaging_kind",
+            "default_template",
+            "template",
+            "extrusion_recipe",
+            "commercial_family",
+            "default_reporting_group",
+            "reusable_policy",
+            "canonical_layer_stack",
+            "layer_template",
+            "variant_axes",
+            "fixed_attributes",
+            "description",
+            "active",
+        }
+        raw_sizes = self._payload_value(body, "sizes", None)
+        if raw_sizes is not None and not isinstance(raw_sizes, list):
+            raise drf_serializers.ValidationError({"sizes": "sizes must be a list."})
+
+        with transaction.atomic():
+            master_payload = {
+                field: self._payload_value(body, field)
+                for field in writable_master_fields
+                if field in body
+            }
+            serializer = ProductMasterSerializer(product, data=master_payload, partial=True)
+            serializer.is_valid(raise_exception=True)
+            product = serializer.save()
+
+            size_summary = {"created": 0, "updated": 0, "retired": 0}
+            if raw_sizes is not None:
+                existing_sizes = {
+                    str(size.id): size
+                    for size in product.sizes.select_for_update().all()
+                }
+                submitted_ids = set()
+                read_only_size_fields = {
+                    "id",
+                    "product_master",
+                    "product_master_code",
+                    "product_master_name",
+                    "pouch_style_master_code",
+                    "pouch_style_roll_axis",
+                    "created_at",
+                    "updated_at",
+                }
+                for raw_size in raw_sizes:
+                    if not isinstance(raw_size, dict):
+                        raise drf_serializers.ValidationError({"sizes": "Each size must be an object."})
+                    raw_id = str(raw_size.get("id") or "").strip()
+                    size_payload = {
+                        key: value
+                        for key, value in raw_size.items()
+                        if key not in read_only_size_fields
+                    }
+                    if raw_id and raw_id in existing_sizes:
+                        submitted_ids.add(raw_id)
+                        size_serializer = ProductMasterSizeSerializer(
+                            existing_sizes[raw_id],
+                            data=size_payload,
+                            partial=True,
+                        )
+                        size_serializer.is_valid(raise_exception=True)
+                        size_serializer.save()
+                        size_summary["updated"] += 1
+                    else:
+                        size_payload["product_master"] = str(product.id)
+                        size_serializer = ProductMasterSizeSerializer(data=size_payload)
+                        size_serializer.is_valid(raise_exception=True)
+                        size_serializer.save()
+                        size_summary["created"] += 1
+
+                # Removing a size from the workspace retires it for new orders;
+                # historical order snapshots remain untouched and auditable.
+                omitted = [size for size_id, size in existing_sizes.items() if size_id not in submitted_ids and size.active]
+                if omitted:
+                    ProductMasterSize.objects.filter(id__in=[size.id for size in omitted]).update(active=False)
+                    size_summary["retired"] = len(omitted)
+            revision_summary = _refresh_open_sales_snapshots_for_product(
+                product,
+                reason="PRODUCT_MASTER_WORKSPACE_SAVE",
+            )
+            self._audit_master_change(
+                "WORKSPACE_SAVE",
+                product,
+                extra_details={"size_summary": size_summary, "revision_summary": revision_summary},
+            )
+        data = dict(ProductMasterSerializer(product).data)
+        data["size_summary"] = size_summary
+        data["revision_summary"] = revision_summary
+        return Response(data)
 
     def get_object(self):
         """
@@ -462,7 +587,12 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             uuid.UUID(str(lookup))
             obj = get_object_or_404(queryset, pk=lookup)
         except (TypeError, ValueError):
-            obj = get_object_or_404(queryset, code__iexact=str(lookup or ""))
+            lookup_text = str(lookup or "")
+            obj = queryset.filter(code__iexact=lookup_text).first()
+            if obj is None:
+                obj = queryset.filter(version_group__iexact=lookup_text, is_current_version=True).first()
+            if obj is None:
+                obj = get_object_or_404(queryset, code__iexact=lookup_text)
         self.check_object_permissions(self.request, obj)
         return obj
 
@@ -528,7 +658,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 if isinstance(parsed, dict):
                     axis_values.update(parsed)
             except Exception:
-                pass
+                logger.warning("Invalid artwork axis_values query parameter", exc_info=True)
         size_code = request.query_params.get("size") or request.query_params.get("size_code")
         if size_code:
             axis_values["size"] = str(size_code).strip()
@@ -595,12 +725,12 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             try:
                 queryset = queryset.filter(front_colors_count=int(front_count))
             except Exception:
-                pass
+                logger.warning("Invalid artwork front_colors_count filter: %r", front_count, exc_info=True)
         if back_count not in (None, ""):
             try:
                 queryset = queryset.filter(back_colors_count=int(back_count))
             except Exception:
-                pass
+                logger.warning("Invalid artwork back_colors_count filter: %r", back_count, exc_info=True)
 
         return Response(
             {
@@ -684,6 +814,15 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def restore(self, request, pk=None):
         product = self.get_object()
+        if product.superseded_by_id or not product.is_current_version:
+            raise drf_serializers.ValidationError(
+                {
+                    "detail": (
+                        "A superseded Product Master revision cannot be restored. "
+                        "Use its current replacement or create a controlled new revision."
+                    )
+                }
+            )
         product.active = True
         product.save(update_fields=["active", "updated_at"])
         return Response(ProductMasterSerializer(product).data)
@@ -693,6 +832,15 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         source = self.get_object()
         body = request.data if isinstance(request.data, dict) else {}
         disable_source = self._truthy(self._payload_value(body, "disable_source"), default=False)
+        if disable_source and not self._truthy(self._payload_value(body, "confirm_new_revision"), default=False):
+            raise drf_serializers.ValidationError(
+                {
+                    "confirm_new_revision": (
+                        "Replacing a Product Master is an explicit controlled revision. "
+                        "Normal edits must use workspace-save."
+                    )
+                }
+            )
         submitted_sizes = self._payload_value(body, "sizes", None)
         copy_sizes = self._truthy(self._payload_value(body, "copy_sizes"), default=submitted_sizes is None)
         copy_variants = self._truthy(self._payload_value(body, "copy_variants"), default=submitted_sizes is None)
@@ -752,6 +900,18 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             from apps.materials.services_product_master_rebase import rebase_open_sales_lines_to_current_master
 
             rebase_summary = rebase_open_sales_lines_to_current_master(source, cloned)
+
+        self._audit_master_change(
+            "EXPLICIT_CLONE",
+            cloned,
+            extra_details={
+                "source_id": str(source.id),
+                "source_retired": bool(disable_source),
+                "copied_sizes": copied_sizes,
+                "copied_variants": copied_variants,
+                "open_line_rebase_summary": rebase_summary,
+            },
+        )
 
         data = dict(ProductMasterSerializer(cloned).data)
         data["source_disabled_id"] = source_disabled_id
@@ -970,6 +1130,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             try:
                 axis_values = json.loads(axis_values)
             except Exception:
+                logger.warning("Invalid product-master axis_values payload", exc_info=True)
                 axis_values = {}
         total_pouches = (
             payload.get("total_pouches")
@@ -1263,6 +1424,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             routing_rule = getattr(template, "routing_rule", None) if template else None
             route_processes = list(getattr(routing_rule, "ordered_processes", []) or [])
         except Exception:
+            logger.warning("Unable to resolve product-master route process metadata", exc_info=True)
             route_processes = []
         route_print_capable = any(
             "PRINT" in str(code or "").upper() or "ROTO" in str(code or "").upper()
@@ -1293,6 +1455,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 for mat in InventoryMaterial.objects.filter(code__in=material_codes):
                     material_map[mat.code] = mat
         except Exception:
+            logger.warning("Unable to resolve product-master material map", exc_info=True)
             material_map = {}
 
         # rate-per-kg helper — uses MaterialCostSnapshot if available, falls back to 0
@@ -1629,6 +1792,74 @@ class GranuleQualityCodeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     filterset_fields = ['granule', 'status']
     search_fields = ['code', 'granule__name', 'granule__code']
 
+    def create(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                return super().create(request, *args, **kwargs)
+        except IntegrityError:
+            return Response(
+                {"code": ["An equivalent active code already exists in this granule family."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @action(detail=False, methods=['post'], url_path='bulk-create')
+    def bulk_create(self, request):
+        granule_id = request.data.get("granule")
+        raw_codes = request.data.get("codes")
+        if not granule_id or not isinstance(raw_codes, list):
+            return Response(
+                {"error": "granule and a codes list are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        granule = get_object_or_404(
+            InventoryMaterial.objects.filter(category="GRANULE"),
+            id=granule_id,
+        )
+        codes = [str(code or "").strip().upper() for code in raw_codes]
+        codes = [code for code in codes if code]
+        if not codes:
+            return Response({"error": "Enter at least one code."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(codes) > 100:
+            return Response({"error": "Add no more than 100 codes at once."}, status=status.HTTP_400_BAD_REQUEST)
+        canonical_codes = [canonical_granule_quality_code(code) for code in codes]
+        if len(set(canonical_codes)) != len(canonical_codes):
+            return Response(
+                {"error": "The pasted list contains equivalent codes. Spaces, hyphens and underscores count as the same code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        existing = set(
+            GranuleQualityCode.objects.filter(
+                granule=granule,
+                canonical_key__in=canonical_codes,
+                status="ACTIVE",
+            ).values_list("code", flat=True)
+        )
+        if existing:
+            return Response(
+                {"error": f"Already present in this family: {', '.join(sorted(existing))}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created = []
+        try:
+            with transaction.atomic():
+                for code in codes:
+                    serializer = self.get_serializer(data={
+                        "granule": str(granule.id),
+                        "code": code,
+                        "status": "ACTIVE",
+                        "notes": "",
+                    })
+                    serializer.is_valid(raise_exception=True)
+                    self.perform_create(serializer)
+                    created.append(serializer.instance)
+        except IntegrityError:
+            return Response(
+                {"error": "An equivalent code was created by another user. Refresh the family and try again."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(self.get_serializer(created, many=True).data, status=status.HTTP_201_CREATED)
+
 class InkViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_INK"
     queryset = InkMaterial.objects.all().order_by('color_name')
@@ -1790,6 +2021,20 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             v = body.get(field, None)
             return fallback if v is None else v
 
+        from .services_pouch_style import formula_axis_contract_error
+
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=pick("default_roll_axis", instance.default_roll_axis),
+            formula_kind=pick("formula_kind", instance.formula_kind),
+            formula_params=pick("formula_params", instance.formula_params),
+            formula_ast=pick("formula_ast", instance.formula_ast),
+        )
+        if contract_error:
+            return Response(
+                {"default_roll_axis": [contract_error]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         new_instance = PouchStyleMaster.objects.create(
             code=instance.code,
             name=pick("name", instance.name),
@@ -1892,6 +2137,19 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             )
         if instance.locked:
             return Response(PouchStyleSerializer(instance).data)
+        from .services_pouch_style import formula_axis_contract_error
+
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=instance.default_roll_axis,
+            formula_kind=instance.formula_kind,
+            formula_params=instance.formula_params,
+            formula_ast=instance.formula_ast,
+        )
+        if contract_error:
+            return Response(
+                {"default_roll_axis": [contract_error]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         instance.locked = True
         instance.updated_by = request.user if request.user.is_authenticated else None
         instance.save(update_fields=["locked", "updated_by", "updated_at"])

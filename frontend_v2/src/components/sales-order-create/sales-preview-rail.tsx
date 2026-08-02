@@ -46,7 +46,8 @@ function fmtWeightSmart(qty: number | null | undefined, uom?: string): string {
   if (u !== "KG")
     return `${fmtNum(n, Math.abs(n) < 100 ? 1 : 0)} ${u.toLowerCase()}`;
   if (!Number.isFinite(n) || n === 0) return "0 kg";
-  if (Math.abs(n) >= 1) return `${fmtNum(n, Math.abs(n) >= 100 ? 0 : 2)} kg`;
+  if (Math.abs(n) >= 1)
+    return `${fmtNum(n, Math.abs(n) >= 1000 ? 3 : 4)} kg`;
   const g = n * 1000;
   if (Math.abs(g) >= 1) return `${g.toFixed(Math.abs(g) >= 100 ? 0 : 1)} g`;
   return `${(g * 1000).toFixed(0)} mg`;
@@ -745,8 +746,24 @@ function rollCalcAxisLabel(preview: PreviewBomResult) {
   const axis = String(
     g.pouch_style_roll_axis || g.trim_apply_to || g.width_basis || "",
   ).toUpperCase();
-  if (axis === "WIDTH") return "Width axis";
-  if (axis === "HEIGHT") return "Height axis";
+  const pitchAxis = String(g.consumption_pitch_axis || "").toUpperCase();
+  const pitchMm = Number(g.consumption_pitch_mm || 0);
+  const webLabel =
+    axis === "WIDTH"
+      ? "width"
+      : axis === "HEIGHT"
+        ? "height"
+        : axis.toLowerCase();
+  const pitchLabel =
+    pitchAxis === "WIDTH"
+      ? "width"
+      : pitchAxis === "HEIGHT"
+        ? "height"
+        : "cut";
+  if ((axis === "WIDTH" || axis === "HEIGHT") && pitchMm > 0)
+    return `Web from ${webLabel} · ${pitchLabel} pitch ${fmtNum(pitchMm, 2)} mm`;
+  if (axis === "WIDTH") return "Web from width";
+  if (axis === "HEIGHT") return "Web from height";
   if (axis === "BOTH") return "Width + height";
   if (axis === "OPEN_WEB_WIDTH") return "Open-web width";
   if (axis === "LAYFLAT_WIDTH") return "Layflat width";
@@ -1083,7 +1100,7 @@ export function SalesPreviewRail({
               </div>
             </div>
             <div className="rounded-lg bg-info-bg p-2 ring-1 ring-info-border">
-              <div className={cn(label, "text-primary")}>Total weight</div>
+              <div className={cn(label, "text-primary")}>FG material total</div>
               <div className="font-mono font-black text-primary">
                 {totalKg > 0
                   ? fmtWeightSmart(totalKg, "KG")
@@ -1093,9 +1110,9 @@ export function SalesPreviewRail({
               </div>
             </div>
             <div className="rounded-lg bg-success-bg p-2 ring-1 ring-success-border">
-              <div className={cn(label, "text-success-fg")}>Wt / pouch</div>
+              <div className={cn(label, "text-success-fg")}>FG wt / pouch</div>
               <div className="font-mono font-black text-success-fg">
-                {unitG > 0 ? `${fmtNum(unitG, 2)} g` : "—"}
+                {unitG > 0 ? `${fmtNum(unitG, 4)} g` : "—"}
               </div>
             </div>
             <div className="rounded-lg bg-order-bg p-2 ring-1 ring-order-border">
@@ -1106,8 +1123,16 @@ export function SalesPreviewRail({
                 </span>
               </div>
             </div>
+            <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
+              <div className={label}>Film requirement</div>
+              <div className="font-mono font-black text-content-1">
+                {substrateSubtotal > 0
+                  ? fmtWeightSmart(substrateSubtotal, "KG")
+                  : "—"}
+              </div>
+            </div>
             <div className="col-span-2 rounded-lg bg-order-bg p-2 ring-1 ring-order-border">
-              <div className={cn(label, "text-order-fg")}>Calculation axis</div>
+              <div className={cn(label, "text-order-fg")}>BOM geometry</div>
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono font-black text-order-fg">
                   {calcAxis}

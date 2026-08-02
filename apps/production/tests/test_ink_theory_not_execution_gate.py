@@ -134,6 +134,7 @@ class InkStepTargetTests(SimpleTestCase):
         mock_execution_logs.return_value.only.return_value = []
         process = SimpleNamespace(input_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
         job = SimpleNamespace(
+            id="ink-step-target-job",
             current_process=process,
             process=process,
             current_step_index=0,

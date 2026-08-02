@@ -1,6 +1,7 @@
 """Django settings for total blueprint ERP."""
 
 import importlib.util
+import logging
 import os
 import socket
 import sys
@@ -15,6 +16,8 @@ from config.runtime_env import (
     is_production_env,
     normalize_django_env,
 )
+
+logger = logging.getLogger(__name__)
 
 COMMAND_LINE = " ".join(sys.argv).lower()
 IS_CELERY_PROCESS = "celery" in COMMAND_LINE
@@ -75,7 +78,7 @@ def _detect_local_ipv4s() -> list[str]:
             if ip and ":" not in ip:
                 candidates.add(ip)
     except Exception:
-        pass
+        logger.debug("Unable to discover local IPv4 addresses via getaddrinfo", exc_info=True)
 
     try:
         _, _, host_ips = socket.gethostbyname_ex(socket.gethostname())
@@ -84,7 +87,7 @@ def _detect_local_ipv4s() -> list[str]:
             if token and ":" not in token:
                 candidates.add(token)
     except Exception:
-        pass
+        logger.debug("Unable to discover local IPv4 addresses via hostname lookup", exc_info=True)
 
     return sorted(candidates)
 
@@ -436,7 +439,7 @@ if SENTRY_DSN:
         )
     except Exception:
         # Never break app startup on observability bootstrap failure.
-        pass
+        logger.warning("Sentry observability bootstrap failed; continuing without Sentry", exc_info=True)
 
 
 # Fail-closed security posture in hosted environments.

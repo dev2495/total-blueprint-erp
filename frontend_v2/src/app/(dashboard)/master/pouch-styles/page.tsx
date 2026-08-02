@@ -141,7 +141,6 @@ export default function PouchStylesListPage() {
                 <th className="px-4 py-2">Stock form</th>
                 <th className="px-4 py-2">Area formula</th>
                 <th className="px-4 py-2">Slit</th>
-                <th className="px-4 py-2">v</th>
                 <th className="px-4 py-2">Sizes</th>
                 <th className="px-4 py-2">Status</th>
                 <th className="px-4 py-2"></th>
@@ -189,7 +188,6 @@ function PouchRow({ s }: { s: PouchStyle }) {
       <td className="px-4 py-2 text-[11px] font-bold text-content-3">
         {s.default_slit_policy === "EXACT_ONLY" ? "Exact only" : "Allowed"}
       </td>
-      <td className="px-4 py-2 font-bold">{s.version}</td>
       <td className="px-4 py-2">{s.sizes_count ?? 0}</td>
       <td className="px-4 py-2">
         <div className="flex flex-wrap gap-1">

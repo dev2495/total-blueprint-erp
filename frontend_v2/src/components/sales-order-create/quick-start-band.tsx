@@ -68,6 +68,7 @@ export function QuickStartBand({
       const sizeCode = String(
         axisValues.size || overlay.size_variant_code || "",
       );
+      if (!sizeCode || Number(m.sizes_count || 0) <= 0) continue;
       const catalogAxisValues = Object.fromEntries(
         Object.entries(axisValues).filter(
           ([key]) =>
@@ -113,6 +114,8 @@ export function QuickStartBand({
         const masterId = item.product_master || item.product_master_id;
         const m = masters.find((x) => x.id === masterId);
         if (!m) continue;
+        const sizeCode = String(item.axis_values?.size || "");
+        if (!sizeCode || Number(m.sizes_count || 0) <= 0) continue;
         const sig = `${masterId}|${item.axis_values?.size || ""}|${(item.axis_values?.addons || []).join(",")}|${item.axis_values?.pod_variant || ""}|${item.axis_values?.packaging_inner || ""}`;
         if (seen.has(sig)) continue;
         seen.add(sig);

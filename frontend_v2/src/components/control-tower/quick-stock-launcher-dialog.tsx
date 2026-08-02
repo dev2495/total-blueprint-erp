@@ -280,7 +280,7 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
                     <div style={{ fontSize: 11, color: "var(--text-3)", lineHeight: 1.5 }}>
                         For full configuration (custom layers, plant, route stop, POD targeting, commitment scope) use the{" "}
                         <a href="/production/planner/stock-launcher" style={{ color: "var(--link)", fontWeight: 700 }}>
-                            full Stock Order Launcher (V3) →
+                            full Stock Order Launcher →
                         </a>
                     </div>
                 </div>

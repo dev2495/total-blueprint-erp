@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
+  Download,
   FileText,
-  MapPin,
   Printer,
   Search,
   Send,
@@ -301,12 +301,10 @@ export default function DispatchBayPage() {
   const [selectedRolls, setSelectedRolls] = useState<string[]>([]);
   const [selectedGonnies, setSelectedGonnies] = useState<string[]>([]);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
-  const [vehicleNo, setVehicleNo] = useState("");
-  const [driverName, setDriverName] = useState("");
-  const [driverPhone, setDriverPhone] = useState("");
-  const [transporterName, setTransporterName] = useState("");
-  const [lrNumber, setLrNumber] = useState("");
-  const [ewayBill, setEwayBill] = useState("");
+  const [podChallan, setPodChallan] = useState<DeliveryChallan | null>(null);
+  const [podReceivedBy, setPodReceivedBy] = useState("");
+  const [podReference, setPodReference] = useState("");
+  const [podNotes, setPodNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [queuePage, setQueuePage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
@@ -335,18 +333,73 @@ export default function DispatchBayPage() {
     });
     queryClient.invalidateQueries({ queryKey: ["challans"] });
   };
-  const openMaterialReadySlip = () => {
+  const getReadySlipSelection = () => {
     if (!selectedOrderId) return;
     const hasExplicitSelection = selectedRolls.length + selectedGonnies.length > 0;
     const rollIds = hasExplicitSelection ? selectedRolls : visibleRollIds;
     const gonnyIds = hasExplicitSelection ? selectedGonnies : visibleGonnyIds;
     if (rollIds.length + gonnyIds.length === 0) return;
+    return { rollIds, gonnyIds };
+  };
+  const downloadEpsonJob = async (url: string) => {
+    try {
+      const response = await fetch(url, {
+        credentials: "include",
+        headers: { Accept: "application/vnd.totalpolyprint.epson-raw" },
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (!response.ok || !contentType.includes("application/vnd.totalpolyprint.epson-raw")) {
+        let message = `Print job could not be prepared (${response.status}).`;
+        if (contentType.includes("application/json")) {
+          const body = await response.json();
+          message = body?.error || body?.detail || message;
+        }
+        throw new Error(message);
+      }
+
+      const disposition = response.headers.get("content-disposition") || "";
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || "total-poly-print.tppprint";
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      toast({
+        title: "Epson job downloaded",
+        description: "Waiting for the Windows helper. It will print one 15 × 5.5-inch form in crisp normal-body NLQ mode with no browser scaling.",
+      });
+    } catch (error) {
+      toast({
+        title: "Epson print failed",
+        description: err(error),
+        variant: "destructive",
+      });
+    }
+  };
+  const printMaterialReadySlipOnEpson = async () => {
+    if (!selectedOrderId) return;
+    const selection = getReadySlipSelection();
+    if (!selection) return;
+    await downloadEpsonJob(
+      logisticsService.getMaterialReadySlipUrl(
+        selectedOrderId,
+        selection,
+        "tpp",
+      ),
+    );
+  };
+  const openMaterialReadySlipPdf = () => {
+    if (!selectedOrderId) return;
+    const selection = getReadySlipSelection();
+    if (!selection) return;
     window.open(
-      logisticsService.getMaterialReadySlipUrl(selectedOrderId, {
-        rollIds,
-        gonnyIds,
-      }),
+      logisticsService.getMaterialReadySlipUrl(selectedOrderId, selection, "pdf"),
       "_blank",
+      "noopener,noreferrer",
     );
   };
 
@@ -356,12 +409,6 @@ export default function DispatchBayPage() {
         customer_name: selected?.sales_order.customer_name || "",
         plant_id: selectedPlantId || "",
         sales_order_id: selectedOrderId,
-        vehicle_no: vehicleNo,
-        driver_name: driverName,
-        driver_phone: driverPhone,
-        transporter_name: transporterName,
-        lr_number: lrNumber,
-        e_way_bill_number: ewayBill,
         dispatch_notes: notes,
         ship_to_address_snapshot: {
           customer_name: selected?.sales_order.customer_name || "",
@@ -404,18 +451,25 @@ export default function DispatchBayPage() {
   });
 
   const deliverMutation = useMutation({
-    mutationFn: (challanId: string) =>
-      logisticsService.updateChallanStatus(challanId, "DELIVERED"),
+    mutationFn: () => {
+      if (!podChallan) throw new Error("Select a dispatch slip first.");
+      return logisticsService.confirmPOD(podChallan.id, {
+        received_by: podReceivedBy,
+        reference: podReference,
+        notes: podNotes,
+      });
+    },
     onSuccess: (data) => {
-      toast({ title: "Delivered", description: data.message });
-      setFinalizeOpen(false);
-      setSelectedRolls([]);
-      setSelectedGonnies([]);
+      toast({ title: data.order_closed ? "POD confirmed · order closed" : "POD confirmed", description: data.message });
+      setPodChallan(null);
+      setPodReceivedBy("");
+      setPodReference("");
+      setPodNotes("");
       invalidate();
     },
     onError: (error) =>
       toast({
-        title: "Delivery update failed",
+        title: "POD confirmation failed",
         description: err(error),
         variant: "destructive",
       }),
@@ -540,7 +594,7 @@ export default function DispatchBayPage() {
   const history = (challans.data || []).filter((row) => {
     const term = historySearch.trim().toLowerCase();
     if (!term) return true;
-    return `${row.dc_no} ${row.customer_name} ${row.sales_order__order_number} ${row.vehicle_no}`
+    return `${row.dc_no} ${row.customer_name} ${row.so_number} ${row.vehicle_no}`
       .toLowerCase()
       .includes(term);
   });
@@ -747,7 +801,7 @@ export default function DispatchBayPage() {
     .filter((unit) => unit.kind === "CTN")
     .map((unit) => unit.id);
   const readySlipUnits = selectedUnits || visibleManifestUnits.length;
-  const readySlipLabel = selectedUnits ? "Selected slip" : "Visible slip";
+  const readySlipLabel = selectedUnits ? "Packing slip · selected" : "Packing slip · visible";
   const allVisibleSelected =
     visibleManifestUnits.length > 0 &&
     visibleManifestUnits.every((unit) => unit.selected);
@@ -852,6 +906,14 @@ export default function DispatchBayPage() {
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <a
+              href="/downloads/epson-fx2175ii/tpp-epson-print-helper.zip"
+              download
+              data-testid="dispatch-epson-windows-setup"
+              className="inline-flex items-center rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur transition hover:bg-white/25"
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" /> Windows helper · Updated
+            </a>
             <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur">
               {n(cards.length, 0)} orders shown
             </span>
@@ -1289,13 +1351,23 @@ export default function DispatchBayPage() {
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="success"
                       size="sm"
                       data-testid="dispatch-material-ready-slip"
                       disabled={!selectedOrderId || readySlipUnits === 0}
-                      onClick={openMaterialReadySlip}
+                      onClick={printMaterialReadySlipOnEpson}
                     >
-                      <Printer className="mr-1.5 h-3.5 w-3.5" /> {readySlipLabel}
+                      <Printer className="mr-1.5 h-3.5 w-3.5" /> Epson tractor · {readySlipLabel}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      data-testid="dispatch-material-ready-slip-pdf"
+                      disabled={!selectedOrderId || readySlipUnits === 0}
+                      onClick={openMaterialReadySlipPdf}
+                    >
+                      <FileText className="mr-1.5 h-3.5 w-3.5" /> A4 PDF · normal printer
                     </Button>
                     <Button
                       type="button"
@@ -1631,12 +1703,12 @@ export default function DispatchBayPage() {
                   </div>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="success"
                     data-testid="dispatch-ready-slip-sticky"
                     disabled={!selectedOrderId || readySlipUnits === 0}
-                    onClick={openMaterialReadySlip}
+                    onClick={printMaterialReadySlipOnEpson}
                   >
-                    <Printer className="mr-2 h-4 w-4" /> {readySlipLabel}
+                    <Printer className="mr-2 h-4 w-4" /> Epson tractor · {readySlipLabel}
                   </Button>
                   <Button
                     data-testid="dispatch-create-trigger"
@@ -1662,7 +1734,7 @@ export default function DispatchBayPage() {
               </span>
             </div>
             <div className="mt-3 space-y-2">
-              {movingRows.slice(0, 3).map((row, index) => (
+              {movingRows.slice(0, 3).map((row) => (
                 <div
                   key={row.id}
                   className="rounded-[12px] border border-line p-3"
@@ -1674,14 +1746,10 @@ export default function DispatchBayPage() {
                     <Chip tone="blue">{String(row.status).toLowerCase()}</Chip>
                   </div>
                   <div className="mt-1 flex items-center gap-1 text-xs font-semibold text-content-3">
-                    <MapPin className="h-3 w-3" /> {row.vehicle_no || "vehicle"}{" "}
-                    · ETA today
+                    {row.customer_name} · {row.so_number || "sales order"}
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <span
-                      className={`block h-full rounded-full ${index === 1 ? "bg-order-fg" : "bg-success-fg"}`}
-                      style={{ width: `${58 + index * 12}%` }}
-                    />
+                  <div className="mt-2 text-[11px] font-bold text-order-fg">
+                    Awaiting customer POD confirmation
                   </div>
                 </div>
               ))}
@@ -1708,17 +1776,17 @@ export default function DispatchBayPage() {
                     {row.dc_no}
                   </div>
                   <div className="mt-1 text-xs font-semibold text-content-3">
-                    {row.customer_name} · driver photo + signed LR
+                    {row.customer_name} · {row.so_number || "sales order"}
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
                     data-testid={`dispatch-deliver-${row.id}`}
                     disabled={deliverMutation.isPending}
-                    onClick={() => deliverMutation.mutate(row.id)}
+                    onClick={() => setPodChallan(row)}
                     className="mt-2 h-8"
                   >
-                    Mark delivered
+                    Confirm POD
                   </Button>
                 </div>
               ))}
@@ -1772,21 +1840,34 @@ export default function DispatchBayPage() {
                     </Chip>
                   </div>
                   <div className="mt-1 text-xs font-semibold text-content-3">
-                    {row.customer_name} · {row.vehicle_no || "vehicle pending"}
+                    {row.customer_name} · {row.so_number || "sales order"}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="success"
                       data-testid={`dispatch-print-${row.id}`}
                       onClick={() =>
-                        window.open(
-                          logisticsService.getChallanPrintUrl(row.id),
-                          "_blank",
+                        void downloadEpsonJob(
+                          logisticsService.getChallanPrintUrl(row.id, "tpp"),
                         )
                       }
                     >
-                      <Printer className="mr-1 h-3 w-3" /> Print
+                      <Printer className="mr-1 h-3 w-3" /> Epson tractor print
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid={`dispatch-pdf-${row.id}`}
+                      onClick={() =>
+                        window.open(
+                          logisticsService.getChallanPrintUrl(row.id, "pdf"),
+                          "_blank",
+                          "noopener,noreferrer",
+                        )
+                      }
+                    >
+                      <FileText className="mr-1 h-3 w-3" /> A4 PDF · normal printer
                     </Button>
                     {row.status === "DRAFT" && (
                       <Button
@@ -1805,9 +1886,9 @@ export default function DispatchBayPage() {
                         variant="outline"
                         data-testid={`dispatch-deliver-history-${row.id}`}
                         disabled={deliverMutation.isPending}
-                        onClick={() => deliverMutation.mutate(row.id)}
+                        onClick={() => setPodChallan(row)}
                       >
-                        Mark delivered
+                        Confirm POD
                       </Button>
                     )}
                   </div>
@@ -1840,6 +1921,43 @@ export default function DispatchBayPage() {
           </div>
         </aside>
       </section>
+
+      <Dialog open={Boolean(podChallan)} onOpenChange={(open) => !open && setPodChallan(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Confirm proof of delivery</DialogTitle>
+          </DialogHeader>
+          <div className="rounded-2xl border border-success-border bg-success-bg p-4">
+            <div className="font-mono text-sm font-black text-content-1">{podChallan?.dc_no}</div>
+            <div className="mt-1 text-xs font-semibold text-content-3">
+              {podChallan?.customer_name} · {podChallan?.so_number || "sales order"}
+            </div>
+          </div>
+          <div className="grid gap-4">
+            <div>
+              <Label>Received by (optional)</Label>
+              <Input value={podReceivedBy} onChange={(event) => setPodReceivedBy(event.target.value)} placeholder="Customer receiver name" />
+            </div>
+            <div>
+              <Label>POD reference (optional)</Label>
+              <Input value={podReference} onChange={(event) => setPodReference(event.target.value)} placeholder="Stamp, receipt or POD number" />
+            </div>
+            <div>
+              <Label>Notes (optional)</Label>
+              <Textarea value={podNotes} onChange={(event) => setPodNotes(event.target.value)} placeholder="Delivery acknowledgement note" />
+            </div>
+            <div className="rounded-xl border border-warning-border bg-warning-bg p-3 text-xs font-semibold text-content-2">
+              This confirms physical delivery. The sales order closes automatically only when every active line is fully delivered; partial balances stay open.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPodChallan(null)}>Cancel</Button>
+            <Button data-testid="dispatch-confirm-pod-submit" disabled={deliverMutation.isPending} onClick={() => deliverMutation.mutate()}>
+              {deliverMutation.isPending ? "Confirming..." : "Confirm POD"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={finalizeOpen} onOpenChange={setFinalizeOpen}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
@@ -1901,72 +2019,18 @@ export default function DispatchBayPage() {
               </div>
             </div>
           </div>
-          <details className="rounded-3xl border border-line bg-surface-1 p-4 text-sm shadow-sm">
-            <summary className="cursor-pointer select-none text-sm font-black text-content-1">
-              Optional transport details
-              <span className="ml-2 text-xs font-bold text-content-4">
-                vehicle, LR, e-way bill and notes can be filled later
-              </span>
-            </summary>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Vehicle number</Label>
-                <Input
-                  value={vehicleNo}
-                  onChange={(event) => setVehicleNo(event.target.value)}
-                  placeholder="MH-XX-AB-XXXX"
-                />
-              </div>
-              <div>
-                <Label>Transporter</Label>
-                <Input
-                  value={transporterName}
-                  onChange={(event) => setTransporterName(event.target.value)}
-                  placeholder="Transporter name"
-                />
-              </div>
-              <div>
-                <Label>Driver name</Label>
-                <Input
-                  value={driverName}
-                  onChange={(event) => setDriverName(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div>
-                <Label>Driver phone</Label>
-                <Input
-                  value={driverPhone}
-                  onChange={(event) => setDriverPhone(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div>
-                <Label>LR number</Label>
-                <Input
-                  value={lrNumber}
-                  onChange={(event) => setLrNumber(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div>
-                <Label>E-way bill</Label>
-                <Input
-                  value={ewayBill}
-                  onChange={(event) => setEwayBill(event.target.value)}
-                  placeholder="Optional"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Dispatch notes</Label>
-                <Textarea
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Optional loading or receiver note"
-                />
-              </div>
+          <div className="rounded-3xl border border-line bg-surface-1 p-4 text-sm shadow-sm">
+            <div className="font-black text-content-1">Dispatch note (optional)</div>
+            <div className="mt-1 text-xs font-semibold text-content-3">
+              Driver, LR and e-way details remain on the accounting bill and are not repeated on this slip.
             </div>
-          </details>
+            <Textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Loading instruction or receiver note"
+              className="mt-3"
+            />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFinalizeOpen(false)}>
               Cancel

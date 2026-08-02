@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -91,6 +91,14 @@ class ReportDeliveryTests(TestCase):
                 artifact_path = ReportDistributionService.persist_rendered_artifact(rendered, folder="manual-preview")
                 self.assertTrue(str(artifact_path).endswith(rendered.file_name))
                 self.assertEqual(artifact_path.read_bytes(), rendered.pdf)
+
+    def test_artifact_root_uses_persistent_media_storage(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with override_settings(MEDIA_ROOT=Path(tmp_dir)):
+                self.assertEqual(
+                    ReportDistributionService.artifact_root(),
+                    Path(tmp_dir) / "report-distributions",
+                )
 
     @patch("apps.analytics.report_delivery.ReportDistributionService.render_report")
     @patch("apps.users.services.notification_service.NotificationService.emit_event")

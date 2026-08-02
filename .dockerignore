@@ -27,7 +27,8 @@ frontend_v2/test-results/
 .runtime/
 runtime/
 media/
-staticfiles/
+staticfiles*/
+latest_main_worktree/
 backups/
 logs/
 *.sqlite3

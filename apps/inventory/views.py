@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta
 from io import BytesIO
 import uuid
 import csv
+import logging
 from collections import defaultdict
 
 from .models import (
@@ -43,6 +44,8 @@ from .serializers import (
     resolve_roll_role, resolve_roll_stage_name,
 )
 from .services.grn import GRNService
+
+logger = logging.getLogger(__name__)
 from .services.grn_history import GRNHistoryService
 from .services.stock import StockService
 from .services.job_work import JobWorkService
@@ -289,6 +292,7 @@ def _group_rows_by_variant(rows):
             if created_at:
                 age_days = max((timezone.now().date() - created_at.date()).days, 0)
         except Exception:
+            logger.warning("Unable to calculate inventory variant age from created_at=%r", row.get("created_at"), exc_info=True)
             age_days = 0
         family_bucket['oldest_age_days'] = max(family_bucket['oldest_age_days'], age_days)
 
@@ -543,6 +547,7 @@ def _looks_like_uuid(value):
         uuid.UUID(str(value))
         return True
     except Exception:
+        logger.debug("Value is not a valid UUID: %r", value, exc_info=True)
         return False
 
 
@@ -597,10 +602,12 @@ def _paged_payload(items, request, *, facet_keys=()):
     try:
         limit = min(max(int(request.query_params.get("limit") or 250), 1), 1000)
     except Exception:
+        logger.warning("Invalid inventory pagination limit: %r", request.query_params.get("limit"), exc_info=True)
         limit = 250
     try:
         offset = max(int(request.query_params.get("cursor") or request.query_params.get("offset") or 0), 0)
     except Exception:
+        logger.warning("Invalid inventory pagination cursor/offset: %r", request.query_params.get("cursor") or request.query_params.get("offset"), exc_info=True)
         offset = 0
     search = str(request.query_params.get("search") or request.query_params.get("q") or "").strip().lower()
     if search:
@@ -2244,6 +2251,7 @@ class JobWorkOrderViewSet(viewsets.ModelViewSet):
                 from apps.factory.models import Plant
                 plant = Plant.objects.get(id=plant_id)
             except Exception:
+                logger.warning("Unable to resolve requested plant for compatible vendor lookup: %r", plant_id, exc_info=True)
                 plant = None
 
         rows = []
@@ -2360,6 +2368,7 @@ class DeliveryChallanViewSet(viewsets.ModelViewSet):
     ).prefetch_related(
         'items__roll',
         'items__material',
+        'items__granule_code',
         'items__from_location',
         'items__to_location',
     ).order_by('-created_at')
@@ -2725,14 +2734,14 @@ class RollViewSet(viewsets.ModelViewSet):
             try:
                 qs = qs.filter(Q(thickness_micron=Decimal(str(thickness))))
             except Exception:
-                pass
+                logger.warning("Invalid inventory thickness filter: %r", thickness, exc_info=True)
         if grade_id:
             qs = qs.filter(Q(grade_id=grade_id))
         if min_width:
             try:
                 qs = qs.filter(Q(width_mm__gte=Decimal(str(min_width))))
             except Exception:
-                pass
+                logger.warning("Invalid inventory minimum width filter: %r", min_width, exc_info=True)
         if stock_form:
             from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
             normalized_form = normalize_stock_form(stock_form)

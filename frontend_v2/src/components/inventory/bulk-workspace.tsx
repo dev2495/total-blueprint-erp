@@ -616,7 +616,7 @@ export function BulkWorkspaceV36() {
     <div className="space-y-4 pb-12">
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="bulk" />
       <GradientHero
-        eyebrow="Inventory · V3.6 · bulk"
+        eyebrow="Inventory · bulk"
         title="Bulk &amp; chemicals"
         subtitle="Granules, inks, adhesives, solvents, chemicals — all stock rows filterable by material code, plant, location, and class."
         palette="emerald"

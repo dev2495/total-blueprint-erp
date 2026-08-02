@@ -261,7 +261,10 @@ export function SalesOrderV34Workspace() {
 
       {draft.customer ? (
         <details className="group rounded-[18px] border border-line bg-surface-1 shadow-sm">
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-content-3">
+          <summary
+            className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-content-3"
+            data-testid="sales-quick-start-toggle"
+          >
             <Sparkles className="h-3.5 w-3.5 text-order-fg" />
             Quick start · repeat orders · customer overlays
             <span className="ml-auto text-[10px] font-bold text-content-4 group-open:hidden">

@@ -23,7 +23,7 @@ export default function ApprovalForm({ template }: ApprovalFormProps) {
       <CardHeader>
         <CardTitle className="text-lg">Approval Console Retired</CardTitle>
         <CardDescription>
-          Template technical approval is removed in V2. Templates now manage
+          Template technical approval is no longer separate. Templates now manage
           only route, step category mapping, and roll policy.
         </CardDescription>
       </CardHeader>

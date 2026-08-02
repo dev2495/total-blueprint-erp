@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from apps.users.models import PermissionAuditLog, Role, UserProfileChangeRequest
 from apps.users.views import _jwt_lifetime_seconds
@@ -79,6 +82,40 @@ class ProfileAuthP0Tests(TestCase):
             **self._csrf_headers(),
         )
         self.assertIn(invalid.status_code, {400, 401})
+
+    def test_session_status_is_quiet_for_anonymous_and_returns_logged_in_user(self):
+        session_url = "/api/users/token/refresh/session/"
+        anonymous = self.client.get(session_url)
+        self.assertEqual(anonymous.status_code, 200, anonymous.content)
+        self.assertFalse(anonymous.data["authenticated"])
+        self.assertFalse(anonymous.data["refresh_available"])
+        self.assertIsNone(anonymous.data["user"])
+
+        self._login("sales1", "userpass123")
+        authenticated = self.client.get(session_url)
+        self.assertEqual(authenticated.status_code, 200, authenticated.content)
+        self.assertTrue(authenticated.data["authenticated"])
+        self.assertTrue(authenticated.data["refresh_available"])
+        self.assertEqual(authenticated.data["user"]["username"], "sales1")
+
+        del self.client.cookies["access"]
+        refresh_only = self.client.get(session_url)
+        self.assertEqual(refresh_only.status_code, 200, refresh_only.content)
+        self.assertFalse(refresh_only.data["authenticated"])
+        self.assertTrue(refresh_only.data["refresh_available"])
+        self.assertIsNone(refresh_only.data["user"])
+
+    def test_session_status_quietly_rejects_invalid_cookies(self):
+        self.client.cookies["access"] = "not-a-jwt"
+        self.client.cookies["refresh"] = "also-not-a-jwt"
+
+        response = self.client.get("/api/users/token/refresh/session/")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            response.data,
+            {"authenticated": False, "refresh_available": False, "user": None},
+        )
 
     def test_login_requires_csrf(self):
         strict_client = APIClient(enforce_csrf_checks=True)
@@ -172,6 +209,59 @@ class ProfileAuthP0Tests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         new_access = str(self.client.cookies.get("access").value)
         self.assertNotEqual(old_access, new_access)
+
+    def test_expired_access_cookie_does_not_block_refresh(self):
+        csrf_headers = self._csrf_headers()
+        refresh = RefreshToken.for_user(self.user)
+        expired_access = AccessToken.for_user(self.user)
+        expired_access.set_exp(lifetime=timedelta(seconds=-1))
+        self.client.cookies["access"] = str(expired_access)
+        self.client.cookies["refresh"] = str(refresh)
+
+        response = self.client.post(
+            "/api/users/token/refresh/",
+            {},
+            format="json",
+            **csrf_headers,
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn("access", response.cookies)
+
+    def test_expired_access_cookie_does_not_trap_csrf_login_or_logout(self):
+        csrf_headers = self._csrf_headers()
+        refresh = RefreshToken.for_user(self.user)
+        expired_access = AccessToken.for_user(self.user)
+        expired_access.set_exp(lifetime=timedelta(seconds=-1))
+        self.client.cookies["access"] = str(expired_access)
+        self.client.cookies["refresh"] = str(refresh)
+
+        csrf_response = self.client.get("/api/users/csrf/")
+        self.assertEqual(csrf_response.status_code, 200, csrf_response.content)
+
+        logout_response = self.client.post(
+            "/api/users/logout/",
+            {},
+            format="json",
+            **csrf_headers,
+        )
+        self.assertEqual(logout_response.status_code, 204, logout_response.content)
+        self.assertTrue(
+            PermissionAuditLog.objects.filter(
+                user=self.user,
+                action="USER_LOGOUT",
+                details__status="blacklisted",
+            ).exists()
+        )
+
+        self.client.cookies["access"] = str(expired_access)
+        login_response = self.client.post(
+            "/api/users/login/",
+            {"identifier": "sales1", "password": "userpass123"},
+            format="json",
+            **self._csrf_headers(),
+        )
+        self.assertEqual(login_response.status_code, 200, login_response.content)
 
     def test_login_cookies_follow_configured_20_minute_policy(self):
         response = self.client.post(

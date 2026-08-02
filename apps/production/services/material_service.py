@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 from django.db import transaction
 from django.utils import timezone
 from apps.artwork.print_contract import validate_frozen_printing_snapshot
@@ -7,6 +8,8 @@ from apps.inventory.models import InventoryRoll
 from apps.inventory.services.roll_service import RollService
 from apps.bom.services_resolver import BOMResolverService
 from apps.physics.services_physics import PhysicsEngine
+
+logger = logging.getLogger(__name__)
 
 
 class MaterialConsumptionService:
@@ -112,8 +115,7 @@ class MaterialConsumptionService:
                     "source": f"POD Film ({pod_res['pod_type']})"
                 })
             except InventoryMaterial.DoesNotExist:
-                # Log or handle missing POD material
-                pass
+                logger.warning("POD material %s is missing while building consumption plan", pod_res.get("material_code"), exc_info=True)
 
         # 3. Rolls (Films)
         # These are consumed from Assigned Rolls (WorkCenterAssignment)

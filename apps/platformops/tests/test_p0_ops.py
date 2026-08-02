@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.materials.models import CommercialFamily, InventoryMaterial
-from apps.platformops.models import BackupRecord
+from apps.platformops.models import BackupRecord, OperationalAlert
 from apps.platformops.services.backup_service import BackupService
 from apps.platformops.services.metrics_service import OpsMetricsService
 from apps.users.models import Notification, NotificationDeliveryAttempt, NotificationRule, Role, User
@@ -63,6 +63,155 @@ class PlatformOpsP0Tests(TestCase):
             self.assertEqual(result["deleted_records"], 1)
             self.assertFalse(local_file.exists())
             self.assertTrue(BackupRecord.objects.filter(id=fresh_record.id).exists())
+
+    def test_backup_retention_fails_closed_and_retries_s3_deletion(self):
+        old_record = BackupRecord.objects.create(
+            status=BackupRecord.BackupStatus.SUCCEEDED,
+            storage_provider="S3",
+            file_name="old_backup.dump.enc",
+            object_key="db-backups/old_backup.dump.enc",
+        )
+        BackupRecord.objects.filter(id=old_record.id).update(
+            created_at=timezone.now() - timedelta(days=40)
+        )
+
+        with patch.dict(
+            "os.environ",
+            {"BACKUP_S3_BUCKET": "test-backup-bucket", "BACKUP_S3_REGION": "ap-south-1"},
+            clear=False,
+        ), patch.object(BackupService, "_s3_client") as client_factory:
+            client_factory.return_value.delete_object.side_effect = RuntimeError("s3 unavailable")
+            with self.assertRaisesRegex(RuntimeError, str(old_record.id)):
+                BackupService.prune_backup_retention(retention_days=30)
+
+        self.assertTrue(BackupRecord.objects.filter(id=old_record.id).exists())
+        alert = OperationalAlert.objects.get(category="BACKUP_RETENTION", resolved=False)
+        self.assertEqual(alert.severity, OperationalAlert.Severity.CRITICAL)
+        self.assertEqual(alert.details["backup_record_id"], str(old_record.id))
+
+        with patch.dict(
+            "os.environ",
+            {"BACKUP_S3_BUCKET": "test-backup-bucket", "BACKUP_S3_REGION": "ap-south-1"},
+            clear=False,
+        ), patch.object(BackupService, "_s3_client") as client_factory:
+            result = BackupService.prune_backup_retention(retention_days=30)
+
+        client_factory.return_value.delete_object.assert_called_once_with(
+            Bucket="test-backup-bucket",
+            Key="db-backups/old_backup.dump.enc",
+        )
+        self.assertEqual(result["deleted_records"], 1)
+        self.assertEqual(result["deleted_s3_objects"], 1)
+        self.assertFalse(BackupRecord.objects.filter(id=old_record.id).exists())
+        self.assertFalse(
+            OperationalAlert.objects.filter(category="BACKUP_RETENTION", resolved=False).exists()
+        )
+
+    def test_backup_retention_keeps_untraceable_local_record(self):
+        old_record = BackupRecord.objects.create(
+            status=BackupRecord.BackupStatus.SUCCEEDED,
+            storage_provider="LOCAL",
+            file_name="",
+        )
+        BackupRecord.objects.filter(id=old_record.id).update(
+            created_at=timezone.now() - timedelta(days=40)
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "no file name"):
+            BackupService.prune_backup_retention(retention_days=30)
+
+        self.assertTrue(BackupRecord.objects.filter(id=old_record.id).exists())
+        alert = OperationalAlert.objects.get(category="BACKUP_RETENTION", resolved=False)
+        self.assertEqual(alert.details["backup_record_id"], str(old_record.id))
+
+    def test_backup_retry_reuses_one_record_and_resolves_failure_alert(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            failed = SimpleNamespace(returncode=1, stderr="pg_dump unavailable")
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "BACKUP_LOCAL_DIR": tmpdir,
+                    "BACKUP_S3_BUCKET": "",
+                    "BACKUP_ENCRYPTION_KEY": "",
+                },
+                clear=False,
+            ), patch(
+                "apps.platformops.services.backup_service.subprocess.run",
+                return_value=failed,
+            ):
+                with self.assertRaises(RuntimeError):
+                    BackupService.run_database_backup(attempt_key="celery-task-1")
+
+            self.assertEqual(BackupRecord.objects.count(), 1)
+            alert = OperationalAlert.objects.get(category="BACKUP", resolved=False)
+            self.assertEqual(alert.severity, OperationalAlert.Severity.CRITICAL)
+
+            def successful_dump(cmd, **_kwargs):
+                output_path = Path(cmd[cmd.index("-f") + 1])
+                output_path.write_bytes(b"valid postgres custom dump")
+                return SimpleNamespace(returncode=0, stderr="")
+
+            with patch.dict(
+                "os.environ",
+                {
+                    "BACKUP_LOCAL_DIR": tmpdir,
+                    "BACKUP_S3_BUCKET": "",
+                    "BACKUP_ENCRYPTION_KEY": "",
+                },
+                clear=False,
+            ), patch(
+                "apps.platformops.services.backup_service.subprocess.run",
+                side_effect=successful_dump,
+            ):
+                record = BackupService.run_database_backup(attempt_key="celery-task-1")
+
+            self.assertEqual(BackupRecord.objects.count(), 1)
+            self.assertEqual(record.status, BackupRecord.BackupStatus.SUCCEEDED)
+            self.assertTrue(record.checksum_sha256)
+            self.assertEqual(record.metadata["attempt_key"], "celery-task-1")
+            self.assertFalse(OperationalAlert.objects.filter(category="BACKUP", resolved=False).exists())
+
+    def test_metrics_reports_backup_freshness(self):
+        BackupRecord.objects.create(
+            status=BackupRecord.BackupStatus.SUCCEEDED,
+            started_at=timezone.now(),
+            finished_at=timezone.now(),
+            file_name="fresh.dump",
+        )
+
+        with patch.dict("os.environ", {"BACKUP_MAX_AGE_HOURS": "6"}, clear=False):
+            summary = OpsMetricsService.summary()
+
+        self.assertTrue(summary["backups"]["fresh"])
+        self.assertLessEqual(summary["backups"]["age_hours"], 0.01)
+
+    def test_backup_encryption_key_is_not_exposed_in_process_arguments(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source = Path(tmpdir) / "backup.dump"
+            source.write_bytes(b"postgres dump")
+            captured = {}
+
+            def successful_encrypt(cmd, **kwargs):
+                captured["cmd"] = cmd
+                captured["env"] = kwargs["env"]
+                output_path = Path(cmd[cmd.index("-out") + 1])
+                output_path.write_bytes(b"encrypted postgres dump")
+                return SimpleNamespace(returncode=0, stderr="")
+
+            with patch.dict(
+                "os.environ",
+                {"BACKUP_ENCRYPTION_KEY": "sensitive-test-key"},
+                clear=False,
+            ), patch(
+                "apps.platformops.services.backup_service.subprocess.run",
+                side_effect=successful_encrypt,
+            ):
+                encrypted = BackupService._maybe_encrypt(source)
+
+            self.assertTrue(encrypted.exists())
+            self.assertNotIn("sensitive-test-key", " ".join(captured["cmd"]))
+            self.assertEqual(captured["env"]["BACKUP_ENCRYPTION_KEY"], "sensitive-test-key")
 
     def test_parse_safe_command_rejects_shell_operators(self):
         with self.assertRaises(RuntimeError):

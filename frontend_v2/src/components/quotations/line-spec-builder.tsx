@@ -421,7 +421,7 @@ export default function LineSpecBuilder({
                   </option>
                   {selectableStyles.map((style) => (
                     <option key={style.id} value={style.id}>
-                      {style.code} · {style.name} · v{style.version}
+                      {style.code} · {style.name}
                     </option>
                   ))}
                 </select>
@@ -433,7 +433,7 @@ export default function LineSpecBuilder({
                   {selectedPouchStyle.code}
                 </span>
                 <span className="rounded-full bg-success-bg px-2 py-1 text-success-fg ring-1 ring-success-border">
-                  Approved v{selectedPouchStyle.version}
+                  Approved
                 </span>
                 <span className="rounded-full bg-order-bg px-2 py-1 text-order-fg ring-1 ring-order-border">
                   {formatToken(selectedPouchStyle.formula_kind)}

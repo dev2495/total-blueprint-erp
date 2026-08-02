@@ -56,7 +56,7 @@ def _actor_name(actor):
         if full_name:
             return full_name
     except Exception:
-        pass
+        logger.debug("Unable to resolve actor full name; falling back to username", exc_info=True)
     username = str(getattr(actor, "username", "") or "").strip()
     return username or None
 
@@ -1331,7 +1331,7 @@ class AnalyticsService:
                 if result.returncode == 0 and result.stdout.strip():
                     return result.stdout.strip()
             except Exception:
-                pass
+                logger.debug("Unable to resolve application git revision", exc_info=True)
             return "local"
 
         def memory_usage_percent():
@@ -1346,7 +1346,7 @@ class AnalyticsService:
                 if total > 0 and available >= 0:
                     return int(((total - available) / total) * 100)
             except Exception:
-                pass
+                logger.debug("Unable to read Linux memory telemetry", exc_info=True)
             try:
                 total_result = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=2)
                 page_result = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=2)
@@ -1364,7 +1364,7 @@ class AnalyticsService:
                     if total > 0:
                         return int(((total - (free_pages * page_size)) / total) * 100)
             except Exception:
-                pass
+                logger.debug("Unable to read macOS memory telemetry", exc_info=True)
             return 0
         
         User = get_user_model()
@@ -1399,7 +1399,7 @@ class AnalyticsService:
                     cursor.execute("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database();")
                     active_connections = cursor.fetchone()[0] or 0
                 except Exception:
-                    pass
+                    logger.warning("Unable to read database size and connection telemetry", exc_info=True)
 
             db_latency = (time.time() - db_start) * 1000 # ms
             db_status = f"Connected ({int(db_latency)}ms)"
@@ -1441,7 +1441,7 @@ class AnalyticsService:
             cpu_usage = int((load1 / cores) * 100)
             cpu_usage = min(max(cpu_usage, 0), 100) # Clamp 0-100
         except Exception:
-            pass
+            logger.warning("Unable to read CPU telemetry", exc_info=True)
 
         memory_usage = memory_usage_percent()
 
@@ -1453,7 +1453,7 @@ class AnalyticsService:
             used = total - free
             disk_usage = int((used / total) * 100) if total else 0
         except Exception:
-            pass
+            logger.warning("Unable to read disk telemetry", exc_info=True)
 
         report_total = ReportDispatchRun.objects.filter(created_at__gte=last_24h).count()
         report_failed = ReportDispatchRun.objects.filter(created_at__gte=last_24h, status=ReportDispatchRun.Status.FAILED).count()
@@ -1484,7 +1484,7 @@ class AnalyticsService:
                     "time": time_str
                 })
         except Exception:
-            pass
+            logger.warning("Unable to read recent production activity logs", exc_info=True)
         
         return {
             "status": "online",
@@ -2032,19 +2032,20 @@ class AnalyticsService:
         last_30_days = today - timedelta(days=30)
         last_7_days = today - timedelta(days=7)
 
+        scoped_to_work_centers = work_center_ids is not None
         wc_qs = WorkCenter.objects.select_related("plant").all()
-        if work_center_ids:
+        if scoped_to_work_centers:
             wc_qs = wc_qs.filter(id__in=work_center_ids)
         work_centers = list(wc_qs)
         wc_ids = [wc.id for wc in work_centers]
 
         machine_qs = Machine.objects.select_related("work_center", "assigned_operator")
-        if wc_ids:
+        if scoped_to_work_centers:
             machine_qs = machine_qs.filter(work_center_id__in=wc_ids)
         machines = list(machine_qs)
 
         job_qs = ProductionJob.objects.select_related("machine", "work_center", "template", "operator", "sales_order_item__sales_order")
-        if wc_ids:
+        if scoped_to_work_centers:
             job_qs = job_qs.filter(work_center_id__in=wc_ids)
         active_jobs = list(job_qs.filter(job_state__in=["PLANNED", "RELEASED", "EXECUTING", "ON_HOLD"]).order_by("-updated_at")[:20])
 
@@ -2052,7 +2053,7 @@ class AnalyticsService:
         scrap_scope = ScrapLog.objects.filter(logged_at__date__gte=last_30_days)
         downtime_scope = DowntimeLog.objects.filter(start_time__date__gte=last_30_days)
         requirement_scope = JobMaterialRequirement.objects.filter(production_job__created_at__date__gte=last_30_days)
-        if wc_ids:
+        if scoped_to_work_centers:
             production_scope = production_scope.filter(production_job__work_center_id__in=wc_ids)
             scrap_scope = scrap_scope.filter(production_job__work_center_id__in=wc_ids)
             downtime_scope = downtime_scope.filter(production_job__work_center_id__in=wc_ids)
@@ -2089,7 +2090,7 @@ class AnalyticsService:
         variance_pct = round((float(variance) / float(theoretical) * 100) if theoretical > 0 else 0, 2)
         remix_ratio_pct = round((float(ink_remix_kg) / float(returned) * 100) if returned > 0 else 0, 2)
         from apps.costing.models import JobCost
-        cost_scope = JobCost.objects.filter(job__work_center_id__in=wc_ids) if wc_ids else JobCost.objects.all()
+        cost_scope = JobCost.objects.filter(job__work_center_id__in=wc_ids) if scoped_to_work_centers else JobCost.objects.all()
         cost_summary = cost_scope.aggregate(
             avg_coverage=Avg('actual_cost_coverage_pct'),
             scrap_cost=Sum('material_cost_actual'),
@@ -2134,7 +2135,12 @@ class AnalyticsService:
             })
 
         work_center_rows = []
-        wc_perf_rows = {str(row["work_center"]["id"]): row for row in ReportingService.get_wc_performance(work_center_ids=wc_ids)}
+        wc_perf_rows = {
+            str(row["work_center"]["id"]): row
+            for row in ReportingService.get_wc_performance(
+                work_center_ids=wc_ids if scoped_to_work_centers else None
+            )
+        }
         for wc in work_centers:
             report = wc_perf_rows.get(str(wc.id), {})
             wc_kpis = report.get("kpis", {})
@@ -2386,7 +2392,7 @@ class AnalyticsService:
                 try:
                     return _resolve_roll_role(roll)
                 except Exception:
-                    pass
+                    logger.debug("Unable to resolve roll role from inventory metadata", exc_info=True)
             meta = roll.meta_json or {}
             explicit = str(meta.get("roll_role") or "").upper()
             if explicit:
@@ -2494,7 +2500,7 @@ class AnalyticsService:
                     lineage_target_kg_by_item[item_id] = step_target
                     lineage_target_source_by_item[item_id] = str(step_profile.get("target_source") or "")
             except Exception:
-                pass
+                logger.warning("Unable to resolve execution step profile for job=%s", getattr(job, "id", None), exc_info=True)
 
         for item_id, step_map in produced_kg_by_item_step.items():
             if step_map:
@@ -5694,19 +5700,182 @@ class ReportingService:
     def get_wc_performance(work_center_ids=None):
         """
         List all Work Centers with high-level performance stats.
-        For the Dashboard Grid View.
+        For the Dashboard Grid View. This is deliberately batched: the old
+        implementation called the full machine report once per machine, which
+        made the WCM landing page scale linearly into multi-second timeouts.
         """
-        wcs = WorkCenter.objects.all()
-        if work_center_ids:
+        scoped_to_work_centers = work_center_ids is not None
+        wcs = WorkCenter.objects.select_related("plant").all()
+        if scoped_to_work_centers:
             wcs = wcs.filter(id__in=work_center_ids)
-        
+        work_centers = list(wcs)
+        wc_ids = [wc.id for wc in work_centers]
+        if not wc_ids:
+            return []
+
+        filters = ReportingService._normalize_filters(None)
+        date_from = filters.get("date_from") or (timezone.now() - timedelta(days=7)).date()
+        date_to = filters.get("date_to") or timezone.now().date()
+        days_count = (date_to - date_from).days + 1
+
+        machines = list(
+            Machine.objects.select_related("work_center", "assigned_operator")
+            .filter(work_center_id__in=wc_ids)
+            .order_by("work_center_id", "code", "id")
+        )
+        machine_ids = [machine.id for machine in machines]
+        machines_by_wc = defaultdict(list)
+        for machine in machines:
+            machines_by_wc[machine.work_center_id].append(machine)
+
+        output_by_machine = defaultdict(Decimal)
+        output_by_machine_day = defaultdict(Decimal)
+        scrap_by_machine = defaultdict(Decimal)
+        scrap_by_machine_day = defaultdict(Decimal)
+        downtime_by_machine = defaultdict(float)
+        downtime_reason_by_machine = defaultdict(lambda: defaultdict(float))
+
+        if machine_ids:
+            execution_rows = (
+                JobExecutionLog.objects.filter(
+                    production_job__machine_id__in=machine_ids,
+                    production_job__created_at__date__gte=date_from,
+                    production_job__created_at__date__lte=date_to,
+                    logged_at__date__gte=date_from,
+                    logged_at__date__lte=date_to,
+                )
+                .annotate(day=TruncDate("logged_at"))
+                .values("production_job__machine_id", "day")
+                .annotate(total=Sum("quantity"))
+            )
+            for row in execution_rows:
+                machine_id = row["production_job__machine_id"]
+                day = row["day"]
+                quantity = Decimal(str(row["total"] or 0))
+                output_by_machine[machine_id] += quantity
+                output_by_machine_day[(machine_id, day)] += quantity
+
+            scrap_rows = (
+                ScrapLog.objects.filter(
+                    production_job__machine_id__in=machine_ids,
+                    production_job__created_at__date__gte=date_from,
+                    production_job__created_at__date__lte=date_to,
+                    logged_at__date__gte=date_from,
+                    logged_at__date__lte=date_to,
+                )
+                .annotate(day=TruncDate("logged_at"))
+                .values("production_job__machine_id", "day")
+                .annotate(total=Sum("quantity"))
+            )
+            for row in scrap_rows:
+                machine_id = row["production_job__machine_id"]
+                day = row["day"]
+                quantity = Decimal(str(row["total"] or 0))
+                scrap_by_machine[machine_id] += quantity
+                scrap_by_machine_day[(machine_id, day)] += quantity
+
+            downtime_rows = DowntimeLog.objects.filter(
+                production_job__machine_id__in=machine_ids,
+                production_job__created_at__date__gte=date_from,
+                production_job__created_at__date__lte=date_to,
+                start_time__date__gte=date_from,
+                start_time__date__lte=date_to,
+            ).values("production_job__machine_id", "start_time", "end_time", "reason")
+            for row in downtime_rows:
+                start_time = row["start_time"]
+                end_time = row["end_time"]
+                minutes = max(0.0, (end_time - start_time).total_seconds() / 60) if start_time and end_time else 0.0
+                machine_id = row["production_job__machine_id"]
+                downtime_by_machine[machine_id] += minutes
+                downtime_reason_by_machine[machine_id][row["reason"]] += minutes
+
+        machine_reports = {}
+        cursor_days = [date_from + timedelta(days=offset) for offset in range(days_count)]
+        for machine in machines:
+            total_output = output_by_machine[machine.id]
+            total_scrap = scrap_by_machine[machine.id]
+            downtime_minutes = downtime_by_machine[machine.id]
+            planned_minutes = machine.work_center.standard_operating_minutes_per_day * days_count
+            operating_minutes = max(0.0, planned_minutes - downtime_minutes)
+            availability = (operating_minutes / planned_minutes * 100) if planned_minutes > 0 else 0.0
+            avg_run_rate = (float(total_output) / (operating_minutes / 60)) if operating_minutes > 0 else 0.0
+            standard_rate = float(machine.standard_rate_kg_per_hour or 0)
+            performance = (avg_run_rate / standard_rate * 100) if standard_rate > 0 else 0.0
+            gross_output = float(total_output + total_scrap)
+            quality = (float(total_output) / gross_output * 100) if gross_output > 0 else 100.0
+            oee = (availability * performance * quality) / 10000
+
+            machine_reports[machine.id] = {
+                "machine": {
+                    "id": str(machine.id),
+                    "name": machine.name,
+                    "code": machine.code,
+                    "status": machine.status,
+                    "operator": machine.assigned_operator.username if machine.assigned_operator else "Unassigned",
+                },
+                "kpis": {
+                    "oee": round(oee, 1),
+                    "availability": round(availability, 1),
+                    "performance": round(performance, 1),
+                    "quality": round(quality, 1),
+                    "total_output_kg": float(total_output),
+                    "total_scrap_kg": float(total_scrap),
+                    "downtime_minutes": int(downtime_minutes),
+                },
+                "charts": {
+                    "trend": [
+                        {
+                            "date": day.strftime("%Y-%m-%d"),
+                            "output": float(output_by_machine_day[(machine.id, day)]),
+                            "scrap": float(scrap_by_machine_day[(machine.id, day)]),
+                        }
+                        for day in cursor_days
+                    ],
+                    "downtime_pareto": [
+                        {"name": reason, "value": minutes}
+                        for reason, minutes in sorted(
+                            downtime_reason_by_machine[machine.id].items(),
+                            key=lambda item: item[1],
+                            reverse=True,
+                        )
+                        if minutes > 0
+                    ],
+                },
+            }
+
         results = []
-        for wc in wcs:
-            # Reusing the report logic for consistency
-            # Optimization: could be lighter, but let's be safe first.
-            report = ReportingService.get_workcenter_performance_report(wc.id)
-            if "error" not in report:
-                results.append(report)
+        for wc in work_centers:
+            reports = [machine_reports[machine.id] for machine in machines_by_wc[wc.id]]
+            total_output = sum(report["kpis"]["total_output_kg"] for report in reports)
+            total_scrap = sum(report["kpis"]["total_scrap_kg"] for report in reports)
+            total_downtime = sum(report["kpis"]["downtime_minutes"] for report in reports)
+            avg_oee = sum(report["kpis"]["oee"] for report in reports) / len(reports) if reports else 0
+            results.append({
+                "work_center": {"id": str(wc.id), "name": wc.name, "code": wc.code},
+                "kpis": {
+                    "oee_avg": round(avg_oee, 1),
+                    "total_output_kg": round(total_output, 1),
+                    "total_scrap_kg": round(total_scrap, 1),
+                    "total_downtime_minutes": total_downtime,
+                },
+                "charts": {
+                    "trend": [
+                        {
+                            "date": day.strftime("%Y-%m-%d"),
+                            "output": sum(
+                                float(output_by_machine_day[(machine.id, day)])
+                                for machine in machines_by_wc[wc.id]
+                            ),
+                            "scrap": sum(
+                                float(scrap_by_machine_day[(machine.id, day)])
+                                for machine in machines_by_wc[wc.id]
+                            ),
+                        }
+                        for day in cursor_days
+                    ]
+                },
+                "machines": reports,
+            })
         return results
 
     @staticmethod

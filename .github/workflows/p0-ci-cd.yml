@@ -54,11 +54,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # requirements.txt is compiled for the production Python 3.12
+          # runtime (Django 6.0.7 requires Python >=3.12).
+          python-version: "3.12"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --require-hashes -r requirements.txt
+      - name: Audit locked backend dependencies
+        run: |
+          python -m venv /tmp/pip-audit
+          /tmp/pip-audit/bin/pip install pip-audit==2.10.1
+          /tmp/pip-audit/bin/pip-audit -r requirements.txt
       - name: Migration safety check
         run: python manage.py makemigrations --check --dry-run
       - name: Show migration plan
@@ -79,6 +86,8 @@ jobs:
           SECURE_HSTS_SECONDS: "31536000"
           DEBUG: "False"
         run: python manage.py check --deploy
+      - name: Critical-flow silent-failure guard
+        run: python scripts/check_no_silent_failures.py
       - name: Full backend tests (non-interactive)
         run: python manage.py test --noinput
 
@@ -96,8 +105,18 @@ jobs:
           cache-dependency-path: frontend_v2/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Audit production frontend dependencies
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Lint (full strict gate)
         run: npm run lint
+      - name: Quantity formula parity
+        run: npm run test:qty-formula
+      - name: Navigation registry coverage
+        run: npm run nav:validate
+      - name: User-facing version privacy
+        run: npm run test:ui-version-privacy
+      - name: Help coverage
+        run: npm run help:validate
       - name: Typecheck
         run: npm run typecheck
       - name: Build

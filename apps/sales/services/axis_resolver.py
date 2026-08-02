@@ -13,6 +13,7 @@ from apps.materials.services_product_variant import (
     apply_layer_totals_to_geometry,
     axis_signature,
     canonical_axis_values,
+    canonicalize_product_master_size_axis,
     compute_geometry,
     compute_layers,
     find_or_create_product_variant,
@@ -241,6 +242,7 @@ class OrderResolutionService:
             raise ValidationError("product_master is invalid, inactive, or not the current version.") from exc
 
         axis_values = canonical_axis_values(payload.get("axis_values") if isinstance(payload.get("axis_values"), dict) else {})
+        axis_values = canonicalize_product_master_size_axis(master, axis_values)
         validate_axis_values(master, axis_values)
         template = _template_for(master, payload.get("template_id") or payload.get("template"))
         customer = _resolve_customer(payload.get("customer") or payload.get("customer_id"))
@@ -259,8 +261,12 @@ class OrderResolutionService:
             signature = axis_signature(master, axis_values)
             variant = ProductVariant.objects.filter(master=master, bom_signature=signature, active=True).first()
 
-        geometry = deepcopy(getattr(variant, "geometry_snapshot", None) or compute_geometry(master, axis_values))
-        layers = deepcopy(getattr(variant, "layer_snapshot", None) or compute_layers(master, axis_values, geometry))
+        # ProductVariant snapshots are a cache/identity surface, never the
+        # authority for a new preview or order.  Re-resolve from the current
+        # Product Master so corrected pouch axes, density masters, and size
+        # geometry cannot remain poisoned by an older cached variant.
+        geometry = deepcopy(compute_geometry(master, axis_values))
+        layers = deepcopy(compute_layers(master, axis_values, geometry))
         geometry = apply_layer_totals_to_geometry(geometry, layers)
 
         from apps.sales.services import order_service as order_helpers
@@ -316,7 +322,7 @@ class OrderResolutionService:
         }
         return {
             "product_master": str(master.id),
-            "product_master_code": master.code,
+            "product_master_code": master.version_group or ProductMaster.version_root_from_code(master.code),
             "product_master_name": master.name,
             "product_variant": str(variant.id) if variant else None,
             "product_variant_code": getattr(variant, "code", None) if variant else None,

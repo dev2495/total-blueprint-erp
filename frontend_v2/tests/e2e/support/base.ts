@@ -22,7 +22,7 @@ export const test = base.extend<{ autoAuth: boolean }>({
       }
       const identifier = process.env.UI_E2E_ADMIN_USER || "admin"
       const password = process.env.UI_E2E_ADMIN_PASSWORD || "admin123"
-      const backendOrigin = resolveApiOrigin(String(baseURL || "http://127.0.0.1:3000"))
+      const backendOrigin = resolveApiOrigin(String(baseURL || "http://127.0.0.1:3001"))
       const requestContext = page.context().request
       const authRequestTimeout = 25_000
       const authAttempts = 5
@@ -65,7 +65,7 @@ export const test = base.extend<{ autoAuth: boolean }>({
           const cookieToken = requestStateBefore.cookies.find((cookie) => cookie.name === "csrftoken")?.value
           const csrfToken = String(cookieToken || (csrfPayload as any)?.csrfToken || (csrfPayload as any)?.csrf_token || "")
 
-          await requestContext.post(`${backendOrigin}/api/users/token/refresh/`, {
+          const refreshResponse = await requestContext.post(`${backendOrigin}/api/users/token/refresh/`, {
             failOnStatusCode: false,
             timeout: authRequestTimeout,
             headers: {
@@ -80,7 +80,11 @@ export const test = base.extend<{ autoAuth: boolean }>({
             timeout: authRequestTimeout,
           })
 
-          if (!meResponse.ok()) {
+          // Do not trust an access token that was valid for the probe but could
+          // expire during the test. A failed refresh means this context did not
+          // receive a newly rotated pair, so issue a fresh isolated login even
+          // when the old access token still has a few seconds left.
+          if (!refreshResponse?.ok() || !meResponse.ok()) {
             await requestContext.post(`${backendOrigin}/api/users/login/`, {
               failOnStatusCode: false,
               timeout: authRequestTimeout,

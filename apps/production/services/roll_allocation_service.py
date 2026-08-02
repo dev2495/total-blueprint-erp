@@ -4,6 +4,9 @@ from apps.materials.stock_forms import STOCK_FORM_OPEN_WEB, normalize_stock_form
 from apps.production.services.stock_form_resolver import StockFormResolver
 from decimal import Decimal
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Per-process trim allowances (mm consumed by edge mechanics each step).
@@ -65,9 +68,6 @@ class RollAllocationService:
         - current_step_index >= job.current_step_index
         - plant == job.plant
         """
-        import logging
-        logger = logging.getLogger(__name__)
-        
         logger.debug(
             "RollAllocationService job=%s include_non_lineage_fallback=%s include_remainder=%s",
             job.id,
@@ -178,6 +178,13 @@ class RollAllocationService:
                         ExecutionService._unlock_roll_if_stale_reserved(roll, job=job)
                         roll.refresh_from_db(fields=["status"])
                     except Exception:
+                        logger.warning(
+                            "Stale reservation healing failed while evaluating roll "
+                            "roll_id=%s job_id=%s; excluding the roll from auto-allocation",
+                            getattr(roll, "id", None),
+                            getattr(job, "id", None),
+                            exc_info=True,
+                        )
                         continue
                     if str(getattr(roll, "status", "")).upper() != "AVAILABLE":
                         continue
@@ -265,7 +272,7 @@ class RollAllocationService:
                     final_target = max(final_target, Decimal(str(w)))
                     break
         except Exception:
-            pass
+            logger.warning("Unable to resolve final target width for job=%s", getattr(job, "id", None), exc_info=True)
 
         if not final_target:
             return Decimal("0")
@@ -302,6 +309,11 @@ class RollAllocationService:
             ctx = ExecutionService.get_job_context(str(job.id)) or {}
             specs = ctx.get("target_roll_invariant_list") or []
         except Exception:
+            logger.warning(
+                "Target child width context resolution failed job_id=%s; using zero-width fallback",
+                getattr(job, "id", None),
+                exc_info=True,
+            )
             specs = []
 
         for spec in specs:
@@ -310,6 +322,12 @@ class RollAllocationService:
                 try:
                     return Decimal(str(w))
                 except Exception:
+                    logger.warning(
+                        "Invalid target child width value job_id=%s value=%r; trying next invariant",
+                        getattr(job, "id", None),
+                        w,
+                        exc_info=True,
+                    )
                     continue
         return Decimal("0")
 
@@ -499,17 +517,14 @@ class RollAllocationService:
         min_remainder = Decimal("50")
         prefer_remainder_first = True
         policy_code = ""
-        try:
-            from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
+        from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
 
-            policy = resolve_web_width_policy(web_width_context_from_job(job))
-            if policy:
-                policy_code = str(policy.code)
-                if policy.min_remainder_mm:
-                    min_remainder = Decimal(str(policy.min_remainder_mm))
-                prefer_remainder_first = bool(policy.prefer_remainder_first)
-        except Exception:
-            pass
+        policy = resolve_web_width_policy(web_width_context_from_job(job))
+        if policy:
+            policy_code = str(policy.code)
+            if policy.min_remainder_mm:
+                min_remainder = Decimal(str(policy.min_remainder_mm))
+            prefer_remainder_first = bool(policy.prefer_remainder_first)
 
         job_layer_sig = str((getattr(job, "meta_json", None) or {}).get("layer_signature_hash") or "")
         gang_jobs, gang_widths = cls.committed_gang_child_plan(job, strict=False)
@@ -541,6 +556,13 @@ class RollAllocationService:
                     target_contract=target_contract,
                 )
             except Exception:
+                logger.warning(
+                    "Output stock-form resolution failed while previewing roll "
+                    "roll_id=%s job_id=%s; excluding the roll",
+                    getattr(roll, "id", None),
+                    getattr(job, "id", None),
+                    exc_info=True,
+                )
                 continue
             if output_stock_form != target_stock_form:
                 continue
@@ -740,13 +762,11 @@ class RollAllocationService:
                 out["child_ids"].append(str(child.id))
 
             min_remainder = Decimal("50")
-            try:
-                from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
-                policy = resolve_web_width_policy(web_width_context_from_job(job))
-                if policy and policy.min_remainder_mm:
-                    min_remainder = Decimal(str(policy.min_remainder_mm))
-            except Exception:
-                pass
+            from apps.materials.services_web_width_policy import resolve_web_width_policy, web_width_context_from_job
+
+            policy = resolve_web_width_policy(web_width_context_from_job(job))
+            if policy and policy.min_remainder_mm:
+                min_remainder = Decimal(str(policy.min_remainder_mm))
             if remainder_w >= min_remainder:
                 ratio = remainder_w / parent_w if parent_w > 0 else Decimal("0")
                 rem_weight = (parent_weight * ratio).quantize(Decimal("0.001"))
@@ -1011,7 +1031,10 @@ class RollAllocationService:
                             "parent_roll_id": str(roll.id),
                         })
                     except InventoryRoll.DoesNotExist:
-                        pass
+                        logger.warning(
+                            "Remainder roll disappeared while building allocation result for roll=%s",
+                            getattr(roll, "id", None),
+                        )
                 scrap_mm_total += float(out.get("waste_mm") or 0)
                 for aj in out.get("assigned_jobs", []) or []:
                     try:

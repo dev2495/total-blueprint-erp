@@ -226,6 +226,23 @@ export default function CatalogLinePicker({
                 autoFocus
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setPmOpen(false);
+                    return;
+                  }
+                  if (event.key === "Enter") {
+                    const firstCurrent = productMasters.find(
+                      (pm) => pm.is_current_version !== false && !pm.superseded_by,
+                    );
+                    if (firstCurrent) {
+                      event.preventDefault();
+                      handleSelectPm(firstCurrent);
+                    }
+                  }
+                }}
+                aria-label="Search Product Master"
                 placeholder="Search by code or name…"
                 className="h-8 w-full rounded-md bg-surface-1 px-2 text-sm font-semibold text-content-1 placeholder:text-content-4 outline-none focus:bg-surface-2"
               />
@@ -279,10 +296,6 @@ export default function CatalogLinePicker({
                       {!isCurrent ? (
                         <span className="ml-auto shrink-0 rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
                           inactive
-                        </span>
-                      ) : pm.version && pm.version > 1 ? (
-                        <span className="ml-auto shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-widest text-success-fg ring-1 ring-success-border">
-                          current
                         </span>
                       ) : null}
                     </button>

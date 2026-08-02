@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 from django.db import transaction, models
 from django.utils import timezone
 from apps.production.models import ProductionJob, JobExecutionLog, ScrapLog, DowntimeLog, WorkCenterAssignment
@@ -7,6 +8,8 @@ from apps.production.services.material_service import MaterialConsumptionService
 from apps.production.services import JobService
 from apps.inventory.services.roll_service import RollService
 from apps.production.services.shift_resolver import build_shift_fields_for_job
+
+logger = logging.getLogger(__name__)
 
 class OperatorService:
     @staticmethod
@@ -37,7 +40,7 @@ class OperatorService:
         
         if user_machine_ids is None:
             # Admin/superuser scope: no machine-level restriction.
-            pass
+            logger.debug("Operator dashboard using unrestricted administrator machine scope")
         elif user_machine_ids:
             qs = qs.filter(machine_id__in=user_machine_ids)
         else:
@@ -91,7 +94,7 @@ class OperatorService:
             ExecutionService.auto_satisfy_inputs(str(job.id), user=user)
         except Exception:
             # Continue to explicit satisfaction check below.
-            pass
+            logger.warning("Unable to auto-satisfy execution inputs for job=%s; checking explicit satisfaction", getattr(job, "id", None), exc_info=True)
         satisfaction = ExecutionService.get_satisfaction_status(str(job.id))
         if not satisfaction.get('is_satisfied'):
             missing_lines = []
@@ -161,12 +164,10 @@ class OperatorService:
             raise ValueError("Output weight must be > 0.")
 
         from apps.production.services.services_execution import ExecutionService
-        try:
-            # Re-satisfy input reservation before each log to support repeated MODIFY_EXISTING logs
-            # while keeping remainders at stage-0 AVAILABLE.
-            ExecutionService.auto_satisfy_inputs(str(job.id), user=user)
-        except Exception:
-            pass
+        # Re-satisfy input reservation before each log to support repeated
+        # MODIFY_EXISTING logs while keeping remainders at stage-0 AVAILABLE.
+        # If reservation evaluation fails, do not create untraceable output.
+        ExecutionService.auto_satisfy_inputs(str(job.id), user=user)
 
         return JobService.log_output_event(job, qty_kg, completion_meta=kwargs, user=user)
 

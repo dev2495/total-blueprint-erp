@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.db import transaction
 from django.db.models import Q, Sum
 from .models import (
     WorkCenterAssignment,
@@ -22,8 +23,9 @@ from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer
 from .services.job_services import JobService, WCManagerService, MachineBusyError
 from .services.roll_allocation_service import RollAllocationService
 from .services.services_execution import ExecutionService
+from .services.granule_availability import GranuleAvailabilityService, GranuleStockConflict
 from apps.inventory.serializers import InventoryRollSerializer
-from apps.inventory.models import InventoryBulk
+from apps.inventory.models import InventoryBulk, InventoryLocation
 
 
 def _actor_label(user):
@@ -135,36 +137,14 @@ def _validate_wcm_material_confirmations(job, material_confirmations):
                 raise ValueError(f"Code split is only allowed for granule rows, not {req.material.name}.")
             continue
 
-        stock_qs = InventoryBulk.objects.filter(material=req.material, granule_code__isnull=False, qty_kg__gt=0)
-        if source_location_id:
-            stock_qs = stock_qs.filter(location_id=source_location_id)
-        elif source_plant_id:
-            stock_qs = stock_qs.filter(plant_id=source_plant_id)
-        available_by_code = {
-            str(row["granule_code_id"]): Decimal(str(row["available"] or 0)).quantize(Decimal("0.0001"))
-            for row in stock_qs.values("granule_code_id").annotate(available=Sum("qty_kg"))
-        }
-        if issued > 0 and not available_by_code:
-            raise ValueError(f"No coded stock is available for {req.material.name}.")
-        if issued > 0 and available_by_code and not raw_allocations:
-            raise ValueError(f"Select at least one code for {req.material.name}.")
-
-        allocated_by_code = defaultdict(lambda: Decimal("0"))
-        for allocation in raw_allocations:
-            code_id = str(allocation.get("granule_code_id") or allocation.get("id") or "").strip()
-            qty = _decimal(allocation.get("qty_kg") or allocation.get("quantity"), f"{req.material.name} code qty")
-            if not code_id or qty <= 0:
-                continue
-            if code_id not in available_by_code:
-                raise ValueError(f"Selected code is not available for {req.material.name}.")
-            allocated_by_code[code_id] += qty
-
-        allocated_total = sum(allocated_by_code.values(), Decimal("0")).quantize(Decimal("0.0001"))
-        if allocated_total != issued:
-            raise ValueError(f"Code split for {req.material.name} must total {issued} kg, got {allocated_total} kg.")
-        for code_id, qty in allocated_by_code.items():
-            if qty > available_by_code[code_id]:
-                raise ValueError(f"Code allocation for {req.material.name} exceeds available coded stock.")
+        GranuleAvailabilityService.validate_allocations(
+            material=req.material,
+            issued_qty=issued,
+            allocations=raw_allocations,
+            issue_location_id=source_location_id,
+            issue_plant_id=source_plant_id,
+            lock=True,
+        )
 
 class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -725,18 +705,6 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             "assigned_machine",
         )
 
-        for assignment in base_qs.filter(status__in=['WC_READY', 'ASSIGNED', 'EXECUTION_READY']):
-            previous = assignment.status
-            previous_machine_id = assignment.assigned_machine_id
-            WCManagerService._sync_assignment_status(assignment)
-            changed_fields = []
-            if assignment.status != previous:
-                changed_fields.append('status')
-            if assignment.assigned_machine_id != previous_machine_id:
-                changed_fields.append('assigned_machine')
-            if changed_fields:
-                assignment.save(update_fields=changed_fields + ['updated_at'])
-        
         waiting_count = base_qs.filter(
             status__in=['WC_READY', 'ASSIGNED']
         ).exclude(
@@ -957,33 +925,40 @@ class JobAllocationViewSet(viewsets.ViewSet):
             return Response({"error": "assignment_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            material_confirmations = request.data.get("material_confirmations")
-            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
-            _validate_wcm_material_confirmations(before.production_job, material_confirmations)
-            assignment = WCManagerService.mark_execution_ready(
-                assignment_id,
-                material_confirmations=material_confirmations,
-            )
-            if material_confirmations:
+            with transaction.atomic():
+                material_confirmations = request.data.get("material_confirmations")
+                before = WorkCenterAssignment.objects.select_for_update(of=("self",)).select_related(
+                    "production_job",
+                    "production_job__work_center",
+                    "production_job__from_location",
+                    "work_center",
+                    "assigned_machine",
+                ).get(id=assignment_id)
+                _validate_wcm_material_confirmations(before.production_job, material_confirmations)
+                assignment = WCManagerService.mark_execution_ready(
+                    assignment_id,
+                    material_confirmations=material_confirmations,
+                )
+                if material_confirmations:
+                    _write_wcm_audit(
+                        assignment,
+                        "MATERIAL_ISSUE",
+                        user=request.user,
+                        before_status=before.status,
+                        payload={"material_confirmations": material_confirmations},
+                    )
                 _write_wcm_audit(
                     assignment,
-                    "MATERIAL_ISSUE",
+                    "RELEASE_TO_MACHINE",
                     user=request.user,
                     before_status=before.status,
-                    payload={"material_confirmations": material_confirmations},
+                    payload={
+                        "machine": assignment.assigned_machine.name if assignment.assigned_machine else "",
+                        "material_confirmation_count": len(material_confirmations or []),
+                    },
                 )
-            _write_wcm_audit(
-                assignment,
-                "RELEASE_TO_MACHINE",
-                user=request.user,
-                before_status=before.status,
-                payload={
-                    "machine": assignment.assigned_machine.name if assignment.assigned_machine else "",
-                    "material_confirmation_count": len(material_confirmations or []),
-                },
-            )
-            serializer = WorkCenterAssignmentSerializer(assignment)
-            return Response(serializer.data)
+                response_data = WorkCenterAssignmentSerializer(assignment).data
+            return Response(response_data)
         except WorkCenterAssignment.DoesNotExist:
             return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
         except MachineBusyError as e:
@@ -991,8 +966,162 @@ class JobAllocationViewSet(viewsets.ViewSet):
                 {"detail": str(e), "conflicting_job_number": e.conflicting_job_number},
                 status=status.HTTP_409_CONFLICT,
             )
+        except GranuleStockConflict as e:
+            return Response(
+                {"detail": str(e), "code": "GRANULE_STOCK_CHANGED"},
+                status=status.HTTP_409_CONFLICT,
+            )
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='request-material-transfer')
+    def request_material_transfer(self, request):
+        assignment_id = request.data.get("assignment_id")
+        requirement_id = request.data.get("requirement_id")
+        granule_code_id = request.data.get("granule_code_id")
+        source_location_id = request.data.get("source_location_id")
+        try:
+            quantity = _decimal(request.data.get("qty_kg"), "Transfer quantity")
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        if not all([assignment_id, requirement_id, granule_code_id, source_location_id]) or quantity <= 0:
+            return Response(
+                {"error": "assignment_id, requirement_id, granule_code_id, source_location_id and positive qty_kg are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            from apps.inventory.models import DeliveryChallan
+            from apps.inventory.serializers import DeliveryChallanSerializer
+            from apps.inventory.services.inter_plant import InterPlantService
+            from apps.materials.models import GranuleQualityCode
+
+            assignment = WorkCenterAssignment.objects.select_related(
+                "production_job__work_center__plant",
+                "production_job__from_location__plant",
+                "work_center",
+            ).get(id=assignment_id)
+            job = assignment.production_job
+            destination = WCManagerService._ensure_job_source_location(job)
+            current_step = int(job.current_step_index or 0) + 1
+            requirement = JobMaterialRequirement.objects.select_related("material", "process_step").get(
+                id=requirement_id,
+                production_job=job,
+                process_step__sequence_number=current_step,
+                material__category="GRANULE",
+            )
+            granule_code = GranuleQualityCode.objects.get(
+                id=granule_code_id,
+                granule=requirement.material,
+                status="ACTIVE",
+                merged_into__isnull=True,
+            )
+            source = InventoryLocation.objects.select_related("plant").get(id=source_location_id, is_active=True)
+            if str(source.code or "").upper() == "IN_TRANSIT" or str(source.type or "").upper() == "TRANSIT":
+                raise ValueError("In-transit stock cannot be allocated or transferred again.")
+            if str(source.plant_id) == str(destination.plant_id):
+                raise ValueError("This code is already in the destination plant; select it directly for allocation.")
+
+            available = InventoryBulk.objects.filter(
+                material=requirement.material,
+                granule_code=granule_code,
+                location=source,
+                qty_kg__gt=0,
+            ).aggregate(total=Sum("qty_kg")).get("total") or Decimal("0")
+            if Decimal(str(available)) < quantity:
+                raise ValueError(
+                    f"Only {Decimal(str(available)).quantize(Decimal('0.0001'))} kg of {granule_code.code} is available at {source.name}."
+                )
+            open_transfer = DeliveryChallan.objects.filter(
+                target_job=job,
+                status__in=["DRAFT", "APPROVED", "IN_TRANSIT"],
+                items__material=requirement.material,
+                items__granule_code=granule_code,
+            ).distinct().first()
+            if open_transfer:
+                raise ValueError(f"Transfer {open_transfer.dc_no} is already open for {granule_code.code}.")
+
+            with transaction.atomic():
+                challan = InterPlantService.create_challan(
+                    from_plant_id=str(source.plant_id),
+                    to_plant_id=str(destination.plant_id),
+                    target_job_id=str(job.id),
+                    is_system_generated=True,
+                )
+                InterPlantService.dispatch_challan(
+                    challan_id=str(challan.id),
+                    bulk_items=[{
+                        "material_id": str(requirement.material_id),
+                        "granule_code_id": str(granule_code.id),
+                        "quantity": quantity,
+                        "location_id": str(source.id),
+                    }],
+                    target_location_id=str(destination.id),
+                )
+            challan.refresh_from_db()
+            _write_wcm_audit(
+                assignment,
+                "MATERIAL_TRANSFER_REQUEST",
+                user=request.user,
+                before_status=assignment.status,
+                payload={
+                    "dc_no": challan.dc_no,
+                    "requirement_id": str(requirement.id),
+                    "material": requirement.material.name,
+                    "granule_code": granule_code.code,
+                    "qty_kg": float(quantity),
+                    "from_location": source.name,
+                    "from_plant": source.plant.name,
+                    "to_location": destination.name,
+                    "to_plant": destination.plant.name,
+                },
+            )
+            return Response(DeliveryChallanSerializer(challan).data, status=status.HTTP_201_CREATED)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except JobMaterialRequirement.DoesNotExist:
+            return Response({"error": "Current-step granule requirement not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='receive-material-transfer')
+    def receive_material_transfer(self, request):
+        assignment_id = request.data.get("assignment_id")
+        challan_id = request.data.get("challan_id")
+        if not assignment_id or not challan_id:
+            return Response({"error": "assignment_id and challan_id are required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from apps.inventory.models import DeliveryChallan
+            from apps.inventory.serializers import DeliveryChallanSerializer
+            from apps.inventory.services.inter_plant import InterPlantService
+
+            assignment = WorkCenterAssignment.objects.select_related("production_job__from_location").get(id=assignment_id)
+            job = assignment.production_job
+            destination = WCManagerService._ensure_job_source_location(job)
+            challan = DeliveryChallan.objects.get(id=challan_id, target_job=job)
+            InterPlantService.receive_challan(
+                challan_id=str(challan.id),
+                target_location_id=str(destination.id),
+            )
+            challan.refresh_from_db()
+            _write_wcm_audit(
+                assignment,
+                "MATERIAL_TRANSFER_RECEIPT",
+                user=request.user,
+                before_status=assignment.status,
+                payload={
+                    "dc_no": challan.dc_no,
+                    "to_location": destination.name,
+                    "status": challan.status,
+                },
+            )
+            return Response(DeliveryChallanSerializer(challan).data)
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except DeliveryChallan.DoesNotExist:
+            return Response({"error": "Transfer not found for this job."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='close-job')
     def close_job(self, request):

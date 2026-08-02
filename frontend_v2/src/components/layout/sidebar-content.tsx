@@ -9,7 +9,7 @@ import { ChevronDown } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import { getLandingPage } from "@/lib/roles";
-import { NAV_ITEMS, canAccessNavTarget } from "@/lib/sidebar-nav";
+import { NAV_ITEMS, SIDEBAR_SECTION_ORDER, canAccessNavTarget } from "@/lib/sidebar-nav";
 
 function navTestId(value: string) {
   return String(value || "")
@@ -23,18 +23,6 @@ function normalizeSidebarRoute(value: string) {
     .split("?")[0]
     .replace(/\/+$/g, "") || "/";
 }
-
-const SIDEBAR_SECTION_ORDER = [
-  "Sales",
-  "Operations",
-  "Inventory Workspace",
-  "Logistics",
-  "Procurement",
-  "Analytics",
-  "Engineering",
-  "Administration",
-  "System",
-];
 
 function useSidebarAuth() {
   const { user, effectiveRole } = useAuth();

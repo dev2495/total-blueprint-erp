@@ -11,7 +11,7 @@ from typing import Optional
 from django.conf import settings
 from django.utils import timezone
 
-from apps.platformops.models import BackupRecord, RestoreDrillRecord
+from apps.platformops.models import BackupRecord, OperationalAlert, RestoreDrillRecord
 
 
 @dataclass
@@ -83,13 +83,15 @@ class BackupService:
             "-salt",
             "-pbkdf2",
             "-pass",
-            f"pass:{encryption_key}",
+            "env:BACKUP_ENCRYPTION_KEY",
             "-in",
             str(file_path),
             "-out",
             str(encrypted_path),
         ]
-        completed = subprocess.run(cmd, capture_output=True, text=True)
+        env = os.environ.copy()
+        env["BACKUP_ENCRYPTION_KEY"] = encryption_key
+        completed = subprocess.run(cmd, capture_output=True, text=True, env=env)
         if completed.returncode != 0:
             raise RuntimeError(f"openssl encryption failed: {completed.stderr.strip()}")
 
@@ -112,11 +114,7 @@ class BackupService:
         return tokens
 
     @staticmethod
-    def _upload_to_object_storage(file_path: pathlib.Path) -> tuple[str, str]:
-        bucket = os.getenv("BACKUP_S3_BUCKET", "").strip()
-        if not bucket:
-            return "LOCAL", file_path.name
-
+    def _s3_client():
         try:
             import boto3  # type: ignore
         except Exception as exc:  # pragma: no cover - environment dependent
@@ -127,8 +125,7 @@ class BackupService:
         access_key = os.getenv("BACKUP_S3_ACCESS_KEY", "").strip() or None
         secret_key = os.getenv("BACKUP_S3_SECRET_KEY", "").strip() or None
 
-        session = boto3.session.Session()
-        client = session.client(
+        return boto3.session.Session().client(
             "s3",
             endpoint_url=endpoint_url,
             region_name=region_name,
@@ -136,6 +133,13 @@ class BackupService:
             aws_secret_access_key=secret_key,
         )
 
+    @classmethod
+    def _upload_to_object_storage(cls, file_path: pathlib.Path) -> tuple[str, str]:
+        bucket = os.getenv("BACKUP_S3_BUCKET", "").strip()
+        if not bucket:
+            return "LOCAL", file_path.name
+
+        client = cls._s3_client()
         prefix = os.getenv("BACKUP_S3_PREFIX", "db-backups/").strip()
         if prefix and not prefix.endswith("/"):
             prefix += "/"
@@ -145,13 +149,44 @@ class BackupService:
         return "S3", object_key
 
     @classmethod
-    def run_database_backup(cls, created_by=None) -> BackupRecord:
-        backup_record = BackupRecord.objects.create(
-            kind=BackupRecord.BackupKind.POSTGRES_DUMP,
-            status=BackupRecord.BackupStatus.RUNNING,
-            started_at=timezone.now(),
-            created_by=created_by,
-        )
+    def run_database_backup(cls, created_by=None, *, attempt_key: str = "") -> BackupRecord:
+        """Run one logical backup attempt.
+
+        Celery keeps the same task id across retries.  Reusing the row for that
+        id prevents a single failed schedule from creating several misleading
+        failure records while still retaining the final error or artifact.
+        """
+        attempt_key = str(attempt_key or "").strip()
+        backup_record = None
+        if attempt_key:
+            backup_record = BackupRecord.objects.filter(
+                metadata__attempt_key=attempt_key,
+            ).order_by("-created_at").first()
+
+        now = timezone.now()
+        if backup_record is None:
+            backup_record = BackupRecord.objects.create(
+                kind=BackupRecord.BackupKind.POSTGRES_DUMP,
+                status=BackupRecord.BackupStatus.RUNNING,
+                started_at=now,
+                created_by=created_by,
+                metadata={"attempt_key": attempt_key} if attempt_key else {},
+            )
+        else:
+            backup_record.status = BackupRecord.BackupStatus.RUNNING
+            backup_record.started_at = now
+            backup_record.finished_at = None
+            backup_record.duration_seconds = None
+            backup_record.error_text = ""
+            backup_record.save(
+                update_fields=[
+                    "status",
+                    "started_at",
+                    "finished_at",
+                    "duration_seconds",
+                    "error_text",
+                ]
+            )
         start_ts = time.monotonic()
 
         try:
@@ -183,6 +218,7 @@ class BackupService:
             backup_record.checksum_sha256 = checksum
             backup_record.size_bytes = size_bytes
             backup_record.metadata = {
+                **(backup_record.metadata or {}),
                 "command": " ".join(shlex.quote(c) for c in cmd),
                 "encrypted": final_path.suffix.endswith(".enc"),
             }
@@ -199,6 +235,10 @@ class BackupService:
                     "metadata",
                 ]
             )
+            OperationalAlert.objects.filter(
+                category="BACKUP",
+                resolved=False,
+            ).update(resolved=True, resolved_at=finished_at)
             return backup_record
         except Exception as exc:
             backup_record.status = BackupRecord.BackupStatus.FAILED
@@ -206,47 +246,104 @@ class BackupService:
             backup_record.duration_seconds = int(max(1, time.monotonic() - start_ts))
             backup_record.error_text = str(exc)
             backup_record.save(update_fields=["status", "finished_at", "duration_seconds", "error_text"])
+            OperationalAlert.objects.update_or_create(
+                category="BACKUP",
+                resolved=False,
+                defaults={
+                    "severity": OperationalAlert.Severity.CRITICAL,
+                    "message": "Automated database backup failed",
+                    "details": {
+                        "backup_record_id": str(backup_record.id),
+                        "error": str(exc),
+                    },
+                },
+            )
             raise
 
     @classmethod
     def prune_backup_retention(cls, retention_days: int = 30) -> dict:
         cutoff = timezone.now() - dt.timedelta(days=retention_days)
-        qs = BackupRecord.objects.filter(created_at__lt=cutoff)
-        deleted_db_rows = qs.count()
-
+        records = list(BackupRecord.objects.filter(created_at__lt=cutoff).order_by("created_at"))
+        candidate_records = len(records)
+        deleted_db_rows = 0
         local_deleted = 0
-        for record in qs.iterator():
-            if record.storage_provider == "LOCAL" and record.file_name:
-                local_path = cls._backup_dir() / record.file_name
-                if local_path.exists():
-                    local_path.unlink(missing_ok=True)
-                    local_deleted += 1
-
-        # Best effort S3 cleanup if configured.
+        local_missing = 0
         bucket = os.getenv("BACKUP_S3_BUCKET", "").strip()
         s3_deleted = 0
-        if bucket:
-            try:
-                import boto3  # type: ignore
+        s3_client = None
+        active_record = None
 
-                client = boto3.client(
-                    "s3",
-                    endpoint_url=os.getenv("BACKUP_S3_ENDPOINT", "") or None,
-                    region_name=os.getenv("BACKUP_S3_REGION", "") or None,
-                    aws_access_key_id=os.getenv("BACKUP_S3_ACCESS_KEY", "") or None,
-                    aws_secret_access_key=os.getenv("BACKUP_S3_SECRET_KEY", "") or None,
-                )
-                for record in qs.filter(storage_provider="S3").exclude(object_key=""):
-                    client.delete_object(Bucket=bucket, Key=record.object_key)
+        try:
+            for record in records:
+                active_record = record
+                provider = str(record.storage_provider or "LOCAL").strip().upper()
+                if provider == "LOCAL":
+                    if not record.file_name:
+                        raise RuntimeError("Local backup record has no file name.")
+                    local_path = cls._backup_dir() / record.file_name
+                    if local_path.exists():
+                        local_path.unlink(missing_ok=True)
+                        local_deleted += 1
+                    else:
+                        local_missing += 1
+                elif provider == "S3":
+                    if not bucket:
+                        raise RuntimeError(
+                            "BACKUP_S3_BUCKET is required to prune an S3 backup record."
+                        )
+                    if not record.object_key:
+                        raise RuntimeError("S3 backup record has no object key.")
+                    if s3_client is None:
+                        s3_client = cls._s3_client()
+                    s3_client.delete_object(Bucket=bucket, Key=record.object_key)
                     s3_deleted += 1
-            except Exception:
-                # Avoid failing cleanup because object-storage credentials are missing.
-                pass
+                else:
+                    raise RuntimeError(f"Unsupported backup storage provider: {provider}")
 
-        qs.delete()
+                # Delete the audit row only after its external artifact has
+                # either been removed or confirmed absent. A retry is then
+                # idempotent and never loses the evidence needed to recover.
+                record.delete()
+                deleted_db_rows += 1
+        except Exception as exc:
+            record_id = str(getattr(active_record, "id", "") or "")
+            alert_defaults = {
+                "severity": OperationalAlert.Severity.CRITICAL,
+                "message": "Automated backup retention failed",
+                "details": {
+                    "backup_record_id": record_id,
+                    "provider": str(getattr(active_record, "storage_provider", "") or ""),
+                    "error_type": type(exc).__name__,
+                    "error": str(exc)[:2000],
+                },
+            }
+            alert = (
+                OperationalAlert.objects.filter(category="BACKUP_RETENTION", resolved=False)
+                .order_by("-created_at")
+                .first()
+            )
+            if alert is None:
+                OperationalAlert.objects.create(category="BACKUP_RETENTION", **alert_defaults)
+            else:
+                alert.severity = alert_defaults["severity"]
+                alert.message = alert_defaults["message"]
+                alert.details = alert_defaults["details"]
+                alert.save(update_fields=["severity", "message", "details"])
+            raise RuntimeError(
+                f"Backup retention failed for record {record_id or 'unknown'}: {exc}"
+            ) from exc
+
+        finished_at = timezone.now()
+        OperationalAlert.objects.filter(
+            category="BACKUP_RETENTION",
+            resolved=False,
+        ).update(resolved=True, resolved_at=finished_at)
+
         return {
+            "candidate_records": candidate_records,
             "deleted_records": deleted_db_rows,
             "deleted_local_files": local_deleted,
+            "missing_local_files": local_missing,
             "deleted_s3_objects": s3_deleted,
             "retention_days": retention_days,
         }

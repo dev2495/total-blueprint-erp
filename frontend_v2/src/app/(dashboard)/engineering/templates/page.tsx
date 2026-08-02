@@ -318,7 +318,7 @@ export default function EngineeringTemplatesPage() {
               <Input
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
-                placeholder="e.g. Pouch Route V2"
+                placeholder="e.g. Pouch Route"
               />
             </div>
             <div className="grid grid-cols-1 gap-3">

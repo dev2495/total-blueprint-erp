@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
+import logging
 from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -23,6 +24,8 @@ from apps.procurement.services.po_receipt import PurchaseOrderReceiptService
 from apps.procurement.services.purchase_order import PurchaseOrderService
 from apps.procurement.services.trading_good_receipt import TradingGoodReceiptService
 from apps.procurement.services.vendor_performance import VendorPerformanceService
+
+logger = logging.getLogger(__name__)
 
 
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
@@ -132,7 +135,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 data.update(payload)
                 return Response(data, status=status.HTTP_201_CREATED)
             except PurchaseOrder.DoesNotExist:
-                pass
+                logger.debug("Purchase order was not found after receipt creation; returning receipt payload", exc_info=True)
         return Response(payload, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=["get"], url_path="vendor_performance")

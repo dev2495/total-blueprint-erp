@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import Script from "next/script";
 import "./globals.css";
 import Providers from "@/components/providers";
 import { installServerConsoleFilters } from "@/lib/server-console-filters";
@@ -15,27 +17,12 @@ export const metadata: Metadata = {
   },
 };
 
-const themeBootstrapScript = `
-(() => {
-  try {
-    const stored = window.localStorage.getItem("tpp-theme");
-    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const theme = stored || (prefersDark ? "dark" : "light");
-    const root = document.documentElement;
-    root.dataset.theme = theme;
-    root.style.colorScheme = theme;
-    root.classList.toggle("dark", theme === "dark");
-  } catch {
-    document.documentElement.dataset.theme = "light";
-  }
-})();
-`;
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get("x-nonce") || undefined;
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -45,11 +32,13 @@ export default async function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/* App Router has no pages/_document; the root layout applies this font stylesheet globally. */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
-        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        <Script src="/theme-bootstrap.js" nonce={nonce} strategy="beforeInteractive" />
       </head>
       <body>
         <Providers>{children}</Providers>

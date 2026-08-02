@@ -1,9 +1,10 @@
 from rest_framework import serializers
 from django.utils.text import slugify
-from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy
+from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
 from .stock_forms import normalize_slit_policy, normalize_stock_form, normalize_width_basis
+from .services_pouch_style import formula_axis_contract_error
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
 from apps.recipes.models import RecipeGrade
@@ -12,6 +13,9 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 import uuid
 import hashlib
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 GLOBAL_PRODUCT_LAYER_AXES = {"thickness_um", "thickness_micron", "grade", "grade_id"}
 LAYER_THICKNESS_AXIS_KEYS = {"layer_thicknesses", "layer_thickness", "thickness_by_layer", "per_layer_thickness"}
@@ -57,7 +61,7 @@ def _template_route_print_type(template):
         for process in Process.objects.filter(code__in=process_codes).only("code", "name"):
             fragments.extend([process.code, process.name])
     except Exception:
-        pass
+        logger.warning("Unable to load route process metadata while classifying print type", exc_info=True)
     route_text = " ".join(fragments).upper()
     has_roto = any(token in route_text for token in ROUTE_ROTO_TOKENS)
     has_flexo = any(token in route_text for token in ROUTE_FLEXO_TOKENS)
@@ -138,9 +142,83 @@ def _catalog_default_exists(source, default_value, filters=None):
 def _missing_film_variant_codes(codes):
     missing = []
     for code in sorted({str(item or "").strip() for item in (codes or []) if str(item or "").strip()}):
-        if not InventoryMaterial.objects.filter(code__iexact=code, category="FILM_VARIANT").exists():
+        if not _resolve_film_variant(code):
             missing.append(code)
     return missing
+
+
+def _resolve_film_variant(code=None, material_id=None):
+    """Resolve current code first, then a persisted former-code alias."""
+    material = (
+        InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first()
+        if material_id
+        else None
+    )
+    if material:
+        return material
+    ref = str(code or "").strip()
+    if not ref:
+        return None
+    material = InventoryMaterial.objects.filter(code__iexact=ref, category="FILM_VARIANT").first()
+    if material:
+        return material
+    alias = (
+        MaterialCodeAlias.objects.select_related("material")
+        .filter(alias__iexact=ref, category="FILM_VARIANT", active=True, material__status="ACTIVE")
+        .first()
+    )
+    return alias.material if alias else None
+
+
+def _canonical_material_option(value):
+    if isinstance(value, dict):
+        cleaned = dict(value)
+        for key in ("code", "material_code", "film_variant_code", "value"):
+            if cleaned.get(key):
+                material = _resolve_film_variant(cleaned.get(key))
+                if material:
+                    cleaned[key] = material.code
+                    break
+        return cleaned
+    material = _resolve_film_variant(value)
+    return material.code if material else value
+
+
+def _dedupe_material_options(values):
+    """Keep the first option for each canonical material identity."""
+    deduped = []
+    seen = set()
+    for value in values:
+        if isinstance(value, dict):
+            identity = next(
+                (
+                    str(value.get(key) or "").strip().casefold()
+                    for key in ("code", "material_code", "film_variant_code", "value")
+                    if str(value.get(key) or "").strip()
+                ),
+                json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).casefold(),
+            )
+        else:
+            identity = str(value or "").strip().casefold()
+        if identity in seen:
+            continue
+        seen.add(identity)
+        deduped.append(value)
+    return deduped
+
+
+def _canonicalize_layer_material_options(row):
+    """Persist aliases as canonical codes once a Product Master is saved."""
+    for key in LAYER_MATERIAL_OPTION_KEYS:
+        value = row.get(key) if isinstance(row, dict) else None
+        if isinstance(value, list):
+            row[key] = _dedupe_material_options([_canonical_material_option(item) for item in value])
+        elif isinstance(value, tuple):
+            row[key] = _dedupe_material_options([_canonical_material_option(item) for item in value])
+        elif isinstance(value, dict):
+            row[key] = {item_key: _canonical_material_option(item) for item_key, item in value.items()}
+        elif value not in (None, ""):
+            row[key] = _canonical_material_option(value)
 
 
 def _grade_name_exists(name):
@@ -192,6 +270,26 @@ def _is_layer_setup_pending(row):
     )
 
 
+def _next_product_master_code(base_code, *, instance=None):
+    normalized = normalize_code(base_code, max_length=80)
+    if not normalized:
+        raise serializers.ValidationError("Product Master code is required.")
+
+    queryset = ProductMaster.objects.all()
+    if instance is not None and getattr(instance, "pk", None):
+        queryset = queryset.exclude(pk=instance.pk)
+    if not queryset.filter(code__iexact=normalized).exists():
+        return normalized
+
+    for suffix in range(2, 10000):
+        marker = f"-{suffix}"
+        root = normalize_code(normalized, max_length=80 - len(marker))
+        candidate = f"{root}{marker}"
+        if not queryset.filter(code__iexact=candidate).exists():
+            return candidate
+    raise serializers.ValidationError("Unable to allocate a unique Product Master code.")
+
+
 class InventoryMaterialLiteSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
@@ -236,6 +334,7 @@ class CommercialFamilySerializer(serializers.ModelSerializer):
 
 
 class ProductMasterSerializer(serializers.ModelSerializer):
+    display_code = serializers.SerializerMethodField()
     default_template_name = serializers.CharField(source='default_template.name', read_only=True, allow_null=True)
     template_name = serializers.CharField(source='template.name', read_only=True, allow_null=True)
     commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
@@ -256,6 +355,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'code',
+            'display_code',
             'name',
             'version_group',
             'version',
@@ -289,6 +389,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'display_code',
             'version_group',
             'version',
             'is_current_version',
@@ -304,12 +405,26 @@ class ProductMasterSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+        extra_kwargs = {
+            'code': {'validators': []},
+        }
 
     def get_overlays_count(self, obj):
         annotated = getattr(obj, "overlay_count", None)
         if annotated is not None:
             return annotated
         return obj.customer_overlays.count()
+
+    def get_display_code(self, obj):
+        return str(getattr(obj, "version_group", "") or ProductMaster.version_root_from_code(obj.code))
+
+    def to_representation(self, instance):
+        """Keep internal revision mechanics out of normal user-facing APIs."""
+        data = super().to_representation(instance)
+        data["code"] = data.get("display_code") or data.get("code")
+        for field in ("version_group", "version", "is_current_version", "superseded_by"):
+            data.pop(field, None)
+        return data
 
     def get_sizes_count(self, obj):
         return obj.sizes.count()
@@ -332,7 +447,22 @@ class ProductMasterSerializer(serializers.ModelSerializer):
         ).count()
 
     def validate_code(self, value):
-        return normalize_code(value, max_length=80)
+        normalized = normalize_code(value, max_length=80)
+        if self.instance is None:
+            return _next_product_master_code(normalized)
+        if not normalized:
+            raise serializers.ValidationError("Product Master code is required.")
+        if normalized != self.instance.code:
+            raise serializers.ValidationError(
+                "Product Master code is an internal immutable identity. Change the customer-facing name, not the code."
+            )
+        if (
+            ProductMaster.objects.exclude(pk=self.instance.pk)
+            .filter(code__iexact=normalized)
+            .exists()
+        ):
+            raise serializers.ValidationError("Product Master code already exists.")
+        return normalized
 
     def validate_default_reporting_group(self, value):
         return value or "FG"
@@ -396,9 +526,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({"layer_template": f"Layer {index + 1} must be an object."})
                 material_id = row.get("film_variant_id") or row.get("material_id")
                 material_code = row.get("film_variant_code") or row.get("material_code") or row.get("code") or row.get("layer") or row.get("name")
-                material = InventoryMaterial.objects.filter(id=material_id, category="FILM_VARIANT").first() if material_id else None
-                if not material and material_code:
-                    material = InventoryMaterial.objects.filter(code__iexact=str(material_code), category="FILM_VARIANT").first()
+                material = _resolve_film_variant(material_code, material_id)
                 if not material:
                     if _is_layer_setup_pending(row):
                         if is_active_after_save:
@@ -417,6 +545,7 @@ class ProductMasterSerializer(serializers.ModelSerializer):
                 row.pop("layer_setup_pending", None)
                 row["film_variant_id"] = str(material.id)
                 row["film_variant_code"] = material.code
+                _canonicalize_layer_material_options(row)
                 raw_thickness = row.get("thickness_micron", row.get("thickness_um"))
                 if raw_thickness in (None, ""):
                     if not has_layer_thickness_axis:
@@ -678,7 +807,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
 
 class ProductMasterSizeSerializer(serializers.ModelSerializer):
-    product_master_code = serializers.CharField(source="product_master.code", read_only=True)
+    product_master_code = serializers.SerializerMethodField()
     product_master_name = serializers.CharField(source="product_master.name", read_only=True)
     pouch_style_master_code = serializers.SerializerMethodField()
     pouch_style_roll_axis = serializers.SerializerMethodField()
@@ -755,6 +884,10 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
     def get_pouch_style_master_code(self, obj):
         style = getattr(obj, "pouch_style_master", None)
         return getattr(style, "code", "") or ""
+
+    def get_product_master_code(self, obj):
+        master = getattr(obj, "product_master", None)
+        return str(getattr(master, "version_group", "") or ProductMaster.version_root_from_code(getattr(master, "code", "")))
 
     def get_pouch_style_roll_axis(self, obj):
         style = getattr(obj, "pouch_style_master", None)
@@ -878,7 +1011,17 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         style = attrs.get("pouch_style_master")
+        if style is None and self.instance is not None:
+            style = getattr(self.instance, "pouch_style_master", None)
         if style is not None:
+            contract_error = formula_axis_contract_error(
+                default_roll_axis=getattr(style, "default_roll_axis", None),
+                formula_kind=getattr(style, "formula_kind", None),
+                formula_params=getattr(style, "formula_params", None),
+                formula_ast=getattr(style, "formula_ast", None),
+            )
+            if contract_error:
+                raise serializers.ValidationError({"pouch_style_master": contract_error})
             existing_style_id = getattr(self.instance, "pouch_style_master_id", None) if self.instance is not None else None
             style_changed = str(existing_style_id or "") != str(getattr(style, "id", "") or "")
             if style_changed and (not getattr(style, "locked", False) or getattr(style, "deprecated", False)):
@@ -969,6 +1112,24 @@ class InventoryMaterialSerializer(serializers.ModelSerializer):
     def get_product_master_link(self, obj):
         return _product_master_link_summary(obj)
 
+    def validate_code(self, value):
+        return normalize_code(value, max_length=100)
+
+    def update(self, instance, validated_data):
+        old_code = str(instance.code or "")
+        updated = super().update(instance, validated_data)
+        if old_code and old_code != updated.code:
+            MaterialCodeAlias.objects.update_or_create(
+                alias=old_code,
+                defaults={
+                    "material": updated,
+                    "category": updated.category,
+                    "active": True,
+                    "notes": "Automatically retained when material code changed.",
+                },
+            )
+        return updated
+
 class FilmFamilySerializer(serializers.ModelSerializer):
     commercial_family_name = serializers.CharField(source='commercial_family.name', read_only=True, allow_null=True)
     class Meta:
@@ -1008,11 +1169,29 @@ class FilmVariantSerializer(serializers.ModelSerializer):
         attrs['grade'] = None
         return attrs
 
+    def validate_code(self, value):
+        return normalize_code(value, max_length=100)
+
     def create(self, validated_data):
         validated_data['category'] = 'FILM_VARIANT'
         # variants usually use same UOM as family or specific? Assuming KG for film
         validated_data['base_uom'] = 'KG' 
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        old_code = str(instance.code or "")
+        updated = super().update(instance, validated_data)
+        if old_code and old_code != updated.code:
+            MaterialCodeAlias.objects.update_or_create(
+                alias=old_code,
+                defaults={
+                    "material": updated,
+                    "category": updated.category,
+                    "active": True,
+                    "notes": "Automatically retained when film variant code changed.",
+                },
+            )
+        return updated
 
 class GranuleQualityCodeSerializer(serializers.ModelSerializer):
     granule_name = serializers.CharField(source="granule.name", read_only=True)
@@ -1026,12 +1205,14 @@ class GranuleQualityCodeSerializer(serializers.ModelSerializer):
             "granule_name",
             "granule_material_code",
             "code",
+            "canonical_key",
             "status",
             "notes",
+            "merged_into",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "granule_name", "granule_material_code"]
+        read_only_fields = ["id", "canonical_key", "merged_into", "created_at", "updated_at", "granule_name", "granule_material_code"]
 
     def validate_code(self, value):
         value = str(value or "").strip().upper()
@@ -1043,6 +1224,24 @@ class GranuleQualityCodeSerializer(serializers.ModelSerializer):
         granule = attrs.get("granule") or getattr(self.instance, "granule", None)
         if granule and str(getattr(granule, "category", "") or "").upper() != "GRANULE":
             raise serializers.ValidationError({"granule": "Quality code can only be attached to a granule."})
+        code = attrs.get("code", getattr(self.instance, "code", ""))
+        canonical_key = canonical_granule_quality_code(code)
+        duplicate_qs = GranuleQualityCode.objects.filter(
+            granule=granule,
+            canonical_key=canonical_key,
+            status="ACTIVE",
+        )
+        if self.instance:
+            duplicate_qs = duplicate_qs.exclude(pk=self.instance.pk)
+        duplicate = duplicate_qs.order_by("created_at").first()
+        next_status = str(attrs.get("status", getattr(self.instance, "status", "ACTIVE")) or "ACTIVE").upper()
+        if duplicate and next_status == "ACTIVE":
+            raise serializers.ValidationError({
+                "code": (
+                    f"Equivalent code '{duplicate.code}' already exists in this granule family. "
+                    "Spaces, hyphens and underscores are treated as the same identity."
+                )
+            })
         return attrs
 
 
@@ -1443,6 +1642,20 @@ class PouchStyleSerializer(serializers.ModelSerializer):
         ast = attrs.get("formula_ast", getattr(self.instance, "formula_ast", {}) or {})
         if kind == "CUSTOM_AST" and not ast:
             raise serializers.ValidationError({"formula_ast": "Custom AST mode requires a non-empty AST."})
+        contract_error = formula_axis_contract_error(
+            default_roll_axis=attrs.get(
+                "default_roll_axis",
+                getattr(self.instance, "default_roll_axis", "") if self.instance is not None else "",
+            ),
+            formula_kind=kind,
+            formula_params=attrs.get(
+                "formula_params",
+                getattr(self.instance, "formula_params", {}) if self.instance is not None else {},
+            ),
+            formula_ast=ast,
+        )
+        if contract_error:
+            raise serializers.ValidationError({"default_roll_axis": contract_error})
         return super().validate(attrs)
 
 

@@ -12,7 +12,7 @@ django.setup()
 
 from apps.costing.models import MaterialCostSnapshot, ProcessCostRate
 from apps.factory.models import Plant, PlantLegalProfile, Process
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import InventoryMaterial, ProductMaster, ProductMasterSize
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, Quotation, SalesSku, SalesSkuVariant
 from apps.templates.models import TemplateBlueprint
@@ -130,11 +130,76 @@ if template:
 else:
     template = TemplateBlueprint.objects.create(name=TEMPLATE_NAME, **template_defaults)
 
+product_master, _ = ProductMaster.objects.update_or_create(
+    code=f"{CODE_PREFIX}-QPM",
+    defaults={
+        "name": label("Quote Product Master"),
+        "product_kind": "POUCH",
+        "template": template,
+        "default_template": template,
+        "reusable_policy": "CONFIGURABLE",
+        "layer_template": [
+            {
+                "role": "sealant",
+                "name": variant.name,
+                "film_variant_code": variant.code,
+                "thickness_micron": 50,
+                "thickness_options": [50],
+            }
+        ],
+        "canonical_layer_stack": [
+            {
+                "role": "sealant",
+                "name": variant.name,
+                "film_variant_code": variant.code,
+                "thickness_micron": 50,
+                "thickness_options": [50],
+            }
+        ],
+        "variant_axes": [
+            {
+                "axis": "size",
+                "label": "Size",
+                "type": "geometry",
+                "required": True,
+                "scope": "geometry",
+                "options": [f"{CODE_PREFIX}-Q140X220"],
+            }
+        ],
+        "fixed_attributes": {
+            "fg_type": "POUCH",
+            "layer_count": 1,
+            "print_capable": False,
+            "artwork_required": False,
+            "pouch_style": "THREE_SIDE_SEAL",
+            "multipliers": {"faces": 1},
+        },
+        "active": True,
+    },
+)
+product_size, _ = ProductMasterSize.objects.update_or_create(
+    product_master=product_master,
+    code=f"{CODE_PREFIX}-Q140X220",
+    defaults={
+        "label": label("Quote 140 x 220"),
+        "width_mm": Decimal("140"),
+        "height_mm": Decimal("220"),
+        "roll_width_mm": Decimal("280"),
+        "qty_uom": "PCS",
+        "geometry_config": {
+            "pouch_style": "THREE_SIDE_SEAL",
+            "multipliers": {"faces": 1},
+        },
+        "active": True,
+    },
+)
+
 sku, _ = SalesSku.objects.update_or_create(
     code=SKU_CODE,
     defaults={
         "name": SKU_NAME,
         "template": template,
+        "product_master": product_master,
         "default_line_name": SKU_VARIANT_NAME,
         "active": True,
     },
@@ -202,6 +267,12 @@ payload = {
     "plant_name": plant.name,
     "template_id": str(template.id),
     "template_name": template.name,
+    "product_master_id": str(product_master.id),
+    "product_master_code": product_master.code,
+    "product_master_name": product_master.name,
+    "size_id": str(product_size.id),
+    "size_code": product_size.code,
+    "size_label": product_size.label,
     "sku_id": str(sku.id),
     "sku_name": sku.name,
     "sku_variant_id": str(sku_variant.id),

@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -16,6 +17,30 @@ from apps.templates.models import TemplateBlueprint
 
 
 class ProductConfiguredOrderTests(TestCase):
+    @patch("apps.sales.services.bom_preview.OrderResolutionService.resolve_line")
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    def test_bom_preview_blocks_missing_configured_pod_variant(
+        self, preview_sales_item, resolve_line
+    ):
+        resolve_line.return_value = {"preview_payload": {}}
+        preview_sales_item.return_value = {
+            "bom": {"planning_lines": [], "is_complete": True},
+        }
+
+        preview = BOMPreviewService.for_line(
+            {
+                "packaging_snapshot": {
+                    "pod": {
+                        "enabled": True,
+                        "pod_sku_variant_id": str(uuid4()),
+                    }
+                }
+            }
+        )
+
+        self.assertFalse(preview["is_complete"])
+        self.assertIn("no longer exists", " ".join(preview["errors"]))
+
     def setUp(self):
         self.customer = Customer.objects.create(code="ACME", name="Acme Retail")
         self.product = ProductMaster.objects.create(

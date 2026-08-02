@@ -41,20 +41,17 @@ class JobService:
     @classmethod
     def _lamination_pass_index_for_route(cls, processes, index):
         pass_index = 0
-        try:
-            combine_codes = set(
-                Process.objects.filter(
-                    code__in=list(processes),
-                    roll_behavior="MULTI_INPUT_COMBINE",
-                ).values_list("code", flat=True)
-            )
-            for idx, code in enumerate(processes):
-                if idx > index:
-                    break
-                if code in combine_codes:
-                    pass_index += 1
-        except Exception:
-            pass_index = 0
+        combine_codes = set(
+            Process.objects.filter(
+                code__in=list(processes),
+                roll_behavior="MULTI_INPUT_COMBINE",
+            ).values_list("code", flat=True)
+        )
+        for idx, code in enumerate(processes):
+            if idx > index:
+                break
+            if code in combine_codes:
+                pass_index += 1
         return max(pass_index, 1)
 
     @classmethod
@@ -65,19 +62,16 @@ class JobService:
         if layer_count <= 0:
             return True
         active_min = 0
-        try:
-            from apps.templates.models import TemplateProcessStep
+        from apps.templates.models import TemplateProcessStep
 
-            step = (
-                TemplateProcessStep.objects.select_related("roll_spec")
-                .filter(template=template, sequence_number=int(index) + 1)
-                .first()
-            )
-            roll_spec = getattr(step, "roll_spec", None) if step else None
-            if roll_spec and str(getattr(roll_spec, "combine_mode", "") or "").upper() == "LANE_GROUPS":
-                active_min = int(getattr(roll_spec, "active_min_layer_count", 0) or 0)
-        except Exception:
-            active_min = 0
+        step = (
+            TemplateProcessStep.objects.select_related("roll_spec")
+            .filter(template=template, sequence_number=int(index) + 1)
+            .first()
+        )
+        roll_spec = getattr(step, "roll_spec", None) if step else None
+        if roll_spec and str(getattr(roll_spec, "combine_mode", "") or "").upper() == "LANE_GROUPS":
+            active_min = int(getattr(roll_spec, "active_min_layer_count", 0) or 0)
         pass_index = cls._lamination_pass_index_for_route(processes, index)
         if active_min <= 0:
             active_min = 2 if pass_index <= 1 else pass_index + 1
@@ -148,14 +142,11 @@ class JobService:
     def _route_last_index(cls, routing_rule):
         if not routing_rule:
             return 0
-        try:
-            from apps.production.services.batch_route_service import RouteGraphService
+        from apps.production.services.batch_route_service import RouteGraphService
 
-            nodes = RouteGraphService.normalize(routing_rule).get("nodes") or []
-            if nodes:
-                return max(RouteGraphService.step_index_for_node(node) for node in nodes)
-        except Exception:
-            pass
+        nodes = RouteGraphService.normalize(routing_rule).get("nodes") or []
+        if nodes:
+            return max(RouteGraphService.step_index_for_node(node) for node in nodes)
         return max(0, len(list(getattr(routing_rule, "ordered_processes", None) or [])) - 1)
 
     @classmethod
@@ -321,7 +312,7 @@ class JobService:
                 if role:
                     return role
             except Exception:
-                pass
+                logger.debug("Unable to resolve roll role from inventory serializer for roll=%s", getattr(roll, "id", None), exc_info=True)
             meta = dict(getattr(roll, "meta_json", None) or {})
             if bool(meta.get("is_remainder")):
                 return "REMAINDER"
@@ -1303,6 +1294,7 @@ class JobService:
         return all_jobs
 
     @classmethod
+    @transaction.atomic
     def create_jobs_for_so_item(
         cls,
         so_item,
@@ -1388,20 +1380,12 @@ class JobService:
                 )
 
                 base_job_number = f"{so_item.sales_order.order_number}-{so_item.id.hex[:4]}-B{batch.batch_sequence:02d}-{index+1}"
-                layer_sig_hash = ""
-                try:
-                    bs = getattr(so_item, "bom_snapshot", None) or {}
-                    if isinstance(bs, dict):
-                        layer_sig_hash = str(bs.get("layer_signature_hash") or "")
-                except Exception:
-                    layer_sig_hash = ""
                 meta_json = {
                     "production_batch_number": batch.batch_number,
                     "route_node_label": node.get("label", ""),
                     "route_graph_version": "v3",
                 }
-                if layer_sig_hash:
-                    meta_json["layer_signature_hash"] = layer_sig_hash
+                meta_json.update(cls._source_layer_identity_meta(so_item))
                 job = ProductionJob.objects.create(
                     job_number=cls._next_unique_job_number(base_job_number),
                     origin='MTO',
@@ -1443,6 +1427,7 @@ class JobService:
         return jobs
 
     @classmethod
+    @transaction.atomic
     def create_jobs_for_planned_order(cls, planned_order, start_index=None, stop_index=None, quantity_kg=None, work_center_overrides=None):
         template = planned_order.template
         if not template.routing_rule:
@@ -1533,23 +1518,7 @@ class JobService:
             )
 
             base_job_number = f"{planned_order.order_number}-{index+1}"
-            stock_meta = {}
-            try:
-                from apps.production.services.roll_allocation_service import layer_signature_hash
-                bs = getattr(planned_order, "bom_snapshot", None) or {}
-                layer_sig = ""
-                if isinstance(bs, dict):
-                    layer_sig = str(bs.get("layer_signature_hash") or "")
-                if not layer_sig:
-                    layer_sig = layer_signature_hash(getattr(planned_order, "layer_snapshot", None) or [])
-                if layer_sig:
-                    stock_meta["layer_signature_hash"] = layer_sig
-                commitment_scope = str(getattr(planned_order, "commitment_scope", "") or "").upper()
-                if commitment_scope == "GENERIC":
-                    stock_meta["roll_role"] = "GENERIC_JUMBO"
-                    stock_meta["is_generic_stock"] = True
-            except Exception:
-                pass
+            stock_meta = cls._source_layer_identity_meta(planned_order, include_stock_role=True)
             job = ProductionJob.objects.create(
                 job_number=cls._next_unique_job_number(base_job_number),
                 origin='STOCK',
@@ -1583,6 +1552,28 @@ class JobService:
             
             jobs.append(job)
         return jobs
+
+    @staticmethod
+    def _source_layer_identity_meta(source, *, include_stock_role=False):
+        """Build immutable planning identity metadata without silent fallbacks."""
+        from apps.production.services.roll_allocation_service import layer_signature_hash
+
+        bom_snapshot = getattr(source, "bom_snapshot", None) or {}
+        layer_signature = ""
+        if isinstance(bom_snapshot, dict):
+            layer_signature = str(bom_snapshot.get("layer_signature_hash") or "")
+        if not layer_signature:
+            layer_signature = layer_signature_hash(getattr(source, "layer_snapshot", None) or [])
+
+        meta = {}
+        if layer_signature:
+            meta["layer_signature_hash"] = layer_signature
+        if include_stock_role:
+            commitment_scope = str(getattr(source, "commitment_scope", "") or "").upper()
+            if commitment_scope == "GENERIC":
+                meta["roll_role"] = "GENERIC_JUMBO"
+                meta["is_generic_stock"] = True
+        return meta
 
     @classmethod
     def get_work_center_queue(cls, work_center_id):
@@ -2461,7 +2452,10 @@ class WCManagerService:
 
         # Auto-prepare inputs before readiness check.
         cls._ensure_job_source_location(job)
-        ExecutionService.top_up_bulk_source_location(job.id)
+        ExecutionService.top_up_bulk_source_location(
+            job.id,
+            material_confirmations=material_confirmations,
+        )
         ExecutionService.auto_satisfy_inputs(job.id)
 
         # Validation: requirements must be satisfied (rolls + bulk)

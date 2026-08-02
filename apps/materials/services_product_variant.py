@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import uuid
 from decimal import Decimal
@@ -13,7 +14,8 @@ from apps.physics.geometry_override import normalize_geometry_override, sanitize
 from apps.physics.services_physics import PhysicsEngine
 
 from .naming import product_variant_code
-from .models import InventoryMaterial, ProductMaster, ProductMasterSize, ProductVariant
+from .models import InventoryMaterial, MaterialCodeAlias, ProductMaster, ProductMasterSize, ProductVariant
+from .services_pouch_style import consumption_pitch_axis, resolved_formula_roll_axis
 from .stock_forms import (
     STOCK_FORM_OPEN_WEB,
     film_area_factor_for_stock_form,
@@ -21,6 +23,8 @@ from .stock_forms import (
     normalize_stock_form,
     normalize_width_basis,
 )
+
+logger = logging.getLogger(__name__)
 
 GLOBAL_LAYER_AXIS_KEYS = {"thickness_um", "thickness_micron", "grade", "grade_id"}
 LAYER_GRADE_AXIS_KEYS = ("layer_grades", "grade_by_layer", "layer_grade", "per_layer_grade")
@@ -69,6 +73,72 @@ def _canonical(value: Any) -> Any:
 
 def canonical_axis_values(axis_values: dict[str, Any]) -> dict[str, Any]:
     return _canonical(axis_values if isinstance(axis_values, dict) else {})
+
+
+def canonicalize_product_master_size_axis(
+    master: ProductMaster,
+    axis_values: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve a legacy size label/alias to one unambiguous active size code.
+
+    Historical sales lines sometimes retain the short commercial size (for
+    example ``13X16``) after the Product Master size was renamed to carry a
+    finishing suffix (``13X16-1.5FT``).  Falling back to parsing the short text
+    as ad-hoc millimetres drops the bound pouch-style contract and can wrongly
+    re-enable generic rules such as mandatory gusset validation.
+
+    Exact code/label matches always win.  A prefix alias is accepted only when
+    it resolves to exactly one active size, so ambiguous legacy data still
+    fails closed instead of selecting a production geometry by guesswork.
+    """
+
+    resolved = canonical_axis_values(axis_values)
+    raw_value = resolved.get("size") or resolved.get("size_code")
+    if raw_value in (None, "") or isinstance(raw_value, (dict, list, tuple, set)):
+        return resolved
+
+    raw_text = str(raw_value).strip()
+    if not raw_text:
+        return resolved
+
+    sizes = ProductMasterSize.objects.filter(product_master=master, active=True)
+    exact = sizes.filter(code__iexact=raw_text).first()
+    if exact is None:
+        exact_labels = list(sizes.filter(label__iexact=raw_text)[:2])
+        exact = exact_labels[0] if len(exact_labels) == 1 else None
+
+    def alias_key(value: Any) -> str:
+        return re.sub(r"\s+", "", str(value or "").strip().upper().replace("×", "X"))
+
+    matched = exact
+    if matched is None:
+        wanted = alias_key(raw_text)
+        candidates: dict[str, ProductMasterSize] = {}
+        if wanted:
+            for size in sizes.only("id", "code", "label"):
+                code = alias_key(size.code)
+                label = alias_key(size.label)
+                if any(
+                    candidate.startswith(f"{wanted}{separator}")
+                    for candidate in (code, label)
+                    for separator in ("-", "+", "/")
+                ):
+                    candidates[str(size.id)] = size
+        if len(candidates) == 1:
+            matched = next(iter(candidates.values()))
+            logger.info(
+                "Resolved legacy Product Master size alias %s -> %s for %s",
+                raw_text,
+                matched.code,
+                master.code,
+            )
+
+    if matched is None:
+        return resolved
+
+    resolved["size"] = matched.code
+    resolved.pop("size_code", None)
+    return resolved
 
 
 def axis_signature(master: ProductMaster, axis_values: dict[str, Any]) -> str:
@@ -371,6 +441,19 @@ def validate_axis_values(master: ProductMaster, axis_values: dict[str, Any]) -> 
             if error:
                 errors[key] = error
             continue
+        if (
+            value not in (None, "")
+            and axis_type == "geometry"
+            and not isinstance(value, (dict, list, tuple, set))
+            and not allow_ad_hoc
+        ):
+            active_sizes = ProductMasterSize.objects.filter(
+                product_master=master,
+                active=True,
+            )
+            if active_sizes.exists() and not active_sizes.filter(code__iexact=str(value).strip()).exists():
+                errors[key] = "Size is not allowed for this Product Master."
+                continue
         if value not in (None, "") and isinstance(options, list) and options:
             normalized_options = {str(option) for option in options} | _codes_from_options(options)
             if isinstance(value, list):
@@ -385,8 +468,20 @@ def validate_axis_values(master: ProductMaster, axis_values: dict[str, Any]) -> 
                         errors[key] = "One or more per-layer values are not allowed for this Product Master."
                 continue
             if axis_type in {"geometry", "pod_ref", "packaging_ref", "multi_enum", "layer_number", "layer_enum", "per_layer_number", "per_layer_enum", *LAYER_MATERIAL_AXIS_TYPES}:
-                if axis_type == "geometry" and str(value) not in normalized_options and not allow_ad_hoc:
-                    errors[key] = "Size is not allowed for this Product Master."
+                if axis_type == "geometry" and not allow_ad_hoc:
+                    canonical_options = {
+                        str(
+                            canonicalize_product_master_size_axis(
+                                master,
+                                {"size": option_code},
+                            ).get("size")
+                            or option_code
+                        ).strip().casefold()
+                        for option in options
+                        if (option_code := _code_from_option(option))
+                    }
+                    if str(value).strip().casefold() not in canonical_options:
+                        errors[key] = "Size is not allowed for this Product Master."
                 continue
             if str(value) not in normalized_options and not allow_ad_hoc:
                 errors[key] = "Value is not allowed for this Product Master."
@@ -396,6 +491,7 @@ def validate_axis_values(master: ProductMaster, axis_values: dict[str, Any]) -> 
 
 
 def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[str, float]:
+    axis_values = canonicalize_product_master_size_axis(master, axis_values)
     raw_size = axis_values.get("size") or axis_values.get("size_code") or axis_values.get("geometry")
     size_row = None
     fixed = master.fixed_attributes if isinstance(master.fixed_attributes, dict) else {}
@@ -435,6 +531,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
                     if key in legacy
                 }
         style_master = getattr(size_row, "pouch_style_master", None)
+        resolved_roll_axis = resolved_formula_roll_axis(style_master) if style_master else ""
         style_allowed_fields = getattr(style_master, "allowed_fields", None) if style_master else {}
         if not isinstance(style_allowed_fields, dict):
             style_allowed_fields = {}
@@ -457,7 +554,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
             "slit_policy": normalize_slit_policy(getattr(size_row, "slit_policy", None), stock_form=getattr(size_row, "stock_form", None)),
             "pouch_style_master": str(size_row.pouch_style_master_id) if getattr(size_row, "pouch_style_master_id", None) else "",
             "pouch_style_master_code": str(getattr(style_master, "code", "") or ""),
-            "pouch_style_roll_axis": str(getattr(style_master, "default_roll_axis", "") or ""),
+            "pouch_style_roll_axis": resolved_roll_axis,
             "pouch_style_requires_gusset": style_requires_gusset,
             "pouch_style_version": int(getattr(size_row, "pouch_style_version", 0) or 0),
             "trim_loss_mm": geometry_defaults.get("trim_loss_mm") if "trim_loss_mm" in geometry_defaults else None,
@@ -615,6 +712,16 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
         normalized["roll_width_mm"] = float(resolved_roll_width)
         normalized["effective_width_mm"] = float(dims["effective_width_mm"])
         normalized["effective_height_mm"] = float(dims["effective_height_mm"])
+        pitch_axis = consumption_pitch_axis(roll_axis)
+        if pitch_axis == "HEIGHT":
+            pitch = dims["effective_height_mm"]
+        elif pitch_axis == "WIDTH":
+            pitch = dims["effective_width_mm"]
+        else:
+            pitch = Decimal("0")
+        if pitch > 0:
+            normalized["consumption_pitch_axis"] = pitch_axis
+            normalized["consumption_pitch_mm"] = float(pitch)
     return normalized
 
 
@@ -625,6 +732,13 @@ def _material_by_code(code: str) -> InventoryMaterial | None:
     material = InventoryMaterial.objects.select_related("parent_family").filter(code__iexact=code).first()
     if material:
         return material
+    alias = (
+        MaterialCodeAlias.objects.select_related("material", "material__parent_family")
+        .filter(alias__iexact=code, active=True, material__status="ACTIVE")
+        .first()
+    )
+    if alias:
+        return alias.material
     return InventoryMaterial.objects.select_related("parent_family").filter(name__iexact=code).first()
 
 
@@ -637,7 +751,7 @@ def _recipe_grade_id(value: Any) -> str | None:
 
         return str(uuid.UUID(value))
     except Exception:
-        pass
+        logger.debug("Recipe grade value is not a UUID; trying grade name lookup: %r", value, exc_info=True)
     try:
         from apps.recipes.models import RecipeGrade
 
@@ -886,7 +1000,7 @@ def compute_layers(master: ProductMaster, axis_values: dict[str, Any], geometry:
 
 
 def find_or_create_product_variant(master: ProductMaster, axis_values: dict[str, Any], code: str | None = None) -> tuple[ProductVariant, bool]:
-    axis_values = canonical_axis_values(axis_values)
+    axis_values = canonicalize_product_master_size_axis(master, axis_values)
     validate_axis_values(master, axis_values)
     bom_signature = axis_signature(master, axis_values)
     geometry = compute_geometry(master, axis_values)

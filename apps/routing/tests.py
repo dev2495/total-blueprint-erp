@@ -1,10 +1,13 @@
 from django.test import TestCase
 
+from apps.factory.models import Process
 from .serializers import RoutingRuleSerializer
 
 
 class RoutingRuleSerializerTests(TestCase):
     def test_route_graph_input_strips_batch_execution_policy(self):
+        for code in ("EXT", "PRT", "LAM"):
+            Process.objects.create(code=code, name=code)
         serializer = RoutingRuleSerializer(
             data={
                 "name": "Flow only route",
@@ -31,3 +34,14 @@ class RoutingRuleSerializerTests(TestCase):
         self.assertNotIn("execution_policy", route_graph)
         self.assertNotIn("batch_policy", route_graph)
         self.assertEqual(len(route_graph["nodes"]), 3)
+
+    def test_route_rejects_unknown_process_before_any_template_step_can_be_removed(self):
+        serializer = RoutingRuleSerializer(
+            data={
+                "name": "Invalid route",
+                "ordered_processes": ["MISSING-PROCESS"],
+            }
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Unknown Process", str(serializer.errors))

@@ -125,8 +125,13 @@ export interface DeliveryChallan {
     dispatch_notes?: string;
     ship_to_address_snapshot?: Record<string, any>;
     dispatch_date: string | null;
-    plant__name: string;
-    sales_order__order_number: string | null;
+    received_date?: string | null;
+    pod_confirmed_at?: string | null;
+    pod_received_by?: string;
+    pod_reference?: string;
+    pod_notes?: string;
+    plant_name: string;
+    so_number: string | null;
 }
 
 export interface PackingBoardSnapshot {
@@ -572,8 +577,8 @@ export const logisticsService = {
         const response = await api.get('/api/production/challans/list_challans/', { params });
         return normalizeListPayload<any>(response.data).map((row) => ({
             ...row,
-            plant__name: row?.plant__name || row?.plant_name || '',
-            sales_order__order_number: row?.sales_order__order_number || row?.so_number || '',
+            plant_name: row?.plant_name || row?.plant__name || '',
+            so_number: row?.so_number || row?.sales_order__order_number || '',
         })) as DeliveryChallan[];
     },
 
@@ -627,6 +632,17 @@ export const logisticsService = {
         return response.data;
     },
 
+    async confirmPOD(
+        challanId: string,
+        payload: { received_by?: string; reference?: string; notes?: string },
+    ): Promise<{ dc_no: string; status: string; message: string; order_closed: boolean; sales_order_status?: string }> {
+        const response = await api.post(`/api/production/challans/${challanId}/confirm-pod/`, {
+            confirmed: true,
+            ...payload,
+        });
+        return response.data;
+    },
+
     async getChallanDetail(challanId: string): Promise<{
         id: string;
         dc_no: string;
@@ -665,15 +681,17 @@ export const logisticsService = {
         return response.data;
     },
 
-    getChallanPrintUrl(challanId: string): string {
-        return `/api/production/challans/${challanId}/print-list/`;
+    getChallanPrintUrl(challanId: string, format: "pdf" | "html" | "txt" | "prn" | "tpp" = "pdf"): string {
+        const params = new URLSearchParams({ print_format: format });
+        return `/api/production/challans/${challanId}/print-list/?${params.toString()}`;
     },
 
     getMaterialReadySlipUrl(
         salesOrderId: string,
         selected?: { rollIds?: string[]; gonnyIds?: string[] },
+        format: "pdf" | "html" | "txt" | "prn" | "tpp" = "pdf",
     ): string {
-        const params = new URLSearchParams({ sales_order_id: salesOrderId });
+        const params = new URLSearchParams({ sales_order_id: salesOrderId, print_format: format });
         selected?.rollIds?.forEach((id) => {
             if (id) params.append('roll_ids', id);
         });

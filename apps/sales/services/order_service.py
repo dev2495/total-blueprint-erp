@@ -596,6 +596,8 @@ _COMPUTED_GEOMETRY_KEYS = {
     "axis_values",
     "child_target_override",
     "child_target_width_mm",
+    "consumption_pitch_axis",
+    "consumption_pitch_mm",
     "effective_height_mm",
     "effective_width_mm",
     "film_area_width_mm",
@@ -1604,6 +1606,12 @@ def _line_size_stock_form(item, product_master):
     try:
         size = product_master.sizes.filter(code__iexact=size_code).first()
     except Exception:
+        logger.warning(
+            "Product-master size stock-form lookup failed product_master_id=%s size_code=%s",
+            getattr(product_master, "id", None) if product_master else None,
+            size_code,
+            exc_info=True,
+        )
         return None
     if not size:
         return None
@@ -1831,7 +1839,7 @@ class SalesOrderService:
                     if not customer_name:
                         customer_name = customer.name
                 except Customer.DoesNotExist:
-                    pass
+                    logger.debug("Order customer id=%s was not found while building customer name", payload.get("customer"), exc_info=True)
             ship_to_id = payload.get("ship_to_customer") or payload.get("ship_to")
             if ship_to_id:
                 from ..models import Customer
@@ -2253,7 +2261,7 @@ class SalesOrderService:
                 "addons": [],
                 "is_complete": False,
                 "errors": [str(exc)],
-                "summary": {"unit_weight_g": float(round(unit_weight_g, 4))},
+                "summary": {"unit_weight_g": float(round(unit_weight_g, 6))},
             }
 
         qty_value = Decimal(str(normalized_payload.get("order_qty", 0)))
@@ -2369,8 +2377,8 @@ class SalesOrderService:
         ]
 
         return {
-            "unit_weight_g": float(round(unit_weight_g, 4)),
-            "total_weight_kg": float(round(total_weight_kg, 4)),
+            "unit_weight_g": float(round(unit_weight_g, 6)),
+            "total_weight_kg": float(round(total_weight_kg, 6)),
             "physics": physics_result,
             "roll_preview": physics_result.get("roll_preview"),
             "final_product_type": fg_type,
@@ -2428,21 +2436,162 @@ class SalesOrderService:
         return preview
 
     @staticmethod
-    def refresh_open_snapshots_for_product_master(product_master, *, reason="PRODUCT_MASTER_EDIT"):
+    def refresh_open_snapshots_for_product_master(
+        product_master,
+        *,
+        reason="PRODUCT_MASTER_EDIT",
+        raise_on_error=False,
+    ):
         if not product_master:
             return {"checked": 0, "refreshed": 0, "failed": 0}
         queryset = SalesOrderItem.objects.filter(product_master=product_master)
-        return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
+        return SalesOrderService.refresh_open_snapshots_for_items(
+            queryset,
+            reason=reason,
+            raise_on_error=raise_on_error,
+        )
 
     @staticmethod
-    def refresh_open_snapshots_for_template(template, *, reason="TEMPLATE_EDIT"):
+    def refresh_open_snapshots_for_template(
+        template,
+        *,
+        reason="TEMPLATE_EDIT",
+        raise_on_error=False,
+    ):
         if not template:
             return {"checked": 0, "refreshed": 0, "failed": 0}
         queryset = SalesOrderItem.objects.filter(template=template)
-        return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
+        return SalesOrderService.refresh_open_snapshots_for_items(
+            queryset,
+            reason=reason,
+            raise_on_error=raise_on_error,
+        )
 
     @staticmethod
-    def refresh_open_snapshots_for_items(queryset, *, reason="MASTER_EDIT"):
+    def _pre_release_revision_lock_reason(item):
+        """Return a reason when a line is no longer safe for automatic revision."""
+        from django.db.models import Q
+        from apps.inventory.models import InventoryRoll
+        from apps.production.models import (
+            InventoryAllocation,
+            JobMaterialRequirement,
+            MaterialConsumptionLog,
+            ProductionJob,
+        )
+
+        order_status = str(getattr(getattr(item, "sales_order", None), "status", "") or "").upper()
+        if order_status in {"RELEASED", "PACKING_READY", "DISPATCH_READY", "COMPLETED", "CANCELLED"}:
+            return f"order status is {order_status}"
+        jobs = list(ProductionJob.objects.filter(sales_order_item=item).exclude(job_state="CANCELLED"))
+        if any(
+            str(job.job_state or "").upper() not in {"PLANNED", "WAITING"}
+            or str(job.status or "").upper() != "QUEUED"
+            or job.start_date is not None
+            or job.end_date is not None
+            or Decimal(str(job.produced_qty or 0)) > 0
+            for job in jobs
+        ):
+            return "production has already been released, started, or completed"
+        if jobs and MaterialConsumptionLog.objects.filter(production_job__in=jobs).exists():
+            return "material consumption has already been logged"
+        if jobs and JobMaterialRequirement.objects.filter(production_job__in=jobs).filter(
+            Q(assigned_qty__gt=0) | Q(actual_issued_qty__gt=0) | Q(consumed_qty__gt=0)
+        ).exists():
+            return "material has already been allocated, issued, or consumed"
+        order = getattr(item, "sales_order", None)
+        if order and InventoryAllocation.objects.filter(sales_order=order).exists():
+            return "planner inventory allocation already exists"
+        if InventoryRoll.objects.filter(sales_order_item=item).exists():
+            return "finished or WIP stock is already linked to this order line"
+        return ""
+
+    @staticmethod
+    def _rebuild_pristine_pre_release_jobs(item, *, reason):
+        """Rebuild only untouched planner queues against the just-saved snapshot.
+
+        A queued plan is disposable; a released/allocated/started job is an
+        audit record and must stay frozen.  This is deliberately stricter than
+        a status-only check so no material reservation or shop-floor activity
+        can be overwritten by a master/template edit.
+        """
+        from apps.production.models import ProductionJob
+        from apps.production.services.batch_route_service import BatchExecutionService, RouteGraphService
+        from apps.production.services.job_services import JobService
+        from apps.templates.services import RouteDispatchError
+
+        jobs = list(
+            ProductionJob.objects.select_for_update()
+            .filter(sales_order_item=item)
+            .exclude(job_state="CANCELLED")
+            .order_by("created_at")
+        )
+        if not jobs:
+            return {"status": "no_queue", "cancelled": 0, "created": 0}
+        lock_reason = SalesOrderService._pre_release_revision_lock_reason(item)
+        if lock_reason:
+            return {"status": "frozen", "reason": lock_reason, "cancelled": 0, "created": 0}
+
+        for job in jobs:
+            job.job_state = "CANCELLED"
+            job.status = "CANCELLED"
+            job.hold_reason = f"Superseded by {reason}"[:255]
+            job.save(update_fields=["job_state", "status", "hold_reason", "updated_at"])
+
+        for batch in item.production_batches.select_for_update().all():
+            batch.template = item.template
+            batch.routing_rule = item.template.routing_rule
+            batch.source = "REPLAN"
+            batch.route_snapshot = RouteGraphService.public_snapshot(item.template.routing_rule, template=item.template)
+            batch.policy_snapshot = BatchExecutionService._policy_for_template(item.template)
+            batch.allow_partial_movement = bool(batch.policy_snapshot.get("allow_partial_movement", True))
+            batch.status = "PLANNED"
+            batch.save(
+                update_fields=[
+                    "template",
+                    "routing_rule",
+                    "source",
+                    "route_snapshot",
+                    "policy_snapshot",
+                    "allow_partial_movement",
+                    "status",
+                    "updated_at",
+                ]
+            )
+
+        try:
+            # A route may legitimately require a planner work-centre decision.
+            # Keep the revised snapshot and retire the obsolete queue rather
+            # than rolling the entire master/template revision back.
+            with transaction.atomic():
+                created = JobService.create_jobs_for_so_item(item, planner_note_prefix=f"Revised: {reason}")
+        except RouteDispatchError as exc:
+            for batch in item.production_batches.select_for_update().all():
+                batch.status = "HOLD"
+                batch.save(update_fields=["status", "updated_at"])
+            item.line_status = "PLANNING_REQUIRED"
+            item.save(update_fields=["line_status"])
+            order = item.sales_order
+            if str(order.status or "").upper() in {"DRAFT", "CONFIRMED", "PLANNED", "PLANNING_REQUIRED"}:
+                order.status = "PLANNING_REQUIRED"
+                order.save(update_fields=["status"])
+            return {
+                "status": "planner_decision_required",
+                "reason": str(exc),
+                "cancelled": len(jobs),
+                "created": 0,
+            }
+        for batch in item.production_batches.all():
+            BatchExecutionService.sync_batch_from_jobs(batch)
+        return {"status": "rebuilt", "cancelled": len(jobs), "created": len(created)}
+
+    @staticmethod
+    @transaction.atomic
+    def refresh_open_snapshots_for_items(
+        queryset,
+        *,
+        reason="MASTER_EDIT",
+        raise_on_error=False,
+    ):
         """
         Rebuild mutable planning snapshots after Product Master/template edits.
         Released, in-production, closed, and cancelled lines are audit truth and
@@ -2450,9 +2599,17 @@ class SalesOrderService:
         """
         from apps.sales.services.axis_resolver import OrderResolutionService
 
-        safe_order_statuses = {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED"}
-        safe_line_statuses = {"OPEN", "PLANNING_REQUIRED", ""}
-        stats = {"checked": 0, "refreshed": 0, "failed": 0}
+        safe_order_statuses = {"DRAFT", "CONFIRMED", "PLANNING_REQUIRED", "PLANNED"}
+        safe_line_statuses = {"OPEN", "PLANNING_REQUIRED", "PLANNED", ""}
+        stats = {
+            "checked": 0,
+            "refreshed": 0,
+            "failed": 0,
+            "skipped": 0,
+            "queues_rebuilt": 0,
+            "queues_frozen": 0,
+            "queues_planning_required": 0,
+        }
         items = (
             queryset.select_related(
                 "sales_order",
@@ -2470,6 +2627,16 @@ class SalesOrderService:
         for item in items:
             stats["checked"] += 1
             try:
+                lock_reason = SalesOrderService._pre_release_revision_lock_reason(item)
+                if lock_reason:
+                    stats["skipped"] += 1
+                    logger.info(
+                        "refresh_open_snapshots_for_items preserved item %s after %s: %s",
+                        getattr(item, "id", None),
+                        reason,
+                        lock_reason,
+                    )
+                    continue
                 if item.product_master_id:
                     payload = {
                         "product_master": str(item.product_master_id),
@@ -2485,6 +2652,7 @@ class SalesOrderService:
                         "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
                     }
                     resolved = OrderResolutionService.resolve_line(payload, create_variant=False)
+                    resolved_axis_values = deepcopy(resolved.get("axis_values") or item.axis_values or {})
                     template = TemplateBlueprint.objects.get(id=resolved["template"])
                     product_variant = (
                         ProductVariant.objects.filter(id=resolved.get("product_variant")).first()
@@ -2510,6 +2678,7 @@ class SalesOrderService:
                     printing_snapshot = _normalize_printing_snapshot(item.printing_snapshot or {})
                     addons_snapshot = deepcopy(item.addons_snapshot or [])
                     packaging_snapshot = _normalize_packaging_snapshot(item.packaging_snapshot or {})
+                    resolved_axis_values = deepcopy(item.axis_values or {})
 
                 fg_type = str(getattr(template, "fg_type", "") or geometry_snapshot.get("finished_good_type") or "POUCH").upper()
                 geometry_snapshot["finished_good_type"] = fg_type if fg_type in {"POUCH", "ROLL"} else "POUCH"
@@ -2561,6 +2730,7 @@ class SalesOrderService:
                 item.template = template
                 item.product_variant = product_variant
                 item.customer_product_overlay = overlay
+                item.axis_values = resolved_axis_values
                 item.geometry_snapshot = geometry_snapshot
                 item.layer_snapshot = layer_snapshot
                 item.printing_snapshot = printing_snapshot
@@ -2571,28 +2741,33 @@ class SalesOrderService:
                 item.bom_snapshot = bom_snapshot
                 item.unit_weight_g = unit_weight_g
                 item.total_weight_kg = total_weight_kg
-                item.line_name = _canonical_sales_line_label(
-                    item_data={
-                        "line_name": "",
-                        "axis_values": deepcopy(item.axis_values or {}),
-                        "qty_value": item.qty_value,
-                        "qty_uom": item.qty_uom,
-                    },
-                    geometry=geometry_snapshot,
-                    layers=layer_snapshot,
-                    printing=printing_snapshot,
-                    addons=addons_snapshot,
-                    packaging=packaging_snapshot,
-                    product_master=item.product_master,
-                    product_variant=product_variant,
-                    overlay=overlay,
-                    fallback=str(getattr(template, "name", "") or item.line_name or ""),
-                )
+                # A commercial line name is user-visible order data.  Master
+                # edits can refresh specifications, never silently rename an
+                # order line.  Only populate it if an old record is blank.
+                if not str(item.line_name or "").strip():
+                    item.line_name = _canonical_sales_line_label(
+                        item_data={
+                            "line_name": "",
+                            "axis_values": deepcopy(item.axis_values or {}),
+                            "qty_value": item.qty_value,
+                            "qty_uom": item.qty_uom,
+                        },
+                        geometry=geometry_snapshot,
+                        layers=layer_snapshot,
+                        printing=printing_snapshot,
+                        addons=addons_snapshot,
+                        packaging=packaging_snapshot,
+                        product_master=item.product_master,
+                        product_variant=product_variant,
+                        overlay=overlay,
+                        fallback=str(getattr(template, "name", "") or ""),
+                    )
                 item.save(
                     update_fields=[
                         "template",
                         "product_variant",
                         "customer_product_overlay",
+                        "axis_values",
                         "line_name",
                         "geometry_snapshot",
                         "layer_snapshot",
@@ -2606,6 +2781,24 @@ class SalesOrderService:
                         "total_weight_kg",
                     ]
                 )
+                with transaction.atomic():
+                    locked_item = SalesOrderItem.objects.select_for_update().select_related("sales_order", "template").get(id=item.id)
+                    queue_summary = SalesOrderService._rebuild_pristine_pre_release_jobs(locked_item, reason=reason)
+                    if queue_summary.get("status") == "rebuilt":
+                        stats["queues_rebuilt"] += 1
+                    elif queue_summary.get("status") == "frozen":
+                        stats["queues_frozen"] += 1
+                    elif queue_summary.get("status") == "planner_decision_required":
+                        stats["queues_planning_required"] += 1
+                    elif str(locked_item.line_status or "").upper() in {"OPEN", "PLANNING_REQUIRED", ""}:
+                        # No planner queue exists yet.  Make the revision
+                        # visible so Planner releases the refreshed snapshot.
+                        locked_item.line_status = "PLANNING_REQUIRED"
+                        locked_item.save(update_fields=["line_status"])
+                        order = locked_item.sales_order
+                        if str(order.status or "").upper() in {"CONFIRMED", "PLANNING_REQUIRED", "DRAFT"}:
+                            order.status = "PLANNING_REQUIRED"
+                            order.save(update_fields=["status"])
                 stats["refreshed"] += 1
             except Exception as exc:
                 stats["failed"] += 1
@@ -2616,6 +2809,16 @@ class SalesOrderService:
                     exc,
                     exc_info=True,
                 )
+                if raise_on_error:
+                    raise ValidationError(
+                        {
+                            "snapshot_refresh": (
+                                "The master/template edit was not applied because an eligible "
+                                f"open order line could not be revised ({getattr(item, 'id', '')})."
+                            ),
+                            "reason": str(exc),
+                        }
+                    ) from exc
         return stats
 
     @staticmethod
@@ -3012,12 +3215,14 @@ class SalesOrderService:
                     if isinstance(item.bom_snapshot, dict):
                         item.bom_snapshot["layer_signature_hash"] = sig
                 except Exception as exc:
-                    logger.warning(
+                    logger.exception(
                         "confirm_sales_order: layer signature hash failed for item %s: %s",
                         getattr(item, "id", None),
                         exc,
-                        exc_info=True,
                     )
+                    raise ValidationError(
+                        f"Item {item.template.name}: layer identity could not be verified; order was not confirmed."
+                    ) from exc
 
                 # Compute planned_parent_width_mm from lane count + effective web-width policy + child target.
                 try:
@@ -3064,12 +3269,14 @@ class SalesOrderService:
                 except ValidationError:
                     raise
                 except Exception as exc:
-                    logger.warning(
+                    logger.exception(
                         "confirm_sales_order: web-width policy evaluation failed for item %s: %s",
                         item.id,
                         exc,
-                        exc_info=True,
                     )
+                    raise ValidationError(
+                        f"Item {item.template.name}: web-width planning could not be verified; order was not confirmed."
+                    ) from exc
 
                 item.unit_weight_g = Decimal(str(preview["unit_weight_g"]))
                 item.total_weight_kg = Decimal(str(preview["total_weight_kg"]))
@@ -3138,26 +3345,23 @@ class SalesOrderService:
             order.status = "CANCELLED"
             order.save(update_fields=["status"])
 
-            try:
-                from apps.users.models import PermissionAuditLog
+            from apps.users.models import PermissionAuditLog
 
-                PermissionAuditLog.objects.create(
-                    user=user if getattr(user, "is_authenticated", False) else None,
-                    action="SALES_ORDER_CHANGED",
-                    method="POST",
-                    path=f"/api/sales/orders/{order.id}/cancel/",
-                    required_permission="sales.manage",
-                    effective_role=str(getattr(user, "effective_role_code", "") or getattr(user, "role_code", "") or ""),
-                    details={
-                        "operation": "CANCEL",
-                        "order_id": str(order.id),
-                        "order_number": order.order_number,
-                        "previous_status": previous_status,
-                        "new_status": order.status,
-                        "cancelled_jobs": len(jobs),
-                        "reason": str(reason or ""),
-                    },
-                )
-            except Exception:
-                pass
+            PermissionAuditLog.objects.create(
+                user=user if getattr(user, "is_authenticated", False) else None,
+                action="SALES_ORDER_CHANGED",
+                method="POST",
+                path=f"/api/sales/orders/{order.id}/cancel/",
+                required_permission="sales.manage",
+                effective_role=str(getattr(user, "effective_role_code", "") or getattr(user, "role_code", "") or ""),
+                details={
+                    "operation": "CANCEL",
+                    "order_id": str(order.id),
+                    "order_number": order.order_number,
+                    "previous_status": previous_status,
+                    "new_status": order.status,
+                    "cancelled_jobs": len(jobs),
+                    "reason": str(reason or ""),
+                },
+            )
             return order

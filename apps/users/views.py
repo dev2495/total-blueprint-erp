@@ -11,13 +11,15 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken, TokenError
 
 from .models import (
     CompanyProfile,
@@ -155,6 +157,10 @@ def _extract_refresh_token(request) -> str:
 
 
 class MyTokenObtainPairView(TokenObtainPairView):
+    # Login must remain reachable when a browser still carries an expired or
+    # otherwise invalid access cookie. Authentication here is performed by the
+    # credential serializer and the request is still CSRF protected below.
+    authentication_classes = []
     serializer_class = MyTokenObtainPairSerializer
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
@@ -186,6 +192,10 @@ class MyTokenObtainPairView(TokenObtainPairView):
 
 
 class CookieTokenRefreshView(APIView):
+    # The refresh token is the credential for this endpoint. Running the
+    # access-cookie authenticator first would reject an expired access token
+    # before a still-valid refresh token can rotate it.
+    authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
@@ -209,7 +219,67 @@ class CookieTokenRefreshView(APIView):
         return response
 
 
+class SessionStatusView(APIView):
+    """Quietly describe the cookie session without emitting authentication 401s.
+
+    This endpoint deliberately lives below the refresh-cookie path so the
+    browser sends both scoped HttpOnly cookies. It validates tokens directly
+    and never mutates or rotates them; an eligible refresh is still performed
+    by the CSRF-protected POST refresh endpoint.
+    """
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    @staticmethod
+    def _user_for_token(token_class, raw_token: str):
+        if not raw_token:
+            return None
+        try:
+            token = token_class(raw_token)
+            user = JWTAuthentication().get_user(token)
+        except (AuthenticationFailed, TokenError):
+            return None
+        return user if getattr(user, "is_active", False) else None
+
+    def get(self, request):
+        access_cookie = str(
+            request.COOKIES.get(str(getattr(settings, "JWT_ACCESS_COOKIE_NAME", "access"))) or ""
+        ).strip()
+        refresh_cookie = str(
+            request.COOKIES.get(str(getattr(settings, "JWT_REFRESH_COOKIE_NAME", "refresh"))) or ""
+        ).strip()
+
+        access_user = self._user_for_token(AccessToken, access_cookie)
+        if access_user is not None:
+            return Response(
+                {
+                    "authenticated": True,
+                    "refresh_available": bool(
+                        self._user_for_token(RefreshToken, refresh_cookie)
+                    ),
+                    "user": UserSerializer(access_user, context={"request": request}).data,
+                }
+            )
+
+        return Response(
+            {
+                "authenticated": False,
+                "refresh_available": bool(
+                    self._user_for_token(RefreshToken, refresh_cookie)
+                ),
+                "user": None,
+            }
+        )
+
+
 class LogoutView(APIView):
+    # Logout must be able to clear/blacklist cookies even after access expiry.
+    # Resolve the audit actor from the refresh token instead of authenticating
+    # the request with the (possibly expired) access cookie.
+    authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
@@ -218,20 +288,22 @@ class LogoutView(APIView):
         enforce_request_csrf(request)
         refresh = _extract_refresh_token(request)
         blacklisted = False
+        audit_user = None
         try:
             if refresh:
                 token = RefreshToken(refresh)
+                audit_user = JWTAuthentication().get_user(token)
                 token.blacklist()
                 blacklisted = True
-        except TokenError:
+        except (AuthenticationFailed, TokenError):
             blacklisted = False
 
         PermissionAuditLog.objects.create(
-            user=request.user if getattr(request.user, "is_authenticated", False) else None,
+            user=audit_user if getattr(audit_user, "is_authenticated", False) else None,
             action="USER_LOGOUT",
             method="POST",
             path="/api/users/logout/",
-            effective_role=_audit_role_code(request.user) if getattr(request.user, "is_authenticated", False) else "",
+            effective_role=_audit_role_code(audit_user) if getattr(audit_user, "is_authenticated", False) else "",
             details={"status": "blacklisted" if blacklisted else "cookie_cleared"},
         )
         response = Response(status=status.HTTP_204_NO_CONTENT)
@@ -241,6 +313,9 @@ class LogoutView(APIView):
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class CsrfCookieView(APIView):
+    # A stale access cookie must not prevent a browser from obtaining the CSRF
+    # token needed to log in, refresh, or log out safely.
+    authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"

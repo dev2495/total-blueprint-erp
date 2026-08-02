@@ -95,13 +95,68 @@ def _printing_with_current_context(item: SalesOrderItem, current_master: Product
     return printing
 
 
+def _current_size_axis_values(item: SalesOrderItem, current_master: ProductMaster) -> dict[str, Any]:
+    """Map a historical size code to the current equivalent by frozen dimensions.
+
+    Product Master size labels can be improved (for example, adding a flap
+    suffix) without changing the physical pouch. Rebase must use the current
+    size's bound style/formula, not reject the order because its old code no
+    longer exists.
+    """
+    axis_values = deepcopy(item.axis_values or {}) if isinstance(item.axis_values, dict) else {}
+    requested = str(axis_values.get("size") or axis_values.get("size_code") or "").strip()
+    active_sizes = list(current_master.sizes.filter(active=True).select_related("pouch_style_master"))
+    if requested and any(
+        requested.lower() in {str(size.code or "").lower(), str(size.label or "").lower()}
+        for size in active_sizes
+    ):
+        return axis_values
+
+    geometry = item.geometry_snapshot if isinstance(item.geometry_snapshot, dict) else {}
+    base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+
+    def _decimal(value):
+        try:
+            return Decimal(str(value or 0))
+        except Exception:
+            return Decimal("0")
+
+    width = _decimal(geometry.get("width_mm") or base.get("width_mm"))
+    height = _decimal(geometry.get("height_mm") or base.get("height_mm"))
+    gusset = _decimal(geometry.get("gusset_mm") or base.get("gusset_mm"))
+    if width <= 0 or height <= 0:
+        return axis_values
+    # Historic data contains millimetre values rounded from inch conversions.
+    # A one-millimetre tolerance is allowed only when it produces one unique
+    # active size; it cannot choose between two physically different sizes.
+    dimension_tolerance = Decimal("1.00")
+    matches = [
+        size
+        for size in active_sizes
+        if abs(Decimal(str(size.width_mm or 0)) - width) <= dimension_tolerance
+        and abs(Decimal(str(size.height_mm or 0)) - height) <= dimension_tolerance
+        and abs(Decimal(str(size.gusset_mm or 0)) - gusset) <= dimension_tolerance
+    ]
+    if len(matches) == 1:
+        axis_values["size"] = matches[0].code
+        axis_values.pop("size_code", None)
+    return axis_values
+
+
 def sales_order_item_product_master_lock_reason(item: SalesOrderItem) -> str:
     order = getattr(item, "sales_order", None)
     status = str(getattr(order, "status", "") or "").upper()
     if status in FROZEN_ORDER_STATUSES:
         return f"order status is {status}"
-    if ProductionJob.objects.filter(sales_order_item=item).exclude(status="CANCELLED").exists():
-        return "production job already exists"
+    active_jobs = ProductionJob.objects.filter(sales_order_item=item).exclude(status="CANCELLED")
+    if active_jobs.exists():
+        # A queued, unallocated planner draft is not execution truth. Permit it
+        # to follow the revised Product Master and let the order service cancel
+        # and rebuild its route. Anything released, issued, or started remains
+        # frozen and is reported as such.
+        revision_lock = order_helpers.SalesOrderService._pre_release_revision_lock_reason(item)
+        if revision_lock:
+            return revision_lock
     if MaterialConsumptionLog.objects.filter(production_job__sales_order_item=item).exists():
         return "material consumption already logged"
     if (
@@ -119,7 +174,7 @@ def sales_order_item_product_master_lock_reason(item: SalesOrderItem) -> str:
 
 def _rebase_item_to_master(item: SalesOrderItem, current_master: ProductMaster) -> None:
     order = item.sales_order
-    axis_values = item.axis_values if isinstance(item.axis_values, dict) else {}
+    axis_values = _current_size_axis_values(item, current_master)
     overlay = None
     if getattr(order, "customer_id", None):
         overlay = CustomerProductOverlay.find_for(
@@ -241,11 +296,22 @@ def _rebase_item_to_master(item: SalesOrderItem, current_master: ProductMaster) 
         order.status = "PLANNING_REQUIRED"
         order.save(update_fields=["status"])
 
+    # Recreate a planner-only queue from the rebased snapshots. This method is
+    # a no-op when no queue exists and refuses every released/allocated/started
+    # line through the lock check above.
+    order_helpers.SalesOrderService._rebuild_pristine_pre_release_jobs(
+        item,
+        reason="PRODUCT_MASTER_REBASE",
+    )
+
 
 def rebase_open_sales_lines_to_current_master(source: ProductMaster, current: ProductMaster) -> dict[str, Any]:
-    if not source or not current or source.id == current.id:
+    if not source or not current:
         return {"updated": 0, "skipped": 0, "failed": 0, "details": []}
-    version_group = current.version_group or source.version_group or source.code
+    # Most revisions remain in their source family. A reviewed legacy redirect
+    # may deliberately point to a current master with a corrected family key,
+    # so source takes precedence when selecting the records to rebase.
+    version_group = source.version_group or current.version_group or source.code
     old_master_ids = list(
         ProductMaster.objects.filter(version_group=version_group)
         .exclude(id=current.id)

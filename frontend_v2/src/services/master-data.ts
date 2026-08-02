@@ -68,7 +68,9 @@ export interface GranuleQualityCode {
     granule_name?: string;
     granule_material_code?: string;
     code: string;
+    canonical_key?: string;
     status: 'ACTIVE' | 'INACTIVE';
+    merged_into?: string | null;
     notes?: string;
     created_at?: string;
     updated_at?: string;
@@ -235,6 +237,10 @@ export const masterDataService = {
     },
     createGranuleCode: async (payload: { granule: string; code: string; status?: string; notes?: string }) => {
         const { data } = await api.post<GranuleQualityCode>("/api/master/granule-codes/", payload);
+        return data;
+    },
+    createGranuleCodes: async (payload: { granule: string; codes: string[] }) => {
+        const { data } = await api.post<GranuleQualityCode[]>("/api/master/granule-codes/bulk-create/", payload);
         return data;
     },
     updateGranuleCode: async (id: string, payload: Partial<{ granule: string; code: string; status: string; notes: string }>) => {

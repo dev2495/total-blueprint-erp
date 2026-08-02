@@ -1,11 +1,12 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.factory.models import Plant
-from apps.inventory.models import InventoryBulk, InventoryLocation, InventoryRoll
+from apps.inventory.models import InventoryBulk, InventoryLocation, InventoryRoll, StockAdjustment
 from apps.materials.models import InventoryMaterial, TradingGood, TradingGoodStock
 from apps.sales.models import Customer, TradeOrder
 from apps.users.models import Role
@@ -81,6 +82,67 @@ class TradeOrderFlowTests(TestCase):
         self.assertNotIn(str(self.non_sellable_granule.id), returned_ids)
         row = next(r for r in response.data if str(r["id"]) == str(self.sellable_granule.id))
         self.assertEqual(Decimal(str(row["current_stock_qty"])), Decimal("25.0000"))
+
+    def test_trading_good_adjustment_rejects_invalid_average_cost_before_posting(self):
+        response = self.client.post(
+            f"/api/materials/trading-goods/{self.trading_good.id}/adjust-stock/",
+            {
+                "plant": str(self.plant.id),
+                "qty": "5.000",
+                "mode": "add",
+                "avg_cost": "not-a-number",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("avg_cost", response.data["detail"])
+        self.assertEqual(StockAdjustment.objects.count(), 0)
+        stock = TradingGoodStock.objects.get(trading_good=self.trading_good, plant=self.plant)
+        self.assertEqual(stock.qty, Decimal("100.000"))
+        self.assertEqual(stock.avg_cost, Decimal("1.25"))
+
+    def test_trading_good_adjustment_rejects_non_finite_numbers_before_posting(self):
+        for field, value in (("qty", "NaN"), ("avg_cost", "Infinity")):
+            with self.subTest(field=field, value=value):
+                payload = {
+                    "plant": str(self.plant.id),
+                    "qty": "5.000",
+                    "mode": "add",
+                    "avg_cost": "1.50",
+                }
+                payload[field] = value
+                response = self.client.post(
+                    f"/api/materials/trading-goods/{self.trading_good.id}/adjust-stock/",
+                    payload,
+                    format="json",
+                )
+
+                self.assertEqual(response.status_code, 400, response.content)
+                self.assertIn(field, response.data["detail"])
+                self.assertEqual(StockAdjustment.objects.count(), 0)
+                stock = TradingGoodStock.objects.get(trading_good=self.trading_good, plant=self.plant)
+                self.assertEqual(stock.qty, Decimal("100.000"))
+                self.assertEqual(stock.avg_cost, Decimal("1.25"))
+
+    def test_trading_good_adjustment_rolls_back_when_average_cost_save_fails(self):
+        with patch.object(TradingGoodStock, "save", side_effect=RuntimeError("cost write failed")):
+            response = self.client.post(
+                f"/api/materials/trading-goods/{self.trading_good.id}/adjust-stock/",
+                {
+                    "plant": str(self.plant.id),
+                    "qty": "5.000",
+                    "mode": "add",
+                    "avg_cost": "1.50",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 500, response.content)
+        self.assertEqual(StockAdjustment.objects.count(), 0)
+        stock = TradingGoodStock.objects.get(trading_good=self.trading_good, plant=self.plant)
+        self.assertEqual(stock.qty, Decimal("100.000"))
+        self.assertEqual(stock.avg_cost, Decimal("1.25"))
 
     def test_trade_order_item_options_only_returns_items_available_at_selected_plant(self):
         empty_plant = Plant.objects.create(name="Empty Trade Plant", code="ETP")

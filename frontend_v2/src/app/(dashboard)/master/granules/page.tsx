@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -220,7 +221,7 @@ function GranuleQualityCodeForm({
             name="code"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Granule code</FormLabel>
+                <FormLabel>Internal grade/code</FormLabel>
                 <FormControl>
                   <Input placeholder="e.g. GP-101 / 45A / PRIME7" {...field} />
                 </FormControl>
@@ -229,8 +230,8 @@ function GranuleQualityCodeForm({
             )}
           />
           <div className="rounded-2xl border border-dashed border-line bg-surface-1 px-4 py-3 text-xs font-semibold text-content-3">
-            This code belongs to the granule only. Vendors are selected later at
-            GRN inward.
+            This grade/code stays inside the selected granule family. Vendor and
+            physical stock source are captured at GRN.
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-[180px_1fr]">
@@ -266,7 +267,7 @@ function GranuleQualityCodeForm({
                 <FormLabel>Notes</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="Optional quality remark or handling note"
+                    placeholder="Optional handling note or shop-floor name"
                     {...field}
                   />
                 </FormControl>
@@ -307,6 +308,7 @@ export default function GranulesPage() {
     null,
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [bulkCodeText, setBulkCodeText] = useState("");
 
   const { data: granules } = useQuery({
     queryKey: ["granules"],
@@ -384,6 +386,31 @@ export default function GranulesPage() {
         variant: "destructive",
       }),
   });
+  const createCodesMutation = useMutation({
+    mutationFn: async (codes: string[]) => {
+      if (!selectedGranule) throw new Error("Select a granule family first.");
+      const created = await masterDataService.createGranuleCodes({
+        granule: selectedGranule.id,
+        codes,
+      });
+      return created.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["granules"] });
+      queryClient.invalidateQueries({ queryKey: ["granule-codes"] });
+      setBulkCodeText("");
+      toast({
+        title: "Grade codes added",
+        description: `${count} code${count === 1 ? "" : "s"} added to this granule family.`,
+      });
+    },
+    onError: (err: Error) =>
+      toast({
+        title: "Could not add all codes",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
   const updateCodeMutation = useMutation({
     mutationFn: ({
       id,
@@ -452,7 +479,7 @@ export default function GranulesPage() {
   return (
     <MasterRegistryShell
       title="Granules"
-      description="Manage extrusion granules plus reusable quality codes that are selected during GRN, WCM issue splits, inventory, and analytics."
+      description="Manage recipe granule families and the internal grade codes WCM can issue within each family."
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search granules..."
@@ -586,12 +613,11 @@ export default function GranulesPage() {
       >
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Granule codes</DialogTitle>
+            <DialogTitle>Internal grade codes</DialogTitle>
             <DialogDescription>
-              Track reusable quality codes for{" "}
+              Add every internal code/grade used under{" "}
               <strong>{selectedGranule?.code}</strong>. These codes are
-              available at GRN and selectable during WCM issue overrides,
-              regardless of vendor.
+              recorded at GRN and explicitly allocated by WCM before machine release.
             </DialogDescription>
           </DialogHeader>
           {selectedGranule ? (
@@ -609,6 +635,54 @@ export default function GranulesPage() {
                   createCodeMutation.isPending || updateCodeMutation.isPending
                 }
               />
+              {!editingCode ? (
+                <details className="rounded-2xl border border-line bg-surface-2">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-content-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                    Paste multiple grade codes
+                  </summary>
+                  <div className="space-y-3 border-t border-line p-4">
+                    <div>
+                      <label className="text-xs font-bold text-content-2" htmlFor="bulk-granule-codes">
+                        One code per line, or comma separated
+                      </label>
+                      <Textarea
+                        id="bulk-granule-codes"
+                        value={bulkCodeText}
+                        onChange={(event) => setBulkCodeText(event.target.value)}
+                        placeholder={"PPA-703-A\nSLIP-MB-01\nBRIGHTNER OB OA02M"}
+                        className="mt-1.5 min-h-28 font-mono text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-medium text-content-3">
+                        Codes are normalized to uppercase and remain inside this granule family.
+                      </p>
+                      <Button
+                        type="button"
+                        disabled={createCodesMutation.isPending || !bulkCodeText.trim()}
+                        onClick={() => {
+                          const codes = Array.from(
+                            new Set(
+                              bulkCodeText
+                                .split(/[\n,]+/)
+                                .map((value) => value.trim().toUpperCase())
+                                .filter(Boolean),
+                            ),
+                          );
+                          if (codes.length) createCodesMutation.mutate(codes);
+                        }}
+                      >
+                        {createCodesMutation.isPending ? (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <Tags className="mr-2 size-4" />
+                        )}
+                        Add all codes
+                      </Button>
+                    </div>
+                  </div>
+                </details>
+              ) : null}
               <div className="max-h-[360px] overflow-y-auto rounded-2xl border border-line bg-surface-1">
                 <div className="grid grid-cols-[1.4fr_120px_1.6fr_120px] gap-3 border-b border-line px-4 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-content-3">
                   <span>Code</span>

@@ -69,6 +69,7 @@ import {
   type ReasonCodeGroup,
 } from "@/services/reason-codes";
 import { CylinderSetCard } from "@/components/machine/cylinder-artwork";
+import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
 
 type QueueFilter = "ALL" | "RUNNING" | "READY" | "PAUSED";
 type TerminalTab = "run" | "history";
@@ -647,61 +648,6 @@ function terminalStateBadgeClass(state?: string) {
   return "bg-surface-1/10 text-content-4 ring-surface-1/10";
 }
 
-function specChips(spec: any, selectedJob: any, context: any) {
-  const layers = Array.isArray(spec.layers) ? spec.layers : [];
-  const primaryLayer = layers[0] || {};
-  const targetStock = targetStockContractFromContext(context);
-  const grade = firstNonEmpty(
-    primaryLayer.grade,
-    primaryLayer.gradeName,
-    selectedJob?.grade_name,
-  );
-  const thickness = firstNonEmpty(
-    primaryLayer.thicknessMicron ? `${primaryLayer.thicknessMicron}µ` : "",
-    selectedJob?.thickness_micron ? `${selectedJob.thickness_micron}µ` : "",
-  );
-  const variant = firstNonEmpty(
-    spec.variantName,
-    primaryLayer.variantName,
-    primaryLayer.label,
-    selectedJob?.variant_name,
-  );
-  return [
-    {
-      label: spec.fgType || selectedJob?.output_form || "FG",
-      tone: "bg-danger-bg text-danger-fg border-danger-border",
-    },
-    {
-      label: spec.size?.label || "Size not captured",
-      tone: "bg-info-bg text-info-fg border-info-border",
-    },
-    thickness
-      ? { label: thickness, tone: "bg-info-bg text-primary border-info-border" }
-      : null,
-    variant
-      ? { label: variant, tone: "bg-info-bg text-primary border-info-border" }
-      : null,
-    grade
-      ? {
-          label: grade,
-          tone: "bg-success-bg text-success-fg border-success-border",
-        }
-      : null,
-    targetStock.stock_form
-      ? {
-          label: stockFormLabel(targetStock.stock_form),
-          tone: "bg-info-bg text-info-fg border-info-border",
-        }
-      : null,
-    spec.printingLabel
-      ? {
-          label: spec.printingLabel,
-          tone: "bg-info-bg text-info-fg border-info-border",
-        }
-      : null,
-  ].filter(Boolean) as Array<{ label: string; tone: string }>;
-}
-
 function firstNumber(row: any, keys: string[], fallback = 0) {
   for (const key of keys) {
     const value = toNullableNumber(row?.[key]);
@@ -1275,8 +1221,6 @@ export default function MachineExecutionPage() {
       stockFormEditableFromContext(context, outputStockFormOptions.length),
     [context, outputStockFormOptions.length],
   );
-  const chips = specChips(spec, selectedJob, context);
-
   // Full process route derived from the existing job-context payload (no backend changes):
   // - sequence/name pairs come from all_other_requirements[] (covers upstream + current steps)
   // - merged with the live current_step + current_step_index for state.
@@ -2838,7 +2782,7 @@ export default function MachineExecutionPage() {
                 <FocusedJobHero
                   selectedJob={selectedJob}
                   spec={spec}
-                  chips={chips}
+                  context={context}
                   customerName={customerName}
                   orderNumber={orderNumber}
                   templateName={templateName}
@@ -3358,7 +3302,7 @@ function ArtworkColorPills({
 function FocusedJobHero({
   selectedJob,
   spec,
-  chips,
+  context,
   customerName,
   orderNumber,
   templateName,
@@ -3403,14 +3347,6 @@ function FocusedJobHero({
     priority !== "0" &&
     priority.toLowerCase() !== "false" &&
     priority.toLowerCase() !== "none";
-  const displayChips = chips?.length
-    ? chips
-    : [
-        {
-          label: spec?.size?.label || "Size not captured",
-          tone: "border-surface-1/20 bg-surface-1/10 text-white",
-        },
-      ];
   const safeProgress = Math.max(0, Math.min(100, progressPct));
   const gaugeStyle = {
     background: `conic-gradient(#10b981 ${safeProgress}%, rgba(255,255,255,0.18) 0)`,
@@ -3452,30 +3388,12 @@ function FocusedJobHero({
                 {routeLabel}
               </span>
             ) : null}
-            {displayChips.map((chip: any) => (
-              <span
-                key={chip.label}
-                className="inline-flex min-h-6 items-center rounded-full bg-surface-1/12 px-2.5 py-0.5 text-[10px] font-black text-white ring-1 ring-surface-1/20"
-              >
-                {chip.label}
-              </span>
-            ))}
           </div>
           {plannerNote ? (
             <div className="mt-2 rounded-xl bg-surface-1/10 px-3 py-2 text-xs font-semibold leading-5 text-order-border ring-1 ring-surface-1/15">
               Planner note: {plannerNote}
             </div>
           ) : null}
-          <div className="mt-2 grid gap-2 sm:grid-cols-4">
-            <HeroMetric label="Target" value={kg(targetKg, 1)} />
-            <HeroMetric
-              label="Produced"
-              value={kg(producedKg, 1)}
-              tone="emerald"
-            />
-            <HeroMetric label="Remaining" value={kg(remainingKg, 1)} />
-            <HeroMetric label="Yield" value={`${yieldPct.toFixed(1)}%`} />
-          </div>
         </div>
         <div className="flex flex-row items-center justify-between gap-3 lg:flex-col lg:items-end lg:justify-center">
           <div
@@ -3493,6 +3411,22 @@ function FocusedJobHero({
               </div>
             </div>
           </div>
+        </div>
+        <ProductionOrderSpecRail
+          source={selectedJob}
+          context={context}
+          className="lg:col-span-2"
+          dark
+        />
+        <div className="grid gap-2 sm:grid-cols-4 lg:col-span-2">
+          <HeroMetric label="Target" value={kg(targetKg, 1)} />
+          <HeroMetric
+            label="Produced"
+            value={kg(producedKg, 1)}
+            tone="emerald"
+          />
+          <HeroMetric label="Remaining" value={kg(remainingKg, 1)} />
+          <HeroMetric label="Yield" value={`${yieldPct.toFixed(1)}%`} />
         </div>
       </div>
     </section>

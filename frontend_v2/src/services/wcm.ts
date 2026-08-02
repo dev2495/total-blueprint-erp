@@ -349,6 +349,23 @@ export const wcmService = {
         });
         return data;
     },
+    requestMaterialTransfer: async (payload: {
+        assignment_id: string;
+        requirement_id: string;
+        granule_code_id: string;
+        source_location_id: string;
+        qty_kg: number;
+    }) => {
+        const { data } = await api.post(`/api/production/wc-allocation/request-material-transfer/`, payload);
+        return data;
+    },
+    receiveMaterialTransfer: async (assignmentId: string, challanId: string) => {
+        const { data } = await api.post(`/api/production/wc-allocation/receive-material-transfer/`, {
+            assignment_id: assignmentId,
+            challan_id: challanId,
+        });
+        return data;
+    },
     closeJob: async (assignmentId: string, mode: "SHORT_CLOSE" | "CANCEL", reason: string) => {
         const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/close-job/`, {
             assignment_id: assignmentId,
@@ -485,6 +502,19 @@ export interface BulkConsumptionPreview {
         location_name?: string;
         plant_id?: string;
         plant_name?: string;
+        allocation_scope?: 'ISSUE_LOCATION' | 'SAME_PLANT' | 'OTHER_PLANT';
+        can_allocate?: boolean;
+        transfer_required?: boolean;
+    }>;
+    interplant_transfers?: Array<{
+        challan_id: string;
+        dc_no: string;
+        status: string;
+        granule_code_id?: string | null;
+        code?: string;
+        qty_kg: number;
+        from_location_name?: string;
+        to_location_name?: string;
     }>;
     is_auto_deduct: boolean;
 }

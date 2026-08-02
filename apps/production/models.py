@@ -1,4 +1,5 @@
 from decimal import Decimal
+import logging
 import re
 
 from django.db import IntegrityError, models
@@ -11,6 +12,8 @@ from apps.sales.models import SalesOrderItem, SalesOrder
 from apps.routing.models import RoutingRule
 from apps.factory.models import Process, WorkCenter, Machine, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll
+
+logger = logging.getLogger(__name__)
 
 
 def _autostamp_shift_code(instance, primary_field: str, fallback_field: str = "created_at") -> None:
@@ -40,9 +43,10 @@ def _autostamp_shift_code(instance, primary_field: str, fallback_field: str = "c
                 try:
                     instance.shift_date = timezone.localtime(ts).date()
                 except Exception:
-                    pass
+                    logger.debug("Unable to derive shift date from timestamp", exc_info=True)
     except Exception:
         # Auto-stamp must never break a save() call.
+        logger.warning("Unable to auto-stamp shift fields for %s", type(instance).__name__, exc_info=True)
         return
 
 
@@ -473,8 +477,8 @@ class PlannedStockOrder(models.Model):
     planner_origin_meta = models.JSONField(default=dict, blank=True)
     spec_signature = models.CharField(max_length=128, blank=True, default='')
     invariant_signature = models.CharField(max_length=128, blank=True, default='')
-    unit_weight_g = models.DecimalField(max_digits=12, decimal_places=4, default=0)
-    total_weight_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    unit_weight_g = models.DecimalField(max_digits=16, decimal_places=6, default=0)
+    total_weight_kg = models.DecimalField(max_digits=16, decimal_places=6, default=0)
     output_type = models.CharField(max_length=20, default='WIP_ROLL')
     stock_purpose = models.CharField(max_length=20, choices=STOCK_PURPOSE_CHOICES, default='PRODUCT')
     stock_strategy = models.CharField(max_length=30, choices=STOCK_STRATEGY_CHOICES, default='FINAL_STOCK')
@@ -872,6 +876,8 @@ class ProductionWcmAuditEvent(models.Model):
         ("UNASSIGN_ROLL", "Unassign Roll"),
         ("RELEASE_TO_MACHINE", "Release To Machine"),
         ("MATERIAL_ISSUE", "Material Issue"),
+        ("MATERIAL_TRANSFER_REQUEST", "Material Transfer Request"),
+        ("MATERIAL_TRANSFER_RECEIPT", "Material Transfer Receipt"),
         ("MATERIAL_POLICY_OVERRIDE", "Material Policy Override"),
         ("ROUTE_STEP_SKIP", "Route Step Skip"),
         ("SHORT_CLOSE", "Short Close"),
@@ -1230,6 +1236,26 @@ class DeliveryChallan(models.Model):
     e_way_bill_number = models.CharField(max_length=80, blank=True)
     dispatch_notes = models.TextField(blank=True, default="")
     ship_to_address_snapshot = models.JSONField(default=dict, blank=True)
+    print_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Immutable dispatch-slip rows and balances frozen when the challan is dispatched.",
+    )
+
+    # Proof of delivery is deliberately independent of billing/e-way-bill data.
+    # The accounting package owns those documents; this ERP only records that
+    # the physical dispatch reached the customer.
+    pod_confirmed_at = models.DateTimeField(null=True, blank=True)
+    pod_confirmed_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pod_confirmed_challans',
+    )
+    pod_received_by = models.CharField(max_length=160, blank=True, default="")
+    pod_reference = models.CharField(max_length=120, blank=True, default="")
+    pod_notes = models.TextField(blank=True, default="")
     
     # Timestamps
     dispatch_date = models.DateTimeField(null=True, blank=True)
@@ -1264,6 +1290,16 @@ class DeliveryChallanItem(models.Model):
     # Quantity/Weight
     weight_kg = models.DecimalField(max_digits=12, decimal_places=4)
     qty_pcs = models.IntegerField(null=True, blank=True, help_text="For gonnies/pouches only")
+
+    # A physical dispatch unit is reserved as soon as it is placed on a draft
+    # challan.  Historical rows pre-date this invariant and intentionally
+    # default to False; create_challan also checks those legacy memberships so
+    # they cannot be selected again.  The conditional unique constraints below
+    # are the database-level race guard for every newly reserved unit.
+    reservation_active = models.BooleanField(default=False, db_index=True)
+    reserved_at = models.DateTimeField(null=True, blank=True)
+    reservation_released_at = models.DateTimeField(null=True, blank=True)
+    reservation_release_reason = models.CharField(max_length=80, blank=True, default="")
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1271,6 +1307,34 @@ class DeliveryChallanItem(models.Model):
         db_table = 'production_delivery_challan_items'
         verbose_name = "Delivery Challan Item"
         verbose_name_plural = "Delivery Challan Items"
+        constraints = [
+            models.UniqueConstraint(
+                fields=['roll'],
+                condition=Q(reservation_active=True, roll__isnull=False),
+                name='uniq_active_dc_roll_reservation',
+            ),
+            models.UniqueConstraint(
+                fields=['packing_unit'],
+                condition=Q(reservation_active=True, packing_unit__isnull=False),
+                name='uniq_active_dc_gonny_reservation',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(reservation_active=False)
+                    | Q(
+                        roll__isnull=False,
+                        packing_unit__isnull=True,
+                        fg_batch__isnull=True,
+                    )
+                    | Q(
+                        roll__isnull=True,
+                        packing_unit__isnull=False,
+                        fg_batch__isnull=True,
+                    )
+                ),
+                name='active_dc_reservation_has_one_unit',
+            ),
+        ]
 
     def __str__(self):
         item_type = "Roll" if self.roll else "Gonny"

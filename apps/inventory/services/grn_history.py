@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -23,6 +24,8 @@ from apps.inventory.services.packaging_service import PackagingService
 from apps.materials.models import TradingGoodStock
 from apps.procurement.models import TradingGoodReceipt
 from apps.users.models import PermissionAuditLog
+
+logger = logging.getLogger(__name__)
 
 
 def _dec(value: Any) -> Decimal:
@@ -828,4 +831,4 @@ class GRNHistoryService:
                 },
             )
         except Exception:
-            pass
+            logger.warning("Unable to mirror GRN correction audit id=%s to permission audit log", getattr(audit, "id", None), exc_info=True)

@@ -12,13 +12,11 @@ import {
   BadgeIndianRupee,
   Building2,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Copy,
   Download,
   Eye,
   FileText,
-  GitBranch,
   Info,
   Loader2,
   Mail,
@@ -344,6 +342,32 @@ export default function QuotationWorkspace({
     customTerms,
   ]);
 
+  const persistDraft = useCallback(async () => {
+    if (!quotationId) {
+      throw new Error("Save the quotation header first before persisting lines.");
+    }
+    await quotationService.update(quotationId, {
+      discount_pct: discountPct,
+      discount_amount: discountAmount,
+      freight_amount: freightAmount,
+      freight_included: freightIncluded,
+      other_charges: otherCharges,
+      gst_rate: gstRate,
+      custom_terms: customTerms,
+    });
+    return quotationService.bulkUpdateItems(quotationId, toApiItems(drafts));
+  }, [
+    quotationId,
+    discountPct,
+    discountAmount,
+    freightAmount,
+    freightIncluded,
+    otherCharges,
+    gstRate,
+    customTerms,
+    drafts,
+  ]);
+
   // ─────────────────────────── Mutations ───────────────────────────
 
   const cloneMut = useMutation({
@@ -351,7 +375,7 @@ export default function QuotationWorkspace({
     onSuccess: (q) => {
       void queryClient.invalidateQueries({ queryKey: ["quotations", "list"] });
       toast({
-        title: "Revision created",
+        title: "Quotation duplicated",
         description: `New ${q.quote_number} opened.`,
       });
       router.push(`/sales/quotations/${q.id}`);
@@ -365,13 +389,16 @@ export default function QuotationWorkspace({
   });
 
   const sendMut = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       id,
       via,
     }: {
       id: string;
       via: "email" | "whatsapp" | "pdf_only";
-    }) => quotationService.send(id, { via, recipients: [] }),
+    }) => {
+      await persistDraft();
+      return quotationService.send(id, { via, recipients: [] });
+    },
     onSuccess: () => {
       setSendDialog(null);
       void queryClient.invalidateQueries({
@@ -392,7 +419,10 @@ export default function QuotationWorkspace({
   });
 
   const approveMut = useMutation({
-    mutationFn: (id: string) => quotationService.approve(id),
+    mutationFn: async (id: string) => {
+      await persistDraft();
+      return quotationService.approve(id);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["quotation", quotationId],
@@ -488,25 +518,7 @@ export default function QuotationWorkspace({
   });
 
   const saveMut = useMutation({
-    mutationFn: async () => {
-      if (!quotationId) {
-        throw new Error(
-          "Save the quotation header first before persisting lines.",
-        );
-      }
-      // Patch commercials header first
-      await quotationService.update(quotationId, {
-        discount_pct: discountPct,
-        discount_amount: discountAmount,
-        freight_amount: freightAmount,
-        freight_included: freightIncluded,
-        other_charges: otherCharges,
-        gst_rate: gstRate,
-        custom_terms: customTerms,
-      });
-      // Then push items
-      return quotationService.bulkUpdateItems(quotationId, toApiItems(drafts));
-    },
+    mutationFn: persistDraft,
     onMutate: () => {
       // Optimistic — show pulse via lastSavedAt clearing
     },
@@ -702,8 +714,6 @@ export default function QuotationWorkspace({
     : "draft";
   const customerLabel = quote?.customer_name || "Pick customer";
   const showValidChip = validDays !== null;
-  const isRevision =
-    Boolean(quote?.parent_quotation) && (quote?.revision_no ?? 1) > 1;
   const canPersist = Boolean(quotationId);
 
   const handleAddCatalog = () => {
@@ -882,7 +892,7 @@ export default function QuotationWorkspace({
                 Quotations
               </Link>
               <span>·</span>
-              <span>Workspace v37</span>
+              <span>Workspace</span>
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight mt-1.5">
               <span className="font-mono">{headerNumber}</span>
@@ -901,11 +911,6 @@ export default function QuotationWorkspace({
               {showValidChip ? (
                 <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-extrabold bg-success-fg text-success-border ring-1 ring-success-border">
                   VALID {validDays} DAYS
-                </span>
-              ) : null}
-              {isRevision ? (
-                <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-extrabold bg-warning-fg text-warning-border ring-1 ring-warning-border">
-                  REV {quote?.revision_no}
                 </span>
               ) : null}
               {/* Production readiness chip */}
@@ -1018,7 +1023,7 @@ export default function QuotationWorkspace({
         <div className="space-y-5 min-w-0">
           {/* Meta strip */}
           <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-[11px] font-extrabold uppercase tracking-widest text-content-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-[11px] font-extrabold uppercase tracking-widest text-content-3">
               <div>
                 <div>Customer</div>
                 <div className="mt-1 text-sm font-bold text-content-1 normal-case tracking-normal truncate">
@@ -1055,12 +1060,6 @@ export default function QuotationWorkspace({
                   {quote?.valid_until || "—"}
                 </div>
               </div>
-              <div>
-                <div>Revision</div>
-                <div className="mt-1 text-sm font-bold text-content-1 font-mono normal-case tracking-normal">
-                  v{quote?.revision_no || 1}
-                </div>
-              </div>
             </div>
           </section>
 
@@ -1077,7 +1076,7 @@ export default function QuotationWorkspace({
                 ) : (
                   <Copy className="h-4 w-4" strokeWidth={2.2} />
                 )}
-                Clone revision
+                Duplicate quotation
               </button>
               {quote.status !== "APPROVED" && quote.status !== "CONVERTED" ? (
                 <>
@@ -1561,30 +1560,6 @@ export default function QuotationWorkspace({
             </section>
           ) : null}
 
-          {/* Revisions */}
-          {quote ? (
-            <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
-              <div className="flex items-center gap-2 mb-2">
-                <GitBranch className="h-4 w-4 text-brand-orange" />
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
-                  Revisions
-                </div>
-              </div>
-              <div className="text-[12px] font-bold text-content-2">
-                v{quote.revision_no || 1}{" "}
-                {quote.parent_quotation ? (
-                  <Link
-                    href={`/sales/quotations/${quote.parent_quotation}`}
-                    className="ml-2 text-order-fg hover:underline inline-flex items-center gap-1"
-                  >
-                    Parent <ChevronRight className="h-3 w-3" />
-                  </Link>
-                ) : (
-                  <span className="text-content-4">(original)</span>
-                )}
-              </div>
-            </section>
-          ) : null}
         </aside>
       </div>
 
@@ -1740,7 +1715,7 @@ export default function QuotationWorkspace({
             </h3>
           </div>
           <p className="text-[12px] font-semibold text-content-3 mb-3">
-            Capture a short reason so future revisions know what changed.
+            Capture a short reason so future follow-up quotes retain the context.
           </p>
           <textarea
             value={rejectReason}
@@ -1957,7 +1932,11 @@ function Dialog({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-surface-3" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl bg-surface-1 p-5 shadow-2xl">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-md rounded-2xl bg-surface-1 p-5 shadow-2xl"
+      >
         {children}
       </div>
     </div>

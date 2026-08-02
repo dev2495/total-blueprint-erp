@@ -520,6 +520,76 @@ const replacements = new Map([
     "system-governance-flow",
     ["ADMIN", "OWNER", "SUPER_ADMIN"],
   )],
+  ["/engineering/route-dispatch", guide(
+    "/engineering/route-dispatch",
+    "Route Dispatch Setup",
+    "Engineering",
+    "Route Dispatch Setup reviews each template step's allowed and default work centers before planner release.",
+    "Use safe template editing to correct dispatch choices, then complete review and publish so eligible pre-release orders receive the current route.",
+    ["engineering-route-dispatch-workflow"],
+    "master-data-flow",
+    ["ADMIN", "OWNER", "ENGINEERING", "PLANNER", "PLANT_MANAGER"],
+  )],
+  ["/inventory/bulk-v36", guide(
+    "/inventory/bulk-v36",
+    "Bulk Workspace Compatibility Route",
+    "Inventory",
+    "This compatibility route opens the current bulk inventory workspace for older bookmarks.",
+    "Use the current bulk filters and stock cards; new navigation should use /inventory/bulk.",
+    ["inventory-bulk-v36-workflow"],
+  )],
+  ["/inventory/ink-floor", guide(
+    "/inventory/ink-floor",
+    "Ink Floor Stock",
+    "Inventory",
+    "Ink Floor Stock shows work-center ink availability, issue context, and return status.",
+    "Use it to verify current floor stock before issuing, consuming, returning, or escalating an ink shortage.",
+    ["inventory-ink-floor-workflow"],
+  )],
+  ["/inventory/packaging-v36", guide(
+    "/inventory/packaging-v36",
+    "Packaging Workspace Compatibility Route",
+    "Inventory",
+    "This compatibility route opens the current packaging workspace for older bookmarks.",
+    "Use the current packaging stock and supply-mode view; new navigation should use /inventory/packaging.",
+    ["inventory-packaging-v36-workflow"],
+  )],
+  ["/inventory/rolls-v36", guide(
+    "/inventory/rolls-v36",
+    "Rolls Workspace Compatibility Route",
+    "Inventory",
+    "This compatibility route opens the current roll inventory workspace for older bookmarks.",
+    "Use the current roll matrix, stock card, and traceability actions; new navigation should use /inventory/rolls.",
+    ["inventory-rolls-v36-workflow"],
+  )],
+  ["/inventory/stock-conversions", guide(
+    "/inventory/stock-conversions",
+    "Stock Conversions",
+    "Inventory",
+    "Stock Conversions records controlled physical-form changes such as opening tubes, splitting sheets, and slitting rolls.",
+    "Select the exact source stock, conversion operation, quantities, and destination so genealogy and balances remain traceable.",
+    ["inventory-stock-conversions-workflow"],
+  )],
+  ["/production/ink-control", guide(
+    "/production/ink-control",
+    "Production Ink Control",
+    "Production",
+    "Production Ink Control coordinates planned ink requirements, floor issues, returns, and consumption evidence.",
+    "Use job and work-center context to issue the approved ink, record actual use, and return recoverable balance without bypassing stock history.",
+    ["production-ink-control-workflow"],
+    "production-execution-flow",
+    ["ADMIN", "OWNER", "STORE", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
+  )],
+  ["/system/shift-timing", guide(
+    "/system/shift-timing",
+    "Shift Timing",
+    "System",
+    "Shift Timing maintains the operating windows used by production and reporting.",
+    "Review downstream reporting and active scheduling before changing a shift, then keep effective timing and active status explicit.",
+    ["system-shift-timing-workflow"],
+    "system-governance-flow",
+    ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER"],
+  )],
 ]);
 
 function upsert(route, nextGuide) {
@@ -560,6 +630,32 @@ for (let index = pages.length - 1; index >= 0; index -= 1) {
 
 for (const [route, nextGuide] of replacements) {
   upsert(route, nextGuide);
+}
+
+function parseRouteSet(name) {
+  const registryPath = path.join(appRoot, "src", "help", "route-registry.ts");
+  const source = fs.readFileSync(registryPath, "utf8");
+  const block = source.match(new RegExp(`${name}\\s*=\\s*new Set<string>\\(\\[([\\s\\S]*?)\\]\\)`));
+  if (!block) return [];
+  return [...block[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+}
+
+const screenshotRequiredRoutes = new Set([
+  ...parseRouteSet("MAIN_NAV_ROUTES"),
+  ...parseRouteSet("INLINE_HELP_CRITICAL_PATTERNS"),
+]);
+
+for (const page of pages) {
+  if (!screenshotRequiredRoutes.has(page.routePattern)) continue;
+  if (Array.isArray(page.screenshotKeys) && page.screenshotKeys.length > 0) continue;
+  const key = String(page.routePattern || "page")
+    .replace(/\[\.\.\.([^\]]+)\]/g, "$1")
+    .replace(/\[([^\]]+)\]/g, "$1")
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
+  page.screenshotKeys = [`${key || "dashboard"}-workflow`];
 }
 
 function scrubRetiredRoutes(value, propertyName = "") {

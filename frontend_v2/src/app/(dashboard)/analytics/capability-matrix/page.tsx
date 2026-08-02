@@ -70,12 +70,6 @@ export default function CapabilityMatrixPage() {
               separates taxonomy work from real manufacturing logic changes.
             </p>
           </div>
-          <Badge
-            variant="outline"
-            className="bg-surface-1 text-content-3 border-line"
-          >
-            Version {data.version}
-          </Badge>
         </CardContent>
       </Card>
 

@@ -1,6 +1,7 @@
 from decimal import Decimal
 from datetime import timedelta
 from types import SimpleNamespace
+import logging
 import uuid
 
 from django.db import transaction
@@ -58,6 +59,8 @@ from apps.inventory.services.roll_naming import build_roll_naming_payload
 from .models import FinishedGoodsBatch, InventoryAllocation, PlannedStockOrder, PlannedBulkStockOrder, ProductionJob, JobExecutionLog, PlannerSkuVariant
 from .serializers import ProductionJobSerializer, ProductionJobSummarySerializer, PlannedBulkStockOrderSerializer
 from .services.job_services import JobService
+
+logger = logging.getLogger(__name__)
 
 
 def _jsonify(value):
@@ -123,7 +126,7 @@ def _sales_item_display_label(item, order=None, product_master=None, template=No
         if label:
             return label
     except Exception:
-        pass
+        logger.warning("Unable to build planner line label for item=%s", getattr(item, "id", None), exc_info=True)
     return str(
         getattr(item, "line_name", "")
         or getattr(product_master, "code", "")
@@ -1980,13 +1983,10 @@ class PlannerViewSet(viewsets.ViewSet):
             planner_stock_class=requested_planner_stock_class,
         )
         bom_snapshot = _jsonify(preview.get("bom") or {})
-        try:
-            from apps.production.services.roll_allocation_service import layer_signature_hash
-            sig = layer_signature_hash(layer_snapshot or [])
-            if isinstance(bom_snapshot, dict) and sig:
-                bom_snapshot["layer_signature_hash"] = sig
-        except Exception:
-            pass
+        from apps.production.services.roll_allocation_service import layer_signature_hash
+        sig = layer_signature_hash(layer_snapshot or [])
+        if isinstance(bom_snapshot, dict) and sig:
+            bom_snapshot["layer_signature_hash"] = sig
         planner_origin_meta = {}
         if planner_variant:
             planner_origin_meta = {
@@ -2293,7 +2293,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 if nodes:
                     return max(RouteGraphService.step_index_for_node(node) for node in nodes)
             except Exception:
-                pass
+                logger.warning("Unable to normalize route graph for template=%s", getattr(template, "id", None), exc_info=True)
         ordered = (routing_rule.ordered_processes if routing_rule else []) or []
         return max(0, len(ordered) - 1)
 
@@ -2586,7 +2586,7 @@ class PlannerViewSet(viewsets.ViewSet):
             if unit_weight_g > 0:
                 return float((Decimal(str(order.target_qty)) * Decimal("1000")) / unit_weight_g)
         except Exception:
-            pass
+            logger.warning("Unable to calculate planner order quantity for order=%s", getattr(order, "id", None), exc_info=True)
         return 0
 
     def _roll_invariants(self, *, layer_snapshot=None, required_qty_kg: Decimal = Decimal("0")):
@@ -3202,6 +3202,12 @@ class PlannerViewSet(viewsets.ViewSet):
             try:
                 allocatable_kg += Decimal(str((option or {}).get("allocatable_qty_kg") or 0))
             except Exception:
+                logger.warning(
+                    "Planner inventory option quantity could not be parsed row_id=%s value=%r",
+                    row.get("id") or row.get("order_id"),
+                    (option or {}).get("allocatable_qty_kg") if isinstance(option, dict) else option,
+                    exc_info=True,
+                )
                 continue
         coverage_pct = Decimal("0")
         if required_qty_kg > 0:
@@ -4242,7 +4248,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     if reference_dt < timezone.now() - timezone.timedelta(days=history_days):
                         return False
                 except Exception:
-                    pass
+                    logger.warning("Invalid planner history reference date: %r", reference_value, exc_info=True)
 
         normalized_query = str(history_query or "").strip().lower()
         if normalized_query:
@@ -5029,6 +5035,12 @@ class PlannerViewSet(viewsets.ViewSet):
                 completed_dt = timezone.datetime.fromisoformat(str(completed_at).replace("Z", "+00:00"))
                 key = completed_dt.date().isoformat()
             except Exception:
+                logger.warning(
+                    "Planner order-history completion timestamp could not be parsed order_id=%s value=%r",
+                    row.get("id") or row.get("order_id"),
+                    completed_at,
+                    exc_info=True,
+                )
                 continue
             entry = rhythm_map.setdefault(key, {"date": key, "orders": 0, "kg": 0.0})
             entry["orders"] += 1
@@ -5101,13 +5113,13 @@ class PlannerViewSet(viewsets.ViewSet):
                 if width < float(min_width):
                     return False
             except Exception:
-                pass
+                logger.warning("Invalid planner minimum width filter: %r", min_width, exc_info=True)
         if max_width not in (None, ""):
             try:
                 if width > float(max_width):
                     return False
             except Exception:
-                pass
+                logger.warning("Invalid planner maximum width filter: %r", max_width, exc_info=True)
 
         source_path = str(filters.get("source_path") or "").upper()
         if source_path and source_path != "ALL":
@@ -6055,7 +6067,7 @@ class PlannerViewSet(viewsets.ViewSet):
             if request is not None:
                 return request.build_absolute_uri(url)
         except Exception:
-            pass
+            logger.warning("Unable to build absolute planner URL: %r", url, exc_info=True)
         return url
 
     def _sales_item_artwork_preview(self, so_item):
@@ -6634,7 +6646,11 @@ class PlannerViewSet(viewsets.ViewSet):
 
                 force_detail = is_detail_target(row)
                 if needs_planning_queue:
-                    if planning_limit > 0 or force_detail:
+                    # The full response path can be expensive: it resolves
+                    # inventory candidates, route traces, and release facts.
+                    # Once this bucket is full, keep scanning only for the
+                    # other buckets (or an explicitly requested detail row).
+                    if len(planning_queue) < planning_limit or force_detail:
                         if summary and not force_detail:
                             row["source_availability"] = cached_cheap_source_availability(
                                 template=template,
@@ -6674,14 +6690,14 @@ class PlannerViewSet(viewsets.ViewSet):
                         if self._control_hub_row_matches_queue_filters(row, queue_filters):
                             planning_queue.append(decorated)
                 elif active_line:
-                    if active_limit > 0 or force_detail:
+                    if len(active_orders) < active_limit or force_detail:
                         decorated = response_row(row, force_detail=force_detail)
                         if force_detail:
                             detail_order = decorated
                         if self._control_hub_row_matches_active_filters(row, active_filters):
                             active_orders.append(decorated)
                 else:
-                    if history_limit > 0 or force_detail:
+                    if len(order_history) < history_collect_limit or force_detail:
                         decorated = response_row(row, force_detail=force_detail)
                         if force_detail:
                             detail_order = decorated
@@ -6780,7 +6796,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
             force_detail = is_detail_target(row)
             if order.status == "PLANNING_REQUIRED":
-                if planning_limit > 0 or force_detail:
+                if len(planning_queue) < planning_limit or force_detail:
                     row["source_availability"] = cached_cheap_source_availability(
                         template=template,
                         required_start_step=int(getattr(order, "start_step_index", 0) or 0),
@@ -6795,14 +6811,14 @@ class PlannerViewSet(viewsets.ViewSet):
                     if self._control_hub_row_matches_queue_filters(row, queue_filters):
                         planning_queue.append(decorated)
             elif order.status in ("PLANNED", "RELEASED") and not stock_jobs_complete:
-                if active_limit > 0 or force_detail:
+                if len(active_orders) < active_limit or force_detail:
                     decorated = response_row(row, force_detail=force_detail)
                     if force_detail:
                         detail_order = decorated
                     if self._control_hub_row_matches_active_filters(row, active_filters):
                         active_orders.append(decorated)
             else:
-                if history_limit > 0 or force_detail:
+                if len(order_history) < history_collect_limit or force_detail:
                     decorated = response_row(row, force_detail=force_detail)
                     if force_detail:
                         detail_order = decorated
@@ -7163,6 +7179,14 @@ class PlannerViewSet(viewsets.ViewSet):
                 if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
                     break
             except Exception as exc:
+                logger.warning(
+                    "Planner sales-order row degraded to recoverable error row "
+                    "order_id=%s order_number=%s: %s",
+                    getattr(order, "id", None),
+                    getattr(order, "order_number", None),
+                    exc,
+                    exc_info=True,
+                )
                 fallback_template = self._sales_primary_template(order)
                 fallback_row = {
                     "order_kind": "sales",
@@ -7346,6 +7370,14 @@ class PlannerViewSet(viewsets.ViewSet):
                 if len(planning_queue) >= planning_limit and len(active_orders) >= active_limit and len(order_history) >= history_limit:
                     break
             except Exception as exc:
+                logger.warning(
+                    "Planner stock-order row degraded to recoverable error row "
+                    "order_id=%s order_number=%s: %s",
+                    getattr(order, "id", None),
+                    getattr(order, "order_number", None),
+                    exc,
+                    exc_info=True,
+                )
                 template = getattr(order, "template", None)
                 fallback_row = {
                     "order_kind": "stock",
@@ -8521,6 +8553,7 @@ class PlannerViewSet(viewsets.ViewSet):
             layer_snapshot=order_layer_snapshot,
             printing_snapshot=order_printing_snapshot,
         )
+        order_layer_only_signature = self._layer_only_invariant_signature(order_layer_snapshot)
         roll_alloc_map, fg_alloc_map = self._inventory_active_allocation_maps()
         local_consumption = {}
         created = []
@@ -8573,6 +8606,23 @@ class PlannerViewSet(viewsets.ViewSet):
                 if required_route_id and roll.template_id and roll_route_id != required_route_id:
                     raise ValueError(f"Roll {roll.label_id} routing lineage does not match order route.")
                 completed = int(roll.completed_step_index or 0)
+                source_stock_order = self._origin_stock_order_for_roll(roll)
+                source_layer_signature = (
+                    self._layer_only_invariant_signature(source_stock_order.layer_snapshot or [])
+                    if source_stock_order is not None
+                    else ""
+                )
+                same_order_lineage = self._is_same_order_lineage_roll(roll, order_kind, order_obj)
+                stage0_stock_resume = bool(
+                    order_layer_only_signature
+                    and source_layer_signature
+                    and source_layer_signature == order_layer_only_signature
+                )
+                pre_artwork_invariant_match = bool(
+                    stage0_stock_resume
+                    and source_stock_order is not None
+                    and self._is_pre_artwork_shared_stock(source_stock_order, template)
+                )
                 if option == "FG":
                     if completed != route_last:
                         raise ValueError(f"Roll {roll.label_id} is not at final route step")
@@ -8581,12 +8631,21 @@ class PlannerViewSet(viewsets.ViewSet):
                 elif option == "WIP_CONTINUE":
                     if completed < start_step:
                         raise ValueError(f"Roll {roll.label_id} completed step is below requested start step")
-                    if int(start_step or 0) == 0 and completed == 0 and not self._route_step_accepts_roll_input(template, 0):
+                    valid_stage0_resume = same_order_lineage or stage0_stock_resume
+                    if (
+                        int(start_step or 0) == 0
+                        and completed == 0
+                        and not self._route_step_accepts_roll_input(template, 0)
+                        and not valid_stage0_resume
+                    ):
                         raise ValueError(self._upstream_stock_start_blocker(template, 0))
-                    
-                    if start_step == 0 and completed == 0:
+
+                    if start_step == 0 and completed == 0 and valid_stage0_resume:
                         pass
-                    elif self._roll_invariant_signature(roll) != order_inv_sig:
+                    elif (
+                        self._roll_invariant_signature(roll) != order_inv_sig
+                        and not pre_artwork_invariant_match
+                    ):
                         raise ValueError(f"Roll {roll.label_id} invariant signature does not match order.")
                 else:
                     if self._roll_signature(roll) != order_sig:
@@ -8601,7 +8660,6 @@ class PlannerViewSet(viewsets.ViewSet):
                         f"Insufficient allocatable quantity on roll {roll.label_id}. Requested {qty}, available {allocatable}."
                     )
                 local_consumption[("ROLL", str(roll.id))] = consumed_here + qty
-                source_stock_order = self._origin_stock_order_for_roll(roll)
                 if order_kind == "sales" and so_item and source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
                     raise ValueError(self._stock_commitment_mismatch_message(source_stock_order, so_item, f"Roll {roll.label_id}"))
 
@@ -8697,7 +8755,7 @@ class PlannerViewSet(viewsets.ViewSet):
 
         return created
 
-    def _derive_wip_allocation_resume_points(self, allocation_rows, route_last: int):
+    def _derive_wip_allocation_resume_points(self, allocation_rows, route_last: int, *, include_upstream: bool = False):
         completed_steps = []
         for row in allocation_rows or []:
             inv_type = str(row.get("inventory_type") or row.get("kind") or "").upper()
@@ -8706,7 +8764,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 continue
             source_bucket = str(row.get("source_bucket") or "").upper()
             match_mode = str(row.get("signature_match_mode") or row.get("match_mode") or "").upper()
-            if source_bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK" or match_mode == "STEP0_RAW":
+            if not include_upstream and (
+                source_bucket == "COMPATIBLE_UPSTREAM_ROLL_STOCK" or match_mode == "STEP0_RAW"
+            ):
                 continue
 
             if inv_type == "ROLL":
@@ -8734,6 +8794,12 @@ class PlannerViewSet(viewsets.ViewSet):
             try:
                 qty = Decimal(str(row.get("allocated_qty_kg") or row.get("qty") or 0))
             except Exception:
+                logger.warning(
+                    "Planner allocation quantity could not be parsed order_id=%s value=%r",
+                    row.get("id") or row.get("order_id"),
+                    row.get("allocated_qty_kg") or row.get("qty"),
+                    exc_info=True,
+                )
                 continue
             if qty > 0:
                 total += qty
@@ -8756,6 +8822,11 @@ class PlannerViewSet(viewsets.ViewSet):
             try:
                 step_index = int(row.get("step_index"))
             except Exception:
+                logger.warning(
+                    "Planner work-center override step index could not be parsed value=%r",
+                    row.get("step_index"),
+                    exc_info=True,
+                )
                 continue
             work_center_id = str(row.get("work_center_id") or row.get("work_center") or "").strip()
             if work_center_id:
@@ -8926,11 +8997,12 @@ class PlannerViewSet(viewsets.ViewSet):
         executable_continuation_qty_kg = Decimal("0")
         continuation_target_cap_kg = Decimal("0")
         fresh_balance_qty_kg = Decimal("0")
-        if option_semantic == "WIP_CONTINUE" and option != "UPSTREAM_STOCK":
+        if option_semantic == "WIP_CONTINUE":
             selected_continuation_qty_kg = self._allocation_total_qty_kg(allocation_rows)
             derived_validation_step, derived_job_start = self._derive_wip_allocation_resume_points(
                 allocation_rows=allocation_rows,
                 route_last=route_last,
+                include_upstream=bool(option == "UPSTREAM_STOCK" and start_step > 0),
             )
             if derived_validation_step is not None:
                 allocation_validation_step = derived_validation_step

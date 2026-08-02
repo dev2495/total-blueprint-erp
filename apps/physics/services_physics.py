@@ -228,6 +228,10 @@ class PhysicsEngine:
             geometry.get("pouch_style_roll_axis") or geometry.get("default_roll_axis") or geometry.get("roll_axis"),
             dims.get("pouch_style") or "",
         )
+        explicit_pitch = _dec(geometry.get("consumption_pitch_mm") or 0)
+        explicit_pitch_axis = PhysicsEngine._normalize_roll_axis(
+            geometry.get("consumption_pitch_axis"),
+        ) if geometry.get("consumption_pitch_axis") else ""
 
         if child_web_width > 0 and roll_axis in {"WIDTH", "HEIGHT", "BOTH"}:
             # Pouch style formula already expands the web to include the real
@@ -238,7 +242,12 @@ class PhysicsEngine:
             # they keep web-basis math instead of falling back to finished-face
             # area and under-costing film.
             pitch_axis = "WIDTH" if roll_axis == "BOTH" else roll_axis
-            pitch = effective_height if pitch_axis == "WIDTH" else effective_width
+            derived_pitch_axis = "HEIGHT" if pitch_axis == "WIDTH" else "WIDTH"
+            pitch = explicit_pitch if explicit_pitch > 0 else (
+                effective_height if derived_pitch_axis == "HEIGHT" else effective_width
+            )
+            if explicit_pitch_axis in {"WIDTH", "HEIGHT"}:
+                derived_pitch_axis = explicit_pitch_axis
             area_mm2 = child_web_width * pitch
             return {
                 **dims,
@@ -250,15 +259,20 @@ class PhysicsEngine:
                 "stock_form": geometry.get("stock_form") or "OPEN_WEB",
                 "width_basis": geometry.get("width_basis") or "",
                 "consumption_pitch_mm": pitch,
+                "consumption_pitch_axis": derived_pitch_axis,
                 "pouch_style_roll_axis": pitch_axis,
             }
 
         pitch_axis = "WIDTH" if roll_axis == "BOTH" else roll_axis
-        pitch = effective_height if pitch_axis == "WIDTH" else effective_width
+        derived_pitch_axis = "HEIGHT" if pitch_axis == "WIDTH" else "WIDTH"
+        pitch = explicit_pitch if explicit_pitch > 0 else (
+            effective_height if derived_pitch_axis == "HEIGHT" else effective_width
+        )
+        if explicit_pitch_axis in {"WIDTH", "HEIGHT"}:
+            derived_pitch_axis = explicit_pitch_axis
         legacy_child_width = effective_width if pitch_axis == "HEIGHT" else effective_width * Decimal("2")
         if pitch_axis == "HEIGHT":
             legacy_child_width = effective_height * Decimal("2")
-            pitch = effective_width
         area_mm2 = legacy_child_width * pitch
         return {
             **dims,
@@ -270,6 +284,7 @@ class PhysicsEngine:
             "stock_form": geometry.get("stock_form") or "OPEN_WEB",
             "width_basis": geometry.get("width_basis") or "",
             "consumption_pitch_mm": pitch,
+            "consumption_pitch_axis": derived_pitch_axis,
             "pouch_style_roll_axis": pitch_axis,
         }
 
@@ -479,7 +494,7 @@ class PhysicsEngine:
                 "finished_good_type": "ROLL",
                 "effective_width_mm": float(round(invariants["width_mm"], 2)),
                 "effective_height_mm": 0.0,
-                "area_m2": float(round(area_m2, 6)),
+                "area_m2": float(round(area_m2, 12)),
                 "pod_type": "NONE",
             },
             "roll_preview": {
@@ -604,10 +619,11 @@ class PhysicsEngine:
                 "height_mm": float(round(dims.get("base_height_mm", Decimal("0")), 2)),
                 "effective_width_mm": float(round(effective_width, 2)),
                 "effective_height_mm": float(round(effective_height, 2)),
-                "area_m2": float(round(area_m2, 6)),
+                "area_m2": float(round(area_m2, 12)),
                 "area_basis": str(area_info.get("area_basis") or "WEB_BASIS"),
                 "consumption_web_width_mm": float(round(_dec(area_info.get("consumption_web_width_mm") or 0), 2)),
                 "consumption_pitch_mm": float(round(_dec(area_info.get("consumption_pitch_mm") or 0), 2)),
+                "consumption_pitch_axis": str(area_info.get("consumption_pitch_axis") or ""),
                 "stock_width_mm": float(round(_dec(area_info.get("stock_width_mm") or 0), 2)),
                 "film_area_width_mm": float(round(_dec(area_info.get("film_area_width_mm") or 0), 2)),
                 "stock_form": str(area_info.get("stock_form") or "OPEN_WEB"),

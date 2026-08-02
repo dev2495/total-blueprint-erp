@@ -26,6 +26,7 @@ export type ProductSpec = {
     finishedGoodType?: string
   }
   layers: ProductSpecLayer[]
+  pouchStyle: string
   podLabels: string[]
   addonLabels: string[]
   hasPod: boolean
@@ -114,6 +115,44 @@ function sizeFrom(rawGeometry: AnyRecord): ProductSpec["size"] {
   }
 
   return { widthMm, heightMm, gussetMm, label, formLabel: rollForm, finishedGoodType: fgType || undefined }
+}
+
+function pouchStyleFrom(source: AnyRecord, context: AnyRecord, backend: AnyRecord, summary: AnyRecord): string {
+  const geometry = object(context.job?.geometry || source.geometry || source.geometry_snapshot)
+  const base = object(geometry.base)
+  const backendSize = object(backend.size)
+  return text(
+    backend.pouch_style_label,
+    backend.pouch_style_name,
+    backend.pouch_style_master_code,
+    backend.pouch_style_code,
+    backend.pouch_style,
+    backendSize.pouch_style_label,
+    backendSize.pouch_style_name,
+    backendSize.pouch_style_master_code,
+    backendSize.pouch_style_code,
+    backendSize.pouch_style,
+    summary.pouch_style_label,
+    summary.pouch_style_name,
+    summary.pouch_style_master_code,
+    summary.pouch_style_code,
+    summary.pouch_style,
+    geometry.pouch_style_label,
+    geometry.pouch_style_name,
+    geometry.pouch_style_master_code,
+    geometry.pouch_style_code,
+    geometry.pouch_style,
+    base.pouch_style_label,
+    base.pouch_style_name,
+    base.pouch_style_master_code,
+    base.pouch_style_code,
+    base.pouch_style,
+    source.pouch_style_label,
+    source.pouch_style_name,
+    source.pouch_style_master_code,
+    source.pouch_style_code,
+    source.pouch_style,
+  )
 }
 
 function layerFrom(row: AnyRecord, index: number, fallbackWidth: number | null): ProductSpecLayer {
@@ -216,6 +255,7 @@ export function normalizeProductSpec(sourceInput: unknown, contextInput?: unknow
     ? backendLayers
     : (list(context.bom_layers).length ? list(context.bom_layers) : list(source.layers || source.layer_snapshot || summary.layer_labels?.map((label: string) => ({ label }))))
   const layers = rawLayers.map((row, idx) => layerFrom(row, idx + 1, size.widthMm))
+  const pouchStyle = pouchStyleFrom(source, context, backend, summary)
   const podLabels = podLabelsFrom(source, context)
   const addonLabels = addonLabelsFrom(source, context)
   const customerName = text(backend.customer_name, source.customer_name, context.job?.customer_name)
@@ -252,6 +292,7 @@ export function normalizeProductSpec(sourceInput: unknown, contextInput?: unknow
     variantCode,
     variantName,
     size.label,
+    pouchStyle,
     ...layers.flatMap((layer) => [layer.label, layer.variantCode, layer.variantName, layer.grade, compact(layer.thicknessMicron), compact(layer.widthMm)]),
     ...podLabels,
     ...addonLabels,
@@ -266,6 +307,7 @@ export function normalizeProductSpec(sourceInput: unknown, contextInput?: unknow
     variantName,
     size,
     layers,
+    pouchStyle,
     podLabels,
     addonLabels,
     hasPod: podLabels.length > 0 || Boolean(summary.pod_enabled),

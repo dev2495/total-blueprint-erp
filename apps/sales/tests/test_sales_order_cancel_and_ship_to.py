@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from unittest.mock import patch
 
 from apps.analytics.services import AnalyticsService
 from apps.factory.models import Process
@@ -101,6 +102,26 @@ class SalesOrderCancelAndShipToTests(TestCase):
         cancelled = SalesOrderService.cancel_sales_order(order.id, reason="Customer stopped order")
 
         self.assertEqual(cancelled.status, "CANCELLED")
+
+    def test_order_cancellation_rolls_back_when_audit_write_fails(self):
+        customer = Customer.objects.create(name="Cancel Audit Customer", code="CANCEL-AUDIT")
+        order = SalesOrder.objects.create(
+            customer=customer,
+            customer_name=customer.name,
+            ship_to_customer=customer,
+            ship_to_customer_name=customer.name,
+            status="PLANNING_REQUIRED",
+        )
+
+        with patch(
+            "apps.users.models.PermissionAuditLog.objects.create",
+            side_effect=RuntimeError("audit unavailable"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "audit unavailable"):
+                SalesOrderService.cancel_sales_order(order.id, reason="Customer stopped order")
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, "PLANNING_REQUIRED")
 
     def test_order_cannot_be_cancelled_after_release(self):
         customer = Customer.objects.create(name="Released Customer", code="RELEASED")

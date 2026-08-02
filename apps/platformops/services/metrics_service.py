@@ -1,10 +1,13 @@
 import os
+import logging
 
 from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.platformops.models import BackupRecord, RestoreDrillRecord
 from apps.users.models import NotificationDeliveryAttempt
+
+logger = logging.getLogger(__name__)
 
 
 class OpsMetricsService:
@@ -24,7 +27,7 @@ class OpsMetricsService:
             snapshot["active_workers"] = len(stats.keys())
             snapshot["inspected"] = True
         except Exception:
-            pass
+            logger.warning("Unable to inspect Celery workers for platform metrics", exc_info=True)
 
         try:
             import redis  # type: ignore
@@ -34,7 +37,7 @@ class OpsMetricsService:
             depth = client.llen("celery")
             snapshot["default_queue_depth"] = int(depth or 0)
         except Exception:
-            pass
+            logger.warning("Unable to read Redis queue depth for platform metrics", exc_info=True)
 
         return snapshot
 
@@ -42,6 +45,7 @@ class OpsMetricsService:
     def summary() -> dict:
         now = timezone.now()
         day_ago = now - timezone.timedelta(hours=24)
+        max_backup_age_hours = int(os.getenv("BACKUP_MAX_AGE_HOURS", "6"))
 
         backups = BackupRecord.objects.filter(created_at__gte=day_ago)
         restore_drills = RestoreDrillRecord.objects.filter(created_at__gte=day_ago)
@@ -55,6 +59,16 @@ class OpsMetricsService:
         total = int(delivery_totals.get("total") or 0)
         success = int(delivery_totals.get("success") or 0)
 
+        latest_successful_backup = BackupRecord.objects.filter(
+            status=BackupRecord.BackupStatus.SUCCEEDED,
+        ).order_by("-finished_at", "-created_at").first()
+        backup_age_hours = None
+        backup_fresh = False
+        if latest_successful_backup:
+            completed_at = latest_successful_backup.finished_at or latest_successful_backup.created_at
+            backup_age_hours = max(0.0, (now - completed_at).total_seconds() / 3600)
+            backup_fresh = backup_age_hours <= max_backup_age_hours
+
         return {
             "generated_at": now.isoformat(),
             "backups": {
@@ -63,6 +77,14 @@ class OpsMetricsService:
                 "latest": BackupRecord.objects.values(
                     "id", "status", "created_at", "finished_at", "size_bytes", "storage_provider", "object_key"
                 ).order_by("-created_at").first(),
+                "latest_success_at": (
+                    (latest_successful_backup.finished_at or latest_successful_backup.created_at).isoformat()
+                    if latest_successful_backup
+                    else None
+                ),
+                "age_hours": round(backup_age_hours, 2) if backup_age_hours is not None else None,
+                "max_age_hours": max_backup_age_hours,
+                "fresh": backup_fresh,
             },
             "restore_drills": {
                 "last_24h_total": restore_drills.count(),

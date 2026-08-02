@@ -44,6 +44,7 @@ from apps.production.models import (
     JobMaterialRequirement,
     JobExecutionLog,
     MaterialConsumptionLog,
+    ProductionBatch,
     ProductionJob,
     RollDispatchPackRecord,
     ScrapLog,
@@ -191,6 +192,9 @@ def _job_number(kind: str, suffix: str) -> str:
 
 
 def _cleanup_previous_seed_data():
+    seeded_order_items = SalesOrderItem.objects.filter(
+        sales_order__order_name=f"{PREFIX} Printing Seed"
+    )
     seeded_roll_ids = list(
         InventoryRoll.objects.filter(
             Q(meta_json__ui_e2e_seed=True)
@@ -222,7 +226,12 @@ def _cleanup_previous_seed_data():
     JobMaterialRequirement.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
     ProductionWCAssignment.objects.filter(production_job__job_number__startswith=f"{PREFIX}-").delete()
     ProductionJob.objects.filter(job_number__startswith=f"{PREFIX}-").delete()
-    SalesOrderItem.objects.filter(sales_order__order_name=f"{PREFIX} Printing Seed").delete()
+    # ProductionBatch deliberately protects its commercial sales line. Test
+    # cleanup must therefore remove only the batches owned by this seed before
+    # deleting the line; weakening the production FK would hide real lineage
+    # violations.
+    ProductionBatch.objects.filter(sales_order_item__in=seeded_order_items).delete()
+    seeded_order_items.delete()
     SalesOrder.objects.filter(order_name=f"{PREFIX} Printing Seed").delete()
 
 

@@ -2,6 +2,7 @@ erp.totalpolyprint.com {
 	encode gzip zstd
 
 	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
@@ -21,4 +22,8 @@ erp.totalpolyprint.com {
 	}
 
 	reverse_proxy 127.0.0.1:3000
+}
+
+http://3.6.77.159 {
+	redir https://erp.totalpolyprint.com{uri} permanent
 }

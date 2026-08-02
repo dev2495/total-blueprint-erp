@@ -5,7 +5,16 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.factory.models import Machine, Plant, Process, WorkCenter
-from apps.inventory.models import InventoryLocation, InventoryReservation, InventoryRoll, RollConsumption, RollLink
+from apps.inventory.models import (
+    BulkTransaction,
+    InventoryBulk,
+    InventoryLocation,
+    InventoryReservation,
+    InventoryRoll,
+    RollConsumption,
+    RollLink,
+)
+from apps.inventory.services.bulk_service import BulkService
 from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.production.models import (
     DowntimeLog,
@@ -354,6 +363,118 @@ class MachineTerminalEndpointTests(TestCase):
         job.refresh_from_db()
         self.assertEqual(job.produced_qty, Decimal("4.0000"))
         self.assertEqual(job.remaining_qty, Decimal("6.0000"))
+
+    def test_coded_granule_issue_survives_repeated_machine_output_and_close(self):
+        """WCM's saved code split must remain authoritative through machine completion."""
+        process = Process.objects.create(
+            code="MT_CODED_EXT",
+            name="Coded Granule Extrusion",
+            input_form="BULK",
+            output_form="ROLL",
+            roll_behavior="CREATE_NEW",
+        )
+        job = self._make_job("CODED-EXT", process=process, material=self.material, quantity="10.0000")
+        step = job.template.process_steps.get(sequence_number=1)
+        code_b = GranuleQualityCode.objects.create(
+            granule=self.material,
+            code="SP-B",
+            status="ACTIVE",
+        )
+        requirement = JobMaterialRequirement.objects.create(
+            production_job=job,
+            material=self.material,
+            process_step=step,
+            required_qty=Decimal("10.0000"),
+            theoretical_qty=Decimal("10.0000"),
+            planned_issue_qty=Decimal("10.1000"),
+            uom="KG",
+        )
+        for quality_code in (self.granule_code, code_b):
+            BulkService.add_bulk(
+                material_id=self.material.id,
+                granule_code_id=quality_code.id,
+                qty=Decimal("20.0000"),
+                plant_id=self.plant.id,
+                location_id=self.location.id,
+                reference="TEST WCM ISSUE",
+                qty_uom="KG",
+            )
+        job.current_step_material_confirmations = [
+            {
+                "requirement_id": str(requirement.id),
+                "material_id": str(self.material.id),
+                "actual_issued_qty": "10.1000",
+                "actual_returned_qty": "0.0000",
+                "actual_scrap_qty": "0.0000",
+                "is_estimated": False,
+                "granule_code_allocations": [
+                    {
+                        "granule_code_id": str(self.granule_code.id),
+                        "qty_kg": "3.1000",
+                        "source_location_id": str(self.location.id),
+                    },
+                    {
+                        "granule_code_id": str(code_b.id),
+                        "qty_kg": "7.0000",
+                        "source_location_id": str(self.location.id),
+                    },
+                ],
+            }
+        ]
+        job.save(update_fields=["current_step_material_confirmations", "updated_at"])
+
+        first = self._post_for_job(
+            machine_log_output,
+            job,
+            {"actual_qty": "4.0000", "output_width_mm": "500"},
+        )
+        self.assertEqual(first.status_code, 200, first.data)
+        requirement.refresh_from_db()
+        self.assertEqual(requirement.consumed_qty, Decimal("4.0000"))
+
+        second = self._post_for_job(
+            machine_log_output,
+            job,
+            {"actual_qty": "6.0000", "output_width_mm": "500"},
+        )
+        self.assertEqual(second.status_code, 200, second.data)
+        requirement.refresh_from_db()
+        self.assertEqual(requirement.consumed_qty, Decimal("10.0000"))
+
+        completed = self._post_for_job(machine_complete_job, job, {})
+        self.assertEqual(completed.status_code, 200, completed.data)
+        requirement.refresh_from_db()
+        job.refresh_from_db()
+        self.assertEqual(job.job_state, "COMPLETED")
+        self.assertEqual(requirement.consumed_qty, Decimal("10.1000"))
+        self.assertEqual(requirement.actual_issued_qty, Decimal("10.1000"))
+
+        code_transactions = BulkTransaction.objects.filter(
+            job=job,
+            material=self.material,
+            type="CONSUME",
+        )
+        self.assertEqual(code_transactions.filter(granule_code__isnull=True).count(), 0)
+        self.assertEqual(
+            -sum((row.qty_kg for row in code_transactions), Decimal("0")),
+            Decimal("10.1000"),
+        )
+        self.assertEqual(
+            InventoryBulk.objects.get(
+                material=self.material,
+                granule_code=self.granule_code,
+                location=self.location,
+            ).qty_kg,
+            Decimal("16.9000"),
+        )
+        self.assertEqual(
+            InventoryBulk.objects.get(
+                material=self.material,
+                granule_code=code_b,
+                location=self.location,
+            ).qty_kg,
+            Decimal("13.0000"),
+        )
 
     def test_log_output_modify_existing_consumes_parent_and_returns_remainder(self):
         film = self._make_film("MT-FILM-MOD")

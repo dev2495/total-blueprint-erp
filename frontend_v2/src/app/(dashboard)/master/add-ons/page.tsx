@@ -87,6 +87,7 @@ function AddonForm({
   });
 
   const purchased = form.watch("is_purchasable");
+  const weightMode = form.watch("weight_mode");
 
   return (
     <Form {...form}>
@@ -154,7 +155,13 @@ function AddonForm({
             name="weight_value"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Weight (g)</FormLabel>
+                <FormLabel>
+                  {weightMode === "PER_MM"
+                    ? "Weight coefficient (g/mm)"
+                    : weightMode === "PER_PIECE"
+                      ? "Weight per piece (g)"
+                      : "Fixed weight (g)"}
+                </FormLabel>
                 <FormControl>
                   <Input
                     type="number"

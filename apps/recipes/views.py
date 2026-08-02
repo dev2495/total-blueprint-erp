@@ -1,9 +1,13 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import RecipeGrade, ExtrusionRecipe
 from .serializers import RecipeGradeSerializer, ExtrusionRecipeSerializer
+from .services import recipe_contract, refresh_open_sales_boms_for_recipe_contracts
 
 class RecipeGradeViewSet(viewsets.ModelViewSet):
     queryset = RecipeGrade.objects.all()
@@ -22,6 +26,18 @@ class ExtrusionRecipeViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['film_variant', 'grade', 'is_active']
     search_fields = ['film_variant__name', 'film_variant__code']
+
+    def perform_destroy(self, instance):
+        previous_contract = recipe_contract(instance)
+        try:
+            with transaction.atomic():
+                super().perform_destroy(instance)
+                refresh_open_sales_boms_for_recipe_contracts(
+                    [previous_contract],
+                    raise_on_error=True,
+                )
+        except DjangoValidationError as exc:
+            raise ValidationError({"bom_refresh": exc.messages}) from exc
 
     @action(detail=False, methods=['get'])
     def resolve(self, request):

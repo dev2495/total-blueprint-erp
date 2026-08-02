@@ -1,11 +1,14 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
+from unittest.mock import patch
 from rest_framework.test import APIClient
 
 from apps.artwork.models import Artwork
 from apps.factory.models import Process
-from apps.materials.models import InventoryMaterial, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
+from apps.materials.models import InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, ProductMaster, ProductMasterSize, ProductVariant
 from apps.materials.services_product_variant import find_or_create_product_variant, validate_axis_values
+from apps.materials.services_product_master_rebase import _current_size_axis_values, rebase_open_sales_lines_to_current_master
 from apps.recipes.models import RecipeGrade
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, CustomerProductOverlay, SalesOrder, SalesOrderItem
@@ -39,10 +42,11 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         product_id = response.data["id"]
         self.assertEqual(response.data["code"], "DRYFRUIT-STANDUP")
+        self.assertEqual(response.data["display_code"], "DRYFRUIT-STANDUP")
         self.assertEqual(response.data["product_kind"], "POUCH")
-        self.assertEqual(response.data["version_group"], "DRYFRUIT-STANDUP")
-        self.assertEqual(response.data["version"], 1)
-        self.assertTrue(response.data["is_current_version"])
+        self.assertNotIn("version_group", response.data)
+        self.assertNotIn("version", response.data)
+        self.assertNotIn("is_current_version", response.data)
 
         patch_response = self.client.patch(
             f"/api/master/products/{product_id}/",
@@ -53,6 +57,192 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(patch_response.status_code, 200)
         self.assertEqual(patch_response.data["name"], "Dry Fruit Standup Pouch Family")
         self.assertTrue(ProductMaster.objects.filter(code="DRYFRUIT-STANDUP").exists())
+
+    def test_product_master_create_allocates_unique_code_suffix(self):
+        ProductMaster.objects.create(
+            code="ROTO-PRINTING-BOPP",
+            name="Existing printing master",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+        )
+
+        response = self.client.post(
+            "/api/master/products/",
+            {
+                "code": "ROTO-PRINTING-BOPP",
+                "name": "New printing master",
+                "product_kind": "ROLL",
+                "default_reporting_group": "SEMI_FG",
+                "active": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data["code"], "ROTO-PRINTING-BOPP-2")
+        self.assertTrue(ProductMaster.objects.filter(code="ROTO-PRINTING-BOPP-2").exists())
+
+    def test_product_master_update_rejects_duplicate_code_without_500(self):
+        source = ProductMaster.objects.create(
+            code="PM-CODE-A",
+            name="Source master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+        target = ProductMaster.objects.create(
+            code="PM-CODE-B",
+            name="Target master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+
+        response = self.client.patch(
+            f"/api/master/products/{target.id}/",
+            {"code": source.code},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("internal immutable identity", str(response.data))
+        target.refresh_from_db()
+        self.assertEqual(target.code, "PM-CODE-B")
+
+    def test_workspace_save_updates_the_same_master_and_existing_sizes(self):
+        template = TemplateBlueprint.objects.create(
+            name="Workspace save live template",
+            fg_type="POUCH",
+            status="LIVE",
+            pouch_style="THREE_SIDE_SEAL",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-WORKSPACE-SAVE",
+            name="Workspace source",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=template,
+            default_template=template,
+        )
+        size = ProductMasterSize.objects.create(
+            product_master=master,
+            code="100X200",
+            label="100 x 200",
+            width_mm=100,
+            height_mm=200,
+            active=True,
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{master.id}/workspace-save/",
+            {
+                "name": "Workspace revised",
+                "template": str(template.id),
+                "default_template": str(template.id),
+                "sizes": [
+                    {
+                        "id": str(size.id),
+                        "code": "100X200",
+                        "label": "100 x 200 revised",
+                        "width_mm": 100,
+                        "height_mm": 200,
+                        "active": True,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["id"], str(master.id))
+        self.assertEqual(ProductMaster.objects.filter(version_group=master.version_group).count(), 1)
+        master.refresh_from_db()
+        size.refresh_from_db()
+        self.assertEqual(master.name, "Workspace revised")
+        self.assertEqual(size.label, "100 x 200 revised")
+        self.assertEqual(response.data["size_summary"], {"created": 0, "updated": 1, "retired": 0})
+
+    @patch(
+        "apps.sales.services.order_service.SalesOrderService.refresh_open_snapshots_for_product_master",
+        side_effect=ValidationError({"snapshot_refresh": "forced failure"}),
+    )
+    def test_workspace_save_rolls_back_when_open_order_refresh_fails(self, _refresh):
+        template = TemplateBlueprint.objects.create(
+            name="Workspace rollback template",
+            fg_type="POUCH",
+            status="LIVE",
+            pouch_style="THREE_SIDE_SEAL",
+        )
+        master = ProductMaster.objects.create(
+            code="PM-WORKSPACE-ROLLBACK",
+            name="Original master name",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+            template=template,
+            default_template=template,
+        )
+        size = ProductMasterSize.objects.create(
+            product_master=master,
+            code="120X220",
+            label="Original size label",
+            width_mm=120,
+            height_mm=220,
+            active=True,
+        )
+
+        response = self.client.post(
+            f"/api/master/products/{master.id}/workspace-save/",
+            {
+                "name": "Name that must roll back",
+                "sizes": [
+                    {
+                        "id": str(size.id),
+                        "code": size.code,
+                        "label": "Label that must roll back",
+                        "width_mm": 120,
+                        "height_mm": 220,
+                        "active": True,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.data)
+        master.refresh_from_db()
+        size.refresh_from_db()
+        self.assertEqual(master.name, "Original master name")
+        self.assertEqual(size.label, "Original size label")
+
+    def test_rebase_maps_renamed_size_by_frozen_dimensions(self):
+        master = ProductMaster.objects.create(
+            code="PM-RENAMED-SIZE",
+            name="Current master",
+            product_kind="POUCH",
+            default_reporting_group="FG",
+        )
+        ProductMasterSize.objects.create(
+            product_master=master,
+            code="10X14-2FT",
+            label="10X14+2FT",
+            width_mm=254,
+            height_mm=355,
+            gusset_mm=0,
+            active=True,
+        )
+        template = TemplateBlueprint.objects.create(name="Renamed-size template", fg_type="POUCH", status="LIVE")
+        order = SalesOrder.objects.create(customer_name="Size remap customer", status="PLANNING_REQUIRED")
+        item = SalesOrderItem.objects.create(
+            sales_order=order,
+            template=template,
+            product_master=master,
+            axis_values={"size": "10X14"},
+            geometry_snapshot={"base": {"width_mm": 254, "height_mm": 356}, "gusset_mm": 0},
+            qty_value=1,
+            qty_uom="PCS",
+            unit_price=1,
+        )
+
+        # Old inch-to-mm snapshots can differ by one millimetre after rounding.
+        self.assertEqual(_current_size_axis_values(item, master)["size"], "10X14-2FT")
 
     def test_product_master_detail_accepts_code_slug_for_nested_ui_links(self):
         product = ProductMaster.objects.create(
@@ -261,11 +451,20 @@ class ProductMasterApiTests(TestCase):
             qty_uom="KG",
         )
 
+        blocked = self.client.post(
+            f"/api/master/products/{source.id}/clone/",
+            {"disable_source": True},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn("confirm_new_revision", str(blocked.data))
+
         response = self.client.post(
             f"/api/master/products/{source.id}/clone/",
             {
                 "name": "Version source - revised route",
                 "disable_source": True,
+                "confirm_new_revision": True,
                 "copy_sizes": False,
                 "sizes": [
                     {
@@ -599,6 +798,7 @@ class ProductMasterApiTests(TestCase):
             {
                 "name": "Rebasable master flexo",
                 "disable_source": True,
+                "confirm_new_revision": True,
                 "copy_sizes": True,
                 "copy_variants": False,
                 "fixed_attributes": {
@@ -635,6 +835,18 @@ class ProductMasterApiTests(TestCase):
         self.assertEqual(issued_item.product_master_id, source.id)
         self.assertEqual(issued_item.sales_order.status, "PLANNED")
 
+        # A reviewed repair may correct a historical family key. The rebase
+        # must still select source-family demand, not the target's new key.
+        ProductMaster.objects.filter(id=clone.id).update(version_group="PM-REB-CORRECTED")
+        clone.refresh_from_db()
+        redirected_item = make_item("CONFIRMED")
+        redirect_summary = rebase_open_sales_lines_to_current_master(source, clone)
+        redirected_item.refresh_from_db()
+        self.assertEqual(redirect_summary["updated"], 1, redirect_summary)
+        self.assertEqual(redirect_summary["skipped"], 2, redirect_summary)
+        self.assertEqual(redirect_summary["failed"], 0, redirect_summary)
+        self.assertEqual(redirected_item.product_master_id, clone.id)
+
     def test_product_master_list_defaults_to_current_active_versions(self):
         old = ProductMaster.objects.create(
             code="PM-HISTORY",
@@ -660,13 +872,56 @@ class ProductMasterApiTests(TestCase):
 
         self.assertEqual(default_response.status_code, 200)
         self.assertEqual(history_response.status_code, 200)
-        default_codes = {row["code"] for row in default_response.data}
-        history_codes = {row["code"] for row in history_response.data}
-        disabled_codes = {row["code"] for row in disabled_response.data}
-        self.assertIn("PM-HISTORY-V2", default_codes)
-        self.assertNotIn("PM-HISTORY", default_codes)
-        self.assertIn("PM-HISTORY", history_codes)
-        self.assertIn("PM-HISTORY", disabled_codes)
+        default_ids = {row["id"] for row in default_response.data}
+        history_ids = {row["id"] for row in history_response.data}
+        disabled_ids = {row["id"] for row in disabled_response.data}
+        current_row = next(row for row in default_response.data if row["id"] == str(current.id))
+        self.assertEqual(current_row["code"], "PM-HISTORY")
+        self.assertNotIn(str(old.id), default_ids)
+        self.assertIn(str(old.id), history_ids)
+        self.assertIn(str(old.id), disabled_ids)
+
+    def test_superseded_product_master_cannot_be_restored(self):
+        replacement = ProductMaster.objects.create(
+            code="PM-RESTORE-CURRENT",
+            name="Current replacement",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+        )
+        superseded = ProductMaster.objects.create(
+            code="PM-RESTORE-OLD",
+            name="Superseded master",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+            active=False,
+            is_current_version=False,
+            superseded_by=replacement,
+        )
+
+        response = self.client.post(f"/api/master/products/{superseded.id}/restore/")
+
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn("superseded Product Master", str(response.data))
+        superseded.refresh_from_db()
+        self.assertFalse(superseded.active)
+        self.assertFalse(superseded.is_current_version)
+
+    def test_current_disabled_product_master_can_be_restored(self):
+        product = ProductMaster.objects.create(
+            code="PM-RESTORE-CURRENT-DISABLED",
+            name="Current disabled master",
+            product_kind="ROLL",
+            default_reporting_group="SEMI_FG",
+            active=False,
+            is_current_version=True,
+        )
+
+        response = self.client.post(f"/api/master/products/{product.id}/restore/")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        product.refresh_from_db()
+        self.assertTrue(product.active)
+        self.assertTrue(product.is_current_version)
 
     def test_packaging_catalog_create_allows_in_house_row_without_direct_template(self):
         response = self.client.post(
@@ -2116,6 +2371,51 @@ class ProductMasterApiTests(TestCase):
         row = response.data["layer_template"][0]
         self.assertEqual(row["grade_apportion"], "variable")
         self.assertEqual(set(row["grade_options"]), {"GP", "FOOD-A"})
+
+    def test_product_master_update_canonicalizes_and_deduplicates_renamed_film_options(self):
+        current = InventoryMaterial.objects.create(
+            code="PP-MONO-T",
+            name="Current PP mono",
+            category="FILM_VARIANT",
+            base_uom="KG",
+            is_purchasable=True,
+            is_extrudable=False,
+            status="ACTIVE",
+        )
+        MaterialCodeAlias.objects.create(
+            alias="PP-TUBING-T",
+            material=current,
+            category="FILM_VARIANT",
+            active=True,
+        )
+        product = ProductMaster.objects.create(
+            code="PM-ALT-ALIAS-DEDUPE-T",
+            name="Alternate alias dedupe PM",
+            product_kind="ROLL",
+            default_reporting_group="FILM",
+            fixed_attributes={"fg_type": "ROLL", "layer_count": 1},
+        )
+
+        response = self.client.patch(
+            f"/api/master/products/{product.id}/",
+            {
+                "layer_template": [
+                    {
+                        "role": "sealant",
+                        "material_code": current.code,
+                        "allowed_film_variant_codes": ["PP-TUBING-T", "PP-MONO-T"],
+                        "film_variant_options": ["PP-MONO-T", "PP-TUBING-T"],
+                        "thickness_micron": 60,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        row = response.data["layer_template"][0]
+        self.assertEqual(row["allowed_film_variant_codes"], ["PP-MONO-T"])
+        self.assertEqual(row["film_variant_options"], ["PP-MONO-T"])
 
     def test_find_or_create_variant_requires_resolved_layer_width(self):
         family = InventoryMaterial.objects.create(
