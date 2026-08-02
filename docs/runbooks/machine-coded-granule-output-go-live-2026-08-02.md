@@ -65,6 +65,20 @@ Verification results:
 - candidate AWS image Django check: **passed**;
 - database migrations: **current; none pending**.
 
+GitHub's branch-wide CI is not green, but neither failure was introduced by
+this release:
+
+- backend baseline `ca68544`: 969 tests, 66 unrelated permission/CSRF failures;
+- current branch: 971 tests, the same 66 failures—the two added machine tests
+  passed;
+- frontend audit fails before lint/build because the existing Next.js/sharp
+  lock is now covered by newly published npm advisories. This release made no
+  frontend or dependency change.
+
+The audit threshold was not weakened and unrelated permission, CSRF, or
+framework dependency behavior was not changed as part of this production
+incident.
+
 ## Production release evidence
 
 - Pre-deploy database backup:
