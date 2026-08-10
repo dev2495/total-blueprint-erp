@@ -1560,10 +1560,10 @@ export default function QuotationWorkspace({
                 </div>
                 {customerId ? (
                   <Link
-                    href={`/sales/customers/${customerId}`}
+                    href="/sales/customers"
                     className="text-[11px] font-extrabold uppercase tracking-wider text-order-fg hover:underline inline-flex items-center gap-1"
                   >
-                    Open <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
+                    Open master <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
                   </Link>
                 ) : null}
               </div>
@@ -2378,8 +2378,8 @@ function NewQuotationOnboarding({
             ) : !customersQuery.isLoading && customers.length === 0 ? (
               <div className="mt-3 rounded-lg bg-warning-bg ring-1 ring-warning-border p-4 text-[12px] font-bold text-warning-fg">
                 No customers in the system yet.
-                <Link href="/sales/customers/new" className="ml-2 underline">
-                  Add a customer
+                <Link href="/sales/customers" className="ml-2 underline">
+                  Open Customer Master
                 </Link>{" "}
                 first to start quoting.
               </div>
