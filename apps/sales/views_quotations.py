@@ -1,4 +1,6 @@
 import logging
+import hashlib
+from html import escape
 from decimal import Decimal
 
 from django.db import transaction
@@ -9,9 +11,11 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 
-from .models import Quotation, QuotationItem
+from .models import Quotation, QuotationArtifact, QuotationDelivery, QuotationItem
 from .serializers_quotations import QuotationSerializer
 from .services.quotation_costing import QuotationCostingService
+from .services.quotation_cost_build import QuotationCostBuildService
+from .services.quotation_lifecycle import QuotationLifecycleService, _can
 from .services.quotation_pdf import QuotationPDFService
 from .services.quotation_service import QuotationService
 
@@ -85,14 +89,17 @@ def _quote_item_readiness_errors(items):
 class QuotationViewSet(viewsets.ModelViewSet):
     queryset = (
         Quotation.objects.select_related("customer", "plant", "plant__legal_profile", "converted_sales_order")
-        .prefetch_related("items", "items__template")
+        .prefetch_related(
+            "items", "items__template", "approval_gates", "deliveries__artifact", "audit_events",
+            "cost_build__components",
+        )
         .order_by("-updated_at", "-created_at")
     )
     serializer_class = QuotationSerializer
 
     def create(self, request, *args, **kwargs):
         try:
-            quotation = QuotationService.create_quotation(request.data)
+            quotation = QuotationService.create_quotation(request.data, user=request.user)
             return Response(self.get_serializer(quotation).data, status=status.HTTP_201_CREATED)
         except Exception as exc:
             return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
@@ -100,7 +107,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         quotation = self.get_object()
         try:
-            quotation = QuotationService.update_quotation(quotation, request.data)
+            quotation = QuotationService.update_quotation(quotation, request.data, user=request.user)
             return Response(self.get_serializer(quotation).data)
         except Exception as exc:
             return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
@@ -125,7 +132,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
         quotation = self.get_object()
         items_payload = (request.data or {}).get("items") or []
         try:
-            QuotationService.bulk_update_items(quotation, items_payload)
+            QuotationService.bulk_update_items(quotation, items_payload, user=request.user)
             quotation.refresh_from_db()
             return Response(self.get_serializer(quotation).data)
         except Exception as exc:
@@ -134,466 +141,383 @@ class QuotationViewSet(viewsets.ModelViewSet):
                 status=self._error_status(exc),
             )
 
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Commercial quotations are never deleted. Use cancel or void with a reason."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    @action(detail=True, methods=["get", "post"], url_path="cost-build")
+    def cost_build(self, request, pk=None):
+        quotation = self.get_object()
+        if request.method == "GET":
+            try:
+                snapshot = quotation.cost_build
+            except Exception:
+                return Response({"status": "NOT_STARTED", "readiness": {"ready": False, "errors": ["Cost Build has not been saved."]}})
+            return Response({
+                "id": str(snapshot.id), "status": snapshot.status, "currency": snapshot.currency,
+                "pricing_definition": snapshot.pricing_definition, "target_percent": snapshot.target_percent,
+                "material_cost": snapshot.material_cost, "conversion_cost": snapshot.conversion_cost,
+                "total_cost": snapshot.total_cost, "list_price": snapshot.list_price,
+                "discount_amount": snapshot.discount_amount, "net_sale": snapshot.net_sale,
+                "tax_amount": snapshot.tax_amount, "rounding_amount": snapshot.rounding_amount,
+                "grand_total": snapshot.grand_total, "contribution": snapshot.contribution,
+                "markup_pct": snapshot.markup_pct, "gross_margin_pct": snapshot.gross_margin_pct,
+                "formula_version": snapshot.formula_version, "readiness": snapshot.readiness_snapshot,
+                "sensitivity": snapshot.sensitivity_snapshot, "source_snapshot": snapshot.source_snapshot,
+                "checksum": snapshot.checksum,
+                "components": [
+                    {
+                        "id": str(row.id), "quotation_item_id": str(row.quotation_item_id or ""),
+                        "category": row.category, "role": row.role, "label": row.label,
+                        "material_id": str(row.material_id or ""),
+                        "material_code": row.material.code if row.material_id else "",
+                        "material_name": row.material.name if row.material_id else "",
+                        "source_type": row.source_type,
+                        "source_ref": row.source_ref, "source_lot_ref": row.source_lot_ref,
+                        "source_effective_at": row.source_effective_at, "baseline_rate": row.baseline_rate,
+                        "baseline_available_qty": row.baseline_available_qty, "baseline_uom": row.baseline_uom,
+                        "quote_quantity": row.quote_quantity, "quote_uom": row.quote_uom,
+                        "effective_rate": row.effective_rate, "component_cost": row.component_cost,
+                        "override_rate": row.override_rate, "override_reason": row.override_reason,
+                        "override_status": row.override_status, "override_expires_at": row.override_expires_at,
+                        "readiness_status": row.readiness_status, "provenance": row.provenance,
+                    }
+                    for row in snapshot.components.select_related("material").all()
+                ],
+            })
+        try:
+            result = QuotationCostBuildService.persist(quotation, request.data or {}, user=request.user)
+            return Response(result)
+        except Exception as exc:
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
+    @action(detail=True, methods=["post"], url_path="approve-cost-overrides")
+    def approve_cost_overrides(self, request, pk=None):
+        try:
+            quotation = QuotationLifecycleService.approve_cost_overrides(
+                self.get_object(), user=request.user, reason=str((request.data or {}).get("reason") or "")
+            )
+            return Response(self.get_serializer(quotation).data)
+        except Exception as exc:
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
+    @action(detail=True, methods=["post"], url_path="submit-for-approval")
+    def submit_for_approval(self, request, pk=None):
+        try:
+            quotation = QuotationLifecycleService.submit(self.get_object(), user=request.user)
+            return Response(self.get_serializer(quotation).data)
+        except Exception as exc:
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
     @action(detail=False, methods=["post"], url_path="cost-preview")
     def cost_preview(self, request):
-        """Stateless ad-hoc cost preview. Body:
-        { spec: {...}, customer_id?, plant_id?, manual_margin_pct?, manual_rate? }
-        """
-        data = request.data or {}
-        spec = data.get("spec") or {}
-        customer = None
-        plant = None
-        customer_id = data.get("customer_id")
-        plant_id = data.get("plant_id")
-        if customer_id:
-            from .models import Customer
-
-            customer = Customer.objects.filter(id=customer_id).first()
-        if plant_id:
-            from apps.factory.models import Plant
-
-            plant = Plant.objects.filter(id=plant_id).first()
-
-        try:
-            result = QuotationCostingService.compute(
-                spec=spec,
-                customer=customer,
-                plant=plant,
-                manual_margin_pct=_safe_dec(data.get("manual_margin_pct")),
-                manual_rate=_safe_dec(data.get("manual_rate")),
-            )
-            return Response(result.to_dict())
-        except Exception as exc:
-            return Response(
-                {"detail": self._error_detail(exc)},
-                status=self._error_status(exc),
-            )
+        return Response(
+            {
+                "detail": (
+                    "The legacy stateless cost preview is retired because it could use ungoverned defaults. "
+                    "Save the draft first, then use /quotations/{id}/cost-build/ for source-backed costing."
+                )
+            },
+            status=status.HTTP_410_GONE,
+        )
 
     @action(detail=False, methods=["post"], url_path="production-preview")
     def production_preview(self, request):
-        """Lightweight production estimate for a single line spec.
-
-        Returns approximate pouches/parent-roll, parent rolls needed,
-        machine time and a `material_availability` list (the only piece
-        that is currently load-bearing for sales — they want to know
-        whether the BOM materials are in stock).
-
-        Body: { spec: {...}, plant_id?, qty?, qty_uom? }
-        """
-        from decimal import Decimal
-        data = request.data or {}
-        spec = data.get("spec") or {}
-        raw_qty = data.get("qty")
-        qty = Decimal("100") if raw_qty in (None, "") else _safe_dec(raw_qty)
-        if qty is None or qty < 0:
-            raise DRFValidationError({"qty": "Enter a finite, non-negative number."})
-        qty_uom = (data.get("qty_uom") or "KG").upper()
-        if qty_uom not in {"KG", "PCS"}:
-            raise DRFValidationError({"qty_uom": "Use KG or PCS."})
-
-        def _preview_decimal(value, field, *, default=Decimal("0")):
-            if value in (None, ""):
-                return default
-            parsed = _safe_dec(value)
-            if parsed is None or parsed < 0:
-                raise DRFValidationError({field: "Enter a finite, non-negative number."})
-            return parsed
-
-        # ── Pouch geometry → area ──
-        width = _preview_decimal(spec.get("width_mm"), "spec.width_mm")
-        height = _preview_decimal(spec.get("height_mm"), "spec.height_mm")
-        gusset = _preview_decimal(spec.get("gusset_mm"), "spec.gusset_mm")
-        # web length per pouch (approx, single-face flat or two-faces folded)
-        web_length_mm = height + gusset
-        # finished web width (mm) = pouch width + gusset (per side approximation)
-        child_web_mm = width + gusset
-        parent_web_mm = Decimal("440")  # typical 17" parent roll
-        # area per pouch (single ply, m²)
-        area_m2 = (Decimal("2") * width * height + Decimal("2") * gusset * height) / Decimal("1000000")
-
-        # ── Layer GSM → grams per pouch ──
-        layers = spec.get("layers") or []
-        for index, layer in enumerate(layers, start=1):
-            if not isinstance(layer, dict):
-                raise DRFValidationError({"spec": f"Layer {index} is invalid."})
-        try:
-            from apps.materials.models import InventoryMaterial
-        except Exception:
-            InventoryMaterial = None  # type: ignore
-        material_map = {}
-        material_ids = [
-            str(layer.get("material_id"))
-            for layer in layers
-            if layer.get("material_id")
-        ]
-        if material_ids and InventoryMaterial is not None:
-            material_map = {
-                str(mat.id): mat
-                for mat in InventoryMaterial.objects.only(
-                    "id", "code", "name", "density_gcm3"
-                ).filter(id__in=material_ids)
-            }
-
-        def _layer_gsm(layer):
-            gsm = _preview_decimal(layer.get("gsm"), "spec.layers.gsm")
-            if gsm > 0:
-                return gsm
-            micron = _preview_decimal(layer.get("micron"), "spec.layers.micron")
-            density = _preview_decimal(layer.get("density_gcm3"), "spec.layers.density_gcm3")
-            mat = material_map.get(str(layer.get("material_id") or ""))
-            if density <= 0 and mat is not None:
-                density = _safe_dec(getattr(mat, "density_gcm3", None)) or Decimal("0")
-            if micron > 0 and density > 0:
-                return micron * density
-            return Decimal("0")
-
-        total_gsm = Decimal("0")
-        for layer in layers:
-            total_gsm += _layer_gsm(layer)
-        for extra in ("adhesive_gsm", "ink_gsm"):
-            total_gsm += _preview_decimal(spec.get(extra), f"spec.{extra}")
-        grams_per_pouch = area_m2 * total_gsm  # gsm = g/m² × m² = grams
-        weight_per_pouch_kg = grams_per_pouch / Decimal("1000")
-
-        # ── Convert qty into pouches and KG ──
-        if qty_uom == "KG":
-            total_kg = qty
-            pouches_needed = (qty / weight_per_pouch_kg) if weight_per_pouch_kg > 0 else Decimal("0")
-        else:
-            pouches_needed = qty
-            total_kg = qty * weight_per_pouch_kg
-
-        # ── Parent roll yield ──
-        try:
-            lanes = int((parent_web_mm / child_web_mm) if child_web_mm > 0 else 1)
-        except Exception:
-            lanes = 1
-        lanes = max(1, lanes)
-        # 200 KG yields per parent roll, simple constant approximation
-        parent_roll_kg = Decimal("200")
-        parent_rolls_needed = (total_kg / parent_roll_kg) if parent_roll_kg > 0 else Decimal("0")
-        pouches_per_parent_roll = Decimal("0")
-        if weight_per_pouch_kg > 0:
-            pouches_per_parent_roll = parent_roll_kg / weight_per_pouch_kg
-
-        # ── Machine time: 25 KG/hour rough constant ──
-        machine_time_hrs = total_kg / Decimal("25") if total_kg > 0 else Decimal("0")
-
-        # ── Per-material availability ──
-        availability_rows = []
-        for layer in layers:
-            mat_id = layer.get("material_id")
-            if not mat_id:
-                continue
-            gsm = _layer_gsm(layer)
-            if total_gsm <= 0:
-                needed_kg = Decimal("0")
-            else:
-                needed_kg = (gsm / total_gsm) * total_kg
-            mat_code = layer.get("material_code") or ""
-            mat_name = layer.get("name") or layer.get("material_name") or mat_code
-            available_kg = Decimal("0")
-            if InventoryMaterial is not None:
-                try:
-                    from apps.inventory.models import StockBalance
-                    from django.db import models as djmodels
-                    agg = StockBalance.objects.filter(material_id=mat_id).aggregate(
-                        total=djmodels.Sum("qty")
-                    )
-                    available_kg = Decimal(str(agg["total"] or 0))
-                except Exception as exc:
-                    logger.warning(
-                        "production-preview material availability lookup failed for %s: %s",
-                        mat_id,
-                        exc,
-                        exc_info=True,
-                    )
-                    available_kg = Decimal("0")
-            availability_rows.append({
-                "material_id": str(mat_id),
-                "material_code": mat_code,
-                "material_name": mat_name,
-                "needed_kg": float(needed_kg.quantize(Decimal("0.01"))),
-                "available_kg": float(available_kg.quantize(Decimal("0.01"))),
-                "ok": bool(available_kg >= needed_kg) if needed_kg > 0 else True,
-            })
-
-        return Response({
-            "pouches_needed": float(pouches_needed.quantize(Decimal("1"))),
-            "total_kg": float(total_kg.quantize(Decimal("0.01"))),
-            "weight_per_pouch_g": float(grams_per_pouch.quantize(Decimal("0.001"))),
-            "lanes_per_parent": lanes,
-            "pouches_per_parent_roll": float(pouches_per_parent_roll.quantize(Decimal("1"))) * lanes,
-            "parent_rolls_needed": float(parent_rolls_needed.quantize(Decimal("0.01"))),
-            "machine_time_hrs": float(machine_time_hrs.quantize(Decimal("0.01"))),
-            "child_web_mm": float(child_web_mm.quantize(Decimal("0.1"))),
-            "material_availability": availability_rows,
-            "note": (
-                "Estimate uses single 440 mm parent web and 200 KG/roll constant. "
-                "Wire to actual web-width policy + machine speeds for production-grade output."
-            ),
-        })
-
+        return Response(
+            {
+                "detail": (
+                    "The legacy production estimate is retired because it used fixed web, roll-weight, and speed constants. "
+                    "Configure Web Width Policy, machine/process rates, and inventory sources before a governed preview."
+                )
+            },
+            status=status.HTTP_410_GONE,
+        )
     @action(detail=True, methods=["post"], url_path="clone-revision")
     def clone_revision(self, request, pk=None):
+        from copy import deepcopy
+        from apps.materials.models import ProductMaster, ProductMasterSize, ProductVariant
+
         original = self.get_object()
         try:
             with transaction.atomic():
                 original = Quotation.objects.select_for_update().get(pk=original.pk)
-                items = list(original.items.all())
+                next_revision = (
+                    Quotation.objects.select_for_update()
+                    .filter(revision_root_id=original.revision_root_id)
+                    .order_by("-revision_no")
+                    .values_list("revision_no", flat=True)
+                    .first()
+                    or original.revision_no
+                ) + 1
                 clone = Quotation.objects.create(
-                    customer=original.customer,
-                    customer_name=original.customer_name,
-                    plant=original.plant,
-                    status="DRAFT",
-                    valid_until=original.valid_until,
-                    currency=original.currency,
-                    terms=original.terms,
-                    notes=original.notes,
-                    totals_snapshot=dict(original.totals_snapshot or {}),
-                    parent_quotation=original,
-                    revision_no=original.revision_no + 1,
+                    customer=original.customer, customer_name=original.customer_name,
+                    enquiry_reference=original.enquiry_reference, contact_name=original.contact_name,
+                    contact_email=original.contact_email, contact_phone=original.contact_phone,
+                    billing_address=original.billing_address, shipping_address=original.shipping_address,
+                    plant=original.plant, status="DRAFT", valid_until=original.valid_until,
+                    currency=original.currency, terms=original.terms, payment_terms=original.payment_terms,
+                    delivery_terms=original.delivery_terms, requested_delivery_date=original.requested_delivery_date,
+                    place_of_supply=original.place_of_supply, tax_snapshot=deepcopy(original.tax_snapshot or {}),
+                    notes=original.notes, custom_terms=original.custom_terms, discount_pct=original.discount_pct,
+                    discount_amount=original.discount_amount, freight_amount=original.freight_amount,
+                    freight_included=original.freight_included, other_charges=deepcopy(original.other_charges or []),
+                    gst_rate=original.gst_rate, parent_quotation=original,
+                    revision_root_id=original.revision_root_id, revision_no=next_revision,
                 )
-                for it in items:
-                    QuotationItem.objects.create(
-                        quotation=clone,
-                        template=it.template,
-                        sku_variant=it.sku_variant,
-                        line_name=it.line_name,
-                        finished_good_type=it.finished_good_type,
-                        roll_form=it.roll_form,
-                        qty_value=it.qty_value,
-                        qty_uom=it.qty_uom,
-                        price_basis=it.price_basis,
-                        geometry_snapshot=dict(it.geometry_snapshot or {}),
-                        layer_snapshot=list(it.layer_snapshot or []),
-                        printing_snapshot=dict(it.printing_snapshot or {}),
-                        chemicals_snapshot=dict(it.chemicals_snapshot or {}),
-                        addons_snapshot=list(it.addons_snapshot or []),
-                        packaging_snapshot=dict(it.packaging_snapshot or {}),
-                        physics_snapshot=dict(it.physics_snapshot or {}),
-                        bom_snapshot=dict(it.bom_snapshot or {}),
-                        process_cost_rows=list(it.process_cost_rows or []),
-                        commercial_snapshot=dict(it.commercial_snapshot or {}),
-                        costing_snapshot=dict(it.costing_snapshot or {}),
-                        unit_weight_g=it.unit_weight_g,
-                        total_weight_kg=it.total_weight_kg,
-                        quoted_unit_price=it.quoted_unit_price,
-                        quoted_line_total=it.quoted_line_total,
-                        line_kind=it.line_kind,
-                        spec_snapshot=dict(it.spec_snapshot or {}),
-                        margin_lock=it.margin_lock,
-                        manual_rate_override=it.manual_rate_override,
-                    )
-            return Response(
-                self.get_serializer(clone).data, status=status.HTTP_201_CREATED
-            )
+                item_payloads = []
+                for item in original.items.select_related("product_master", "product_variant", "product_master_size").all():
+                    old_pm = item.product_master
+                    current_pm = old_pm
+                    if old_pm and not old_pm.is_current_version:
+                        current_pm = ProductMaster.objects.filter(
+                            version_group=old_pm.version_group, active=True, is_current_version=True
+                        ).first()
+                    if not current_pm:
+                        raise ValueError(f"{item.line_name}: no current Base Product Master version is available.")
+                    variant_id = None
+                    size_id = None
+                    if item.line_kind == "CATALOG":
+                        if item.product_variant_id:
+                            match = ProductVariant.objects.filter(
+                                master=current_pm, code=item.product_variant.code, active=True
+                            ).first()
+                            if not match:
+                                raise ValueError(f"{item.line_name}: ready Product Variant is not available under the current Product Master version.")
+                            variant_id = str(match.id)
+                        if item.product_master_size_id:
+                            match_size = ProductMasterSize.objects.filter(
+                                product_master=current_pm, code=item.product_master_size.code, active=True
+                            ).first()
+                            if not match_size:
+                                raise ValueError(f"{item.line_name}: Product Size is not available under the current Product Master version.")
+                            size_id = str(match_size.id)
+                    spec = deepcopy(item.spec_snapshot or {})
+                    spec["base_product_master_id"] = str(current_pm.id)
+                    spec.pop("product_master_id", None)
+                    spec.pop("save_as_master", None)
+                    item_payloads.append({
+                        "line_kind": item.line_kind, "line_name": item.line_name,
+                        "product_master_id": str(current_pm.id), "product_variant_id": variant_id,
+                        "size_id": size_id, "sku_variant_id": str(item.sku_variant_id or "") or None,
+                        "pouch_style_id": str(item.pouch_style_master_id or "") or None,
+                        "qty_value": str(item.qty_value), "qty_uom": item.qty_uom,
+                        "price_basis": item.price_basis, "rate": str(item.quoted_unit_price),
+                        "spec_snapshot": spec, "printing_snapshot": deepcopy(item.printing_snapshot or {}),
+                        "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
+                        "hsn_code": item.hsn_code, "gst_rate": str(item.gst_rate),
+                    })
+                QuotationService.bulk_update_items(clone, item_payloads, user=request.user)
+            return Response(self.get_serializer(clone).data, status=status.HTTP_201_CREATED)
         except Exception as exc:
-            return Response(
-                {"detail": self._error_detail(exc)},
-                status=self._error_status(exc),
-            )
-
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
     @action(detail=True, methods=["post"], url_path="send")
     def send(self, request, pk=None):
+        from apps.users.services.email_service import EmailDeliveryService
+
         quotation = self.get_object()
-        via = (request.data or {}).get("via", "pdf_only")
-        recipients = (request.data or {}).get("recipients") or []
-        user = getattr(request, "user", None)
-        # Guard: customer + at least one valid line required before send.
-        if not quotation.customer_id and not (quotation.customer_name or "").strip():
-            return Response(
-                {"detail": "Pick a customer before sending the quotation."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        items = list(quotation.items.all())
-        if not items:
-            return Response(
-                {"detail": "Add at least one line before sending the quotation."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        bad_lines = [
-            it.line_name or str(it.id)
-            for it in items
-            if (it.qty_value or 0) <= 0 or (it.quoted_unit_price or 0) <= 0
-        ]
-        if bad_lines:
-            return Response(
-                {"detail": f"Lines have zero qty or price: {', '.join(bad_lines)}."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        readiness_errors = _quote_item_readiness_errors(items)
-        if readiness_errors:
-            return Response(
-                {"detail": readiness_errors[0], "errors": readiness_errors},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        recipients = (request.data or {}).get("recipients") or [quotation.contact_email]
+        recipients = sorted({str(value).strip().lower() for value in recipients if str(value).strip()})
         try:
+            if quotation.status != "APPROVED":
+                raise ValueError("Only an approved frozen revision can be sent.")
+            if not _can(request.user, "sales.quote.send"):
+                raise ValueError("You do not have permission to release client quotations.")
+            if not recipients:
+                raise ValueError("At least one client email recipient is required.")
+            governed_recipient = str(quotation.contact_email or "").strip().lower()
+            if not governed_recipient or any(recipient != governed_recipient for recipient in recipients):
+                raise ValueError(
+                    "Client quotation may only be released to the frozen quotation contact email. "
+                    "Create a new revision to change the recipient."
+                )
+            configured, reason = EmailDeliveryService.configuration_status()
+            if not configured:
+                raise ValueError(f"Email delivery is not configured: {reason}.")
+            pdf_bytes = QuotationPDFService.render_pdf_bytes(quotation, customer_view=True)
+            checksum = hashlib.sha256(pdf_bytes).hexdigest()
+            filename = f"{quotation.quote_number}-R{quotation.revision_no}.pdf"
+            # Create immutable release evidence before crossing the external
+            # email boundary. A provider failure remains auditable instead of
+            # disappearing in a rolled-back transaction.
             with transaction.atomic():
                 quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
-                if quotation.status == "DRAFT":
-                    quotation.status = "SENT"
-                quotation.sent_at = timezone.now()
-                if user is not None and getattr(user, "is_authenticated", False):
-                    quotation.sent_by = user
-                quotation.save(update_fields=["status", "sent_at", "sent_by", "updated_at"])
-                QuotationService.append_status_history(
-                    quotation, status="SENT", user=user, note=f"Sent via {via}"
-                )
-                # Best-effort notification — outbound delivery is V2.
-                try:
-                    from apps.users.services.notification_service import NotificationService
+                if quotation.status != "APPROVED":
+                    raise ValueError("Quotation status changed; reload before sending.")
+                artifact = QuotationArtifact.objects.filter(
+                    quotation=quotation, artifact_type="CLIENT_PDF", checksum=checksum
+                ).first()
+                if not artifact:
+                    artifact = QuotationArtifact.objects.create(
+                        quotation=quotation, artifact_type="CLIENT_PDF", filename=filename,
+                        byte_length=len(pdf_bytes), checksum=checksum,
+                        provenance={
+                            "customer_view": True, "quotation_snapshot_checksum": quotation.frozen_snapshot.get("checksum"),
+                            "cost_checksum": quotation.cost_build.checksum, "revision_no": quotation.revision_no,
+                        },
+                        generated_by=request.user,
+                    )
+                deliveries = []
+                for recipient in recipients:
+                    frozen_checksum = str((quotation.frozen_snapshot or {}).get("checksum") or "")
+                    if not frozen_checksum:
+                        raise ValueError("Approved quotation is missing its frozen revision checksum.")
+                    idempotency_key = (
+                        f"quotation:{quotation.id}:R{quotation.revision_no}:"
+                        f"{frozen_checksum}:{recipient}"
+                    )
+                    delivery, _ = QuotationDelivery.objects.get_or_create(
+                        idempotency_key=idempotency_key,
+                        defaults={
+                            "quotation": quotation, "artifact": artifact, "channel": "EMAIL",
+                            "recipient": recipient, "requested_by": request.user,
+                        },
+                    )
+                    deliveries.append(delivery)
 
-                    NotificationService.create_notification(
-                        user_ids=[],
-                        title=f"Quotation {quotation.quote_number} sent",
+            delivered = []
+            for delivery in deliveries:
+                if delivery.status == "DELIVERED":
+                    delivered.append(delivery)
+                    continue
+                try:
+                    result = EmailDeliveryService.send_email(
+                        subject=f"Quotation {quotation.quote_number} / Revision {quotation.revision_no}",
                         body=(
-                            f"Quote {quotation.quote_number} for "
-                            f"{quotation.customer_name} sent via {via}."
+                            f"<p>Dear {escape(quotation.contact_name)},</p>"
+                            f"<p>Please find attached quotation <strong>{escape(quotation.quote_number)}</strong>, revision {quotation.revision_no}. "
+                            f"It is valid until {quotation.valid_until:%d-%b-%Y}.</p>"
                         ),
-                        category="sales.quotation.sent",
+                        recipients=[delivery.recipient], idempotency_key=delivery.idempotency_key,
+                        attachments=[{"filename": filename, "content": pdf_bytes, "content_type": "application/pdf"}],
                     )
                 except Exception as exc:
+                    delivery.status = "FAILED"
+                    delivery.error_text = str(exc)[:2000]
+                    delivery.save(update_fields=["status", "error_text"])
                     logger.warning(
-                        "quotation send notification failed for %s: %s",
-                        quotation.quote_number,
-                        exc,
+                        "Quotation client delivery failed for quote %s revision %s",
+                        quotation.id,
+                        quotation.revision_no,
                         exc_info=True,
                     )
-            return Response(
-                {
-                    "id": str(quotation.id),
-                    "status": quotation.status,
-                    "sent_at": quotation.sent_at,
-                    "via": via,
-                    "recipients": recipients,
-                }
-            )
+                    raise ValueError(
+                        "Email provider did not confirm delivery. The failed attempt is recorded; "
+                        "retry from this approved revision."
+                    ) from exc
+                delivery.status = "DELIVERED"
+                delivery.provider = str(result.get("provider") or "")
+                delivery.provider_message_id = str(result.get("provider_message_id") or "")
+                delivery.delivered_at = timezone.now()
+                delivery.error_text = ""
+                delivery.save(update_fields=["status", "provider", "provider_message_id", "delivered_at", "error_text"])
+                delivered.append(delivery)
+            if len(delivered) != len(recipients):
+                raise ValueError("Not every requested recipient has delivery evidence.")
+            with transaction.atomic():
+                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
+                if quotation.status not in {"APPROVED", "SENT"}:
+                    raise ValueError("Quotation status changed; reload before sending.")
+                quotation.status = "SENT"
+                quotation.sent_at = timezone.now()
+                quotation.sent_by = request.user
+                quotation.save(update_fields=["status", "sent_at", "sent_by", "updated_at"])
+                from .models import QuotationAuditEvent
+                QuotationAuditEvent.objects.create(
+                    quotation=quotation, event_type="CLIENT_DELIVERY_CONFIRMED",
+                    after_snapshot={
+                        "artifact_id": str(artifact.id), "artifact_checksum": checksum,
+                        "delivery_ids": [str(row.id) for row in delivered], "recipients": recipients,
+                    }, actor=request.user,
+                )
+            return Response({"id": str(quotation.id), "status": "SENT", "artifact_checksum": checksum, "recipients": recipients})
         except Exception as exc:
-            return Response(
-                {"detail": self._error_detail(exc)},
-                status=self._error_status(exc),
-            )
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):
-        quotation = self.get_object()
-        user = getattr(request, "user", None)
-        # Guard: must be DRAFT or SENT with at least one priced line.
-        items = list(quotation.items.all())
-        if not items:
-            return Response(
-                {"detail": "Cannot approve an empty quotation."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if any((it.qty_value or 0) <= 0 or (it.quoted_unit_price or 0) <= 0 for it in items):
-            return Response(
-                {"detail": "Every line needs qty > 0 and a unit price > 0 before approval."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        readiness_errors = _quote_item_readiness_errors(items)
-        if readiness_errors:
-            return Response(
-                {"detail": readiness_errors[0], "errors": readiness_errors},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         try:
-            with transaction.atomic():
-                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
-                if quotation.status not in ("DRAFT", "SENT"):
-                    return Response(
-                        {"detail": f"Cannot approve a {quotation.status} quotation."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                quotation.status = "APPROVED"
-                quotation.approved_at = timezone.now()
-                if user is not None and getattr(user, "is_authenticated", False):
-                    quotation.approved_by = user
-                quotation.save(
-                    update_fields=[
-                        "status",
-                        "approved_at",
-                        "approved_by",
-                        "updated_at",
-                    ]
-                )
-                QuotationService.append_status_history(
-                    quotation, status="APPROVED", user=user
-                )
-            return Response(
-                {
-                    "id": str(quotation.id),
-                    "status": quotation.status,
-                    "approved_at": quotation.approved_at,
-                }
+            quotation = QuotationLifecycleService.approve_gate(
+                self.get_object(), gate=str((request.data or {}).get("gate") or "COMMERCIAL"),
+                user=request.user, reason=str((request.data or {}).get("reason") or ""),
             )
+            return Response(self.get_serializer(quotation).data)
         except Exception as exc:
-            return Response(
-                {"detail": self._error_detail(exc)},
-                status=self._error_status(exc),
-            )
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
 
     @action(detail=True, methods=["post"], url_path="reject")
     def reject(self, request, pk=None):
-        quotation = self.get_object()
-        user = getattr(request, "user", None)
-        reason = str((request.data or {}).get("reason") or "").strip()
         try:
-            with transaction.atomic():
-                quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
-                if quotation.status in ("CONVERTED",):
-                    return Response(
-                        {"detail": "Cannot reject a converted quotation."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                quotation.status = "REJECTED"
-                quotation.rejection_reason = reason
-                if user is not None and getattr(user, "is_authenticated", False):
-                    quotation.rejected_by = user
-                quotation.save(
-                    update_fields=["status", "rejection_reason", "rejected_by", "updated_at"]
-                )
-                QuotationService.append_status_history(
-                    quotation, status="REJECTED", user=user, note=reason
-                )
-            return Response(
-                {"id": str(quotation.id), "status": quotation.status, "rejection_reason": reason}
+            quotation = QuotationLifecycleService.reject_approval(
+                self.get_object(), gate=str((request.data or {}).get("gate") or "COMMERCIAL"),
+                user=request.user, reason=str((request.data or {}).get("reason") or ""),
             )
+            return Response(self.get_serializer(quotation).data)
         except Exception as exc:
-            return Response(
-                {"detail": self._error_detail(exc)},
-                status=self._error_status(exc),
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
+    @action(detail=True, methods=["post"], url_path="client-outcome")
+    def client_outcome(self, request, pk=None):
+        try:
+            data = request.data or {}
+            quotation = QuotationLifecycleService.record_client_outcome(
+                self.get_object(), outcome=data.get("outcome"), reference=str(data.get("reference") or ""),
+                channel=str(data.get("channel") or ""), reason=str(data.get("reason") or ""), user=request.user,
             )
+            return Response(self.get_serializer(quotation).data)
+        except Exception as exc:
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel(self, request, pk=None):
+        try:
+            quotation = QuotationLifecycleService.cancel_or_void(
+                self.get_object(), action="CANCEL", reason=str((request.data or {}).get("reason") or ""), user=request.user
+            )
+            return Response(self.get_serializer(quotation).data)
+        except Exception as exc:
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
+    @action(detail=True, methods=["post"], url_path="void")
+    def void(self, request, pk=None):
+        try:
+            quotation = QuotationLifecycleService.cancel_or_void(
+                self.get_object(), action="VOID", reason=str((request.data or {}).get("reason") or ""), user=request.user
+            )
+            return Response(self.get_serializer(quotation).data)
+        except Exception as exc:
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
 
     @action(detail=True, methods=["post"], url_path="expire")
     def expire(self, request, pk=None):
         quotation = self.get_object()
-        user = getattr(request, "user", None)
         try:
             with transaction.atomic():
                 quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
-                if quotation.status in ("CONVERTED", "REJECTED"):
-                    return Response(
-                        {"detail": f"Cannot expire a {quotation.status} quotation."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                if quotation.status != "SENT":
+                    raise ValueError("Only a sent quotation can expire.")
+                if not quotation.valid_until or quotation.valid_until >= timezone.localdate():
+                    raise ValueError("Quotation validity date has not elapsed.")
                 quotation.status = "EXPIRED"
                 quotation.save(update_fields=["status", "updated_at"])
-                QuotationService.append_status_history(
-                    quotation, status="EXPIRED", user=user
+                from .models import QuotationAuditEvent
+                QuotationAuditEvent.objects.create(
+                    quotation=quotation, event_type="EXPIRED", actor=request.user,
+                    after_snapshot={"valid_until": quotation.valid_until.isoformat()},
                 )
-            return Response({"id": str(quotation.id), "status": quotation.status})
+            return Response(self.get_serializer(quotation).data)
         except Exception as exc:
-            return Response(
-                {"detail": self._error_detail(exc)},
-                status=self._error_status(exc),
-            )
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
 
     @action(detail=True, methods=["get"], url_path="pdf")
     def pdf(self, request, pk=None):
         quotation = self.get_object()
         customer_view = str(request.query_params.get("customer_view") or "").lower() in ("1", "true", "yes")
         try:
+            if customer_view and quotation.status not in {"APPROVED", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"}:
+                raise ValueError("Client PDF is only available for an approved frozen revision.")
             pdf_bytes = QuotationPDFService.render_pdf_bytes(
                 quotation, customer_view=customer_view
             )
@@ -616,17 +540,17 @@ class QuotationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="convert-to-order")
     def convert_to_order(self, request, pk=None):
         quotation = self.get_object()
-        if quotation.status != "APPROVED":
+        if quotation.status != "ACCEPTED":
             return Response(
-                {"detail": "Only APPROVED quotations can be converted to a sales order."},
+                {"detail": "Only an ACCEPTED delivered quotation can be converted to a sales order."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         try:
             with transaction.atomic():
                 quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
-                if quotation.status != "APPROVED":
+                if quotation.status != "ACCEPTED":
                     return Response(
-                        {"detail": "Only APPROVED quotations can be converted to a sales order."},
+                        {"detail": "Only an ACCEPTED delivered quotation can be converted to a sales order."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 order = QuotationService.convert_to_sales_order(quotation)
@@ -654,6 +578,6 @@ class QuotationViewSet(viewsets.ModelViewSet):
 
     @staticmethod
     def _error_status(exc):
-        if exc.__class__.__name__ == "ValidationError":
+        if exc.__class__.__name__ == "ValidationError" or isinstance(exc, ValueError):
             return status.HTTP_400_BAD_REQUEST
         return status.HTTP_500_INTERNAL_SERVER_ERROR

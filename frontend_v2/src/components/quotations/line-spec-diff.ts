@@ -3,7 +3,7 @@
 // A catalog line's `spec_snapshot` mirrors the master's BOM at attach time.
 // `master_snapshot` is the immutable reference. We compute a list of paths
 // that differ so the UI can render an amber "MODIFIED" chip and let the
-// operator either reset the field or promote the change back to master.
+// operator can reset the field while preserving the quote-scoped override.
 
 import type {
   QuoteLineSpec,

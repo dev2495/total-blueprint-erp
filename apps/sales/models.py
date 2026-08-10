@@ -191,9 +191,25 @@ class SalesOrder(models.Model):
     
     # Linked Customer (New Phase 19)
     customer = models.ForeignKey('Customer', on_delete=models.PROTECT, null=True, blank=True, related_name='sales_orders')
+    source_quotation_revision = models.OneToOneField(
+        'Quotation',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='converted_order',
+    )
     ship_to_customer = models.ForeignKey('Customer', on_delete=models.PROTECT, null=True, blank=True, related_name='ship_to_sales_orders')
     ship_to_customer_name = models.CharField(max_length=255, blank=True, default="")
     address_override = models.TextField(blank=True, default="")
+    bill_to_address = models.TextField(blank=True, default="")
+    ship_to_address = models.TextField(blank=True, default="")
+    customer_po_reference = models.CharField(max_length=160, blank=True, default="")
+    payment_terms = models.TextField(blank=True, default="")
+    delivery_terms = models.TextField(blank=True, default="")
+    currency = models.CharField(max_length=10, default="INR")
+    quote_commercial_snapshot = models.JSONField(default=dict, blank=True)
+    quote_cost_snapshot = models.JSONField(default=dict, blank=True)
+    quote_acceptance_snapshot = models.JSONField(default=dict, blank=True)
     remarks = models.TextField(blank=True, default="")
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
@@ -365,6 +381,12 @@ class SalesOrderItem(models.Model):
     source_chip = models.CharField(max_length=20, choices=SOURCE_CHIP_CHOICES, default='WIZARD')
     source_ref = models.CharField(max_length=80, blank=True, default='')
     material_overrides = models.JSONField(default=list, blank=True)
+    quote_variant_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Immutable quote-scoped configuration and Base Product Master lineage carried from the accepted quotation revision.",
+    )
+    quote_cost_snapshot = models.JSONField(default=dict, blank=True)
     bom_material_cost = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     bom_margin_pct = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
@@ -561,10 +583,14 @@ class SalesSkuVariant(models.Model):
 class Quotation(models.Model):
     STATUS_CHOICES = [
         ("DRAFT", "Draft"),
+        ("PENDING_APPROVAL", "Pending Approval"),
+        ("APPROVED", "Approved For Release"),
         ("SENT", "Sent"),
-        ("APPROVED", "Approved"),
+        ("ACCEPTED", "Accepted By Customer"),
         ("REJECTED", "Rejected"),
         ("EXPIRED", "Expired"),
+        ("CANCELLED", "Cancelled"),
+        ("VOID", "Void"),
         ("CONVERTED", "Converted"),
     ]
 
@@ -578,6 +604,12 @@ class Quotation(models.Model):
         related_name="quotations",
     )
     customer_name = models.CharField(max_length=255)
+    enquiry_reference = models.CharField(max_length=120, blank=True, default="")
+    contact_name = models.CharField(max_length=255, blank=True, default="")
+    contact_email = models.EmailField(blank=True, default="")
+    contact_phone = models.CharField(max_length=40, blank=True, default="")
+    billing_address = models.TextField(blank=True, default="")
+    shipping_address = models.TextField(blank=True, default="")
     plant = models.ForeignKey(
         Plant,
         on_delete=models.PROTECT,
@@ -589,6 +621,11 @@ class Quotation(models.Model):
     valid_until = models.DateField(null=True, blank=True)
     currency = models.CharField(max_length=10, default="INR")
     terms = models.TextField(blank=True, default="")
+    payment_terms = models.TextField(blank=True, default="")
+    delivery_terms = models.TextField(blank=True, default="")
+    requested_delivery_date = models.DateField(null=True, blank=True)
+    place_of_supply = models.CharField(max_length=120, blank=True, default="")
+    tax_snapshot = models.JSONField(default=dict, blank=True)
     notes = models.TextField(blank=True, default="")
     totals_snapshot = models.JSONField(default=dict, blank=True)
     converted_sales_order = models.ForeignKey(
@@ -605,6 +642,7 @@ class Quotation(models.Model):
         blank=True,
         related_name="revisions",
     )
+    revision_root_id = models.UUIDField(default=uuid.uuid4, db_index=True)
     revision_no = models.PositiveIntegerField(default=1)
     sent_at = models.DateTimeField(null=True, blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)
@@ -647,12 +685,48 @@ class Quotation(models.Model):
         blank=True,
         related_name="quotations_rejected",
     )
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotations_acceptance_recorded",
+    )
+    acceptance_reference = models.CharField(max_length=160, blank=True, default="")
+    acceptance_channel = models.CharField(max_length=40, blank=True, default="")
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotations_cancelled",
+    )
+    cancellation_reason = models.TextField(blank=True, default="")
+    voided_at = models.DateTimeField(null=True, blank=True)
+    voided_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotations_voided",
+    )
+    void_reason = models.TextField(blank=True, default="")
+    frozen_at = models.DateTimeField(null=True, blank=True)
+    frozen_snapshot = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "sales_quotations"
         ordering = ["-updated_at", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["revision_root_id", "revision_no"],
+                name="sales_quote_root_revision_unique",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         if not self.quote_number:
@@ -707,6 +781,55 @@ class QuotationItem(models.Model):
         blank=True,
         related_name="quotation_items",
     )
+    product_master = models.ForeignKey(
+        "materials.ProductMaster",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_items",
+    )
+    product_master_size = models.ForeignKey(
+        "materials.ProductMasterSize",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_items",
+    )
+    product_variant = models.ForeignKey(
+        "materials.ProductVariant",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_items",
+    )
+    pouch_style_master = models.ForeignKey(
+        "materials.PouchStyleMaster",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_items",
+    )
+    artwork = models.ForeignKey(
+        "artwork.Artwork",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_items",
+    )
+    revised_from_item = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="revision_items",
+    )
+    converted_sales_order_item = models.OneToOneField(
+        "SalesOrderItem",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="source_quotation_item",
+    )
     line_name = models.CharField(max_length=255, blank=True, default="")
     finished_good_type = models.CharField(max_length=20, choices=FG_TYPE_CHOICES, default="POUCH")
     roll_form = models.CharField(max_length=20, choices=ROLL_FORM_CHOICES, blank=True, default="")
@@ -726,6 +849,9 @@ class QuotationItem(models.Model):
     process_cost_rows = models.JSONField(default=list, blank=True)
     commercial_snapshot = models.JSONField(default=dict, blank=True)
     costing_snapshot = models.JSONField(default=dict, blank=True)
+    canonical_source_snapshot = models.JSONField(default=dict, blank=True)
+    spec_signature = models.CharField(max_length=128, blank=True, default="", db_index=True)
+    cost_snapshot_checksum = models.CharField(max_length=64, blank=True, default="")
 
     unit_weight_g = models.DecimalField(max_digits=16, decimal_places=6, default=0)
     total_weight_kg = models.DecimalField(max_digits=16, decimal_places=6, default=0)
@@ -733,8 +859,8 @@ class QuotationItem(models.Model):
     quoted_line_total = models.DecimalField(max_digits=15, decimal_places=4, default=0)
 
     LINE_KIND_CHOICES = [
-        ("CATALOG", "Catalog"),
-        ("AD_HOC", "Ad-hoc"),
+        ("CATALOG", "Existing ready product / variant"),
+        ("AD_HOC", "Quote-scoped variant under Base Product Master"),
     ]
     line_kind = models.CharField(
         max_length=12, choices=LINE_KIND_CHOICES, default="CATALOG"
@@ -743,10 +869,10 @@ class QuotationItem(models.Model):
         default=dict,
         blank=True,
         help_text=(
-            "Full pouch spec for ad-hoc lines. Shape: "
+            "Immutable quote-scoped configuration derived from an existing Base Product Master. Shape: "
             "{ pouch_style_id, width_mm, height_mm, gusset_mm, flap_mm, "
-            "layers: [{material_id, micron, gsm}], adhesive, print, addons, "
-            "child_web_width_mm, save_as_master? }"
+            "layers: [{material_id, micron, gsm}], inks, adhesives, solvents, additives, "
+            "addons, child_web_width_mm }. It never creates or mutates master data."
         ),
     )
     margin_lock = models.BooleanField(
@@ -766,6 +892,8 @@ class QuotationItem(models.Model):
             "Stays even if cost changes underneath."
         ),
     )
+    hsn_code = models.CharField(max_length=20, blank=True, default="")
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -776,6 +904,426 @@ class QuotationItem(models.Model):
 
     def __str__(self):
         return f"{self.quotation.quote_number} - {self.line_name or self.finished_good_type}"
+
+
+class QuotationCostSnapshot(models.Model):
+    STATUS_CHOICES = [("DRAFT", "Draft"), ("FROZEN", "Frozen")]
+    PRICING_DEFINITION_CHOICES = [
+        ("MARKUP_ON_COST", "Markup On Cost"),
+        ("GROSS_MARGIN_ON_SALES", "Gross Margin On Net Sales"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation = models.OneToOneField(
+        Quotation,
+        on_delete=models.CASCADE,
+        related_name="cost_build",
+    )
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="DRAFT")
+    currency = models.CharField(max_length=10, default="INR")
+    pricing_definition = models.CharField(
+        max_length=32,
+        choices=PRICING_DEFINITION_CHOICES,
+        default="GROSS_MARGIN_ON_SALES",
+    )
+    target_percent = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0"))
+    material_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    conversion_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    total_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    list_price = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    discount_amount = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    net_sale = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    tax_amount = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    rounding_amount = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    grand_total = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    contribution = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    markup_pct = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0"))
+    gross_margin_pct = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0"))
+    formula_version = models.CharField(max_length=40, default="QUOTE_COST_V2")
+    sensitivity_snapshot = models.JSONField(default=dict, blank=True)
+    readiness_snapshot = models.JSONField(default=dict, blank=True)
+    source_snapshot = models.JSONField(default=dict, blank=True)
+    effective_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    checksum = models.CharField(max_length=64, blank=True, default="", db_index=True)
+    frozen_at = models.DateTimeField(null=True, blank=True)
+    frozen_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_snapshots_frozen",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sales_quotation_cost_snapshots"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = type(self).objects.filter(pk=self.pk).only("status").first()
+            if previous and previous.status == "FROZEN":
+                raise ValidationError("A frozen quotation cost snapshot is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.status == "FROZEN":
+            raise ValidationError("A frozen quotation cost snapshot cannot be deleted.")
+        return super().delete(*args, **kwargs)
+
+
+class QuotationCostComponent(models.Model):
+    CATEGORY_CHOICES = [
+        ("MATERIAL", "Raw Material"),
+        ("PROCESS", "Machine / Process"),
+        ("LABOUR", "Labour"),
+        ("OVERHEAD", "Overhead"),
+        ("WASTAGE", "Wastage / Yield"),
+        ("PACKING", "Packing"),
+        ("FREIGHT", "Freight"),
+        ("OTHER", "Other"),
+    ]
+    SOURCE_CHOICES = [
+        ("MATERIAL_COST_SNAPSHOT", "Material Cost Snapshot"),
+        ("INVENTORY_FIFO", "Inventory FIFO Source"),
+        ("INVENTORY_AVERAGE", "Inventory Average"),
+        ("PROCESS_RATE", "Process Rate"),
+        ("COST_POOL", "Plant Cost Pool"),
+        ("PACKING_RECIPE", "Packing Recipe"),
+        ("MASTER_POLICY", "Master Policy"),
+        ("QUOTE_OVERRIDE", "Approved Quote Override"),
+        ("MISSING", "Missing Source"),
+    ]
+    OVERRIDE_STATUS_CHOICES = [
+        ("NOT_REQUIRED", "Not Required"),
+        ("PENDING", "Pending Approval"),
+        ("APPROVED", "Approved"),
+        ("REJECTED", "Rejected"),
+    ]
+    READINESS_CHOICES = [
+        ("READY", "Ready"),
+        ("PENDING_APPROVAL", "Pending Approval"),
+        ("MISSING_SOURCE", "Missing Source"),
+        ("EXPIRED", "Expired"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    cost_snapshot = models.ForeignKey(
+        QuotationCostSnapshot,
+        on_delete=models.CASCADE,
+        related_name="components",
+    )
+    quotation_item = models.ForeignKey(
+        QuotationItem,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="cost_components",
+    )
+    sequence = models.PositiveIntegerField(default=1)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    role = models.CharField(max_length=40, blank=True, default="")
+    label = models.CharField(max_length=180)
+    material = models.ForeignKey(
+        "materials.InventoryMaterial",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_components",
+    )
+    material_cost_snapshot = models.ForeignKey(
+        "costing.MaterialCostSnapshot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_components",
+    )
+    process = models.ForeignKey(
+        "factory.Process",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_components",
+    )
+    machine = models.ForeignKey(
+        "factory.Machine",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_components",
+    )
+    process_cost_rate = models.ForeignKey(
+        "costing.ProcessCostRate",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_components",
+    )
+    source_type = models.CharField(max_length=32, choices=SOURCE_CHOICES, default="MISSING")
+    source_ref = models.CharField(max_length=180, blank=True, default="")
+    source_version = models.CharField(max_length=80, blank=True, default="")
+    source_lot_ref = models.CharField(max_length=120, blank=True, default="")
+    source_effective_at = models.DateTimeField(null=True, blank=True)
+    source_expires_at = models.DateTimeField(null=True, blank=True)
+    baseline_quantity = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("0"))
+    baseline_uom = models.CharField(max_length=16, blank=True, default="")
+    baseline_rate = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("0"))
+    baseline_available_qty = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("0"))
+    quote_quantity = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("0"))
+    quote_uom = models.CharField(max_length=16, blank=True, default="")
+    effective_rate = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("0"))
+    component_cost = models.DecimalField(max_digits=18, decimal_places=6, default=Decimal("0"))
+    override_rate = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True)
+    override_reason = models.TextField(blank=True, default="")
+    override_status = models.CharField(
+        max_length=20,
+        choices=OVERRIDE_STATUS_CHOICES,
+        default="NOT_REQUIRED",
+    )
+    override_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_overrides_entered",
+    )
+    override_at = models.DateTimeField(null=True, blank=True)
+    override_expires_at = models.DateTimeField(null=True, blank=True)
+    override_approved_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_cost_overrides_approved",
+    )
+    override_approved_at = models.DateTimeField(null=True, blank=True)
+    readiness_status = models.CharField(
+        max_length=24,
+        choices=READINESS_CHOICES,
+        default="MISSING_SOURCE",
+    )
+    provenance = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sales_quotation_cost_components"
+        ordering = ["sequence", "created_at"]
+        indexes = [
+            models.Index(fields=["cost_snapshot", "category", "sequence"], name="sales_qcost_snap_cat_seq"),
+            models.Index(fields=["material", "source_effective_at"], name="sales_qcost_mat_effective"),
+        ]
+
+    def clean(self):
+        if self.category == "MATERIAL" and not self.material_id:
+            raise ValidationError({"material": "Material cost components must reference the RM master."})
+        if self.override_rate is not None:
+            if not self.override_reason.strip():
+                raise ValidationError({"override_reason": "Quote cost overrides require a reason."})
+            if not self.override_by_id or not self.override_at or not self.override_expires_at:
+                raise ValidationError("Quote cost overrides require actor, timestamp, and expiry.")
+
+    def save(self, *args, **kwargs):
+        if self.cost_snapshot_id:
+            snapshot_status = QuotationCostSnapshot.objects.filter(pk=self.cost_snapshot_id).values_list("status", flat=True).first()
+            if snapshot_status == "FROZEN":
+                raise ValidationError("Components in a frozen quotation cost snapshot are immutable.")
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.cost_snapshot.status == "FROZEN":
+            raise ValidationError("Components in a frozen quotation cost snapshot cannot be deleted.")
+        return super().delete(*args, **kwargs)
+
+
+class QuotationApproval(models.Model):
+    GATE_CHOICES = [
+        ("COMMERCIAL", "Commercial"),
+        ("FINANCE", "Finance / Credit"),
+        ("ENGINEERING", "Engineering"),
+        ("DELIVERY", "Delivery Commitment"),
+    ]
+    STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("APPROVED", "Approved"),
+        ("REJECTED", "Rejected"),
+        ("NOT_REQUIRED", "Not Required"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name="approval_gates")
+    gate = models.CharField(max_length=24, choices=GATE_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+    reason = models.TextField(blank=True, default="")
+    requested_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_approvals_requested",
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    decided_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_approvals_decided",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    snapshot_checksum = models.CharField(max_length=64, blank=True, default="")
+
+    class Meta:
+        db_table = "sales_quotation_approvals"
+        constraints = [
+            models.UniqueConstraint(fields=["quotation", "gate"], name="sales_quote_gate_unique"),
+        ]
+
+
+class QuotationArtifact(models.Model):
+    TYPE_CHOICES = [("CLIENT_PDF", "Client PDF"), ("INTERNAL_PDF", "Internal PDF")]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation = models.ForeignKey(Quotation, on_delete=models.PROTECT, related_name="artifacts")
+    artifact_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    filename = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=80, default="application/pdf")
+    byte_length = models.PositiveBigIntegerField(default=0)
+    checksum = models.CharField(max_length=64, db_index=True)
+    provenance = models.JSONField(default=dict, blank=True)
+    generated_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_artifacts_generated",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "sales_quotation_artifacts"
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Quotation artifacts are immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Quotation artifacts cannot be deleted; void the quotation instead.")
+
+
+class QuotationDelivery(models.Model):
+    CHANNEL_CHOICES = [("EMAIL", "Email"), ("SECURE_LINK", "Secure Link"), ("PDF_RELEASE", "PDF Release")]
+    STATUS_CHOICES = [("PENDING", "Pending"), ("DELIVERED", "Delivered"), ("FAILED", "Failed")]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation = models.ForeignKey(Quotation, on_delete=models.PROTECT, related_name="deliveries")
+    artifact = models.ForeignKey(QuotationArtifact, on_delete=models.PROTECT, related_name="deliveries")
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES)
+    recipient = models.CharField(max_length=255)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+    provider = models.CharField(max_length=40, blank=True, default="")
+    provider_message_id = models.CharField(max_length=160, blank=True, default="")
+    idempotency_key = models.CharField(max_length=180, unique=True)
+    attempted_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    error_text = models.TextField(blank=True, default="")
+    requested_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_deliveries_requested",
+    )
+
+    class Meta:
+        db_table = "sales_quotation_deliveries"
+        ordering = ["-attempted_at"]
+
+
+class QuotationAcceptance(models.Model):
+    OUTCOME_CHOICES = [("ACCEPTED", "Accepted"), ("REJECTED", "Rejected")]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation = models.OneToOneField(Quotation, on_delete=models.PROTECT, related_name="client_outcome")
+    outcome = models.CharField(max_length=20, choices=OUTCOME_CHOICES)
+    reference = models.CharField(max_length=160, blank=True, default="")
+    channel = models.CharField(max_length=40, blank=True, default="")
+    reason = models.TextField(blank=True, default="")
+    received_at = models.DateTimeField()
+    recorded_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_outcomes_recorded",
+    )
+    snapshot_checksum = models.CharField(max_length=64)
+
+    class Meta:
+        db_table = "sales_quotation_acceptances"
+
+
+class QuotationAuditEvent(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation = models.ForeignKey(Quotation, on_delete=models.PROTECT, related_name="audit_events")
+    event_type = models.CharField(max_length=60, db_index=True)
+    note = models.TextField(blank=True, default="")
+    before_snapshot = models.JSONField(default=dict, blank=True)
+    after_snapshot = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    actor = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quotation_audit_events",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "sales_quotation_audit_events"
+        ordering = ["created_at", "id"]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Quotation audit events are append-only.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Quotation audit events cannot be deleted.")
+
+
+class QuotationActualVariance(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    quotation_item = models.OneToOneField(
+        QuotationItem,
+        on_delete=models.PROTECT,
+        related_name="actual_variance",
+    )
+    sales_order_item = models.OneToOneField(
+        SalesOrderItem,
+        on_delete=models.PROTECT,
+        related_name="quotation_variance",
+    )
+    quoted_material_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    quoted_conversion_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    quoted_total_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    actual_material_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    actual_conversion_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    actual_total_cost = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    variance_amount = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
+    variance_percent = models.DecimalField(max_digits=10, decimal_places=4, default=Decimal("0"))
+    actual_coverage_pct = models.DecimalField(max_digits=8, decimal_places=2, default=Decimal("0"))
+    source_snapshot = models.JSONField(default=dict, blank=True)
+    calculated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sales_quotation_actual_variances"
 
 
 # Trade Orders — resale flow, kept separate from manufacturing sales orders.

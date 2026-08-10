@@ -5,7 +5,6 @@ import { useMutation } from "@tanstack/react-query";
 import {
   ChevronDown,
   Copy as CopyIcon,
-  Loader2,
   Package,
   Save,
   Trash2,
@@ -13,10 +12,8 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 import {
   quotationService,
-  type CostingResult,
   type ProductMasterBom,
   type QuoteLineInnerPack,
   type QuoteLineSpec,
@@ -24,13 +21,10 @@ import {
 import CatalogLinePicker, {
   type CatalogPickerSelection,
 } from "@/components/quotations/catalog-line-picker";
-import CostingRail from "@/components/quotations/costing-rail";
 import LineSpecBuilder, {
-  lineSpecToBackendSpec,
   type LineSpecValue,
 } from "@/components/quotations/line-spec-builder";
 import VarianceRibbon from "@/components/quotations/variance-ribbon";
-import ProductionPreviewCard from "@/components/quotations/production-preview-card";
 import {
   bomStripText,
   diffSpecVsMaster,
@@ -80,6 +74,7 @@ const EMPTY_SPEC: LineSpecValue = {
   layers: [],
   adhesive: { gsm: 0, rate_per_kg: 0, name: "" },
   ink: { gsm: 0, rate_per_kg: 0, name: "", coverage: "MANUAL" },
+  solvent: { gsm: 0, rate_per_kg: 0, name: "" },
   addons: [],
   features: {},
 };
@@ -141,20 +136,33 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       child_target_width_mm?: number | null;
       child_web_width_mm?: number | null;
       optional_inner_pack?: QuoteLineInnerPack | null;
-      save_as_master?: boolean;
     };
-  const adhesive = s.adhesive || {
-    gsm: Number(s.adhesive_gsm ?? EMPTY_SPEC.adhesive.gsm),
+  const adhesiveSource = s.adhesive;
+  const adhesive: NonNullable<LineSpecValue["adhesive"]> = {
+    material_id: adhesiveSource?.material_id,
+    code: adhesiveSource?.code,
+    gsm: Number(adhesiveSource?.gsm ?? s.adhesive_gsm ?? EMPTY_SPEC.adhesive.gsm),
     rate_per_kg: Number(
-      s.adhesive_rate_per_kg ?? EMPTY_SPEC.adhesive.rate_per_kg,
+      adhesiveSource?.rate_per_kg ?? s.adhesive_rate_per_kg ?? EMPTY_SPEC.adhesive.rate_per_kg,
     ),
-    name: s.adhesive_name || "",
+    name: String(adhesiveSource?.name || s.adhesive_name || ""),
   };
-  const ink = s.ink || {
-    gsm: Number(s.ink_gsm ?? EMPTY_SPEC.ink.gsm),
-    rate_per_kg: Number(s.ink_rate_per_kg ?? EMPTY_SPEC.ink.rate_per_kg),
-    name: s.ink_name || "",
-    coverage: "MANUAL",
+  const inkSource = s.ink;
+  const ink: NonNullable<LineSpecValue["ink"]> = {
+    material_id: inkSource?.material_id,
+    code: inkSource?.code,
+    gsm: Number(inkSource?.gsm ?? s.ink_gsm ?? EMPTY_SPEC.ink.gsm),
+    rate_per_kg: Number(inkSource?.rate_per_kg ?? s.ink_rate_per_kg ?? EMPTY_SPEC.ink.rate_per_kg),
+    name: String(inkSource?.name || s.ink_name || ""),
+    coverage: inkSource?.coverage || "MANUAL",
+  };
+  const solventSource = Array.isArray(s.solvents) ? s.solvents[0] : undefined;
+  const solvent: NonNullable<LineSpecValue["solvent"]> = {
+    material_id: solventSource?.material_id,
+    code: solventSource?.material_code,
+    name: solventSource?.material_name || solventSource?.name || "",
+    gsm: Number(solventSource?.gsm || 0),
+    rate_per_kg: 0,
   };
   const hasLayerArray = Array.isArray(s.layers);
   const layers =
@@ -238,6 +246,7 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       gsm: Number(ink.gsm ?? 0),
       rate_per_kg: Number(ink.rate_per_kg ?? 0),
     },
+    solvent,
     addons: (s.addons || []).map((a) => ({
       material_id: a.material_id || undefined,
       code: a.code,
@@ -247,10 +256,6 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
     })),
     optional_inner_pack: s.optional_inner_pack || null,
     features: s.features || {},
-    save_as_master:
-      typeof s.save_as_master === "boolean"
-        ? s.save_as_master
-        : item.line_kind === "AD_HOC",
   };
 }
 
@@ -295,18 +300,30 @@ function lineSpecToSpecSnapshot(
     gusset_mm: snapshot.gusset_mm,
     flap_mm: snapshot.flap_mm,
     layers: snapshot.layers,
-    adhesive: snapshot.adhesive,
-    ink: snapshot.ink,
-    adhesive_name: snapshot.adhesive.name,
-    adhesive_gsm: snapshot.adhesive.gsm,
-    adhesive_rate_per_kg: snapshot.adhesive.rate_per_kg,
-    ink_name: snapshot.ink.name,
-    ink_gsm: snapshot.ink.gsm,
-    ink_rate_per_kg: snapshot.ink.rate_per_kg,
+    adhesives: snapshot.adhesive.material_id && snapshot.adhesive.gsm > 0 ? [{
+      material_id: snapshot.adhesive.material_id,
+      material_code: snapshot.adhesive.code,
+      material_name: snapshot.adhesive.name,
+      gsm: snapshot.adhesive.gsm,
+      uom: "KG",
+    }] : [],
+    inks: snapshot.ink.material_id && snapshot.ink.gsm > 0 ? [{
+      material_id: snapshot.ink.material_id,
+      material_code: snapshot.ink.code,
+      material_name: snapshot.ink.name,
+      gsm: snapshot.ink.gsm,
+      uom: "KG",
+    }] : [],
+    solvents: snapshot.solvent.material_id && snapshot.solvent.gsm > 0 ? [{
+      material_id: snapshot.solvent.material_id,
+      material_code: snapshot.solvent.code,
+      material_name: snapshot.solvent.name,
+      gsm: snapshot.solvent.gsm,
+      uom: "KG",
+    }] : [],
     addons: snapshot.addons,
     optional_inner_pack: snapshot.optional_inner_pack || null,
     features: snapshot.features,
-    save_as_master: snapshot.save_as_master,
     master_snapshot: masterSnapshot,
   };
 }
@@ -316,6 +333,10 @@ function normalizeLineSpecForRules(value: LineSpecValue): LineSpecValue {
   const adhesive =
     layerCount > 1
       ? value.adhesive
+      : { material_id: null, code: "", name: "", gsm: 0, rate_per_kg: 0 };
+  const solvent =
+    layerCount > 1
+      ? value.solvent
       : { material_id: null, code: "", name: "", gsm: 0, rate_per_kg: 0 };
   const ink = value.print_capable
     ? value.ink
@@ -331,6 +352,7 @@ function normalizeLineSpecForRules(value: LineSpecValue): LineSpecValue {
     return {
       ...value,
       adhesive,
+      solvent,
       ink,
       artwork_id: null,
       artwork_code: null,
@@ -342,7 +364,7 @@ function normalizeLineSpecForRules(value: LineSpecValue): LineSpecValue {
       artwork_ink_gsm_total: null,
     };
   }
-  return { ...value, adhesive, ink };
+  return { ...value, adhesive, solvent, ink };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -351,8 +373,6 @@ function normalizeLineSpecForRules(value: LineSpecValue): LineSpecValue {
 
 interface QuotationLineCardProps {
   item: DraftItem;
-  customerId?: string;
-  plantId?: string;
   isOpen: boolean;
   onToggle: () => void;
   onChange: (next: DraftItem) => void;
@@ -364,8 +384,6 @@ interface QuotationLineCardProps {
 
 export default function QuotationLineCard({
   item,
-  customerId,
-  plantId,
   isOpen,
   onToggle,
   onChange,
@@ -374,7 +392,6 @@ export default function QuotationLineCard({
   onSaveLine,
   canPersist,
 }: QuotationLineCardProps) {
-  const { toast } = useToast();
   const lineSpec = useMemo(() => specSnapshotToLineSpec(item), [item]);
   const masterSnapshot = (
     item.spec_snapshot as { master_snapshot?: MasterSnapshot } | undefined
@@ -486,7 +503,6 @@ export default function QuotationLineCard({
           })),
           features: {},
           optional_inner_pack: lineSpec.optional_inner_pack || null,
-          save_as_master: isAdHoc ? lineSpec.save_as_master !== false : false,
         };
         // Build the master_snapshot baseline.
         const normalizedHydratedSpec = normalizeLineSpecForRules(hydratedSpec);
@@ -553,113 +569,6 @@ export default function QuotationLineCard({
     () => new Set(modifiedFields.map((f) => f.path)),
     [modifiedFields],
   );
-
-  // ── Live cost preview (debounced) ──────────────────────────────────────
-  const previewMut = useMutation({
-    mutationFn: () =>
-      quotationService.costPreview({
-        spec: lineSpecToBackendSpec(lineSpec),
-        customer_id: customerId || null,
-        plant_id: plantId || null,
-        manual_margin_pct: item.margin_lock ? (item.margin_pct ?? null) : null,
-        manual_rate: item.margin_lock ? null : item.rate || null,
-      }),
-    onSuccess: (data) => {
-      onChange({
-        ...item,
-        margin_pct: item.margin_lock
-          ? item.margin_pct
-          : Number(data.margin_pct || 0),
-        rate:
-          item.margin_lock && data.suggested_rate
-            ? Number(data.suggested_rate)
-            : item.rate,
-        costing_snapshot: {
-          material_cost_per_kg: data.material_cost_per_kg,
-          conversion_cost_per_kg: data.conversion_cost_per_kg,
-          total_cost_per_kg: data.total_cost_per_kg,
-          margin_pct: data.margin_pct,
-          margin_source: data.margin_source,
-          suggested_rate: data.suggested_rate,
-          breakdown: data.breakdown,
-          warnings: data.warnings,
-          is_indicative: data.is_indicative,
-        },
-      });
-    },
-  });
-
-  const previewKey = JSON.stringify({
-    s: lineSpec,
-    m: item.margin_lock,
-    p: item.margin_pct,
-    r: item.rate,
-    c: customerId,
-    pl: plantId,
-  });
-  useEffect(() => {
-    if (!lineSpec.width_mm || !lineSpec.height_mm) return;
-    if ((lineSpec.layers || []).length === 0) return;
-    const t = setTimeout(() => previewMut.mutate(), 300);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewKey]);
-
-  // ── Promote modified BOM back to master ────────────────────────────────
-  const promoteMut = useMutation({
-    mutationFn: (pmId: string) =>
-      quotationService.updateProductMasterBom(pmId, {
-        layers: lineSpec.layers,
-        adhesive: normalizeLineSpecForRules(lineSpec).adhesive,
-        ink: normalizeLineSpecForRules(lineSpec).ink,
-        addons: lineSpec.addons,
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Master updated",
-        description: "Future orders of this product will use the new BOM.",
-      });
-      // Restamp master_snapshot so the line shows MATCHES MASTER going forward.
-      const baseline: MasterSnapshot = {
-        width_mm: lineSpec.width_mm,
-        height_mm: lineSpec.height_mm,
-        gusset_mm: lineSpec.gusset_mm,
-        flap_mm: lineSpec.flap_mm,
-        pouch_style_id: lineSpec.pouch_style_id,
-        pouch_style_code: lineSpec.pouch_style_code,
-        pouch_style_roll_axis: lineSpec.pouch_style_roll_axis,
-        stock_form: lineSpec.stock_form,
-        width_basis: lineSpec.width_basis,
-        film_area_width_mm: lineSpec.film_area_width_mm,
-        print_capable: lineSpec.print_capable,
-        artwork_required: lineSpec.artwork_required,
-        artwork_id: lineSpec.artwork_id,
-        artwork_code: lineSpec.artwork_code,
-        artwork_name: lineSpec.artwork_name,
-        artwork_print_type: lineSpec.artwork_print_type,
-        artwork_substrate_mode: lineSpec.artwork_substrate_mode,
-        artwork_front_colors_count: lineSpec.artwork_front_colors_count,
-        artwork_back_colors_count: lineSpec.artwork_back_colors_count,
-        artwork_ink_gsm_total: lineSpec.artwork_ink_gsm_total,
-        child_target_width_mm: lineSpec.child_target_width_mm,
-        layers: lineSpec.layers.map((l) => ({ ...l })),
-        adhesive: { ...normalizeLineSpecForRules(lineSpec).adhesive },
-        ink: { ...normalizeLineSpecForRules(lineSpec).ink },
-        addons: lineSpec.addons.map((a) => ({ ...a })),
-        features: {},
-      };
-      onChange({
-        ...item,
-        spec_snapshot: lineSpecToSpecSnapshot(lineSpec, baseline),
-      });
-    },
-    onError: (e: Error) =>
-      toast({
-        title: "Promote failed",
-        description: e.message,
-        variant: "destructive",
-      }),
-  });
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -790,7 +699,6 @@ export default function QuotationLineCard({
           height_mm: sel.height_mm || current.height_mm,
           gusset_mm: sel.gusset_mm || current.gusset_mm,
           flap_mm: sel.flap_mm || current.flap_mm,
-          save_as_master: current.save_as_master !== false,
         },
       });
       return;
@@ -850,21 +758,15 @@ export default function QuotationLineCard({
       features?: Record<string, boolean>;
     },
   );
-  const costing = item.costing_snapshot as
-    | {
-        material_cost_per_kg?: number;
-        conversion_cost_per_kg?: number;
-        total_cost_per_kg?: number;
-        margin_pct?: number;
-        margin_source?: string;
-        suggested_rate?: number;
-        breakdown?: CostingResult["breakdown"];
-        warnings?: string[];
-        is_indicative?: boolean;
-      }
-    | undefined;
-  const totalCost = Number(costing?.total_cost_per_kg || 0);
-  const margin = Number(costing?.margin_pct || item.margin_pct || 0);
+  const totalGsm = (lineSpec.layers || []).reduce(
+    (sum, layer) => sum + Number(layer.gsm || 0),
+    Number(lineSpec.adhesive?.gsm || 0) + Number(lineSpec.ink?.gsm || 0),
+  );
+  const areaM2 =
+    (2 * Number(lineSpec.width_mm || 0) * Number(lineSpec.height_mm || 0) +
+      2 * Number(lineSpec.gusset_mm || 0) * Number(lineSpec.height_mm || 0)) /
+    1_000_000;
+  const unitWeightG = areaM2 * totalGsm;
   const adHocNeedsBase =
     item.line_kind === "AD_HOC" && !lineSpec.base_product_master_id;
 
@@ -926,11 +828,6 @@ export default function QuotationLineCard({
             ₹ {inr(lineTotal)}
           </div>
         </div>
-        {item.margin_pct !== null && item.margin_pct !== undefined ? (
-          <span className="inline-flex items-center h-5 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-order-bg text-order-fg ring-1 ring-order-border font-mono">
-            {inr(item.margin_pct)}%
-          </span>
-        ) : null}
         <button
           onClick={onDuplicate}
           className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-content-4 hover:text-content-2 hover:bg-surface-2"
@@ -950,20 +847,15 @@ export default function QuotationLineCard({
       {/* Expanded body */}
       {isOpen ? (
         <div className="border-t border-line p-4 bg-surface-2 space-y-4">
-          {/* Price/cost ribbon */}
+          {/* Governed specification ribbon */}
           <div className="rounded-xl bg-gradient-to-r from-order-fg via-order-fg to-order-fg text-white p-3 flex flex-wrap items-center gap-3 shadow-[0_18px_42px_-30px_rgba(99,102,241,0.6)]">
-            <RibbonStat label="Cost ₹/kg" value={`₹ ${inr(totalCost)}`} />
+            <RibbonStat label="Pouch GSM" value={inr(totalGsm)} />
+            <RibbonStat label="Weight / pc" value={`${inr(unitWeightG)} g`} />
             <RibbonStat label="Rate ₹/kg" value={`₹ ${inr(item.rate)}`} />
-            <RibbonStat label="Margin" value={`${inr(margin)}%`} />
             <RibbonStat label="Line total" value={`₹ ${inr(lineTotal)}`} />
-            {costing?.margin_source ? (
-              <span className="ml-auto inline-flex items-center h-6 px-2.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-surface-1/15 ring-1 ring-surface-1/25">
-                Margin: {costing.margin_source}
-              </span>
-            ) : null}
-            {previewMut.isPending ? (
-              <Loader2 className="h-4 w-4 text-white/80 animate-spin" />
-            ) : null}
+            <span className="ml-auto inline-flex items-center h-6 px-2.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-surface-1/15 ring-1 ring-surface-1/25">
+              Costed in quote-level Cost Build
+            </span>
           </div>
 
           <CatalogLinePicker
@@ -974,7 +866,7 @@ export default function QuotationLineCard({
             }
             helper={
               item.line_kind === "AD_HOC"
-                ? "Pick the closest current master to copy layer stack, route, feature defaults, and costing context. The final size and BOM remain editable for this quote."
+                ? "Pick the existing Base Product Master anchor. The final size, materials and specification remain editable only in this quote revision."
                 : "Pick the current Product Master and one of its saved sizes for a repeat quotation."
             }
             sizeTitle={
@@ -1032,29 +924,14 @@ export default function QuotationLineCard({
           ) : (
             <>
           {item.line_kind === "AD_HOC" ? (
-            <div className="rounded-xl border border-order-border bg-order-bg p-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="text-[11px] font-extrabold uppercase tracking-widest text-order-fg">
-                  New product promotion
-                </div>
-                <div className="mt-1 text-[12px] font-semibold text-content-2">
-                  When this quote is converted, create a current Product Master
-                  and a saved size from this custom pouch spec.
-                </div>
+            <div className="rounded-xl border border-order-border bg-order-bg p-3">
+              <div className="text-[11px] font-extrabold uppercase tracking-widest text-order-fg">
+                Quote-scoped variant
               </div>
-              <label className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-order-fg">
-                <input
-                  type="checkbox"
-                  checked={lineSpec.save_as_master !== false}
-                  onChange={(e) =>
-                    handleSpecChange({
-                      ...lineSpec,
-                      save_as_master: e.target.checked,
-                    })
-                  }
-                />
-                Save as Product Master
-              </label>
+              <div className="mt-1 text-[12px] font-semibold text-content-2">
+                This configuration inherits the selected Base Product Master but remains owned by this quotation revision.
+                It can vary size, layers, GSM, thickness, inks, adhesives, solvents and additives; it never creates or changes a master.
+              </div>
             </div>
           ) : null}
 
@@ -1067,13 +944,8 @@ export default function QuotationLineCard({
                   .product_master_code || undefined
               }
               onReset={handleResetToMaster}
-              onPromote={() => {
-                const pmId = (
-                  item.spec_snapshot as { product_master_id?: string }
-                ).product_master_id;
-                if (pmId) promoteMut.mutate(pmId);
-              }}
-              canPromote={modifiedFields.length > 0 && !promoteMut.isPending}
+              onPromote={undefined}
+              canPromote={false}
             />
           ) : null}
 
@@ -1085,12 +957,6 @@ export default function QuotationLineCard({
                 onChange={handleSpecChange}
                 catalogAddons={bomData?.addons || []}
                 modifiedPaths={modifiedPaths}
-              />
-
-              <MaterialBreakdownPanel
-                spec={lineSpec}
-                breakdown={costing?.breakdown || null}
-                materialCostPerKg={Number(costing?.material_cost_per_kg || 0)}
               />
 
               {/* Qty + UOM */}
@@ -1155,65 +1021,29 @@ export default function QuotationLineCard({
             </div>
 
             <div className="space-y-3">
-              <CostingRail
-                result={
-                  costing
-                    ? ({
-                        material_cost_per_kg: costing.material_cost_per_kg || 0,
-                        conversion_cost_per_kg:
-                          costing.conversion_cost_per_kg || 0,
-                        total_cost_per_kg: costing.total_cost_per_kg || 0,
-                        margin_pct: costing.margin_pct || 0,
-                        margin_source:
-                          (costing.margin_source as CostingResult["margin_source"]) ||
-                          "COMPANY_DEFAULT",
-                        suggested_rate: costing.suggested_rate || 0,
-                        is_indicative: Boolean(costing.is_indicative),
-                        warnings: costing.warnings || [],
-                        breakdown:
-                          (costing.breakdown as CostingResult["breakdown"]) || {
-                            materials: [],
-                            conversion: [],
-                          },
-                      } as CostingResult)
-                    : null
-                }
-                isLoading={previewMut.isPending}
-                marginLock={item.margin_lock}
-                onToggleLock={(v) => onChange({ ...item, margin_lock: v })}
-                manualMargin={Number(item.margin_pct || 25)}
-                onManualMargin={(v) =>
-                  onChange({ ...item, margin_pct: v, margin_lock: true })
-                }
-                manualRate={item.rate}
-                onManualRate={(v) =>
-                  onChange({ ...item, rate: v, margin_lock: false })
-                }
-                floorMargin={
-                  costing?.margin_source && costing.margin_source !== "MANUAL"
-                    ? Number(costing.margin_pct || 0)
-                    : null
-                }
-                floorSource={costing?.margin_source || null}
-              />
-
-              <ProductionPreviewCard
-                spec={lineSpecToBackendSpec(lineSpec)}
-                plantId={plantId}
-                qty={item.qty}
-                qtyUom={item.uom}
-              />
-
-              {costing?.margin_source === "CUSTOMER" ? (
-                <div className="rounded-xl border border-success-border bg-success-bg p-3 text-[11px] font-bold text-success-fg">
-                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-success-fg mb-1">
-                    Customer overlay applied
-                  </div>
-                  Margin floor of {inr(costing.margin_pct)}% comes from a
-                  customer-specific product overlay. Override only with
-                  approval.
+              <div className="rounded-xl border border-line bg-surface-1 p-4">
+                <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                  Cost handoff
                 </div>
-              ) : null}
+                <div className="mt-2 text-sm font-extrabold text-content-1">
+                  Save this specification, then open Cost Build
+                </div>
+                <p className="mt-1 text-[12px] font-semibold leading-5 text-content-3">
+                  The server will resolve each selected RM against FIFO/inventory or a dated Cost Snapshot,
+                  preserve the baseline, and show any quote-only override separately. Machine, labour,
+                  overhead, wastage/yield, packing and freight are entered together in the quote-level Conversion Cost block.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="rounded-lg bg-surface-2 p-2">
+                    <div className="font-extrabold uppercase tracking-wider text-content-4">Calculated GSM</div>
+                    <div className="mt-1 font-mono font-extrabold text-content-1">{inr(totalGsm)}</div>
+                  </div>
+                  <div className="rounded-lg bg-surface-2 p-2">
+                    <div className="font-extrabold uppercase tracking-wider text-content-4">Calculated weight</div>
+                    <div className="mt-1 font-mono font-extrabold text-content-1">{inr(unitWeightG)} g/pc</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
             </>
@@ -1251,156 +1081,6 @@ function RibbonStat({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="font-mono text-base font-extrabold">{value}</div>
-    </div>
-  );
-}
-
-function MaterialBreakdownPanel({
-  spec,
-  breakdown,
-  materialCostPerKg,
-}: {
-  spec: LineSpecValue;
-  breakdown: CostingResult["breakdown"] | null;
-  materialCostPerKg: number;
-}) {
-  const liveRows = breakdown?.materials || [];
-  const fallbackRows = useMemo(() => {
-    const totalGsm =
-      (spec.layers || []).reduce((sum, layer) => sum + Number(layer.gsm || 0), 0) +
-      ((spec.layers || []).length > 1 ? Number(spec.adhesive?.gsm || 0) : 0) +
-      (spec.print_capable ? Number(spec.ink?.gsm || 0) : 0);
-    const gsmContribution = (gsm: number, rate: number) =>
-      totalGsm > 0 ? (Number(gsm || 0) / totalGsm) * Number(rate || 0) : 0;
-    const rows: Array<{
-      kind: string;
-      name: string;
-      usage: string;
-      contribution_per_kg?: number;
-    }> = [];
-    for (const layer of spec.layers || []) {
-      rows.push({
-        kind: "FILM",
-        name:
-          layer.material_name ||
-          layer.material_code ||
-          layer.position ||
-          "Film layer",
-        usage: `${inr(layer.micron)} µ · ${inr(layer.gsm)} gsm`,
-        contribution_per_kg: gsmContribution(
-          Number(layer.gsm || 0),
-          Number(layer.rate_per_kg || 0),
-        ),
-      });
-    }
-    if ((spec.layers || []).length > 1 && Number(spec.adhesive?.gsm || 0) > 0) {
-      rows.push({
-        kind: "ADHESIVE",
-        name: spec.adhesive.name || "Adhesive",
-        usage: `${inr(spec.adhesive.gsm)} gsm`,
-        contribution_per_kg: gsmContribution(
-          Number(spec.adhesive.gsm || 0),
-          Number(spec.adhesive.rate_per_kg || 0),
-        ),
-      });
-    }
-    if (spec.print_capable && Number(spec.ink?.gsm || 0) > 0) {
-      rows.push({
-        kind: "INK",
-        name: spec.ink.name || "Ink",
-        usage: `${inr(spec.ink.gsm)} gsm`,
-        contribution_per_kg: gsmContribution(
-          Number(spec.ink.gsm || 0),
-          Number(spec.ink.rate_per_kg || 0),
-        ),
-      });
-    }
-    for (const addon of spec.addons || []) {
-      rows.push({
-        kind: "ADD-ON",
-        name: addon.name,
-        usage: `${inr(addon.qty_per_pouch || 0)} / pouch`,
-        contribution_per_kg:
-          Number(addon.rate_per_kg || 0) *
-          Number(addon.qty_per_pouch || 1),
-      });
-    }
-    if (spec.optional_inner_pack?.name) {
-      rows.push({
-        kind: "PACKING",
-        name: spec.optional_inner_pack.name,
-        usage: spec.optional_inner_pack.pcs_per_inner
-          ? `${inr(spec.optional_inner_pack.pcs_per_inner)} pcs / inner`
-          : "optional",
-        contribution_per_kg: Number(spec.optional_inner_pack.rate_per_kg || 0),
-      });
-    }
-    return rows;
-  }, [spec]);
-
-  const rows =
-    liveRows.length > 0
-      ? liveRows.map((row) => ({
-          kind: row.kind || "MAT",
-          name: row.name || row.stage || "Material",
-          usage:
-            row.gsm !== undefined
-              ? `${inr(row.gsm)} gsm${
-                  row.micron !== undefined ? ` · ${inr(row.micron)} µ` : ""
-                }`
-              : row.qty_per_pouch !== undefined
-                ? `${inr(row.qty_per_pouch)} / pouch${
-                    row.unit_rate_per_kg !== undefined
-                      ? ` · ₹ ${inr(row.unit_rate_per_kg)}`
-                      : ""
-                  }`
-              : row.scrap_pct !== undefined
-                ? `scrap ${inr(row.scrap_pct)}%`
-                : "costed",
-          contribution_per_kg: row.contribution_per_kg,
-        }))
-      : fallbackRows;
-
-  return (
-    <div className="mt-4 rounded-xl border border-line bg-surface-1 overflow-hidden">
-      <div className="border-b border-line px-3 py-2 flex items-center justify-between gap-2">
-        <div>
-          <div className="text-[11px] font-extrabold uppercase tracking-widest text-content-2">
-            Live BOM · material breakdown
-          </div>
-          <div className="text-[10px] font-bold text-content-4">
-            Film, adhesive, ink, add-ons and packing from the current quote spec.
-          </div>
-        </div>
-        <span className="shrink-0 rounded-full bg-order-bg px-2 py-1 text-[10px] font-extrabold uppercase tracking-widest text-order-fg ring-1 ring-order-border">
-          ₹ {inr(materialCostPerKg)} / kg
-        </span>
-      </div>
-      {rows.length === 0 ? (
-        <div className="p-3 text-[11px] font-bold text-content-4">
-          Pick a Product Master, size and material stack to preview the BOM.
-        </div>
-      ) : (
-        <div className="divide-y divide-line">
-          {rows.map((row, idx) => (
-            <div
-              key={`${row.kind}-${row.name}-${idx}`}
-              className="grid grid-cols-[82px_1fr_110px_90px] gap-2 px-3 py-2 text-[11px] font-semibold"
-            >
-              <span className="font-mono text-[10px] font-extrabold uppercase tracking-widest text-content-4">
-                {row.kind}
-              </span>
-              <span className="truncate text-content-2">{row.name}</span>
-              <span className="font-mono text-right text-content-3">
-                {row.usage}
-              </span>
-              <span className="font-mono text-right font-extrabold text-content-1">
-                ₹ {inr(row.contribution_per_kg)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

@@ -33,6 +33,11 @@ const STATUS_STYLES: Record<
     chip: "bg-surface-2 text-content-2 ring-1 ring-line",
     dot: "bg-line",
   },
+  PENDING_APPROVAL: {
+    label: "Pending approval",
+    chip: "bg-warning-bg text-warning-fg ring-1 ring-warning-border",
+    dot: "bg-warning-fg",
+  },
   SENT: {
     label: "Sent",
     chip: "bg-info-bg text-info-fg ring-1 ring-info-border",
@@ -40,6 +45,11 @@ const STATUS_STYLES: Record<
   },
   APPROVED: {
     label: "Approved",
+    chip: "bg-success-bg text-success-fg ring-1 ring-success-border",
+    dot: "bg-success-fg",
+  },
+  ACCEPTED: {
+    label: "Accepted",
     chip: "bg-success-bg text-success-fg ring-1 ring-success-border",
     dot: "bg-success-fg",
   },
@@ -52,6 +62,16 @@ const STATUS_STYLES: Record<
     label: "Expired",
     chip: "bg-warning-bg text-warning-fg ring-1 ring-warning-border",
     dot: "bg-warning-fg",
+  },
+  CANCELLED: {
+    label: "Cancelled",
+    chip: "bg-danger-bg text-danger-fg ring-1 ring-danger-border",
+    dot: "bg-danger-solid",
+  },
+  VOID: {
+    label: "Void",
+    chip: "bg-danger-bg text-danger-fg ring-1 ring-danger-border",
+    dot: "bg-danger-solid",
   },
   CONVERTED: {
     label: "Converted",
@@ -208,7 +228,7 @@ export default function QuotationListPage() {
               Quotations
             </h1>
             <p className="text-sm font-semibold text-order-border mt-1">
-              Quote any pouch — catalog or ad-hoc. Live BOM &amp; costing.
+              Select a ready product or build a quote-scoped configuration from an existing Base Product.
             </p>
           </div>
           <div className="flex items-center gap-2">

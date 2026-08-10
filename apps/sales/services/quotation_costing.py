@@ -17,17 +17,8 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-# Fallback company-wide defaults (cascade rank #4).
-COMPANY_DEFAULT_MARGIN = Decimal("15.00")
-COMPANY_DEFAULT_RATE_CARD = {
-    "extrusion_per_kg": Decimal("26.00"),
-    "lamination_per_kg": Decimal("14.00"),
-    "printing_per_kg": Decimal("18.50"),
-    "slitting_per_kg": Decimal("8.00"),
-    "pouching_per_kg": Decimal("14.20"),
-    "overhead_per_kg": Decimal("19.00"),
-    "scrap_pct": Decimal("0.04"),
-}
+# Synthetic commercial defaults are deliberately forbidden. The legacy
+# stateless preview remains source-only and is retired from the quotation API.
 
 ALL_CONVERSION_STAGES = (
     "extrusion_per_kg",
@@ -250,13 +241,8 @@ class QuotationCostingService:
         if plant is not None:
             rate_card = getattr(plant, "rate_card", None) or {}
         if not rate_card:
-            rate_card = dict(COMPANY_DEFAULT_RATE_CARD)
             from_default = True
-            if plant is not None:
-                warnings.append(
-                    f"Plant {getattr(plant, 'code', '?')} has no rate_card configured — "
-                    "using company defaults."
-                )
+            warnings.append("Plant conversion rate card is missing; no fallback values were applied.")
 
         stages_filter = spec.get("conversion_stages") or []
         if not stages_filter:
@@ -367,8 +353,8 @@ class QuotationCostingService:
         if plant is not None and getattr(plant, "default_margin_pct", None) is not None:
             return _round2(_dec(plant.default_margin_pct)), "PLANT"
 
-        # 5. company default
-        return _round2(COMPANY_DEFAULT_MARGIN), "COMPANY_DEFAULT"
+        # No silent company fallback: approval must wait for a governed floor.
+        return Decimal("0"), "MISSING_POLICY"
 
     @classmethod
     def compute(

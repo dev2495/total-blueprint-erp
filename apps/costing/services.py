@@ -60,17 +60,11 @@ class CostingService:
     @staticmethod
     def get_material_rate(material: InventoryMaterial) -> Decimal:
         snapshot = MaterialCostSnapshot.objects.filter(material=material).first()
-        if snapshot:
+        if snapshot and Decimal(str(snapshot.avg_rate_per_kg or 0)) > 0:
             return snapshot.avg_rate_per_kg
-
-        category = str(material.category or "").upper()
-        if category in ["GRANULE", "INK", "ADHESIVE", "SOLVENT"]:
-            return Decimal("250.00")
-        if category in ["FILM_VARIANT", "POD"]:
-            return Decimal("180.00")
-        if category == "PACKAGING":
-            return Decimal("12.00")
-        return Decimal("100.00")
+        # A missing authoritative cost is a missing prerequisite, not a price.
+        # Callers must surface/block it or collect an audited quote-only override.
+        return ZERO
 
     @classmethod
     def resolve_cost_absorption_group(
@@ -576,6 +570,10 @@ class CostingService:
                 "is_frozen": False,
             },
         )
+        if hasattr(order_item, "source_quotation_item"):
+            from apps.sales.services.quotation_variance import QuotationVarianceService
+
+            QuotationVarianceService.refresh_for_order_item(order_item)
         return order_cost
 
     @classmethod

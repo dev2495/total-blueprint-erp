@@ -98,22 +98,21 @@ class QuotationModuleTests(TestCase):
             packaging_snapshot={},
         )
 
-    def test_production_preview_rejects_invalid_layers_and_non_finite_numbers(self):
+    def test_legacy_production_preview_is_retired(self):
         invalid_layer = self.client.post(
             "/api/sales/quotations/production-preview/",
             {"qty": "100", "qty_uom": "KG", "spec": {"layers": ["broken"]}},
             format="json",
         )
-        self.assertEqual(invalid_layer.status_code, 400, invalid_layer.content)
-        self.assertIn("Layer 1", str(invalid_layer.data))
+        self.assertEqual(invalid_layer.status_code, 410, invalid_layer.content)
+        self.assertIn("retired", str(invalid_layer.data))
 
         invalid_qty = self.client.post(
             "/api/sales/quotations/production-preview/",
             {"qty": "NaN", "qty_uom": "KG", "spec": {"layers": []}},
             format="json",
         )
-        self.assertEqual(invalid_qty.status_code, 400, invalid_qty.content)
-        self.assertIn("finite", str(invalid_qty.data))
+        self.assertEqual(invalid_qty.status_code, 410, invalid_qty.content)
 
     def _pouch_line(self, **overrides):
         payload = {
@@ -254,9 +253,15 @@ class QuotationModuleTests(TestCase):
                 }
             )
 
-        self.assertIn("not the current version", str(ctx.exception))
+        self.assertIn("active current Base Product Master", str(ctx.exception))
 
     def test_catalog_quotation_persists_current_master_and_size(self):
+        pouch_style = PouchStyleMaster.objects.create(
+            code="QUOTE-CATALOG-STYLE",
+            name="Quote catalog style",
+            locked=True,
+            formula_kind="LINEAR",
+        )
         product = ProductMaster.objects.create(
             code="QUOTE-PM-CURRENT",
             name="Quote Product current",
@@ -273,6 +278,8 @@ class QuotationModuleTests(TestCase):
             width_mm=130,
             height_mm=210,
             qty_uom="KG",
+            pouch_style_master=pouch_style,
+            pouch_style_version=pouch_style.version,
         )
 
         quotation = QuotationService.create_quotation(
@@ -418,7 +425,7 @@ class QuotationModuleTests(TestCase):
         self.assertFalse(body["print_capable"])
         self.assertFalse(body["artwork_required"])
 
-    def test_adhoc_quote_promotes_base_master_into_new_product_and_size(self):
+    def test_adhoc_quote_is_snapshot_only_and_never_promotes_masters(self):
         pouch_style = PouchStyleMaster.objects.create(
             code="QUOTE-STYLE-SIMPLE",
             name="Quote simple open web",
@@ -515,37 +522,40 @@ class QuotationModuleTests(TestCase):
                             "addons": [],
                             "features": {},
                             "optional_inner_pack": None,
-                            "save_as_master": True,
                         },
                     }
                 ],
             }
         )
 
-        sales_order = QuotationService.convert_to_sales_order(quotation)
+        master_count = ProductMaster.objects.count()
+        size_count = ProductMasterSize.objects.count()
         item = quotation.items.get()
-        promoted_pm_id = item.spec_snapshot["product_master_id"]
-        promoted_size_id = item.spec_snapshot["size_id"]
 
-        self.assertNotEqual(promoted_pm_id, str(base_product.id))
-        promoted = ProductMaster.objects.get(id=promoted_pm_id)
-        promoted_size = ProductMasterSize.objects.get(id=promoted_size_id)
-        self.assertEqual(promoted.product_kind, "POUCH")
-        self.assertEqual(promoted.template_id, self.template.id)
-        self.assertEqual(promoted.fixed_attributes["base_product_master_id"], str(base_product.id))
-        self.assertEqual(promoted.variant_axes, base_product.variant_axes)
-        self.assertEqual(promoted_size.product_master_id, promoted.id)
-        self.assertEqual(promoted_size.width_mm, Decimal("135.00"))
-        self.assertEqual(promoted_size.height_mm, Decimal("220.00"))
-        self.assertEqual(promoted_size.gusset_mm, Decimal("20.00"))
-        self.assertEqual(promoted_size.pouch_style_master_id, pouch_style.id)
-        self.assertEqual(promoted_size.pouch_style_version, pouch_style.version)
-        self.assertEqual(promoted_size.child_target_width_mm, Decimal("290.00"))
-        self.assertEqual(promoted_size.film_area_width_mm, Decimal("290.00"))
+        self.assertEqual(ProductMaster.objects.count(), master_count)
+        self.assertEqual(ProductMasterSize.objects.count(), size_count)
+        self.assertEqual(item.product_master_id, base_product.id)
+        self.assertIsNone(item.product_master_size_id)
+        self.assertIsNone(item.product_variant_id)
+        self.assertEqual(item.canonical_source_snapshot["path"], "B_QUOTE_SCOPED_VARIANT")
+        self.assertFalse(item.canonical_source_snapshot["master_mutation"])
+        self.assertEqual(item.spec_snapshot["quote_variant_kind"], "QUOTE_SCOPED_VARIANT")
+        self.assertEqual(item.spec_snapshot["base_product_master_id"], str(base_product.id))
         self.assertEqual(item.spec_snapshot["pouch_style_id"], str(pouch_style.id))
-        self.assertEqual(item.spec_snapshot["child_target_width_mm"], 290.0)
-        self.assertEqual(sales_order.items.count(), 1)
-        self.assertEqual(sales_order.items.get().product_master_id, promoted.id)
+        self.assertEqual(item.spec_snapshot["child_target_width_mm"], 290)
+
+        with self.assertRaises(ValidationError):
+            QuotationService.bulk_update_items(
+                quotation,
+                [{
+                    "line_kind": "AD_HOC", "qty": 1, "uom": "KG", "rate": 1,
+                    "spec_snapshot": {
+                        "base_product_master_id": str(base_product.id),
+                        "save_as_master": True,
+                    },
+                }],
+                user=self.user,
+            )
 
     def test_sku_variant_quote_line_persists_and_seeds_template_defaults(self):
         quotation = QuotationService.create_quotation(
@@ -600,7 +610,6 @@ class QuotationModuleTests(TestCase):
         patch_response = self.client.patch(
             f"/api/sales/quotations/{created['id']}/",
             {
-                "status": "SENT",
                 "notes": "Updated after customer review",
                 "items": [
                     self._pouch_line(
@@ -617,10 +626,17 @@ class QuotationModuleTests(TestCase):
 
         self.assertEqual(patch_response.status_code, 200)
         updated = patch_response.json()
-        self.assertEqual(updated["status"], "SENT")
+        self.assertEqual(updated["status"], "DRAFT")
         self.assertEqual(updated["notes"], "Updated after customer review")
         self.assertEqual(len(updated["items"]), 1)
         self.assertGreater(updated["totals_snapshot"]["grand_total"], 0)
+
+        controlled_status = self.client.patch(
+            f"/api/sales/quotations/{created['id']}/",
+            {"status": "SENT"},
+            format="json",
+        )
+        self.assertEqual(controlled_status.status_code, 400)
 
     def test_convert_rejects_missing_template(self):
         quotation = QuotationService.create_quotation(
@@ -635,7 +651,7 @@ class QuotationModuleTests(TestCase):
         with self.assertRaises(ValidationError):
             QuotationService.convert_to_sales_order(quotation)
 
-    def test_convert_creates_sales_order_for_live_template_quote(self):
+    def test_convert_requires_accepted_frozen_revision(self):
         quotation = QuotationService.create_quotation(
             {
                 "customer": str(self.customer.id),
@@ -645,13 +661,9 @@ class QuotationModuleTests(TestCase):
             }
         )
 
-        sales_order = QuotationService.convert_to_sales_order(quotation)
-        quotation.refresh_from_db()
-
-        self.assertEqual(sales_order.customer_name, self.customer.name)
-        self.assertEqual(sales_order.items.count(), 1)
-        self.assertEqual(quotation.status, "CONVERTED")
-        self.assertEqual(quotation.converted_sales_order_id, sales_order.id)
+        with self.assertRaises(ValidationError) as ctx:
+            QuotationService.convert_to_sales_order(quotation)
+        self.assertIn("accepted", str(ctx.exception).lower())
 
     def test_convert_preserves_sku_variant_link_for_sku_quote(self):
         quotation = QuotationService.create_quotation(
@@ -671,11 +683,8 @@ class QuotationModuleTests(TestCase):
             }
         )
 
-        sales_order = QuotationService.convert_to_sales_order(quotation)
-        order_item = sales_order.items.get()
-
-        self.assertEqual(order_item.sku_variant_id, self.sku_variant.id)
-        self.assertEqual(order_item.template_id, self.template.id)
+        with self.assertRaises(ValidationError):
+            QuotationService.convert_to_sales_order(quotation)
 
     def test_duplicate_creates_new_quote_number(self):
         quotation = QuotationService.create_quotation(
@@ -703,6 +712,7 @@ class QuotationModuleTests(TestCase):
                 "customer": str(self.customer.id),
                 "plant": str(self.plant.id),
                 "customer_name": self.customer.name,
+                "notes": "INTERNAL-COST-NEGOTIATION-DO-NOT-SEND",
                 "items": [self._pouch_line()],
             }
         )
@@ -716,3 +726,6 @@ class QuotationModuleTests(TestCase):
         self.assertIn(quotation.quote_number.encode(), pdf_bytes)
         self.assertIn(self.customer.name.encode(), pdf_bytes)
         self.assertIn(b"System costing remains estimated", pdf_bytes)
+        customer_pdf = QuotationPDFService.render_pdf_bytes(quotation, customer_view=True)
+        self.assertNotIn(b"INTERNAL-COST-NEGOTIATION-DO-NOT-SEND", customer_pdf)
+        self.assertIn(b"INTERNAL-COST-NEGOTIATION-DO-NOT-SEND", pdf_bytes)

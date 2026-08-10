@@ -80,10 +80,16 @@ export interface LineSpecValue {
     rate_per_kg: number;
     coverage?: string;
   };
+  solvent: {
+    material_id?: string | null;
+    code?: string;
+    name?: string;
+    gsm: number;
+    rate_per_kg: number;
+  };
   addons: BomAddon[];
   optional_inner_pack?: QuoteLineInnerPack | null;
   features: Record<string, boolean>;
-  save_as_master?: boolean;
 }
 
 interface LineSpecBuilderProps {
@@ -180,6 +186,7 @@ export default function LineSpecBuilder({
     return (
       filmGsm +
       (adhesiveEnabled ? Number(value.adhesive?.gsm || 0) : 0) +
+      (adhesiveEnabled ? Number(value.solvent?.gsm || 0) : 0) +
       (inkEnabled ? Number(value.ink?.gsm || 0) : 0)
     );
   }, [adhesiveEnabled, inkEnabled, layers, value.adhesive?.gsm, value.ink?.gsm]);
@@ -702,8 +709,8 @@ export default function LineSpecBuilder({
         ) : null}
       </SectionCard>
 
-      {/* Section 3 — Adhesive + Ink */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Section 3 — First-class chemical RM components */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {adhesiveEnabled ? (
           <SectionCard
             icon={<Droplets className="h-4 w-4 text-info-fg" />}
@@ -715,7 +722,7 @@ export default function LineSpecBuilder({
               from the cost sheet; material rate can be corrected for the quote.
             </div>
             <MaterialPicker
-              categories={["ADHESIVE", "SOLVENT"]}
+              categories={["ADHESIVE"]}
               value={{
                 id: value.adhesive?.material_id || undefined,
                 code: value.adhesive?.code,
@@ -791,6 +798,51 @@ export default function LineSpecBuilder({
               Hidden for single-layer stacks. Adhesive costing starts only when
               the film stack has two or more layers.
             </div>
+          </SectionCard>
+        )}
+
+        {adhesiveEnabled ? (
+          <SectionCard
+            icon={<Droplets className="h-4 w-4 text-warning-fg" />}
+            title="Solvent · governed RM"
+            accent="from-warning-bg to-surface-1"
+          >
+            <div className="mb-2 text-[11px] font-semibold text-content-3">
+              Select solvent independently from adhesive. Its baseline and any quote-only assumption are controlled in Cost Build.
+            </div>
+            <MaterialPicker
+              categories={["SOLVENT"]}
+              value={{
+                id: value.solvent?.material_id || undefined,
+                code: value.solvent?.code,
+                name: value.solvent?.name || "Pick solvent",
+              }}
+              placeholder="Pick solvent…"
+              compact
+              onSelect={(material) => onChange({
+                ...value,
+                solvent: {
+                  ...value.solvent,
+                  material_id: material.id,
+                  code: material.code,
+                  name: material.name,
+                  rate_per_kg: material.avg_cost || value.solvent.rate_per_kg,
+                },
+              })}
+            />
+            <label className="mt-2 block">
+              <FieldLabel modified={dotIfModified(modifiedPaths, "solvent.gsm")}>GSM</FieldLabel>
+              <input
+                type="number"
+                value={Number(value.solvent.gsm) || ""}
+                onChange={(event) => onChange({ ...value, solvent: { ...value.solvent, gsm: Number(event.target.value) } })}
+                className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-right font-mono text-sm font-bold outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+              />
+            </label>
+          </SectionCard>
+        ) : (
+          <SectionCard icon={<Droplets className="h-4 w-4 text-content-4" />} title="Solvent" accent="from-surface-2 to-surface-1">
+            <div className="text-[11px] font-bold text-content-4">Available for laminated multi-layer structures.</div>
           </SectionCard>
         )}
 
@@ -1242,7 +1294,6 @@ export function lineSpecToBackendSpec(
     })),
     optional_inner_pack: v.optional_inner_pack || null,
     features: v.features,
-    save_as_master: v.save_as_master,
   };
 }
 

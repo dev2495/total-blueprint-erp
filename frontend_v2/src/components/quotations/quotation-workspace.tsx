@@ -20,7 +20,6 @@ import {
   Info,
   Loader2,
   Mail,
-  MessageSquare,
   Package,
   Plus,
   Save,
@@ -48,23 +47,32 @@ import {
 import QuotationLineCard, {
   type DraftItem,
 } from "@/components/quotations/quotation-line-card";
+import CostBuildWorkspace from "@/components/quotations/cost-build-workspace";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
+  PENDING_APPROVAL: "Pending approval",
   SENT: "Sent",
   APPROVED: "Approved",
+  ACCEPTED: "Accepted",
   REJECTED: "Rejected",
   EXPIRED: "Expired",
+  CANCELLED: "Cancelled",
+  VOID: "Void",
   CONVERTED: "Converted",
 };
 
 const STATUS_DOT: Record<string, string> = {
   DRAFT: "bg-line",
+  PENDING_APPROVAL: "bg-warning-fg",
   SENT: "bg-brand-blue",
   APPROVED: "bg-success-fg",
+  ACCEPTED: "bg-success-fg",
   REJECTED: "bg-brand-red",
   EXPIRED: "bg-brand-orange",
+  CANCELLED: "bg-brand-red",
+  VOID: "bg-brand-red",
   CONVERTED: "bg-brand-navy",
 };
 
@@ -212,10 +220,6 @@ function lineReadinessIssues(d: DraftItem): string[] {
   if (spec.print_capable && spec.artwork_required && !printing.artwork_id && asNumber(printing.ink_gsm_total) <= 0) {
     issues.push(`${label}: select approved artwork or enter manual ink GSM.`);
   }
-  const costing = (d.costing_snapshot || {}) as Record<string, unknown>;
-  if (asNumber(costing.total_cost_per_kg) <= 0) {
-    issues.push(`${label}: cost preview must calculate before send/approve.`);
-  }
   return issues;
 }
 
@@ -268,11 +272,13 @@ export default function QuotationWorkspace({
   const [sendDialog, setSendDialog] = useState<null | "open">(null);
   const [rejectDialog, setRejectDialog] = useState<null | "open">(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [sendVia, setSendVia] = useState<"email" | "whatsapp" | "pdf_only">(
-    "pdf_only",
-  );
+  const [rejectGate, setRejectGate] = useState<"COMMERCIAL" | "FINANCE">("COMMERCIAL");
   const [convertDialog, setConvertDialog] = useState<null | "open">(null);
-  const [approveDialog, setApproveDialog] = useState<null | "open">(null);
+  const [clientOutcome, setClientOutcome] = useState<null | "ACCEPTED" | "REJECTED">(null);
+  const [clientReference, setClientReference] = useState("");
+  const [clientOutcomeReason, setClientOutcomeReason] = useState("");
+  const [terminalAction, setTerminalAction] = useState<null | "CANCEL" | "VOID">(null);
+  const [terminalReason, setTerminalReason] = useState("");
   const seededRef = useRef<string | null>(null);
 
   // Commercials local state (synced into payload on save)
@@ -286,6 +292,17 @@ export default function QuotationWorkspace({
   const [gstRate, setGstRate] = useState<number>(18);
   const [customTerms, setCustomTerms] = useState<string>("");
   const [termsTemplate, setTermsTemplate] = useState<string>("");
+  const [enquiryReference, setEnquiryReference] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("");
+  const [deliveryTerms, setDeliveryTerms] = useState("");
+  const [requestedDeliveryDate, setRequestedDeliveryDate] = useState("");
+  const [placeOfSupply, setPlaceOfSupply] = useState("");
 
   const quoteQuery = useQuery({
     queryKey: ["quotation", quotationId],
@@ -314,6 +331,17 @@ export default function QuotationWorkspace({
     );
     setGstRate(Number(quote.gst_rate || 18));
     setCustomTerms(quote.custom_terms || "");
+    setEnquiryReference(quote.enquiry_reference || "");
+    setContactName(quote.contact_name || "");
+    setContactEmail(quote.contact_email || "");
+    setContactPhone(quote.contact_phone || "");
+    setBillingAddress(quote.billing_address || "");
+    setShippingAddress(quote.shipping_address || "");
+    setValidUntil(quote.valid_until || "");
+    setPaymentTerms(quote.payment_terms || "");
+    setDeliveryTerms(quote.delivery_terms || "");
+    setRequestedDeliveryDate(quote.requested_delivery_date || "");
+    setPlaceOfSupply(quote.place_of_supply || "");
     setDirty(false);
   }, [quote?.id, quote?.updated_at]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -340,6 +368,17 @@ export default function QuotationWorkspace({
     otherCharges,
     gstRate,
     customTerms,
+    enquiryReference,
+    contactName,
+    contactEmail,
+    contactPhone,
+    billingAddress,
+    shippingAddress,
+    validUntil,
+    paymentTerms,
+    deliveryTerms,
+    requestedDeliveryDate,
+    placeOfSupply,
   ]);
 
   const persistDraft = useCallback(async () => {
@@ -354,6 +393,17 @@ export default function QuotationWorkspace({
       other_charges: otherCharges,
       gst_rate: gstRate,
       custom_terms: customTerms,
+      enquiry_reference: enquiryReference,
+      contact_name: contactName,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
+      billing_address: billingAddress,
+      shipping_address: shippingAddress,
+      valid_until: validUntil || null,
+      payment_terms: paymentTerms,
+      delivery_terms: deliveryTerms,
+      requested_delivery_date: requestedDeliveryDate || null,
+      place_of_supply: placeOfSupply,
     });
     return quotationService.bulkUpdateItems(quotationId, toApiItems(drafts));
   }, [
@@ -365,6 +415,17 @@ export default function QuotationWorkspace({
     otherCharges,
     gstRate,
     customTerms,
+    enquiryReference,
+    contactName,
+    contactEmail,
+    contactPhone,
+    billingAddress,
+    shippingAddress,
+    validUntil,
+    paymentTerms,
+    deliveryTerms,
+    requestedDeliveryDate,
+    placeOfSupply,
     drafts,
   ]);
 
@@ -397,7 +458,10 @@ export default function QuotationWorkspace({
       via: "email" | "whatsapp" | "pdf_only";
     }) => {
       await persistDraft();
-      return quotationService.send(id, { via, recipients: [] });
+      if (via !== "email") throw new Error("Only evidenced email delivery is available.");
+      const recipient = contactEmail.trim();
+      if (!recipient) throw new Error("Add the client email address before sending.");
+      return quotationService.send(id, { recipients: [recipient] });
     },
     onSuccess: () => {
       setSendDialog(null);
@@ -419,10 +483,8 @@ export default function QuotationWorkspace({
   });
 
   const approveMut = useMutation({
-    mutationFn: async (id: string) => {
-      await persistDraft();
-      return quotationService.approve(id);
-    },
+    mutationFn: ({ id, gate }: { id: string; gate: "COMMERCIAL" | "FINANCE" }) =>
+      quotationService.approve(id, gate),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["quotation", quotationId],
@@ -440,9 +502,51 @@ export default function QuotationWorkspace({
       }),
   });
 
+  const submitMut = useMutation({
+    mutationFn: async (id: string) => {
+      await persistDraft();
+      return quotationService.submitForApproval(id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["quotation", quotationId] });
+      toast({ title: "Submitted for approval", description: "This exact revision and Cost Build are now frozen." });
+    },
+    onError: (e: Error) => toast({ title: "Submission blocked", description: e.message, variant: "destructive" }),
+  });
+
+  const outcomeMut = useMutation({
+    mutationFn: ({ id, outcome }: { id: string; outcome: "ACCEPTED" | "REJECTED" }) =>
+      quotationService.recordClientOutcome(id, {
+        outcome,
+        reference: clientReference,
+        channel: "EMAIL",
+        reason: clientOutcomeReason,
+      }),
+    onSuccess: () => {
+      setClientOutcome(null);
+      setClientReference("");
+      setClientOutcomeReason("");
+      void queryClient.invalidateQueries({ queryKey: ["quotation", quotationId] });
+      toast({ title: "Client outcome recorded", description: "The immutable revision timeline has been updated." });
+    },
+    onError: (e: Error) => toast({ title: "Outcome could not be recorded", description: e.message, variant: "destructive" }),
+  });
+
+  const terminalMut = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "CANCEL" | "VOID" }) =>
+      action === "CANCEL" ? quotationService.cancel(id, terminalReason) : quotationService.void(id, terminalReason),
+    onSuccess: () => {
+      setTerminalAction(null);
+      setTerminalReason("");
+      void queryClient.invalidateQueries({ queryKey: ["quotation", quotationId] });
+      toast({ title: "Quotation record updated", description: "The reason is preserved in the audit timeline." });
+    },
+    onError: (e: Error) => toast({ title: "Action blocked", description: e.message, variant: "destructive" }),
+  });
+
   const rejectMut = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      quotationService.reject(id, reason),
+      quotationService.reject(id, reason, rejectGate),
     onSuccess: () => {
       setRejectDialog(null);
       setRejectReason("");
@@ -622,14 +726,10 @@ export default function QuotationWorkspace({
           reasons.push(`${blockingLineIssues.length - 5} more line issues.`);
         }
       }
-      for (const d of drafts) {
-        const costing = d.costing_snapshot as
-          | { is_indicative?: boolean }
-          | undefined;
-        if (costing?.is_indicative) {
-          amber = true;
-          reasons.push(`${d.line_name}: rate card is indicative.`);
-        }
+      const authoritativeReadiness = quote?.readiness;
+      if (authoritativeReadiness && !authoritativeReadiness.ready) {
+        red = true;
+        reasons.push(...authoritativeReadiness.errors.slice(0, 5));
       }
       if (
         validDays !== null &&
@@ -654,7 +754,7 @@ export default function QuotationWorkspace({
         level: "GREEN",
         reasons: ["All lines have valid BOM, costing, and credit headroom."],
       };
-    }, [drafts, blockingLineIssues, validDays, quote?.status, customerQuery.data, grand]);
+    }, [drafts, blockingLineIssues, validDays, quote?.status, quote?.readiness, customerQuery.data, grand]);
 
   const status = quote?.status || "DRAFT";
 
@@ -761,7 +861,6 @@ export default function QuotationWorkspace({
           addons: [],
           features: {},
           optional_inner_pack: null,
-          save_as_master: true,
         },
       },
     ]);
@@ -819,30 +918,16 @@ export default function QuotationWorkspace({
         : null;
 
   // ── Send / approve / convert client-side guards ──────────────────────────
-  const hasCustomer = Boolean(quote?.customer || quote?.customer_name);
   const hasLines = drafts.length > 0;
   const linesValid =
     drafts.length > 0 && drafts.every((d) => d.qty > 0 && d.rate > 0);
-  const sendBlockedReason = !quote
-    ? "Save the quotation first."
-    : !hasCustomer
-      ? "Pick a customer before sending."
-      : !hasLines
-        ? "Add at least one line."
-        : !linesValid
-          ? "Every line needs qty > 0 and rate > 0."
-          : blockingLineIssues.length > 0
-            ? blockingLineIssues[0]
-            : null;
   const approveBlockedReason = !quote
     ? "Save the quotation first."
     : !hasLines
       ? "Add at least one line."
       : !linesValid
         ? "Every line needs qty > 0 and rate > 0."
-        : blockingLineIssues.length > 0
-          ? blockingLineIssues[0]
-          : null;
+        : null;
 
   // Blended margin across all lines.
   const totalCost = drafts.reduce((s, d) => {
@@ -862,19 +947,6 @@ export default function QuotationWorkspace({
       : blendedMargin >= 10
         ? "text-warning-fg bg-warning-bg ring-warning-border"
         : "text-danger-fg bg-danger-bg ring-danger-border";
-  const lowestLineMargin = drafts.reduce<number | null>((min, d) => {
-    const m = Number(
-      (d.costing_snapshot as { margin_pct?: number } | undefined)?.margin_pct ??
-        d.margin_pct ??
-        NaN,
-    );
-    if (!Number.isFinite(m)) return min;
-    return min === null ? m : Math.min(min, m);
-  }, null);
-  const marginFloor = 10;
-  const needsMarginConfirm =
-    lowestLineMargin !== null && lowestLineMargin < marginFloor;
-
   return (
     <main className="mx-auto max-w-[1480px] px-5 py-7 lg:px-8 lg:py-8 pb-32 space-y-5">
       {/* Hero */}
@@ -901,8 +973,8 @@ export default function QuotationWorkspace({
               </span>
             </h1>
             <p className="text-sm font-semibold text-order-border mt-1">
-              Quote any pouch — repeat catalog or build from scratch. Material
-              BOM and costing computed live.
+              Use a ready catalog product or build a quote-scoped configuration
+              under an existing Base Product. Masters are never created or changed here.
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-extrabold bg-surface-1/15 backdrop-blur text-white ring-1 ring-surface-1/20">
@@ -953,7 +1025,7 @@ export default function QuotationWorkspace({
                 Preview PDF
               </a>
             ) : null}
-            {quote && quote.status === "APPROVED" ? (
+            {quote && quote.status === "ACCEPTED" ? (
               <button
                 onClick={() => setConvertDialog("open")}
                 disabled={convertMut.isPending}
@@ -979,7 +1051,6 @@ export default function QuotationWorkspace({
           onConvert={() => setConvertDialog("open")}
           onClone={() => cloneMut.mutate(quote.id)}
           onSend={() => setSendDialog("open")}
-          sendBlockedReason={sendBlockedReason}
         />
       ) : null}
 
@@ -1063,6 +1134,29 @@ export default function QuotationWorkspace({
             </div>
           </section>
 
+          <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-extrabold text-content-1">Client and enquiry context</h3>
+                <p className="mt-1 text-[11px] font-semibold text-content-4">These values are snapshotted on this revision. Missing Customer Master details remain visible blockers; nothing is invented.</p>
+              </div>
+              {status !== "DRAFT" ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-content-3 ring-1 ring-line">Frozen revision</span> : null}
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <QuoteField label="Enquiry / RFQ reference" value={enquiryReference} onChange={setEnquiryReference} disabled={status !== "DRAFT"} />
+              <QuoteField label="Contact name" value={contactName} onChange={setContactName} disabled={status !== "DRAFT"} required />
+              <QuoteField label="Contact email" value={contactEmail} onChange={setContactEmail} disabled={status !== "DRAFT"} type="email" required />
+              <QuoteField label="Contact phone" value={contactPhone} onChange={setContactPhone} disabled={status !== "DRAFT"} />
+              <QuoteField label="Valid until" value={validUntil} onChange={setValidUntil} disabled={status !== "DRAFT"} type="date" required />
+              <QuoteField label="Requested delivery" value={requestedDeliveryDate} onChange={setRequestedDeliveryDate} disabled={status !== "DRAFT"} type="date" />
+              <QuoteField label="Place of supply" value={placeOfSupply} onChange={setPlaceOfSupply} disabled={status !== "DRAFT"} />
+              <QuoteField label="Payment terms" value={paymentTerms} onChange={setPaymentTerms} disabled={status !== "DRAFT"} required />
+              <QuoteField label="Delivery terms" value={deliveryTerms} onChange={setDeliveryTerms} disabled={status !== "DRAFT"} required />
+              <QuoteField label="Bill-to address" value={billingAddress} onChange={setBillingAddress} disabled={status !== "DRAFT"} multiline required />
+              <QuoteField label="Ship-to address" value={shippingAddress} onChange={setShippingAddress} disabled={status !== "DRAFT"} multiline required />
+            </div>
+          </section>
+
           {/* Action rail */}
           {quote ? (
             <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 flex flex-wrap gap-2 items-center shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
@@ -1078,76 +1172,72 @@ export default function QuotationWorkspace({
                 )}
                 Duplicate quotation
               </button>
-              {quote.status !== "APPROVED" && quote.status !== "CONVERTED" ? (
-                <>
-                  <button
-                    onClick={() => setSendDialog("open")}
-                    disabled={sendMut.isPending || Boolean(sendBlockedReason)}
-                    title={sendBlockedReason || "Send PDF to customer"}
-                    className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-bold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {sendMut.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" strokeWidth={2.2} />
-                    )}
-                    Send to customer
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (needsMarginConfirm) {
-                        setApproveDialog("open");
-                      } else {
-                        approveMut.mutate(quote.id);
-                      }
-                    }}
-                    disabled={
-                      approveMut.isPending || Boolean(approveBlockedReason)
-                    }
-                    title={approveBlockedReason || "Approve quote"}
-                    className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-success-fg text-white font-bold text-sm hover:bg-success-fg disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {approveMut.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <ShieldCheck className="h-4 w-4" strokeWidth={2.2} />
-                    )}
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => setRejectDialog("open")}
-                    disabled={rejectMut.isPending}
-                    className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-danger-bg text-danger-fg ring-1 ring-danger-border font-bold text-sm hover:bg-danger-bg disabled:opacity-60"
-                  >
-                    <XCircle className="h-4 w-4" strokeWidth={2.2} />
-                    Reject
-                  </button>
-                </>
-              ) : (
-                <span className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-success-bg text-success-fg font-bold text-sm ring-1 ring-success-border">
-                  <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
-                  {STATUS_LABEL[quote.status]}
-                </span>
-              )}
-              {quote.status !== "CONVERTED" && quote.status !== "EXPIRED" ? (
+              {quote.status === "DRAFT" ? (
                 <button
-                  onClick={() => expireMut.mutate(quote.id)}
-                  disabled={expireMut.isPending}
-                  className="h-10 px-3 inline-flex items-center gap-2 rounded-xl text-warning-fg hover:bg-warning-bg font-bold text-sm disabled:opacity-60"
+                  onClick={() => submitMut.mutate(quote.id)}
+                  disabled={submitMut.isPending || Boolean(approveBlockedReason)}
+                  title={approveBlockedReason || "Freeze and request commercial and finance approval"}
+                  className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-order-fg text-white font-bold text-sm disabled:opacity-60"
                 >
-                  <Clock className="h-4 w-4" strokeWidth={2.2} />
-                  Mark expired
+                  {submitMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Submit for approval
                 </button>
               ) : null}
-              <a
-                href={quotationService.pdfUrl(quote.id, { customerView: true })}
-                target="_blank"
-                rel="noopener"
-                className="h-10 px-3 inline-flex items-center gap-2 rounded-xl text-content-3 hover:bg-surface-2 font-bold text-sm ml-auto"
-              >
-                <Eye className="h-4 w-4" strokeWidth={2.2} />
-                Customer view
-              </a>
+              {quote.status === "PENDING_APPROVAL" ? (
+                <>
+                  {(quote.approval_gates || []).filter((gate) => gate.status === "PENDING").map((gate) => (
+                    <button
+                      key={gate.id}
+                      onClick={() => approveMut.mutate({ id: quote.id, gate: gate.gate as "COMMERCIAL" | "FINANCE" })}
+                      disabled={approveMut.isPending}
+                      className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-success-fg text-white font-bold text-sm disabled:opacity-60"
+                    >
+                      <ShieldCheck className="h-4 w-4" /> Approve {gate.gate.toLowerCase()}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const pending = (quote.approval_gates || []).find((gate) => gate.status === "PENDING");
+                      setRejectGate((pending?.gate as "COMMERCIAL" | "FINANCE") || "COMMERCIAL");
+                      setRejectDialog("open");
+                    }}
+                    disabled={rejectMut.isPending}
+                    className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-danger-bg text-danger-fg ring-1 ring-danger-border font-bold text-sm disabled:opacity-60"
+                  >
+                    <XCircle className="h-4 w-4" /> Reject pending gate
+                  </button>
+                </>
+              ) : null}
+              {quote.status === "APPROVED" ? (
+                <button
+                  onClick={() => setSendDialog("open")}
+                  disabled={sendMut.isPending || !contactEmail.trim()}
+                  title={contactEmail.trim() ? "Release frozen client PDF by evidenced email" : "Client email is required"}
+                  className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-bold text-sm disabled:opacity-60"
+                >
+                  <Send className="h-4 w-4" /> Send frozen revision
+                </button>
+              ) : null}
+              {quote.status === "SENT" ? <>
+                <button onClick={() => setClientOutcome("ACCEPTED")} className="h-10 px-3 rounded-xl bg-success-fg text-white font-bold text-sm">Record acceptance</button>
+                <button onClick={() => setClientOutcome("REJECTED")} className="h-10 px-3 rounded-xl bg-danger-bg text-danger-fg ring-1 ring-danger-border font-bold text-sm">Record rejection</button>
+                <button onClick={() => expireMut.mutate(quote.id)} disabled={expireMut.isPending} className="h-10 px-3 rounded-xl text-warning-fg hover:bg-warning-bg font-bold text-sm">Mark expired</button>
+              </> : null}
+              {!["CONVERTED", "CANCELLED", "VOID"].includes(quote.status) ? <>
+                <button onClick={() => setTerminalAction("CANCEL")} className="h-10 px-3 rounded-xl text-content-3 hover:bg-surface-2 font-bold text-sm">Cancel</button>
+                <button onClick={() => setTerminalAction("VOID")} className="h-10 px-3 rounded-xl text-danger-fg hover:bg-danger-bg font-bold text-sm">Void</button>
+              </> : null}
+              {["APPROVED", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"].includes(quote.status) ? (
+                <a
+                  href={quotationService.pdfUrl(quote.id, { customerView: true })}
+                  target="_blank"
+                  rel="noopener"
+                  className="h-10 px-3 inline-flex items-center gap-2 rounded-xl text-content-3 hover:bg-surface-2 font-bold text-sm ml-auto"
+                >
+                  <Eye className="h-4 w-4" strokeWidth={2.2} />
+                  Customer view
+                </a>
+              ) : null}
             </section>
           ) : null}
 
@@ -1190,8 +1280,8 @@ export default function QuotationWorkspace({
                   No lines yet.
                 </div>
                 <p className="mt-1 text-[12px] font-semibold text-content-3">
-                  Add a catalog line for repeat product masters, or build an
-                  ad-hoc pouch from scratch.
+                  Add a ready catalog product, or build a quote-scoped pouch
+                  configuration under an existing Base Product.
                 </p>
               </div>
             ) : (
@@ -1200,10 +1290,6 @@ export default function QuotationWorkspace({
                   <QuotationLineCard
                     key={draft.local_id}
                     item={draft}
-                    customerId={customerId}
-                    plantId={
-                      (quote as { plant?: string } | null)?.plant || undefined
-                    }
                     isOpen={openId === draft.local_id}
                     onToggle={() =>
                       setOpenId((cur) =>
@@ -1220,6 +1306,42 @@ export default function QuotationWorkspace({
               </div>
             )}
           </section>
+
+          {quote ? <CostBuildWorkspace quote={quote} /> : null}
+
+          {quote?.items?.some((item) => item.actual_variance) ? (
+            <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-extrabold text-content-1">Quote vs actual cost</h3>
+                  <p className="mt-1 text-xs font-semibold text-content-3">
+                    Source-backed downstream actuals; partial coverage is labelled and never presented as final.
+                  </p>
+                </div>
+                <span className="rounded-full bg-info-bg px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-info-fg ring-1 ring-info-border">
+                  Converted workflow
+                </span>
+              </div>
+              <div className="mt-4 space-y-2">
+                {quote.items.filter((item) => item.actual_variance).map((item, index) => {
+                  const variance = item.actual_variance!;
+                  const amount = Number(variance.variance_amount || 0);
+                  return (
+                    <div key={item.id || index} className="grid gap-3 rounded-xl bg-surface-2 p-3 text-xs font-bold md:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,0.7fr))]">
+                      <div className="min-w-0">
+                        <div className="truncate text-content-1">{item.line_name || `Line ${index + 1}`}</div>
+                        <div className="mt-1 text-[10px] text-content-3">Actual coverage {Number(variance.actual_coverage_pct || 0).toFixed(2)}%</div>
+                      </div>
+                      <Metric label="Quoted cost" value={`₹ ${inrFmt(Number(variance.quoted_total_cost || 0))}`} />
+                      <Metric label="Actual cost" value={`₹ ${inrFmt(Number(variance.actual_total_cost || 0))}`} />
+                      <Metric label="Variance" value={`${amount >= 0 ? "+" : "−"}₹ ${inrFmt(Math.abs(amount))}`} />
+                      <Metric label="Variance %" value={`${Number(variance.variance_percent || 0).toFixed(2)}%`} />
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ) : null}
 
           {/* Commercials */}
           <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)] space-y-4">
@@ -1597,7 +1719,7 @@ export default function QuotationWorkspace({
             catalog · ₹ {inrFmt(grand)} total
           </div>
           <div className="ml-auto flex items-center gap-2">
-            {quote ? (
+            {quote && ["APPROVED", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"].includes(quote.status) ? (
               <a
                 href={quotationService.pdfUrl(quote.id, { customerView: true })}
                 target="_blank"
@@ -1608,7 +1730,7 @@ export default function QuotationWorkspace({
                 Customer view
               </a>
             ) : null}
-            {canPersist ? (
+            {canPersist && quote?.status === "DRAFT" ? (
               <button
                 onClick={() => saveMut.mutate()}
                 disabled={saveMut.isPending}
@@ -1622,13 +1744,11 @@ export default function QuotationWorkspace({
                 Save draft
               </button>
             ) : null}
-            {quote &&
-            quote.status !== "APPROVED" &&
-            quote.status !== "CONVERTED" ? (
+            {quote?.status === "APPROVED" ? (
               <button
                 onClick={() => setSendDialog("open")}
-                disabled={Boolean(sendBlockedReason) || sendMut.isPending}
-                title={sendBlockedReason || "Send PDF to customer"}
+                disabled={!contactEmail.trim() || sendMut.isPending}
+                title={contactEmail.trim() ? "Send frozen PDF to customer" : "Client email is required"}
                 className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-extrabold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="h-4 w-4" />
@@ -1649,39 +1769,9 @@ export default function QuotationWorkspace({
             </h3>
           </div>
           <p className="text-[12px] font-semibold text-content-3 mb-4">
-            Pick how the customer should receive {quote.quote_number}.
+            Release the approved frozen PDF to <strong>{contactEmail || "missing client email"}</strong>. The provider ID, recipient, artifact checksum and time are stored as delivery evidence.
           </p>
-          <div className="grid grid-cols-1 gap-2 mb-4">
-            {(
-              [
-                { id: "email", label: "Email", icon: Mail },
-                { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
-                {
-                  id: "pdf_only",
-                  label: "PDF only (manual share)",
-                  icon: FileText,
-                },
-              ] as Array<{
-                id: typeof sendVia;
-                label: string;
-                icon: typeof Mail;
-              }>
-            ).map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setSendVia(id)}
-                className={cn(
-                  "flex items-center gap-3 px-3 h-12 rounded-xl ring-1 text-left",
-                  sendVia === id
-                    ? "bg-order-bg ring-order-border text-order-fg font-extrabold"
-                    : "bg-surface-1 ring-line text-content-2 font-bold hover:bg-surface-2",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
-          </div>
+          <div className="mb-4 flex items-center gap-3 rounded-xl bg-info-bg p-3 text-xs font-bold text-info-fg ring-1 ring-info-border"><Mail className="h-4 w-4" /> Evidenced email delivery</div>
           <div className="flex justify-end gap-2">
             <button
               onClick={() => setSendDialog(null)}
@@ -1690,8 +1780,8 @@ export default function QuotationWorkspace({
               Cancel
             </button>
             <button
-              onClick={() => sendMut.mutate({ id: quote.id, via: sendVia })}
-              disabled={sendMut.isPending}
+              onClick={() => sendMut.mutate({ id: quote.id, via: "email" })}
+              disabled={sendMut.isPending || !contactEmail.trim()}
               className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-extrabold hover:opacity-90 disabled:opacity-60"
             >
               {sendMut.isPending ? (
@@ -1801,48 +1891,75 @@ export default function QuotationWorkspace({
         </Dialog>
       ) : null}
 
-      {/* Margin-floor confirmation dialog */}
-      {approveDialog === "open" && quote ? (
-        <Dialog onClose={() => setApproveDialog(null)}>
-          <div className="flex items-center gap-2 mb-3">
-            <ShieldAlert className="h-5 w-5 text-warning-fg" />
-            <h3 className="text-base font-extrabold text-content-1">
-              Margin below floor
-            </h3>
-          </div>
-          <p className="text-[13px] font-semibold text-content-3 mb-4">
-            Lowest line margin is{" "}
-            <span className="font-mono font-extrabold text-danger-fg">
-              {lowestLineMargin !== null ? lowestLineMargin.toFixed(1) : "—"}%
-            </span>
-            , below the {marginFloor}% floor. Approve anyway?
-          </p>
-          <div className="flex justify-end gap-2">
+      {clientOutcome && quote ? (
+        <Dialog onClose={() => setClientOutcome(null)}>
+          <h3 className="text-base font-extrabold text-content-1">Record client {clientOutcome.toLowerCase()}</h3>
+          <p className="mt-1 text-xs font-semibold text-content-3">Record the evidence received against this exact sent revision.</p>
+          {clientOutcome === "ACCEPTED" ? (
+            <input autoFocus value={clientReference} onChange={(event) => setClientReference(event.target.value)} placeholder="PO / email / acceptance reference" className="mt-4 h-11 w-full rounded-lg border border-line px-3 text-sm font-semibold" />
+          ) : (
+            <textarea autoFocus rows={4} value={clientOutcomeReason} onChange={(event) => setClientOutcomeReason(event.target.value)} placeholder="Customer rejection reason" className="mt-4 w-full rounded-lg border border-line px-3 py-2 text-sm font-semibold" />
+          )}
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={() => setClientOutcome(null)} className="h-10 px-4 rounded-xl font-bold text-content-3">Cancel</button>
             <button
-              onClick={() => setApproveDialog(null)}
-              className="h-10 px-4 rounded-xl text-content-3 hover:bg-surface-2 font-bold"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                setApproveDialog(null);
-                approveMut.mutate(quote.id);
-              }}
-              disabled={approveMut.isPending}
-              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-success-fg text-white font-extrabold hover:bg-success-fg disabled:opacity-60"
-            >
-              {approveMut.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ShieldCheck className="h-4 w-4" />
-              )}
-              Approve anyway
-            </button>
+              onClick={() => outcomeMut.mutate({ id: quote.id, outcome: clientOutcome })}
+              disabled={outcomeMut.isPending || (clientOutcome === "ACCEPTED" ? !clientReference.trim() : !clientOutcomeReason.trim())}
+              className="h-10 px-4 rounded-xl bg-success-fg font-extrabold text-white disabled:opacity-50"
+            >Record outcome</button>
           </div>
         </Dialog>
       ) : null}
+
+      {terminalAction && quote ? (
+        <Dialog onClose={() => setTerminalAction(null)}>
+          <h3 className="text-base font-extrabold text-content-1">{terminalAction === "CANCEL" ? "Cancel" : "Void"} quotation</h3>
+          <p className="mt-1 text-xs font-semibold text-content-3">The record remains immutable and searchable. A reason is required.</p>
+          <textarea autoFocus rows={4} value={terminalReason} onChange={(event) => setTerminalReason(event.target.value)} placeholder="Reason" className="mt-4 w-full rounded-lg border border-line px-3 py-2 text-sm font-semibold" />
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={() => setTerminalAction(null)} className="h-10 px-4 rounded-xl font-bold text-content-3">Back</button>
+            <button
+              onClick={() => terminalMut.mutate({ id: quote.id, action: terminalAction })}
+              disabled={terminalMut.isPending || !terminalReason.trim()}
+              className="h-10 px-4 rounded-xl bg-danger-solid font-extrabold text-white disabled:opacity-50"
+            >Confirm {terminalAction.toLowerCase()}</button>
+          </div>
+        </Dialog>
+      ) : null}
+
     </main>
+  );
+}
+
+function QuoteField({
+  label,
+  value,
+  onChange,
+  disabled,
+  type = "text",
+  multiline = false,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  type?: string;
+  multiline?: boolean;
+  required?: boolean;
+}) {
+  const controlClass = "mt-1 w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm font-semibold text-content-1 outline-none focus:border-order-border focus:ring-2 focus:ring-order-border disabled:bg-surface-2 disabled:text-content-3";
+  return (
+    <label className={multiline ? "md:col-span-3" : ""}>
+      <span className="text-[10px] font-extrabold uppercase tracking-wider text-content-3">
+        {label}{required ? " *" : ""}
+      </span>
+      {multiline ? (
+        <textarea rows={2} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className={controlClass} />
+      ) : (
+        <input type={type} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className={controlClass} />
+      )}
+    </label>
   );
 }
 
@@ -1882,6 +1999,15 @@ function Row({
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[9px] font-extrabold uppercase tracking-wider text-content-4">{label}</div>
+      <div className="mt-1 font-mono text-content-1">{value}</div>
     </div>
   );
 }
@@ -1953,7 +2079,6 @@ interface StatusBannerProps {
   onConvert: () => void;
   onClone: () => void;
   onSend: () => void;
-  sendBlockedReason: string | null;
 }
 
 function StatusBanner({
@@ -1962,7 +2087,6 @@ function StatusBanner({
   onConvert,
   onClone,
   onSend,
-  sendBlockedReason,
 }: StatusBannerProps) {
   const fmt = (iso?: string | null) => {
     if (!iso) return "—";
@@ -1995,17 +2119,7 @@ function StatusBanner({
       tone: "sky",
       icon: <Info className="h-4 w-4" />,
       title: "Draft ready",
-      subtitle: "Review the lines and Send to customer when ready.",
-      action: (
-        <button
-          onClick={onSend}
-          disabled={Boolean(sendBlockedReason)}
-          title={sendBlockedReason || undefined}
-          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-info-fg text-white text-[12px] font-extrabold hover:bg-info-fg disabled:opacity-60"
-        >
-          <Send className="h-3.5 w-3.5" /> Send
-        </button>
-      ),
+      subtitle: "Complete Cost Build and submit this revision for approval.",
     };
   } else if (quote.status === "SENT") {
     body = {
@@ -2018,13 +2132,25 @@ function StatusBanner({
     body = {
       tone: "emerald",
       icon: <CheckCircle2 className="h-4 w-4" />,
-      title: `Customer approved on ${fmt(quote.approved_at)}`,
-      subtitle: "Convert to a Sales Order to start production.",
+      title: `Internal approval completed on ${fmt(quote.approved_at)}`,
+      subtitle: "Release the frozen client PDF by evidenced email.",
       action: (
         <button
-          onClick={onConvert}
+          onClick={onSend}
           className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-success-fg text-white text-[12px] font-extrabold hover:bg-success-fg"
         >
+          Send <Send className="h-3.5 w-3.5" />
+        </button>
+      ),
+    };
+  } else if (quote.status === "ACCEPTED") {
+    body = {
+      tone: "emerald",
+      icon: <CheckCircle2 className="h-4 w-4" />,
+      title: `Client acceptance recorded on ${fmt(quote.accepted_at)}`,
+      subtitle: `Reference: ${quote.acceptance_reference || "—"}. Ready for controlled conversion.`,
+      action: (
+        <button onClick={onConvert} className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-success-fg text-white text-[12px] font-extrabold">
           Convert <ArrowRight className="h-3.5 w-3.5" />
         </button>
       ),

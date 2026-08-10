@@ -180,7 +180,7 @@ class QuotationPDFService:
             story.append(Paragraph(cls._escape(custom_terms).replace("\n", "<br/>"), styles["body"]))
             story.append(Spacer(1, 3 * mm))
 
-        if quotation.notes:
+        if quotation.notes and not customer_view:
             story.append(Paragraph("NOTES", styles["section"]))
             story.append(Paragraph(cls._escape(quotation.notes).replace("\n", "<br/>"), styles["body"]))
             story.append(Spacer(1, 3 * mm))
@@ -192,9 +192,13 @@ class QuotationPDFService:
         story.append(cls._terms_list(quotation, styles))
         story.append(Spacer(1, 5 * mm))
 
-        story.append(Paragraph("BANK DETAILS · FOR REMITTANCE", styles["section"]))
-        story.append(cls._bank_block(styles, quotation))
-        story.append(Spacer(1, 6 * mm))
+        if profile and any(
+            str(getattr(profile, field, "") or "").strip()
+            for field in ("bank_name", "bank_account_no", "bank_ifsc", "bank_branch", "bank_upi")
+        ):
+            story.append(Paragraph("BANK DETAILS · FOR REMITTANCE", styles["section"]))
+            story.append(cls._bank_block(styles, quotation))
+            story.append(Spacer(1, 6 * mm))
 
         story.append(cls._signature_block(quotation, styles))
 
@@ -330,7 +334,8 @@ class QuotationPDFService:
         canvas.drawString(
             14 * mm,
             10 * mm,
-            f"{cls._profile_company_name(quotation)}  ·  {cls._profile_website(quotation)}  ·  Quote {quotation.quote_number}",
+            f"{cls._profile_company_name(quotation)}  ·  Quote {quotation.quote_number} R{quotation.revision_no}  ·  "
+            f"Trace {((quotation.frozen_snapshot or {}).get('checksum') or 'DRAFT')[:12]}",
         )
         canvas.drawRightString(
             page_w - 14 * mm,
@@ -381,7 +386,7 @@ class QuotationPDFService:
                 styles["stamp_meta"],
             )],
             [Paragraph(
-                f"<b>Date</b>  {timezone.now().strftime('%d-%b-%Y')}",
+                f"<b>Date</b>  {(quotation.frozen_at or quotation.created_at).strftime('%d-%b-%Y')}",
                 styles["stamp_meta"],
             )],
             [Paragraph(
@@ -480,7 +485,10 @@ class QuotationPDFService:
         contact = (getattr(customer, "contact_person", None) or "").strip() if customer else ""
         phone = (getattr(customer, "phone", None) or "").strip() if customer else ""
         email = (getattr(customer, "email", None) or "").strip() if customer else ""
-        address = (getattr(customer, "address", None) or "").strip() if customer else ""
+        address = (quotation.billing_address or getattr(customer, "billing_address", "") or "").strip()
+        contact = (quotation.contact_name or contact).strip()
+        phone = (quotation.contact_phone or phone).strip()
+        email = (quotation.contact_email or email).strip()
 
         bill_to_lines = [Paragraph("BILL TO", styles["card_label"]), Paragraph(cls._escape(customer_name), styles["card_strong"])]
         if address:
@@ -497,9 +505,14 @@ class QuotationPDFService:
         if gstin:
             bill_to_lines.append(Paragraph(f"<b>GSTIN</b>&nbsp;&nbsp;{cls._escape(gstin)}", styles["pill"]))
 
-        # Ship-to: defaults to bill-to if not separate. We don't currently store
-        # a separate ship-to on the model, so show "Same as bill-to" by default.
-        ship_to_lines = [Paragraph("SHIP TO", styles["card_label"]), Paragraph("Same as bill-to address", styles["card_body"])]
+        ship_to = (quotation.shipping_address or "").strip()
+        ship_to_lines = [Paragraph("SHIP TO", styles["card_label"])]
+        ship_to_lines.append(
+            Paragraph(
+                cls._escape(ship_to).replace("\n", "<br/>") if ship_to else "Address not supplied",
+                styles["card_body"],
+            )
+        )
 
         bill_cell = Table([[line] for line in bill_to_lines], colWidths=[82 * mm])
         bill_cell.setStyle(cls._card_style())
@@ -524,7 +537,7 @@ class QuotationPDFService:
     def _meta_strip(cls, quotation, styles) -> Table:
         plant = quotation.plant.name if quotation.plant_id else "—"
         currency = quotation.currency or "INR"
-        terms_summary = (quotation.terms or "").strip().split("\n")[0] or "Net 30 days"
+        terms_summary = (quotation.payment_terms or quotation.terms or "").strip().split("\n")[0] or "—"
         salesperson = (
             getattr(getattr(quotation, "sent_by", None), "full_name", None)
             or getattr(getattr(quotation, "sent_by", None), "username", None)
@@ -534,7 +547,7 @@ class QuotationPDFService:
             cls._meta_cell("PLANT", plant, styles),
             cls._meta_cell("SALESPERSON", str(salesperson), styles),
             cls._meta_cell("CURRENCY", currency, styles),
-            cls._meta_cell("REFERENCE", quotation.quote_number, styles),
+            cls._meta_cell("REFERENCE", quotation.enquiry_reference or quotation.quote_number, styles),
             cls._meta_cell("PAYMENT", terms_summary[:36], styles),
         ]]
         t = Table(rows, colWidths=[35 * mm, 35 * mm, 24 * mm, 34 * mm, 48 * mm])
@@ -703,9 +716,16 @@ class QuotationPDFService:
 
     @classmethod
     def _terms_list(cls, quotation, styles):
+        profile = getattr(quotation, "_company_profile", None)
+        raw = (quotation.terms or "").strip() or (getattr(profile, "quote_terms_text", "") or "").strip()
+        terms = [line.strip().lstrip("0123456789.-) ").strip() for line in raw.splitlines() if line.strip()]
+        if quotation.payment_terms:
+            terms.append(f"Payment: {quotation.payment_terms.strip()}")
+        if quotation.delivery_terms:
+            terms.append(f"Delivery: {quotation.delivery_terms.strip()}")
         items = [
             ListItem(Paragraph(cls._escape(line), styles["body"]), leftIndent=6, value=i + 1)
-            for i, line in enumerate(DEFAULT_TERMS)
+            for i, line in enumerate(terms)
         ]
         return ListFlowable(items, bulletType="1", bulletFontSize=9, bulletColor=colors.HexColor(BRAND_NAVY), leftIndent=14, bulletIndent=0)
 

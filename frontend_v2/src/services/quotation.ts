@@ -27,6 +27,16 @@ export interface QuoteLineAddon {
     rate_per_kg: number;
 }
 
+export interface QuoteMaterialComponent {
+    material_id?: string | null;
+    material_code?: string;
+    material_name?: string;
+    name?: string;
+    gsm?: number;
+    quantity?: number;
+    uom?: string;
+}
+
 export interface InventoryMaterialOption {
     id: string;
     code: string;
@@ -75,17 +85,26 @@ export interface QuoteLineSpec {
     gusset_mm?: number;
     flap_mm?: number;
     layers?: QuoteLineLayer[];
-    adhesive_name?: string;
-    adhesive_gsm?: number;
-    adhesive_rate_per_kg?: number;
-    ink_name?: string;
-    ink_gsm?: number;
-    ink_rate_per_kg?: number;
+    adhesives?: QuoteMaterialComponent[];
+    inks?: QuoteMaterialComponent[];
+    solvents?: QuoteMaterialComponent[];
+    additives?: QuoteMaterialComponent[];
     addons?: QuoteLineAddon[];
     optional_inner_pack?: QuoteLineInnerPack | null;
     child_web_width_mm?: number;
     conversion_stages?: string[];
-    save_as_master?: boolean;
+    quote_variant_kind?: "EXISTING_READY" | "QUOTE_SCOPED_VARIANT";
+    total_gsm?: number | string;
+    unit_weight_g?: number | string;
+    total_weight_kg?: number | string;
+    // Read-only compatibility for quotations created before first-class
+    // material component arrays were introduced. New saves use plural arrays.
+    adhesive_gsm?: number;
+    adhesive_rate_per_kg?: number;
+    adhesive_name?: string;
+    ink_gsm?: number;
+    ink_rate_per_kg?: number;
+    ink_name?: string;
 }
 
 export interface QuoteLineInnerPack {
@@ -153,7 +172,26 @@ export interface QuotationItem {
     sku_variant?: string | null;
     product_master?: string | null;
     size?: string | null;
+    product_master_size?: string | null;
+    product_variant?: string | null;
+    pouch_style_master?: string | null;
+    canonical_source_snapshot?: Record<string, unknown>;
+    spec_signature?: string;
+    cost_snapshot_checksum?: string;
     packaging_snapshot?: Record<string, unknown> | null;
+    actual_variance?: {
+        quoted_material_cost: number | string;
+        quoted_conversion_cost: number | string;
+        quoted_total_cost: number | string;
+        actual_material_cost: number | string;
+        actual_conversion_cost: number | string;
+        actual_total_cost: number | string;
+        variance_amount: number | string;
+        variance_percent: number | string;
+        actual_coverage_pct: number | string;
+        source: Record<string, unknown>;
+        calculated_at: string;
+    } | null;
 }
 
 export interface QuotationListItem {
@@ -161,6 +199,12 @@ export interface QuotationListItem {
     quote_number: string;
     customer_name: string;
     customer?: string | null;
+    enquiry_reference?: string;
+    contact_name?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    billing_address?: string;
+    shipping_address?: string;
     plant?: string | null;
     plant_name?: string | null;
     status: string;
@@ -177,7 +221,18 @@ export interface QuotationListItem {
     rejected_by?: string | null;
     rejected_by_name?: string | null;
     rejection_reason?: string | null;
+    accepted_at?: string | null;
+    acceptance_reference?: string;
+    acceptance_channel?: string;
+    cancellation_reason?: string;
+    void_reason?: string;
+    frozen_at?: string | null;
     terms?: string | null;
+    payment_terms?: string;
+    delivery_terms?: string;
+    requested_delivery_date?: string | null;
+    place_of_supply?: string;
+    tax_snapshot?: Record<string, unknown>;
     custom_terms?: string | null;
     notes?: string | null;
     discount_pct?: number | string;
@@ -199,6 +254,87 @@ export interface QuotationListItem {
     totals_snapshot?: Record<string, unknown>;
     converted_sales_order?: string | null;
     items?: QuotationItem[];
+    readiness?: { ready: boolean; errors: string[] };
+    cost_build?: CostBuild | null;
+    approval_gates?: ApprovalGate[];
+    deliveries?: QuoteDelivery[];
+}
+
+export interface CostComponent {
+    id?: string;
+    quotation_item_id?: string;
+    category: "MATERIAL" | "PROCESS" | "LABOUR" | "OVERHEAD" | "WASTAGE" | "PACKING" | "FREIGHT" | "OTHER";
+    role?: string;
+    label: string;
+    material_id?: string;
+    material_code?: string;
+    material_name?: string;
+    source_type: string;
+    source_ref?: string;
+    source_lot_ref?: string;
+    source_effective_at?: string | null;
+    baseline_rate: number | string;
+    baseline_available_qty: number | string;
+    baseline_uom: string;
+    quote_quantity: number | string;
+    quote_uom: string;
+    effective_rate: number | string;
+    component_cost: number | string;
+    override_rate?: number | string | null;
+    override_reason?: string;
+    override_status: string;
+    override_expires_at?: string | null;
+    readiness_status: string;
+    provenance?: Record<string, unknown>;
+}
+
+export interface CostBuild {
+    id?: string;
+    status: string;
+    currency?: string;
+    pricing_definition?: "MARKUP_ON_COST" | "GROSS_MARGIN_ON_SALES";
+    target_percent?: number | string;
+    material_cost?: number | string;
+    conversion_cost?: number | string;
+    total_cost?: number | string;
+    list_price?: number | string;
+    target_price?: number | string;
+    discount_amount?: number | string;
+    net_sale?: number | string;
+    tax_amount?: number | string;
+    rounding_amount?: number | string;
+    grand_total?: number | string;
+    contribution?: number | string;
+    markup_pct?: number | string;
+    gross_margin_pct?: number | string;
+    formula_version?: string;
+    readiness?: { ready: boolean; errors: string[]; warnings?: string[]; pending_override_count?: number };
+    sensitivity?: Record<string, { cost: string; contribution: string; gross_margin_pct: string }>;
+    checksum?: string;
+    components?: CostComponent[];
+}
+
+export interface ApprovalGate {
+    id: string;
+    gate: string;
+    status: string;
+    reason?: string;
+    requested_at?: string;
+    decided_at?: string | null;
+    expires_at?: string | null;
+    snapshot_checksum?: string;
+}
+
+export interface QuoteDelivery {
+    id: string;
+    channel: string;
+    recipient: string;
+    status: string;
+    provider?: string;
+    provider_message_id?: string;
+    attempted_at?: string;
+    delivered_at?: string | null;
+    artifact_checksum?: string;
 }
 
 export interface CustomerSummary {
@@ -394,6 +530,26 @@ export const quotationService = {
         return data;
     },
 
+    getCostBuild: async (id: string): Promise<CostBuild> => {
+        const { data } = await api.get<CostBuild>(`${BASE}/${id}/cost-build/`);
+        return data;
+    },
+
+    saveCostBuild: async (id: string, body: Record<string, unknown>): Promise<CostBuild> => {
+        const { data } = await api.post<CostBuild>(`${BASE}/${id}/cost-build/`, body);
+        return data;
+    },
+
+    approveCostOverrides: async (id: string, reason: string): Promise<QuotationListItem> => {
+        const { data } = await api.post<QuotationListItem>(`${BASE}/${id}/approve-cost-overrides/`, { reason });
+        return data;
+    },
+
+    submitForApproval: async (id: string): Promise<QuotationListItem> => {
+        const { data } = await api.post<QuotationListItem>(`${BASE}/${id}/submit-for-approval/`, {});
+        return data;
+    },
+
     cloneRevision: async (id: string): Promise<QuotationListItem> => {
         const { data } = await api.post<QuotationListItem>(`${BASE}/${id}/clone-revision/`, {});
         return data;
@@ -401,14 +557,14 @@ export const quotationService = {
 
     send: async (
         id: string,
-        body: { via: "email" | "whatsapp" | "pdf_only"; recipients?: string[] },
+        body: { recipients: string[] },
     ): Promise<{ status: string; sent_at: string }> => {
         const { data } = await api.post(`${BASE}/${id}/send/`, body);
         return data;
     },
 
-    approve: async (id: string): Promise<{ status: string; approved_at: string }> => {
-        const { data } = await api.post(`${BASE}/${id}/approve/`, {});
+    approve: async (id: string, gate: "COMMERCIAL" | "FINANCE", reason = ""): Promise<QuotationListItem> => {
+        const { data } = await api.post(`${BASE}/${id}/approve/`, { gate, reason });
         return data;
     },
 
@@ -417,8 +573,23 @@ export const quotationService = {
         return data;
     },
 
-    reject: async (id: string, reason: string): Promise<{ status: string }> => {
-        const { data } = await api.post(`${BASE}/${id}/reject/`, { reason });
+    reject: async (id: string, reason: string, gate: "COMMERCIAL" | "FINANCE" = "COMMERCIAL"): Promise<QuotationListItem> => {
+        const { data } = await api.post(`${BASE}/${id}/reject/`, { reason, gate });
+        return data;
+    },
+
+    recordClientOutcome: async (id: string, body: { outcome: "ACCEPTED" | "REJECTED"; reference?: string; channel?: string; reason?: string }): Promise<QuotationListItem> => {
+        const { data } = await api.post<QuotationListItem>(`${BASE}/${id}/client-outcome/`, body);
+        return data;
+    },
+
+    cancel: async (id: string, reason: string): Promise<QuotationListItem> => {
+        const { data } = await api.post<QuotationListItem>(`${BASE}/${id}/cancel/`, { reason });
+        return data;
+    },
+
+    void: async (id: string, reason: string): Promise<QuotationListItem> => {
+        const { data } = await api.post<QuotationListItem>(`${BASE}/${id}/void/`, { reason });
         return data;
     },
 
@@ -490,6 +661,14 @@ export const quotationService = {
         return listFromPayload<ProductMasterSize>(data);
     },
 
+    listProcessCostRates: async (): Promise<Array<{
+        id: string; process_name: string; process_code: string; machine_name?: string | null;
+        machine_code?: string | null; cost_per_hour: number | string; is_active: boolean;
+    }>> => {
+        const { data } = await api.get(`/api/costing/process-rates/`, { params: { is_active: true, page_size: 500 } });
+        return listFromPayload(data);
+    },
+
     listCompatibleArtworks: async (
         productMasterId: string,
         params?: {
@@ -530,19 +709,6 @@ export const quotationService = {
         return data;
     },
 
-    // V37 promote-modified-BOM — pushes a tweaked spec back onto the master.
-    // Gated server-side by master.manage.
-    updateProductMasterBom: async (
-        productMasterId: string,
-        body: Partial<Pick<ProductMasterBom, "layers" | "adhesive" | "ink" | "addons" | "feature_defaults" | "feature_options">>,
-    ): Promise<ProductMasterSummary> => {
-        const { data } = await api.post<ProductMasterSummary>(
-            `/api/master/products/${productMasterId}/update-bom/`,
-            body,
-        );
-        return data;
-    },
-
     // V37 production preview — pouches/parent roll, machine time, material availability.
     productionPreview: async (body: {
         spec: QuoteLineSpec;
@@ -560,17 +726,25 @@ export const quotationService = {
 
 export type QuotationStatus =
     | "DRAFT"
-    | "SENT"
+    | "PENDING_APPROVAL"
     | "APPROVED"
+    | "SENT"
+    | "ACCEPTED"
     | "REJECTED"
     | "EXPIRED"
+    | "CANCELLED"
+    | "VOID"
     | "CONVERTED";
 
 export const QUOTATION_STATUSES: QuotationStatus[] = [
     "DRAFT",
-    "SENT",
+    "PENDING_APPROVAL",
     "APPROVED",
+    "SENT",
+    "ACCEPTED",
     "REJECTED",
     "EXPIRED",
+    "CANCELLED",
+    "VOID",
     "CONVERTED",
 ];

@@ -289,6 +289,10 @@ PERMISSION_LABELS: Dict[str, str] = {
     "logistics.manage": "Create and manage dispatch challans",
     "packing.view": "Packing yard data",
     "packing.manage": "Packing yard release actions",
+    "sales.quote.approve": "Approve frozen quotation revisions",
+    "sales.quote.cost_override": "Enter quote-specific cost assumptions",
+    "sales.quote.cost_override.approve": "Approve quote-specific cost assumptions",
+    "sales.quote.send": "Release approved quotations to clients",
 }
 
 
@@ -300,6 +304,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "users.self_manage",
         "sales.view",
         "sales.manage",
+        "sales.quote.cost_override",
+        "sales.quote.send",
         "dashboard.view",
         "notifications.view",
         "master.view",
@@ -392,6 +398,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "inventory.audit.view",
         "factory.view",
         "sales.view",
+        "sales.quote.approve",
+        "sales.quote.cost_override.approve",
         "master.view",
         "templates.view",
         "engineering.view",
