@@ -5,7 +5,12 @@ from django.db import transaction
 from rest_framework import serializers
 
 from .models import RecipeGrade, ExtrusionRecipe, ExtrusionRecipeComponent
-from .services import recipe_contract, refresh_open_sales_boms_for_recipe_contracts
+from .services import (
+    recipe_change_impact,
+    recipe_contract,
+    record_recipe_revision,
+    refresh_open_sales_boms_for_recipe_contracts,
+)
 
 class RecipeGradeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -25,11 +30,13 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
     film_variant_name = serializers.CharField(source='film_variant.name', read_only=True)
     grade_name = serializers.CharField(source='grade.name', read_only=True)
     bom_refresh = serializers.SerializerMethodField()
+    change_reason = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=255)
+    recent_revisions = serializers.SerializerMethodField()
 
     class Meta:
         model = ExtrusionRecipe
-        fields = ['id', 'film_variant', 'film_variant_name', 'grade', 'grade_name', 'thickness_min_micron', 'thickness_max_micron', 'is_active', 'created_at', 'components', 'bom_refresh']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'film_variant', 'film_variant_name', 'grade', 'grade_name', 'thickness_min_micron', 'thickness_max_micron', 'is_active', 'created_at', 'updated_at', 'revision_no', 'components', 'bom_refresh', 'change_reason', 'recent_revisions']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'revision_no', 'recent_revisions']
         validators = []
 
     @staticmethod
@@ -38,6 +45,23 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
 
     def get_bom_refresh(self, obj):
         return getattr(obj, "_bom_refresh_stats", None)
+
+    def get_recent_revisions(self, obj):
+        return [
+            {
+                "revision_no": revision.revision_no,
+                "event": revision.event,
+                "change_reason": revision.change_reason,
+                "changed_by": str(getattr(revision.changed_by, "display_name", "") or getattr(revision.changed_by, "username", "") or "System"),
+                "created_at": revision.created_at,
+                "impact": revision.impact_snapshot,
+            }
+            for revision in list(obj.revisions.all())[:5]
+        ]
+
+    def _actor(self):
+        request = self.context.get("request")
+        return getattr(request, "user", None)
 
     def validate_components(self, value):
         total = sum(self._round_percentage(c['percentage']) for c in value)
@@ -107,6 +131,7 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        change_reason = validated_data.pop('change_reason', '')
         components_data = validated_data.pop('components')
         try:
             with transaction.atomic():
@@ -118,17 +143,39 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
                     [recipe_contract(recipe)],
                     raise_on_error=True,
                 )
+                impact = recipe_change_impact([recipe_contract(recipe)])
+                recipe._bom_refresh_stats.update({
+                    "matched_total": impact["matched_total"],
+                    "historical_frozen": impact["frozen"],
+                })
+                record_recipe_revision(
+                    recipe,
+                    event="CREATE",
+                    change_reason=change_reason or "Initial recipe created",
+                    impact_snapshot=recipe._bom_refresh_stats,
+                    changed_by=self._actor(),
+                )
         except DjangoValidationError as exc:
             raise serializers.ValidationError({"bom_refresh": exc.messages}) from exc
         return recipe
 
     def update(self, instance, validated_data):
-        previous_contract = recipe_contract(instance)
+        change_reason = validated_data.pop('change_reason', '')
         components_data = validated_data.pop('components', None)
         try:
             with transaction.atomic():
+                instance = ExtrusionRecipe.objects.select_for_update().get(pk=instance.pk)
+                previous_contract = recipe_contract(instance)
+                if not instance.revisions.exists():
+                    record_recipe_revision(
+                        instance,
+                        event="BASELINE",
+                        change_reason="Baseline captured before first governed edit",
+                        changed_by=self._actor(),
+                    )
                 for attr, value in validated_data.items():
                     setattr(instance, attr, value)
+                instance.revision_no += 1
                 instance.save()
 
                 if components_data is not None:
@@ -137,9 +184,22 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
                         comp_data['percentage'] = float(self._round_percentage(comp_data.get('percentage')))
                         ExtrusionRecipeComponent.objects.create(recipe=instance, **comp_data)
 
+                contracts = [previous_contract, recipe_contract(instance)]
+                impact = recipe_change_impact(contracts)
                 instance._bom_refresh_stats = refresh_open_sales_boms_for_recipe_contracts(
-                    [previous_contract, recipe_contract(instance)],
+                    contracts,
                     raise_on_error=True,
+                )
+                instance._bom_refresh_stats.update({
+                    "matched_total": impact["matched_total"],
+                    "historical_frozen": impact["frozen"],
+                })
+                record_recipe_revision(
+                    instance,
+                    event="UPDATE",
+                    change_reason=change_reason or "Recipe formulation updated",
+                    impact_snapshot={"before_save": impact, "refresh_result": instance._bom_refresh_stats},
+                    changed_by=self._actor(),
                 )
         except DjangoValidationError as exc:
             raise serializers.ValidationError({"bom_refresh": exc.messages}) from exc

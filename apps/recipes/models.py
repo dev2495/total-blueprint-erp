@@ -34,6 +34,8 @@ class ExtrusionRecipe(models.Model):
     
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    revision_no = models.PositiveIntegerField(default=1)
 
     class Meta:
         db_table = 'extrusion_recipes'
@@ -61,3 +63,49 @@ class ExtrusionRecipeComponent(models.Model):
 
     def __str__(self):
         return f"{self.granule.code} ({self.percentage}%)"
+
+
+class ExtrusionRecipeRevision(models.Model):
+    """Immutable audit snapshot for every governed recipe change."""
+
+    EVENT_CHOICES = [
+        ("CREATE", "Created"),
+        ("BASELINE", "Baseline captured"),
+        ("UPDATE", "Updated"),
+        ("DISABLE", "Disabled"),
+        ("ENABLE", "Enabled"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    recipe = models.ForeignKey(
+        ExtrusionRecipe,
+        on_delete=models.PROTECT,
+        related_name="revisions",
+    )
+    revision_no = models.PositiveIntegerField()
+    event = models.CharField(max_length=16, choices=EVENT_CHOICES)
+    change_reason = models.CharField(max_length=255, blank=True, default="")
+    contract_snapshot = models.JSONField(default=dict)
+    components_snapshot = models.JSONField(default=list)
+    impact_snapshot = models.JSONField(default=dict)
+    changed_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="extrusion_recipe_revisions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "extrusion_recipe_revisions"
+        ordering = ["-revision_no", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["recipe", "revision_no"],
+                name="uniq_extrusion_recipe_revision_no",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.recipe_id} · v{self.revision_no} · {self.event}"

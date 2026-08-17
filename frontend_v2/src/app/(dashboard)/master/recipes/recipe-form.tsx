@@ -13,6 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,7 +25,7 @@ import { ExtrusionRecipe, recipeService } from "@/services/recipes";
 import { filmVariantService } from "@/services/film-variants";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { Loader2, Trash2, Plus } from "lucide-react";
+import { GitCompareArrows, History, Loader2, Plus, RefreshCw, ShieldCheck, Snowflake, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 const useGranules = () => {
@@ -94,6 +95,7 @@ const formSchema = z.object({
       },
       { message: "Total percentage must be 100.00%" },
     ),
+  change_reason: z.string().max(255, "Keep the change reason under 255 characters").optional(),
 });
 
 interface RecipeFormProps {
@@ -117,6 +119,7 @@ export function RecipeForm({
       thickness_min_micron: 20,
       thickness_max_micron: 100,
       components: [{ granule: "", percentage: 100 }],
+      change_reason: "",
     },
   });
 
@@ -129,6 +132,9 @@ export function RecipeForm({
       control: form.control,
       name: "components",
     }) || [];
+  const watchedContract = useWatch({
+    control: form.control,
+  });
   const percentageTotal = roundPercentage(
     watchedComponents.reduce(
       (acc, curr) => acc + roundPercentage(Number(curr?.percentage) || 0),
@@ -137,6 +143,13 @@ export function RecipeForm({
   );
   const percentageRemaining = roundPercentage(100 - percentageTotal);
   const totalWithinTolerance = Math.abs(percentageRemaining) <= 0.05;
+  const originalComponents = initialData?.components || [];
+  const addedFamilies = watchedComponents.filter((row) => row?.granule && !originalComponents.some((item) => String(item.granule) === String(row.granule))).length;
+  const removedFamilies = originalComponents.filter((item) => !watchedComponents.some((row) => String(row?.granule) === String(item.granule))).length;
+  const changedFamilies = watchedComponents.filter((row) => {
+    const previous = originalComponents.find((item) => String(item.granule) === String(row?.granule));
+    return previous && roundPercentage(Number(previous.percentage || 0)) !== roundPercentage(Number(row?.percentage || 0));
+  }).length;
   const componentsError =
     form.formState.errors.components?.root?.message ||
     form.formState.errors.components?.message;
@@ -173,9 +186,36 @@ export function RecipeForm({
           granule: c.granule,
           percentage: c.percentage,
         })),
+        change_reason: "",
       });
     }
   }, [initialData, form]);
+
+  const { data: impact, isFetching: impactLoading } = useQuery({
+    queryKey: [
+      "recipe-impact",
+      initialData?.id,
+      watchedContract.film_variant,
+      watchedContract.grade,
+      watchedContract.thickness_min_micron,
+      watchedContract.thickness_max_micron,
+    ],
+    queryFn: () => recipeService.impact(initialData!.id, {
+      film_variant: String(watchedContract.film_variant || ""),
+      grade: String(watchedContract.grade || ""),
+      thickness_min_micron: Number(watchedContract.thickness_min_micron || 0),
+      thickness_max_micron: Number(watchedContract.thickness_max_micron || 0),
+      components: [],
+    }),
+    enabled: Boolean(
+      initialData?.id &&
+      watchedContract.film_variant &&
+      watchedContract.grade &&
+      watchedContract.thickness_min_micron &&
+      watchedContract.thickness_max_micron,
+    ),
+    staleTime: 15_000,
+  });
 
   const balanceRecipeToHundred = () => {
     const current = form.getValues("components");
@@ -206,13 +246,75 @@ export function RecipeForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(
-          (data) => onSubmit(normalizeRecipePayload(data)),
+          (data) => {
+            if (initialData && !String(data.change_reason || "").trim()) {
+              form.setError("change_reason", { message: "Add a short reason so this recipe revision is auditable." });
+              return;
+            }
+            onSubmit(normalizeRecipePayload(data));
+          },
           async () => {
             await form.trigger();
           },
         )}
         className="space-y-4"
       >
+        {initialData ? (
+          <div className="overflow-hidden rounded-2xl border border-primary/20 bg-info-bg/40">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-primary/10 px-4 py-3">
+              <div>
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-primary">
+                  <GitCompareArrows className="h-3.5 w-3.5" /> Exact recipe contract
+                </div>
+                <div className="mt-1 text-base font-black text-content-1">
+                  {initialData.film_variant_name} · {initialData.grade_name} · {initialData.thickness_min_micron}–{initialData.thickness_max_micron} μ
+                </div>
+                <p className="mt-1 text-xs font-medium text-content-3">
+                  Only order layers matching this variant, grade and thickness range are affected.
+                </p>
+              </div>
+              <div className="rounded-xl border border-primary/15 bg-surface-1 px-3 py-2 text-right">
+                <div className="text-[10px] font-black uppercase tracking-wider text-content-4">Current revision</div>
+                <div className="font-mono text-lg font-black tabular-nums text-primary">v{initialData.revision_no || 1}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-px bg-primary/10 sm:grid-cols-4">
+              {[
+                { label: "Matching lines", value: impact?.matched_total ?? "—", icon: History },
+                { label: "Will refresh", value: impact?.refreshable ?? "—", icon: RefreshCw },
+                { label: "Stay frozen", value: impact?.frozen ?? "—", icon: Snowflake },
+                { label: "Released", value: impact?.released ?? "—", icon: ShieldCheck },
+              ].map((metric) => (
+                <div key={metric.label} className="bg-surface-1 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-content-4">
+                    <metric.icon className="h-3.5 w-3.5" /> {metric.label}
+                  </div>
+                  <div className="mt-1 font-mono text-lg font-black tabular-nums text-content-1">
+                    {impactLoading ? "…" : metric.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {impact?.samples?.length ? (
+              <div className="border-t border-primary/10 bg-surface-1 px-4 py-3">
+                <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-content-4">Recent matching order lines</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {impact.samples.slice(0, 4).map((sample) => (
+                    <div key={sample.line_id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2">
+                      <div>
+                        <div className="font-mono text-xs font-black text-content-1">{sample.order_number}</div>
+                        <div className="text-[10px] font-semibold text-content-4">{sample.line_status || sample.order_status}</div>
+                      </div>
+                      <span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wider ${sample.outcome === "FROZEN" ? "bg-info-bg text-primary" : "bg-success-bg text-success-fg"}`}>
+                        {sample.outcome === "FROZEN" ? "Keeps old recipe" : "Will refresh"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -317,6 +419,13 @@ export function RecipeForm({
               <p className="mt-1 max-w-xl text-xs font-medium text-content-3">
                 Define consumption by granule family. WCM chooses one or more internal grade codes and source stores before machine release.
               </p>
+              {initialData ? (
+                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-wider">
+                  <span className="rounded-full bg-success-bg px-2 py-1 text-success-fg">{addedFamilies} added</span>
+                  <span className="rounded-full bg-warning-bg px-2 py-1 text-warning-fg">{changedFamilies} changed</span>
+                  <span className="rounded-full bg-surface-3 px-2 py-1 text-content-3">{removedFamilies} removed</span>
+                </div>
+              ) : null}
             </div>
             <div className="flex gap-2">
               <Button
@@ -371,8 +480,16 @@ export function RecipeForm({
                       const selected = granules?.find((item) => String(item.id) === String(field.value));
                       const codeCount = selected?.quality_code_count ?? selected?.quality_codes?.filter((code) => code.status === "ACTIVE").length ?? 0;
                       return selected ? (
-                        <div className="px-1 text-[11px] font-semibold text-content-3">
-                          {selected.code} · {codeCount} active internal grade code{codeCount === 1 ? "" : "s"} available for WCM allocation
+                        <div className="flex flex-wrap items-center gap-2 px-1 text-[11px] font-semibold text-content-3">
+                          <span>{selected.code} · {codeCount} active internal grade code{codeCount === 1 ? "" : "s"} available for WCM allocation</span>
+                          {initialData ? (() => {
+                            const previous = initialData.components.find((component) => String(component.granule) === String(field.value));
+                            const next = Number(watchedComponents[index]?.percentage || 0);
+                            if (!previous) return <span className="rounded-full bg-success-bg px-2 py-0.5 text-success-fg">New family</span>;
+                            const delta = roundPercentage(next - Number(previous.percentage || 0));
+                            if (!delta) return null;
+                            return <span className="rounded-full bg-warning-bg px-2 py-0.5 text-warning-fg">{delta > 0 ? "+" : ""}{delta.toFixed(2)}%</span>;
+                          })() : null}
                         </div>
                       ) : null;
                     })() : null}
@@ -447,10 +564,36 @@ export function RecipeForm({
           </div>
         </div>
 
+        {initialData ? (
+          <FormField
+            control={form.control}
+            name="change_reason"
+            render={({ field }) => (
+              <FormItem className="rounded-2xl border border-line bg-surface-2 p-4">
+                <FormLabel className="flex items-center gap-2 text-sm font-black text-content-1">
+                  <History className="h-4 w-4 text-primary" /> Revision reason
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    {...field}
+                    value={field.value || ""}
+                    rows={2}
+                    placeholder="Example: Split 0.40% master batch into PPA, slip and brightener families"
+                  />
+                </FormControl>
+                <p className="text-xs font-medium text-content-3">
+                  Saved with the immutable recipe revision. Released jobs remain on their original formulation.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ) : null}
+
         <div className="flex justify-end gap-2">
           <Button type="submit" disabled={isLoading || !totalWithinTolerance}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save family recipe
+            {initialData ? `Publish revision v${(initialData.revision_no || 1) + 1}` : "Save family recipe"}
           </Button>
         </div>
       </form>

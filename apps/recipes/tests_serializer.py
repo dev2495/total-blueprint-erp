@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from apps.materials.models import InventoryMaterial, ProductMaster
-from apps.recipes.models import RecipeGrade, ExtrusionRecipe
+from apps.recipes.models import RecipeGrade, ExtrusionRecipe, ExtrusionRecipeRevision
 from apps.recipes.serializers import ExtrusionRecipeSerializer
 from apps.recipes.services import (
     layer_matches_recipe_contract,
@@ -101,6 +101,71 @@ class ExtrusionRecipeSerializerTests(TestCase):
         refresh.assert_called_once()
         self.assertTrue(refresh.call_args.kwargs["raise_on_error"])
         self.assertEqual(ExtrusionRecipeSerializer(recipe).data["bom_refresh"], refresh_stats)
+
+    def test_create_records_immutable_recipe_revision(self):
+        serializer = ExtrusionRecipeSerializer(data={
+            "film_variant": str(self.variant.id),
+            "grade": str(self.grade.id),
+            "thickness_min_micron": 40,
+            "thickness_max_micron": 60,
+            "components": [
+                {"granule": str(self.granule_a.id), "percentage": "25.00"},
+                {"granule": str(self.granule_b.id), "percentage": "75.00"},
+            ],
+            "change_reason": "Initial approved formulation",
+        })
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        recipe = serializer.save()
+        revision = ExtrusionRecipeRevision.objects.get(recipe=recipe)
+
+        self.assertEqual(revision.revision_no, 1)
+        self.assertEqual(revision.event, "CREATE")
+        self.assertEqual(revision.change_reason, "Initial approved formulation")
+        self.assertEqual([row["granule_code"] for row in revision.components_snapshot], ["GRA-001", "GRA-002"])
+
+    @patch("apps.recipes.serializers.recipe_change_impact")
+    @patch("apps.recipes.serializers.refresh_open_sales_boms_for_recipe_contracts")
+    def test_update_captures_baseline_and_new_revision(self, refresh, impact):
+        recipe = ExtrusionRecipe.objects.create(
+            film_variant=self.variant,
+            grade=self.grade,
+            thickness_min_micron=40,
+            thickness_max_micron=60,
+        )
+        recipe.components.create(granule=self.granule_a, percentage=25)
+        recipe.components.create(granule=self.granule_b, percentage=75)
+        refresh.return_value = {
+            "matched_items": 0, "checked": 0, "refreshed": 0, "failed": 0,
+            "skipped": 0, "queues_rebuilt": 0, "queues_frozen": 0,
+            "queues_planning_required": 0, "still_blocked": 0,
+        }
+        impact.return_value = {
+            "matched_total": 2, "refreshable": 1, "frozen": 1,
+            "released": 1, "in_production": 0, "closed": 0,
+            "without_queue": 0, "samples": [],
+        }
+        serializer = ExtrusionRecipeSerializer(instance=recipe, data={
+            "film_variant": str(self.variant.id),
+            "grade": str(self.grade.id),
+            "thickness_min_micron": 40,
+            "thickness_max_micron": 60,
+            "components": [
+                {"granule": str(self.granule_a.id), "percentage": "30.00"},
+                {"granule": str(self.granule_b.id), "percentage": "70.00"},
+            ],
+            "change_reason": "Approved blend correction",
+        })
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+        updated = serializer.save()
+        revisions = list(updated.revisions.order_by("revision_no"))
+
+        self.assertEqual(updated.revision_no, 2)
+        self.assertEqual([row.event for row in revisions], ["BASELINE", "UPDATE"])
+        self.assertEqual(revisions[1].change_reason, "Approved blend correction")
+        self.assertEqual(revisions[1].components_snapshot[0]["percentage"], "30.00")
+        self.assertEqual(updated._bom_refresh_stats["historical_frozen"], 1)
 
     def test_create_rolls_back_recipe_when_open_bom_refresh_fails(self):
         serializer = ExtrusionRecipeSerializer(data={

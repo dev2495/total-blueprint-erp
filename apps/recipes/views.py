@@ -1,4 +1,3 @@
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
@@ -7,7 +6,12 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import RecipeGrade, ExtrusionRecipe
 from .serializers import RecipeGradeSerializer, ExtrusionRecipeSerializer
-from .services import recipe_contract, refresh_open_sales_boms_for_recipe_contracts
+from .services import (
+    recipe_change_impact,
+    recipe_contract,
+    record_recipe_revision,
+    refresh_open_sales_boms_for_recipe_contracts,
+)
 
 class RecipeGradeViewSet(viewsets.ModelViewSet):
     queryset = RecipeGrade.objects.all()
@@ -21,23 +25,73 @@ class RecipeGradeViewSet(viewsets.ModelViewSet):
         return super().get_queryset().order_by('name')
 
 class ExtrusionRecipeViewSet(viewsets.ModelViewSet):
-    queryset = ExtrusionRecipe.objects.all().select_related('film_variant', 'grade').prefetch_related('components', 'components__granule')
+    queryset = ExtrusionRecipe.objects.all().select_related('film_variant', 'grade').prefetch_related('components', 'components__granule', 'revisions__changed_by')
     serializer_class = ExtrusionRecipeSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['film_variant', 'grade', 'is_active']
     search_fields = ['film_variant__name', 'film_variant__code']
 
     def perform_destroy(self, instance):
-        previous_contract = recipe_contract(instance)
-        try:
-            with transaction.atomic():
-                super().perform_destroy(instance)
-                refresh_open_sales_boms_for_recipe_contracts(
-                    [previous_contract],
-                    raise_on_error=True,
+        raise ValidationError({
+            "detail": "Recipes are production history and cannot be deleted. Disable the recipe instead."
+        })
+
+    @action(detail=True, methods=['post'])
+    def impact(self, request, pk=None):
+        recipe = self.get_object()
+        proposed = request.data if isinstance(request.data, dict) else {}
+        contract = recipe_contract(recipe)
+        if proposed:
+            variant_id = str(proposed.get("film_variant") or recipe.film_variant_id)
+            grade_id = str(proposed.get("grade") or recipe.grade_id)
+            variant = recipe.film_variant.__class__.objects.filter(id=variant_id).first()
+            grade = RecipeGrade.objects.filter(id=grade_id).first()
+            if not variant or not grade:
+                raise ValidationError({"detail": "Choose a valid film variant and grade before checking impact."})
+            contract = {
+                "film_variant_id": str(variant.id),
+                "film_variant_code": variant.code,
+                "grade_id": str(grade.id),
+                "grade_name": grade.name,
+                "thickness_min_micron": int(proposed.get("thickness_min_micron") or recipe.thickness_min_micron),
+                "thickness_max_micron": int(proposed.get("thickness_max_micron") or recipe.thickness_max_micron),
+            }
+        return Response(recipe_change_impact([recipe_contract(recipe), contract]))
+
+    @action(detail=True, methods=['post'])
+    def disable(self, request, pk=None):
+        with transaction.atomic():
+            recipe = ExtrusionRecipe.objects.select_for_update().select_related('film_variant', 'grade').get(pk=pk)
+            if not recipe.is_active:
+                return Response(ExtrusionRecipeSerializer(recipe, context=self.get_serializer_context()).data)
+            impact = recipe_change_impact([recipe_contract(recipe)])
+            if not recipe.revisions.exists():
+                record_recipe_revision(
+                    recipe,
+                    event="BASELINE",
+                    change_reason="Baseline captured before recipe disable",
+                    changed_by=request.user,
                 )
-        except DjangoValidationError as exc:
-            raise ValidationError({"bom_refresh": exc.messages}) from exc
+            recipe.is_active = False
+            recipe.revision_no += 1
+            recipe.save(update_fields=["is_active", "revision_no", "updated_at"])
+            refresh_result = refresh_open_sales_boms_for_recipe_contracts(
+                [recipe_contract(recipe)],
+                raise_on_error=True,
+            )
+            refresh_result.update({
+                "matched_total": impact["matched_total"],
+                "historical_frozen": impact["frozen"],
+            })
+            recipe._bom_refresh_stats = refresh_result
+            record_recipe_revision(
+                recipe,
+                event="DISABLE",
+                change_reason=str(request.data.get("change_reason") or "Recipe disabled"),
+                impact_snapshot={"before_save": impact, "refresh_result": refresh_result},
+                changed_by=request.user,
+            )
+        return Response(ExtrusionRecipeSerializer(recipe, context=self.get_serializer_context()).data)
 
     @action(detail=False, methods=['get'])
     def resolve(self, request):

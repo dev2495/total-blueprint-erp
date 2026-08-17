@@ -12,6 +12,33 @@ export interface ExtrusionRecipeComponent {
     percentage: number;
 }
 
+export interface RecipeImpact {
+    matched_total: number;
+    refreshable: number;
+    frozen: number;
+    released: number;
+    in_production: number;
+    closed: number;
+    without_queue: number;
+    samples: Array<{
+        order_number: string;
+        line_id: string;
+        order_status: string;
+        line_status: string;
+        outcome: "REFRESHABLE" | "FROZEN";
+        reason: string;
+    }>;
+}
+
+export interface RecipeRevisionSummary {
+    revision_no: number;
+    event: "CREATE" | "BASELINE" | "UPDATE" | "DISABLE" | "ENABLE";
+    change_reason: string;
+    changed_by: string;
+    created_at: string;
+    impact?: Record<string, unknown>;
+}
+
 export interface ExtrusionRecipe {
     id: string;
     film_variant: string;
@@ -22,6 +49,10 @@ export interface ExtrusionRecipe {
     thickness_max_micron: number;
     components: ExtrusionRecipeComponent[];
     is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    revision_no: number;
+    recent_revisions: RecipeRevisionSummary[];
     bom_refresh?: {
         matched_items: number;
         checked: number;
@@ -32,6 +63,8 @@ export interface ExtrusionRecipe {
         queues_frozen: number;
         queues_planning_required: number;
         still_blocked: number;
+        matched_total?: number;
+        historical_frozen?: number;
     } | null;
 }
 
@@ -41,6 +74,7 @@ export interface CreateExtrusionRecipeDto {
     thickness_min_micron: number;
     thickness_max_micron: number;
     components: { granule: string; percentage: number }[];
+    change_reason?: string;
 }
 
 export const recipeService = {
@@ -72,6 +106,16 @@ export const recipeService = {
     },
     update: async (id: string, data: CreateExtrusionRecipeDto) => {
         const response = await api.put<ExtrusionRecipe>(`/api/recipes/recipes/${id}/`, data);
+        return response.data;
+    },
+    impact: async (id: string, data: Partial<CreateExtrusionRecipeDto>) => {
+        const response = await api.post<RecipeImpact>(`/api/recipes/recipes/${id}/impact/`, data);
+        return response.data;
+    },
+    disable: async (id: string, changeReason: string) => {
+        const response = await api.post<ExtrusionRecipe>(`/api/recipes/recipes/${id}/disable/`, {
+            change_reason: changeReason,
+        });
         return response.data;
     },
     delete: async (id: string) => {

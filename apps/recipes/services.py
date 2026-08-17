@@ -19,6 +19,113 @@ def recipe_contract(recipe) -> dict[str, Any]:
     }
 
 
+def recipe_component_snapshot(recipe) -> list[dict[str, Any]]:
+    return [
+        {
+            "granule_id": str(component.granule_id),
+            "granule_code": str(getattr(component.granule, "code", "") or ""),
+            "granule_name": str(getattr(component.granule, "name", "") or ""),
+            "percentage": str(Decimal(str(component.percentage or 0)).quantize(Decimal("0.01"))),
+        }
+        for component in recipe.components.select_related("granule").order_by("granule__code")
+    ]
+
+
+def recipe_change_impact(contracts: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Classify matching order lines without mutating planning or production state."""
+
+    from django.db.models import Q
+
+    from apps.production.models import ProductionJob
+    from apps.sales.models import SalesOrderItem
+    from apps.sales.services.order_service import SalesOrderService
+
+    contracts = [contract for contract in contracts if isinstance(contract, dict)]
+    result: dict[str, Any] = {
+        "matched_total": 0,
+        "refreshable": 0,
+        "frozen": 0,
+        "released": 0,
+        "in_production": 0,
+        "closed": 0,
+        "without_queue": 0,
+        "samples": [],
+    }
+    if not contracts:
+        return result
+
+    contract_filter = Q()
+    for contract in contracts:
+        variant_id = str(contract.get("film_variant_id") or "").strip()
+        grade_id = str(contract.get("grade_id") or "").strip()
+        if variant_id and grade_id:
+            contract_filter |= Q(layer_snapshot__contains=[{"variant_id": variant_id, "grade_id": grade_id}])
+    items = SalesOrderItem.objects.select_related("sales_order").order_by("-created_at")
+    if contract_filter.children:
+        items = items.filter(contract_filter)
+    for item in items.iterator():
+        layers = item.layer_snapshot if isinstance(item.layer_snapshot, list) else []
+        if not any(
+            layer_matches_recipe_contract(layer, contract)
+            for layer in layers
+            for contract in contracts
+        ):
+            continue
+
+        result["matched_total"] += 1
+        order_status = str(item.sales_order.status or "").upper()
+        line_status = str(item.line_status or "").upper()
+        lock_reason = SalesOrderService._pre_release_revision_lock_reason(item)
+        if lock_reason:
+            result["frozen"] += 1
+        else:
+            result["refreshable"] += 1
+        if order_status == "RELEASED" or line_status == "RELEASED":
+            result["released"] += 1
+        if line_status in {"IN_PRODUCTION", "PARTIAL"}:
+            result["in_production"] += 1
+        if order_status in {"PACKING_READY", "DISPATCH_READY", "COMPLETED", "CANCELLED"} or line_status in {
+            "PACKING_READY", "DISPATCH_READY", "COMPLETED", "CANCELLED", "SHORT_CLOSED"
+        }:
+            result["closed"] += 1
+        if not ProductionJob.objects.filter(sales_order_item=item).exclude(job_state="CANCELLED").exists():
+            result["without_queue"] += 1
+        if len(result["samples"]) < 8:
+            result["samples"].append(
+                {
+                    "order_number": item.sales_order.order_number,
+                    "line_id": str(item.id),
+                    "order_status": order_status,
+                    "line_status": line_status,
+                    "outcome": "FROZEN" if lock_reason else "REFRESHABLE",
+                    "reason": lock_reason or "Open line will refresh against this recipe",
+                }
+            )
+    return result
+
+
+def record_recipe_revision(
+    recipe,
+    *,
+    event: str,
+    change_reason: str = "",
+    impact_snapshot: dict[str, Any] | None = None,
+    changed_by=None,
+):
+    from .models import ExtrusionRecipeRevision
+
+    return ExtrusionRecipeRevision.objects.create(
+        recipe=recipe,
+        revision_no=recipe.revision_no,
+        event=event,
+        change_reason=str(change_reason or "").strip()[:255],
+        contract_snapshot=recipe_contract(recipe),
+        components_snapshot=recipe_component_snapshot(recipe),
+        impact_snapshot=impact_snapshot or {},
+        changed_by=changed_by if getattr(changed_by, "is_authenticated", False) else None,
+    )
+
+
 def layer_matches_recipe_contract(layer: Any, contract: dict[str, Any]) -> bool:
     if not isinstance(layer, dict) or not isinstance(contract, dict):
         return False
