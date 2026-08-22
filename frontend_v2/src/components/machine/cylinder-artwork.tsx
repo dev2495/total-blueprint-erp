@@ -245,7 +245,7 @@ function ArtworkDialog({
     queryKey: ["artwork-detail", artworkId],
     queryFn: async () => {
       const { data } = await api.get<ArtworkPayload>(
-        `/api/artwork/artworks/${artworkId}/`,
+        `/api/engineering/artworks/${artworkId}/`,
       );
       return data;
     },

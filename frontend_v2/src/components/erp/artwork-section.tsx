@@ -17,6 +17,15 @@ import {
   Sparkles,
   Wand2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 export type ArtworkAssignmentMode =
@@ -366,6 +375,17 @@ function ArtworkPickerPanel({
   onPickArtwork?: () => void;
   showReplaceCta?: boolean;
 }) {
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const selected = options.find((cw) => assignment?.colorway_id === cw.id);
+  const filteredOptions = React.useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return options;
+    return options.filter((cw) =>
+      `${cw.name} ${cw.family}`.toLowerCase().includes(normalized),
+    );
+  }, [options, query]);
+
   if (!options.length) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-1 px-4 py-3">
@@ -392,65 +412,135 @@ function ArtworkPickerPanel({
   }
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
-          Approved colorways
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-1 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-3">
+          {selected ? (
+            <ArtworkThumb
+              url={selected.thumbnail_url}
+              accent={selected.accent_hex}
+              size={48}
+            />
+          ) : (
+            <div className="flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-dashed border-line bg-surface-2">
+              <ImageIcon className="h-4 w-4 text-content-4" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+              Approved artwork
+            </div>
+            <div className="truncate text-sm font-bold text-content-1">
+              {selected?.name || assignment?.colorway_name || "Not selected"}
+            </div>
+            <div className="truncate text-[11px] text-content-3">
+              {selected?.family ||
+                assignment?.design_family_name ||
+                `${options.length} approved option${options.length === 1 ? "" : "s"}`}
+            </div>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={onPickArtwork}
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
-        >
-          <Search className="h-3 w-3" /> Browse all
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {options.map((cw) => {
-          const active = assignment?.colorway_id === cw.id;
-          return (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white hover:bg-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-info-border"
+          >
+            <Search className="h-3.5 w-3.5" />
+            {selected || assignment ? "Change artwork" : "Choose artwork"}
+          </button>
+          {onPickArtwork ? (
             <button
-              key={cw.id}
               type="button"
-              onClick={() => onSelectColorway?.(cw)}
-              className={cn(
-                "group relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border bg-surface-1 p-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-info-border",
-                active
-                  ? "border-primary ring-2 ring-info-border"
-                  : "border-line hover:border-line-strong",
-              )}
+              onClick={onPickArtwork}
+              className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface-1 px-3 py-2 text-xs font-bold text-content-2 hover:border-line-strong"
             >
-              <ArtworkThumb
-                url={cw.thumbnail_url}
-                accent={cw.accent_hex}
-                size={88}
-              />
-              <div className="flex items-start justify-between gap-1">
-                <div className="min-w-0">
-                  <div className="truncate text-[11px] font-bold text-content-1">
-                    {cw.name}
-                  </div>
-                  <div className="truncate text-[10px] font-medium text-content-3">
-                    {cw.family}
-                  </div>
-                </div>
-                {cw.is_approved ? (
-                  <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-fg ring-1 ring-success-border">
-                    Approved
-                  </span>
-                ) : null}
-              </div>
-              <div className="text-[10px] font-semibold text-content-3">
-                {cw.color_count} colors
-              </div>
-              {active ? (
-                <span className="absolute right-2 top-2 rounded-full bg-primary p-0.5 text-white">
-                  <CheckCircle2 className="h-3 w-3" />
-                </span>
-              ) : null}
+              Manage library
             </button>
-          );
-        })}
+          ) : null}
+        </div>
       </div>
+      <Dialog
+        open={pickerOpen}
+        onOpenChange={(open) => {
+          setPickerOpen(open);
+          if (!open) setQuery("");
+        }}
+      >
+        <DialogContent
+          data-testid="sales-order-artwork-picker"
+          className="flex h-[min(78vh,720px)] max-h-[78vh] max-w-3xl flex-col overflow-hidden p-0"
+        >
+          <DialogHeader className="shrink-0 px-5 pb-4 pt-5 pr-12">
+            <DialogTitle>Choose approved artwork</DialogTitle>
+            <DialogDescription>
+              Select one approved artwork for this print type and film form.
+            </DialogDescription>
+            <div className="relative pt-2">
+              <Search className="absolute left-3 top-[18px] h-4 w-4 text-content-4" />
+              <Input
+                autoFocus
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search artwork or design family"
+                className="pl-9"
+                aria-label="Search approved artwork"
+              />
+            </div>
+          </DialogHeader>
+          <ScrollArea className="min-h-0 flex-1 px-5 pb-5">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {filteredOptions.map((cw) => {
+                const active = assignment?.colorway_id === cw.id;
+                return (
+                  <button
+                    key={cw.id}
+                    type="button"
+                    onClick={() => {
+                      onSelectColorway?.(cw);
+                      setPickerOpen(false);
+                      setQuery("");
+                    }}
+                    className={cn(
+                      "flex min-w-0 items-center gap-3 rounded-xl border bg-surface-1 p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-info-border",
+                      active
+                        ? "border-primary bg-info-bg ring-1 ring-info-border"
+                        : "border-line hover:border-line-strong",
+                    )}
+                  >
+                    <ArtworkThumb
+                      url={cw.thumbnail_url}
+                      accent={cw.accent_hex}
+                      size={56}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-bold text-content-1">
+                        {cw.name}
+                      </div>
+                      <div className="truncate text-[11px] text-content-3">
+                        {cw.family}
+                      </div>
+                      <div className="mt-1 text-[10px] font-semibold text-content-3">
+                        {cw.color_count} colors · Approved
+                      </div>
+                    </div>
+                    {active ? (
+                      <CheckCircle2 className="h-4 w-4 flex-none text-primary" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+            {filteredOptions.length === 0 ? (
+              <div className="py-16 text-center text-sm text-content-3">
+                No approved artwork matches this search.
+              </div>
+            ) : null}
+          </ScrollArea>
+          <div className="shrink-0 border-t border-line bg-surface-2 px-5 py-3 text-[11px] text-content-3">
+            {filteredOptions.length} of {options.length} approved artworks shown
+          </div>
+        </DialogContent>
+      </Dialog>
       {showReplaceCta ? (
         <div className="flex items-center justify-end gap-2">
           <button

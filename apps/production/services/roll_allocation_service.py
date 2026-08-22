@@ -211,7 +211,13 @@ class RollAllocationService:
         
         logger.debug("RollAllocationService job=%s lineage eligible count=%s", job.id, len(eligible_ids))
 
-        if include_non_lineage_fallback and not downstream_modify_existing:
+        # `include_non_lineage_fallback` is the explicit manual-discovery
+        # contract used by WCM.  Downstream MODIFY_EXISTING steps still prefer
+        # true lineage, but when the planner starts from compatible plant stock
+        # (for example purchased film sent directly to printing) operators must
+        # be able to reserve that exact stock manually.  Auto-pick remains
+        # lineage-only via ExecutionService._allow_non_lineage_roll_auto_pick.
+        if include_non_lineage_fallback:
             required_rolls = 0
             try:
                 step_roll_spec = ExecutionService._resolve_step_roll_spec(job, process)

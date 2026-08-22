@@ -1294,19 +1294,32 @@ export default function WCMTerminal() {
         : false,
   });
 
-  // Use Context specific eligible rolls if available, else fallback to WC endpoint
+  // The execution context intentionally caps its inline suggestions. Always load
+  // the authoritative allocation endpoint as well, then merge by roll id so an
+  // exact roll cannot disappear merely because it fell outside that context cap.
   const { data: eligibleRollsFallback } = useQuery({
     queryKey: ["eligible-rolls", selectedJobId],
     queryFn: () => wcmService.getEligibleRolls(selectedJobId),
-    enabled: !!selectedJobId && !executionContext,
+    enabled: !!selectedJobId,
   });
   const eligibleRolls = useMemo(() => {
-    const raw =
-      (executionContext as any)?.eligible_rolls ?? eligibleRollsFallback;
-    if (Array.isArray(raw)) return raw;
-    if (raw && typeof raw === "object" && Array.isArray((raw as any).results))
-      return (raw as any).results;
-    return [];
+    const normalizeRows = (raw: any): any[] => {
+      if (Array.isArray(raw)) return raw;
+      if (raw && typeof raw === "object" && Array.isArray(raw.results))
+        return raw.results;
+      return [];
+    };
+    const merged = new Map<string, any>();
+    normalizeRows((executionContext as any)?.eligible_rolls).forEach((roll) => {
+      const id = String(roll?.id || "");
+      if (id) merged.set(id, roll);
+    });
+    normalizeRows(eligibleRollsFallback).forEach((roll) => {
+      const id = String(roll?.id || "");
+      if (!id) return;
+      merged.set(id, { ...roll, ...(merged.get(id) || {}) });
+    });
+    return Array.from(merged.values());
   }, [executionContext, eligibleRollsFallback]);
 
   // 2. Stats Calculation
@@ -1340,6 +1353,8 @@ export default function WCMTerminal() {
   }, [eligibleRolls]);
 
   const selectedJob = (activeAssignment as any)?.job_details;
+  const selectedQueueJob = ((summaryActiveAssignment as any)?.job_details ||
+    {}) as Record<string, any>;
   const selectedTargetPlantId = String(
     activeAssignment?.plant_id ||
       selectedJob?.work_center?.plant_id ||
@@ -1418,8 +1433,12 @@ export default function WCMTerminal() {
       (selectedJob as any)?.input_form ??
       "",
   ).toUpperCase();
+  const contextStepExecution =
+    (executionContext as any)?.step_execution || {};
   const selectedPrimaryUom = String(
-    (selectedJob as any)?.primary_uom ||
+    contextStepExecution?.primary_uom ||
+      (selectedJob as any)?.primary_uom ||
+      selectedQueueJob?.primary_uom ||
       (String((selectedJob as any)?.uom || "").toUpperCase() === "PCS" &&
       selectedOutputForm === "BULK" &&
       selectedInputForm === "ROLL"
@@ -1427,16 +1446,33 @@ export default function WCMTerminal() {
         : "KG"),
   ).toUpperCase() as "KG" | "PCS";
   const selectedPrimaryDecimals = selectedPrimaryUom === "PCS" ? 0 : 3;
+  const selectedJobPrimaryUom = String(
+    (selectedJob as any)?.primary_uom || "",
+  ).toUpperCase();
+  const selectedQueuePrimaryUom = String(
+    selectedQueueJob?.primary_uom || "",
+  ).toUpperCase();
   const stepTargetPrimary =
-    toNullableNumber((selectedJob as any)?.step_target_primary) ??
+    toNullableNumber(contextStepExecution?.target_primary) ??
+    (selectedJobPrimaryUom === selectedPrimaryUom
+      ? toNullableNumber((selectedJob as any)?.step_target_primary)
+      : null) ??
+    (selectedQueuePrimaryUom === selectedPrimaryUom
+      ? toNullableNumber(selectedQueueJob?.step_target_primary)
+      : null) ??
     (selectedPrimaryUom === "PCS"
       ? String((selectedJob as any)?.uom || "").toUpperCase() === "PCS"
         ? Number((selectedJob as any)?.quantity || 0)
         : null
       : Number(stepTargetKg || 0));
-  const stepRemainingPrimary = toNullableNumber(
-    (selectedJob as any)?.step_remaining_primary,
-  );
+  const stepRemainingPrimary =
+    toNullableNumber(contextStepExecution?.remaining_primary) ??
+    (selectedJobPrimaryUom === selectedPrimaryUom
+      ? toNullableNumber((selectedJob as any)?.step_remaining_primary)
+      : null) ??
+    (selectedQueuePrimaryUom === selectedPrimaryUom
+      ? toNullableNumber(selectedQueueJob?.step_remaining_primary)
+      : null);
   const showPrimarySupportKg = selectedPrimaryUom === "PCS" && stepTargetKg > 0;
   const showPcsSecondary = selectedOutputForm === "BULK";
   const displayPcsSecondary =
@@ -3001,14 +3037,8 @@ export default function WCMTerminal() {
   );
 
   const selectedSpec = normalizeProductSpec(selectedJob, executionContext);
-  const selectedQueueJob = ((summaryActiveAssignment as any)?.job_details ||
-    {}) as Record<string, any>;
-  const selectedDetailStepTarget =
-    toNullableNumber(selectedQueueJob.step_target_primary) ??
-    stepTargetPrimary;
-  const selectedDetailStepRemaining =
-    toNullableNumber(selectedQueueJob.step_remaining_primary) ??
-    stepRemainingPrimary;
+  const selectedDetailStepTarget = stepTargetPrimary;
+  const selectedDetailStepRemaining = stepRemainingPrimary;
   const selectedIssueUoms = Array.from(
     new Set(materialIssueRows.map((row: any) => materialIssueUom(row))),
   );
