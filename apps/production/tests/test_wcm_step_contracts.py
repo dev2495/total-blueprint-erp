@@ -1,4 +1,5 @@
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.db.models import Q
@@ -121,3 +122,208 @@ class WcmStepContractTests(TestCase):
 
         self.assertFalse(strict_lineage.filter(id=self.exact_roll.id).exists())
         self.assertTrue(manual_discovery.filter(id=self.exact_roll.id).exists())
+
+    @patch.object(
+        ExecutionService,
+        "_resolve_job_lineage_filter",
+        return_value=Q(created_by_job__isnull=False),
+    )
+    @patch.object(
+        ExecutionService,
+        "_build_step_target_specs",
+        return_value=[
+            {
+                "variant_id": None,
+                "family_id": None,
+                "thickness_micron": 50,
+                "stock_form": "OPEN_WEB",
+                "slit_policy": "SLIT_ALLOWED",
+                "min_width_mm": 850,
+                "max_auto_width_mm": 935,
+            }
+        ],
+    )
+    @patch.object(
+        ExecutionService,
+        "_resolve_step_roll_spec",
+        return_value={"input_roll_count": 1},
+    )
+    def test_manual_discovery_never_includes_thinner_or_narrower_rolls(
+        self,
+        _roll_spec,
+        _target_specs,
+        _lineage_filter,
+    ):
+        thinner = InventoryRoll.objects.create(
+            label_id="ROLL-WCM-THINNER",
+            material=self.material,
+            plant=self.plant,
+            location=self.rm,
+            status="AVAILABLE",
+            thickness_micron=Decimal("49"),
+            width_mm=Decimal("850"),
+            stock_form="OPEN_WEB",
+            original_weight_kg=Decimal("100"),
+            weight_kg=Decimal("100"),
+        )
+        narrower = InventoryRoll.objects.create(
+            label_id="ROLL-WCM-NARROWER",
+            material=self.material,
+            plant=self.plant,
+            location=self.rm,
+            status="AVAILABLE",
+            thickness_micron=Decimal("50"),
+            width_mm=Decimal("849"),
+            stock_form="OPEN_WEB",
+            original_weight_kg=Decimal("100"),
+            weight_kg=Decimal("100"),
+        )
+
+        eligible = RollAllocationService.get_eligible_rolls(
+            self.job,
+            include_non_lineage_fallback=True,
+            include_remainder=True,
+        )
+
+        self.assertTrue(eligible.filter(id=self.exact_roll.id).exists())
+        self.assertFalse(eligible.filter(id=thinner.id).exists())
+        self.assertFalse(eligible.filter(id=narrower.id).exists())
+
+    def test_exact_only_width_and_decimal_gauge_are_not_bucketed(self):
+        exact_only = {
+            "thickness_micron": Decimal("50"),
+            "stock_form": "OPEN_WEB",
+            "slit_policy": "EXACT_ONLY",
+            "min_width_mm": Decimal("850"),
+        }
+        wider = InventoryRoll.objects.create(
+            label_id="ROLL-WCM-WIDER",
+            material=self.material,
+            plant=self.plant,
+            location=self.rm,
+            status="AVAILABLE",
+            thickness_micron=Decimal("50"),
+            width_mm=Decimal("900"),
+            stock_form="OPEN_WEB",
+            original_weight_kg=Decimal("100"),
+            weight_kg=Decimal("100"),
+        )
+        fractional_gauge = InventoryRoll.objects.create(
+            label_id="ROLL-WCM-50-25",
+            material=self.material,
+            plant=self.plant,
+            location=self.rm,
+            status="AVAILABLE",
+            thickness_micron=Decimal("50.25"),
+            width_mm=Decimal("850"),
+            stock_form="OPEN_WEB",
+            original_weight_kg=Decimal("100"),
+            weight_kg=Decimal("100"),
+        )
+
+        self.assertTrue(ExecutionService._roll_matches_target_specs(self.exact_roll, [exact_only]))
+        self.assertFalse(ExecutionService._roll_matches_target_specs(wider, [exact_only]))
+        self.assertFalse(ExecutionService._roll_matches_target_specs(fractional_gauge, [exact_only]))
+
+    @patch.object(
+        ExecutionService,
+        "_job_layer_snapshot",
+        return_value=[
+            {
+                "variant_id": "variant-tt",
+                "family_id": "family-bopp",
+                "thickness_micron": 51,
+                "roll_width_mm": 900,
+                "stock_form": "OPEN_WEB",
+            }
+        ],
+    )
+    @patch.object(
+        ExecutionService,
+        "_job_geometry_snapshot",
+        return_value={"base": {"width_mm": 900}},
+    )
+    @patch.object(
+        ExecutionService,
+        "_resolve_step_roll_spec",
+        return_value={"output_variant_id": "variant-tt"},
+    )
+    @patch(
+        "apps.production.services.services_execution.StockFormResolver.from_job",
+        return_value=SimpleNamespace(
+            stock_form="OPEN_WEB",
+            width_basis="OPEN_WEB_WIDTH",
+            slit_policy="SLIT_ALLOWED",
+        ),
+    )
+    def test_layer_contract_does_not_add_variant_only_escape_hatch(
+        self,
+        _stock_contract,
+        _step_roll_spec,
+        _geometry,
+        _layers,
+    ):
+        specs = ExecutionService._build_step_target_specs(self.job, self.process)
+
+        self.assertEqual(len(specs), 1)
+        self.assertEqual(specs[0]["variant_id"], "variant-tt")
+        self.assertEqual(specs[0]["thickness_micron"], 51)
+        self.assertEqual(specs[0]["min_width_mm"], 900.0)
+
+    @patch.object(
+        ExecutionService,
+        "_build_step_target_specs",
+        return_value=[
+            {
+                "thickness_micron": 50,
+                "stock_form": "OPEN_WEB",
+                "slit_policy": "SLIT_ALLOWED",
+                "min_width_mm": 850,
+            }
+        ],
+    )
+    def test_manual_override_cannot_bypass_physical_contract(self, _target_specs):
+        thinner = InventoryRoll.objects.create(
+            label_id="ROLL-WCM-OVERRIDE-THINNER",
+            material=self.material,
+            plant=self.plant,
+            location=self.rm,
+            status="AVAILABLE",
+            thickness_micron=Decimal("49"),
+            width_mm=Decimal("850"),
+            stock_form="OPEN_WEB",
+            original_weight_kg=Decimal("100"),
+            weight_kg=Decimal("100"),
+        )
+
+        with self.assertRaisesRegex(ValueError, "Physical roll constraints cannot be overridden"):
+            ExecutionService.assign_roll_to_job(
+                str(self.job.id),
+                str(thinner.id),
+                manual_override=True,
+                override_reason="operator requested",
+            )
+
+    @patch.object(ExecutionService, "_is_piece_primary_roll_to_bulk_job", return_value=True)
+    def test_piece_order_keeps_pcs_as_primary_step_target(self, _is_piece_primary):
+        job = SimpleNamespace(
+            quantity=Decimal("10000"),
+            produced_qty=Decimal("250"),
+            remaining_qty=Decimal("9750"),
+        )
+        metrics = ExecutionService._resolve_primary_step_metrics(
+            job,
+            process=self.process,
+            step_target_total_kg=Decimal("140"),
+            step_produced_kg=Decimal("3.5"),
+            step_remaining_kg=Decimal("136.5"),
+            step_target_pcs=Decimal("10000"),
+            step_produced_pcs=Decimal("250"),
+            step_remaining_pcs=Decimal("9750"),
+            tolerance_kg=Decimal("1"),
+        )
+
+        self.assertEqual(metrics["primary_uom"], "PCS")
+        self.assertEqual(metrics["step_target_primary"], 10000.0)
+        self.assertEqual(metrics["step_produced_primary"], 250.0)
+        self.assertEqual(metrics["step_remaining_primary"], 9750.0)

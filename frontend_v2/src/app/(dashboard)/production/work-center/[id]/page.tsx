@@ -3301,13 +3301,13 @@ export default function WCMTerminal() {
   // tablet (md..xl) Sheet so a long queue never forces scrolling past it.
   const detailPaneContent = (
     <div className="flex flex-col gap-3">
-      <section className="order-1 overflow-hidden rounded-[22px] border border-primary bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-4 text-white shadow-[0_22px_56px_-40px_rgba(15,23,42,.7)]">
+      <section className="order-1 overflow-hidden rounded-[18px] border border-primary bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-3 text-white shadow-[0_22px_56px_-40px_rgba(15,23,42,.7)]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-[0.22em] text-info-border">
               Current order
             </div>
-            <h2 className="mt-1 text-xl font-black leading-tight tracking-tight text-white">
+            <h2 className="mt-1 text-lg font-black leading-tight tracking-tight text-white">
               {selectedOrderNumberLabel}
             </h2>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-info-border">
@@ -3376,13 +3376,13 @@ export default function WCMTerminal() {
           </TooltipProvider>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-surface-1/10 bg-surface-1/10 p-3">
+        <div className="mt-3 rounded-xl border border-surface-1/10 bg-surface-1/10 p-2.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-border">
                 Current step
               </div>
-              <div className="mt-1 text-lg font-black leading-tight text-white">
+              <div className="mt-1 text-base font-black leading-tight text-white">
                 {selectedStepName}
               </div>
             </div>
@@ -3390,33 +3390,33 @@ export default function WCMTerminal() {
               {selectedStepContractLabel}
             </span>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+          <div className="mt-2 grid gap-px overflow-hidden rounded-lg border border-surface-1/10 bg-surface-1/10 sm:grid-cols-3">
+            <div className="bg-[#0e2e58]/45 px-3 py-2">
               <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
                 Step target
               </div>
-              <div className="mt-1 text-lg font-black leading-tight text-white">
+              <div className="mt-0.5 text-sm font-black leading-tight text-white">
                 {selectedStepTargetLabel}
               </div>
             </div>
-            <div className="rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+            <div className="bg-[#0e2e58]/45 px-3 py-2">
               <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
                 Step remaining
               </div>
-              <div className="mt-1 text-lg font-black leading-tight text-white">
+              <div className="mt-0.5 text-sm font-black leading-tight text-white">
                 {selectedStepRemainingLabel}
               </div>
             </div>
-            <div className="rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+            <div className="bg-[#0e2e58]/45 px-3 py-2">
               <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
                 Issue plan
               </div>
-              <div className="mt-1 text-lg font-black leading-tight text-white">
+              <div className="mt-0.5 text-sm font-black leading-tight text-white">
                 {selectedIssueTargetLabel || "No issue"}
               </div>
             </div>
           </div>
-          <div className="mt-2 rounded-xl border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
+          <div className="mt-2 rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
             <div className="text-[10px] font-black uppercase tracking-wider text-info-border">
               Step stock contract
             </div>
@@ -3431,12 +3431,17 @@ export default function WCMTerminal() {
           </div>
         </div>
 
-        <ProductionOrderSpecRail
-          source={selectedJob}
-          context={executionContext}
-          className="mt-3"
-          dark
-        />
+        <details className="group mt-2 rounded-lg border border-white/15 bg-white/5">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-info-border marker:hidden">
+            Production spec · click to expand
+          </summary>
+          <ProductionOrderSpecRail
+            source={selectedJob}
+            context={executionContext}
+            className="border-t border-white/10 p-2"
+            dark
+          />
+        </details>
       </section>
 
       {activeMainTab === "running" ? (
@@ -3557,65 +3562,31 @@ export default function WCMTerminal() {
                   {effectiveRollsReserved}/{rollsRequired} allocated
                 </span>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-content-4">
-                    Required
+              <div className="mt-3 grid gap-px overflow-hidden rounded-xl border border-line bg-line text-xs sm:grid-cols-4">
+                {[
+                  ["Required", rollsRequired, "text-content-1"],
+                  ["Reserved", effectiveRollsReserved, "text-primary"],
+                  ["Lineage", lineageRollsAvailable, "text-success-fg"],
+                  ["Fallback", fallbackRollsAvailable, "text-warning-fg"],
+                ].map(([label, value, tone]) => (
+                  <div key={String(label)} className="flex items-center justify-between bg-surface-1 px-3 py-2 sm:block">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-content-4">
+                      {label}
+                    </div>
+                    <div className={cn("font-black sm:mt-0.5 sm:text-base", String(tone))}>
+                      {value}
+                    </div>
                   </div>
-                  <div className="mt-1 text-lg font-semibold text-content-1">
-                    {rollsRequired}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-info-border bg-info-bg px-3 py-2">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-primary">
-                    Reserved
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-primary">
-                    {effectiveRollsReserved}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-success-fg">
-                    Lineage
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-success-fg">
-                    {lineageRollsAvailable}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-warning-fg">
-                    Fallback
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-warning-fg">
-                    {fallbackRollsAvailable}
-                  </div>
-                </div>
+                ))}
               </div>
-              <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
-                <div className="rounded-xl border border-order-border bg-order-bg px-3 py-2">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-order-fg">
-                    Required stock form
-                  </div>
-                  <div className="mt-1 font-bold text-order-fg">
-                    {stockFormLabel(selectedTargetStockForm)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-order-border bg-order-bg px-3 py-2">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-order-fg">
-                    Allowed input
-                  </div>
-                  <div className="mt-1 font-bold text-order-fg">
-                    {stockFormListLabel(selectedAllowedInputForms)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-order-border bg-order-bg px-3 py-2">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-order-fg">
-                    Output policy
-                  </div>
-                  <div className="mt-1 font-bold text-order-fg">
-                    {stockFormConversionLabel}
-                  </div>
-                </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-order-border bg-order-bg px-3 py-2 text-[11px] font-semibold text-order-fg">
+                <span>
+                  Required stock form · {stockFormLabel(selectedTargetStockForm)}
+                </span>
+                <span>
+                  Allowed input · {stockFormListLabel(selectedAllowedInputForms)}
+                </span>
+                <span>Output policy · {stockFormConversionLabel}</span>
               </div>
               {rollsMissing > 0 ? (
                 <div className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
@@ -7126,8 +7097,11 @@ function RollAssignmentModal({
       const familyOk = spec?.family_id
         ? String(roll?.family_id || "") === String(spec.family_id)
         : true;
-      const materialOk =
-        spec?.variant_id || spec?.family_id ? variantOk || familyOk : true;
+      const materialOk = spec?.variant_id
+        ? variantOk
+        : spec?.family_id
+          ? familyOk
+          : false;
       const thicknessOk =
         spec?.thickness_micron != null
           ? Number(roll?.thickness_micron || 0) ===
@@ -7142,17 +7116,23 @@ function RollAssignmentModal({
         spec?.max_auto_width_mm != null ? Number(spec.max_auto_width_mm) : null;
       const rollWidth = Number(roll?.width_mm || 0);
       const widthMinOk = minWidth != null ? rollWidth >= minWidth : true;
+      const slitPolicy = String(
+        spec?.slit_policy || targetStockContract?.slit_policy || "",
+      ).toUpperCase();
+      const exactWidthOk =
+        minWidth == null || Math.abs(rollWidth - minWidth) <= 0.01;
       const widthMaxOk =
         !strictSpecMatch || maxAutoWidth == null
           ? true
           : rollWidth <= maxAutoWidth;
-      const widthOk = widthMinOk && widthMaxOk;
+      const widthOk =
+        (slitPolicy === "EXACT_ONLY" ? exactWidthOk : widthMinOk) &&
+        widthMaxOk;
       const targetForm = spec?.stock_form || targetStockContract?.stock_form;
-      const stockFormOk = processCanUseRollForTarget(
-        roll?.stock_form,
-        targetForm,
-        targetStockContract?.process_capabilities,
-      );
+      const stockFormOk = targetForm
+        ? String(roll?.stock_form || "OPEN_WEB").toUpperCase() ===
+          String(targetForm).toUpperCase()
+        : false;
       return materialOk && thicknessOk && gradeOk && widthOk && stockFormOk;
     });
   };
@@ -7196,7 +7176,8 @@ function RollAssignmentModal({
 
   const filtered = useMemo(() => {
     return manualEligibleRolls.filter((r: any) => {
-      if (strictSpecMatch && !matchesAnyTargetSpec(r)) return false;
+      // Manual override changes source approval, never roll physics.
+      if (!matchesAnyTargetSpec(r)) return false;
       if (
         filterVariant !== "ALL" &&
         r.material_name !== filterVariant &&
@@ -7237,6 +7218,13 @@ function RollAssignmentModal({
     strictSpecMatch,
     targetStockContract,
   ]);
+  const hasCandidateFilters =
+    Boolean(rollSearch.trim()) ||
+    filterVariant !== "ALL" ||
+    filterThickness !== "ALL" ||
+    filterGrade !== "ALL" ||
+    filterWidth !== "ALL" ||
+    filterStockForm !== "ALL";
 
   const transferPlantOptions = useMemo(() => {
     const rows = Array.isArray(externalAvailability)
@@ -7283,7 +7271,7 @@ function RollAssignmentModal({
       ? selectedTransferPlant.rolls
       : [];
     return rows.filter((r: any) => {
-      if (strictSpecMatch && !matchesAnyTargetSpec(r)) return false;
+      if (!matchesAnyTargetSpec(r)) return false;
       if (
         selectedSourceLocationId !== "ALL" &&
         String(r.location_id || "") !== String(selectedSourceLocationId)
@@ -7338,7 +7326,7 @@ function RollAssignmentModal({
     rows.forEach((plant: any) => {
       const rolls = Array.isArray(plant?.rolls) ? plant.rolls : [];
       rolls.forEach((roll: any) => {
-        if (!strictSpecMatch || matchesAnyTargetSpec(roll)) total += 1;
+        if (matchesAnyTargetSpec(roll)) total += 1;
       });
     });
     return total;
@@ -7554,66 +7542,62 @@ function RollAssignmentModal({
               raise transfer request.
             </div>
           )}
-          <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-xl border border-line bg-surface-1 px-3 py-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
-                True WIP
-              </div>
-              <div className="mt-2 text-2xl font-black text-content-1">
-                {Number(
-                  (wipPoolMeta as any)?.lineage_roll_count ||
-                    lineageCandidateCount ||
-                    0,
-                )}
-              </div>
-              <div className="text-[11px] text-content-3">
-                Strict lineage choices
-              </div>
-            </div>
-            <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg">
-                Fallback
-              </div>
-              <div className="mt-2 text-2xl font-black text-warning-fg">
-                {Number(
-                  (wipPoolMeta as any)?.fallback_roll_count ||
-                    fallbackCandidateCount ||
-                    0,
-                )}
-              </div>
-              <div className="text-[11px] text-warning-fg">
-                Manual assignment only
-              </div>
-            </div>
-            <div className="rounded-xl border border-info-border bg-info-bg px-3 py-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-                Required
-              </div>
-              <div className="mt-2 text-2xl font-black text-primary">
-                {Number(required || 0)}
-              </div>
-              <div className="text-[11px] text-primary">
-                Rolls needed for this step
-              </div>
-            </div>
-            <div className="rounded-xl border border-[#10233f] bg-[#10233f] px-3 py-3 text-white">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
-                Slot Coverage
-              </div>
-              <div className="mt-2 text-2xl font-black">
-                {matchedSlotCount}/
-                {Math.max(
-                  Number(required || 0),
-                  Number(
-                    (rollAssignmentValidation as any)?.required_rolls || 0,
+          <div className="mt-3 overflow-hidden rounded-xl border border-line bg-surface-1">
+            <div className="grid divide-y divide-line sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+              {[
+                {
+                  label: "Required",
+                  value: Number(required || 0),
+                  help: "rolls for this step",
+                  tone: "text-primary",
+                },
+                {
+                  label: "Slot coverage",
+                  value: `${matchedSlotCount}/${Math.max(
+                    Number(required || 0),
+                    Number(
+                      (rollAssignmentValidation as any)?.required_rolls || 0,
+                    ),
+                  )}`,
+                  help:
+                    unmatchedSlotCount > 0
+                      ? `${unmatchedSlotCount} slot open`
+                      : "mapped cleanly",
+                  tone: "text-content-1",
+                },
+                {
+                  label: "True WIP",
+                  value: Number(
+                    (wipPoolMeta as any)?.lineage_roll_count ||
+                      lineageCandidateCount ||
+                      0,
                   ),
-                )}
-              </div>
-              <div className="text-[11px] text-content-4">
-                {unmatchedSlotCount > 0
-                  ? `${unmatchedSlotCount} target slot(s) still open`
-                  : "Current set maps cleanly"}
-              </div>
+                  help: "same-order lineage",
+                  tone: "text-success-fg",
+                },
+                {
+                  label: "Fallback",
+                  value: Number(
+                    (wipPoolMeta as any)?.fallback_roll_count ||
+                      fallbackCandidateCount ||
+                      0,
+                  ),
+                  help: "physical contract still applies",
+                  tone: "text-warning-fg",
+                },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between gap-3 px-3 py-2 sm:block">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
+                    {item.label}
+                  </div>
+                  <div className={cn("text-lg font-black", item.tone)}>
+                    {item.value}
+                  </div>
+                  <div className="text-[10px] font-medium text-content-3">
+                    {item.help}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-6">
@@ -7779,6 +7763,13 @@ function RollAssignmentModal({
                               EXACT MATCH
                             </Badge>
                           )}
+                          {!roll.spec_exact &&
+                            String(roll.width_match_mode || "").toUpperCase() ===
+                              "WIDER_SLITTABLE" && (
+                              <Badge className="bg-warning-bg text-warning-fg text-[10px] font-bold">
+                                WIDER · SLIT REQUIRED
+                              </Badge>
+                            )}
                           {String(roll.roll_source || "").toUpperCase() ===
                             "LINEAGE" && (
                             <Badge className="bg-[#10233f] text-white text-[10px] font-bold">
@@ -7811,6 +7802,15 @@ function RollAssignmentModal({
                             {rollWidthPlanLabel(roll)}
                           </div>
                         ) : null}
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-success-fg">
+                          <span>✓ Material</span>
+                          <span>✓ Gauge</span>
+                          <span>✓ Width</span>
+                          <span>✓ Stock form</span>
+                          {normalizedSpecs.some((spec: any) => spec?.grade_id) ? (
+                            <span>✓ Grade</span>
+                          ) : null}
+                        </div>
                         <div className="text-[10px] text-content-4 font-bold uppercase mt-1">
                           Loc: {roll.location || roll.location_name}{" "}
                           {roll.location_type ? `(${roll.location_type})` : ""}
@@ -7854,11 +7854,39 @@ function RollAssignmentModal({
                   );
                 })}
                 {filtered.length === 0 && (
-                  <div className="text-center py-20 text-content-4">
-                    <Activity className="h-12 w-12 mx-auto mb-4 opacity-10" />
-                    <p className="font-bold">
-                      No eligible rolls in current plant with current filters
+                  <div className="mx-auto max-w-2xl py-12 text-center text-content-4">
+                    <Activity className="mx-auto mb-3 h-9 w-9 opacity-15" />
+                    <p className="font-black text-content-2">
+                      {hasCandidateFilters
+                        ? "No eligible rolls match these search filters"
+                        : "No roll satisfies the current-step contract"}
                     </p>
+                    <p className="mx-auto mt-1 max-w-xl text-xs leading-relaxed text-content-3">
+                      {hasCandidateFilters
+                        ? "Clear the optional filters to return to every physically eligible roll."
+                        : "The system requires the same material, exact gauge and grade, correct stock form, and sufficient width. Physical constraints cannot be overridden."}
+                    </p>
+                    {!hasCandidateFilters && normalizedSpecs.length > 0 ? (
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        {normalizedSpecs.slice(0, 4).map((spec: any, index: number) => (
+                          <span
+                            key={`${String(spec?.variant_id || spec?.family_id || "roll")}-${index}`}
+                            className="rounded-md border border-line bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-content-2"
+                          >
+                            {spec?.variant_name || spec?.family_name || "Roll"}
+                            {spec?.thickness_micron != null
+                              ? ` · ${Number(spec.thickness_micron)}µ`
+                              : ""}
+                            {spec?.min_width_mm != null
+                              ? ` · ${String(spec?.slit_policy || "").toUpperCase() === "EXACT_ONLY" ? "=" : "≥"}${Number(spec.min_width_mm).toFixed(0)}mm`
+                              : ""}
+                            {spec?.stock_form
+                              ? ` · ${stockFormLabel(spec.stock_form)}`
+                              : ""}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     {externalEligibleCount > 0 && (
                       <Button
                         variant="outline"

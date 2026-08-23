@@ -2490,8 +2490,11 @@ class ExecutionService:
                 try:
                     if roll_thickness in (None, 0, Decimal("0")):
                         continue
-                     # Strict compatibility: Thickness must match exactly (int-cast safety)
-                    if int(float(roll_thickness or 0)) != int(float(spec.get("thickness_micron") or 0)):
+                    # Gauge is a production contract, not a display bucket.  Do
+                    # not int-cast here: 51.25 micron is not a 51 micron roll.
+                    roll_gauge = Decimal(str(roll_thickness))
+                    target_gauge = Decimal(str(spec.get("thickness_micron")))
+                    if abs(roll_gauge - target_gauge) > Decimal("0.01"):
                         continue
                 except Exception:
                     logger.warning(
@@ -2506,8 +2509,16 @@ class ExecutionService:
             min_width = spec.get("min_width_mm")
             if min_width is not None:
                 try:
-                    if float(roll_width or 0) < float(min_width):
-                         continue
+                    stock_width = Decimal(str(roll_width or 0))
+                    required_width = Decimal(str(min_width))
+                    if stock_width + Decimal("0.01") < required_width:
+                        continue
+                    slit_policy = str(spec.get("slit_policy") or "").upper()
+                    if (
+                        slit_policy == "EXACT_ONLY"
+                        and abs(stock_width - required_width) > Decimal("0.01")
+                    ):
+                        continue
                 except Exception:
                     logger.warning(
                         "Invalid minimum-width compatibility spec roll_id=%s value=%r",
@@ -2821,7 +2832,19 @@ class ExecutionService:
         if req_width_mm is not None:
             fallback_spec["min_width_mm"] = req_width_mm
             fallback_spec["max_auto_width_mm"] = float(req_width_mm) * 1.10
-        _push(fallback_spec)
+        # A resolved layer snapshot is the authoritative input-roll contract.
+        # Adding a second output-variant-only row here used to turn the spec list
+        # into an OR expression (for example: strict TT/51u/900mm OR any TT),
+        # which admitted thinner and narrower rolls as manual fallbacks.  Only
+        # use the legacy fallback when no layer contract could be built, and
+        # fail closed unless it includes the physical gauge and width.
+        if not specs:
+            has_physical_contract = (
+                fallback_spec.get("thickness_micron") not in (None, "")
+                and fallback_spec.get("min_width_mm") not in (None, "")
+            )
+            if has_physical_contract:
+                _push(fallback_spec)
         return specs
 
     @classmethod
@@ -5186,30 +5209,11 @@ class ExecutionService:
                     if not roll_family_id or str(spec["family_id"]) != roll_family_id:
                         continue
 
-                # Thickness match when spec demands it.
-                if spec.get("thickness_micron") is not None:
-                    try:
-                        if roll_thickness in (None, 0, Decimal('0')) or int(roll_thickness) != int(spec["thickness_micron"]):
-                            continue
-                    except Exception:
-                        logger.warning(
-                            "Invalid thickness compatibility spec while matching roll=%s value=%r",
-                            getattr(roll, "id", None),
-                            spec.get("thickness_micron"),
-                            exc_info=True,
-                        )
-                        continue
-
-                # Width guardrail REMOVED based on operator feedback (Phase 73).
-                # Operators manually select width; system should not block/warn.
-                pass
-
-                # Grade match when required by spec.
-                if spec.get("grade_id"):
-                    if not roll_grade_id or str(spec["grade_id"]) != roll_grade_id:
-                        continue
-
-                return spec
+                # Candidate display and final allocation must use the same
+                # physical contract.  A UI-only, looser matcher previously
+                # labelled incompatible fallback rolls as exact.
+                if cls._roll_matches_target_specs(roll, [spec]):
+                    return spec
             return None
 
         # Optimization: Limit to top 50 to prevent overload
@@ -5224,14 +5228,13 @@ class ExecutionService:
             )
             matched_spec = _find_matching_spec(roll)
             if target_roll_specs and matched_spec is None:
-                if not _roll_matches_bom_family_or_variant(roll):
-                    logger.debug(
-                        "get_job_context job=%s roll=%s skipped_bom_mismatch target_specs=%s",
-                        job_id,
-                        roll.id,
-                        len(target_roll_specs),
-                    )
-                    continue
+                logger.debug(
+                    "get_job_context job=%s roll=%s skipped_physical_mismatch target_specs=%s",
+                    job_id,
+                    roll.id,
+                    len(target_roll_specs),
+                )
+                continue
 
             # User Request: Hardcore Step 1 Purity.
             # Suggestions in Step 1 modal should appear as Raw Material.
@@ -5250,21 +5253,27 @@ class ExecutionService:
             if is_step_1 and raw_role == "REMAINDER":
                 role_to_show = None # Mask label for Step 1 purity
             
-            target_th = (matched_spec or target_roll_spec or {}).get("thickness_micron")
-            target_grade = (matched_spec or target_roll_spec or {}).get("grade_id")
+            matched_contract = matched_spec or target_roll_spec or {}
+            target_th = matched_contract.get("thickness_micron")
+            target_grade = matched_contract.get("grade_id")
             th_known = getattr(roll, "thickness_micron", None) not in (None, 0, Decimal('0'))
             grade_known = bool(getattr(roll, "grade_id", None))
             spec_exact = True
             if target_th is not None:
                 try:
-                    spec_exact = spec_exact and th_known and int(roll.thickness_micron) == int(target_th)
+                    spec_exact = (
+                        spec_exact
+                        and th_known
+                        and abs(Decimal(str(roll.thickness_micron)) - Decimal(str(target_th)))
+                        <= Decimal("0.01")
+                    )
                 except Exception:
                     spec_exact = False
             if target_grade:
                 spec_exact = spec_exact and grade_known and str(roll.grade_id) == str(target_grade)
             spec_missing = (target_th is not None and not th_known) or (bool(target_grade) and not grade_known)
 
-            target_width = (matched_spec or target_roll_spec or {}).get("min_width_mm")
+            target_width = matched_contract.get("min_width_mm")
             try:
                 target_width_float = float(target_width) if target_width not in (None, "") else None
             except Exception:
@@ -5283,6 +5292,24 @@ class ExecutionService:
                 else:
                     width_match_mode = "WIDER_SLITTABLE"
                     can_slit_to_required_width = True
+            target_variant = str(matched_contract.get("variant_id") or "")
+            target_family = str(matched_contract.get("family_id") or "")
+            roll_variant = str(getattr(roll, "material_id", "") or "")
+            roll_family = str(
+                getattr(getattr(roll, "material", None), "parent_family_id", "") or ""
+            )
+            material_exact = (
+                roll_variant == target_variant
+                if target_variant
+                else roll_family == target_family
+                if target_family
+                else False
+            )
+            target_stock_form = normalize_stock_form(matched_contract.get("stock_form"))
+            roll_stock_form = normalize_stock_form(getattr(roll, "stock_form", None))
+            stock_form_exact = not target_stock_form or roll_stock_form == target_stock_form
+            width_exact = width_match_mode in {"WIDTH_NOT_REQUIRED", "EXACT_WIDTH"}
+            spec_exact = spec_exact and material_exact and stock_form_exact and width_exact
             
             location = getattr(roll, "location", None)
             eligible_rolls.append({
@@ -5315,6 +5342,17 @@ class ExecutionService:
                 'completed_step_index': int(getattr(roll, "completed_step_index", 0) or 0),
                 'spec_exact': spec_exact,
                 'spec_missing': spec_missing,
+                'compatibility': {
+                    'material': material_exact,
+                    'thickness': bool(target_th is None or (
+                        th_known and abs(Decimal(str(roll.thickness_micron)) - Decimal(str(target_th))) <= Decimal("0.01")
+                    )),
+                    'grade': bool(not target_grade or (
+                        grade_known and str(roll.grade_id) == str(target_grade)
+                    )),
+                    'stock_form': stock_form_exact,
+                    'width': width_match_mode not in {"TOO_NARROW"},
+                },
                 'matched_layer_index': matched_spec.get("layer_index") if matched_spec else None,
                 'matched_variant_name': matched_spec.get("variant_name") if matched_spec else None,
                 'roll_role': role_to_show,
@@ -6266,6 +6304,24 @@ class ExecutionService:
                 purchasable_variant_ids = cls._step0_purchasable_variant_ids(job)
                 if purchasable_variant_ids and str(getattr(roll, "material_id", "") or "") not in purchasable_variant_ids:
                     raise ValueError("Step 1 requires allocation from purchasable BOM layers.")
+
+        # Physical safety is never overridable.  Manual override may authorize
+        # a compatible non-lineage source or a wider slittable roll, but it must
+        # not turn a thinner, narrower, wrong-grade, or wrong-form roll into a
+        # valid production input.
+        physical_specs = cls._build_step_target_specs(job, process)
+        physically_compatible = cls._is_roll_step_compatible(
+            job,
+            process,
+            roll,
+            physical_specs,
+            allow_input_stock_fallback=True,
+        )
+        if not physically_compatible:
+            raise ValueError(
+                "Selected roll fails the current-step material, gauge, width, grade, or stock-form contract. "
+                "Physical roll constraints cannot be overridden."
+            )
 
         # Auto path should only accept physically eligible rolls.
         is_eligible = False
