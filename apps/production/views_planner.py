@@ -2323,15 +2323,31 @@ class PlannerViewSet(viewsets.ViewSet):
         ordered = (template.routing_rule.ordered_processes if template and template.routing_rule else []) or []
         if not ordered:
             return 0
-        process_map = {
-            str(process.code): process
-            for process in Process.objects.filter(code__in=ordered).only("code", "input_form")
-        }
         for index, code in enumerate(ordered):
-            process = process_map.get(str(code))
+            process = self._route_process(code)
             if str(getattr(process, "input_form", "") or "").upper() == "ROLL":
                 return index
         return 0
+
+    def _route_process(self, code):
+        """Resolve a route process once per control-hub request."""
+        key = str(code or "").strip()
+        if not key:
+            return None
+        cache = getattr(self, "_control_hub_process_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._control_hub_process_cache = cache
+        if key not in cache:
+            try:
+                cache[key] = (
+                    Process.objects.filter(code=key)
+                    .only("code", "name", "input_form")
+                    .first()
+                )
+            except Exception:
+                cache[key] = None
+        return cache.get(key)
 
     def _route_step_input_form(self, template, step_index: int) -> str:
         routing_rule = getattr(template, "routing_rule", None) if template else None
@@ -2345,10 +2361,7 @@ class PlannerViewSet(viewsets.ViewSet):
         code = str(ordered[index] or "")
         if not code:
             return ""
-        try:
-            process = Process.objects.filter(code=code).only("code", "input_form").first()
-        except Exception:
-            process = None
+        process = self._route_process(code)
         return str(getattr(process, "input_form", "") or "").upper()
 
     def _route_step_accepts_roll_input(self, template, step_index: int) -> bool:
@@ -2364,12 +2377,7 @@ class PlannerViewSet(viewsets.ViewSet):
         if index < 0 or index >= len(ordered):
             return ""
         code = str(ordered[index] or "")
-        process = None
-        if code:
-            try:
-                process = Process.objects.filter(code=code).only("code", "name").first()
-            except Exception:
-                process = None
+        process = self._route_process(code)
         return f"{code} {getattr(process, 'name', '') or ''}".upper()
 
     def _route_step_is_extrusion(self, template, step_index: int) -> bool:
@@ -3046,11 +3054,18 @@ class PlannerViewSet(viewsets.ViewSet):
         ]
         if not variant_ids:
             return set()
-        return {
-            str(row["id"])
-            for row in InventoryMaterial.objects.filter(id__in=list(dict.fromkeys(variant_ids))).values("id", "is_purchasable")
-            if bool(row.get("is_purchasable"))
-        }
+        cache = getattr(self, "_control_hub_purchasable_material_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._control_hub_purchasable_material_cache = cache
+        cache_key = tuple(sorted(set(variant_ids)))
+        if cache_key not in cache:
+            cache[cache_key] = {
+                str(row["id"])
+                for row in InventoryMaterial.objects.filter(id__in=cache_key).values("id", "is_purchasable")
+                if bool(row.get("is_purchasable"))
+            }
+        return set(cache.get(cache_key) or set())
 
     def _purchasable_roll_input_error_identifiers(self, template, layer_snapshot, required_start_step) -> set[str]:
         purchasable_variant_ids = self._purchasable_roll_input_variant_ids(
@@ -4793,7 +4808,13 @@ class PlannerViewSet(viewsets.ViewSet):
             cache[template_id] = steps
         return steps
 
-    def _decorate_control_hub_row(self, row: dict, *, lightweight: bool = False):
+    def _decorate_control_hub_row(
+        self,
+        row: dict,
+        *,
+        lightweight: bool = False,
+        resolve_materials: bool = True,
+    ):
         row["template_steps"] = [] if lightweight else self._row_template_steps(row)
         row["source_availability"] = row.get("source_availability") if isinstance(row.get("source_availability"), dict) else {
             "fg_match_count": 0,
@@ -4847,7 +4868,7 @@ class PlannerViewSet(viewsets.ViewSet):
         row["spec_summary"] = row.get("spec_summary") if isinstance(row.get("spec_summary"), dict) else self._row_spec_summary(row)
         row["production_trace"] = row.get("production_trace") if isinstance(row.get("production_trace"), dict) else self._row_production_trace(row)
         row["analytics"] = row.get("analytics") if isinstance(row.get("analytics"), dict) else self._row_v2_analytics(row)
-        display_fields = self._row_display_fields(row, resolve_materials=not lightweight)
+        display_fields = self._row_display_fields(row, resolve_materials=resolve_materials)
         for key, value in display_fields.items():
             row[key] = value
         return row
@@ -6203,7 +6224,12 @@ class PlannerViewSet(viewsets.ViewSet):
             )
 
         def response_row(row: dict, *, force_detail: bool = False, lightweight: bool = False):
-            decorated = self._decorate_control_hub_row(row, lightweight=lightweight and summary and not force_detail)
+            is_summary_row = bool(summary and not force_detail)
+            decorated = self._decorate_control_hub_row(
+                row,
+                lightweight=lightweight and is_summary_row,
+                resolve_materials=not is_summary_row,
+            )
             return decorated if force_detail or not summary else self._summary_control_hub_row(decorated)
 
         def should_stop_scanning() -> bool:
@@ -6219,6 +6245,8 @@ class PlannerViewSet(viewsets.ViewSet):
         cheap_source_cache = {}
         required_start_cache = {}
         self._control_hub_template_steps_cache = {}
+        self._control_hub_process_cache = {}
+        self._control_hub_purchasable_material_cache = {}
 
         def cached_cheap_source_availability(*, template, required_start_step: int, route_last_index: int, order_signature: str = "", order_invariant_signature: str = ""):
             cache_key = (
@@ -6294,6 +6322,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "qty_value",
                 "total_weight_kg",
                 "unit_weight_g",
+                "planned_parent_width_mm",
                 "geometry_snapshot",
                 "layer_snapshot",
                 "printing_snapshot",
@@ -9614,7 +9643,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         .get(id=target.id)
                     )
                     jobs = list(
-                        ProductionJob.objects.select_for_update()
+                        ProductionJob.objects.select_for_update(of=("self",))
                         .select_related("work_center", "machine", "assignment__assigned_machine")
                         .filter(sales_order_item=target)
                         .exclude(job_state__in=["COMPLETED", "CANCELLED"])
@@ -9627,7 +9656,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         .get(id=order_obj.id)
                     )
                     jobs = list(
-                        ProductionJob.objects.select_for_update()
+                        ProductionJob.objects.select_for_update(of=("self",))
                         .select_related("work_center", "machine", "assignment__assigned_machine")
                         .filter(mts_order=target)
                         .exclude(job_state__in=["COMPLETED", "CANCELLED"])
