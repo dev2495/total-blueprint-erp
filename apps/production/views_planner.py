@@ -6535,7 +6535,13 @@ class PlannerViewSet(viewsets.ViewSet):
                 if required_qty_pcs is None and str(template.fg_type or "").upper() != "ROLL" and unit_weight > 0 and not partial_replan_required:
                     required_qty_pcs = float((line_total_kg * Decimal("1000")) / unit_weight)
                 bom_snapshot = getattr(so_item, "bom_snapshot", {}) or {}
-                bom_snapshot = self._maybe_refresh_stale_recipe_bom_for_sales_item(so_item, bom_snapshot)
+                # Queue summaries are a read path over the order's immutable BOM
+                # snapshot. Repairing legacy snapshots here caused hundreds of
+                # material/recipe queries and could mutate orders while simply
+                # opening Planner. Keep repair limited to an explicit detail
+                # load (or the non-summary compatibility response).
+                if raw_item_is_detail or not summary:
+                    bom_snapshot = self._maybe_refresh_stale_recipe_bom_for_sales_item(so_item, bom_snapshot)
                 material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
                 if needs_rich_line_metrics:
                     qty_final_output = SalesOrderService.line_final_output_qty(so_item) if line_status == "PARTIAL" else Decimal("0")
@@ -9643,8 +9649,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         .get(id=target.id)
                     )
                     jobs = list(
-                        ProductionJob.objects.select_for_update(of=("self",))
-                        .select_related("work_center", "machine", "assignment__assigned_machine")
+                        ProductionJob.objects.select_for_update()
                         .filter(sales_order_item=target)
                         .exclude(job_state__in=["COMPLETED", "CANCELLED"])
                         .exclude(status__in=["COMPLETED", "CANCELLED"])
@@ -9656,8 +9661,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         .get(id=order_obj.id)
                     )
                     jobs = list(
-                        ProductionJob.objects.select_for_update(of=("self",))
-                        .select_related("work_center", "machine", "assignment__assigned_machine")
+                        ProductionJob.objects.select_for_update()
                         .filter(mts_order=target)
                         .exclude(job_state__in=["COMPLETED", "CANCELLED"])
                         .exclude(status__in=["COMPLETED", "CANCELLED"])
