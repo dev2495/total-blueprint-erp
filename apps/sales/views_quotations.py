@@ -52,8 +52,8 @@ def _quote_item_readiness_errors(items):
         if item.line_kind == "CATALOG":
             if not spec.get("product_master_id"):
                 errors.append(f"{label}: pick a Product Master.")
-            if not spec.get("size_id"):
-                errors.append(f"{label}: pick a saved size.")
+            if not spec.get("size_id") and not item.product_variant_id:
+                errors.append(f"{label}: pick a ready Product Variant or saved size.")
         if item.line_kind == "AD_HOC":
             if not spec.get("base_product_master_id"):
                 errors.append(f"{label}: pick a base Product Master layer stack first.")
@@ -158,6 +158,7 @@ class QuotationViewSet(viewsets.ModelViewSet):
             return Response({
                 "id": str(snapshot.id), "status": snapshot.status, "currency": snapshot.currency,
                 "pricing_definition": snapshot.pricing_definition, "target_percent": snapshot.target_percent,
+                "cost_entry_mode": snapshot.cost_entry_mode,
                 "material_cost": snapshot.material_cost, "conversion_cost": snapshot.conversion_cost,
                 "total_cost": snapshot.total_cost, "list_price": snapshot.list_price,
                 "discount_amount": snapshot.discount_amount, "net_sale": snapshot.net_sale,
@@ -170,6 +171,9 @@ class QuotationViewSet(viewsets.ModelViewSet):
                 "components": [
                     {
                         "id": str(row.id), "quotation_item_id": str(row.quotation_item_id or ""),
+                        "component_key": QuotationCostBuildService._component_key(
+                            row.quotation_item_id or "", row.role, row.sequence, row.material_id or ""
+                        ) if row.category == "MATERIAL" else "",
                         "category": row.category, "role": row.role, "label": row.label,
                         "material_id": str(row.material_id or ""),
                         "material_code": row.material.code if row.material_id else "",
@@ -190,6 +194,32 @@ class QuotationViewSet(viewsets.ModelViewSet):
         try:
             result = QuotationCostBuildService.persist(quotation, request.data or {}, user=request.user)
             return Response(result)
+        except Exception as exc:
+            return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
+
+    @action(detail=True, methods=["post"], url_path="save-line-as-variant")
+    def save_line_as_variant(self, request, pk=None):
+        quotation = self.get_object()
+        if not _can(request.user, "master.manage"):
+            return Response(
+                {"detail": "Saving a reusable Product Variant requires master.manage permission."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            item, variant, created = QuotationService.save_quote_item_as_variant(
+                quotation,
+                quotation_item_id=str(request.data.get("quotation_item_id") or ""),
+                code=str(request.data.get("code") or ""),
+                reason=str(request.data.get("reason") or ""),
+                user=request.user,
+            )
+            return Response({
+                "quotation_item_id": str(item.id),
+                "product_variant_id": str(variant.id),
+                "product_variant_code": variant.code,
+                "created": created,
+                "costs_promoted": False,
+            }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         except Exception as exc:
             return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))
 
@@ -523,7 +553,8 @@ class QuotationViewSet(viewsets.ModelViewSet):
             )
             response = HttpResponse(pdf_bytes, content_type="application/pdf")
             suffix = "-customer" if customer_view else ""
-            response["Content-Disposition"] = f'inline; filename="{quotation.quote_number}{suffix}.pdf"'
+            disposition = "attachment" if str(request.query_params.get("download") or "").lower() in ("1", "true", "yes") else "inline"
+            response["Content-Disposition"] = f'{disposition}; filename="{quotation.quote_number}{suffix}.pdf"'
             return response
         except Exception as exc:
             return Response({"detail": self._error_detail(exc)}, status=self._error_status(exc))

@@ -22,9 +22,11 @@ import {
   Mail,
   Package,
   Plus,
+  Printer,
   Save,
   Search,
   Send,
+  Share2,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -190,7 +192,7 @@ function lineReadinessIssues(d: DraftItem): string[] {
   if (d.rate <= 0) issues.push(`${label}: sale rate must be greater than zero.`);
   if (d.line_kind === "CATALOG") {
     if (!spec.product_master_id) issues.push(`${label}: pick a Product Master.`);
-    if (!spec.size_id) issues.push(`${label}: pick a saved size.`);
+    if (!spec.size_id && !spec.product_variant_id) issues.push(`${label}: pick a ready variant or saved size.`);
   }
   if (d.line_kind === "AD_HOC") {
     if (!spec.base_product_master_id) {
@@ -244,6 +246,12 @@ function toApiItems(drafts: DraftItem[]): QuotationItem[] {
         d.line_kind === "CATALOG"
           ? ((spec.size_id as string | undefined) || undefined)
           : undefined,
+      product_variant:
+        d.line_kind === "CATALOG" || spec.saved_variant_id
+          ? ((spec.product_variant_id as string | undefined) ||
+              (spec.saved_variant_id as string | undefined) ||
+              undefined)
+          : undefined,
       spec_snapshot: d.spec_snapshot,
       costing_snapshot: d.costing_snapshot,
       printing_snapshot: buildPrintingSnapshot(spec),
@@ -279,7 +287,11 @@ export default function QuotationWorkspace({
   const [clientOutcomeReason, setClientOutcomeReason] = useState("");
   const [terminalAction, setTerminalAction] = useState<null | "CANCEL" | "VOID">(null);
   const [terminalReason, setTerminalReason] = useState("");
+  const [variantSaveItem, setVariantSaveItem] = useState<DraftItem | null>(null);
+  const [variantCode, setVariantCode] = useState("");
+  const [variantReason, setVariantReason] = useState("");
   const seededRef = useRef<string | null>(null);
+  const promptVariantAfterLineSaveRef = useRef<number | null>(null);
 
   // Commercials local state (synced into payload on save)
   const [discountPct, setDiscountPct] = useState<number>(0);
@@ -602,6 +614,48 @@ export default function QuotationWorkspace({
       }),
   });
 
+  const saveVariantMut = useMutation({
+    mutationFn: async () => {
+      if (!quote || !variantSaveItem?.id) throw new Error("Save the quote line before creating a reusable variant.");
+      return quotationService.saveLineAsVariant(quote.id, {
+        quotation_item_id: variantSaveItem.id,
+        code: variantCode.trim(),
+        reason: variantReason.trim(),
+      });
+    },
+    onSuccess: (result) => {
+      setVariantSaveItem(null);
+      setVariantCode("");
+      setVariantReason("");
+      void queryClient.invalidateQueries({ queryKey: ["quotation", quotationId] });
+      toast({
+        title: result.created ? "Reusable variant saved" : "Existing variant linked",
+        description: `${result.product_variant_code} is linked to this quote. Quote costs were not promoted to any master.`,
+      });
+    },
+    onError: (error: Error) => toast({ title: "Variant could not be saved", description: error.message, variant: "destructive" }),
+  });
+
+  const sharePdf = async () => {
+    if (!quote) return;
+    const customerView = ["APPROVED", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"].includes(quote.status);
+    const response = await fetch(quotationService.pdfUrl(quote.id, { customerView }), { credentials: "include" });
+    if (!response.ok) throw new Error("PDF could not be prepared for sharing.");
+    const file = new File([await response.blob()], `${quote.quote_number}.pdf`, { type: "application/pdf" });
+    const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+    if (nav.share && (!nav.canShare || nav.canShare({ files: [file] }))) {
+      await nav.share({ title: quote.quote_number, text: `Quotation ${quote.quote_number}`, files: [file] });
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = file.name;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "PDF downloaded", description: "This browser cannot share files directly; attach the downloaded PDF in your preferred app." });
+  };
+
   const createMut = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       quotationService.create(body),
@@ -626,20 +680,44 @@ export default function QuotationWorkspace({
     onMutate: () => {
       // Optimistic — show pulse via lastSavedAt clearing
     },
-    onSuccess: () => {
+    onSuccess: (savedQuote) => {
       setLastSavedAt(Date.now());
       setDirty(false);
       void queryClient.invalidateQueries({
         queryKey: ["quotation", quotationId],
       });
       toast({ title: "Saved", description: "Quotation persisted." });
+      const promptLineNo = promptVariantAfterLineSaveRef.current;
+      promptVariantAfterLineSaveRef.current = null;
+      if (promptLineNo !== null) {
+        const persisted = toDraftItems(savedQuote.items).find(
+          (row) => row.line_no === promptLineNo && row.line_kind === "AD_HOC",
+        );
+        const persistedSpec = persisted?.spec_snapshot || {};
+        if (
+          persisted?.id &&
+          !persistedSpec.product_variant_id &&
+          !persistedSpec.saved_variant_id
+        ) {
+          setVariantSaveItem(persisted);
+          const base = String(
+            persistedSpec.product_master_code ||
+              persistedSpec.base_product_master_code ||
+              "VARIANT",
+          ).replace(/[^A-Za-z0-9-]+/g, "-");
+          setVariantCode(`${base}-Q${persisted.line_no}`.toUpperCase());
+          setVariantReason("");
+        }
+      }
     },
-    onError: (e: Error) =>
+    onError: (e: Error) => {
+      promptVariantAfterLineSaveRef.current = null;
       toast({
         title: "Save failed",
         description: e.message,
         variant: "destructive",
-      }),
+      });
+    },
   });
 
   // ⌘+S / Ctrl+S triggers save.
@@ -974,7 +1052,7 @@ export default function QuotationWorkspace({
             </h1>
             <p className="text-sm font-semibold text-order-border mt-1">
               Use a ready catalog product or build a quote-scoped configuration
-              under an existing Base Product. Masters are never created or changed here.
+              under an existing Base Product. Only an explicitly confirmed technical Product Variant can be saved for reuse; quote costs and all other masters stay unchanged.
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-extrabold bg-surface-1/15 backdrop-blur text-white ring-1 ring-surface-1/20">
@@ -1014,17 +1092,25 @@ export default function QuotationWorkspace({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {quote ? (
+            {quote ? <>
               <a
-                href={quotationService.pdfUrl(quote.id)}
+                href={quotationService.pdfUrl(quote.id, { customerView: ["APPROVED", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"].includes(quote.status) })}
                 target="_blank"
                 rel="noopener"
-                className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-surface-1/10 backdrop-blur text-white font-bold text-sm ring-1 ring-surface-1/20 hover:bg-surface-1/15"
+                className="h-10 px-3 inline-flex items-center gap-2 rounded-xl bg-surface-1/10 backdrop-blur text-white font-bold text-sm ring-1 ring-surface-1/20 hover:bg-surface-1/15"
               >
-                <Download className="h-4 w-4" strokeWidth={2.5} />
-                Preview PDF
+                <Eye className="h-4 w-4" strokeWidth={2.5} />
+                Preview
               </a>
-            ) : null}
+              <a
+                href={quotationService.pdfUrl(quote.id, { customerView: ["APPROVED", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"].includes(quote.status), download: true })}
+                className="h-10 w-10 inline-flex items-center justify-center rounded-xl bg-surface-1/10 text-white ring-1 ring-surface-1/20 hover:bg-surface-1/15"
+                title="Download PDF"
+                aria-label="Download quotation PDF"
+              ><Download className="h-4 w-4" /></a>
+              <button type="button" onClick={() => window.open(quotationService.pdfUrl(quote.id, { customerView: ["APPROVED", "SENT", "ACCEPTED", "REJECTED", "EXPIRED", "CONVERTED"].includes(quote.status) }), "_blank", "noopener,noreferrer")} className="h-10 w-10 inline-flex items-center justify-center rounded-xl bg-surface-1/10 text-white ring-1 ring-surface-1/20 hover:bg-surface-1/15" title="Print PDF" aria-label="Print quotation PDF"><Printer className="h-4 w-4" /></button>
+              <button type="button" onClick={() => void sharePdf().catch((error: Error) => toast({ title: "Share failed", description: error.message, variant: "destructive" }))} className="h-10 w-10 inline-flex items-center justify-center rounded-xl bg-surface-1/10 text-white ring-1 ring-surface-1/20 hover:bg-surface-1/15" title="Share PDF" aria-label="Share quotation PDF"><Share2 className="h-4 w-4" /></button>
+            </> : null}
             {quote && quote.status === "ACCEPTED" ? (
               <button
                 onClick={() => setConvertDialog("open")}
@@ -1299,8 +1385,18 @@ export default function QuotationWorkspace({
                     onChange={(next) => handleChange(draft.local_id, next)}
                     onRemove={() => handleRemove(draft.local_id)}
                     onDuplicate={() => handleDuplicate(draft.local_id)}
-                    onSaveLine={() => saveMut.mutate()}
+                    onSaveLine={() => {
+                      promptVariantAfterLineSaveRef.current =
+                        draft.line_kind === "AD_HOC" ? draft.line_no : null;
+                      saveMut.mutate();
+                    }}
                     canPersist={canPersist}
+                    plantId={quote?.plant || null}
+                    onSaveAsVariant={(item) => {
+                      setVariantSaveItem(item);
+                      const base = (item.spec_snapshot.product_master_code || item.spec_snapshot.base_product_master_code || "VARIANT").replace(/[^A-Za-z0-9-]+/g, "-");
+                      setVariantCode(`${base}-Q${item.line_no}`.toUpperCase());
+                    }}
                   />
                 ))}
               </div>
@@ -1760,6 +1856,31 @@ export default function QuotationWorkspace({
       </div>
 
       {/* Send dialog */}
+      {variantSaveItem && quote ? (
+        <Dialog onClose={() => setVariantSaveItem(null)}>
+          <div className="flex items-center gap-2 mb-3">
+            <Package className="h-5 w-5 text-order-fg" />
+            <h3 className="text-base font-extrabold text-content-1">Save this as a reusable Product Variant?</h3>
+          </div>
+          <p className="text-[12px] font-semibold leading-5 text-content-3">
+            This is optional. It creates only a governed Product Variant under the existing Base Product Master. It does not create Product, Size, Layer, Pouch Style or RM masters, and quote-only costs are never promoted.
+          </p>
+          <label className="mt-4 block text-[10px] font-extrabold uppercase tracking-wider text-content-3">Variant code
+            <input autoFocus value={variantCode} onChange={(event) => setVariantCode(event.target.value.toUpperCase())} className="mt-1 h-10 w-full rounded-lg border border-line px-3 font-mono text-sm font-bold" placeholder="Unique variant code" />
+          </label>
+          <label className="mt-3 block text-[10px] font-extrabold uppercase tracking-wider text-content-3">Business reason
+            <textarea value={variantReason} onChange={(event) => setVariantReason(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm font-semibold" placeholder="Why should this quote configuration become reusable?" />
+          </label>
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={() => setVariantSaveItem(null)} className="h-10 px-4 rounded-xl text-content-3 hover:bg-surface-2 font-bold">Keep quote-only</button>
+            <button type="button" onClick={() => saveVariantMut.mutate()} disabled={!variantCode.trim() || !variantReason.trim() || saveVariantMut.isPending} className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-order-fg text-white font-extrabold disabled:opacity-50">
+              {saveVariantMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save variant
+            </button>
+          </div>
+        </Dialog>
+      ) : null}
+
       {sendDialog === "open" && quote ? (
         <Dialog onClose={() => setSendDialog(null)}>
           <div className="flex items-center gap-2 mb-3">

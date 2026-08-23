@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Loader2, PackageSearch } from "lucide-react";
@@ -9,6 +9,7 @@ import {
   quotationService,
   type ProductMasterSize,
   type ProductMasterSummary,
+  type ProductVariantSummary,
 } from "@/services/quotation";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,11 @@ export interface CatalogPickerSelection {
   gusset_mm?: number | null;
   flap_mm?: number | null;
   qty_uom?: string | null;
+  product_variant_id?: string | null;
+  product_variant_code?: string | null;
+  variant_geometry?: Record<string, unknown> | null;
+  variant_layers?: ProductVariantSummary["layer_snapshot"];
+  variant_spec?: ProductVariantSummary["spec_snapshot"] | null;
 }
 
 interface CatalogLinePickerProps {
@@ -38,6 +44,8 @@ interface CatalogLinePickerProps {
   valuePmCode?: string | null;
   valuePmName?: string | null;
   valueSizeId?: string | null;
+  valueVariantId?: string | null;
+  showReadyVariants?: boolean;
   title?: string;
   helper?: string;
   sizeTitle?: string;
@@ -51,6 +59,8 @@ export default function CatalogLinePicker({
   valuePmCode,
   valuePmName,
   valueSizeId,
+  valueVariantId,
+  showReadyVariants = false,
   title = "Product Master",
   helper,
   sizeTitle = "Size",
@@ -59,6 +69,8 @@ export default function CatalogLinePicker({
   onChange,
 }: CatalogLinePickerProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [readySearch, setReadySearch] = useState("");
+  const deferredReadySearch = useDeferredValue(readySearch);
   const [pmOpen, setPmOpen] = useState(false);
   const pmButtonRef = useRef<HTMLButtonElement | null>(null);
   const [pmMenuStyle, setPmMenuStyle] = useState<CSSProperties | null>(null);
@@ -114,12 +126,21 @@ export default function CatalogLinePicker({
   });
 
   const sizeQuery = useQuery({
-    queryKey: ["product-master-sizes", valuePmId],
+    queryKey: ["product-master-sizes", valuePmId, deferredReadySearch],
     queryFn: () =>
       valuePmId
-        ? quotationService.listProductMasterSizes(valuePmId)
+        ? quotationService.listProductMasterSizes(valuePmId, deferredReadySearch)
         : Promise.resolve<ProductMasterSize[]>([]),
     enabled: Boolean(valuePmId),
+  });
+
+  const variantQuery = useQuery({
+    queryKey: ["product-master-variants", valuePmId, deferredReadySearch],
+    queryFn: () =>
+      valuePmId
+        ? quotationService.listProductMasterVariants(valuePmId, deferredReadySearch)
+        : Promise.resolve<ProductVariantSummary[]>([]),
+    enabled: Boolean(valuePmId && showReadyVariants),
   });
 
   const sizes = useMemo(() => sizeQuery.data || [], [sizeQuery.data]);
@@ -137,6 +158,11 @@ export default function CatalogLinePicker({
       gusset_mm: null,
       flap_mm: null,
       qty_uom: null,
+      product_variant_id: null,
+      product_variant_code: null,
+      variant_geometry: null,
+      variant_layers: [],
+      variant_spec: null,
       pouch_style_id: null,
       pouch_style_code: null,
       pouch_style_roll_axis: null,
@@ -171,6 +197,41 @@ export default function CatalogLinePicker({
       gusset_mm: size.gusset_mm ?? null,
       flap_mm: size.flap_mm ?? null,
       qty_uom: size.qty_uom || null,
+      product_variant_id: null,
+      product_variant_code: null,
+      variant_geometry: null,
+      variant_layers: [],
+      variant_spec: null,
+    });
+  };
+
+  const handleSelectVariant = (variant: ProductVariantSummary) => {
+    if (!valuePmId || !valuePmCode || !valuePmName) return;
+    const geometry = variant.geometry_snapshot || {};
+    onChange({
+      product_master_id: valuePmId,
+      product_master_code: valuePmCode,
+      product_master_name: valuePmName,
+      product_variant_id: variant.id,
+      product_variant_code: variant.code,
+      variant_geometry: geometry,
+      variant_layers: variant.layer_snapshot || [],
+      variant_spec: variant.spec_snapshot || null,
+      size_id: null,
+      size_code: null,
+      size_label: null,
+      width_mm: Number(geometry.width_mm || 0) || null,
+      height_mm: Number(geometry.height_mm || 0) || null,
+      gusset_mm: Number(geometry.gusset_mm || 0) || null,
+      flap_mm: Number(geometry.flap_mm || 0) || null,
+      pouch_style_id: String(geometry.pouch_style_id || "") || null,
+      pouch_style_code: String(geometry.pouch_style_code || "") || null,
+      pouch_style_roll_axis: String(geometry.pouch_style_roll_axis || "") || null,
+      stock_form: String(geometry.stock_form || "") || null,
+      width_basis: String(geometry.width_basis || "") || null,
+      film_area_width_mm: Number(geometry.film_area_width_mm || 0) || null,
+      child_target_width_mm: Number(geometry.child_web_width_mm || geometry.child_target_width_mm || 0) || null,
+      qty_uom: String((variant.axis_values || {}).qty_uom || "") || null,
     });
   };
 
@@ -317,6 +378,42 @@ export default function CatalogLinePicker({
           {sizeHelper ? (
             <div className="mb-2 text-[11px] font-semibold text-content-3">
               {sizeHelper}
+            </div>
+          ) : null}
+          <input
+            value={readySearch}
+            onChange={(event) => setReadySearch(event.target.value)}
+            placeholder={showReadyVariants ? "Search ready variant or saved size…" : "Search saved size…"}
+            aria-label="Search ready product configuration"
+            className="mb-3 h-9 w-full rounded-lg border border-line bg-surface-1 px-3 text-xs font-semibold outline-none focus:border-order-border focus:ring-2 focus:ring-order-border"
+          />
+          {showReadyVariants && (variantQuery.data || []).length > 0 ? (
+            <div className="mb-3">
+              <div className="mb-2 text-[9px] font-extrabold uppercase tracking-widest text-success-fg">Fast queue · ready variants</div>
+              <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+                {(variantQuery.data || []).map((variant) => (
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => handleSelectVariant(variant)}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-left transition-colors",
+                      valueVariantId === variant.id
+                        ? "border-success-border bg-success-bg"
+                        : "border-line hover:border-success-border hover:bg-success-bg",
+                    )}
+                  >
+                    <div className="font-mono text-[11px] font-extrabold text-content-1">{variant.code}</div>
+                    <div className="mt-1 text-[10px] font-semibold text-content-3">
+                      {Number(variant.geometry_snapshot?.width_mm || 0) > 0
+                        ? `${Number(variant.geometry_snapshot?.width_mm).toFixed(0)}×${Number(variant.geometry_snapshot?.height_mm || 0).toFixed(0)} mm`
+                        : `${(variant.layer_snapshot || []).length} BOM layers`}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="my-3 border-t border-line" />
+              <div className="mb-2 text-[9px] font-extrabold uppercase tracking-widest text-content-4">Saved sizes</div>
             </div>
           ) : null}
           {sizeQuery.isLoading ? (

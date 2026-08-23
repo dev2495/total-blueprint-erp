@@ -933,7 +933,11 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         active = request.query_params.get("active")
         if active is not None:
             queryset = queryset.filter(active=str(active).lower() not in {"0", "false", "no"})
-        return Response(ProductMasterSizeSerializer(queryset, many=True).data)
+        query = str(request.query_params.get("q") or "").strip()
+        if query:
+            queryset = queryset.filter(models.Q(code__icontains=query) | models.Q(label__icontains=query))
+        limit = min(max(int(request.query_params.get("limit") or 120), 1), 500)
+        return Response(ProductMasterSizeSerializer(queryset.order_by("sort_order", "label", "code")[:limit], many=True).data)
 
     @action(detail=True, methods=["get", "post"])
     def variants(self, request, pk=None):
@@ -948,7 +952,11 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         active = request.query_params.get("active")
         if active is not None:
             queryset = queryset.filter(active=str(active).lower() not in {"0", "false", "no"})
-        return Response(ProductVariantSerializer(queryset, many=True).data)
+        query = str(request.query_params.get("q") or "").strip()
+        if query:
+            queryset = queryset.filter(code__icontains=query)
+        limit = min(max(int(request.query_params.get("limit") or 120), 1), 500)
+        return Response(ProductVariantSerializer(queryset.order_by("code")[:limit], many=True).data)
 
     @action(detail=True, methods=["post"], url_path=r"variants/(?P<variant_id>[^/.]+)/link-inventory")
     def link_variant_inventory(self, request, pk=None, variant_id=None):
@@ -1411,12 +1419,54 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             }
         """
         product = self.get_object()
+        from apps.factory.models import Plant
+        from apps.sales.services.quotation_cost_build import QuotationCostBuildService
+
+        plant = Plant.objects.filter(id=request.query_params.get("plant") or None).first()
+
+        def cost_fact(material):
+            if not material:
+                return {}
+            baseline = QuotationCostBuildService.resolve_material_baseline(material, plant)
+            return {
+                "rate_per_kg": float(baseline.rate or 0),
+                "cost_source_type": baseline.source_type,
+                "cost_source_ref": baseline.source_ref,
+                "cost_source_lot_ref": baseline.lot_ref,
+                "cost_source_effective_at": baseline.effective_at.isoformat() if baseline.effective_at else None,
+                "cost_available_qty": float(baseline.available_qty or 0),
+                "cost_uom": baseline.uom or material.base_uom,
+            }
+
+        def enrich_material_row(value):
+            row = dict(value or {})
+            material_id = row.get("material_id")
+            material = InventoryMaterial.objects.filter(id=material_id).first() if material_id else None
+            if material:
+                row.update({
+                    "material_id": str(material.id),
+                    "code": row.get("code") or material.code,
+                    "name": row.get("name") or material.name,
+                    **cost_fact(material),
+                })
+            return row
         bom_defaults = {}
         fixed_attrs = product.fixed_attributes if isinstance(product.fixed_attributes, dict) else {}
         if isinstance(product.fixed_attributes, dict):
             raw = product.fixed_attributes.get("bom_defaults")
             if isinstance(raw, dict):
                 bom_defaults = raw
+        variant_id = request.query_params.get("variant") or None
+        variant = product.variants.filter(id=variant_id, active=True).first() if variant_id else None
+        variant_spec = variant.spec_snapshot if variant and isinstance(variant.spec_snapshot, dict) else {}
+        if variant_spec:
+            bom_defaults = {
+                **bom_defaults,
+                "layers": variant_spec.get("layers") or bom_defaults.get("layers") or [],
+                "adhesive": (variant_spec.get("adhesives") or [bom_defaults.get("adhesive") or {}])[0],
+                "ink": (variant_spec.get("inks") or [bom_defaults.get("ink") or {}])[0],
+                "addons": variant_spec.get("addons") or bom_defaults.get("addons") or [],
+            }
 
         route_processes = []
         try:
@@ -1458,15 +1508,9 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             logger.warning("Unable to resolve product-master material map", exc_info=True)
             material_map = {}
 
-        # rate-per-kg helper — uses MaterialCostSnapshot if available, falls back to 0
-        try:
-            from apps.costing.models import MaterialCostSnapshot
-        except Exception:  # pragma: no cover
-            MaterialCostSnapshot = None
         rate_map = {}
-        if MaterialCostSnapshot is not None and material_map:
-            for snap in MaterialCostSnapshot.objects.filter(material__in=list(material_map.values())):
-                rate_map[str(snap.material_id)] = float(snap.avg_rate_per_kg or 0)
+        fact_map = {str(mat.id): cost_fact(mat) for mat in material_map.values()}
+        rate_map = {material_id: fact.get("rate_per_kg", 0) for material_id, fact in fact_map.items()}
 
         for idx, row in enumerate(layer_template or []):
             if not isinstance(row, dict):
@@ -1489,6 +1533,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 "gsm": float(gsm or 0),
                 "rate_per_kg": float((rate_map.get(str(mat.id)) if mat else None) or row.get("rate_per_kg") or 0),
                 "density_gcm3": density,
+                **(fact_map.get(str(mat.id), {}) if mat else {}),
             })
 
         # Layers may also live under bom_defaults.layers (preferred when set).
@@ -1514,10 +1559,8 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 default_materials.extend(InventoryMaterial.objects.filter(code__in=default_codes))
             by_id = {str(mat.id): mat for mat in default_materials}
             by_code = {mat.code: mat for mat in default_materials}
-            default_rate_map = {}
-            if MaterialCostSnapshot is not None and default_materials:
-                for snap in MaterialCostSnapshot.objects.filter(material__in=default_materials):
-                    default_rate_map[str(snap.material_id)] = float(snap.avg_rate_per_kg or 0)
+            default_fact_map = {str(mat.id): cost_fact(mat) for mat in default_materials}
+            default_rate_map = {material_id: fact.get("rate_per_kg", 0) for material_id, fact in default_fact_map.items()}
 
             hydrated_default_layers = []
             for idx, row in enumerate(default_rows):
@@ -1547,6 +1590,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     "gsm": float(gsm or 0),
                     "rate_per_kg": float(rate or 0),
                     "density_gcm3": density,
+                    **(default_fact_map.get(str(mat.id), {}) if mat else {}),
                 })
             layers_out = hydrated_default_layers
 
@@ -1611,7 +1655,13 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             if isinstance(bom_defaults.get("ink"), dict) and print_capable
             else blank_ink
         )
-        addons = bom_defaults.get("addons") if isinstance(bom_defaults.get("addons"), list) else []
+        adhesive = enrich_material_row(adhesive)
+        ink = enrich_material_row(ink)
+        addons = [
+            enrich_material_row(row)
+            for row in (bom_defaults.get("addons") if isinstance(bom_defaults.get("addons"), list) else [])
+            if isinstance(row, dict)
+        ]
 
         feature_options = list(self.DEFAULT_FEATURE_OPTIONS)
         custom_features = bom_defaults.get("feature_options")

@@ -258,6 +258,7 @@ class ProductVariant(models.Model):
     axis_values = models.JSONField(default=dict, blank=True)
     geometry_snapshot = models.JSONField(default=dict, blank=True)
     layer_snapshot = models.JSONField(default=list, blank=True)
+    spec_snapshot = models.JSONField(default=dict, blank=True)
     bom_signature = models.CharField(max_length=128, db_index=True, blank=True, default="")
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

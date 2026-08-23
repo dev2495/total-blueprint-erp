@@ -586,20 +586,66 @@ class QuotationPDFService:
         rows = [header]
         for idx, item in enumerate(quotation.items.all(), start=1):
             costing = item.costing_snapshot or {}
+            spec = item.spec_snapshot or {}
             geometry = (item.physics_snapshot or {}).get("geometry_snapshot") or {}
             variant_label = getattr(item.sku_variant, "name", "") if getattr(item, "sku_variant_id", None) else ""
             product_label = variant_label or item.line_name or (item.template.name if item.template_id else item.finished_good_type.title())
             base_geometry = item.geometry_snapshot.get("base", {}) if isinstance(item.geometry_snapshot, dict) else {}
-            effective_width = geometry.get("effective_width_mm") or base_geometry.get("width_mm") or (item.spec_snapshot or {}).get("width_mm")
-            effective_height = geometry.get("effective_height_mm") or base_geometry.get("height_mm") or (item.spec_snapshot or {}).get("height_mm")
+            effective_width = geometry.get("effective_width_mm") or base_geometry.get("width_mm") or spec.get("width_mm")
+            effective_height = geometry.get("effective_height_mm") or base_geometry.get("height_mm") or spec.get("height_mm")
             variant_code = getattr(item.sku_variant, "code", "") if getattr(item, "sku_variant_id", None) else ""
-            spec_line = (
-                f"{variant_code + ' · ' if variant_code else ''}{(item.finished_good_type or '').title() or 'Pouch'}"
-                f" · {cls._as_text(effective_width)} × {cls._as_text(effective_height)} mm"
-            )
+            governed_variant_code = getattr(getattr(item, "product_variant", None), "code", "") or spec.get("saved_variant_code") or ""
+            pm_code = getattr(getattr(item, "product_master", None), "code", "") or spec.get("base_product_master_code") or spec.get("product_master_code") or ""
+            style_code = getattr(getattr(item, "pouch_style_master", None), "code", "") or spec.get("pouch_style_code") or ""
+            gusset = spec.get("gusset_mm")
+            flap = spec.get("flap_mm")
+            total_gsm = spec.get("total_gsm") or (item.physics_snapshot or {}).get("total_gsm")
+            unit_weight = getattr(item, "unit_weight_g", None) or spec.get("unit_weight_g")
+            identity = " · ".join(filter(None, [
+                pm_code,
+                governed_variant_code or ("Quote-scoped configuration" if item.line_kind == "AD_HOC" else ""),
+                style_code,
+            ]))
+            dimensions = f"{cls._as_text(effective_width)} × {cls._as_text(effective_height)} mm"
+            if gusset not in (None, "", 0, "0"):
+                dimensions += f" · Gusset {cls._as_text(gusset)} mm"
+            if flap not in (None, "", 0, "0"):
+                dimensions += f" · Flap {cls._as_text(flap)} mm"
+            layers = []
+            for layer_index, layer in enumerate(spec.get("layers") or item.layer_snapshot or [], start=1):
+                if not isinstance(layer, dict):
+                    continue
+                material = layer.get("material_code") or layer.get("material_name") or f"L{layer_index}"
+                thickness = layer.get("micron") or layer.get("thickness_micron")
+                gsm = layer.get("gsm")
+                detail = f"L{layer_index} {material}"
+                if thickness not in (None, "", 0, "0"):
+                    detail += f" {cls._as_text(thickness)}µ"
+                if gsm not in (None, "", 0, "0"):
+                    detail += f" / {cls._as_text(gsm)} GSM"
+                layers.append(detail)
+            components = []
+            for field, label in (("inks", "Ink"), ("adhesives", "Adhesive"), ("solvents", "Solvent"), ("additives", "Additive"), ("addons", "Add-on")):
+                for value in spec.get(field) or []:
+                    if isinstance(value, dict):
+                        code = value.get("material_code") or value.get("code") or value.get("material_name") or value.get("name")
+                        if code:
+                            components.append(f"{label}: {code}")
+            spec_lines = [identity, dimensions]
+            if total_gsm not in (None, "", 0, "0"):
+                weight_text = f"Total {cls._as_text(total_gsm)} GSM"
+                if unit_weight not in (None, "", 0, "0"):
+                    weight_text += f" · {cls._as_text(unit_weight)} g/pc"
+                spec_lines.append(weight_text)
+            if layers:
+                spec_lines.append(" | ".join(layers))
+            if components:
+                spec_lines.append(" | ".join(components))
+            if variant_code:
+                spec_lines.insert(0, variant_code)
             cell_para = Paragraph(
                 f"<b>{cls._escape(product_label)}</b><br/>"
-                f"<font color='{SLATE_500}' size='7.5'>{cls._escape(spec_line)}</font>",
+                f"<font color='{SLATE_500}' size='7.3'>{'<br/>'.join(cls._escape(str(line)) for line in spec_lines if line)}</font>",
                 styles["line_body"],
             )
             rate = item.quoted_unit_price or costing.get("unit_price")
@@ -906,7 +952,10 @@ class QuotationPDFService:
     def _money(value, currency="INR"):
         amount = float(value or 0)
         if (currency or "INR").upper() == "INR":
-            return f"₹ {QuotationPDFService.format_inr(amount)}"
+            # The built-in ReportLab Helvetica family has no rupee glyph.
+            # Use the ISO label so every deployed PDF renders deterministically
+            # instead of showing a client-facing replacement square.
+            return f"INR {QuotationPDFService.format_inr(amount)}"
         return f"{currency} {amount:,.2f}"
 
     @staticmethod

@@ -16,6 +16,12 @@ export interface QuoteLineLayer {
     gsm_auto?: boolean;
     density_gcm3?: number | null;
     rate_per_kg?: number;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
 }
 
 export interface QuoteLineAddon {
@@ -25,6 +31,12 @@ export interface QuoteLineAddon {
     name: string;
     qty_per_pouch?: number;
     rate_per_kg: number;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
 }
 
 export interface QuoteMaterialComponent {
@@ -35,6 +47,13 @@ export interface QuoteMaterialComponent {
     gsm?: number;
     quantity?: number;
     uom?: string;
+    rate_per_kg?: number;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
 }
 
 export interface InventoryMaterialOption {
@@ -97,6 +116,19 @@ export interface QuoteLineSpec {
     total_gsm?: number | string;
     unit_weight_g?: number | string;
     total_weight_kg?: number | string;
+    product_variant_id?: string | null;
+    product_variant_code?: string | null;
+    saved_variant_id?: string | null;
+    saved_variant_code?: string | null;
+    cost_overrides?: Array<{
+        component_key?: string;
+        material_id: string;
+        role: string;
+        sequence: number;
+        rate: number;
+        reason: string;
+        expires_at: string;
+    }>;
     // Read-only compatibility for quotations created before first-class
     // material component arrays were introduced. New saves use plural arrays.
     adhesive_gsm?: number;
@@ -263,6 +295,7 @@ export interface QuotationListItem {
 export interface CostComponent {
     id?: string;
     quotation_item_id?: string;
+    component_key?: string;
     category: "MATERIAL" | "PROCESS" | "LABOUR" | "OVERHEAD" | "WASTAGE" | "PACKING" | "FREIGHT" | "OTHER";
     role?: string;
     label: string;
@@ -292,6 +325,7 @@ export interface CostBuild {
     id?: string;
     status: string;
     currency?: string;
+    cost_entry_mode?: "CONVERSION_TOTAL" | "STEPWISE";
     pricing_definition?: "MARKUP_ON_COST" | "GROSS_MARGIN_ON_SALES";
     target_percent?: number | string;
     material_cost?: number | string;
@@ -312,6 +346,12 @@ export interface CostBuild {
     sensitivity?: Record<string, { cost: string; contribution: string; gross_margin_pct: string }>;
     checksum?: string;
     components?: CostComponent[];
+    source_snapshot?: {
+        items?: Array<{
+            quotation_item_id: string;
+            physics?: { output_kg?: number | string; unit_weight_g?: number | string; total_gsm?: number | string };
+        }>;
+    };
 }
 
 export interface ApprovalGate {
@@ -385,6 +425,16 @@ export interface ProductMasterSize {
     roll_width_mm?: number | null;
 }
 
+export interface ProductVariantSummary {
+    id: string;
+    code: string;
+    axis_values?: Record<string, unknown>;
+    geometry_snapshot?: Record<string, unknown>;
+    layer_snapshot?: QuoteLineLayer[];
+    spec_snapshot?: QuoteLineSpec;
+    active?: boolean;
+}
+
 export interface BomLayer {
     position?: string;
     material_id?: string | null;
@@ -395,6 +445,12 @@ export interface BomLayer {
     gsm_auto?: boolean;
     rate_per_kg: number;
     density_gcm3?: number | null;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
 }
 
 export interface BomAdhesive {
@@ -403,6 +459,12 @@ export interface BomAdhesive {
     name?: string;
     gsm: number;
     rate_per_kg: number;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
 }
 
 export interface BomInk {
@@ -412,6 +474,12 @@ export interface BomInk {
     gsm: number;
     rate_per_kg: number;
     coverage?: "LIGHT" | "MEDIUM" | "HEAVY" | string;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
 }
 
 export interface BomAddon {
@@ -420,6 +488,12 @@ export interface BomAddon {
     name: string;
     qty_per_pouch: number;
     rate_per_kg: number;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
 }
 
 export interface FeatureOption {
@@ -603,8 +677,19 @@ export const quotationService = {
         return data;
     },
 
-    pdfUrl: (id: string, opts?: { customerView?: boolean }): string => {
-        const qs = opts?.customerView ? "?customer_view=1" : "";
+    saveLineAsVariant: async (
+        id: string,
+        body: { quotation_item_id: string; code: string; reason: string },
+    ): Promise<{ quotation_item_id: string; product_variant_id: string; product_variant_code: string; created: boolean; costs_promoted: false }> => {
+        const { data } = await api.post(`${BASE}/${id}/save-line-as-variant/`, body);
+        return data;
+    },
+
+    pdfUrl: (id: string, opts?: { customerView?: boolean; download?: boolean }): string => {
+        const params = new URLSearchParams();
+        if (opts?.customerView) params.set("customer_view", "1");
+        if (opts?.download) params.set("download", "1");
+        const qs = params.toString() ? `?${params.toString()}` : "";
         return `${BASE}/${id}/pdf/${qs}`;
     },
 
@@ -656,9 +741,14 @@ export const quotationService = {
         return listFromPayload<ProductMasterSummary>(data);
     },
 
-    listProductMasterSizes: async (productMasterId: string): Promise<ProductMasterSize[]> => {
-        const { data } = await api.get(`/api/master/products/${productMasterId}/sizes/`);
+    listProductMasterSizes: async (productMasterId: string, q?: string): Promise<ProductMasterSize[]> => {
+        const { data } = await api.get(`/api/master/products/${productMasterId}/sizes/`, { params: { q: q || undefined, active: true, limit: 120 } });
         return listFromPayload<ProductMasterSize>(data);
+    },
+
+    listProductMasterVariants: async (productMasterId: string, q?: string): Promise<ProductVariantSummary[]> => {
+        const { data } = await api.get(`/api/master/products/${productMasterId}/variants/`, { params: { q: q || undefined, active: true, limit: 120 } });
+        return listFromPayload<ProductVariantSummary>(data);
     },
 
     listProcessCostRates: async (): Promise<Array<{
@@ -702,9 +792,10 @@ export const quotationService = {
 
     // V37 catalog BOM hydration — returns the PM's full bill of materials so a
     // catalog quote line can render the same builder UI as an ad-hoc line.
-    getProductMasterBom: async (productMasterId: string): Promise<ProductMasterBom> => {
+    getProductMasterBom: async (productMasterId: string, plantId?: string | null, productVariantId?: string | null): Promise<ProductMasterBom> => {
         const { data } = await api.get<ProductMasterBom>(
             `/api/master/products/${productMasterId}/bom/`,
+            { params: { plant: plantId || undefined, variant: productVariantId || undefined } },
         );
         return data;
     },

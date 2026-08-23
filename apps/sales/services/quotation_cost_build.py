@@ -267,31 +267,45 @@ class QuotationCostBuildService:
             return dec(quotation.plant.default_margin_pct), f"Plant:{quotation.plant_id}"
         return None, "MISSING"
 
+    @staticmethod
+    def _can_enter_override(user) -> bool:
+        return bool(
+            getattr(user, "is_authenticated", False)
+            and (
+                getattr(user, "is_superuser", False)
+                or getattr(user, "is_owner", False)
+                or can_with_wildcard(
+                    PermissionService.get_user_permissions(user),
+                    "sales.quote.cost_override",
+                )
+            )
+        )
+
+    @staticmethod
+    def _component_key(item_id, role, sequence, material_id) -> str:
+        return f"{item_id}:{str(role or '').upper()}:{sequence}:{material_id}"
+
     @classmethod
     def preview(cls, quotation: Quotation, payload: dict, *, user=None) -> dict:
         if quotation.status != "DRAFT":
             raise ValidationError("Only a draft quotation revision can be costed.")
+        cost_entry_mode = str(payload.get("cost_entry_mode") or "CONVERSION_TOTAL").upper()
+        if cost_entry_mode not in {"CONVERSION_TOTAL", "STEPWISE"}:
+            raise ValidationError("cost_entry_mode must be CONVERSION_TOTAL or STEPWISE.")
         pricing_definition = str(payload.get("pricing_definition") or "GROSS_MARGIN_ON_SALES").upper()
         if pricing_definition not in {"MARKUP_ON_COST", "GROSS_MARGIN_ON_SALES"}:
             raise ValidationError("pricing_definition must be MARKUP_ON_COST or GROSS_MARGIN_ON_SALES.")
         target_percent = dec(payload.get("target_percent"))
         if target_percent < 0 or (pricing_definition == "GROSS_MARGIN_ON_SALES" and target_percent >= 100):
             raise ValidationError("Target percentage is outside the valid range.")
-        override_map = {str(row.get("material_id")): row for row in payload.get("material_overrides") or [] if isinstance(row, dict)}
-        if override_map:
-            allowed = (
-                getattr(user, "is_authenticated", False)
-                and (
-                    getattr(user, "is_superuser", False)
-                    or getattr(user, "is_owner", False)
-                    or can_with_wildcard(
-                        PermissionService.get_user_permissions(user),
-                        "sales.quote.cost_override",
-                    )
-                )
-            )
-            if not allowed:
-                raise ValidationError("You do not have permission to enter quote-specific cost assumptions.")
+        override_rows = [row for row in payload.get("material_overrides") or [] if isinstance(row, dict)]
+        override_map = {
+            str(row.get("component_key") or row.get("material_id")): row
+            for row in override_rows
+            if row.get("component_key") or row.get("material_id")
+        }
+        if override_map and not cls._can_enter_override(user):
+            raise ValidationError("You do not have permission to enter quote-specific cost assumptions.")
         conversion_rows = payload.get("conversion_components") or []
         if not isinstance(conversion_rows, list):
             raise ValidationError("conversion_components must be a list.")
@@ -302,12 +316,14 @@ class QuotationCostBuildService:
         warnings: list[str] = []
         total_material_cost = Decimal("0")
         total_conversion_cost = Decimal("0")
+        item_output_kg: dict[str, Decimal] = {}
         now = timezone.now()
 
         for item in quotation.items.select_related("product_master", "pouch_style_master").all():
             spec = dict(item.spec_snapshot or {})
             rows = cls._material_rows(item, spec)
             output_kg, unit_weight_g, physics = cls._quantity_facts(item, spec, rows)
+            item_output_kg[str(item.id)] = output_kg
             total_gsm = dec(physics["total_gsm"])
             item_material_cost = Decimal("0")
             material_results = []
@@ -333,9 +349,35 @@ class QuotationCostBuildService:
                     raise ValidationError(f"{item.line_name}: {row['label']} needs a positive quote quantity.")
                 if quote_uom != str(baseline.uom or material.base_uom).upper():
                     errors.append(f"{item.line_name}: {material.code} requires a governed {quote_uom} to {baseline.uom or material.base_uom} conversion.")
-                override = override_map.get(str(material.id)) or {}
+                component_key = cls._component_key(item.id, row["role"], row["sequence"], material.id)
+                embedded = next(
+                    (
+                        value
+                        for value in spec.get("cost_overrides") or []
+                        if isinstance(value, dict)
+                        and (
+                            str(value.get("component_key") or "") == component_key
+                            or (
+                                str(value.get("material_id") or "") == str(material.id)
+                                and str(value.get("role") or "").upper() == str(row["role"]).upper()
+                                and int(value.get("sequence") or row["sequence"]) == int(row["sequence"])
+                            )
+                        )
+                    ),
+                    {},
+                )
+                override = (
+                    override_map.get(component_key)
+                    or override_map.get(str(material.id))
+                    or embedded
+                    or {}
+                )
+                if override and not cls._can_enter_override(user):
+                    raise ValidationError("You do not have permission to enter quote-specific cost assumptions.")
                 override_rate = dec(override.get("rate"), Decimal("-1"))
-                override_expires_at = _parse_datetime(override.get("expires_at"))
+                override_expires_at = _parse_datetime(
+                    override.get("expires_at") or override.get("valid_until")
+                )
                 override_reason = str(override.get("reason") or "").strip()
                 override_status = "NOT_REQUIRED"
                 effective_rate = baseline.rate
@@ -357,6 +399,7 @@ class QuotationCostBuildService:
                 item_material_cost += component_cost
                 material_results.append({
                     "category": "MATERIAL", "role": row["role"], "label": row["label"], "sequence": row["sequence"],
+                    "component_key": component_key,
                     "quotation_item_id": str(item.id), "material_id": str(material.id), "material_code": material.code,
                     "material_name": material.name, "material_category": material.category, "source_type": baseline.source_type,
                     "source_ref": baseline.source_ref, "source_lot_ref": baseline.lot_ref,
@@ -397,8 +440,13 @@ class QuotationCostBuildService:
                     source_type = "PROCESS_RATE"
                     source_ref = str(process_rate.id)
                     rate = dec(process_rate.cost_per_hour)
-            quantity = dec(row.get("quantity"))
             basis = str(row.get("basis") or "FIXED").upper()
+            quotation_item_id = str(row.get("quotation_item_id") or "")
+            if not quotation_item_id and cost_entry_mode == "CONVERSION_TOTAL" and len(item_output_kg) == 1:
+                quotation_item_id = next(iter(item_output_kg))
+            quantity = dec(row.get("quantity"))
+            if basis == "PER_KG" and quotation_item_id in item_output_kg:
+                quantity = item_output_kg[quotation_item_id]
             if category == "WASTAGE" and basis == "PERCENT":
                 component_cost = q(total_material_cost * dec(row.get("percent")) / Decimal("100"), "0.000001")
                 quantity = dec(row.get("percent"))
@@ -417,7 +465,7 @@ class QuotationCostBuildService:
             readiness = "PENDING_APPROVAL" if is_override else ("READY" if component_cost > 0 and source_type != "MISSING" else "MISSING_SOURCE")
             result = {
                 "category": category, "role": "", "label": label, "sequence": sequence,
-                "quotation_item_id": row.get("quotation_item_id"), "material_id": row.get("material_id"),
+                "quotation_item_id": quotation_item_id or None, "material_id": row.get("material_id"),
                 "process_id": str(process_rate.process_id) if process_rate else row.get("process_id"),
                 "machine_id": str(process_rate.machine_id) if process_rate and process_rate.machine_id else row.get("machine_id"),
                 "process_cost_rate_id": str(process_rate.id) if process_rate else None,
@@ -476,7 +524,8 @@ class QuotationCostBuildService:
             "target_price": str(target_price), "actual_line_price": str(list_price),
         }
         result = {
-            "currency": quotation.currency, "pricing_definition": pricing_definition, "target_percent": str(target_percent),
+            "currency": quotation.currency, "cost_entry_mode": cost_entry_mode,
+            "pricing_definition": pricing_definition, "target_percent": str(target_percent),
             "material_cost": str(q(total_material_cost)), "conversion_cost": str(q(total_conversion_cost)), "total_cost": str(total_cost),
             "target_price": str(target_price),
             "list_price": str(list_price), "discount_amount": str(q(discount)), "net_sale": str(net_sale), "tax_amount": str(tax_amount),
@@ -495,7 +544,7 @@ class QuotationCostBuildService:
         if snapshot.status == "FROZEN":
             raise ValidationError("This quotation cost snapshot is frozen; create a new revision to change it.")
         for field in (
-            "currency", "pricing_definition", "target_percent", "material_cost", "conversion_cost", "total_cost", "list_price",
+            "currency", "cost_entry_mode", "pricing_definition", "target_percent", "material_cost", "conversion_cost", "total_cost", "list_price",
             "discount_amount", "net_sale", "tax_amount", "rounding_amount", "grand_total", "contribution", "markup_pct", "gross_margin_pct",
         ):
             setattr(snapshot, field, result[field])

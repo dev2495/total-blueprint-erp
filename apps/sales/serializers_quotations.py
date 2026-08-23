@@ -195,6 +195,7 @@ class QuotationSerializer(serializers.ModelSerializer):
             return None
         return {
             "id": str(cost.id), "status": cost.status, "currency": cost.currency,
+            "cost_entry_mode": cost.cost_entry_mode,
             "pricing_definition": cost.pricing_definition, "target_percent": cost.target_percent,
             "material_cost": cost.material_cost, "conversion_cost": cost.conversion_cost,
             "total_cost": cost.total_cost, "net_sale": cost.net_sale, "tax_amount": cost.tax_amount,

@@ -762,6 +762,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
             'axis_values',
             'geometry_snapshot',
             'layer_snapshot',
+            'spec_snapshot',
             'bom_signature',
             'active',
             'inventory_link',

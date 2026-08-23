@@ -82,8 +82,15 @@ class QuotationLifecycleService:
                 source = item.canonical_source_snapshot or {}
                 if source.get("path") != "B_QUOTE_SCOPED_VARIANT" or source.get("master_mutation") is not False:
                     errors.append(f"{label}: quote-scoped variant lineage is invalid.")
-                if item.product_variant_id or item.product_master_size_id:
-                    errors.append(f"{label}: quote-scoped configuration must not link to a created Product Variant/Size master.")
+                promotion = source.get("promotion") if isinstance(source.get("promotion"), dict) else {}
+                promoted_variant_id = str(promotion.get("created_variant_id") or "")
+                if item.product_master_size_id:
+                    errors.append(f"{label}: quote-scoped configuration must not create or link a Size master.")
+                if item.product_variant_id and (
+                    not promotion.get("explicit")
+                    or promoted_variant_id != str(item.product_variant_id)
+                ):
+                    errors.append(f"{label}: reusable variant linkage lacks an explicit audited save action.")
         try:
             cost = quotation.cost_build
         except Exception:

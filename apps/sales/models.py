@@ -908,6 +908,10 @@ class QuotationItem(models.Model):
 
 class QuotationCostSnapshot(models.Model):
     STATUS_CHOICES = [("DRAFT", "Draft"), ("FROZEN", "Frozen")]
+    COST_ENTRY_MODE_CHOICES = [
+        ("CONVERSION_TOTAL", "Conversion Cost Total"),
+        ("STEPWISE", "Step-wise Conversion Cost"),
+    ]
     PRICING_DEFINITION_CHOICES = [
         ("MARKUP_ON_COST", "Markup On Cost"),
         ("GROSS_MARGIN_ON_SALES", "Gross Margin On Net Sales"),
@@ -920,6 +924,16 @@ class QuotationCostSnapshot(models.Model):
         related_name="cost_build",
     )
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="DRAFT")
+    cost_entry_mode = models.CharField(
+        max_length=24,
+        choices=COST_ENTRY_MODE_CHOICES,
+        default="CONVERSION_TOTAL",
+        help_text=(
+            "How the operator entered conversion cost. CONVERSION_TOTAL is the fast "
+            "per-line conversion-rate path; STEPWISE itemises process, labour, overhead, "
+            "wastage, packing, freight and other components."
+        ),
+    )
     currency = models.CharField(max_length=10, default="INR")
     pricing_definition = models.CharField(
         max_length=32,

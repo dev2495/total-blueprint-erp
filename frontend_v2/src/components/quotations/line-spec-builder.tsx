@@ -31,6 +31,10 @@ import {
 
 export interface LineSpecValue {
   origin: "CATALOG" | "AD_HOC";
+  product_variant_id?: string | null;
+  product_variant_code?: string | null;
+  saved_variant_id?: string | null;
+  saved_variant_code?: string | null;
   product_master_id?: string;
   product_master_code?: string;
   product_master_name?: string;
@@ -71,6 +75,12 @@ export interface LineSpecValue {
     name?: string;
     gsm: number;
     rate_per_kg: number;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
   };
   ink: {
     material_id?: string | null;
@@ -79,6 +89,12 @@ export interface LineSpecValue {
     gsm: number;
     rate_per_kg: number;
     coverage?: string;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
   };
   solvent: {
     material_id?: string | null;
@@ -86,9 +102,16 @@ export interface LineSpecValue {
     name?: string;
     gsm: number;
     rate_per_kg: number;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
   };
   addons: BomAddon[];
   optional_inner_pack?: QuoteLineInnerPack | null;
+  cost_overrides?: NonNullable<QuoteLineSpec["cost_overrides"]>;
   features: Record<string, boolean>;
 }
 

@@ -21,6 +21,7 @@ from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, Quotation, QuotationAuditEvent, QuotationDelivery
 from apps.sales.services.quotation_cost_build import QuotationCostBuildService
 from apps.sales.services.quotation_lifecycle import QuotationLifecycleService
+from apps.sales.services.quotation_pdf import QuotationPDFService
 from apps.sales.services.quotation_service import QuotationService
 from apps.sales.services.quotation_variance import QuotationVarianceService
 from apps.templates.models import TemplateBlueprint
@@ -208,6 +209,163 @@ class QuotationCommercialWorkflowTests(TestCase):
         self.assertEqual(fast_item.canonical_source_snapshot["path"], "A_EXISTING_READY")
         self.assertEqual(fast_item.product_master_size_id, self.ready_size.id)
         self.assertEqual(self._master_counts(), before)
+
+    def test_explicit_reusable_variant_save_is_cost_free_and_keeps_master_lineage(self):
+        quote = self._new_quote()
+        before = self._master_counts()
+        QuotationService.bulk_update_items(quote, [self._quote_scoped_line()], user=self.sales_user)
+        item = quote.items.get()
+        item.spec_snapshot["cost_overrides"] = [{
+            "material_id": str(self.materials["FILM_FAMILY"].id),
+            "role": "LAYER", "sequence": 1, "rate": "175",
+            "reason": "Illustrative quote-only assumption",
+            "expires_at": (timezone.now() + timedelta(days=7)).isoformat(),
+        }]
+        item.save(update_fields=["spec_snapshot"])
+
+        saved_item, variant, created = QuotationService.save_quote_item_as_variant(
+            quote,
+            quotation_item_id=str(item.id),
+            code="QUOTE-BASE-137X219",
+            reason="Illustrative configuration approved for reuse",
+            user=self.approver,
+        )
+        self.assertTrue(created)
+        self.assertEqual(ProductVariant.objects.count(), before["variants"] + 1)
+        self.assertEqual(ProductMaster.objects.count(), before["products"])
+        self.assertEqual(ProductMasterSize.objects.count(), before["sizes"])
+        self.assertEqual(PouchStyleMaster.objects.count(), before["styles"])
+        self.assertEqual(InventoryMaterial.objects.count(), before["materials"])
+        self.assertEqual(variant.master_id, self.base_product.id)
+        self.assertEqual(saved_item.product_variant_id, variant.id)
+        self.assertTrue(variant.spec_snapshot)
+        serialized = str(variant.spec_snapshot)
+        for forbidden in ("cost_overrides", "rate_per_kg", "cost_source_ref", "override_rate"):
+            self.assertNotIn(forbidden, serialized)
+        self.assertTrue(QuotationAuditEvent.objects.filter(quotation=quote, event_type="QUOTE_VARIANT_SAVED").exists())
+
+        # A later draft save may keep the explicit linkage; it must not create
+        # another master or silently promote a changed configuration.
+        saved_item.refresh_from_db()
+        QuotationService.bulk_update_items(
+            quote,
+            [{
+                "line_kind": "AD_HOC",
+                "line_name": saved_item.line_name,
+                "qty": str(saved_item.qty_value),
+                "uom": saved_item.qty_uom,
+                "price_basis": saved_item.price_basis,
+                "rate": str(saved_item.quoted_unit_price),
+                "product_variant": str(variant.id),
+                "spec_snapshot": saved_item.spec_snapshot,
+            }],
+            user=self.sales_user,
+        )
+        self.assertEqual(quote.items.get().product_variant_id, variant.id)
+        self.assertEqual(ProductVariant.objects.count(), before["variants"] + 1)
+
+    def test_ready_variant_fast_path_inherits_structure_and_rejects_shadow_bom_edit(self):
+        quote = self._new_quote()
+        technical = self._quote_scoped_line()["spec_snapshot"]
+        variant = ProductVariant.objects.create(
+            master=self.base_product,
+            code="READY-137X219",
+            geometry_snapshot={"width_mm": "137", "height_mm": "219", "gusset_mm": "18"},
+            layer_snapshot=technical["layers"],
+            spec_snapshot=technical,
+            bom_signature="ready-variant-signature",
+        )
+        shadow_material = InventoryMaterial.objects.create(
+            code="SHADOW-FILM", name="Shadow Film", category="FILM_FAMILY",
+            base_uom="KG", density_gcm3=Decimal("0.9000"), status="ACTIVE",
+        )
+        QuotationService.bulk_update_items(
+            quote,
+            [{
+                "line_kind": "CATALOG", "line_name": "Ready variant", "qty": "1000",
+                "uom": "PCS", "price_basis": "PCS", "rate": "4.5",
+                "product_master": str(self.base_product.id),
+                "product_variant": str(variant.id),
+                "spec_snapshot": {
+                    **technical,
+                    "product_master_id": str(self.base_product.id),
+                    "width_mm": "140",
+                    "layers": [{"material_id": str(shadow_material.id), "micron": "99"}],
+                },
+            }],
+            user=self.sales_user,
+        )
+        item = quote.items.get()
+        self.assertEqual(item.product_variant_id, variant.id)
+        self.assertEqual(item.spec_snapshot["layers"][0]["material_id"], str(self.materials["FILM_FAMILY"].id))
+        self.assertEqual(Decimal(item.spec_snapshot["width_mm"]), Decimal("140"))
+        self.assertEqual(item.canonical_source_snapshot["path"], "A_EXISTING_READY")
+
+    def test_component_key_allows_same_rm_to_have_different_line_assumptions(self):
+        quote = self._new_quote()
+        first = self._quote_scoped_line()
+        second = {**self._quote_scoped_line(), "line_name": "Second quote configuration", "qty": "12"}
+        QuotationService.bulk_update_items(quote, [first, second], user=self.sales_user)
+        items = list(quote.items.order_by("created_at"))
+        expires = (timezone.now() + timedelta(days=7)).isoformat()
+        override_rows = []
+        for index, item in enumerate(items):
+            override_rows.append({
+                "component_key": QuotationCostBuildService._component_key(
+                    item.id, "LAYER", 1, self.materials["FILM_FAMILY"].id
+                ),
+                "material_id": str(self.materials["FILM_FAMILY"].id),
+                "rate": str(171 + index),
+                "reason": f"Illustrative line {index + 1} assumption",
+                "expires_at": expires,
+            })
+        result = QuotationCostBuildService.persist(
+            quote,
+            {
+                "cost_entry_mode": "CONVERSION_TOTAL",
+                "pricing_definition": "MARKUP_ON_COST",
+                "target_percent": "20",
+                "material_overrides": override_rows,
+                "conversion_components": [
+                    {
+                        "quotation_item_id": str(item.id),
+                        "category": "PROCESS", "label": f"{item.line_name} conversion",
+                        "source_type": "QUOTE_OVERRIDE", "rate": "35", "quantity": "0",
+                        "uom": "KG", "basis": "PER_KG",
+                        "override_reason": "Illustrative conversion assumption",
+                        "override_expires_at": expires,
+                    }
+                    for item in items
+                ],
+            },
+            user=self.sales_user,
+        )
+        layer_rows = [row for row in result["components"] if row["role"] == "LAYER"]
+        self.assertEqual({row["effective_rate"] for row in layer_rows}, {"171", "172"})
+        self.assertEqual(result["cost_entry_mode"], "CONVERSION_TOTAL")
+        self.assertTrue(all(Decimal(row["quote_quantity"]) > 0 for row in result["components"] if row["category"] == "PROCESS"))
+        quote.cost_build.refresh_from_db()
+        self.assertEqual(quote.cost_build.cost_entry_mode, "CONVERSION_TOTAL")
+
+    def test_pdf_is_traceable_client_safe_and_downloadable(self):
+        quote = self._new_quote()
+        quote.notes = "INTERNAL-COMMERCIAL-NOTE-DO-NOT-SEND"
+        quote.save(update_fields=["notes"])
+        QuotationService.bulk_update_items(quote, [self._quote_scoped_line()], user=self.sales_user)
+        internal_pdf = QuotationPDFService.render_pdf_bytes(quote)
+        client_pdf = QuotationPDFService.render_pdf_bytes(quote, customer_view=True)
+        for marker in (b"QUOTE-BASE", b"QUOTE-STYLE", b"QUOTE-FILM", b"QUOTE-INK", b"Total"):
+            self.assertIn(marker, client_pdf)
+        self.assertIn(b"INTERNAL-COMMERCIAL-NOTE-DO-NOT-SEND", internal_pdf)
+        self.assertNotIn(b"INTERNAL-COMMERCIAL-NOTE-DO-NOT-SEND", client_pdf)
+
+        client = APIClient()
+        client.force_authenticate(self.approver)
+        response = client.get(f"/api/sales/quotations/{quote.id}/pdf/?download=1")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
 
     def test_cost_override_is_quote_only_and_requires_segregated_approval(self):
         quote = self._new_quote()

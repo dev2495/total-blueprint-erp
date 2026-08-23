@@ -68,6 +68,48 @@ def _merge_nested(base: Any, override: Any):
     return merged
 
 
+_VARIANT_COMMERCIAL_KEYS = {
+    "rate_per_kg", "quote_rate", "quote_cost_rate", "override_rate",
+    "cost_source_type", "cost_source_ref", "cost_source_lot_ref",
+    "cost_source_effective_at", "cost_available_qty", "cost_uom",
+    "baseline_rate", "effective_rate", "component_cost", "cost_overrides",
+}
+
+
+def _technical_variant_spec(value):
+    if isinstance(value, dict):
+        return {
+            key: _technical_variant_spec(child)
+            for key, child in value.items()
+            if key not in _VARIANT_COMMERCIAL_KEYS
+        }
+    if isinstance(value, list):
+        return [_technical_variant_spec(child) for child in value]
+    return deepcopy(value)
+
+
+def _quote_variant_identity(*, product_master_id, pouch_style_id, spec):
+    technical = _technical_variant_spec(spec or {})
+    identity = {
+        "base_product_master_id": str(product_master_id),
+        "pouch_style_id": str(pouch_style_id or ""),
+        "width_mm": technical.get("width_mm"),
+        "height_mm": technical.get("height_mm"),
+        "gusset_mm": technical.get("gusset_mm"),
+        "flap_mm": technical.get("flap_mm"),
+        "layers": technical.get("layers") or [],
+        "inks": technical.get("inks") or [],
+        "adhesives": technical.get("adhesives") or [],
+        "solvents": technical.get("solvents") or [],
+        "additives": technical.get("additives") or [],
+        "addons": technical.get("addons") or [],
+    }
+    signature = hashlib.sha256(
+        json.dumps(identity, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()
+    return technical, identity, signature
+
+
 class QuotationService:
     DEFAULT_MARGIN_PERCENT = Decimal("15")
     DEFAULT_PROCESS_THROUGHPUT_KG_PER_HOUR = Decimal("150")
@@ -441,11 +483,26 @@ class QuotationService:
                 if size_id and not product_size:
                     raise ValidationError({"items": "Product Size is inactive or does not belong to the selected Product Master."})
                 if product_variant:
-                    spec = {
-                        **deepcopy(product_variant.geometry_snapshot or {}),
-                        **spec,
-                        "layers": deepcopy(product_variant.layer_snapshot or spec.get("layers") or []),
-                    }
+                    requested = spec
+                    inherited = deepcopy(product_variant.spec_snapshot or {})
+                    if not inherited:
+                        inherited = {
+                            **deepcopy(product_variant.geometry_snapshot or {}),
+                            "layers": deepcopy(product_variant.layer_snapshot or []),
+                        }
+                    # The fast path inherits the governed technical structure.
+                    # Sales may make only light geometry edits plus explicit
+                    # quote-cost assumptions; structural changes use Path B.
+                    for key in (
+                        "width_mm", "height_mm", "gusset_mm", "flap_mm",
+                        "cost_overrides", "optional_inner_pack",
+                        "product_master_id", "product_master_code", "product_master_name",
+                        "product_variant_id", "product_variant_code",
+                    ):
+                        if key in requested:
+                            inherited[key] = deepcopy(requested.get(key))
+                    spec = inherited
+                    spec["layers"] = deepcopy(product_variant.layer_snapshot or inherited.get("layers") or [])
                 if product_size:
                     spec.update({
                         "size_id": str(product_size.id),
@@ -458,9 +515,21 @@ class QuotationService:
             else:
                 # Path B deliberately does not require a preconfigured Size or
                 # ProductVariant. It remains a quotation-owned snapshot.
-                if row.get("product_variant") or row.get("product_variant_id") or spec.get("size_id"):
+                saved_variant_id = _uuid_str(spec.get("saved_variant_id"))
+                requested_variant_id = _uuid_str(row.get("product_variant") or row.get("product_variant_id"))
+                if requested_variant_id and requested_variant_id != saved_variant_id:
                     raise ValidationError(
-                        {"items": "Quote-scoped variant path starts from Base Product Master only; remove Product Variant/Size master links."}
+                        {"items": "Ad-hoc lines may only link a Product Variant created by the explicit Save reusable variant action."}
+                    )
+                if saved_variant_id:
+                    product_variant = ProductVariant.objects.filter(
+                        id=saved_variant_id, master=pm, active=True
+                    ).first()
+                    if not product_variant:
+                        raise ValidationError({"items": "Saved Product Variant is inactive or does not belong to the Base Product Master."})
+                if spec.get("size_id"):
+                    raise ValidationError(
+                        {"items": "Quote-scoped variant path starts from Base Product Master only; remove Product Size master links."}
                     )
 
             template = None
@@ -588,6 +657,16 @@ class QuotationService:
                 "unit_weight_g": str(unit_weight_g),
                 "total_weight_kg": str(total_weight_kg),
             })
+            if line_kind == "AD_HOC" and product_variant:
+                _, _, current_variant_signature = _quote_variant_identity(
+                    product_master_id=pm.id,
+                    pouch_style_id=getattr(style, "id", None),
+                    spec=spec,
+                )
+                if current_variant_signature != product_variant.bom_signature:
+                    raise ValidationError(
+                        {"items": "This quote configuration changed after the reusable variant was saved. Save it as a new variant or keep it quote-only."}
+                    )
             canonical_source = {
                 "path": "A_EXISTING_READY" if line_kind == "CATALOG" else "B_QUOTE_SCOPED_VARIANT",
                 "base_product_master": {
@@ -599,6 +678,7 @@ class QuotationService:
                     "version_group": str(getattr(template, "version_group", "") or ""), "status": template.status,
                 },
                 "product_variant_id": str(product_variant.id) if product_variant else None,
+                "variant_linkage": "EXPLICIT_QUOTE_SAVE" if line_kind == "AD_HOC" and product_variant else "EXISTING_READY",
                 "product_size_id": str(product_size.id) if product_size else None,
                 "pouch_style": {"id": str(style.id), "code": style.code, "version": style.version} if style else None,
                 "rm_master_ids": sorted(set(material_ids)),
@@ -659,6 +739,117 @@ class QuotationService:
             actor=user if getattr(user, "is_authenticated", False) else None,
         )
         return quotation
+
+    @classmethod
+    @transaction.atomic
+    def save_quote_item_as_variant(
+        cls,
+        quotation: Quotation,
+        *,
+        quotation_item_id: str,
+        code: str,
+        reason: str,
+        user=None,
+    ):
+        """Deliberately promote one draft quote-scoped specification to a reusable variant.
+
+        This never creates Product, Size, Layer, Pouch Style or RM masters, and it
+        never writes quote cost assumptions into Product Master. The action is
+        explicit, permission-gated by the view, idempotent by a stable BOM
+        signature, and preserved in the quotation audit trail.
+        """
+        from apps.materials.models import ProductVariant
+        from apps.materials.naming import normalize_code
+
+        quotation = Quotation.objects.select_for_update().get(pk=quotation.pk)
+        if quotation.status != "DRAFT" or quotation.frozen_at:
+            raise ValidationError("Only an unfrozen draft quotation can save a reusable variant.")
+        item = quotation.items.select_related("product_master", "pouch_style_master").filter(
+            id=quotation_item_id
+        ).first()
+        if not item:
+            raise ValidationError({"quotation_item_id": "Quotation line was not found."})
+        if item.line_kind != "AD_HOC":
+            raise ValidationError("Only an ad-hoc quote-scoped configuration can be saved as a reusable variant.")
+        if not item.product_master_id or not item.spec_snapshot:
+            raise ValidationError("Complete and save the Base Product Master configuration first.")
+        code = normalize_code(code, max_length=80)
+        reason = str(reason or "").strip()
+        if not code:
+            raise ValidationError({"code": "Variant code is required."})
+        if not reason:
+            raise ValidationError({"reason": "Explain why this quote configuration should become reusable."})
+
+        spec = deepcopy(item.spec_snapshot or {})
+        technical_spec, identity, bom_signature = _quote_variant_identity(
+            product_master_id=item.product_master_id,
+            pouch_style_id=item.pouch_style_master_id,
+            spec=spec,
+        )
+        stripped_layers = technical_spec.get("layers") or []
+        variant = ProductVariant.objects.filter(
+            master=item.product_master, bom_signature=bom_signature
+        ).first()
+        created = False
+        if variant is None:
+            if ProductVariant.objects.filter(master=item.product_master, code=code, active=True).exists():
+                raise ValidationError({"code": "That active variant code already exists on this Product Master."})
+            variant = ProductVariant.objects.create(
+                master=item.product_master,
+                code=code,
+                axis_values={
+                    "source": "QUOTATION_EXPLICIT_SAVE",
+                    "pouch_style_code": getattr(item.pouch_style_master, "code", ""),
+                    "width_mm": spec.get("width_mm"),
+                    "height_mm": spec.get("height_mm"),
+                    "gusset_mm": spec.get("gusset_mm"),
+                },
+                geometry_snapshot={
+                    key: deepcopy(spec.get(key))
+                    for key in (
+                        "width_mm", "height_mm", "gusset_mm", "flap_mm",
+                        "pouch_style_id", "pouch_style_code", "stock_form",
+                        "width_basis", "film_area_width_mm", "child_web_width_mm",
+                    )
+                    if spec.get(key) not in (None, "")
+                },
+                layer_snapshot=stripped_layers,
+                spec_snapshot=technical_spec,
+                bom_signature=bom_signature,
+                active=True,
+            )
+            created = True
+
+        promotion = {
+            "explicit": True,
+            "created_variant_id": str(variant.id),
+            "created_variant_code": variant.code,
+            "created": created,
+            "reason": reason,
+            "actor_id": str(getattr(user, "id", "") or ""),
+            "at": timezone.now().isoformat(),
+            "costs_promoted": False,
+        }
+        item.product_variant = variant
+        item.spec_snapshot = {**spec, "saved_variant_id": str(variant.id), "saved_variant_code": variant.code}
+        item.canonical_source_snapshot = {**(item.canonical_source_snapshot or {}), "promotion": promotion}
+        item.save(update_fields=["product_variant", "spec_snapshot", "canonical_source_snapshot", "updated_at"])
+        QuotationAuditEvent.objects.create(
+            quotation=quotation,
+            event_type="QUOTE_VARIANT_SAVED",
+            note=f"{item.line_name or item.id} saved as reusable variant {variant.code}.",
+            after_snapshot={
+                "quotation_item_id": str(item.id),
+                "product_master_id": str(item.product_master_id),
+                "product_variant_id": str(variant.id),
+                "product_variant_code": variant.code,
+                "created": created,
+                "costs_promoted": False,
+            },
+            metadata={"reason": reason},
+            actor=user if getattr(user, "is_authenticated", False) else None,
+        )
+        return item, variant, created
 
     @classmethod
     def _save_quotation(cls, quotation: Quotation, payload: dict[str, Any], *, is_create: bool, user=None) -> Quotation:

@@ -24,6 +24,7 @@ import CatalogLinePicker, {
 import LineSpecBuilder, {
   type LineSpecValue,
 } from "@/components/quotations/line-spec-builder";
+import LineBomCostEditor from "@/components/quotations/line-bom-cost-editor";
 import VarianceRibbon from "@/components/quotations/variance-ribbon";
 import {
   bomStripText,
@@ -88,6 +89,12 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
         name?: string;
         gsm?: number;
         rate_per_kg?: number;
+        cost_source_type?: string;
+        cost_source_ref?: string;
+        cost_source_lot_ref?: string;
+        cost_source_effective_at?: string | null;
+        cost_available_qty?: number;
+        cost_uom?: string;
       };
       ink?: {
         material_id?: string;
@@ -96,6 +103,12 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
         gsm?: number;
         rate_per_kg?: number;
         coverage?: string;
+        cost_source_type?: string;
+        cost_source_ref?: string;
+        cost_source_lot_ref?: string;
+        cost_source_effective_at?: string | null;
+        cost_available_qty?: number;
+        cost_uom?: string;
       };
       addons?: Array<{
         material_id?: string;
@@ -136,25 +149,64 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       child_target_width_mm?: number | null;
       child_web_width_mm?: number | null;
       optional_inner_pack?: QuoteLineInnerPack | null;
+      product_variant_id?: string | null;
+      product_variant_code?: string | null;
+      saved_variant_id?: string | null;
+      saved_variant_code?: string | null;
+      cost_overrides?: NonNullable<QuoteLineSpec["cost_overrides"]>;
     };
-  const adhesiveSource = s.adhesive;
+  type ChemicalSource = {
+    material_id?: string;
+    code?: string;
+    material_code?: string;
+    name?: string;
+    material_name?: string;
+    gsm?: number;
+    rate_per_kg?: number;
+    coverage?: string;
+    cost_source_type?: string;
+    cost_source_ref?: string;
+    cost_source_lot_ref?: string;
+    cost_source_effective_at?: string | null;
+    cost_available_qty?: number;
+    cost_uom?: string;
+  };
+  const adhesiveSource = (
+    s.adhesive || (Array.isArray(s.adhesives) ? s.adhesives[0] : undefined)
+  ) as ChemicalSource | undefined;
   const adhesive: NonNullable<LineSpecValue["adhesive"]> = {
     material_id: adhesiveSource?.material_id,
-    code: adhesiveSource?.code,
+    code: adhesiveSource?.code || adhesiveSource?.material_code,
     gsm: Number(adhesiveSource?.gsm ?? s.adhesive_gsm ?? EMPTY_SPEC.adhesive.gsm),
     rate_per_kg: Number(
       adhesiveSource?.rate_per_kg ?? s.adhesive_rate_per_kg ?? EMPTY_SPEC.adhesive.rate_per_kg,
     ),
-    name: String(adhesiveSource?.name || s.adhesive_name || ""),
+    name: String(
+      adhesiveSource?.name || adhesiveSource?.material_name || s.adhesive_name || "",
+    ),
+    cost_source_type: adhesiveSource?.cost_source_type,
+    cost_source_ref: adhesiveSource?.cost_source_ref,
+    cost_source_lot_ref: adhesiveSource?.cost_source_lot_ref,
+    cost_source_effective_at: adhesiveSource?.cost_source_effective_at,
+    cost_available_qty: adhesiveSource?.cost_available_qty,
+    cost_uom: adhesiveSource?.cost_uom,
   };
-  const inkSource = s.ink;
+  const inkSource = (
+    s.ink || (Array.isArray(s.inks) ? s.inks[0] : undefined)
+  ) as ChemicalSource | undefined;
   const ink: NonNullable<LineSpecValue["ink"]> = {
     material_id: inkSource?.material_id,
-    code: inkSource?.code,
+    code: inkSource?.code || inkSource?.material_code,
     gsm: Number(inkSource?.gsm ?? s.ink_gsm ?? EMPTY_SPEC.ink.gsm),
     rate_per_kg: Number(inkSource?.rate_per_kg ?? s.ink_rate_per_kg ?? EMPTY_SPEC.ink.rate_per_kg),
-    name: String(inkSource?.name || s.ink_name || ""),
+    name: String(inkSource?.name || inkSource?.material_name || s.ink_name || ""),
     coverage: inkSource?.coverage || "MANUAL",
+    cost_source_type: inkSource?.cost_source_type,
+    cost_source_ref: inkSource?.cost_source_ref,
+    cost_source_lot_ref: inkSource?.cost_source_lot_ref,
+    cost_source_effective_at: inkSource?.cost_source_effective_at,
+    cost_available_qty: inkSource?.cost_available_qty,
+    cost_uom: inkSource?.cost_uom,
   };
   const solventSource = Array.isArray(s.solvents) ? s.solvents[0] : undefined;
   const solvent: NonNullable<LineSpecValue["solvent"]> = {
@@ -162,7 +214,13 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
     code: solventSource?.material_code,
     name: solventSource?.material_name || solventSource?.name || "",
     gsm: Number(solventSource?.gsm || 0),
-    rate_per_kg: 0,
+    rate_per_kg: Number(solventSource?.rate_per_kg || 0),
+    cost_source_type: solventSource?.cost_source_type,
+    cost_source_ref: solventSource?.cost_source_ref,
+    cost_source_lot_ref: solventSource?.cost_source_lot_ref,
+    cost_source_effective_at: solventSource?.cost_source_effective_at,
+    cost_available_qty: solventSource?.cost_available_qty,
+    cost_uom: solventSource?.cost_uom,
   };
   const hasLayerArray = Array.isArray(s.layers);
   const layers =
@@ -180,6 +238,10 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
     })) || [];
   return {
     origin: item.line_kind,
+    product_variant_id: s.product_variant_id,
+    product_variant_code: s.product_variant_code,
+    saved_variant_id: s.saved_variant_id,
+    saved_variant_code: s.saved_variant_code,
     product_master_id: s.product_master_id,
     product_master_code: s.product_master_code,
     product_master_name: s.product_master_name,
@@ -237,6 +299,12 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       name: adhesive.name || "",
       gsm: Number(adhesive.gsm ?? 0),
       rate_per_kg: Number(adhesive.rate_per_kg ?? 0),
+      cost_source_type: adhesive.cost_source_type,
+      cost_source_ref: adhesive.cost_source_ref,
+      cost_source_lot_ref: adhesive.cost_source_lot_ref,
+      cost_source_effective_at: adhesive.cost_source_effective_at,
+      cost_available_qty: adhesive.cost_available_qty,
+      cost_uom: adhesive.cost_uom,
     },
     ink: {
       material_id: ink.material_id,
@@ -245,6 +313,12 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       coverage: ink.coverage || "MANUAL",
       gsm: Number(ink.gsm ?? 0),
       rate_per_kg: Number(ink.rate_per_kg ?? 0),
+      cost_source_type: ink.cost_source_type,
+      cost_source_ref: ink.cost_source_ref,
+      cost_source_lot_ref: ink.cost_source_lot_ref,
+      cost_source_effective_at: ink.cost_source_effective_at,
+      cost_available_qty: ink.cost_available_qty,
+      cost_uom: ink.cost_uom,
     },
     solvent,
     addons: (s.addons || []).map((a) => ({
@@ -255,6 +329,7 @@ function specSnapshotToLineSpec(item: DraftItem): LineSpecValue {
       rate_per_kg: Number(a.rate_per_kg ?? 0),
     })),
     optional_inner_pack: s.optional_inner_pack || null,
+    cost_overrides: s.cost_overrides || [],
     features: s.features || {},
   };
 }
@@ -265,6 +340,10 @@ function lineSpecToSpecSnapshot(
 ): Record<string, unknown> & QuoteLineSpec {
   const snapshot = normalizeLineSpecForRules(value);
   return {
+    product_variant_id: snapshot.product_variant_id,
+    product_variant_code: snapshot.product_variant_code,
+    saved_variant_id: snapshot.saved_variant_id,
+    saved_variant_code: snapshot.saved_variant_code,
     product_master_id: snapshot.product_master_id,
     product_master_code: snapshot.product_master_code,
     product_master_name: snapshot.product_master_name,
@@ -305,24 +384,46 @@ function lineSpecToSpecSnapshot(
       material_code: snapshot.adhesive.code,
       material_name: snapshot.adhesive.name,
       gsm: snapshot.adhesive.gsm,
+      rate_per_kg: snapshot.adhesive.rate_per_kg,
       uom: "KG",
+      cost_source_type: snapshot.adhesive.cost_source_type,
+      cost_source_ref: snapshot.adhesive.cost_source_ref,
+      cost_source_lot_ref: snapshot.adhesive.cost_source_lot_ref,
+      cost_source_effective_at: snapshot.adhesive.cost_source_effective_at,
+      cost_available_qty: snapshot.adhesive.cost_available_qty,
+      cost_uom: snapshot.adhesive.cost_uom,
     }] : [],
     inks: snapshot.ink.material_id && snapshot.ink.gsm > 0 ? [{
       material_id: snapshot.ink.material_id,
       material_code: snapshot.ink.code,
       material_name: snapshot.ink.name,
       gsm: snapshot.ink.gsm,
+      rate_per_kg: snapshot.ink.rate_per_kg,
       uom: "KG",
+      cost_source_type: snapshot.ink.cost_source_type,
+      cost_source_ref: snapshot.ink.cost_source_ref,
+      cost_source_lot_ref: snapshot.ink.cost_source_lot_ref,
+      cost_source_effective_at: snapshot.ink.cost_source_effective_at,
+      cost_available_qty: snapshot.ink.cost_available_qty,
+      cost_uom: snapshot.ink.cost_uom,
     }] : [],
     solvents: snapshot.solvent.material_id && snapshot.solvent.gsm > 0 ? [{
       material_id: snapshot.solvent.material_id,
       material_code: snapshot.solvent.code,
       material_name: snapshot.solvent.name,
       gsm: snapshot.solvent.gsm,
+      rate_per_kg: snapshot.solvent.rate_per_kg,
       uom: "KG",
+      cost_source_type: snapshot.solvent.cost_source_type,
+      cost_source_ref: snapshot.solvent.cost_source_ref,
+      cost_source_lot_ref: snapshot.solvent.cost_source_lot_ref,
+      cost_source_effective_at: snapshot.solvent.cost_source_effective_at,
+      cost_available_qty: snapshot.solvent.cost_available_qty,
+      cost_uom: snapshot.solvent.cost_uom,
     }] : [],
     addons: snapshot.addons,
     optional_inner_pack: snapshot.optional_inner_pack || null,
+    cost_overrides: snapshot.cost_overrides || [],
     features: snapshot.features,
     master_snapshot: masterSnapshot,
   };
@@ -380,6 +481,8 @@ interface QuotationLineCardProps {
   onDuplicate: () => void;
   onSaveLine?: () => void;
   canPersist: boolean;
+  plantId?: string | null;
+  onSaveAsVariant?: (item: DraftItem) => void;
 }
 
 export default function QuotationLineCard({
@@ -391,12 +494,15 @@ export default function QuotationLineCard({
   onDuplicate,
   onSaveLine,
   canPersist,
+  plantId,
+  onSaveAsVariant,
 }: QuotationLineCardProps) {
   const lineSpec = useMemo(() => specSnapshotToLineSpec(item), [item]);
   const masterSnapshot = (
     item.spec_snapshot as { master_snapshot?: MasterSnapshot } | undefined
   )?.master_snapshot;
   const [bomData, setBomData] = useState<ProductMasterBom | null>(null);
+  const [bomVariantId, setBomVariantId] = useState<string | null>(null);
   const hydrationPmId =
     item.line_kind === "AD_HOC"
       ? lineSpec.product_master_id || lineSpec.base_product_master_id
@@ -404,9 +510,10 @@ export default function QuotationLineCard({
 
   // ── BOM hydration when a Product Master is attached ────────────────────
   const bomMut = useMutation({
-    mutationFn: (pmId: string) => quotationService.getProductMasterBom(pmId),
+    mutationFn: (pmId: string) => quotationService.getProductMasterBom(pmId, plantId || undefined, lineSpec.product_variant_id),
     onSuccess: (data, pmId) => {
       setBomData(data);
+      setBomVariantId(lineSpec.product_variant_id || null);
       // First hydration only — when spec doesn't yet have layers OR pm just changed.
       const currentSpec = (item.spec_snapshot || {}) as Record<string, unknown>;
       const layers = (currentSpec.layers as unknown[]) || [];
@@ -421,7 +528,15 @@ export default function QuotationLineCard({
             | { product_master_id?: string }
             | undefined
         )?.product_master_id === pmId;
-      if (!masterAlreadyAttached || layers.length === 0) {
+      // A persisted Path-B line is already an intentional quote-scoped
+      // technical snapshot. Loading current Base-PM defaults must never erase
+      // its saved layers or chemicals merely because it has no UI-only
+      // `master_snapshot` field. New Path-B lines may still be seeded once.
+      const preservePersistedAdHoc = isAdHoc && Boolean(item.id);
+      if (
+        !preservePersistedAdHoc &&
+        (!masterAlreadyAttached || layers.length === 0 || Boolean(lineSpec.product_variant_id))
+      ) {
         const hydratedSpec: LineSpecValue = {
           ...lineSpec,
           origin: item.line_kind,
@@ -485,6 +600,12 @@ export default function QuotationLineCard({
             name: data.adhesive.name || "",
             gsm: data.adhesive.gsm,
             rate_per_kg: data.adhesive.rate_per_kg,
+            cost_source_type: data.adhesive.cost_source_type,
+            cost_source_ref: data.adhesive.cost_source_ref,
+            cost_source_lot_ref: data.adhesive.cost_source_lot_ref,
+            cost_source_effective_at: data.adhesive.cost_source_effective_at,
+            cost_available_qty: data.adhesive.cost_available_qty,
+            cost_uom: data.adhesive.cost_uom,
           },
           ink: {
             material_id: data.ink.material_id || undefined,
@@ -493,6 +614,12 @@ export default function QuotationLineCard({
             gsm: data.ink.gsm,
             rate_per_kg: data.ink.rate_per_kg,
             coverage: data.ink.coverage || "MANUAL",
+            cost_source_type: data.ink.cost_source_type,
+            cost_source_ref: data.ink.cost_source_ref,
+            cost_source_lot_ref: data.ink.cost_source_lot_ref,
+            cost_source_effective_at: data.ink.cost_source_effective_at,
+            cost_available_qty: data.ink.cost_available_qty,
+            cost_uom: data.ink.cost_uom,
           },
           addons: data.addons.map((a) => ({
             material_id: a.material_id || undefined,
@@ -503,6 +630,11 @@ export default function QuotationLineCard({
           })),
           features: {},
           optional_inner_pack: lineSpec.optional_inner_pack || null,
+          product_variant_id: lineSpec.product_variant_id,
+          product_variant_code: lineSpec.product_variant_code,
+          saved_variant_id: lineSpec.saved_variant_id,
+          saved_variant_code: lineSpec.saved_variant_code,
+          cost_overrides: lineSpec.cost_overrides || [],
         };
         // Build the master_snapshot baseline.
         const normalizedHydratedSpec = normalizeLineSpecForRules(hydratedSpec);
@@ -549,12 +681,13 @@ export default function QuotationLineCard({
     const pmId = hydrationPmId;
     if (!pmId) {
       setBomData(null);
+      setBomVariantId(null);
       return;
     }
-    if (bomData && bomData.product_master_id === pmId) return;
+    if (bomData && bomData.product_master_id === pmId && bomVariantId === (lineSpec.product_variant_id || null)) return;
     bomMut.mutate(pmId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hydrationPmId]);
+  }, [hydrationPmId, plantId, lineSpec.product_variant_id]);
 
   // ── Diff detection ─────────────────────────────────────────────────────
   const modifiedFields = useMemo(() => {
@@ -654,6 +787,8 @@ export default function QuotationLineCard({
                 child_web_width_mm: undefined,
                 flap_mm: undefined,
                 master_snapshot: undefined,
+                product_variant_id: undefined,
+                product_variant_code: undefined,
               }
             : {},
       });
@@ -680,6 +815,8 @@ export default function QuotationLineCard({
           size_id: undefined,
           size_code: undefined,
           size_label: undefined,
+          product_variant_id: undefined,
+          product_variant_code: undefined,
           base_product_master_id: sel.product_master_id,
           base_product_master_code: sel.product_master_code,
           base_product_master_name: sel.product_master_name,
@@ -704,6 +841,7 @@ export default function QuotationLineCard({
       return;
     }
     // Set PM + size geometry; the bomMut effect picks up the new PM id and hydrates the rest.
+    const variantSpec = sel.variant_spec || {};
     onChange({
       ...item,
       line_name: sel.size_label
@@ -711,10 +849,13 @@ export default function QuotationLineCard({
         : sel.product_master_name,
       uom: (sel.qty_uom as DraftItem["uom"]) || item.uom,
       spec_snapshot: {
-        ...(item.spec_snapshot || {}),
+        ...variantSpec,
+        ...(sel.product_variant_id ? {} : (item.spec_snapshot || {})),
         product_master_id: sel.product_master_id,
         product_master_code: sel.product_master_code,
         product_master_name: sel.product_master_name,
+        product_variant_id: sel.product_variant_id || undefined,
+        product_variant_code: sel.product_variant_code || undefined,
         size_id: sel.size_id || undefined,
         size_code: sel.size_code || undefined,
         size_label: sel.size_label || undefined,
@@ -735,6 +876,13 @@ export default function QuotationLineCard({
           sel.gusset_mm || (item.spec_snapshot as QuoteLineSpec).gusset_mm,
         flap_mm:
           sel.flap_mm || (item.spec_snapshot as QuoteLineSpec).flap_mm,
+        layers:
+          variantSpec.layers && variantSpec.layers.length > 0
+            ? variantSpec.layers
+            : sel.variant_layers && sel.variant_layers.length > 0
+              ? sel.variant_layers
+            : (item.spec_snapshot as QuoteLineSpec).layers,
+        quote_variant_kind: sel.product_variant_id ? "EXISTING_READY" : undefined,
       },
     });
   };
@@ -907,6 +1055,8 @@ export default function QuotationLineCard({
                 : ((item.spec_snapshot as { size_id?: string }).size_id ||
                   null)
             }
+            valueVariantId={lineSpec.product_variant_id || null}
+            showReadyVariants={item.line_kind === "CATALOG"}
             onChange={handleCatalogPick}
           />
 
@@ -930,7 +1080,7 @@ export default function QuotationLineCard({
               </div>
               <div className="mt-1 text-[12px] font-semibold text-content-2">
                 This configuration inherits the selected Base Product Master but remains owned by this quotation revision.
-                It can vary size, layers, GSM, thickness, inks, adhesives, solvents and additives; it never creates or changes a master.
+                It can vary pouch style, size, layers, GSM, thickness, inks, adhesives, solvents, additives and add-ons. After save, an authorized user may explicitly save only the technical configuration as a reusable Product Variant; quote costs never enter that variant.
               </div>
             </div>
           ) : null}
@@ -952,11 +1102,26 @@ export default function QuotationLineCard({
           {/* Builder + Right rail (cost + production preview) */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
             <div>
-              <LineSpecBuilder
-                value={lineSpec}
-                onChange={handleSpecChange}
-                catalogAddons={bomData?.addons || []}
-                modifiedPaths={modifiedPaths}
+              {item.line_kind === "CATALOG" ? (
+                <CatalogSalesEditPanel value={lineSpec} onChange={handleSpecChange} />
+              ) : (
+                <LineSpecBuilder
+                  value={lineSpec}
+                  onChange={handleSpecChange}
+                  catalogAddons={bomData?.addons || []}
+                  modifiedPaths={modifiedPaths}
+                />
+              )}
+
+              <LineBomCostEditor
+                spec={item.spec_snapshot as QuoteLineSpec}
+                editable={canPersist}
+                onChange={(cost_overrides) =>
+                  onChange({
+                    ...item,
+                    spec_snapshot: { ...item.spec_snapshot, cost_overrides },
+                  })
+                }
               />
 
               {/* Qty + UOM */}
@@ -1060,6 +1225,16 @@ export default function QuotationLineCard({
                 Save line
               </button>
             ) : null}
+            {canPersist && item.id && item.line_kind === "AD_HOC" && onSaveAsVariant ? (
+              <button
+                type="button"
+                onClick={() => onSaveAsVariant(item)}
+                className="h-9 px-3 inline-flex items-center gap-2 rounded-lg bg-surface-1 text-order-fg ring-1 ring-order-border font-extrabold text-xs uppercase tracking-widest hover:bg-order-bg"
+              >
+                <Package className="h-3.5 w-3.5" />
+                Save reusable variant
+              </button>
+            ) : null}
             <button
               onClick={onRemove}
               className="h-9 px-3 inline-flex items-center gap-2 rounded-lg text-danger-fg hover:bg-danger-bg font-bold text-xs uppercase tracking-widest"
@@ -1082,5 +1257,39 @@ function RibbonStat({ label, value }: { label: string; value: string }) {
       </div>
       <div className="font-mono text-base font-extrabold">{value}</div>
     </div>
+  );
+}
+
+function CatalogSalesEditPanel({ value, onChange }: { value: LineSpecValue; onChange: (next: LineSpecValue) => void }) {
+  const fields: Array<["width_mm" | "height_mm" | "gusset_mm" | "flap_mm", string]> = [
+    ["width_mm", "Width mm"],
+    ["height_mm", "Height mm"],
+    ["gusset_mm", "Gusset mm"],
+    ["flap_mm", "Flap mm"],
+  ];
+  return (
+    <section className="rounded-xl border border-line bg-surface-1 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-extrabold uppercase tracking-widest text-success-fg">Sales fast lane</div>
+          <div className="mt-1 text-sm font-extrabold text-content-1">Inherited technical BOM · sales-owned edits only</div>
+          <p className="mt-1 text-[11px] font-semibold text-content-4">The ready Product Variant or saved Product Master size supplies pouch style, layers, print and materials. Adjust quantity, price and light dimensions here; use Ad-hoc pouch for structural BOM changes.</p>
+        </div>
+        <span className="rounded-full bg-success-bg px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-success-fg ring-1 ring-success-border">Master linked</span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+        {fields.map(([key, label]) => (
+          <label key={key} className="text-[9px] font-extrabold uppercase tracking-wider text-content-4">{label}
+            <input type="number" min="0" value={Number(value[key] || 0)} onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-right font-mono text-xs font-bold" />
+          </label>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {(value.layers || []).map((layer, index) => <span key={`${layer.material_id || index}`} className="rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-content-2 ring-1 ring-line">L{index + 1} · {layer.material_code || layer.material_name || "RM required"} · {Number(layer.micron || 0)}µ · {Number(layer.gsm || 0).toFixed(2)} GSM</span>)}
+        {value.ink?.material_id ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-content-2 ring-1 ring-line">Ink · {value.ink.code || value.ink.name}</span> : null}
+        {value.adhesive?.material_id ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-content-2 ring-1 ring-line">Adhesive · {value.adhesive.code || value.adhesive.name}</span> : null}
+        {value.solvent?.material_id ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-content-2 ring-1 ring-line">Solvent · {value.solvent.code || value.solvent.name}</span> : null}
+      </div>
+    </section>
   );
 }
