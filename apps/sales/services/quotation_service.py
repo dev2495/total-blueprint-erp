@@ -730,6 +730,10 @@ class QuotationService:
         quotation.items.all().delete()
         for values in prepared:
             QuotationItem.objects.create(**values)
+        # create_quotation returns a serializer-hydrated instance that may carry
+        # an empty prefetched `items` cache. Direct QuotationItem creates do not
+        # invalidate that cache, so totals/PDFs could otherwise see zero lines.
+        getattr(quotation, "_prefetched_objects_cache", {}).pop("items", None)
         cls._refresh_totals(quotation)
         QuotationAuditEvent.objects.create(
             quotation=quotation,

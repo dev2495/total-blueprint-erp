@@ -210,6 +210,20 @@ class QuotationCommercialWorkflowTests(TestCase):
         self.assertEqual(fast_item.product_master_size_id, self.ready_size.id)
         self.assertEqual(self._master_counts(), before)
 
+    def test_bulk_line_save_invalidates_prefetch_before_totals_and_pdf(self):
+        quote = self._new_quote()
+        # Reproduce the API serializer state that prefetches an empty line list.
+        list(quote.items.all())
+        quote._prefetched_objects_cache = {"items": []}
+        QuotationService.bulk_update_items(
+            quote, [self._quote_scoped_line()], user=self.sales_user
+        )
+        quote.refresh_from_db()
+        self.assertEqual(quote.totals_snapshot["item_count"], 1)
+        self.assertEqual(Decimal(str(quote.totals_snapshot["subtotal"])), Decimal("5000"))
+        pdf = QuotationPDFService.render_pdf_bytes(quote)
+        self.assertIn(b"INR 5,000.00", pdf)
+
     def test_explicit_reusable_variant_save_is_cost_free_and_keeps_master_lineage(self):
         quote = self._new_quote()
         before = self._master_counts()
