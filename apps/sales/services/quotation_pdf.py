@@ -724,7 +724,11 @@ class QuotationPDFService:
         rows.append([gst_label, cls._money(totals.get("tax_total"), currency)])
         rows.append(["GRAND TOTAL", cls._money(totals.get("grand_total"), currency)])
         if not customer_view:
-            rows.append(["Est. margin", f"{round(float(totals.get('margin_percent') or 0), 2)}%"])
+            cost_build = totals.get("cost_build") or {}
+            margin_value = cost_build.get("gross_margin_pct")
+            if margin_value in (None, ""):
+                margin_value = totals.get("margin_percent") or 0
+            rows.append(["Est. gross margin", f"{round(float(margin_value), 2)}%"])
 
         t = Table(rows, colWidths=[42 * mm, 38 * mm])
         t.hAlign = "RIGHT"

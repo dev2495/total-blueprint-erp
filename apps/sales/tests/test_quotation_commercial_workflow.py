@@ -431,6 +431,10 @@ class QuotationCommercialWorkflowTests(TestCase):
         self.assertLessEqual(-Decimal(process_row["quote_quantity"]).as_tuple().exponent, 6)
         saved = quote.cost_build.components.get(category="PROCESS")
         self.assertEqual(saved.quote_quantity, Decimal(process_row["quote_quantity"]))
+        quote.refresh_from_db()
+        internal_pdf = QuotationPDFService.render_pdf_bytes(quote)
+        expected_margin = f"{round(float(result['gross_margin_pct']), 2)}%".encode()
+        self.assertIn(expected_margin, internal_pdf)
 
     def test_pdf_is_traceable_client_safe_and_downloadable(self):
         quote = self._new_quote()
