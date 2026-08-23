@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, type MouseEvent } from "react";
+import { useState, useMemo, useEffect, useRef, useDeferredValue, type MouseEvent } from "react";
 import {
   useQuery,
   useMutation,
@@ -43,6 +43,7 @@ import {
 } from "@/components/wcm/queue-card-chips";
 import { ArtworkButton } from "@/components/machine/cylinder-artwork";
 import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
+import { PrintColorRevisionNotice } from "@/components/production/print-color-revision-notice";
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
 import {
   GranuleCodeSourcePicker,
@@ -797,6 +798,7 @@ export default function WCMTerminal() {
   }, [isWideViewport, detailSheetOpen]);
 
   // 1. Data Fetching
+  const deferredQueueSearch = useDeferredValue(queueSearch.trim());
   const {
     data: assignments,
     isLoading,
@@ -807,8 +809,8 @@ export default function WCMTerminal() {
     refetch: refetchQueue,
     dataUpdatedAt: queueUpdatedAt,
   } = useQuery({
-    queryKey: ["wcm-queue", wcId],
-    queryFn: () => wcmService.getQueue(wcId),
+    queryKey: ["wcm-queue", wcId, deferredQueueSearch],
+    queryFn: () => wcmService.getQueue(wcId, 300, deferredQueueSearch),
     refetchInterval:
       materialIssueDirty || materialIssuePickerOpen ? false : 15000,
     placeholderData: keepPreviousData,
@@ -4906,6 +4908,10 @@ export default function WCMTerminal() {
               )}
             </div>
           </section>
+          <PrintColorRevisionNotice
+            source={(activeAssignment as any) || (selectedJob as any)}
+            className="order-6"
+          />
           {detailRequiresCylinderGate ? (
             <section
               className={cn(

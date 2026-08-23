@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { HealthBar, type HealthSegment } from "../HealthBar";
 import { InventorySelectDialog } from "../inventory-select-dialog";
 import { ArtworkPickerDialog } from "../artwork-picker-dialog";
+import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
 import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
 import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
 import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
@@ -334,6 +335,7 @@ export default function PlanQueueTab() {
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [releaseDialogOrder, setReleaseDialogOrder] = useState<PlannerControlOrder | null>(null);
     const [artworkDialogOrder, setArtworkDialogOrder] = useState<PlannerControlOrder | null>(null);
+    const [colorRevisionOrder, setColorRevisionOrder] = useState<PlannerControlOrder | null>(null);
     const savedViewQuery = useMemo(() => filtersToQuery(filters), [filters]);
 
     const serverFilters = useMemo(() => ({
@@ -695,6 +697,7 @@ export default function PlanQueueTab() {
                             loadingDetail={selectedDetailQ.isFetching && !selectedDetailQ.data?.detail_order}
                             onOpenRelease={() => setReleaseDialogOrder(selectedDetail)}
                             onOpenArtwork={() => setArtworkDialogOrder(selectedDetail)}
+                            onOpenColorRevision={() => setColorRevisionOrder(selectedDetail)}
                             onInvalidate={invalidateAll}
                         />
                     ) : (
@@ -711,6 +714,11 @@ export default function PlanQueueTab() {
                 onCommitted={invalidateAll}
             />
             <ArtworkPickerDialog order={artworkDialogOrder} onClose={() => setArtworkDialogOrder(null)} />
+            <PrintColorRevisionDialog
+                order={colorRevisionOrder}
+                onClose={() => setColorRevisionOrder(null)}
+                onCommitted={invalidateAll}
+            />
         </div>
     );
 }
@@ -861,11 +869,12 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
 
 // ----------------- Order detail panel -----------------
 
-function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenArtwork, onInvalidate }: {
+function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenArtwork, onOpenColorRevision, onInvalidate }: {
     order: PlannerControlOrder;
     loadingDetail?: boolean;
     onOpenRelease: () => void;
     onOpenArtwork: () => void;
+    onOpenColorRevision: () => void;
     onInvalidate: () => void;
 }) {
     const { toast } = useToast();
@@ -906,6 +915,10 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const artworkCopy = artworkGateCopy(order, factSheet, printingSnap, artworkRequired, artworkAssigned);
     const packagingInfo = packagingInnerPackInfo(packagingSnap);
     const artworkPreview = order.artwork_preview || null;
+    const colorRevision = printingSnap?.color_revision || null;
+    const releasedColorWindow = Number(order.jobs_released || 0) > 0
+        || ["RELEASED", "IN_PRODUCTION"].includes(lineStatus)
+        || ["RELEASED", "IN_PRODUCTION"].includes(String(order.status || "").toUpperCase());
 
     const cancelLineMutation = useMutation({
         mutationFn: async () => {
@@ -1446,6 +1459,28 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                 </div>
                             )}
                         </div>
+                    </div>
+                </Card>
+            )}
+
+            {printingOn && artworkAssigned && releasedColorWindow && (
+                <Card style={{ borderColor: "rgba(37,99,235,.30)", background: "linear-gradient(135deg, rgba(239,246,255,.84), rgba(245,243,255,.84))" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div className="t-eyebrow" style={{ color: "var(--br-700)" }}>Live print color contract</div>
+                            <div style={{ marginTop: 4, fontSize: 18, fontWeight: 850, color: "var(--text-1)", lineHeight: 1.25 }}>
+                                {printColors || "Color names pending"}
+                            </div>
+                            <div style={{ marginTop: 5, fontSize: 11, fontWeight: 650, color: "var(--text-3)" }}>
+                                {colorRevision
+                                    ? `Revision v${colorRevision.revision_no} · ${colorRevision.reason} · previous colors remain visible downstream`
+                                    : "Released contract · Planner may revise color names only; all other production specs stay locked."}
+                            </div>
+                        </div>
+                        <Button variant="primary" onClick={onOpenColorRevision}>
+                            <Printer size={14} style={{ marginRight: 6 }} />
+                            Revise colors only
+                        </Button>
                     </div>
                 </Card>
             )}

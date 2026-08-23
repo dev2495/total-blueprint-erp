@@ -84,6 +84,16 @@ export interface ProductionJob {
     step_produced_primary?: number | null;
     step_remaining_primary?: number | null;
     step_adjusted_total_kg?: number;
+    ink_colors?: string[];
+    front_colors?: string[];
+    back_colors?: string[];
+    color_revision_no?: number;
+    color_revision_changed_at?: string | null;
+    color_revision_changed_by?: string;
+    color_revision_reason?: string;
+    previous_front_colors?: string[];
+    previous_back_colors?: string[];
+    operator_notice_required?: boolean;
 
     // Technical Specs
     geometry?: any;

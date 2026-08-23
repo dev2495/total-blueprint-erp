@@ -86,7 +86,7 @@ def _user_label(user):
 def _artwork_payload_for_job(job):
     try:
         from apps.production.services.queue_enrichment import (
-            ink_colors_for_artwork,
+            print_color_contract_for_job,
             resolve_committed_artwork,
         )
 
@@ -99,7 +99,7 @@ def _artwork_payload_for_job(job):
                 "committed_artwork_id": None,
                 "committed_artwork_code": "",
                 "committed_artwork_name": "",
-                "ink_colors": [],
+                **print_color_contract_for_job(job),
             }
         artwork_id = str(artwork.id)
         artwork_code = str(getattr(artwork, "design_code", "") or "")
@@ -111,7 +111,7 @@ def _artwork_payload_for_job(job):
             "committed_artwork_id": artwork_id,
             "committed_artwork_code": artwork_code,
             "committed_artwork_name": artwork_name,
-            "ink_colors": ink_colors_for_artwork(artwork),
+            **print_color_contract_for_job(job),
         }
     except Exception:
         logger.exception("Unable to resolve machine artwork payload for job_id=%s", getattr(job, "id", None))
@@ -1179,6 +1179,20 @@ def machine_job_events(request, machine_id, job_id):
             "in_spec": log.in_spec,
             "label": f"{log.parameter_code} · {value}".strip(" ·"),
             "user": _user_label(log.logged_by),
+        })
+    for event in job.wcm_audit_events.filter(action="PRINT_COLOR_CHANGE").select_related("actor").order_by("-occurred_at")[:limit]:
+        before = list((event.payload or {}).get("previous_front_colors") or []) + list((event.payload or {}).get("previous_back_colors") or [])
+        after = list((event.payload or {}).get("front_colors") or []) + list((event.payload or {}).get("back_colors") or [])
+        events.append({
+            "id": str(event.id),
+            "type": "PRINT_COLOR_CHANGE",
+            "ts": event.occurred_at.isoformat() if event.occurred_at else None,
+            "reason": event.reason,
+            "before_colors": before,
+            "after_colors": after,
+            "revision_no": int((event.payload or {}).get("revision_no") or 0),
+            "label": f"Print colors changed: {', '.join(before)} -> {', '.join(after)}",
+            "user": _user_label(event.actor),
         })
 
     events.sort(key=lambda event: event.get("ts") or "", reverse=True)

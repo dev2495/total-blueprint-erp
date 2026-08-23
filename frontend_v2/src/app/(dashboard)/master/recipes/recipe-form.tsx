@@ -313,6 +313,10 @@ export function RecipeForm({
                 </div>
               </div>
             ) : null}
+            <div className="flex items-start gap-2 border-t border-primary/10 bg-info-bg px-4 py-3 text-xs font-semibold text-primary">
+              <ShieldCheck className="mt-0.5 h-4 w-4 flex-none" />
+              <span>Identity is locked for this revision stream. Edit formulation percentages below. For a different variant, grade, or thickness range, disable this contract and create a new recipe.</span>
+            </div>
           </div>
         ) : null}
         <div className="grid grid-cols-2 gap-4">
@@ -326,6 +330,7 @@ export function RecipeForm({
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                   value={field.value}
+                  disabled={Boolean(initialData)}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -355,6 +360,7 @@ export function RecipeForm({
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                   value={field.value}
+                  disabled={Boolean(initialData)}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -387,6 +393,8 @@ export function RecipeForm({
                     type="number"
                     {...field}
                     value={field.value as number}
+                    readOnly={Boolean(initialData)}
+                    className={initialData ? "cursor-not-allowed bg-surface-2 text-content-3" : undefined}
                   />
                 </FormControl>
                 <FormMessage />
@@ -404,6 +412,8 @@ export function RecipeForm({
                     type="number"
                     {...field}
                     value={field.value as number}
+                    readOnly={Boolean(initialData)}
+                    className={initialData ? "cursor-not-allowed bg-surface-2 text-content-3" : undefined}
                   />
                 </FormControl>
                 <FormMessage />

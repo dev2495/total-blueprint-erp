@@ -20,6 +20,7 @@ import { SavedViewBar } from "@/components/ds";
 import { useToast } from "@/hooks/use-toast";
 import { ChipRow, FilterChip, FilterSearch, PlannerFilterDock } from "../filter-dock";
 import { getOrderTraceQuantitySummary, OrderPassportStrip, ProductionTracePanel } from "../order-passport";
+import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -64,6 +65,7 @@ export default function LiveProductionTab() {
     const [stateFilter, setStateFilter] = useState<"all" | "running" | "released" | "waiting" | "replan" | "blocked">("all");
     const [pathFilter, setPathFilter] = useState<"all" | "production" | "handoff" | "replan">("all");
     const [page, setPage] = useState(1);
+    const [colorRevisionOrder, setColorRevisionOrder] = useState<PlannerControlOrder | null>(null);
     const deferredSearch = useDeferredValue(search.trim());
     const savedViewQuery = useMemo(() => {
         const params = new URLSearchParams();
@@ -413,6 +415,7 @@ export default function LiveProductionTab() {
                                     key={`${order.order_kind}:${order.order_id}:${order.sales_order_item_id || "order"}`}
                                     order={order}
                                     jobs={jobsByOrder.get(order.order_number) || []}
+                                    onOpenColorRevision={() => setColorRevisionOrder(order)}
                                 />
                             ))}
                             <PaginationBar
@@ -487,6 +490,11 @@ export default function LiveProductionTab() {
                     </Card>
                 </div>
             </div>
+            <PrintColorRevisionDialog
+                order={colorRevisionOrder}
+                onClose={() => setColorRevisionOrder(null)}
+                onCommitted={refreshAll}
+            />
         </div>
     );
 }
@@ -526,7 +534,11 @@ function PaginationBar({
     );
 }
 
-function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[] }) {
+function LiveOrderCard({ order, jobs, onOpenColorRevision }: {
+    order: PlannerControlOrder;
+    jobs: any[];
+    onOpenColorRevision: () => void;
+}) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const [resolutionMode, setResolutionMode] = useState<"cancel" | "short-close" | null>(null);
@@ -540,6 +552,15 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
     const lineClosed = isClosedLine(order);
     const canCancel = isSalesLine && !lineClosed;
     const canShortClose = isSalesLine && !lineClosed && (order.partial_replan_required || Number(order.partial_shortfall_kg || 0) > 0 || Number(order.qty_open || 0) > 0);
+    const printSnapshot = order.printing_snapshot || {};
+    const frontColors = Array.isArray(printSnapshot.front_colors) ? printSnapshot.front_colors : [];
+    const backColors = Array.isArray(printSnapshot.back_colors) ? printSnapshot.back_colors : [];
+    const colorNames = [...frontColors, ...backColors]
+        .map((row: any) => String(row?.name || row?.color_name || row || "").trim().toUpperCase())
+        .filter(Boolean);
+    const canRevisePrintColors = !lineClosed && colorNames.length > 0 && jobs.some((job) =>
+        ["RELEASED", "EXECUTING", "RUNNING", "PAUSED"].includes(String(job?.state || job?.status || "").toUpperCase()),
+    );
 
     const cancelMutation = useMutation({
         mutationFn: () => plannerService.cancelPlannedLine(order.order_kind as PlannerOrderKind, order.order_id, {
@@ -602,6 +623,25 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
                             {blocker.message || blocker.code || "Blocker"}
                         </span>
                     ))}
+                </div>
+            )}
+
+            {colorNames.length > 0 && (
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "12px 14px", border: "1px solid rgba(37,99,235,.22)", borderRadius: "var(--r-3)", background: "rgba(37,99,235,.06)" }}>
+                    <div style={{ minWidth: 0 }}>
+                        <div className="t-eyebrow" style={{ color: "var(--br-700)" }}>Current governed print colors</div>
+                        <div style={{ marginTop: 5, fontSize: 17, lineHeight: 1.35, fontWeight: 950, color: "var(--text-1)", overflowWrap: "anywhere" }}>
+                            {colorNames.join(" · ")}
+                        </div>
+                        {printSnapshot.color_revision?.revision_no ? (
+                            <div style={{ marginTop: 4, fontSize: 11, fontWeight: 800, color: "var(--text-3)" }}>
+                                Revised v{printSnapshot.color_revision.revision_no} · {printSnapshot.color_revision.reason}
+                            </div>
+                        ) : null}
+                    </div>
+                    <Button variant="primary" size="sm" disabled={!canRevisePrintColors} onClick={onOpenColorRevision}>
+                        Revise colors
+                    </Button>
                 </div>
             )}
 

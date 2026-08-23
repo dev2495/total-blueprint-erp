@@ -750,6 +750,13 @@ export interface AssignArtworkPayload {
     item_id?: string;
 }
 
+export interface RevisePrintColorsPayload {
+    item_id?: string;
+    front_colors: string[];
+    back_colors: string[];
+    reason: string;
+}
+
 export interface ShortClosePayload {
     reason: string;
     item_id?: string;
@@ -1191,6 +1198,11 @@ export const plannerService = {
 
     assignArtworkToOrder: async (orderKind: PlannerOrderKind, orderId: string, payload: AssignArtworkPayload) => {
         const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/assign-artwork/`, payload);
+        return data;
+    },
+
+    revisePrintColors: async (orderKind: PlannerOrderKind, orderId: string, payload: RevisePrintColorsPayload) => {
+        const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/revise-print-colors/`, payload);
         return data;
     },
 

@@ -70,6 +70,30 @@ class ExtrusionRecipeSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
+        if self.instance is not None:
+            immutable_contract_fields = {
+                "film_variant": ("film variant", self.instance.film_variant_id),
+                "grade": ("grade", self.instance.grade_id),
+                "thickness_min_micron": ("minimum thickness", self.instance.thickness_min_micron),
+                "thickness_max_micron": ("maximum thickness", self.instance.thickness_max_micron),
+            }
+            changed = []
+            for field, (label, current) in immutable_contract_fields.items():
+                if field not in attrs:
+                    continue
+                incoming = attrs[field]
+                incoming_value = getattr(incoming, "id", incoming)
+                if str(incoming_value) != str(current):
+                    changed.append(label)
+            if changed:
+                raise serializers.ValidationError({
+                    "non_field_errors": [
+                        "Recipe identity is locked after creation. To change "
+                        + ", ".join(changed)
+                        + ", disable this recipe and create a new contract."
+                    ]
+                })
+
         thickness_min = attrs.get("thickness_min_micron", getattr(self.instance, "thickness_min_micron", None))
         thickness_max = attrs.get("thickness_max_micron", getattr(self.instance, "thickness_max_micron", None))
         if thickness_min is not None and thickness_max is not None and thickness_min > thickness_max:

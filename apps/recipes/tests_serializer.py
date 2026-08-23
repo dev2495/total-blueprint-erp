@@ -167,6 +167,27 @@ class ExtrusionRecipeSerializerTests(TestCase):
         self.assertEqual(revisions[1].components_snapshot[0]["percentage"], "30.00")
         self.assertEqual(updated._bom_refresh_stats["historical_frozen"], 1)
 
+    def test_update_rejects_recipe_identity_change(self):
+        recipe = ExtrusionRecipe.objects.create(
+            film_variant=self.variant,
+            grade=self.grade,
+            thickness_min_micron=40,
+            thickness_max_micron=60,
+        )
+        recipe.components.create(granule=self.granule_a, percentage=100)
+        other_grade = RecipeGrade.objects.create(name="MIL")
+        serializer = ExtrusionRecipeSerializer(instance=recipe, data={
+            "film_variant": str(self.variant.id),
+            "grade": str(other_grade.id),
+            "thickness_min_micron": 40,
+            "thickness_max_micron": 60,
+            "components": [{"granule": str(self.granule_a.id), "percentage": "100.00"}],
+            "change_reason": "Attempted identity move",
+        })
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("Recipe identity is locked", str(serializer.errors))
+
     def test_create_rolls_back_recipe_when_open_bom_refresh_fails(self):
         serializer = ExtrusionRecipeSerializer(data={
             "film_variant": str(self.variant.id),

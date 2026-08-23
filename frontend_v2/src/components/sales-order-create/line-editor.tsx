@@ -1116,6 +1116,7 @@ export function LineEditor({
                 hint="optional · cylinder + colorway"
               >
                 <ArtworkSection
+                  compact
                   mode={line.artwork_mode}
                   onModeChange={(m) =>
                     onPatch({

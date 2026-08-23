@@ -165,6 +165,15 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
                 "committed_artwork_code",
                 "committed_artwork_name",
                 "ink_colors",
+                "front_colors",
+                "back_colors",
+                "color_revision_no",
+                "color_revision_changed_at",
+                "color_revision_changed_by",
+                "color_revision_reason",
+                "previous_front_colors",
+                "previous_back_colors",
+                "operator_notice_required",
                 "cylinder_ready",
                 "cylinder_status",
                 "current_step_print_capable",
@@ -319,7 +328,7 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
         }
 
     def _compact_job_details(self, job):
-        from .services.queue_enrichment import ink_colors_for_artwork, resolve_committed_artwork
+        from .services.queue_enrichment import print_color_contract_for_job, resolve_committed_artwork
 
         process = getattr(job, "current_process", None) or getattr(job, "process", None)
         artwork = resolve_committed_artwork(job)
@@ -386,7 +395,7 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             "committed_artwork_id": str(artwork.id) if artwork else None,
             "committed_artwork_code": getattr(artwork, "design_code", "") if artwork else "",
             "committed_artwork_name": getattr(artwork, "name", "") if artwork else "",
-            "ink_colors": ink_colors_for_artwork(artwork),
+            **print_color_contract_for_job(job),
             "current_step_print_capable": bool(process and (getattr(process, "print_capable", False) or getattr(process, "has_artwork", False))),
         }
 
@@ -471,13 +480,23 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'], url_path='queue')
     def queue(self, request, wc_id=None):
         summary = self._summary_requested(request)
+        search = str(request.query_params.get("q") or request.query_params.get("search") or "").strip()
         limit = _bounded_int(
             request.query_params.get("limit"),
-            default=100 if summary else 35,
+            default=150 if summary else 35,
             minimum=1,
-            maximum=150 if summary else 60,
+            maximum=300 if summary else 60,
         )
         queryset = self.get_queryset()
+        if search:
+            queryset = queryset.filter(
+                Q(production_job__job_number__icontains=search)
+                | Q(production_job__sales_order_item__sales_order__order_number__icontains=search)
+                | Q(production_job__sales_order_item__sales_order__customer_name__icontains=search)
+                | Q(production_job__sales_order_item__line_name__icontains=search)
+                | Q(production_job__template__name__icontains=search)
+                | Q(assigned_machine__name__icontains=search)
+            )
         queryset = list(queryset[:limit])
 
         if summary:

@@ -880,6 +880,7 @@ class ProductionWcmAuditEvent(models.Model):
         ("MATERIAL_TRANSFER_RECEIPT", "Material Transfer Receipt"),
         ("MATERIAL_POLICY_OVERRIDE", "Material Policy Override"),
         ("ROUTE_STEP_SKIP", "Route Step Skip"),
+        ("PRINT_COLOR_CHANGE", "Print Color Change"),
         ("SHORT_CLOSE", "Short Close"),
         ("CANCEL", "Cancel"),
     ]

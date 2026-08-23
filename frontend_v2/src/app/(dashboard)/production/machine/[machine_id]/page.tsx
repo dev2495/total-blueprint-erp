@@ -69,6 +69,7 @@ import {
   type ReasonCodeGroup,
 } from "@/services/reason-codes";
 import { CylinderSetCard } from "@/components/machine/cylinder-artwork";
+import { PrintColorRevisionNotice } from "@/components/production/print-color-revision-notice";
 import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
 
 type QueueFilter = "ALL" | "RUNNING" | "READY" | "PAUSED";
@@ -3018,6 +3019,7 @@ export default function MachineExecutionPage() {
                   nextAction={operatorNextStep}
                   routeSteps={routeSteps}
                 />
+                <PrintColorRevisionNotice source={selectedJob} />
                 {selectedJob &&
                 (selectedJob?.current_step_print_capable ||
                   selectedJob?.committed_artwork_id) ? (

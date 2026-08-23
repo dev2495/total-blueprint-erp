@@ -100,7 +100,36 @@ def ink_colors_for_artwork(artwork):
 
 
 def ink_colors_for_job(job):
-    return _ink_colors_for_artwork(_resolve_committed_artwork(job))
+    return print_color_contract_for_job(job)["ink_colors"]
+
+
+def print_color_contract_for_job(job):
+    """Return effective frozen order colors plus the latest governed revision."""
+    def color_name(value):
+        if isinstance(value, dict):
+            value = value.get("name") or value.get("color_name") or value.get("pantone") or ""
+        return str(value or "").strip().upper()
+
+    source = getattr(job, "sales_order_item", None) or getattr(job, "mts_order", None)
+    printing = getattr(source, "printing_snapshot", None) if source is not None else None
+    printing = printing if isinstance(printing, dict) else {}
+    front = [name for name in (color_name(value) for value in (printing.get("front_colors") or [])) if name]
+    back = [name for name in (color_name(value) for value in (printing.get("back_colors") or [])) if name]
+    if not front and not back:
+        front = _ink_colors_for_artwork(_resolve_committed_artwork(job))
+    revision = printing.get("color_revision") if isinstance(printing.get("color_revision"), dict) else {}
+    return {
+        "ink_colors": front + back,
+        "front_colors": front,
+        "back_colors": back,
+        "color_revision_no": int(revision.get("revision_no") or 0),
+        "color_revision_changed_at": revision.get("changed_at"),
+        "color_revision_changed_by": str(revision.get("changed_by") or ""),
+        "color_revision_reason": str(revision.get("reason") or ""),
+        "previous_front_colors": list(revision.get("previous_front_colors") or []),
+        "previous_back_colors": list(revision.get("previous_back_colors") or []),
+        "operator_notice_required": bool(revision),
+    }
 
 
 def _is_print_capable(process):
@@ -246,7 +275,8 @@ def build_queue_enrichment(assignments, *, include_material=True):
     for assignment, job in jobs:
         process = getattr(job, "current_process", None) or getattr(job, "process", None)
         artwork = artwork_by_job.get(job.id)
-        ink_colors = _ink_colors_for_artwork(artwork)
+        color_contract = print_color_contract_for_job(job)
+        ink_colors = color_contract["ink_colors"]
 
         # Cylinder readiness.
         if not _is_print_capable(process):
@@ -290,6 +320,7 @@ def build_queue_enrichment(assignments, *, include_material=True):
             "artwork_code": str(getattr(artwork, "design_code", "") or "") if artwork is not None else "",
             "artwork_name": str(getattr(artwork, "name", "") or "") if artwork is not None else "",
             "ink_colors": ink_colors,
+            **color_contract,
             "cylinder_ready": cylinder_ready,
             "cylinder_status": cylinder_status,
             "material_blocked": material_blocked,

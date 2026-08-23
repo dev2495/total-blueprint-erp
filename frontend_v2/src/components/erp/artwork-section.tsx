@@ -112,6 +112,8 @@ interface ArtworkSectionProps {
   deferReason?: string;
   /** Disable section entirely (e.g. route has no artwork step). */
   disabled?: boolean;
+  /** Sales-order mode keeps the page short; full color detail opens in a bounded dialog. */
+  compact?: boolean;
   className?: string;
 }
 
@@ -160,6 +162,7 @@ export function ArtworkSection({
   filterSummary,
   deferReason,
   disabled,
+  compact = false,
   className,
 }: ArtworkSectionProps) {
   const effectivePrintType = String(
@@ -291,7 +294,15 @@ export function ArtworkSection({
         />
       ) : null}
 
-      {assignment ? (
+      {assignment && compact ? (
+        <CompactArtworkPreview
+          assignment={assignment}
+          filmType={(effectiveFilmType || filmType) as FilmType}
+          cylinderRequired={cylinderRequired}
+          onReplaceColor={onReplaceColor}
+          onPickArtwork={onPickArtwork}
+        />
+      ) : assignment ? (
         <ArtworkPreviewPanel
           assignment={assignment}
           filmType={(effectiveFilmType || filmType) as FilmType}
@@ -302,6 +313,64 @@ export function ArtworkSection({
         />
       ) : null}
     </div>
+  );
+}
+
+function CompactArtworkPreview({
+  assignment,
+  filmType,
+  cylinderRequired,
+  onReplaceColor,
+  onPickArtwork,
+}: {
+  assignment: ArtworkAssignment;
+  filmType: FilmType;
+  cylinderRequired: boolean;
+  onReplaceColor?: (slot: ArtworkColorSlot) => void;
+  onPickArtwork?: () => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const colors = [...assignment.front_colors, ...(assignment.back_colors || [])];
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1 px-4 py-3">
+        <ArtworkThumb url={assignment.cover_url} accent={assignment.accent_hex} size={52} />
+        <div className="min-w-0 flex-1">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Selected artwork</div>
+          <div className="truncate text-sm font-black text-content-1">
+            {assignment.colorway_name || assignment.design_family_name || assignment.artwork_id}
+          </div>
+          <div className="mt-1 truncate text-[11px] font-semibold text-content-3">
+            {colors.map((color) => color.name || color.pantone).filter(Boolean).join(" · ") || "Color contract pending"}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs font-black text-content-2 hover:border-line-strong"
+        >
+          View {colors.length} color{colors.length === 1 ? "" : "s"}
+        </button>
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="flex h-[min(78vh,720px)] max-h-[78vh] max-w-3xl flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-line px-5 pb-4 pt-5 pr-12">
+            <DialogTitle>Artwork color contract</DialogTitle>
+            <DialogDescription>Review the approved front and back color positions without expanding the sales-order page.</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="min-h-0 flex-1 p-5">
+            <ArtworkPreviewPanel
+              assignment={assignment}
+              filmType={filmType}
+              cylinderRequired={cylinderRequired}
+              canReplace={false}
+              onReplaceColor={onReplaceColor}
+              onPickArtwork={onPickArtwork}
+            />
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
