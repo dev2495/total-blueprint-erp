@@ -386,6 +386,38 @@ class QuotationCommercialWorkflowTests(TestCase):
         quote.cost_build.refresh_from_db()
         self.assertEqual(quote.cost_build.cost_entry_mode, "MARGIN_LED")
 
+    def test_direct_conversion_quantizes_pcs_derived_output_kg_for_snapshot(self):
+        quote = self._new_quote()
+        line = self._quote_scoped_line()
+        line.update({"qty": "1000", "uom": "PCS", "price_basis": "PCS", "rate": "1"})
+        QuotationService.bulk_update_items(quote, [line], user=self.sales_user)
+        item = quote.items.get()
+        result = QuotationCostBuildService.persist(
+            quote,
+            {
+                "cost_entry_mode": "CONVERSION_TOTAL",
+                "pricing_definition": "GROSS_MARGIN_ON_SALES",
+                "target_percent": "20",
+                "conversion_components": [{
+                    "quotation_item_id": str(item.id),
+                    "category": "PROCESS",
+                    "label": "Direct conversion",
+                    "source_type": "QUOTE_OVERRIDE",
+                    "rate": "1",
+                    "quantity": "0",
+                    "uom": "KG",
+                    "basis": "PER_KG",
+                    "override_reason": "Illustrative PCS precision regression",
+                    "override_expires_at": (timezone.now() + timedelta(days=7)).isoformat(),
+                }],
+            },
+            user=self.sales_user,
+        )
+        process_row = next(row for row in result["components"] if row["category"] == "PROCESS")
+        self.assertLessEqual(-Decimal(process_row["quote_quantity"]).as_tuple().exponent, 6)
+        saved = quote.cost_build.components.get(category="PROCESS")
+        self.assertEqual(saved.quote_quantity, Decimal(process_row["quote_quantity"]))
+
     def test_pdf_is_traceable_client_safe_and_downloadable(self):
         quote = self._new_quote()
         quote.notes = "INTERNAL-COMMERCIAL-NOTE-DO-NOT-SEND"

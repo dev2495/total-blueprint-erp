@@ -452,7 +452,7 @@ class QuotationCostBuildService:
                 quotation_item_id = next(iter(item_output_kg))
             quantity = dec(row.get("quantity"))
             if basis == "PER_KG" and quotation_item_id in item_output_kg:
-                quantity = item_output_kg[quotation_item_id]
+                quantity = q(item_output_kg[quotation_item_id], "0.000001")
             if category == "WASTAGE" and basis == "PERCENT":
                 component_cost = q(total_material_cost * dec(row.get("percent")) / Decimal("100"), "0.000001")
                 quantity = dec(row.get("percent"))
