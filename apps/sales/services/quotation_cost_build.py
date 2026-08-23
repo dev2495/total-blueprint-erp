@@ -290,8 +290,8 @@ class QuotationCostBuildService:
         if quotation.status != "DRAFT":
             raise ValidationError("Only a draft quotation revision can be costed.")
         cost_entry_mode = str(payload.get("cost_entry_mode") or "CONVERSION_TOTAL").upper()
-        if cost_entry_mode not in {"CONVERSION_TOTAL", "STEPWISE"}:
-            raise ValidationError("cost_entry_mode must be CONVERSION_TOTAL or STEPWISE.")
+        if cost_entry_mode not in {"CONVERSION_TOTAL", "MARGIN_LED", "STEPWISE"}:
+            raise ValidationError("cost_entry_mode must be CONVERSION_TOTAL, MARGIN_LED, or STEPWISE.")
         pricing_definition = str(payload.get("pricing_definition") or "GROSS_MARGIN_ON_SALES").upper()
         if pricing_definition not in {"MARKUP_ON_COST", "GROSS_MARGIN_ON_SALES"}:
             raise ValidationError("pricing_definition must be MARKUP_ON_COST or GROSS_MARGIN_ON_SALES.")
@@ -314,6 +314,8 @@ class QuotationCostBuildService:
         component_results = []
         errors: list[str] = []
         warnings: list[str] = []
+        if cost_entry_mode == "MARGIN_LED" and target_percent <= 0:
+            errors.append("Margin-led pricing requires a positive target margin or markup percentage.")
         total_material_cost = Decimal("0")
         total_conversion_cost = Decimal("0")
         item_output_kg: dict[str, Decimal] = {}
@@ -437,12 +439,16 @@ class QuotationCostBuildService:
                 if not process_rate:
                     errors.append(f"{label}: process rate is inactive or missing.")
                 else:
-                    source_type = "PROCESS_RATE"
                     source_ref = str(process_rate.id)
-                    rate = dec(process_rate.cost_per_hour)
+                    # A governed process rate can be retained as the baseline while an
+                    # authorised quote-only assumption supplies the effective rate.
+                    # The override never mutates the Process Cost Rate master.
+                    if source_type != "QUOTE_OVERRIDE":
+                        source_type = "PROCESS_RATE"
+                        rate = dec(process_rate.cost_per_hour)
             basis = str(row.get("basis") or "FIXED").upper()
             quotation_item_id = str(row.get("quotation_item_id") or "")
-            if not quotation_item_id and cost_entry_mode == "CONVERSION_TOTAL" and len(item_output_kg) == 1:
+            if not quotation_item_id and cost_entry_mode in {"CONVERSION_TOTAL", "MARGIN_LED"} and len(item_output_kg) == 1:
                 quotation_item_id = next(iter(item_output_kg))
             quantity = dec(row.get("quantity"))
             if basis == "PER_KG" and quotation_item_id in item_output_kg:
@@ -470,12 +476,22 @@ class QuotationCostBuildService:
                 "machine_id": str(process_rate.machine_id) if process_rate and process_rate.machine_id else row.get("machine_id"),
                 "process_cost_rate_id": str(process_rate.id) if process_rate else None,
                 "source_type": source_type, "source_ref": source_ref, "source_effective_at": process_rate.updated_at.isoformat() if process_rate else None,
-                "baseline_rate": str(rate), "baseline_available_qty": "0", "baseline_uom": str(row.get("uom") or ""),
+                "baseline_rate": str(dec(process_rate.cost_per_hour) if process_rate else rate), "baseline_available_qty": "0", "baseline_uom": "HOUR" if process_rate else str(row.get("uom") or ""),
                 "quote_quantity": str(quantity), "quote_uom": str(row.get("uom") or ""), "effective_rate": str(rate),
                 "component_cost": str(component_cost), "override_rate": str(rate) if is_override else None,
                 "override_reason": reason, "override_expires_at": expires_at.isoformat() if expires_at else None,
                 "override_status": "PENDING" if is_override else "NOT_REQUIRED", "readiness_status": readiness,
-                "provenance": {"basis": basis, "input": row},
+                "provenance": {
+                    "basis": basis,
+                    "input": row,
+                    "governed_baseline": ({
+                        "source_type": "PROCESS_RATE",
+                        "process_cost_rate_id": str(process_rate.id),
+                        "rate": str(process_rate.cost_per_hour),
+                        "uom": "HOUR",
+                        "effective_at": process_rate.updated_at.isoformat(),
+                    } if process_rate else None),
+                },
             }
             component_results.append(result)
             total_conversion_cost += component_cost

@@ -910,6 +910,7 @@ class QuotationCostSnapshot(models.Model):
     STATUS_CHOICES = [("DRAFT", "Draft"), ("FROZEN", "Frozen")]
     COST_ENTRY_MODE_CHOICES = [
         ("CONVERSION_TOTAL", "Conversion Cost Total"),
+        ("MARGIN_LED", "Margin-led Pricing"),
         ("STEPWISE", "Step-wise Conversion Cost"),
     ]
     PRICING_DEFINITION_CHOICES = [
@@ -930,7 +931,8 @@ class QuotationCostSnapshot(models.Model):
         default="CONVERSION_TOTAL",
         help_text=(
             "How the operator entered conversion cost. CONVERSION_TOTAL is the fast "
-            "per-line conversion-rate path; STEPWISE itemises process, labour, overhead, "
+            "per-line conversion-rate path; MARGIN_LED keeps that cost base while making "
+            "the target margin or markup the primary pricing control; STEPWISE itemises process, labour, overhead, "
             "wastage, packing, freight and other components."
         ),
     )

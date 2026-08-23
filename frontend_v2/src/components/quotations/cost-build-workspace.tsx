@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, BadgeCheck, Calculator, Database, LockKeyhole, Plus, Save, Trash2 } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Calculator, Database, Gauge, Layers3, LockKeyhole, Plus, Save, Trash2 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { quotationService, type CostBuild, type QuotationListItem } from "@/services/quotation";
@@ -36,7 +36,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
   const editable = quote.status === "DRAFT";
   const [definition, setDefinition] = useState<"MARKUP_ON_COST" | "GROSS_MARGIN_ON_SALES">("GROSS_MARGIN_ON_SALES");
   const [target, setTarget] = useState(0);
-  const [costEntryMode, setCostEntryMode] = useState<"CONVERSION_TOTAL" | "STEPWISE">("CONVERSION_TOTAL");
+  const [costEntryMode, setCostEntryMode] = useState<"CONVERSION_TOTAL" | "MARGIN_LED" | "STEPWISE">("CONVERSION_TOTAL");
   const [conversion, setConversion] = useState<ConversionDraft[]>([]);
   const [overrides, setOverrides] = useState<Record<string, MaterialOverride>>({});
 
@@ -127,8 +127,8 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
     (quote.items || []).find((item) => item.id === itemId)?.line_name || "Whole quote";
   const updateConversion = (id: string, patch: Partial<ConversionDraft>) =>
     setConversion((rows) => rows.map((row) => (row.localId === id ? { ...row, ...patch } : row)));
-  const useConversionTotal = () => {
-    setCostEntryMode("CONVERSION_TOTAL");
+  const useFastCostMode = (mode: "CONVERSION_TOTAL" | "MARGIN_LED") => {
+    setCostEntryMode(mode);
     setConversion((current) =>
       (quote.items || []).map((item, index) => {
         const saved = current.find((row) => row.quotation_item_id === item.id && row.basis === "PER_KG");
@@ -205,20 +205,22 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
         </div>
 
         <div>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-3">
             <div>
               <h4 className="text-sm font-extrabold">Conversion Cost</h4>
-              <p className="text-[11px] font-semibold text-content-4">Default: one editable conversion ₹/kg per line. Switch to step-wise for process, labour, overhead, yield/wastage, packing, freight and other costs.</p>
+              <p className="text-[11px] font-semibold text-content-4">Choose one calculation path. Direct conversion is the default; every quote-only value remains editable, reasoned and approval-controlled.</p>
             </div>
-            <div className="flex rounded-lg bg-surface-2 p-1 ring-1 ring-line">
-              <button type="button" disabled={!editable} onClick={useConversionTotal} className={`h-8 rounded-md px-3 text-[10px] font-extrabold uppercase tracking-wider ${costEntryMode === "CONVERSION_TOTAL" ? "bg-surface-1 text-order-fg shadow-sm" : "text-content-3"}`}>Conversion ₹/kg</button>
-              <button type="button" disabled={!editable} onClick={() => setCostEntryMode("STEPWISE")} className={`h-8 rounded-md px-3 text-[10px] font-extrabold uppercase tracking-wider ${costEntryMode === "STEPWISE" ? "bg-surface-1 text-order-fg shadow-sm" : "text-content-3"}`}>Step-wise cost</button>
+            <div className="mt-3 grid gap-2 md:grid-cols-3" aria-label="Cost calculation method">
+              <CostModeButton active={costEntryMode === "CONVERSION_TOTAL"} disabled={!editable} icon={<Gauge className="h-4 w-4" />} title="1. Direct conversion" caption="Editable conversion ₹/kg per quote line" onClick={() => useFastCostMode("CONVERSION_TOTAL")} />
+              <CostModeButton active={costEntryMode === "MARGIN_LED"} disabled={!editable} icon={<Calculator className="h-4 w-4" />} title="2. Margin-led" caption="Cost base plus target margin or markup" onClick={() => useFastCostMode("MARGIN_LED")} />
+              <CostModeButton active={costEntryMode === "STEPWISE"} disabled={!editable} icon={<Layers3 className="h-4 w-4" />} title="3. Step-wise" caption="Process, labour, overhead and additions" onClick={() => setCostEntryMode("STEPWISE")} />
             </div>
           </div>
+          {costEntryMode === "MARGIN_LED" ? <div className="mb-3 rounded-lg bg-info-bg px-3 py-2 text-[11px] font-semibold text-info-fg">Enter the conversion assumption below, then set the pricing definition and target. The target price is calculated transparently; quote line selling rates remain explicit.</div> : null}
           <div className="space-y-2">
             {conversion.map((row) => (
-              <div key={row.localId} className={`grid grid-cols-2 gap-2 rounded-xl border border-line p-3 ${costEntryMode === "CONVERSION_TOTAL" ? "md:grid-cols-[1.3fr_110px_1fr_34px]" : "md:grid-cols-[150px_130px_1.1fr_1.1fr_90px_90px_1fr_34px]"}`}>
-                <select disabled={!editable || costEntryMode === "CONVERSION_TOTAL"} value={row.quotation_item_id || ""} onChange={(event) => updateConversion(row.localId, { quotation_item_id: event.target.value || undefined })} className="h-9 rounded-lg border border-line px-2 text-xs font-bold disabled:bg-surface-2">
+              <div key={row.localId} className={`grid grid-cols-2 gap-2 rounded-xl border border-line p-3 ${costEntryMode !== "STEPWISE" ? "md:grid-cols-[1.3fr_110px_1fr_34px]" : "md:grid-cols-[150px_130px_1.1fr_1.1fr_90px_90px_1fr_34px]"}`}>
+                <select disabled={!editable || costEntryMode !== "STEPWISE"} value={row.quotation_item_id || ""} onChange={(event) => updateConversion(row.localId, { quotation_item_id: event.target.value || undefined })} className="h-9 rounded-lg border border-line px-2 text-xs font-bold disabled:bg-surface-2">
                   <option value="">Whole quote</option>
                   {(quote.items || []).map((item, index) => <option key={item.id || index} value={item.id}>{item.line_name || `Line ${index + 1}`}</option>)}
                 </select>
@@ -228,8 +230,8 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
                   <select disabled={!editable} value={row.source_type} onChange={(event) => updateConversion(row.localId, { source_type: event.target.value as ConversionDraft["source_type"] })} className="h-9 rounded-lg border border-line px-2 text-xs font-bold"><option value="PROCESS_RATE">Process Rate Master</option><option value="QUOTE_OVERRIDE">Quote-only assumption</option></select>
                   <input disabled={!editable} aria-label={`${row.label} quantity`} type="number" placeholder="Qty" value={row.quantity || ""} onChange={(event) => updateConversion(row.localId, { quantity: Number(event.target.value) })} className="h-9 rounded-lg border border-line px-2 text-right font-mono text-xs" />
                 </> : null}
-                <input disabled={!editable || row.source_type === "PROCESS_RATE"} aria-label={`${row.label} rate`} type="number" placeholder={costEntryMode === "CONVERSION_TOTAL" ? "₹ / kg" : "Rate"} value={row.rate || ""} onChange={(event) => updateConversion(row.localId, { rate: Number(event.target.value), basis: costEntryMode === "CONVERSION_TOTAL" ? "PER_KG" : row.basis, uom: costEntryMode === "CONVERSION_TOTAL" ? "KG" : row.uom, source_type: costEntryMode === "CONVERSION_TOTAL" ? "QUOTE_OVERRIDE" : row.source_type })} className="h-9 rounded-lg border border-line px-2 text-right font-mono text-xs" />
-                {row.source_type === "PROCESS_RATE" ? <select disabled={!editable} value={row.process_cost_rate_id || ""} onChange={(event) => updateConversion(row.localId, { process_cost_rate_id: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs font-semibold"><option value="">Select rate source</option>{(ratesQuery.data || []).filter((rate) => rate.is_active).map((rate) => <option key={rate.id} value={rate.id}>{rate.process_code} · {rate.machine_code || "all machines"} · ₹{money(rate.cost_per_hour)}/hr</option>)}</select> : <div className="grid grid-cols-2 gap-1"><input disabled={!editable} placeholder="Reason" value={row.override_reason || ""} onChange={(event) => updateConversion(row.localId, { override_reason: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs" /><input disabled={!editable} type="datetime-local" value={row.override_expires_at || ""} onChange={(event) => updateConversion(row.localId, { override_expires_at: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-[10px]" /></div>}
+                <input disabled={!editable || (costEntryMode === "STEPWISE" && row.source_type === "PROCESS_RATE")} aria-label={`${row.label} rate`} type="number" placeholder={costEntryMode !== "STEPWISE" ? "₹ / kg" : "Rate"} value={row.rate || ""} onChange={(event) => updateConversion(row.localId, { rate: Number(event.target.value), basis: costEntryMode !== "STEPWISE" ? "PER_KG" : row.basis, uom: costEntryMode !== "STEPWISE" ? "KG" : row.uom, source_type: costEntryMode !== "STEPWISE" ? "QUOTE_OVERRIDE" : row.source_type })} className="h-9 rounded-lg border border-line px-2 text-right font-mono text-xs" />
+                {costEntryMode === "STEPWISE" && row.source_type === "PROCESS_RATE" ? <select disabled={!editable} value={row.process_cost_rate_id || ""} onChange={(event) => updateConversion(row.localId, { process_cost_rate_id: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs font-semibold"><option value="">Select rate source</option>{(ratesQuery.data || []).filter((rate) => rate.is_active).map((rate) => <option key={rate.id} value={rate.id}>{rate.process_code} · {rate.machine_code || "all machines"} · ₹{money(rate.cost_per_hour)}/hr</option>)}</select> : <div className="grid grid-cols-2 gap-1"><input disabled={!editable} placeholder="Reason" value={row.override_reason || ""} onChange={(event) => updateConversion(row.localId, { override_reason: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs" /><input disabled={!editable} type="datetime-local" value={row.override_expires_at || ""} onChange={(event) => updateConversion(row.localId, { override_expires_at: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-[10px]" /></div>}
                 {editable ? <button aria-label={`Remove ${row.label || "component"}`} type="button" onClick={() => setConversion((rows) => rows.filter((item) => item.localId !== row.localId))} className="inline-flex h-9 items-center justify-center rounded-lg text-danger-fg hover:bg-danger-bg"><Trash2 className="h-4 w-4" /></button> : <span />}
               </div>
             ))}
@@ -264,4 +266,8 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
 
 function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border border-line bg-surface-1 p-3"><div className="text-[9px] font-extrabold uppercase tracking-widest text-content-4">{label}</div><div className="mt-1 font-mono text-sm font-extrabold text-content-1">{value}</div></div>;
+}
+
+function CostModeButton({ active, disabled, icon, title, caption, onClick }: { active: boolean; disabled: boolean; icon: ReactNode; title: string; caption: string; onClick: () => void }) {
+  return <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} className={`min-h-16 rounded-xl px-3 py-2.5 text-left transition-[background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-order-fg disabled:opacity-60 ${active ? "bg-order-fg text-white shadow-sm" : "bg-surface-2 text-content-2 ring-1 ring-line hover:bg-surface-3"}`}><span className="flex items-center gap-2 text-xs font-extrabold">{icon}{title}</span><span className={`mt-1 block text-[10px] font-semibold ${active ? "text-order-border" : "text-content-4"}`}>{caption}</span></button>;
 }

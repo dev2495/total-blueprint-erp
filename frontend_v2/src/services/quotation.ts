@@ -325,7 +325,7 @@ export interface CostBuild {
     id?: string;
     status: string;
     currency?: string;
-    cost_entry_mode?: "CONVERSION_TOTAL" | "STEPWISE";
+    cost_entry_mode?: "CONVERSION_TOTAL" | "MARGIN_LED" | "STEPWISE";
     pricing_definition?: "MARKUP_ON_COST" | "GROSS_MARGIN_ON_SALES";
     target_percent?: number | string;
     material_cost?: number | string;

@@ -347,6 +347,45 @@ class QuotationCommercialWorkflowTests(TestCase):
         quote.cost_build.refresh_from_db()
         self.assertEqual(quote.cost_build.cost_entry_mode, "CONVERSION_TOTAL")
 
+    def test_margin_led_mode_keeps_process_master_as_editable_quote_baseline(self):
+        quote = self._new_quote()
+        QuotationService.bulk_update_items(quote, [self._quote_scoped_line()], user=self.sales_user)
+        expires = (timezone.now() + timedelta(days=7)).isoformat()
+        result = QuotationCostBuildService.persist(
+            quote,
+            {
+                "cost_entry_mode": "MARGIN_LED",
+                "pricing_definition": "GROSS_MARGIN_ON_SALES",
+                "target_percent": "25",
+                "conversion_components": [{
+                    "category": "PROCESS",
+                    "label": "Printing quote assumption",
+                    "source_type": "QUOTE_OVERRIDE",
+                    "process_cost_rate_id": str(self.process_rate.id),
+                    "quantity": "1",
+                    "uom": "HOUR",
+                    "basis": "PER_HOUR",
+                    "rate": "725",
+                    "override_reason": "Illustrative quote-specific machine assumption",
+                    "override_expires_at": expires,
+                }],
+            },
+            user=self.sales_user,
+        )
+        process_row = next(row for row in result["components"] if row["category"] == "PROCESS")
+        self.assertEqual(result["cost_entry_mode"], "MARGIN_LED")
+        self.assertEqual(process_row["source_type"], "QUOTE_OVERRIDE")
+        self.assertEqual(Decimal(process_row["baseline_rate"]), Decimal("600"))
+        self.assertEqual(Decimal(process_row["effective_rate"]), Decimal("725"))
+        self.assertEqual(process_row["process_cost_rate_id"], str(self.process_rate.id))
+        self.assertEqual(
+            Decimal(process_row["provenance"]["governed_baseline"]["rate"]), Decimal("600")
+        )
+        self.process_rate.refresh_from_db()
+        self.assertEqual(self.process_rate.cost_per_hour, Decimal("600"))
+        quote.cost_build.refresh_from_db()
+        self.assertEqual(quote.cost_build.cost_entry_mode, "MARGIN_LED")
+
     def test_pdf_is_traceable_client_safe_and_downloadable(self):
         quote = self._new_quote()
         quote.notes = "INTERNAL-COMMERCIAL-NOTE-DO-NOT-SEND"
