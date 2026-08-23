@@ -5492,30 +5492,59 @@ class PlannerViewSet(viewsets.ViewSet):
         order_signature: str = "",
         order_invariant_signature: str = "",
     ):
+        fg_cache = getattr(self, "_control_hub_fg_signature_counts", None)
+        if not isinstance(fg_cache, dict):
+            fg_cache = {}
+            self._control_hub_fg_signature_counts = fg_cache
+        wip_cache = getattr(self, "_control_hub_wip_signature_counts", None)
+        if not isinstance(wip_cache, dict):
+            wip_cache = {}
+            self._control_hub_wip_signature_counts = wip_cache
+
         fg_match_count = 0
         if order_signature:
-            fg_batches = (
-                FinishedGoodsBatch.objects.filter(
-                    status="AVAILABLE",
-                    template=template,
-                    completed_step_index=route_last_index,
+            fg_key = (str(getattr(template, "id", "") or ""), int(route_last_index or 0))
+            if fg_key not in fg_cache:
+                signature_counts = {}
+                fg_batches = (
+                    FinishedGoodsBatch.objects.filter(
+                        status="AVAILABLE",
+                        template=template,
+                        completed_step_index=route_last_index,
+                    )
+                    .select_related("sales_order_item", "production_job__mts_order")
                 )
-                .select_related("sales_order_item", "production_job__mts_order")
-            )
-            fg_match_count = sum(1 for batch in fg_batches if self._fg_signature(batch) == order_signature)
+                for batch in fg_batches:
+                    signature = self._fg_signature(batch)
+                    if signature:
+                        signature_counts[signature] = int(signature_counts.get(signature) or 0) + 1
+                fg_cache[fg_key] = signature_counts
+            fg_match_count = int((fg_cache.get(fg_key) or {}).get(order_signature) or 0)
 
         wip_match_count = 0
         if order_invariant_signature:
-            wip_rolls = (
-                InventoryRoll.objects.filter(
-                    status="AVAILABLE",
-                    template=template,
-                    completed_step_index__gte=max(0, int(required_start_step or 0)),
-                    completed_step_index__lt=route_last_index,
-                )
-                .select_related("sales_order_item", "created_by_job__mts_order", "production_job__mts_order")
+            wip_key = (
+                str(getattr(template, "id", "") or ""),
+                max(0, int(required_start_step or 0)),
+                int(route_last_index or 0),
             )
-            wip_match_count = sum(1 for roll in wip_rolls if self._roll_invariant_signature(roll) == order_invariant_signature)
+            if wip_key not in wip_cache:
+                signature_counts = {}
+                wip_rolls = (
+                    InventoryRoll.objects.filter(
+                        status="AVAILABLE",
+                        template=template,
+                        completed_step_index__gte=max(0, int(required_start_step or 0)),
+                        completed_step_index__lt=route_last_index,
+                    )
+                    .select_related("sales_order_item", "created_by_job__mts_order", "production_job__mts_order")
+                )
+                for roll in wip_rolls:
+                    signature = self._roll_invariant_signature(roll)
+                    if signature:
+                        signature_counts[signature] = int(signature_counts.get(signature) or 0) + 1
+                wip_cache[wip_key] = signature_counts
+            wip_match_count = int((wip_cache.get(wip_key) or {}).get(order_invariant_signature) or 0)
         return {
             "fg_match_count": int(fg_match_count),
             "wip_match_count": int(wip_match_count),
@@ -6250,6 +6279,8 @@ class PlannerViewSet(viewsets.ViewSet):
         self._control_hub_template_steps_cache = {}
         self._control_hub_process_cache = {}
         self._control_hub_purchasable_material_cache = {}
+        self._control_hub_fg_signature_counts = {}
+        self._control_hub_wip_signature_counts = {}
 
         def cached_cheap_source_availability(*, template, required_start_step: int, route_last_index: int, order_signature: str = "", order_invariant_signature: str = ""):
             cache_key = (
