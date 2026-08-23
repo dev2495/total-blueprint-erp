@@ -3725,7 +3725,7 @@ class PlannerViewSet(viewsets.ViewSet):
     def _layer_material_label(self, layer: dict, index: int):
         return self._layer_display_parts(layer, index).get("label") or f"Layer {index + 1}"
 
-    def _row_spec_summary(self, row: dict):
+    def _row_spec_summary(self, row: dict, *, resolve_materials: bool = True):
         geometry = row.get("effective_dims") if isinstance(row.get("effective_dims"), dict) else {}
         width = Decimal(str(geometry.get("width_mm") or 0))
         height = Decimal(str(geometry.get("height_mm") or 0))
@@ -3737,7 +3737,7 @@ class PlannerViewSet(viewsets.ViewSet):
         for index, layer in enumerate(layers):
             if not isinstance(layer, dict):
                 continue
-            parts = self._layer_display_parts(layer, index)
+            parts = self._layer_display_parts(layer, index, resolve_materials=resolve_materials)
             label = parts["label"]
             material_labels.append(label)
             try:
@@ -4865,7 +4865,10 @@ class PlannerViewSet(viewsets.ViewSet):
         row["release_checklist"] = row.get("release_checklist") if isinstance(row.get("release_checklist"), dict) else self._row_release_checklist(row)
         row["action_recommendation"] = row.get("action_recommendation") if isinstance(row.get("action_recommendation"), dict) else self._row_action_recommendation(row)
         row["order_fact_sheet"] = row.get("order_fact_sheet") if isinstance(row.get("order_fact_sheet"), dict) else self._row_order_fact_sheet(row)
-        row["spec_summary"] = row.get("spec_summary") if isinstance(row.get("spec_summary"), dict) else self._row_spec_summary(row)
+        row["spec_summary"] = row.get("spec_summary") if isinstance(row.get("spec_summary"), dict) else self._row_spec_summary(
+            row,
+            resolve_materials=resolve_materials,
+        )
         row["production_trace"] = row.get("production_trace") if isinstance(row.get("production_trace"), dict) else self._row_production_trace(row)
         row["analytics"] = row.get("analytics") if isinstance(row.get("analytics"), dict) else self._row_v2_analytics(row)
         display_fields = self._row_display_fields(row, resolve_materials=resolve_materials)
@@ -6486,7 +6489,12 @@ class PlannerViewSet(viewsets.ViewSet):
                         prefer_current_product_master=prefer_current_master,
                     )
                 addons_snapshot = so_item.addons_snapshot if isinstance(so_item.addons_snapshot, list) else []
-                packaging_snapshot = _normalize_packaging_snapshot(getattr(so_item, "packaging_snapshot", {}) or {})
+                raw_packaging_snapshot = getattr(so_item, "packaging_snapshot", {}) or {}
+                packaging_snapshot = (
+                    raw_packaging_snapshot
+                    if summary and not raw_item_is_detail
+                    else _normalize_packaging_snapshot(raw_packaging_snapshot)
+                )
                 effective_dims = self._compute_effective_dims(order.geometry_override, geometry_snapshot)
                 qty_uom = str(getattr(so_item, "qty_uom", "KG") or "KG").upper()
                 unit_weight = Decimal(str(getattr(so_item, "unit_weight_g", 0) or 0))
@@ -6562,14 +6570,6 @@ class PlannerViewSet(viewsets.ViewSet):
                         - Decimal(str(getattr(so_item, "qty_short_closed", 0) or 0)),
                         Decimal("0"),
                     )
-                pending_artwork_items = (
-                    self._light_pending_artwork_items(
-                        so_item,
-                        prefer_current_product_master=prefer_current_master,
-                    )
-                    if ((planning_limit > 0 and needs_planning_queue) or raw_item_is_detail or not summary)
-                    else []
-                )
                 product_master_code = str(getattr(product_master, "code", "") or "").strip()
                 product_master_name = str(getattr(product_master, "name", "") or "").strip()
                 product_master_label = (
@@ -6577,13 +6577,45 @@ class PlannerViewSet(viewsets.ViewSet):
                     if product_master_code and product_master_name and product_master_code.lower() not in product_master_name.lower()
                     else (product_master_code or product_master_name)
                 )
-                base_label = _sales_item_display_label(
-                    so_item,
-                    order=order,
-                    product_master=product_master,
-                    template=template,
-                ) or product_master_label
+                if summary and not raw_item_is_detail:
+                    base_label = str(getattr(so_item, "line_name", "") or "").strip() or product_master_label
+                else:
+                    base_label = _sales_item_display_label(
+                        so_item,
+                        order=order,
+                        product_master=product_master,
+                        template=template,
+                    ) or product_master_label
                 line_label = base_label or f"Line {line_index}"
+                wants_pending_artwork = bool(
+                    (planning_limit > 0 and needs_planning_queue)
+                    or raw_item_is_detail
+                    or not summary
+                )
+                if not wants_pending_artwork:
+                    pending_artwork_items = []
+                elif summary and not raw_item_is_detail:
+                    pending_artwork_items = (
+                        [{
+                            "id": str(so_item.id),
+                            "label": line_label,
+                            "line_name": str(getattr(so_item, "line_name", "") or "").strip(),
+                            "print_type": print_profile["print_type"],
+                            "substrate_mode": print_profile["substrate_mode"],
+                            "front_colors_count": print_profile["front_colors_count"],
+                            "back_colors_count": print_profile["back_colors_count"],
+                            "ink_base_family": print_profile["ink_base_family"],
+                            "product_master_id": print_profile["product_master_id"],
+                            "product_master_code": print_profile["product_master_code"],
+                        }]
+                        if bool(print_profile.get("enabled")) and not getattr(so_item, "assigned_artwork_id", None)
+                        else []
+                    )
+                else:
+                    pending_artwork_items = self._light_pending_artwork_items(
+                        so_item,
+                        prefer_current_product_master=prefer_current_master,
+                    )
                 spec_signature = str(getattr(so_item, "spec_signature", "") or "")
                 invariant_signature = str(getattr(so_item, "invariant_signature", "") or "")
                 order_signature = self._order_signature(
@@ -9645,7 +9677,6 @@ class PlannerViewSet(viewsets.ViewSet):
                     )
                     target = (
                         SalesOrderItem.objects.select_for_update()
-                        .select_related("template", "assigned_artwork")
                         .get(id=target.id)
                     )
                     jobs = list(
@@ -9657,7 +9688,6 @@ class PlannerViewSet(viewsets.ViewSet):
                 else:
                     target = (
                         PlannedStockOrder.objects.select_for_update()
-                        .select_related("template", "assigned_artwork", "committed_artwork")
                         .get(id=order_obj.id)
                     )
                     jobs = list(
