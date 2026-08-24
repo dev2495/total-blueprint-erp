@@ -1233,20 +1233,37 @@ export default function WCMTerminal() {
   }, [selectedMachineId]);
 
   // Execution Context (Flow Engine)
-  const { data: executionContext, refetch: refetchContext } = useQuery({
+  const {
+    data: executionContextResponse,
+    refetch: refetchContext,
+  } = useQuery({
     queryKey: ["execution-context", selectedJobId],
     queryFn: () => wcmService.getJobContext(selectedJobId),
     enabled: !!selectedJobId,
+    // The app-wide query default keeps previous data during key changes. That
+    // is useful for lists, but unsafe for a job execution contract: it can show
+    // the previous order's target and material state beneath the newly selected
+    // order. Fail closed until this job's own context arrives.
+    placeholderData: () => undefined,
     refetchInterval:
       materialIssueDirty || materialIssuePickerOpen ? false : 15000,
     refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
   });
+  const executionContext = useMemo(() => {
+    const contextJobId = String(
+      (executionContextResponse as any)?.job?.id || "",
+    );
+    return contextJobId && contextJobId === selectedJobId
+      ? executionContextResponse
+      : undefined;
+  }, [executionContextResponse, selectedJobId]);
 
   // Phase 68: Satisfaction Status (Universal Flow Engine)
   const { data: satisfactionStatus, refetch: refetchSatisfaction } = useQuery({
     queryKey: ["satisfaction-status", selectedJobId],
     queryFn: () => wcmService.getSatisfactionStatus(selectedJobId),
     enabled: !!selectedJobId,
+    placeholderData: () => undefined,
     refetchInterval:
       materialIssueDirty || materialIssuePickerOpen ? false : 15000,
     refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
@@ -1257,6 +1274,7 @@ export default function WCMTerminal() {
       queryKey: ["current-step-material-policy", selectedJobId],
       queryFn: () => wcmService.getCurrentStepMaterialPolicy(selectedJobId),
       enabled: !!selectedJobId,
+      placeholderData: () => undefined,
       refetchInterval:
         materialIssueDirty || materialIssuePickerOpen ? false : 30000,
       refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
@@ -1290,6 +1308,7 @@ export default function WCMTerminal() {
     queryKey: ["wip-pool-grouped", selectedJobId],
     queryFn: () => wcmService.getWipPoolGrouped(selectedJobId),
     enabled: !!selectedJobId,
+    placeholderData: () => undefined,
     refetchInterval:
       selectedJobId && !(materialIssueDirty || materialIssuePickerOpen)
         ? 15000
@@ -1303,6 +1322,7 @@ export default function WCMTerminal() {
     queryKey: ["eligible-rolls", selectedJobId],
     queryFn: () => wcmService.getEligibleRolls(selectedJobId),
     enabled: !!selectedJobId,
+    placeholderData: () => undefined,
   });
   const eligibleRolls = useMemo(() => {
     const normalizeRows = (raw: any): any[] => {
@@ -3056,14 +3076,17 @@ export default function WCMTerminal() {
           selectedIssueUoms[0] === "PCS" ? 0 : 3,
         )} ${selectedIssueUoms[0]}`
       : "";
-  const selectedStepTargetLabel =
-    selectedDetailStepTarget != null
+  const selectedContextPending = Boolean(selectedJobId) && !executionContext;
+  const selectedStepTargetLabel = selectedContextPending
+    ? "Loading current job…"
+    : selectedDetailStepTarget != null
       ? `${formatSmartValue(selectedDetailStepTarget, selectedPrimaryUom, selectedPrimaryDecimals)} ${selectedPrimaryUom}`
       : `${Number(stepTargetKg || 0).toLocaleString(undefined, {
           maximumFractionDigits: 3,
         })} kg`;
-  const selectedStepRemainingLabel =
-    selectedDetailStepRemaining != null
+  const selectedStepRemainingLabel = selectedContextPending
+    ? "Loading current job…"
+    : selectedDetailStepRemaining != null
       ? `${formatSmartValue(selectedDetailStepRemaining, selectedPrimaryUom, selectedPrimaryDecimals)} ${selectedPrimaryUom}`
       : "—";
   const selectedLineItemUomRaw = String(
