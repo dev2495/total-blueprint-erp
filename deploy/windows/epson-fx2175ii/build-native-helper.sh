@@ -16,7 +16,7 @@ go vet ./...
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
   -buildvcs=false \
   -trimpath \
-  -ldflags="-s -w -H=windowsgui" \
+  -ldflags="-buildid= -s -w -H=windowsgui" \
   -o "${output}" \
   .
 

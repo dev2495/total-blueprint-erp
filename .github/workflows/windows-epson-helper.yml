@@ -35,7 +35,7 @@ jobs:
       - name: Build native Windows setup
         run: >-
           go build -buildvcs=false -trimpath
-          -ldflags="-s -w -H=windowsgui"
+          -ldflags="-buildid= -s -w -H=windowsgui"
           -o TotalPolyPrint-Epson-Setup.exe .
       - name: Run native Windows self-test
         run: .\TotalPolyPrint-Epson-Setup.exe --self-test
