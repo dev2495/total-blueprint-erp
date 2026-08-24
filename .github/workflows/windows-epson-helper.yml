@@ -33,6 +33,8 @@ jobs:
       - name: Static checks
         run: go vet ./...
       - name: Build native Windows setup
+        env:
+          CGO_ENABLED: "0"
         run: >-
           go build -buildvcs=false -trimpath
           -ldflags="-buildid= -s -w -H=windowsgui"
