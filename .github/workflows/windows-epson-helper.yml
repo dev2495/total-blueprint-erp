@@ -39,6 +39,11 @@ jobs:
           -o TotalPolyPrint-Epson-Setup.exe .
       - name: Run native Windows self-test
         run: .\TotalPolyPrint-Epson-Setup.exe --self-test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TotalPolyPrint-Epson-Setup-windows-x64
+          path: deploy/windows/epson-fx2175ii/native-helper/TotalPolyPrint-Epson-Setup.exe
+          if-no-files-found: error
       - name: Verify published setup is reproducible
         shell: pwsh
         run: |
@@ -46,6 +51,8 @@ jobs:
           if (-not (Test-Path $published)) { throw "Published setup is missing" }
           $builtHash = (Get-FileHash "./TotalPolyPrint-Epson-Setup.exe" -Algorithm SHA256).Hash
           $publishedHash = (Get-FileHash $published -Algorithm SHA256).Hash
+          Write-Host "Windows build SHA-256: $builtHash"
+          Write-Host "Published SHA-256: $publishedHash"
           if ($builtHash -ne $publishedHash) {
             throw "Published setup does not match the reviewed Go source"
           }
@@ -55,8 +62,3 @@ jobs:
             throw "Published SHA256SUMS.txt does not match the setup executable"
           }
           Write-Host "Published setup SHA-256: $publishedHash"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: TotalPolyPrint-Epson-Setup-windows-x64
-          path: deploy/windows/epson-fx2175ii/native-helper/TotalPolyPrint-Epson-Setup.exe
-          if-no-files-found: error
