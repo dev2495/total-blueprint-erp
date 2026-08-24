@@ -1,0 +1,62 @@
+name: Windows Epson helper
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "deploy/windows/epson-fx2175ii/**"
+      - "frontend_v2/public/downloads/epson-fx2175ii/**"
+      - ".github/workflows/windows-epson-helper.yml"
+  push:
+    paths:
+      - "deploy/windows/epson-fx2175ii/**"
+      - "frontend_v2/public/downloads/epson-fx2175ii/**"
+      - ".github/workflows/windows-epson-helper.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows-helper:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: deploy/windows/epson-fx2175ii/native-helper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27.0"
+          cache-dependency-path: deploy/windows/epson-fx2175ii/native-helper/go.mod
+      - name: Unit tests
+        run: go test -race ./...
+      - name: Static checks
+        run: go vet ./...
+      - name: Build native Windows setup
+        run: >-
+          go build -buildvcs=false -trimpath
+          -ldflags="-s -w -H=windowsgui"
+          -o TotalPolyPrint-Epson-Setup.exe .
+      - name: Run native Windows self-test
+        run: .\TotalPolyPrint-Epson-Setup.exe --self-test
+      - name: Verify published setup is reproducible
+        shell: pwsh
+        run: |
+          $published = "../../../../frontend_v2/public/downloads/epson-fx2175ii/TotalPolyPrint-Epson-Setup.exe"
+          if (-not (Test-Path $published)) { throw "Published setup is missing" }
+          $builtHash = (Get-FileHash "./TotalPolyPrint-Epson-Setup.exe" -Algorithm SHA256).Hash
+          $publishedHash = (Get-FileHash $published -Algorithm SHA256).Hash
+          if ($builtHash -ne $publishedHash) {
+            throw "Published setup does not match the reviewed Go source"
+          }
+          $manifestPath = "../../../../frontend_v2/public/downloads/epson-fx2175ii/SHA256SUMS.txt"
+          $manifestHash = ((Get-Content $manifestPath -Raw).Trim() -split "\s+")[0].ToUpperInvariant()
+          if ($manifestHash -ne $publishedHash) {
+            throw "Published SHA256SUMS.txt does not match the setup executable"
+          }
+          Write-Host "Published setup SHA-256: $publishedHash"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TotalPolyPrint-Epson-Setup-windows-x64
+          path: deploy/windows/epson-fx2175ii/native-helper/TotalPolyPrint-Epson-Setup.exe
+          if-no-files-found: error

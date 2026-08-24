@@ -1,53 +1,51 @@
-TOTAL POLY PRINT - EPSON FX-2175II HELPER
-=========================================
+TOTAL POLY PRINT - EPSON FX-2175II ONE-CLICK SETUP
+==================================================
 
-BEFORE SETUP
-1. The EPSON FX-2175II must already be visible in Windows Settings > Printers & scanners.
-2. Load the 15 inch wide continuous paper and align the tear line at the printer's tear-off position.
-3. Ask the Windows administrator to create/select the 15 x 5.5 inch paper form as explained below.
+SUPPORTED WORKSTATION
+- Windows 10 or Windows 11, 64-bit
+- EPSON FX-2175II connected by USB or through an existing Windows printer queue
+- 15 inch wide continuous tractor paper, 5.5 inch form length
 
-INSTALL OR UPDATE
-1. Right-click the downloaded ZIP and choose Extract All.
-2. Open the extracted folder.
-3. Double-click Install-TppEpsonPrintHelper.bat.
-4. If Windows asks, choose Run anyway.
-5. If a printer list appears, type the number beside EPSON FX-2175II and press Enter.
-6. Wait for the green SETUP COMPLETE message.
-7. Confirm it says: Print profile: normal-body 10 CPI / NLQ / unidirectional.
-8. Press any key.
+FIRST SETUP OR UPDATE
+1. Download TotalPolyPrint-Epson-Setup.exe from ERP > Logistics > Dispatch.
+2. Double-click the downloaded EXE. If Windows SmartScreen appears, choose More info > Run anyway only after checking that the file came from erp.totalpolyprint.com.
+3. The setup automatically selects the exact EPSON FX-2175II queue. It does not choose an older "Copy 1" queue when the exact queue is available.
+4. Approve the Windows administrator prompt once. This creates or corrects the TPP 15x5.5 paper form.
+5. Wait for SETUP COMPLETE, then press Enter.
+
+If the Epson queue is missing, setup offers the official Epson FX-2175II driver. The driver is downloaded directly from Epson only after the operator accepts Epson's license. Windows PnP Utility installs the signed package. The Epson driver is not copied or republished by Total Poly Print.
 
 EVERYDAY PRINTING
 1. Open ERP > Logistics > Dispatch.
-2. Click the green Epson tractor print button.
-3. Do not open or print the downloaded .tppprint file. The helper handles it automatically.
-4. Use A4 PDF - normal printer only for a laser/inkjet office printer, viewing, sharing, or saving a copy.
+2. Click Epson tractor print for the required dispatch slip.
+3. The native background helper claims the downloaded .tppprint job and sends its validated RAW ESC/P bytes to EPSON FX-2175II.
+4. Do not open the job in Word. Setup assigns .tppprint to Total Poly Print, and the helper also watches Downloads automatically.
+5. Use A4 PDF only for a normal office printer, viewing, sharing, or saving a copy.
 
-WINDOWS PRINTER PAPER SETTINGS (ADMIN, ONLY ONCE)
-1. Open Control Panel > Devices and Printers.
-2. Click any printer once, then click Print server properties at the top.
-3. Open Forms, tick Create a new form, and name it TPP 15x5.5.
-4. Set Width = 15.00 inches and Height = 5.50 inches. Keep margins at 0. Save Form.
-5. Right-click EPSON FX-2175II > Printing preferences > Advanced.
-6. Set Paper Size = TPP 15x5.5, Tractor/Continuous paper, Portrait, 100%/Actual size.
-7. Turn OFF Fit to page, Shrink, Scale to fit, Multiple pages per sheet, and High speed/draft mode.
-8. Set Tear Off/Auto Tear Off ON if available. ERP RAW jobs explicitly select NLQ and unidirectional mode themselves.
+WHAT SETUP CHANGES
+- Installs one native helper under %LOCALAPPDATA%\TotalPolyPrint\EpsonPrint.
+- Starts it for the current Windows user and at future sign-ins.
+- Assigns .tppprint files to the helper instead of Word.
+- Creates/corrects the Windows paper form TPP 15x5.5.
+- Preserves failed/interrupted jobs for review and never retries them automatically.
+- Does not change ERP data, dispatch records, or dispatch-slip content.
 
-IF IT DOES NOT PRINT
-1. Check that EPSON FX-2175II is on, online, has paper, and has no paused jobs.
-2. Re-run Install-TppEpsonPrintHelper.bat and select the Epson printer again.
-3. Check this log file:
+IF A SLIP DOES NOT PRINT
+1. Confirm EPSON FX-2175II is on, online, loaded with paper, and has no paused job.
+2. Run TotalPolyPrint-Epson-Setup.exe again. Updates are safe and keep print history.
+3. Check the latest ERROR in:
    %LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Logs\helper.log
-4. Failed jobs are kept safely here and are NOT reprinted automatically:
+4. Failed or interrupted jobs are retained here and are not automatically reprinted:
    %LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Failed
-5. Give the last ERROR line in helper.log to ERP support.
+5. From Command Prompt, run:
+   TotalPolyPrint-Epson-Setup.exe --diagnose
+   Give the diagnostic text and latest ERROR line to ERP support.
 
-IF TEXT IS LIGHT OR GHOSTED
-1. Confirm the latest helper success line says: using normal-body 10-CPI NLQ unidirectional mode.
-2. If not, run this version 2.1 installer again.
-3. Run the printer's own letter-quality self-test by holding Load/Eject while switching it on.
-4. If that self-test is also light, service/replace the ribbon and set the head-gap lever for the paper thickness.
+PRINT SAFETY
+- Setup performs protocol, heartbeat, paper-form, and spooler checks without consuming a physical form.
+- A job is archived only after Windows accepts its complete RAW spooler document.
+- A job interrupted at an uncertain point is quarantined; an operator must decide whether it should be reprinted.
+- The helper accepts only the approved TPPPRINT/1 header, exact ESC/P control prefix, form feed, maximum size, and .tppprint files from the current user's Downloads folder.
 
-IMPORTANT
-- Never send .tppprint files to another person or open them in an editor.
-- A job interrupted halfway is not retried automatically, preventing duplicate slips.
-- The A4 PDF is for a normal office printer. Do not send it through the Epson tractor-print workflow.
+VERSION 3.0.0
+Native Windows x64 helper; no PowerShell or VBS runtime dependency.

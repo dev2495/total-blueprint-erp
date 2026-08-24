@@ -907,12 +907,13 @@ export default function DispatchBayPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <a
-              href="/downloads/epson-fx2175ii/tpp-epson-print-helper.zip"
-              download
+              href="/downloads/epson-fx2175ii/TotalPolyPrint-Epson-Setup.exe"
+              download="TotalPolyPrint-Epson-Setup.exe"
               data-testid="dispatch-epson-windows-setup"
+              title="Install or repair Epson FX-2175II tractor printing on this Windows PC"
               className="inline-flex items-center rounded-full border border-white/30 bg-white/15 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur transition hover:bg-white/25"
             >
-              <Download className="mr-1.5 h-3.5 w-3.5" /> Windows helper · Updated
+              <Download className="mr-1.5 h-3.5 w-3.5" /> Epson setup · One click
             </a>
             <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1.5 text-xs font-black text-white shadow-sm backdrop-blur">
               {n(cards.length, 0)} orders shown

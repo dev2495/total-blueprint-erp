@@ -1,5 +1,7 @@
 Total Poly Print Epson Helper
-Version: 2.1.0
+Version: 3.0.0
+Runtime: native Windows x64 executable (no PowerShell/VBS watcher)
 Print contract: TPPPRINT/1
 Target: EPSON FX-2175II, 15 x 5.5 inch continuous paper
 Quality profile: normal-body 10 CPI Roman NLQ, unidirectional, 6 LPI; selective heading emphasis
+Official driver fallback: Epson FX-2175II v1.0.0.0, fetched directly from Epson when the queue is missing

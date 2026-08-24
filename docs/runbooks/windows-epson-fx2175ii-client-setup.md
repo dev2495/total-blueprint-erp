@@ -1,152 +1,111 @@
-# EPSON FX-2175II client setup — 15 × 5.5 inch continuous slips
+# EPSON FX-2175II one-click client setup — 15 × 5.5 inch slips
 
-Use this guide once on the Windows computer connected to the EPSON FX-2175II. The daily operator will then only click **Epson tractor print** in the ERP.
+Use this guide on the Windows 10/11 64-bit computer connected to the EPSON FX-2175II. Setup is per Windows user. Daily operators only use **Epson tractor print** in ERP.
 
 ## What this fixes
 
-- The ERP sends native Epson ESC/P text at 10 characters per inch instead of asking a PDF viewer to shrink a wide page.
-- Every RAW job explicitly selects normal-body Roman NLQ and unidirectional printing. It cancels global emphasis/double-strike after reset, then emphasizes only short headings and totals.
-- Every physical form is fixed to 33 lines at 6 lines per inch: exactly 5.5 inches high.
-- The separate PDF is a fill-only, 12 pt Courier A4-landscape document for a normal laser/inkjet office printer.
-- The downloaded job is validated before Windows sends it to the selected Epson queue.
-- **A4 PDF · normal printer** remains available for viewing, sharing, records, and office printing. It must not be sent to the Epson tractor-print workflow.
+- Replaces the PowerShell/VBS watcher that could be blocked at setup Step 8 with one native Windows executable.
+- Assigns `.tppprint` to Total Poly Print and watches Downloads, so the raw ESC/P job is not a Word document.
+- Automatically prefers the exact **EPSON FX-2175II** queue over an older **Copy 1** queue.
+- Creates or corrects the **TPP 15x5.5** Windows paper form with one administrator approval.
+- Validates every job's Total Poly Print header, printer/paper contract, ESC/P prefix, form feed, origin folder, and size before spooling.
+- Sends 10-CPI Roman NLQ, unidirectional RAW ESC/P with a 33-line/5.5-inch form length; the browser never scales it.
+- Quarantines jobs left from before setup and interrupted jobs instead of risking an automatic duplicate print.
 
-Business quantities, weights, product details, and totals are unchanged. The presentation now explicitly says **ONE SO**, uses the real SO item number, and shows balance only for items physically present on that slip.
+Business quantities, weights, names, product details, and totals are unchanged by this printing-only release. **A4 PDF · normal printer** remains a separate output for viewing, sharing, records, and office printers.
 
-## Part A — Windows administrator setup (once)
+## One-click setup or repair
 
-### 1. Check the printer and driver
+1. Connect and switch on the EPSON FX-2175II. Load 15-inch continuous tractor paper.
+2. Sign in to ERP and open **Logistics → Dispatch**.
+3. Click **Epson setup · One click**. The browser downloads `TotalPolyPrint-Epson-Setup.exe`.
+4. Double-click the downloaded EXE.
+5. If SmartScreen appears, verify the file came from `erp.totalpolyprint.com`, then choose **More info → Run anyway**. This release is not Authenticode-signed until Total Poly Print supplies a Windows code-signing certificate.
+6. Approve the administrator prompt once so setup can create/correct the **TPP 15x5.5** print-server form.
+7. Wait up to 15 seconds for the verified helper heartbeat and the **SETUP COMPLETE** message. Press Enter.
 
-1. Switch on the EPSON FX-2175II and load the 15-inch continuous paper on the tractor.
-2. On Windows, click **Start → Settings → Devices (or Bluetooth & devices) → Printers & scanners**.
-3. Confirm that **EPSON FX-2175II** appears. Do not continue with **Generic / Text Only**, **Microsoft Print to PDF**, or a similarly named substitute.
-4. Open the Epson queue and print its Windows test page. Fix cable, port, offline, or paused-queue problems before continuing.
+The setup installs under `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint`, starts the native background agent immediately, and registers it for the current user's future sign-ins. It removes the old startup VBS entry. No PowerShell execution-policy bypass is used.
 
-### 2. Create the correct 15 × 5.5 inch form
+If the exact Epson queue is missing, setup explains the Epson license and requires the operator to type `I AGREE`. It then downloads **FX-2175II Printer Driver 1.0.0.0** directly from Epson over HTTPS and asks Windows PnP Utility to install the signed driver package. Total Poly Print does not republish Epson's driver. If Epson blocks the automatic download, setup opens the official Epson support page.
 
-1. Open **Control Panel → Devices and Printers**.
-2. Click any printer once. Click **Print server properties** in the top toolbar.
-3. Open the **Forms** tab and tick **Create a new form**.
-4. Enter form name **TPP 15x5.5**.
-5. Set **Width = 15.00 inches** and **Height = 5.50 inches**. Set all margins to **0**.
-6. Click **Save Form**.
+Setup deliberately does not print a physical test form. Old `.tppprint` files already in Downloads are moved to `Failed` for review so installing the fix cannot reprint an old dispatch slip.
 
-If Windows only shows centimetres, enter **38.10 cm × 13.97 cm**.
+## First physical acceptance test
 
-### 3. Make that form the Epson default
+Use one spare continuous form after setup succeeds.
 
-1. In **Devices and Printers**, right-click **EPSON FX-2175II → Printing preferences**.
-2. In **Paper/Quality** or **Advanced**, choose:
-   - Paper size: **TPP 15x5.5**
-   - Paper source: **Tractor / Continuous / Rear Push Tractor** (whichever matches the loaded tractor)
-   - Orientation: **Portrait**
-   - Scale: **100% / Actual size**
-   - Quality: **Letter Quality / NLQ**
-3. Turn **off**:
-   - Fit to page / Scale to fit / Shrink oversized pages
-   - Multiple pages per sheet
-   - Draft / High-speed draft / Economy
-4. Turn **Auto Tear Off / Tear Off** on if the driver offers it.
-5. Click **Apply → OK**.
+1. Align the perforation at the printer's tear-off position.
+2. In **ERP → Logistics → Dispatch**, choose the required ready units.
+3. Click **Epson tractor · visible slip** or **Epson tractor · selected slip** exactly once.
+4. Do not open the downloaded `.tppprint` file. The native agent claims it automatically.
+5. Confirm:
+   - one ERP click produced one physical slip;
+   - the next form starts at the next perforation;
+   - output uses the 15-inch width and one 5.5-inch form height;
+   - text is dark, sharp, readable, and not clipped;
+   - data/totals match **A4 PDF · normal printer** for the same selection.
 
-The Epson manual supports user-defined continuous forms and a 5.5-inch page length. The printer supports continuous paper 4–16 inches wide and 4–22 inches long.
+If the first line is consistently high or low, use the printer's **Micro Adjust / Tear Off** buttons. Do not change browser zoom, CSS, or PDF scaling.
 
-### 4. Install or update the ERP print helper
-
-1. Sign in to the ERP and open **Logistics → Dispatch**.
-2. Click **Windows helper - Updated** and wait for `tpp-epson-print-helper.zip` to download.
-3. Open **Downloads**. Right-click the ZIP and choose **Extract All → Extract**. Do not run it from inside the ZIP.
-4. Open the extracted folder and double-click **Install-TppEpsonPrintHelper.bat**.
-5. If Windows SmartScreen appears, click **More info → Run anyway**.
-6. If a list appears, type the number beside **EPSON FX-2175II** and press **Enter**.
-7. Wait for the green **SETUP COMPLETE** message. Confirm it says **Print profile: normal-body 10 CPI / NLQ / unidirectional**, then press any key.
-
-The helper installs only for the signed-in Windows user and starts automatically at sign-in. It does not require a permanently open black window.
-
-The installer detects the Windows printer queues and stores the selected **EPSON FX-2175II** queue. After that, every **Epson tractor print** click goes to that printer automatically. A web browser cannot silently inspect or choose local Windows printers; the separate A4 PDF therefore uses the normal Windows print dialog.
-
-## Part B — first physical acceptance test
-
-Use one spare continuous form.
-
-1. Align the paper so the tear/perforation line is at the printer's tear-off position.
-2. In ERP **Logistics → Dispatch**, choose a real order with ready units.
-3. Click the green **Epson tractor · visible slip** or **Epson tractor · selected slip** button.
-4. Wait for the printer. Do not open the downloaded `.tppprint` file.
-5. Confirm all five checks:
-   - One ERP click produced one physical slip.
-   - The next form starts at the next perforation.
-   - The print uses the full 15-inch width and only one 5.5-inch half-sheet height.
-   - Text is dark, sharp, and readable; descriptions, weights, and totals are not clipped or ghosted.
-   - The data and totals match **A4 PDF · normal printer** for the same selection.
-
-If the first line is consistently too high or low, use the printer's **Micro Adjust / Tear Off** buttons to move the paper. Do not change ERP CSS, browser zoom, or PDF scaling.
-
-## Part C — everyday operator steps
+## Everyday use
 
 1. Open **ERP → Logistics → Dispatch**.
 2. Select the required ready units.
-3. Click the green **Epson tractor print** button.
-4. Wait for the slip and tear it at the perforation.
-5. Click **A4 PDF · normal printer** only for a screen preview, email/archive copy, or a normal laser/inkjet printer.
+3. Click **Epson tractor print** once and wait for the slip.
+4. Use **A4 PDF · normal printer** only for preview, sharing/archive, or an A4 laser/inkjet printer.
 
-## Simple troubleshooting
+## Troubleshooting
 
 ### Nothing prints
 
-1. Check printer power, cable, paper, and error lights.
-2. Open the Epson print queue. Remove a paused state and clear any visibly failed old job.
-3. Run `Install-TppEpsonPrintHelper.bat` again and select the Epson queue.
-4. Click **Epson tractor print** once. Do not click repeatedly.
-5. Send the last `ERROR` line from this file to ERP support:
+1. Check printer power, cable, paper, error lights, and that the Epson queue is not paused.
+2. Run `TotalPolyPrint-Epson-Setup.exe` again. It safely repairs the registration and updates the helper.
+3. Do not repeatedly click ERP print while diagnosing.
+4. From Command Prompt run `TotalPolyPrint-Epson-Setup.exe --diagnose`.
+5. Give ERP support the diagnostic output and latest `ERROR` from:
    `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Logs\helper.log`
+
+### The old raw file opens in Word
+
+1. Do not print it from Word; it is not a document.
+2. Run the v3 setup again to refresh `.tppprint` ownership.
+3. Download a fresh job from ERP. Pre-setup jobs are intentionally ignored/quarantined to prevent duplicates.
 
 ### A full 11-inch page feeds or the tear line is wrong
 
-1. Recheck that the Windows form is **15.00 × 5.50 inches**, not Letter, A4, 11 inches, or 12 inches.
-2. Recheck the Epson default paper source and form.
-3. Power the printer off and on after saving the driver setting, then run one test.
-4. Use Micro Adjust only for a small fixed offset. A half-page error means the Windows/driver form is wrong.
+1. Run setup again so **TPP 15x5.5** is corrected to 15.00 × 5.50 inches (38.10 × 13.97 cm).
+2. Confirm the printer uses the rear/continuous tractor and paper is aligned at the tear-off position.
+3. Power-cycle the printer and run one fresh test.
+4. Use Micro Adjust only for a small fixed offset; a half-page error is a form/tractor setting problem.
 
-### Text is still light
+### Text is light or doubled
 
-1. Open the helper log and confirm the latest success line ends with **using normal-body 10-CPI NLQ unidirectional mode**.
-2. Reinstall **Windows helper v2.1** if that wording is missing, then print once again. The previously installed v2 helper can print the new compatible job, so an immediate reinstall is not required solely for this ERP release.
-3. Run the printer's built-in letter-quality self-test: turn the printer off, hold **Load/Eject**, and turn it on. Stop it after one readable section.
-4. If the printer's own letter-quality self-test is also light, replace/re-ink the ribbon and set the print-head gap lever for the actual paper thickness.
-5. If the self-test is dark but letters are horizontally doubled, run Epson **Bi-D Adjustment** from Printer Properties, although ERP jobs now force unidirectional output to avoid this dependency.
-
-The Windows Quality preference is not the authority for ERP RAW jobs. The ERP job now sends the NLQ, font, pitch, direction, line-spacing, and form-length commands itself.
+1. Confirm the latest helper log success ends with **normal-body 10-CPI NLQ unidirectional mode**.
+2. Run the printer's built-in letter-quality self-test by holding **Load/Eject** while switching it on.
+3. If the printer's own test is light, service/replace the ribbon and set the head-gap lever for the paper thickness.
+4. If the self-test is dark but doubled, run Epson **Bi-D Adjustment**. ERP jobs still force unidirectional output.
 
 ### A job failed midway
 
-The helper does not retry an interrupted job automatically because that could create a duplicate dispatch document. Failed/interrupted jobs are retained in:
+The helper never retries an interrupted job automatically because the printer may already have produced part or all of it. Review:
 
 `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Failed`
 
-Confirm whether a partial slip came out, correct the physical issue, and click **Epson tractor print** exactly once again if needed.
+Confirm the physical outcome, correct the fault, then generate one fresh ERP job only if needed.
 
-## A4 PDF for a normal printer
+## Support, retention, and uninstall
 
-The PDF button is intentionally a different printer path:
-
-1. Click **A4 PDF · normal printer**.
-2. In Adobe Acrobat Reader choose an A4-capable laser/inkjet printer.
-3. Choose **A4**, **Landscape**, and **Actual size / 100%**.
-4. Do not print this A4 document through the Epson FX-2175II. If Epson RAW printing is unavailable, repair/restart the helper instead of substituting the A4 path.
-
-## Support and rollback
-
+- Status heartbeat: `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\agent-status.json`
 - Helper log: `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Logs\helper.log`
-- Printed-job archive (30 days): `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Printed`
-- Failed-job quarantine: `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Failed`
-- To remove the helper, run `Uninstall-TppEpsonPrintHelper.bat` from the extracted setup folder.
-- Removing the helper does not remove the Epson driver or change ERP data.
+- Printed-job archive: `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Printed` (30 days)
+- Failed/interrupted review: `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint\Failed` (not auto-deleted)
+- Uninstall: run `TotalPolyPrint-Epson-Setup.exe --uninstall` from Command Prompt.
+
+Uninstall removes the current user's autostart and file association, but preserves logs/history and does not remove the Epson driver, printer queue, or ERP data.
 
 Official references:
 
+- [EPSON FX-2175II support and downloads](https://www.epson.co.in/Support/Printers/Dot-Matrix-Printers/FX-Series/Epson-FX-2175II/s/SPRT_C11CF38509)
 - [EPSON FX-2175II product specifications](https://www.epson.co.in/9-Pin-Dot-Matrix-Printers/Epson-FX-2175II-Dot-Matrix-Printer/p/C11CF38509)
-- [EPSON FX-2175II user guide](https://support2.epson.net/manuals/english/sidm/fx_2175ii/pdf/fx-2175ii_2175iin_ug_en.pdf)
+- [Microsoft PnPUtil command syntax](https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/pnputil-command-syntax)
 - [Microsoft raw printer data guidance](https://learn.microsoft.com/en-us/windows/win32/printdocs/sending-data-directly-to-a-printer)
-- [Adobe custom paper sizes](https://helpx.adobe.com/ca/acrobat/desktop/print-documents/set-up-and-print-pdfs/custom-sizes.html)
-- [Adobe Actual size and page scaling](https://helpx.adobe.com/acrobat/kb/scale-or-resize-printed-pages.html)

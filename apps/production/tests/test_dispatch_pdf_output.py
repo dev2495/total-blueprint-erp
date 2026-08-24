@@ -1,8 +1,9 @@
+import hashlib
+import struct
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from zipfile import ZipFile
 
 from django.conf import settings
 from django.test import SimpleTestCase
@@ -60,27 +61,36 @@ def _snapshot_challan(rows: list[dict], *, balance_rows: list[dict] | None = Non
 
 
 class DispatchPDFOutputTests(SimpleTestCase):
-    def test_windows_helper_zip_matches_source_and_backend_print_contract(self):
+    def test_native_windows_setup_matches_source_and_backend_print_contract(self):
         root = Path(settings.BASE_DIR)
         source_dir = root / "deploy" / "windows" / "epson-fx2175ii"
-        archive_path = (
+        installer_path = (
             root
             / "frontend_v2"
             / "public"
             / "downloads"
             / "epson-fx2175ii"
-            / "tpp-epson-print-helper.zip"
+            / "TotalPolyPrint-Epson-Setup.exe"
         )
-        agent = (source_dir / "TppEpsonPrintAgent.ps1").read_text(encoding="ascii")
+        helper_source = (source_dir / "native-helper" / "main.go").read_text(encoding="utf-8")
         prefix_numbers = ", ".join(str(value) for value in DispatchListPDFService.ESC_P_PREFIX.encode("ascii"))
 
-        self.assertIn(f"$requiredPrefix = [byte[]]({prefix_numbers})", agent)
-        self.assertIn('printer=EPSON-FX-2175II', agent)
-        self.assertIn('paper=15x5.5', agent)
-        with ZipFile(archive_path) as archive:
-            for source_file in source_dir.iterdir():
-                if source_file.is_file():
-                    self.assertEqual(archive.read(source_file.name), source_file.read_bytes())
+        self.assertIn(f"requiredPrefix = []byte{{{prefix_numbers}}}", helper_source)
+        self.assertIn("printer=EPSON-FX-2175II", helper_source)
+        self.assertIn("paper=15x5.5", helper_source)
+        self.assertIn('appVersion           = "3.0.0"', helper_source)
+
+        installer = installer_path.read_bytes()
+        self.assertGreater(len(installer), 1_000_000)
+        self.assertEqual(installer[:2], b"MZ")
+        pe_offset = struct.unpack_from("<I", installer, 0x3C)[0]
+        self.assertEqual(installer[pe_offset : pe_offset + 4], b"PE\0\0")
+        self.assertEqual(struct.unpack_from("<H", installer, pe_offset + 4)[0], 0x8664)
+
+        checksum_path = installer_path.with_name("SHA256SUMS.txt")
+        expected_hash, expected_name = checksum_path.read_text(encoding="ascii").strip().split(maxsplit=1)
+        self.assertEqual(expected_name, installer_path.name)
+        self.assertEqual(hashlib.sha256(installer).hexdigest(), expected_hash)
 
     def test_escp_job_explicitly_selects_readable_printer_modes(self):
         prefix = DispatchListPDFService.ESC_P_PREFIX.encode("ascii")

@@ -1,5 +1,7 @@
 # Dispatch printing and physical-unit guardrails — go-live report
 
+> Historical evidence for the 2026-07-28 release. The v2.1 ZIP/PowerShell helper described below was superseded on 2026-08-24 by the native v3 one-click EXE. Do not use the historical ZIP URL; follow `windows-epson-fx2175ii-client-setup.md`.
+
 Date: 2026-07-28 (IST)  
 Release commit: `a23380a` — `Fix dispatch printing and unit reservations`  
 Release branch: `codex/planner-sales-latest-20260629`  
