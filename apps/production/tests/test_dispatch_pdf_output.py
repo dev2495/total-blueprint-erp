@@ -73,12 +73,17 @@ class DispatchPDFOutputTests(SimpleTestCase):
             / "TotalPolyPrint-Epson-Setup.exe"
         )
         helper_source = (source_dir / "native-helper" / "main.go").read_text(encoding="utf-8")
+        windows_source = (source_dir / "native-helper" / "platform_windows.go").read_text(
+            encoding="utf-8"
+        )
         prefix_numbers = ", ".join(str(value) for value in DispatchListPDFService.ESC_P_PREFIX.encode("ascii"))
 
         self.assertIn(f"requiredPrefix = []byte{{{prefix_numbers}}}", helper_source)
         self.assertIn("printer=EPSON-FX-2175II", helper_source)
         self.assertIn("paper=15x5.5", helper_source)
-        self.assertIn('appVersion           = "3.0.0"', helper_source)
+        self.assertIn('appVersion           = "3.0.1"', helper_source)
+        self.assertIn("serverAccessAdminister  = 0x00000001", windows_source)
+        self.assertNotIn("printerAccessAdminister", windows_source)
 
         installer = installer_path.read_bytes()
         self.assertGreater(len(installer), 1_000_000)

@@ -26,7 +26,7 @@ const (
 	moveFileWriteThrough    = 0x00000008
 	shcneAssocChanged       = 0x08000000
 	shcnfIDList             = 0x0000
-	printerAccessAdminister = 0x00000004
+	serverAccessAdminister  = 0x00000001
 	errorFileExists         = syscall.Errno(80)
 	errorAlreadyExists      = syscall.Errno(183)
 )
@@ -393,10 +393,13 @@ func terminateProcess(pid int) error {
 
 func ensurePaperForm() error {
 	var server uintptr
-	defaults := printerDefaults{DesiredAccess: printerAccessAdminister}
+	// A nil printer name opens the local print server, so OpenPrinter requires a
+	// SERVER_* access mask. PRINTER_ACCESS_ADMINISTER (0x4) is valid only for a
+	// printer handle and makes this server open fail even after UAC elevation.
+	defaults := printerDefaults{DesiredAccess: serverAccessAdminister}
 	ok, _, openErr := procOpenPrinter.Call(0, uintptr(unsafe.Pointer(&server)), uintptr(unsafe.Pointer(&defaults)))
 	if ok == 0 {
-		return openErr
+		return fmt.Errorf("open local print server for form administration: %w", openErr)
 	}
 	defer procClosePrinter.Call(server)
 	name, _ := syscall.UTF16PtrFromString("TPP 15x5.5")
@@ -412,11 +415,11 @@ func ensurePaperForm() error {
 	if addErr == errorFileExists || addErr == errorAlreadyExists {
 		updated, _, updateErr := procSetForm.Call(server, uintptr(unsafe.Pointer(name)), 1, uintptr(unsafe.Pointer(&form)))
 		if updated == 0 {
-			return updateErr
+			return fmt.Errorf("update TPP 15x5.5 form: %w", updateErr)
 		}
 		return nil
 	}
-	return addErr
+	return fmt.Errorf("add TPP 15x5.5 form: %w", addErr)
 }
 
 func installSignedDriversElevated(directory string) error {

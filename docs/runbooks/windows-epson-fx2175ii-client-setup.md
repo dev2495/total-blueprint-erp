@@ -7,7 +7,7 @@ Use this guide on the Windows 10/11 64-bit computer connected to the EPSON FX-21
 - Replaces the PowerShell/VBS watcher that could be blocked at setup Step 8 with one native Windows executable.
 - Assigns `.tppprint` to Total Poly Print and watches Downloads, so the raw ESC/P job is not a Word document.
 - Automatically prefers the exact **EPSON FX-2175II** queue over an older **Copy 1** queue.
-- Creates or corrects the **TPP 15x5.5** Windows paper form with one administrator approval.
+- Creates or corrects the optional **TPP 15x5.5** Windows paper form with one administrator approval. If Windows policy blocks that form, setup continues because the RAW ESC/P job itself defines the exact 5.5-inch form length.
 - Validates every job's Total Poly Print header, printer/paper contract, ESC/P prefix, form feed, origin folder, and size before spooling.
 - Sends 10-CPI Roman NLQ, unidirectional RAW ESC/P with a 33-line/5.5-inch form length; the browser never scales it.
 - Quarantines jobs left from before setup and interrupted jobs instead of risking an automatic duplicate print.
@@ -21,7 +21,7 @@ Business quantities, weights, names, product details, and totals are unchanged b
 3. Click **Epson setup · One click**. The browser downloads `TotalPolyPrint-Epson-Setup.exe`.
 4. Double-click the downloaded EXE.
 5. If SmartScreen appears, verify the file came from `erp.totalpolyprint.com`, then choose **More info → Run anyway**. This release is not Authenticode-signed until Total Poly Print supplies a Windows code-signing certificate.
-6. Approve the administrator prompt once so setup can create/correct the **TPP 15x5.5** print-server form.
+6. Approve the administrator prompt once so setup can create/correct the optional **TPP 15x5.5** print-server form.
 7. Wait up to 15 seconds for the verified helper heartbeat and the **SETUP COMPLETE** message. Press Enter.
 
 The setup installs under `%LOCALAPPDATA%\TotalPolyPrint\EpsonPrint`, starts the native background agent immediately, and registers it for the current user's future sign-ins. It removes the old startup VBS entry. No PowerShell execution-policy bypass is used.
@@ -55,6 +55,10 @@ If the first line is consistently high or low, use the printer's **Micro Adjust 
 4. Use **A4 PDF · normal printer** only for preview, sharing/archive, or an A4 laser/inkjet printer.
 
 ## Troubleshooting
+
+### Version 3.0.0 stops at step 5 with `administrator step exited with code 1`
+
+Download and run a fresh setup from ERP. Version 3.0.1 corrects the Windows print-server access flag that caused this error. It also treats the Windows form registration as optional: the native helper continues because every approved RAW job already embeds the exact 33-line/5.5-inch ESC/P form length.
 
 ### Nothing prints
 

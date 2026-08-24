@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	appVersion           = "3.0.0"
+	appVersion           = "3.0.1"
 	configVersion        = 3
 	maxJobBytes          = 2 * 1024 * 1024
 	expectedHeader       = "TPPPRINT/1\nprinter=EPSON-FX-2175II\npaper=15x5.5\nlanguage=ESC/P"
@@ -244,10 +244,13 @@ func install() error {
 	notifyAssociationChanged()
 
 	fmt.Println("[5/8] Creating the TPP 15x5.5 continuous-paper form...")
+	paperFormStatus := "Windows form registered"
 	if err := ensurePaperForm(); err != nil {
 		fmt.Println("      Administrator permission is required once for the paper form.")
 		if err := runElevatedAndWait(installedExe, "--machine-setup"); err != nil {
-			return fmt.Errorf("create 15 x 5.5 inch paper form: %w", err)
+			paperFormStatus = "RAW ESC/P form length active; optional Windows form unavailable"
+			fmt.Printf("      WARNING: Windows could not register the optional paper form (%s).\n", err)
+			fmt.Println("      Continuing safely: every ERP Epson job carries its own 5.5-inch ESC/P form length.")
 		}
 	}
 
@@ -273,6 +276,7 @@ func install() error {
 	fmt.Println("\nSETUP COMPLETE")
 	fmt.Printf("Printer: %s\n", selected)
 	fmt.Println("Paper: 15 x 5.5 inch continuous tractor form")
+	fmt.Printf("Paper setup: %s\n", paperFormStatus)
 	fmt.Println("File handling: .tppprint is owned by Total Poly Print, not Word")
 	fmt.Println("You may now return to ERP and click Epson tractor print.")
 	fmt.Println("No test slip was printed during setup.")

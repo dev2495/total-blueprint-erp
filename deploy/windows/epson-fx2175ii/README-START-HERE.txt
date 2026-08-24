@@ -10,7 +10,7 @@ FIRST SETUP OR UPDATE
 1. Download TotalPolyPrint-Epson-Setup.exe from ERP > Logistics > Dispatch.
 2. Double-click the downloaded EXE. If Windows SmartScreen appears, choose More info > Run anyway only after checking that the file came from erp.totalpolyprint.com.
 3. The setup automatically selects the exact EPSON FX-2175II queue. It does not choose an older "Copy 1" queue when the exact queue is available.
-4. Approve the Windows administrator prompt once. This creates or corrects the TPP 15x5.5 paper form.
+4. Approve the Windows administrator prompt once. This creates or corrects the optional TPP 15x5.5 Windows paper form.
 5. Wait for SETUP COMPLETE, then press Enter.
 
 If the Epson queue is missing, setup offers the official Epson FX-2175II driver. The driver is downloaded directly from Epson only after the operator accepts Epson's license. Windows PnP Utility installs the signed package. The Epson driver is not copied or republished by Total Poly Print.
@@ -26,7 +26,7 @@ WHAT SETUP CHANGES
 - Installs one native helper under %LOCALAPPDATA%\TotalPolyPrint\EpsonPrint.
 - Starts it for the current Windows user and at future sign-ins.
 - Assigns .tppprint files to the helper instead of Word.
-- Creates/corrects the Windows paper form TPP 15x5.5.
+- Creates/corrects the optional Windows paper form TPP 15x5.5. If Windows policy blocks that form, setup continues because each RAW Epson job already carries the exact 5.5-inch ESC/P form length.
 - Preserves failed/interrupted jobs for review and never retries them automatically.
 - Does not change ERP data, dispatch records, or dispatch-slip content.
 
@@ -47,5 +47,5 @@ PRINT SAFETY
 - A job interrupted at an uncertain point is quarantined; an operator must decide whether it should be reprinted.
 - The helper accepts only the approved TPPPRINT/1 header, exact ESC/P control prefix, form feed, maximum size, and .tppprint files from the current user's Downloads folder.
 
-VERSION 3.0.0
+VERSION 3.0.1
 Native Windows x64 helper; no PowerShell or VBS runtime dependency.
