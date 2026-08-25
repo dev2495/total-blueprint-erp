@@ -80,7 +80,12 @@ class DispatchReservationGuardrailTests(TestCase):
         )
 
     def _order(self, *, status="CONFIRMED", template=None, qty_uom="KG"):
-        order = SalesOrder.objects.create(customer_name="Guardrail Customer", status=status)
+        order = SalesOrder.objects.create(
+            customer_name="Guardrail Customer",
+            ship_to_customer_name="Guardrail Customer",
+            ship_to_address="Guardrail delivery address",
+            status=status,
+        )
         return order, self._item(order, template=template, qty_uom=qty_uom)
 
     def _roll(self, item, *, location=None, release=True):
@@ -160,6 +165,7 @@ class DispatchReservationGuardrailTests(TestCase):
             plant_id=str((plant or self.plant).id),
             sales_order_id=str(order.id),
             roll_ids=[str(roll.id) for roll in rolls],
+            transporter_name="Guardrail Transport",
             user=None,
         )
 
@@ -175,6 +181,7 @@ class DispatchReservationGuardrailTests(TestCase):
                 str(self.plant.id),
                 str(order.id),
                 roll_ids=[""],
+                transporter_name="Guardrail Transport",
             )
         with self.assertRaisesMessage(ValueError, "contains invalid ID"):
             FGDispatchService.create_challan(
@@ -182,6 +189,7 @@ class DispatchReservationGuardrailTests(TestCase):
                 str(self.plant.id),
                 str(order.id),
                 roll_ids=["not-a-uuid"],
+                transporter_name="Guardrail Transport",
             )
         with self.assertRaisesMessage(ValueError, "contains duplicate ID"):
             self._create_roll_challan(order, [roll, roll])
@@ -192,6 +200,7 @@ class DispatchReservationGuardrailTests(TestCase):
                 str(self.plant.id),
                 str(order.id),
                 roll_ids=[missing_id],
+                transporter_name="Guardrail Transport",
             )
 
     def test_one_challan_allows_multiple_lines_only_within_one_sales_order(self):
@@ -325,6 +334,7 @@ class DispatchReservationGuardrailTests(TestCase):
             str(self.plant.id),
             str(order.id),
             gonny_ids=[str(gonny.id)],
+            transporter_name="Guardrail Transport",
         )
         summary = FGDispatchService.get_dispatchable_units_by_so(str(order.id))
         self.assertNotIn(str(gonny.id), {row["id"] for row in summary["gonnies"]})
@@ -334,6 +344,7 @@ class DispatchReservationGuardrailTests(TestCase):
                 str(self.plant.id),
                 str(order.id),
                 gonny_ids=[str(gonny.id)],
+                transporter_name="Guardrail Transport",
             )
 
         second = DeliveryChallan.objects.create(
@@ -359,6 +370,7 @@ class DispatchReservationGuardrailTests(TestCase):
             str(self.plant.id),
             str(order.id),
             gonny_ids=[str(gonny.id)],
+            transporter_name="Guardrail Transport",
         )
         self.assertTrue(replacement.items.get().reservation_active)
 

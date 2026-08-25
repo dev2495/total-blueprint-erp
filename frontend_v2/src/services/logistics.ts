@@ -232,12 +232,24 @@ export interface DispatchBoardSnapshot {
     }>;
 }
 
+export interface DispatchDeliveryContext {
+    delivery_to: string;
+    delivery_to_source: string;
+    address: string;
+    address_source: string;
+    location: string;
+    location_source: string;
+    address_available: boolean;
+    location_available: boolean;
+}
+
 export interface SODispatchSummary {
     sales_order: {
         id: string;
         order_number: string;
         customer_name: string;
         status: string;
+        delivery?: DispatchDeliveryContext;
     };
     ordered_qty: number;
     produced_qty: {
@@ -548,13 +560,14 @@ export const logisticsService = {
     },
 
     // Dispatch
-    async getSalesOrdersWithFG(): Promise<{ id: string; order_number: string; customer_name: string; status: string }[]> {
+    async getSalesOrdersWithFG(): Promise<{ id: string; order_number: string; customer_name: string; status: string; delivery?: DispatchDeliveryContext }[]> {
         const response = await api.get('/api/production/challans/so_with_fg/');
         return normalizeListPayload<any>(response.data).map((row) => ({
             id: String(row?.id || ''),
             order_number: String(row?.order_number || ''),
             customer_name: String(row?.customer_name || ''),
             status: String(row?.status || ''),
+            delivery: row?.delivery,
         })).filter((row) => row.id);
     },
 

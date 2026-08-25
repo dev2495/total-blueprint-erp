@@ -39,24 +39,41 @@ def _ready_row(index: int, *, line_key: str = "line-1") -> dict:
     }
 
 
-def _snapshot_challan(rows: list[dict], *, balance_rows: list[dict] | None = None) -> SimpleNamespace:
+def _snapshot_challan(
+    rows: list[dict],
+    *,
+    balance_rows: list[dict] | None = None,
+    version: int = 2,
+) -> SimpleNamespace:
+    snapshot = {
+        "version": version,
+        "document_type": "DISPATCH_SLIP",
+        "document_ref": "DC-TEST-1",
+        "document_date": "2026-07-28T10:30:00+05:30",
+        "customer_name": "Test Customer",
+        "sales_order_no": "SO-TEST-1",
+        "sales_order_id": "so-1",
+        "plant_name": "Main Plant",
+        "rows": rows,
+        "balance_rows": balance_rows or [],
+    }
+    if version == 3:
+        snapshot.update(
+            {
+                "transporter_name": "Illustrative Test Transport",
+                "delivery": {
+                    "sales_order_id": "so-1",
+                    "delivery_to": "Test Customer Warehouse",
+                    "location": "Illustrative Test Location",
+                },
+            }
+        )
     return SimpleNamespace(
         id="dc-1",
         dc_no="DC-TEST-1",
         status="DRAFT",
         sales_order_id="so-1",
-        print_snapshot={
-            "version": 2,
-            "document_type": "DISPATCH_SLIP",
-            "document_ref": "DC-TEST-1",
-            "document_date": "2026-07-28T10:30:00+05:30",
-            "customer_name": "Test Customer",
-            "sales_order_no": "SO-TEST-1",
-            "sales_order_id": "so-1",
-            "plant_name": "Main Plant",
-            "rows": rows,
-            "balance_rows": balance_rows or [],
-        },
+        print_snapshot=snapshot,
     )
 
 
@@ -148,6 +165,9 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertEqual(spec["size"], "16X20X240")
         self.assertEqual(spec["thickness"], "12+60")
         self.assertEqual(spec["grade"], "B+W+MILKY")
+        self.assertEqual(spec["description"], "PET / LD")
+        self.assertNotIn("16X20", spec["description"])
+        self.assertNotIn("12", spec["description"])
 
     def test_line_spec_prefers_actual_geometry_over_size_code(self):
         item = SimpleNamespace(
@@ -166,8 +186,34 @@ class DispatchPDFOutputTests(SimpleTestCase):
 
         spec = _line_spec(item)
 
-        self.assertEqual(spec["description"], "Legacy code label - 16x20+240G")
+        self.assertEqual(spec["description"], "Actual pouch master")
         self.assertEqual(spec["size"], "16X20X240")
+
+    def test_line_spec_removes_version_size_micron_and_grade_repetition_from_layer_name(self):
+        item = SimpleNamespace(
+            id="soi-live-shape",
+            line_name="MLD-LDMW-V3-V-495X80-T80U-1C72FB",
+            axis_values={"size": "495X80"},
+            geometry_snapshot={"finished_good_type": "ROLL", "base": {"width_mm": 495}},
+            layer_snapshot=[
+                {
+                    "material_code": "LD-MW",
+                    "grade_code": "20% METALLOCENE",
+                    "thickness_micron": 80,
+                }
+            ],
+            product_master=SimpleNamespace(code="MLD-LDMW-V3", name="Multilayer LDMW Sheet"),
+            product_variant=SimpleNamespace(code="MLD-LDMW-V3-V-495X80-T80U-1C72FB"),
+            template=None,
+        )
+
+        spec = _line_spec(item)
+
+        self.assertEqual(spec["description"], "LD-MW")
+        self.assertEqual(spec["grade"], "20% METALLOCENE")
+        self.assertEqual(spec["size"], "495MM")
+        self.assertEqual(spec["thickness"], "80")
+        self.assertNotIn("V3", spec["description"])
 
     def test_render_includes_gonny_metadata_in_valid_pdf(self):
         if canvas is None:
@@ -183,7 +229,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         payload = buffer.getvalue().decode("latin-1", errors="ignore")
         self.assertIn("DISPATCH SLIP", payload)
         self.assertIn("UNIT NO.", payload)
-        self.assertIn("ITEM DESCRIPTION", payload)
+        self.assertIn("LAYERS", payload)
         self.assertIn("MIC", payload)
         self.assertIn("GROSS", payload)
         self.assertIn("PCS", payload)
@@ -287,7 +333,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertEqual(text.count("CLIENT PREVIEW ONLY"), 0)
         self.assertIn("NO.", text)
         self.assertIn("UNIT NO.", text)
-        self.assertIn("ITEM DESCRIPTION", text)
+        self.assertIn("LAYERS", text)
         self.assertIn("MIC", text)
         self.assertIn("GROSS", text)
         self.assertNotIn("CUT HERE", text)
@@ -478,10 +524,45 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertEqual(text.count("VEHICLE :"), 0)
         self.assertIn("NO.", text)
         self.assertIn("UNIT NO.", text)
-        self.assertIn("ITEM DESCRIPTION", text)
+        self.assertIn("LAYERS", text)
         self.assertIn("MIC", text)
         self.assertIn("TARE", text)
         self.assertIn("NET", text)
+
+    def test_dispatch_footer_replaces_signatures_with_sales_order_destination_and_transport(self):
+        text = DispatchListPDFService.render_text(
+            _snapshot_challan([_ready_row(1)], version=3)
+        )
+
+        self.assertIn("DELIVERY TO : Test Customer Warehouse", text)
+        self.assertIn("TRANSPORT NAME : Illustrative Test Transport", text)
+        self.assertIn("LOCATION : Illustrative Test Location", text)
+        self.assertNotIn("Dispatch Incharge", text)
+        self.assertNotIn("Security:", text)
+        self.assertNotIn("Dispatch slip only", text)
+
+    def test_grade_column_keeps_live_fifteen_character_grade_visible(self):
+        row = _ready_row(1)
+        row.update({"description": "LD-MW", "grade": "20% METALLOCENE", "size": "495MM", "thickness": "80"})
+
+        text = DispatchListPDFService.render_text(_snapshot_challan([row], version=3))
+
+        self.assertIn("20% METALLOCENE", text)
+        self.assertNotIn("20% METAL.", text)
+
+    def test_packing_slip_does_not_ask_for_or_print_dispatch_transport(self):
+        sales_order = SimpleNamespace(id="so-1", order_number="SO-READY-1", customer_name="Ready Customer")
+        with patch.object(
+            DispatchListPDFService,
+            "_load_ready_rows",
+            return_value=(sales_order, [_ready_row(1)]),
+        ):
+            text = DispatchListPDFService.render_ready_slip_text("so-1")
+
+        self.assertNotIn("DELIVERY TO :", text)
+        self.assertNotIn("TRANSPORT NAME :", text)
+        self.assertNotIn("LOCATION :", text)
+        self.assertIn("Packed By", text)
 
     def test_photographed_eight_unit_challan_fits_one_form_and_shows_one_order(self):
         rows = []

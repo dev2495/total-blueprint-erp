@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from decimal import Decimal
 from uuid import UUID
 from django.db import transaction
@@ -30,6 +31,117 @@ class FGDispatchService:
     REUSABLE_CHALLAN_STATUSES = ("CANCELLED",)
     BLOCKED_SALES_ORDER_STATUSES = ("DRAFT", "CANCELLED", "COMPLETED")
     BLOCKED_SALES_ORDER_ITEM_STATUSES = ("CANCELLED", "COMPLETED", "SHORT_CLOSED")
+
+    @staticmethod
+    def _dispatch_text(value, *, max_length: int | None = None) -> str:
+        text = re.sub(r"\s+", " ", str(value or "").replace("\r", " ").replace("\n", " ")).strip()
+        if max_length and len(text) > max_length:
+            raise ValueError(f"Dispatch value exceeds {max_length} characters.")
+        return text
+
+    @staticmethod
+    def _sales_order_delivery_context(sales_order) -> dict:
+        """Resolve destination data from governed Sales Order/customer fields.
+
+        The returned payload is read-only context for Dispatch Bay. It never
+        writes an override back to the Sales Order or Customer Master.
+        """
+        customer = getattr(sales_order, "customer", None)
+        explicit_ship_to_customer = getattr(sales_order, "ship_to_customer", None)
+        ship_to_customer = explicit_ship_to_customer or customer
+        delivery_to = FGDispatchService._dispatch_text(
+            getattr(sales_order, "ship_to_customer_name", "")
+            or getattr(ship_to_customer, "name", "")
+            or getattr(sales_order, "customer_name", "")
+        )
+
+        address_candidates = (
+            (getattr(sales_order, "ship_to_address", ""), "SALES_ORDER_SHIP_TO_ADDRESS"),
+            (getattr(sales_order, "address_override", ""), "SALES_ORDER_ADDRESS_OVERRIDE"),
+            (getattr(ship_to_customer, "shipping_address", ""), "SHIP_TO_CUSTOMER_MASTER"),
+            (getattr(customer, "shipping_address", ""), "CUSTOMER_MASTER"),
+        )
+        address = ""
+        address_source = "MISSING"
+        for candidate, source in address_candidates:
+            normalized = FGDispatchService._dispatch_text(candidate)
+            if normalized:
+                address = normalized
+                address_source = source
+                break
+
+        location_customer = ship_to_customer or customer
+        state = FGDispatchService._dispatch_text(getattr(location_customer, "mailing_state", ""))
+        pincode = FGDispatchService._dispatch_text(getattr(location_customer, "mailing_pincode", ""))
+        country = FGDispatchService._dispatch_text(getattr(location_customer, "mailing_country", ""))
+        # A country on its own is not a usable dispatch destination.  Require
+        # at least state or pincode before treating structured master data as
+        # location context; otherwise the challan UI must collect an override.
+        location_parts = [part for part in (state, pincode) if part]
+        if location_parts and country:
+            location_parts.append(country)
+        structured_location = ", ".join(location_parts)
+        location = address or structured_location
+        if address:
+            location_source = address_source
+        elif structured_location:
+            location_source = (
+                "SHIP_TO_CUSTOMER_LOCATION" if explicit_ship_to_customer is not None else "CUSTOMER_LOCATION"
+            )
+        else:
+            location_source = "MISSING"
+
+        return {
+            "delivery_to": delivery_to,
+            "delivery_to_source": "SALES_ORDER_SHIP_TO" if getattr(sales_order, "ship_to_customer_id", None) else "SALES_ORDER_CUSTOMER",
+            "address": address,
+            "address_source": address_source,
+            "location": location,
+            "location_source": location_source,
+            "address_available": bool(address),
+            "location_available": bool(location),
+        }
+
+    @staticmethod
+    def _dispatch_delivery_snapshot(sales_order, requested: dict | None, *, user=None) -> dict:
+        canonical = FGDispatchService._sales_order_delivery_context(sales_order)
+        requested_payload = requested if isinstance(requested, dict) else {}
+        requested_location = FGDispatchService._dispatch_text(
+            requested_payload.get("location") or requested_payload.get("location_override"),
+            max_length=240,
+        )
+        canonical_location = FGDispatchService._dispatch_text(canonical.get("location"))
+        location = requested_location or canonical_location
+        if not location:
+            raise ValueError(
+                "Delivery location is missing. Add the Sales Order shipping address or enter a dispatch-only location override."
+            )
+
+        location_overridden = bool(
+            requested_location
+            and requested_location.casefold() != canonical_location.casefold()
+        )
+        actor_name = ""
+        if user is not None:
+            actor_name = FGDispatchService._dispatch_text(
+                getattr(user, "get_full_name", lambda: "")()
+                or getattr(user, "username", "")
+            )
+        return {
+            "version": 1,
+            "sales_order_id": str(sales_order.id),
+            "sales_order_number": sales_order.order_number,
+            "delivery_to": canonical.get("delivery_to") or sales_order.customer_name,
+            "delivery_to_source": canonical.get("delivery_to_source"),
+            "address": canonical.get("address") or "",
+            "address_source": canonical.get("address_source"),
+            "location": location,
+            "location_source": "DISPATCH_OVERRIDE" if location_overridden or not canonical_location else canonical.get("location_source"),
+            "location_overridden": location_overridden or not bool(canonical_location),
+            "captured_at": timezone.now().isoformat(),
+            "captured_by_id": str(getattr(user, "id", "") or ""),
+            "captured_by_name": actor_name,
+        }
 
     @staticmethod
     def _normalize_dispatch_unit_ids(values, *, label: str) -> list[str]:
@@ -567,12 +679,22 @@ class FGDispatchService:
 
         combined_so_ids = [sid for sid in set(so_ids_with_rolls).union(so_ids_with_gonnies) if sid]
 
-        return (
+        orders = (
             SalesOrder.objects
             .filter(id__in=combined_so_ids)
+            .select_related("customer", "ship_to_customer")
             .order_by('-created_at')
-            .values('id', 'order_number', 'customer_name', 'status')
         )
+        return [
+            {
+                "id": str(order.id),
+                "order_number": order.order_number,
+                "customer_name": order.customer_name,
+                "status": order.status,
+                "delivery": FGDispatchService._sales_order_delivery_context(order),
+            }
+            for order in orders
+        ]
 
     @staticmethod
     def get_sales_orders_for_packing():
@@ -630,7 +752,6 @@ class FGDispatchService:
         so = FGDispatchService._sales_order_row(so_id)
         if not so:
             raise ValueError(f"Sales Order {so_id} not found")
-
         so_items = SalesOrderItem.objects.filter(sales_order_id=so_id)
         so_item_ids = list(so_items.values_list("id", flat=True))
         ordered_qty = so_items.aggregate(total=Sum("qty_value"))["total"] or Decimal("0")
@@ -905,11 +1026,18 @@ class FGDispatchService:
                 'gonnies': [...]
             }
         """
-        from apps.sales.models import SalesOrderItem
+        from apps.sales.models import SalesOrder, SalesOrderItem
         from django.db.models import Sum
         
         so = FGDispatchService._sales_order_row(so_id)
         if not so:
+            raise ValueError(f"Sales Order {so_id} not found")
+        sales_order = (
+            SalesOrder.objects.select_related("customer", "ship_to_customer")
+            .filter(id=so_id)
+            .first()
+        )
+        if sales_order is None:
             raise ValueError(f"Sales Order {so_id} not found")
         
         # Get all SO items
@@ -1133,6 +1261,7 @@ class FGDispatchService:
                 'order_number': so['order_number'],
                 'customer_name': so['customer_name'],
                 'status': so['status'],
+                'delivery': FGDispatchService._sales_order_delivery_context(sales_order),
             },
             'ordered_qty': float(ordered_qty),
             'produced_qty': {
@@ -1588,6 +1717,18 @@ class FGDispatchService:
                 "a challan cannot be created in this order state."
             )
 
+        normalized_transporter_name = FGDispatchService._dispatch_text(
+            transporter_name,
+            max_length=160,
+        )
+        if not normalized_transporter_name:
+            raise ValueError("Transport name is required when creating a dispatch challan.")
+        delivery_snapshot = FGDispatchService._dispatch_delivery_snapshot(
+            sales_order,
+            ship_to_address_snapshot,
+            user=user,
+        )
+
         try:
             plant = Plant.objects.get(id=normalized_plant_id)
         except Plant.DoesNotExist:
@@ -1712,11 +1853,11 @@ class FGDispatchService:
             vehicle_no=vehicle_no,
             driver_name=driver_name,
             driver_phone=driver_phone,
-            transporter_name=transporter_name or "",
+            transporter_name=normalized_transporter_name,
             lr_number=lr_number or "",
             e_way_bill_number=e_way_bill_number or "",
             dispatch_notes=dispatch_notes or "",
-            ship_to_address_snapshot=ship_to_address_snapshot if isinstance(ship_to_address_snapshot, dict) else {},
+            ship_to_address_snapshot=delivery_snapshot,
             status='DRAFT',
             created_by=user
         )

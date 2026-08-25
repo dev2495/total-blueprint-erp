@@ -19,6 +19,44 @@ def _active_packaging_materials(*ids):
 
 
 class DispatchLineageTests(SimpleTestCase):
+    def test_create_challan_requires_transport_name_before_reserving_units(self):
+        order = SimpleNamespace(
+            id=SO_ID,
+            order_number="SO-1",
+            customer_name="Test Customer",
+            status="DISPATCH_READY",
+        )
+        with patch("apps.sales.models.SalesOrder.objects.select_for_update") as order_lock:
+            order_lock.return_value.get.return_value = order
+            with self.assertRaisesMessage(ValueError, "Transport name is required"):
+                FGDispatchService.create_challan.__wrapped__(
+                    customer_name="Test Customer",
+                    plant_id=PLANT_ID,
+                    sales_order_id=SO_ID,
+                    roll_ids=[ROLL_ID],
+                    ship_to_address_snapshot={"location": "Test Location"},
+                    user=None,
+                )
+
+    def test_create_challan_requires_location_when_master_data_is_missing(self):
+        order = SimpleNamespace(
+            id=SO_ID,
+            order_number="SO-1",
+            customer_name="Test Customer",
+            status="DISPATCH_READY",
+        )
+        with patch("apps.sales.models.SalesOrder.objects.select_for_update") as order_lock:
+            order_lock.return_value.get.return_value = order
+            with self.assertRaisesMessage(ValueError, "Delivery location is missing"):
+                FGDispatchService.create_challan.__wrapped__(
+                    customer_name="Test Customer",
+                    plant_id=PLANT_ID,
+                    sales_order_id=SO_ID,
+                    roll_ids=[ROLL_ID],
+                    transporter_name="Test Transport",
+                    user=None,
+                )
+
     def test_pack_roll_marks_explicit_lines_as_non_defaulted(self):
         roll = SimpleNamespace(
             id="roll-1",
@@ -210,6 +248,8 @@ class DispatchLineageTests(SimpleTestCase):
                     plant_id=PLANT_ID,
                     sales_order_id=SO_ID,
                     gonny_ids=[GONNY_ID],
+                    transporter_name="Test Transport",
+                    ship_to_address_snapshot={"location": "Test Location"},
                     user=None,
                 )
 
@@ -253,6 +293,8 @@ class DispatchLineageTests(SimpleTestCase):
                     plant_id=PLANT_ID,
                     sales_order_id=SO_ID,
                     roll_ids=[ROLL_ID],
+                    transporter_name="Test Transport",
+                    ship_to_address_snapshot={"location": "Test Location"},
                     user=None,
                 )
 
@@ -298,6 +340,8 @@ class DispatchLineageTests(SimpleTestCase):
                 plant_id=PLANT_ID,
                 sales_order_id=SO_ID,
                 gonny_ids=[GONNY_ID],
+                transporter_name="Test Transport",
+                ship_to_address_snapshot={"location": "Test Location"},
                 user=None,
             )
 

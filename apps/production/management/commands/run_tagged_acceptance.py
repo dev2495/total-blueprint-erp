@@ -1134,6 +1134,8 @@ class Command(BaseCommand):
             vehicle_no="TEST-ROLL-VEH",
             driver_name="Roll Driver",
             driver_phone="9999999999",
+            transporter_name="Acceptance Test Transport",
+            ship_to_address_snapshot={"location": "Acceptance Test Location"},
             roll_ids=[str(roll_a1.id), str(roll_a2.id)],
             user=admin,
         )
@@ -1281,6 +1283,8 @@ class Command(BaseCommand):
             vehicle_no="TEST-POUCH-VEH",
             driver_name="Pouch Driver",
             driver_phone="8888888888",
+            transporter_name="Acceptance Test Transport",
+            ship_to_address_snapshot={"location": "Acceptance Test Location"},
             gonny_ids=[str(gonny_primary.id), str(gonny_loose.id)],
             user=admin,
         )

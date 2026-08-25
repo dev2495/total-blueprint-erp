@@ -10,7 +10,6 @@ from typing import Any
 from django.utils import timezone
 
 from apps.production.models import DeliveryChallan, DeliveryChallanItem, PackingUnit, RollDispatchPackRecord
-from apps.production.serializers import _sales_item_display_label
 
 try:
     from reportlab.lib.pagesizes import A4, landscape
@@ -135,6 +134,36 @@ def _grade_label(layers: list[Any]) -> str:
     return "+".join(values) if values else "-"
 
 
+def _layer_material_label(layers: list[Any]) -> str:
+    """Return only the governed layer/material stack for the print description.
+
+    Grade, size, micron and product-version data have their own columns and
+    must not be repeated inside the layer name.
+    """
+    values: list[str] = []
+    seen: set[str] = set()
+    for row in layers:
+        if not isinstance(row, dict):
+            continue
+        label = _text(
+            row.get("material_code"),
+            row.get("variant_code"),
+            row.get("film_variant_code"),
+            row.get("name"),
+            row.get("material_name"),
+            row.get("variant_name"),
+            row.get("film_variant_name"),
+        )
+        if not label:
+            continue
+        key = label.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        values.append(label)
+    return " / ".join(values)
+
+
 def _size_label(geometry: dict[str, Any], axis_values: dict[str, Any], fallback_width: Any = None) -> str:
     base = _dict(geometry.get("base"))
     source = base if base else geometry
@@ -188,13 +217,9 @@ def _line_spec(sales_order_item: Any, *, fallback_width: Any = None) -> dict[str
         getattr(template, "code", ""),
     ) or "-"
     description = _text(
-        getattr(overlay, "customer_display_name", ""),
-        _sales_item_display_label(sales_order_item),
-        getattr(sales_order_item, "line_name", ""),
+        _layer_material_label(layers),
         getattr(product_master, "name", ""),
         getattr(template, "name", ""),
-        getattr(product_variant, "code", ""),
-        product_code,
         "SALES PRODUCT",
     )
     return {
@@ -679,8 +704,32 @@ class DispatchListPDFService:
             raise RuntimeError("Dispatch document blocked: challan has no physical units.")
         rows = [cls._json_row(row) for row in source_rows]
         document_date = getattr(challan, "dispatch_date", None) or getattr(challan, "created_at", None) or timezone.now()
+        delivery = _dict(getattr(challan, "ship_to_address_snapshot", None))
+        if not delivery.get("delivery_to") or not delivery.get("location"):
+            from apps.production.services.dispatch_service import FGDispatchService
+
+            canonical = FGDispatchService._sales_order_delivery_context(sales_order)
+            delivery = {
+                **delivery,
+                "sales_order_id": str(challan.sales_order_id),
+                "sales_order_number": cls._safe_sales_order_number(challan),
+                "delivery_to": _text(
+                    delivery.get("delivery_to"),
+                    delivery.get("customer_name"),
+                    canonical.get("delivery_to"),
+                    challan.customer_name,
+                ),
+                "address": _text(delivery.get("address"), canonical.get("address")),
+                "address_source": _text(delivery.get("address_source"), canonical.get("address_source")),
+                "location": _text(
+                    delivery.get("location"),
+                    delivery.get("address"),
+                    canonical.get("location"),
+                ),
+                "location_source": _text(delivery.get("location_source"), canonical.get("location_source")),
+            }
         return {
-            "version": 2,
+            "version": 3,
             "document_type": "DISPATCH_SLIP",
             "document_ref": challan.dc_no,
             "document_date": document_date.isoformat(),
@@ -688,6 +737,8 @@ class DispatchListPDFService:
             "sales_order_no": cls._safe_sales_order_number(challan),
             "sales_order_id": str(challan.sales_order_id),
             "plant_name": challan.plant.name if challan.plant else "-",
+            "delivery": delivery,
+            "transporter_name": _text(getattr(challan, "transporter_name", "")),
             "rows": rows,
             "balance_rows": cls._balance_rows(challan, source_rows),
         }
@@ -700,7 +751,7 @@ class DispatchListPDFService:
 
         expected_order_id = str(getattr(challan, "sales_order_id", "") or "")
         expected_ref = str(getattr(challan, "dc_no", "") or "")
-        if snapshot.get("version") != 2:
+        if snapshot.get("version") not in {2, 3}:
             raise RuntimeError("Dispatch document blocked: frozen snapshot uses an unsupported version.")
         if str(snapshot.get("document_type") or "") != "DISPATCH_SLIP":
             raise RuntimeError("Dispatch document blocked: frozen snapshot has an invalid document type.")
@@ -721,6 +772,13 @@ class DispatchListPDFService:
                 raise RuntimeError(
                     "Dispatch document blocked: frozen snapshot contains foreign or unlinked sales-order data."
                 )
+        if snapshot.get("version") == 3:
+            delivery = snapshot.get("delivery")
+            if not isinstance(delivery, dict):
+                raise RuntimeError("Dispatch document blocked: frozen snapshot has invalid delivery data.")
+            delivery_order_id = str(delivery.get("sales_order_id") or "")
+            if delivery_order_id and delivery_order_id != expected_order_id:
+                raise RuntimeError("Dispatch document blocked: frozen delivery data belongs to a different sales order.")
         return snapshot
 
     @staticmethod
@@ -779,6 +837,7 @@ class DispatchListPDFService:
         document_date: Any = None,
         balance_rows: list[dict[str, Any]] | None = None,
         signature_labels: tuple[str, str, str] | None = None,
+        detail_lines: list[str] | None = None,
     ) -> BytesIO:
         if canvas is None:
             raise RuntimeError("PDF engine unavailable: reportlab is not installed.")
@@ -794,6 +853,7 @@ class DispatchListPDFService:
             document_date=document_date,
             balance_rows=balance_rows,
             signature_labels=signature_labels,
+            detail_lines=detail_lines,
         )
         buffer = BytesIO()
         # PDF is the office-printer path. A4 landscape prevents a standard
@@ -835,6 +895,7 @@ class DispatchListPDFService:
         document_date: Any = None,
         balance_rows: list[dict[str, Any]] | None = None,
         signature_labels: tuple[str, str, str] | None = None,
+        detail_lines: list[str] | None = None,
     ) -> str:
         normalized_rows = [cls._row_from_legacy_dict(row) if "gross_kg" not in row else dict(row) for row in rows]
         fallback_line_numbers: dict[str, int] = {}
@@ -877,8 +938,8 @@ class DispatchListPDFService:
                 ("NO.", 3, "left"),
                 ("ITEM", 4, "left"),
                 ("UNIT NO.", 10, "left"),
-                ("ITEM DESCRIPTION", 31, "left"),
-                ("GRADE", 10, "left"),
+                ("LAYERS", 25, "left"),
+                ("GRADE", 16, "left"),
                 ("SIZE", 10, "left"),
                 ("MIC", 6, "right"),
                 ("GROSS", 7, "right"),
@@ -898,8 +959,13 @@ class DispatchListPDFService:
                 )
             )
 
+        normalized_detail_lines = [clean(line) for line in (detail_lines or []) if clean(line)]
         fixed_header_lines = 6 + len(transport_lines or [])
-        final_footer_lines = 5 + len(balance_lines) + (1 if footer_note else 0)
+        final_footer_lines = (
+            2 + len(balance_lines) + len(normalized_detail_lines)
+            if normalized_detail_lines
+            else 4 + len(balance_lines) + (1 if footer_note else 0)
+        )
         final_capacity = cls.DOT_MATRIX_LINES_PER_PAGE - fixed_header_lines - final_footer_lines
         regular_capacity = cls.DOT_MATRIX_LINES_PER_PAGE - fixed_header_lines - 2
         if final_capacity < 1:
@@ -950,8 +1016,8 @@ class DispatchListPDFService:
                             (entry["row_no"], 3, "left"),
                             (f"L{row.get('so_line_no') or '-'}", 4, "left"),
                             (_display_unit_id(row.get("unit_id"), row.get("unit_type")), 10, "left"),
-                            (row.get("description"), 31, "left"),
-                            (row.get("grade"), 10, "left"),
+                            (row.get("description"), 25, "left"),
+                            (row.get("grade"), 16, "left"),
                             (row.get("size"), 10, "left"),
                             (row.get("thickness"), 6, "right"),
                             (_compact(row.get("gross_kg")), 7, "right"),
@@ -978,19 +1044,22 @@ class DispatchListPDFService:
                 )
             )
             lines.extend(balance_lines)
-            lines.append("")
-            signatures = signature_labels or ("Dispatch Incharge", "Security", "Receiver")
-            lines.append(
-                row_line(
-                    [
-                        (f"{signatures[0]}: ____________", 36, "left"),
-                        (f"{signatures[1]}: ____________", 36, "left"),
-                        (f"{signatures[2]}: ____________", 36, "left"),
-                    ]
+            if normalized_detail_lines:
+                lines.extend(cell(line, cls.DOT_MATRIX_COLUMNS) for line in normalized_detail_lines)
+            else:
+                lines.append("")
+                signatures = signature_labels or ("Dispatch Incharge", "Security", "Receiver")
+                lines.append(
+                    row_line(
+                        [
+                            (f"{signatures[0]}: ____________", 36, "left"),
+                            (f"{signatures[1]}: ____________", 36, "left"),
+                            (f"{signatures[2]}: ____________", 36, "left"),
+                        ]
+                    )
                 )
-            )
-            if footer_note:
-                lines.append(clean(footer_note))
+                if footer_note:
+                    lines.append(clean(footer_note))
             if len(lines) > cls.DOT_MATRIX_LINES_PER_PAGE:
                 raise RuntimeError(f"Dispatch slip page {page_number} exceeds the configured form length.")
             rendered_pages.append("\r\n".join(lines))
@@ -1093,6 +1162,7 @@ class DispatchListPDFService:
     @classmethod
     def render(cls, challan: DeliveryChallan) -> BytesIO:
         document = cls._challan_document(challan)
+        delivery = _dict(document.get("delivery"))
         return cls._render_rows_pdf(
             title="DISPATCH SLIP",
             doc_ref=document["document_ref"],
@@ -1102,12 +1172,17 @@ class DispatchListPDFService:
             rows=document["rows"],
             document_date=document.get("document_date"),
             balance_rows=document.get("balance_rows") or [],
-            footer_note="Dispatch slip only. Transport and e-way details are carried on the accounting bill.",
+            detail_lines=[
+                f"DELIVERY TO : {_text(delivery.get('delivery_to'), document.get('customer_name'), 'NOT RECORDED')}",
+                f"TRANSPORT NAME : {_text(document.get('transporter_name'), 'NOT RECORDED')}",
+                f"LOCATION : {_text(delivery.get('location'), 'NOT RECORDED')}",
+            ],
         )
 
     @classmethod
     def render_text(cls, challan: DeliveryChallan) -> str:
         document = cls._challan_document(challan)
+        delivery = _dict(document.get("delivery"))
         return cls._render_rows_text(
             title="DISPATCH SLIP",
             doc_ref=document["document_ref"],
@@ -1117,7 +1192,11 @@ class DispatchListPDFService:
             rows=document["rows"],
             document_date=document.get("document_date"),
             balance_rows=document.get("balance_rows") or [],
-            footer_note="Dispatch slip only. Transport and e-way details are carried on the accounting bill.",
+            detail_lines=[
+                f"DELIVERY TO : {_text(delivery.get('delivery_to'), document.get('customer_name'), 'NOT RECORDED')}",
+                f"TRANSPORT NAME : {_text(document.get('transporter_name'), 'NOT RECORDED')}",
+                f"LOCATION : {_text(delivery.get('location'), 'NOT RECORDED')}",
+            ],
         )
 
     @classmethod

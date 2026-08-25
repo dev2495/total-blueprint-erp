@@ -54,6 +54,8 @@ class FGDispatchRollListTests(TestCase):
     ):
         sales_order = SalesOrder.objects.create(
             customer_name="Dispatch Test Customer",
+            ship_to_customer_name="Dispatch Test Customer",
+            ship_to_address="Dispatch test delivery address",
             status="CONFIRMED",
         )
         item = SalesOrderItem.objects.create(
@@ -134,6 +136,7 @@ class FGDispatchRollListTests(TestCase):
             plant_id=str(self.plant.id),
             sales_order_id=str(so.id),
             roll_ids=[str(r.id) for r in rolls],
+            transporter_name="Dispatch Test Transport",
             user=None,
         )
 

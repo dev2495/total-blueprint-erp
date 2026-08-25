@@ -6,6 +6,7 @@ import {
   Check,
   Download,
   FileText,
+  MapPin,
   Printer,
   Search,
   Send,
@@ -46,24 +47,13 @@ const err = (error: any) =>
   error?.message ||
   "Request failed.";
 const clean = (value: unknown) => String(value ?? "").trim();
-const compactStackSpec = (
-  layers: unknown,
-  thickness: unknown,
-  grade: unknown,
-) => {
+const compactColumnSpec = (thickness: unknown, grade: unknown) => {
   const parts: string[] = [];
-  const layerText = clean(layers);
-  if (
-    layerText &&
-    layerText !== "-" &&
-    !/^\d+\s*layers?$/i.test(layerText)
-  ) {
-    parts.push(layerText);
-  }
-  const thicknessText = clean(thickness).replace(/\s*microns?$/i, "");
-  if (thicknessText && thicknessText !== "-") parts.push(thicknessText);
   const gradeText = clean(grade);
-  if (gradeText && gradeText !== "-") parts.push(gradeText);
+  if (gradeText && gradeText !== "-") parts.push(`GRADE ${gradeText}`);
+  const thicknessText = clean(thickness).replace(/\s*microns?$/i, "");
+  if (thicknessText && thicknessText !== "-")
+    parts.push(`MIC ${thicknessText}`);
   return parts.length ? parts.join(" · ") : "-";
 };
 const compactUnitLabel = (value: unknown, kind: "ROLL" | "CTN") => {
@@ -111,7 +101,7 @@ const lineScopeName = (row: any, fallback: string) =>
 const lineScopeSpec = (row: any) =>
   [
     clean(row?.size_label || (row?.width_mm ? `${row.width_mm}MM` : "")),
-    compactStackSpec(row?.layers_label, row?.thickness_label, row?.grade_label),
+    compactColumnSpec(row?.thickness_label, row?.grade_label),
   ]
     .filter((part) => part && part !== "-")
     .join(" · ") || "Order line";
@@ -306,6 +296,8 @@ export default function DispatchBayPage() {
   const [podReference, setPodReference] = useState("");
   const [podNotes, setPodNotes] = useState("");
   const [notes, setNotes] = useState("");
+  const [transporterName, setTransporterName] = useState("");
+  const [dispatchLocation, setDispatchLocation] = useState("");
   const [queuePage, setQueuePage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const [manifestPage, setManifestPage] = useState(1);
@@ -409,10 +401,10 @@ export default function DispatchBayPage() {
         customer_name: selected?.sales_order.customer_name || "",
         plant_id: selectedPlantId || "",
         sales_order_id: selectedOrderId,
+        transporter_name: transporterName.trim(),
         dispatch_notes: notes,
         ship_to_address_snapshot: {
-          customer_name: selected?.sales_order.customer_name || "",
-          sales_order_number: selected?.sales_order.order_number || "",
+          location: dispatchLocation.trim(),
         },
         roll_ids: selectedRolls,
         gonny_ids: selectedGonnies,
@@ -422,6 +414,9 @@ export default function DispatchBayPage() {
       setFinalizeOpen(false);
       setSelectedRolls([]);
       setSelectedGonnies([]);
+      setTransporterName("");
+      setDispatchLocation("");
+      setNotes("");
       invalidate();
     },
     onError: (error) =>
@@ -557,6 +552,19 @@ export default function DispatchBayPage() {
   }, [queuePageCount]);
 
   const selected = summary.data as SODispatchSummary | undefined;
+  const deliveryContext = selected?.sales_order.delivery;
+  const canonicalDispatchLocation = clean(deliveryContext?.location);
+  const locationIsOverride = Boolean(
+    clean(dispatchLocation) &&
+      clean(dispatchLocation).toLocaleLowerCase() !==
+        canonicalDispatchLocation.toLocaleLowerCase(),
+  );
+  const openFinalizeDialog = () => {
+    setTransporterName("");
+    setDispatchLocation(canonicalDispatchLocation);
+    setNotes("");
+    setFinalizeOpen(true);
+  };
   const selectedRollRows =
     selected?.rolls.filter((roll) => selectedRolls.includes(roll.id)) || [];
   const selectedGonnyRows =
@@ -671,13 +679,10 @@ export default function DispatchBayPage() {
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
         product: gonny.product_name || "Pouch product",
-        productCode: gonny.product_code || "",
         size: gonny.size_label || "-",
-        layers: gonny.layers_label || "-",
         thickness: gonny.thickness_label || "-",
         grade: gonny.grade_label || "-",
-        stackSpec: compactStackSpec(
-          gonny.layers_label,
+        stackSpec: compactColumnSpec(
           gonny.thickness_label,
           gonny.grade_label,
         ),
@@ -707,13 +712,10 @@ export default function DispatchBayPage() {
         customer: selected?.sales_order.customer_name || "",
         so: selected?.sales_order.order_number || "",
         product: roll.product_name || roll.material__name || "Roll product",
-        productCode: roll.product_code || "",
         size: roll.size_label || (roll.width_mm ? `${n(roll.width_mm, 0)}MM` : "-"),
-        layers: roll.layers_label || "-",
         thickness: roll.thickness_label || "-",
         grade: roll.grade_label || "-",
-        stackSpec: compactStackSpec(
-          roll.layers_label,
+        stackSpec: compactColumnSpec(
           roll.thickness_label,
           roll.grade_label,
         ),
@@ -1494,7 +1496,7 @@ export default function DispatchBayPage() {
                       <tr>
                         <th className="px-3 py-2 text-left">#</th>
                         <th className="px-3 text-left">Unit</th>
-                        <th className="px-3 text-left">Product</th>
+                        <th className="px-3 text-left">Layers</th>
                         <th className="px-3 text-left">Spec</th>
                         <th className="px-3 text-right">Weight</th>
                         <th className="px-3 text-right">Status</th>
@@ -1582,9 +1584,6 @@ export default function DispatchBayPage() {
                               {unit.product}
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              <Chip tone="slate">
-                                {unit.lineName}
-                              </Chip>
                               {unit.productionBatchLabel ? (
                                 <Chip tone="blue">
                                   {unit.productionBatchLabel}
@@ -1595,11 +1594,6 @@ export default function DispatchBayPage() {
                                   {unit.routeLabel}
                                 </span>
                               ) : null}
-                              {unit.productCode && (
-                                <span className="font-mono text-[10px] font-bold text-content-3">
-                                  {unit.productCode}
-                                </span>
-                              )}
                               <span className="text-[10px] font-bold text-content-4">
                                 {unit.so}
                               </span>
@@ -1714,7 +1708,7 @@ export default function DispatchBayPage() {
                   <Button
                     data-testid="dispatch-create-trigger"
                     disabled={!selectedPlantId || selectedUnits === 0}
-                    onClick={() => setFinalizeOpen(true)}
+                    onClick={openFinalizeDialog}
                   >
                     <Send className="mr-2 h-4 w-4" /> Create challan
                   </Button>
@@ -2020,10 +2014,91 @@ export default function DispatchBayPage() {
               </div>
             </div>
           </div>
+          <div className="rounded-3xl border border-line bg-surface-1 p-4 shadow-sm">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-black text-content-1">
+                  Delivery & transport
+                </div>
+                <div className="mt-1 text-xs font-semibold text-content-3">
+                  Destination stays linked to the Sales Order. A location override applies only to this dispatch.
+                </div>
+              </div>
+              <Chip tone={clean(dispatchLocation) && clean(transporterName) ? "green" : "amber"}>
+                {clean(dispatchLocation) && clean(transporterName) ? "ready" : "required"}
+              </Chip>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-line bg-surface-2 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                    Delivery to
+                  </Label>
+                  <Chip tone="blue">From sales order</Chip>
+                </div>
+                <div className="mt-2 text-sm font-black text-content-1">
+                  {clean(deliveryContext?.delivery_to) || selected?.sales_order.customer_name || "Not recorded"}
+                </div>
+                {clean(deliveryContext?.address) ? (
+                  <div className="mt-1 text-xs font-semibold leading-5 text-content-3">
+                    {deliveryContext?.address}
+                  </div>
+                ) : (
+                  <div className="mt-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
+                    No full shipping address is stored on this Sales Order or Customer Master. Confirm the location below.
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label htmlFor="dispatch-transporter">Transport name *</Label>
+                <div className="relative mt-2">
+                  <Truck className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-content-4" />
+                  <Input
+                    id="dispatch-transporter"
+                    value={transporterName}
+                    onChange={(event) => setTransporterName(event.target.value)}
+                    placeholder="Transporter or company vehicle"
+                    className="pl-9"
+                    maxLength={160}
+                    autoComplete="organization"
+                  />
+                </div>
+                <div className="mt-2 text-xs font-semibold text-content-3">
+                  Captured on the dispatch challan; packing does not ask for it.
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label htmlFor="dispatch-location">Delivery location *</Label>
+                  <Chip tone={locationIsOverride ? "amber" : "blue"}>
+                    {locationIsOverride ? "Dispatch override" : "From address"}
+                  </Chip>
+                </div>
+                <div className="relative mt-2">
+                  <MapPin className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-content-4" />
+                  <Input
+                    id="dispatch-location"
+                    value={dispatchLocation}
+                    onChange={(event) => setDispatchLocation(event.target.value)}
+                    placeholder="Enter city, destination or delivery address"
+                    className="pl-9"
+                    maxLength={240}
+                  />
+                </div>
+                <div className="mt-2 text-xs font-semibold text-content-3">
+                  {locationIsOverride
+                    ? "This override is saved only on this challan and does not change the Sales Order or Customer Master."
+                    : canonicalDispatchLocation
+                      ? "Prefilled from the Sales Order/customer delivery data."
+                      : "Source data is missing; enter a dispatch-only location to continue."}
+                </div>
+              </div>
+            </div>
+          </div>
           <div className="rounded-3xl border border-line bg-surface-1 p-4 text-sm shadow-sm">
             <div className="font-black text-content-1">Dispatch note (optional)</div>
             <div className="mt-1 text-xs font-semibold text-content-3">
-              Driver, LR and e-way details remain on the accounting bill and are not repeated on this slip.
+              Internal loading or receiver context. This note is not printed on the client dispatch slip.
             </div>
             <Textarea
               value={notes}
@@ -2041,6 +2116,8 @@ export default function DispatchBayPage() {
               disabled={
                 !selectedPlantId ||
                 selectedUnits === 0 ||
+                !clean(transporterName) ||
+                !clean(dispatchLocation) ||
                 createChallanMutation.isPending
               }
               onClick={() => createChallanMutation.mutate()}
