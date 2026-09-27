@@ -142,3 +142,24 @@ class ManualAllocationRaceTests(TransactionTestCase):
             ExecutionService.get_job_context(self.job.pk, reconcile_assignment=False)
             RollAllocationService.allocate_tiered(self.job)
         self.assertEqual([q['sql'] for q in queries if q['sql'].lstrip().upper().startswith(('UPDATE ','INSERT ','DELETE '))], [])
+
+    def test_context_process_queries_do_not_grow_with_roll_population(self):
+        # Historical processed rolls expose the per-roll created_process lookup.
+        def measure():
+            layer = {"variant_id": str(self.material.pk), "thickness_micron": 25, "width_mm": 500}
+            with patch.object(ExecutionService, "_job_layer_snapshot", return_value=[layer]), CaptureQueriesContext(connection) as captured:
+                context = ExecutionService.get_job_context(self.job.pk, reconcile_assignment=False)
+            process_queries = [q for q in captured if q['sql'].startswith('SELECT "factory_processes".')]
+            return len(process_queries), context
+        baseline, _ = measure()
+        InventoryRoll.objects.bulk_create([
+            InventoryRoll(label_id=f'READ-PERF-{i}', material=self.material,
+                location=self.wip, plant=self.plant, width_mm=500,
+                thickness_micron=25, weight_kg=20, created_process=self.process,
+                meta_json={},
+                stage_index=0, current_step_index=0)
+            for i in range(50)
+        ])
+        expanded, context = measure()
+        self.assertLessEqual(expanded, baseline + 2)
+        self.assertTrue(any(row["label_id"].startswith("READ-PERF-") for row in context["discoverable_pool"]), "Processed fixture rolls must exercise the context serializer")

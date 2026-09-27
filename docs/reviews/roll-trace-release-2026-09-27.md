@@ -72,3 +72,7 @@ The release improves the existing stack and closes the concrete roll-flow defect
 - Pre-release database and source backup SHA-256 verified; PostgreSQL dump restored with ON_ERROR_STOP into an isolated, network-disabled temporary container: 5,905 rolls and 366 migration records. Temporary restore container removed. This proves same-host restore readability; off-host recovery is still a separate gate.
 
 - Rendered label QR decoded independently to its expected immutable roll UUID. This validates the generated image, not physical print/scanner quality.
+
+## Follow-up from the deployed performance check
+
+The first deployed read-only profile exposed 3,072 repeated process lookups in a job context (3,173 total queries). A focused follow-up preloads roll process/parent/job relations and removes unused job/template joins from stock summaries. It preserves candidate rules and returned fields. Production regression suite: 347 tests passed; expanded inventory/read regression suite: 10 tests passed, including a 50-roll query-growth guard that exercises the context serializer. Live timings and final deployed revision are recorded in the deployment evidence alongside this guide.

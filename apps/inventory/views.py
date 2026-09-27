@@ -641,7 +641,11 @@ def _stock_snapshot_payload(request):
     roll_reservations = _active_reservation_weight_by_roll()
     material_reservations = _active_reservation_qty_by_material()
 
-    rolls_qs = _inventory_roll_base_queryset().exclude(status__in=["CONSUMED", "SCRAPPED", "MISSING"])
+    # The summary needs identity, dimensions, cost and parent role only.
+    # Loading full template/job graphs for every stock roll inflated read cost.
+    rolls_qs = InventoryRoll.objects.select_related(
+        "material", "grade", "location__plant", "parent_roll",
+    ).exclude(status__in=["CONSUMED", "SCRAPPED", "MISSING"])
     bulk_qs = InventoryBulk.objects.select_related("material", "granule_code", "location", "plant").filter(qty_kg__gt=0)
     packaging_qs = PackagingStock.objects.select_related("material", "location", "plant").filter(qty__gt=0)
     if plant_id:

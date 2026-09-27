@@ -100,7 +100,7 @@ class RollAllocationService:
         qs_all = (
             InventoryRoll.objects.filter(base_filters)
             .exclude(location__code='IN_TRANSIT')
-            .select_related('location', 'material', 'material__parent_family', 'grade')
+            .select_related('location', 'material', 'material__parent_family', 'grade', 'created_process', 'parent_roll')
         )
 
         step0_primary_roll = (
@@ -214,7 +214,7 @@ class RollAllocationService:
             return InventoryRoll.objects.none()
 
         filtered = InventoryRoll.objects.filter(id__in=eligible_ids).select_related(
-            'location', 'material', 'material__parent_family', 'grade'
+            'location', 'material', 'material__parent_family', 'grade', 'created_process', 'parent_roll'
         )
 
         if job.sales_order_item:

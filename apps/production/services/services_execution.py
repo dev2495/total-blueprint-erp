@@ -3366,7 +3366,7 @@ class ExecutionService:
         qs = (
             InventoryRoll.objects.filter(lineage_filter)
             .exclude(location__code="IN_TRANSIT")
-            .select_related("material", "location", "grade")
+            .select_related("material", "location", "grade", "created_process", "parent_roll", "created_by_job")
             .order_by("-created_at")
         )
         if plant_id:
@@ -3534,7 +3534,7 @@ class ExecutionService:
                 fallback_ids.add(str(rid))
 
         reservations = InventoryReservation.objects.filter(job=job, status="ACTIVE", roll__isnull=False).select_related(
-            "roll", "roll__material", "roll__location", "roll__grade"
+            "roll", "roll__material", "roll__location", "roll__grade", "roll__created_process", "roll__parent_roll", "roll__created_by_job"
         )
         for res in reservations:
             roll = res.roll
@@ -3565,7 +3565,7 @@ class ExecutionService:
         candidates_qs = (
             InventoryRoll.objects.filter(status__in=["AVAILABLE", "RESERVED"])
             .exclude(location__code="IN_TRANSIT")
-            .select_related("material", "location", "grade")
+            .select_related("material", "location", "grade", "created_process", "parent_roll", "created_by_job")
         )
         if plant_id:
             candidates_qs = candidates_qs.filter(location__plant_id=plant_id)
@@ -3830,7 +3830,7 @@ class ExecutionService:
             all_lineage_qs = all_lineage_qs.filter(lineage_filter)
 
         all_lineage_rolls = [
-            roll for roll in all_lineage_qs.select_related("material", "location", "grade")
+            roll for roll in all_lineage_qs.select_related("material", "location", "grade", "created_process", "parent_roll", "created_by_job")
             if not bool((getattr(roll, "meta_json", None) or {}).get("is_quarantined"))
         ]
         if not all_lineage_rolls:
@@ -3933,7 +3933,7 @@ class ExecutionService:
                 if potential_f_ids:
                     q_objs |= Q(material__parent_family_id__in=list(potential_f_ids))
                 
-                broad_qs = broad_qs.filter(q_objs).select_related("material", "location", "grade")
+                broad_qs = broad_qs.filter(q_objs).select_related("material", "location", "grade", "created_process", "parent_roll", "created_by_job")
                 
                 for roll in broad_qs[:50]:
                     if roll.id in seen:
