@@ -3,6 +3,12 @@ import { api } from "@/lib/api";
 export function normalizeMediaUrl(url?: string | null) {
     const raw = String(url || "").trim();
     if (!raw) return null;
+    // Artwork is protected by the ERP session and served through our media proxy.
+    // Backend absolute URLs can expose an internal host/port in local or proxied deployments.
+    try {
+        const parsed = new URL(raw, "http://media.local");
+        if (parsed.pathname.startsWith("/media/artworks/")) return `${parsed.pathname}${parsed.search}`;
+    } catch { /* Keep non-URL local preview values unchanged. */ }
     return raw;
 }
 

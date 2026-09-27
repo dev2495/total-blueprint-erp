@@ -8,6 +8,7 @@ import {
   FileText,
   MapPin,
   Printer,
+  RefreshCw,
   Search,
   Send,
   Truck,
@@ -305,25 +306,28 @@ export default function DispatchBayPage() {
 
   const board = useQuery({
     queryKey: ["dispatch-board"],
-    queryFn: logisticsService.getDispatchBoard,
+    queryFn: ({ signal }) => logisticsService.getDispatchBoard(signal),
     refetchInterval: 30000,
   });
   const summary = useQuery({
     queryKey: ["dispatch-summary", selectedOrderId],
-    queryFn: () => logisticsService.getSODispatchableItems(selectedOrderId),
+    queryFn: ({ signal }) => logisticsService.getSODispatchableItems(selectedOrderId, signal),
     enabled: Boolean(selectedOrderId),
+    placeholderData: undefined,
   });
   const challans = useQuery({
     queryKey: ["challans"],
     queryFn: () => logisticsService.getChallans(),
   });
 
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["dispatch-board"] });
-    queryClient.invalidateQueries({
-      queryKey: ["dispatch-summary", selectedOrderId],
-    });
-    queryClient.invalidateQueries({ queryKey: ["challans"] });
+  const invalidate = async (orderId = selectedOrderId) => {
+    const summaryKey = ["dispatch-summary", orderId] as const;
+    await queryClient.cancelQueries({ queryKey: summaryKey, exact: true });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["dispatch-board"] }),
+      queryClient.invalidateQueries({ queryKey: summaryKey, exact: true }),
+      queryClient.invalidateQueries({ queryKey: ["challans"] }),
+    ]);
   };
   const getReadySlipSelection = () => {
     if (!selectedOrderId) return;
@@ -409,7 +413,7 @@ export default function DispatchBayPage() {
         roll_ids: selectedRolls,
         gonny_ids: selectedGonnies,
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast({ title: "Challan created", description: data.message });
       setFinalizeOpen(false);
       setSelectedRolls([]);
@@ -417,7 +421,7 @@ export default function DispatchBayPage() {
       setTransporterName("");
       setDispatchLocation("");
       setNotes("");
-      invalidate();
+      await invalidate(selectedOrderId);
     },
     onError: (error) =>
       toast({
@@ -551,7 +555,13 @@ export default function DispatchBayPage() {
     setQueuePage((current) => Math.min(current, queuePageCount));
   }, [queuePageCount]);
 
-  const selected = summary.data as SODispatchSummary | undefined;
+  const selectedSummary = summary.data as SODispatchSummary | undefined;
+  const selected =
+    selectedOrderId &&
+    cards.some((row) => String(row.sales_order.id) === selectedOrderId) &&
+    String(selectedSummary?.sales_order.id || "") === selectedOrderId
+      ? selectedSummary
+      : undefined;
   const deliveryContext = selected?.sales_order.delivery;
   const canonicalDispatchLocation = clean(deliveryContext?.location);
   const locationIsOverride = Boolean(
@@ -892,6 +902,13 @@ export default function DispatchBayPage() {
     }
   }, [lineFilter, lineScopes]);
 
+  const boardUnavailableHint = board.isLoading
+    ? "Loading board…"
+    : "Board unavailable";
+  const historyUnavailableHint = challans.isLoading
+    ? "Loading dispatch history…"
+    : "Dispatch history unavailable";
+
   return (
     <div
       className="mx-auto max-w-[1900px] space-y-3 p-3 lg:p-4"
@@ -928,47 +945,92 @@ export default function DispatchBayPage() {
             </span>
           </div>
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 2xl:grid-cols-8">
           <Tile
             label="Ready units"
-            value={n(readyUnits, 0)}
-            hint={`${n(board.data?.totals.ready_gonnies || 0, 0)} CTN · ${n(board.data?.totals.ready_rolls || 0, 0)} ROLL`}
+            value={board.data ? n(readyUnits, 0) : "—"}
+            hint={board.data ? `${n(board.data.totals.ready_gonnies || 0, 0)} CTN · ${n(board.data.totals.ready_rolls || 0, 0)} ROLL` : boardUnavailableHint}
           />
           <Tile
-            label="Trips open"
-            value={n(openChallans, 0)}
-            hint="draft challans"
+            label="Draft challans"
+            value={challans.data ? n(openChallans, 0) : "—"}
+            hint={challans.data ? "in filtered history" : historyUnavailableHint}
           />
           <Tile
-            label="Loading now"
-            value={n(
+            label="Trips dispatched"
+            value={challans.data ? n(
               history.filter((row) => row.status === "DISPATCHED").length,
               0,
-            )}
-            hint="sent docs"
+            ) : "—"}
+            hint={challans.data ? "in filtered history" : historyUnavailableHint}
           />
           <Tile
-            label="Awaiting docs"
-            value={n(openChallans, 0)}
-            hint="need vehicle or LR"
+            label="Vehicle / LR status"
+            value="—"
+            hint="not reported in challan summary"
           />
           <Tile
             label="Gross ready"
-            value={`${n(readyGross)} kg`}
-            hint="shipment weight"
+            value={board.data ? `${n(readyGross)} kg` : "—"}
+            hint={board.data ? "shipment weight" : boardUnavailableHint}
           />
           <Tile
-            label="Value out today"
-            value={n(todayDispatches, 0)}
-            hint="trips shipped"
+            label="Trips dated today"
+            value={challans.data ? n(todayDispatches, 0) : "—"}
+            hint={challans.data ? "in filtered history" : historyUnavailableHint}
           />
           <Tile
             label="Avg dock time"
-            value={`${n(Math.max(12, selectedUnits * 9), 0)}m`}
-            hint="selected tray"
+            value="—"
+            hint="not measured in this view"
           />
-          <Tile label="On-time trips" value="Live" hint="7-day rolling" />
+          <Tile label="On-time trips" value="—" hint="not reported in this view" />
         </div>
+      </section>
+
+      <section
+        aria-live="polite"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs"
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-content-3">
+          {board.isLoading ? (
+            <span role="status" className="font-semibold">Loading dispatch board…</span>
+          ) : board.isError ? (
+            <span role="alert" className="font-semibold text-danger-fg">
+              {board.data ? "Dispatch refresh failed; showing the last loaded board." : "Dispatch board unavailable."} {err(board.error)}
+            </span>
+          ) : board.isFetching ? (
+            <span role="status" className="font-semibold">Refreshing dispatch board…</span>
+          ) : (
+            <span className="font-semibold">Dispatch board ready</span>
+          )}
+          {challans.isError && (
+            <span role="alert" className="font-semibold text-danger-fg">Challan history unavailable: {err(challans.error)}</span>
+          )}
+          {summary.isFetching && selectedOrderId && (
+            <span role="status" className="font-semibold">Refreshing selected order…</span>
+          )}
+          {summary.isError && selectedOrderId && (
+            <span role="alert" className="font-semibold text-danger-fg">Order manifest unavailable: {err(summary.error)}</span>
+          )}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            void Promise.all([
+              board.refetch(),
+              challans.refetch(),
+              ...(selectedOrderId ? [summary.refetch()] : []),
+            ]);
+          }}
+          disabled={board.isFetching || challans.isFetching || summary.isFetching}
+          aria-label="Refresh dispatch board, challans, and selected order"
+        >
+          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 motion-reduce:animate-none ${board.isFetching || challans.isFetching || summary.isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </section>
 
       <section className="sticky top-2 z-[1] rounded-[16px] border border-line bg-surface-1/95 p-2 shadow-sm backdrop-blur">
@@ -1247,7 +1309,9 @@ export default function DispatchBayPage() {
           {!selected ? (
             <div className="rounded-[18px] border border-dashed border-line-strong bg-surface-1 p-12 text-center">
               <Truck className="mx-auto h-10 w-10 text-content-4" />
-              <h2 className="mt-3 text-xl font-black">Select a ready order.</h2>
+              <h2 className="mt-3 text-xl font-black">
+                {summary.isFetching ? "Loading selected order…" : "Select a ready order."}
+              </h2>
               <p className="mt-2 text-sm font-semibold text-content-3">
                 Dispatch Bay only shows units explicitly released from Packing
                 Yard.
@@ -1482,7 +1546,15 @@ export default function DispatchBayPage() {
                     ))}
                   </div>
                 </div>
-                <div className="max-h-[calc(100dvh-285px)] overflow-auto">
+                <p className="mb-2 px-1 text-xs font-semibold text-content-3 md:hidden">
+                  Swipe table for layers, specs, weights and status →
+                </p>
+                <div
+                  className="max-h-[calc(100dvh-285px)] overflow-auto overscroll-contain focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Dispatch manifest table. Scroll horizontally to view all columns."
+                >
                   <table className="w-full min-w-[920px] table-fixed text-[12px]">
                     <colgroup>
                       <col className="w-[54px]" />
@@ -1507,11 +1579,11 @@ export default function DispatchBayPage() {
                         <tr
                           key={unit.id}
                           className={
-                            `transition-colors hover:bg-info-bg ${
+                            `transition-colors duration-150 hover:bg-info-bg ${
                               unit.selected
                                 ? unit.kind === "ROLL"
-                                  ? "bg-info-bg"
-                                  : "bg-success-bg"
+                                  ? "border-l-4 border-l-primary bg-info-bg"
+                                  : "border-l-4 border-l-success-fg bg-success-bg"
                                 : ""
                             }`
                           }
@@ -1536,7 +1608,7 @@ export default function DispatchBayPage() {
                                       setSelectedGonnies,
                                     )
                               }
-                              className={`flex h-7 w-7 items-center justify-center rounded-lg border font-mono text-[11px] font-black transition ${
+                              className={`flex h-8 w-8 items-center justify-center rounded-lg border font-mono text-[11px] font-black transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                                 unit.selected
                                   ? "border-primary bg-primary text-white"
                                   : "border-line bg-surface-1 text-content-3 hover:border-primary"
@@ -1605,7 +1677,7 @@ export default function DispatchBayPage() {
                             </div>
                             <div
                               title={unit.stackSpec}
-                              className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-3 text-content-3"
+                              className="mt-0.5 whitespace-normal break-words text-[11px] font-bold leading-4 text-content-3"
                             >
                               {unit.stackSpec !== "-"
                                 ? unit.stackSpec
@@ -1722,10 +1794,10 @@ export default function DispatchBayPage() {
           <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-content-1">
-                In-transit · {n(movingRows.length, 0)}
+                In-transit · {challans.data ? n(movingRows.length, 0) : "—"}
               </h3>
               <span className="font-mono text-[10px] font-bold text-content-4">
-                live GPS
+                Challan status
               </span>
             </div>
             <div className="mt-3 space-y-2">
@@ -1748,9 +1820,14 @@ export default function DispatchBayPage() {
                   </div>
                 </div>
               ))}
-              {!movingRows.length && (
+              {!movingRows.length && challans.data && (
                 <div className="text-sm font-semibold text-content-3">
                   No trips in transit.
+                </div>
+              )}
+              {!challans.data && (
+                <div className="text-sm font-semibold text-content-3">
+                  In-transit status unavailable.
                 </div>
               )}
             </div>
@@ -1759,7 +1836,7 @@ export default function DispatchBayPage() {
           <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-content-1">POD inbox</h3>
-              <Chip tone="green">{n(podPendingRows.length, 0)}</Chip>
+              <Chip tone="green">{challans.data ? n(podPendingRows.length, 0) : "—"}</Chip>
             </div>
             <div className="mt-3 space-y-2">
               {podPendingRows.slice(0, 2).map((row) => (
@@ -1785,9 +1862,14 @@ export default function DispatchBayPage() {
                   </Button>
                 </div>
               ))}
-              {!podPendingRows.length && (
+              {!podPendingRows.length && challans.data && (
                 <div className="rounded-[12px] border border-dashed border-line p-4 text-sm font-semibold text-content-3">
                   No pending POD. Delivered trips stay in dispatch history.
+                </div>
+              )}
+              {!challans.data && (
+                <div className="rounded-[12px] border border-dashed border-line p-4 text-sm font-semibold text-content-3">
+                  POD status unavailable.
                 </div>
               )}
             </div>
@@ -1795,12 +1877,15 @@ export default function DispatchBayPage() {
 
           <div className="rounded-[18px] border border-order-border bg-order-bg p-5 shadow-sm">
             <h3 className="text-base font-black text-content-1">
-              Today outbound
+              Dispatch snapshot
             </h3>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <MiniMetric label="Kg out" value={`${n(readyGross)} kg`} />
-              <MiniMetric label="Trips" value={n(todayDispatches, 0)} />
-              <MiniMetric label="Customers" value={n(cards.length, 0)} />
+              <MiniMetric label="Ready gross" value={board.data ? `${n(readyGross)} kg` : "—"} hint={board.data ? "available for dispatch" : boardUnavailableHint} />
+              <MiniMetric label="Trips dated today" value={challans.data ? n(todayDispatches, 0) : "—"} hint={challans.data ? "filtered history" : historyUnavailableHint} />
+              <MiniMetric
+                label="Ready orders"
+                value={board.data ? n(board.data.totals.orders, 0) : "—"}
+              />
               <MiniMetric label="Selected" value={n(selectedUnits, 0)} />
             </div>
           </div>

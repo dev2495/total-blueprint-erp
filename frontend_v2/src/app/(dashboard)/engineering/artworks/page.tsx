@@ -24,6 +24,7 @@ import {
   isPdfMediaUrl,
   type Artwork,
 } from "@/services/engineering";
+import { PdfArtworkPreview } from "@/components/engineering/pdf-artwork-preview";
 import { ArtworkDialog } from "@/components/engineering/artwork-dialog";
 
 function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
@@ -64,11 +65,7 @@ function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
   if (imageUrl && loadState === "ready") {
     if (isPdfMediaUrl(imageUrl)) {
       return (
-        <iframe
-          src={imageUrl}
-          title={`${artwork.name} PDF preview`}
-          className="h-full w-full bg-surface-1"
-        />
+        <PdfArtworkPreview url={imageUrl} title={`${artwork.name} PDF preview`} compact />
       );
     }
     return (

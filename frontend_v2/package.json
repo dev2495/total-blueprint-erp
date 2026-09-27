@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "./scripts/with-supported-node.sh env NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 next dev -H 0.0.0.0 -p 3000",
-    "build": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/check-user-facing-version-labels.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit && next build'",
+    "dev": "node scripts/prepare-pdfjs-assets.mjs && ./scripts/with-supported-node.sh env NEXT_DISABLE_CACHE=1 DISABLE_NEXT_WEBPACK_PERSISTENT_CACHE=1 next dev -H 0.0.0.0 -p 3000",
+    "build": "./scripts/with-supported-node.sh sh -c 'node scripts/prepare-pdfjs-assets.mjs && node scripts/check-theme-tokens.mjs && node scripts/check-user-facing-version-labels.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit && next build'",
     "start": "./scripts/with-supported-node.sh next start -H 0.0.0.0 -p 3000",
     "lint": "./scripts/with-supported-node.sh eslint src --ext .js,.jsx,.ts,.tsx",
     "typecheck": "./scripts/with-supported-node.sh sh -c 'node scripts/check-theme-tokens.mjs && node scripts/clean-next-types.mjs && next typegen && tsc --noEmit'",
@@ -23,10 +23,11 @@
     "e2e:ui:gate": "./scripts/with-supported-node.sh env UI_E2E_REPORT_SUFFIX=gate playwright test --project=gate",
     "e2e:ui:mutations": "./scripts/with-supported-node.sh env UI_E2E_REPORT_SUFFIX=mutations playwright test --project=mutations",
     "e2e:ui:observations": "./scripts/with-supported-node.sh env UI_E2E_REPORT_SUFFIX=observations playwright test --project=observations",
-    "theme:tokens": "node scripts/check-theme-tokens.mjs"
+    "theme:tokens": "node scripts/check-theme-tokens.mjs",
+    "test:roll-allocation": "node scripts/test-roll-allocation-filters.mjs"
   },
   "engines": {
-    "node": ">=18 <21"
+    "node": "^22.13.0 || >=24 <25"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -58,7 +59,8 @@
     "date-fns": "^4.1.0",
     "js-cookie": "3.0.8",
     "lucide-react": "^0.562.0",
-    "next": "15.5.23",
+    "next": "15.5.24",
+    "pdfjs-dist": "6.3.289",
     "react": "^18",
     "react-day-picker": "^9.13.2",
     "react-dom": "^18",
@@ -78,14 +80,15 @@
     "@types/react-dom": "^18",
     "autoprefixer": "^10",
     "eslint": "^8",
-    "eslint-config-next": "15.5.23",
+    "eslint-config-next": "15.5.24",
     "postcss": "8.5.23",
     "tailwindcss": "^3.4.1",
     "typescript": "5.9.3"
   },
   "overrides": {
     "postcss": "8.5.23",
-    "sharp": "0.35.0",
-    "nanoid": "3.3.17"
+    "sharp": "0.35.4",
+    "nanoid": "3.3.18",
+    "postcss-selector-parser": "6.1.3"
   }
 }

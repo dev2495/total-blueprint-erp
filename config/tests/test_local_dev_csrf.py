@@ -1,8 +1,9 @@
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from config.local_dev_csrf import LocalDevCsrfViewMiddleware
 
 
+@override_settings(ALLOWED_HOSTS=["192.168.0.133"])
 class LocalDevCsrfMiddlewareTests(SimpleTestCase):
     def setUp(self):
         self.factory = RequestFactory()

@@ -1,5 +1,6 @@
 "use client";
 
+import { PdfArtworkPreview } from "@/components/engineering/pdf-artwork-preview";
 import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -95,11 +96,7 @@ function ArtworkAssetPreview({
       );
     }
     return (
-      <iframe
-        src={url}
-        title={file?.name || "Artwork PDF preview"}
-        className="h-[300px] w-full rounded-xl bg-surface-1"
-      />
+      <PdfArtworkPreview url={url} title={file?.name || "Artwork PDF preview"} />
     );
   }
   return (
@@ -929,7 +926,7 @@ export function ArtworkDialog({
                         <div className="relative flex h-32 w-full cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-line-strong bg-surface-2 px-4 transition hover:border-primary focus:outline-none">
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept=".jpg,.jpeg,.png,.pdf"
                             multiple
                             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                             data-testid="artwork-image-input"

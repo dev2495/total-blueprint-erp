@@ -1,6 +1,14 @@
 "use client";
 
-import { type ElementType, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  type ElementType,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -60,10 +68,12 @@ import {
   formatMaybeNumber,
   hasMeaningfulData,
   hasTruthyValue,
+  toNullableNumber,
 } from "@/components/analytics/report-state";
 import { formatDisplayDateTime } from "@/lib/date-format";
 
 type FilterPreset = "daily" | "weekly" | "custom";
+const REPORT_DETAIL_PAGE_SIZE = 50;
 
 type ReportTabPageProps = {
   tab: string;
@@ -252,21 +262,27 @@ function formatMetricValue(key: string, value: unknown) {
   const normalized = key.toLowerCase();
   if (!hasTruthyValue(value) && value !== 0) return "—";
   if (
+    normalized.includes("pct") ||
+    normalized.includes("rate") ||
+    normalized.includes("yield") ||
+    normalized.includes("otif") ||
+    normalized.includes("accuracy") ||
+    normalized.includes("oee") ||
+    normalized.includes("availability") ||
+    normalized.includes("performance") ||
+    normalized.includes("quality") ||
+    normalized.includes("coverage")
+  ) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? `${numeric.toFixed(1)}%` : String(value);
+  }
+  if (
     normalized.includes("revenue") ||
     normalized.includes("value") ||
     normalized.includes("cost") ||
     normalized.includes("margin")
   ) {
     return formatMaybeCurrency(value);
-  }
-  if (
-    normalized.includes("pct") ||
-    normalized.includes("rate") ||
-    normalized.includes("yield") ||
-    normalized.includes("otif")
-  ) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? `${numeric.toFixed(1)}%` : String(value);
   }
   if (normalized.includes("kg")) {
     const numeric = Number(value);
@@ -279,6 +295,50 @@ function formatMetricValue(key: string, value: unknown) {
     : String(value);
 }
 
+function hasPositiveMetric(summary: Record<string, any>, key: string) {
+  const value = Number(summary[key]);
+  return Number.isFinite(value) && value > 0;
+}
+
+function formatScopedMetricValue(
+  key: string,
+  value: unknown,
+  summary: Record<string, any>,
+) {
+  const normalized = key.toLowerCase();
+  const cohortAvailable =
+    (normalized === "planning_accuracy_pct" ||
+      normalized === "issue_accuracy_pct")
+      ? hasPositiveMetric(summary, "total_materials")
+      : normalized === "scrap_rate" || normalized === "yield_pct"
+        ? hasPositiveMetric(summary, "total_processed_kg") ||
+          hasPositiveMetric(summary, "total_output_kg") ||
+          hasPositiveMetric(summary, "processed_kg") ||
+          hasPositiveMetric(summary, "output_kg") ||
+          hasPositiveMetric(summary, "produced_qty_kg")
+        : normalized === "completion_rate" ||
+            normalized === "output_trend_pct"
+          ? hasPositiveMetric(summary, "total_jobs")
+          : normalized === "avg_oee" ||
+              normalized === "global_availability" ||
+              normalized === "global_performance" ||
+              normalized === "global_quality"
+            ? hasPositiveMetric(summary, "total_machines") ||
+              hasPositiveMetric(summary, "active_machines") ||
+              hasPositiveMetric(summary, "total_jobs")
+            : normalized === "otif_rate"
+              ? hasPositiveMetric(summary, "total_orders")
+              : normalized === "avg_margin_pct" ||
+                  normalized === "avg_actual_cost_coverage_pct"
+                ? hasPositiveMetric(summary, "total_jobs_costed")
+                : normalized.includes("coverage")
+                  ? hasPositiveMetric(summary, "total_jobs") ||
+                    hasPositiveMetric(summary, "total_materials")
+                : true;
+
+  return cohortAvailable ? formatMetricValue(key, value) : "N/A";
+}
+
 function inferTableColumns(rows: Array<Record<string, any>>) {
   const excluded = new Set(["id", "fill", "color"]);
   const ordered: string[] = [];
@@ -288,13 +348,24 @@ function inferTableColumns(rows: Array<Record<string, any>>) {
       if (!ordered.includes(key)) ordered.push(key);
     }
   }
-  return ordered.slice(0, 7);
+  return ordered;
 }
 
-function formatTableValue(key: string, value: unknown) {
+function formatTableValue(
+  key: string,
+  value: unknown,
+  source: Record<string, any> = {},
+) {
   if (!hasTruthyValue(value) && value !== 0) return "—";
   if (typeof value === "number") {
-    return formatMetricValue(key, value);
+    return formatScopedMetricValue(key, value, source);
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   }
   return String(value);
 }
@@ -365,13 +436,18 @@ function scrapSignalTone(label: string) {
   return "border-line bg-surface-2 text-content-2";
 }
 
-export function ReportTabPage({
+function ReportTabPageContent({
   tab,
   title,
   description,
   accent = "indigo",
 }: ReportTabPageProps) {
   const accentStyle = ACCENT_STYLES[accent];
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const initialDateFrom = searchParams?.get("date_from") || "";
+  const initialDateTo = searchParams?.get("date_to") || "";
   const isScrapTab = tab === "scrap";
   const isOeeTab = tab === "oee";
   const isMaterialVarianceTab = tab === "material-variance";
@@ -409,15 +485,30 @@ export function ReportTabPage({
     "inventory-lineage",
   ].includes(tab);
   const [preset, setPreset] = useState<FilterPreset>(
-    prefersWideDefaultWindow ? "custom" : "weekly",
+    initialDateFrom || initialDateTo || prefersWideDefaultWindow
+      ? "custom"
+      : "weekly",
   );
   const [dateFrom, setDateFrom] = useState(
-    prefersWideDefaultWindow ? todayIso(-30) : todayIso(-6),
+    initialDateFrom || (prefersWideDefaultWindow ? todayIso(-30) : todayIso(-6)),
   );
-  const [dateTo, setDateTo] = useState(todayIso(0));
-  const [plant, setPlant] = useState("ALL");
-  const [processId, setProcessId] = useState("ALL");
-  const [shift, setShift] = useState("ALL");
+  const [dateTo, setDateTo] = useState(initialDateTo || todayIso(0));
+  const [plant, setPlant] = useState(searchParams?.get("plant") || "ALL");
+  const [processId, setProcessId] = useState(searchParams?.get("process") || "ALL");
+  const [shift, setShift] = useState(searchParams?.get("shift") || "ALL");
+  const [detailsPage, setDetailsPage] = useState(1);
+
+  useEffect(() => {
+    if (!pathname) return;
+    const params = new URLSearchParams();
+    if (plant !== "ALL") params.set("plant", plant);
+    if (processId !== "ALL") params.set("process", processId);
+    if (shift !== "ALL") params.set("shift", shift);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [dateFrom, dateTo, pathname, plant, processId, router, shift]);
 
   useEffect(() => {
     if (preset === "daily") {
@@ -441,27 +532,26 @@ export function ReportTabPage({
   );
 
   const plantsQuery = useQuery({
-    queryKey: ["report-tab-plants"],
+    queryKey: ["analytics-reports-plants"],
     queryFn: factoryService.getPlants,
     staleTime: 300_000,
   });
   const processesQuery = useQuery({
-    queryKey: ["report-tab-processes"],
+    queryKey: ["analytics-reports-processes"],
     queryFn: factoryService.getProcesses,
     staleTime: 300_000,
   });
   const shiftsQuery = useQuery({
-    queryKey: ["report-tab-shifts", plant],
+    queryKey: ["analytics-reports-shifts", plant],
     queryFn: () =>
       factoryService.getShifts(plant !== "ALL" ? plant : undefined),
     staleTime: 120_000,
   });
   const reportQuery = useQuery({
-    queryKey: ["report-tab-rich", tab, filters],
+    queryKey: ["analytics-report-tab", tab, filters],
     queryFn: () => analyticsApi.getReportTab(tab, filters),
     refetchInterval: 120_000,
-    staleTime: 30_000,
-    placeholderData: (previous) => previous,
+    staleTime: 300_000,
   });
 
   const payload =
@@ -494,6 +584,20 @@ export function ReportTabPage({
     () => normalizeChartRows(seriesSource),
     [seriesSource],
   );
+  const chartHasNonzeroMeasure = useMemo(
+    () =>
+      chartSeries.rows.some((row) =>
+        [chartSeries.primaryKey, chartSeries.secondaryKey]
+          .filter(Boolean)
+          .some((key) => {
+            const value = toNullableNumber(
+              (row as Record<string, any>)[key],
+            );
+            return value !== null && value !== 0;
+          }),
+      ),
+    [chartSeries],
+  );
   const breakdownGroups = useMemo(
     () => normalizeBreakdownGroups(payload as ReportTabResponse),
     [payload],
@@ -501,14 +605,68 @@ export function ReportTabPage({
   const firstBreakdown = breakdownGroups[0];
   const secondBreakdown = breakdownGroups[1];
   const visibleBreakdowns = breakdownGroups.slice(0, 6);
-  const tableRows = useMemo(() => {
-    if (Array.isArray(payload.rows) && payload.rows.length) {
+  const breakdownPointCount = breakdownGroups.reduce(
+    (count, group) => count + group.rows.length,
+    0,
+  );
+  const apiRecordRows = useMemo(() => {
+    if (Array.isArray(payload.rows)) {
       return payload.rows.filter(
         (row): row is Record<string, any> => !!row && typeof row === "object",
       );
     }
+    return [];
+  }, [payload.rows]);
+  const mrpHasSourceCohort =
+    apiRecordRows.length > 0 ||
+    [
+      "total_materials",
+      "total_jobs",
+      "total_theoretical_kg",
+      "theoretical_kg",
+      "total_issued_kg",
+      "actual_issued_kg",
+      "total_consumed_kg",
+      "consumed_kg",
+    ].some((key) => hasPositiveMetric(normalizedSummary, key));
+  const materialVarianceHasSourceCohort =
+    apiRecordRows.length > 0 ||
+    [
+      "total_materials",
+      "total_theoretical_kg",
+      "theoretical_kg",
+      "required_kg",
+      "planned_issue_kg",
+      "total_issued_kg",
+      "actual_issued_kg",
+      "total_consumed_kg",
+      "consumed_kg",
+      "returned_kg",
+      "scrap_kg",
+    ].some((key) => hasPositiveMetric(normalizedSummary, key));
+  const materialVarianceCohortAvailable = isMaterialVarianceTab
+    ? materialVarianceHasSourceCohort
+    : mrpHasSourceCohort;
+  const tableRows = useMemo(() => {
+    if (apiRecordRows.length) return apiRecordRows;
     return firstBreakdown?.rows || [];
-  }, [payload.rows, firstBreakdown]);
+  }, [apiRecordRows, firstBreakdown]);
+  const detailPageCount = Math.max(
+    1,
+    Math.ceil(tableRows.length / REPORT_DETAIL_PAGE_SIZE),
+  );
+  const visibleTableRows = useMemo(
+    () =>
+      tableRows.slice(
+        (detailsPage - 1) * REPORT_DETAIL_PAGE_SIZE,
+        detailsPage * REPORT_DETAIL_PAGE_SIZE,
+      ),
+    [detailsPage, tableRows],
+  );
+  useEffect(() => setDetailsPage(1), [tab, filters]);
+  useEffect(() => {
+    setDetailsPage((page) => Math.min(page, detailPageCount));
+  }, [detailPageCount]);
   const tableColumns = useMemo(() => inferTableColumns(tableRows), [tableRows]);
   const reportHasVisibleEvidence = hasReportEvidence([
     normalizedSummary,
@@ -521,7 +679,7 @@ export function ReportTabPage({
     !reportPending &&
     (!reportHasVisibleEvidence || Boolean((payload as any)?.degraded));
   const degradedMessage = suppressGenericSharedShell
-    ? "The current filter window returned limited report evidence. Expand the date range, plant, or process filters to surface more live activity."
+    ? "The current filter window returned limited report evidence. Expand the date range, plant, or process filters to include more report activity."
     : isMrpTab || isInkTab
       ? "The current filter window returned limited material evidence. Expand the date range or run jobs with issue and return actuals to widen the view."
       : "The current filter window returned limited operating evidence. Change the date lens or process filters to widen the view.";
@@ -557,7 +715,7 @@ export function ReportTabPage({
     return [
       {
         label: "Average OEE",
-        value: formatMetricValue("avg_oee", normalizedSummary.avg_oee),
+        value: formatScopedMetricValue("avg_oee", normalizedSummary.avg_oee, normalizedSummary),
         hint: "Availability x performance x quality",
       },
       {
@@ -665,48 +823,69 @@ export function ReportTabPage({
     return [
       {
         label: "Net variance",
-        value: formatMetricValue("variance_kg", normalizedSummary.variance_kg),
+        value: isMaterialVarianceTab && reportPending
+          ? "—"
+          : isMaterialVarianceTab && !materialVarianceHasSourceCohort
+            ? "N/A"
+            : formatMetricValue("variance_kg", normalizedSummary.variance_kg),
         hint: "Consumed minus theoretical need",
         tone: "border-danger-border bg-danger-bg text-danger-fg",
       },
       {
         label: "Returned",
-        value: formatMetricValue("returned_kg", normalizedSummary.returned_kg),
+        value: isMaterialVarianceTab && reportPending
+          ? "—"
+          : isMaterialVarianceTab && !materialVarianceHasSourceCohort
+            ? "N/A"
+            : formatMetricValue("returned_kg", normalizedSummary.returned_kg),
         hint: "Material booked back to stock",
         tone: "border-line bg-surface-2 text-content-2",
       },
       {
         label: "Scrap",
-        value: formatMetricValue("scrap_kg", normalizedSummary.scrap_kg),
+        value: isMaterialVarianceTab && reportPending
+          ? "—"
+          : isMaterialVarianceTab && !materialVarianceHasSourceCohort
+            ? "N/A"
+            : formatMetricValue("scrap_kg", normalizedSummary.scrap_kg),
         hint: "Material lost in execution",
         tone: "border-warning-border bg-warning-bg text-warning-fg",
       },
       {
         label: "Planning accuracy",
-        value: formatMetricValue(
+        value: formatScopedMetricValue(
           "planning_accuracy_pct",
           normalizedSummary.planning_accuracy_pct,
+          normalizedSummary,
         ),
         hint: "Theory versus actual consumption",
         tone: "border-success-border bg-success-bg text-success-fg",
       },
       {
         label: "Issue accuracy",
-        value: formatMetricValue(
+        value: formatScopedMetricValue(
           "issue_accuracy_pct",
           normalizedSummary.issue_accuracy_pct,
+          normalizedSummary,
         ),
         hint: "Planned issue versus actual issue",
         tone: "border-info-border bg-info-bg text-info-fg",
       },
       {
         label: "Material coverage",
-        value: `${formatMaybeNumber(payload.coverage?.material_actual_coverage, 0)}%`,
+        value: reportPending
+          ? "—"
+          : materialVarianceCohortAvailable
+            ? formatMetricValue(
+                "material_actual_coverage",
+                payload.coverage?.material_actual_coverage,
+              )
+            : "N/A",
         hint: "Actual material logging coverage",
         tone: "border-info-border bg-info-bg text-primary",
       },
     ];
-  }, [isMrpTab, normalizedSummary, payload.coverage]);
+  }, [isMrpTab, isMaterialVarianceTab, materialVarianceHasSourceCohort, mrpHasSourceCohort, normalizedSummary, payload.coverage, reportPending]);
   const interplantRows = useMemo(
     () =>
       isInterplantTab
@@ -951,7 +1130,7 @@ export function ReportTabPage({
       },
       {
         label: "Yield",
-        value: formatMetricValue("yield_pct", normalizedSummary.yield_pct),
+        value: formatScopedMetricValue("yield_pct", normalizedSummary.yield_pct, normalizedSummary),
         hint: `${formatMetricValue("total_scrap_kg", normalizedSummary.total_scrap_kg)} scrap booked`,
         tone: "border-success-border bg-success-bg text-success-fg",
       },
@@ -1455,6 +1634,18 @@ export function ReportTabPage({
   }, [isInkTab, normalizedSummary, payload.breakdowns, payload.rows]);
   const inkKpis = useMemo(() => {
     if (!isInkTab) return [];
+    const hasInkEvidence =
+      asRecordRows(payload.rows).length > 0 ||
+      [
+        "ink_theoretical_kg",
+        "ink_planned_issue_kg",
+        "ink_actual_issued_kg",
+        "ink_returned_kg",
+        "ink_consumed_kg",
+        "ink_variance_kg",
+      ].some((key) => Math.abs(toNumber(normalizedSummary[key])) > 0);
+    const inkValue = (key: string) =>
+      hasInkEvidence ? formatMetricValue("kg", normalizedSummary[key]) : "N/A";
     return [
       {
         label: "Color families",
@@ -1464,42 +1655,42 @@ export function ReportTabPage({
       },
       {
         label: "Theoretical",
-        value: formatMetricValue("kg", normalizedSummary.ink_theoretical_kg),
+        value: inkValue("ink_theoretical_kg"),
         hint: "Artwork-driven ink requirement",
         tone: "border-info-border bg-info-bg text-primary",
       },
       {
         label: "Planned issue",
-        value: formatMetricValue("kg", normalizedSummary.ink_planned_issue_kg),
+        value: inkValue("ink_planned_issue_kg"),
         hint: "Planner-issued ink expectation",
         tone: "border-info-border bg-info-bg text-info-fg",
       },
       {
         label: "Actual issued",
-        value: formatMetricValue("kg", normalizedSummary.ink_actual_issued_kg),
+        value: inkValue("ink_actual_issued_kg"),
         hint: "What the machine actually drew",
         tone: "border-warning-border bg-warning-bg text-warning-fg",
       },
       {
         label: "Returned",
-        value: formatMetricValue("kg", normalizedSummary.ink_returned_kg),
+        value: inkValue("ink_returned_kg"),
         hint: "Ink booked back after run close",
         tone: "border-success-border bg-success-bg text-success-fg",
       },
       {
         label: "Consumed",
-        value: formatMetricValue("kg", normalizedSummary.ink_consumed_kg),
+        value: inkValue("ink_consumed_kg"),
         hint: "Net ink absorbed by the job",
         tone: "border-info-border bg-info-bg text-primary",
       },
       {
         label: "Net variance",
-        value: formatMetricValue("kg", normalizedSummary.ink_variance_kg),
+        value: inkValue("ink_variance_kg"),
         hint: "Consumed minus theoretical expectation",
         tone: "border-danger-border bg-danger-bg text-danger-fg",
       },
     ];
-  }, [isInkTab, normalizedSummary]);
+  }, [isInkTab, normalizedSummary, payload.rows]);
   const scrapBreakdowns = useMemo(() => {
     const raw = payload.breakdowns || {};
     return {
@@ -1527,7 +1718,7 @@ export function ReportTabPage({
   }, [payload.breakdowns]);
   const scrapKpis = useMemo(() => {
     if (!isScrapTab) return [];
-    const summary = payload.summary || {};
+    const summary = normalizedSummary;
     return [
       {
         key: "total_scrap_kg",
@@ -1549,14 +1740,14 @@ export function ReportTabPage({
       {
         key: "yield_pct",
         label: "Yield",
-        value: formatMetricValue("yield_pct", summary.yield_pct),
+        value: formatScopedMetricValue("yield_pct", summary.yield_pct, summary),
         tone: "border-success-border bg-success-bg text-success-fg",
         icon: Activity,
       },
       {
         key: "scrap_rate",
         label: "Scrap rate",
-        value: formatMetricValue("scrap_rate", summary.scrap_rate),
+        value: formatScopedMetricValue("scrap_rate", summary.scrap_rate, summary),
         tone: "border-warning-border bg-warning-bg text-warning-fg",
         icon: AlertTriangle,
       },
@@ -1592,14 +1783,14 @@ export function ReportTabPage({
         icon: BarChart3,
       },
     ];
-  }, [isScrapTab, payload.summary]);
+  }, [isScrapTab, normalizedSummary]);
   const scrapBenchmarks = useMemo(
     () => ((payload as any)?.benchmarks || {}) as Record<string, any>,
     [payload],
   );
   const scrapSignalCards = useMemo(() => {
     if (!isScrapTab) return [];
-    const summary = payload.summary || {};
+    const summary = normalizedSummary;
     return [
       {
         label: "Top reason",
@@ -1617,15 +1808,15 @@ export function ReportTabPage({
           "target_scrap_rate",
           scrapBenchmarks.target_scrap_rate,
         ),
-        hint: `Live rate ${formatMetricValue("scrap_rate", summary.scrap_rate)}`,
+        hint: `Current rate ${formatScopedMetricValue("scrap_rate", summary.scrap_rate, summary)}`,
       },
       {
         label: "Target yield",
         value: formatMetricValue("target_yield", scrapBenchmarks.target_yield),
-        hint: `Live yield ${formatMetricValue("yield_pct", summary.yield_pct)}`,
+        hint: `Current yield ${formatScopedMetricValue("yield_pct", summary.yield_pct, summary)}`,
       },
     ];
-  }, [isScrapTab, payload.summary, scrapBenchmarks]);
+  }, [isScrapTab, normalizedSummary, scrapBenchmarks]);
   const scrapMassBalance = useMemo(() => {
     if (!isScrapTab) return [];
     const summary = payload.summary || {};
@@ -1727,11 +1918,37 @@ export function ReportTabPage({
                   : "—"}
               </Badge>
               <Badge className="rounded-full border border-surface-1/15 bg-surface-1/10 text-white">
-                Rows {tableRows.length}
+                {reportPending
+                  ? "Loading records"
+                  : reportQuery.isError
+                    ? "Records unavailable"
+                    : `Records ${apiRecordRows.length}`}
               </Badge>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="border-surface-1/20 bg-surface-1/10 text-white hover:bg-surface-1/15 hover:text-white"
+            >
+              <Link
+                href={{
+                  pathname: "/analytics/reports",
+                  query: {
+                    tab,
+                    ...(plant !== "ALL" ? { plant } : {}),
+                    ...(processId !== "ALL" ? { process: processId } : {}),
+                    ...(shift !== "ALL" ? { shift } : {}),
+                    ...(dateFrom ? { date_from: dateFrom } : {}),
+                    ...(dateTo ? { date_to: dateTo } : {}),
+                  },
+                }}
+              >
+                <Rows3 className="mr-2 h-4 w-4" />
+                Back to Reports
+              </Link>
+            </Button>
             <Button
               variant="outline"
               className="border-surface-1/20 bg-surface-1/10 text-white hover:bg-surface-1/15 hover:text-white"
@@ -1869,13 +2086,17 @@ export function ReportTabPage({
                 </div>
                 <div className="text-sm font-semibold text-content-1">
                   {suppressGenericSharedShell
-                    ? `Rows ${tableRows.length} · Splits ${breakdownGroups.length}`
-                    : `Exec ${formatMaybeNumber(payload.coverage?.execution_log_coverage, 0)}% · Material ${formatMaybeNumber(payload.coverage?.material_actual_coverage, 0)}%`}
+                    ? reportPending
+                      ? "Loading report scope…"
+                      : reportQuery.isError
+                        ? "Report scope unavailable"
+                        : `Records ${apiRecordRows.length} · Breakdown points ${breakdownPointCount}`
+                    : `Exec ${formatScopedMetricValue("execution_log_coverage", payload.coverage?.execution_log_coverage, normalizedSummary)} · Material ${formatScopedMetricValue("material_actual_coverage", payload.coverage?.material_actual_coverage, normalizedSummary)}`}
                 </div>
                 <div className="text-xs text-content-3">
                   {suppressGenericSharedShell
                     ? "Telemetry is not the gating source for this report."
-                    : `Shift ${formatMaybeNumber(payload.coverage?.shift_coverage, 0)}%`}
+                    : `Shift ${formatScopedMetricValue("shift_coverage", payload.coverage?.shift_coverage, normalizedSummary)}`}
                 </div>
               </CardContent>
             </Card>
@@ -1893,6 +2114,14 @@ export function ReportTabPage({
         />
       ) : null}
 
+      {reportPending ? (
+        <ReportStateBanner
+          title="Loading report"
+          message="Fetching results for the selected report and filters."
+          tone="info"
+        />
+      ) : null}
+
       {!reportPending && visibleWarnings.length ? (
         <ReportStateBanner
           title="Report needs attention"
@@ -1905,7 +2134,7 @@ export function ReportTabPage({
 
       {degraded ? (
         <ReportStateBanner
-          title="Report is live but thin"
+          title="Report evidence is limited"
           message={degradedMessage}
           tone="info"
         />
@@ -2043,7 +2272,7 @@ export function ReportTabPage({
                           Yield
                         </div>
                         <div className="mt-1 font-semibold text-content-1">
-                          {formatMetricValue("yield_pct", row.yield_pct)}
+                          {formatScopedMetricValue("yield_pct", row.yield_pct, row)}
                         </div>
                       </div>
                       <div className="rounded-xl bg-surface-1 px-3 py-2">
@@ -2158,7 +2387,7 @@ export function ReportTabPage({
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="h-[360px] min-w-0">
-                  {mrpFlowRows.some((row) => row.value > 0) ? (
+                  {mrpFlowRows.some((row) => row.value !== 0) ? (
                     <ResponsiveContainer width="100%" height={360}>
                       <BarChart
                         data={mrpFlowRows}
@@ -2194,7 +2423,7 @@ export function ReportTabPage({
                     </ResponsiveContainer>
                   ) : reportPending ? (
                     <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-line bg-surface-2 text-sm font-semibold text-content-3">
-                      Loading live material movement…
+                      Loading material movement…
                     </div>
                   ) : (
                     <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-line bg-surface-2 text-sm font-semibold text-content-3">
@@ -2208,11 +2437,15 @@ export function ReportTabPage({
                       Theory to required
                     </div>
                     <div className="mt-2 text-lg font-black text-content-1">
-                      {formatMetricValue(
-                        "kg",
-                        toNumber(normalizedSummary.required_kg) -
-                          toNumber(normalizedSummary.theoretical_kg),
-                      )}
+                      {isMaterialVarianceTab && reportPending
+                        ? "—"
+                        : isMaterialVarianceTab && !materialVarianceHasSourceCohort
+                          ? "N/A"
+                          : formatMetricValue(
+                              "kg",
+                              toNumber(normalizedSummary.required_kg) -
+                                toNumber(normalizedSummary.theoretical_kg),
+                            )}
                     </div>
                   </div>
                   <div className="rounded-[1.15rem] border border-line bg-surface-2 px-4 py-3">
@@ -2220,11 +2453,15 @@ export function ReportTabPage({
                       Issue delta
                     </div>
                     <div className="mt-2 text-lg font-black text-content-1">
-                      {formatMetricValue(
-                        "kg",
-                        toNumber(normalizedSummary.actual_issued_kg) -
-                          toNumber(normalizedSummary.planned_issue_kg),
-                      )}
+                      {isMaterialVarianceTab && reportPending
+                        ? "—"
+                        : isMaterialVarianceTab && !materialVarianceHasSourceCohort
+                          ? "N/A"
+                          : formatMetricValue(
+                              "kg",
+                              toNumber(normalizedSummary.actual_issued_kg) -
+                                toNumber(normalizedSummary.planned_issue_kg),
+                            )}
                     </div>
                   </div>
                   <div className="rounded-[1.15rem] border border-line bg-surface-2 px-4 py-3">
@@ -2232,11 +2469,15 @@ export function ReportTabPage({
                       Consumption delta
                     </div>
                     <div className="mt-2 text-lg font-black text-content-1">
-                      {formatMetricValue(
-                        "kg",
-                        toNumber(normalizedSummary.consumed_kg) -
-                          toNumber(normalizedSummary.actual_issued_kg),
-                      )}
+                      {isMaterialVarianceTab && reportPending
+                        ? "—"
+                        : isMaterialVarianceTab && !materialVarianceHasSourceCohort
+                          ? "N/A"
+                          : formatMetricValue(
+                              "kg",
+                              toNumber(normalizedSummary.consumed_kg) -
+                                toNumber(normalizedSummary.actual_issued_kg),
+                            )}
                     </div>
                   </div>
                 </div>
@@ -2291,7 +2532,12 @@ export function ReportTabPage({
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="h-[360px] min-w-0">
-                  {mrpBreakdowns.byMaterial.length ? (
+                  {mrpBreakdowns.byMaterial.some((row) =>
+                    [row.consumed, row.variance].some((value) => {
+                      const numeric = toNullableNumber(value);
+                      return numeric !== null && numeric !== 0;
+                    }),
+                  ) ? (
                     <ResponsiveContainer width="100%" height={360}>
                       <BarChart
                         data={mrpBreakdowns.byMaterial.slice(0, 8)}
@@ -2346,7 +2592,9 @@ export function ReportTabPage({
                     </div>
                   ) : (
                     <div className="flex h-full items-center justify-center rounded-[1.35rem] border border-dashed border-line bg-surface-2 text-sm font-semibold text-content-3">
-                      No material rows returned for this filter window.
+                      {materialVarianceCohortAvailable
+                        ? "No non-zero material pressure values are available for this filter window."
+                        : "No material cohort is available for this filter window."}
                     </div>
                   )}
                 </div>
@@ -2366,7 +2614,10 @@ export function ReportTabPage({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 pt-4">
-                {mrpBreakdowns.waterfall.length ? (
+                {mrpBreakdowns.waterfall.some((row) => {
+                  const numeric = toNullableNumber(row.value);
+                  return numeric !== null && numeric !== 0;
+                }) ? (
                   mrpBreakdowns.waterfall.map((row, index) => (
                     <div
                       key={`${row.name || index}`}
@@ -2402,7 +2653,9 @@ export function ReportTabPage({
                   </div>
                 ) : (
                   <div className="rounded-[1.35rem] border border-dashed border-line bg-surface-2 px-4 py-10 text-center text-sm font-semibold text-content-3">
-                    No variance cascade is available for this filter window.
+                    {materialVarianceCohortAvailable
+                      ? "No non-zero variance steps are available for this filter window."
+                      : "No material cohort is available for this filter window."}
                   </div>
                 )}
               </CardContent>
@@ -2447,7 +2700,7 @@ export function ReportTabPage({
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="h-[360px] min-w-0">
-                  {chartSeries.rows.length && chartSeries.primaryKey ? (
+                  {chartHasNonzeroMeasure && chartSeries.primaryKey ? (
                     <ResponsiveContainer width="100%" height={360}>
                       <AreaChart data={chartSeries.rows}>
                         <defs>
@@ -3024,7 +3277,7 @@ export function ReportTabPage({
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="h-[360px] min-w-0">
-                  {chartSeries.rows.length ? (
+                  {chartHasNonzeroMeasure ? (
                     <ResponsiveContainer width="100%" height={360}>
                       <AreaChart data={chartSeries.rows}>
                         <defs>
@@ -4529,7 +4782,7 @@ export function ReportTabPage({
                           {String(row.name || "Cost")}
                         </div>
                         <div className="text-xs text-content-3">
-                          Share of live costing stack
+                          Share of current costing stack
                         </div>
                       </div>
                       <Badge className="rounded-full border border-info-border bg-info-bg text-primary">
@@ -4876,7 +5129,7 @@ export function ReportTabPage({
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="h-[320px] min-w-0">
-                  {inkAnalytics.flow.some((row) => row.value > 0) ? (
+                  {inkAnalytics.flow.some((row) => row.value !== 0) ? (
                     <ResponsiveContainer width="100%" height={320}>
                       <BarChart
                         data={inkAnalytics.flow}
@@ -5061,7 +5314,7 @@ export function ReportTabPage({
                   {toLabel(key)}
                 </div>
                 <div className="mt-3 text-2xl font-black tracking-[-0.04em] text-content-1">
-                  {formatMetricValue(key, value)}
+                  {formatScopedMetricValue(key, value, normalizedSummary)}
                 </div>
               </CardContent>
             </Card>
@@ -5139,7 +5392,7 @@ export function ReportTabPage({
             </CardHeader>
             <CardContent className="pt-4">
               <div className="h-[360px] min-w-0">
-                {chartSeries.rows.length && chartSeries.primaryKey ? (
+                {chartHasNonzeroMeasure && chartSeries.primaryKey ? (
                   <ResponsiveContainer width="100%" height={360}>
                     <AreaChart data={chartSeries.rows}>
                       <defs>
@@ -5302,20 +5555,28 @@ export function ReportTabPage({
                   {isOeeTab
                     ? `${formatMetricValue("scrap_kg", normalizedSummary.scrap_kg)} scrap against ${formatMetricValue("output_kg", normalizedSummary.output_kg)} output in the current filter window.`
                     : secondBreakdown?.rows?.length
-                      ? `${secondBreakdown.rows.length} visible records support the secondary split.`
-                      : `Execution ${formatMaybeNumber(payload.coverage?.execution_log_coverage, 0)}% · Material ${formatMaybeNumber(payload.coverage?.material_actual_coverage, 0)}% · Shift ${formatMaybeNumber(payload.coverage?.shift_coverage, 0)}%`}
+                      ? `${secondBreakdown.rows.length} breakdown points support the secondary split.`
+                      : `Execution ${formatScopedMetricValue("execution_log_coverage", payload.coverage?.execution_log_coverage, normalizedSummary)} · Material ${formatScopedMetricValue("material_actual_coverage", payload.coverage?.material_actual_coverage, normalizedSummary)} · Shift ${formatScopedMetricValue("shift_coverage", payload.coverage?.shift_coverage, normalizedSummary)}`}
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <StatInset
                   icon={Factory}
-                  label="Visible rows"
-                  value={String(tableRows.length)}
+                  label="API records"
+                  value={reportPending
+                    ? "Loading"
+                    : reportQuery.isError
+                      ? "Unavailable"
+                      : String(apiRecordRows.length)}
                 />
                 <StatInset
                   icon={Package}
-                  label="Breakdown groups"
-                  value={String(breakdownGroups.length)}
+                  label="Breakdown points"
+                  value={reportPending
+                    ? "Loading"
+                    : reportQuery.isError
+                      ? "Unavailable"
+                      : String(breakdownPointCount)}
                 />
                 <StatInset
                   icon={Activity}
@@ -5450,7 +5711,7 @@ export function ReportTabPage({
                                 key={`${group.key}-${index}-${column}`}
                                 className="px-3 py-2 text-content-2"
                               >
-                                {formatTableValue(column, row[column])}
+                                {formatTableValue(column, row[column], row)}
                               </td>
                             ))}
                           </tr>
@@ -5469,12 +5730,42 @@ export function ReportTabPage({
         <Card className="overflow-hidden rounded-[1.85rem] border-line shadow-sm">
           <CardHeader className="pb-0">
             <CardTitle className="text-xl font-black text-content-1">
-              Detailed Rows
+              {apiRecordRows.length ? "Detailed Records" : "Breakdown Point Details"}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-4">
             {tableRows.length ? (
-              <div className="max-h-[680px] overflow-auto rounded-[1.2rem] border border-line">
+              <>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs font-medium text-content-3" aria-live="polite">
+                    Showing {(detailsPage - 1) * REPORT_DETAIL_PAGE_SIZE + 1}–
+                    {Math.min(detailsPage * REPORT_DETAIL_PAGE_SIZE, tableRows.length)} of {tableRows.length} {apiRecordRows.length ? "API records" : "breakdown points"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDetailsPage((page) => Math.max(1, page - 1))}
+                      disabled={detailsPage <= 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="min-w-20 text-center text-xs text-content-3">
+                      Page {detailsPage} of {detailPageCount}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDetailsPage((page) => Math.min(detailPageCount, page + 1))}
+                      disabled={detailsPage >= detailPageCount}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+                <div className="max-h-[680px] overflow-auto rounded-[1.2rem] border border-line">
                 <table className="min-w-full text-sm">
                   <thead className="sticky top-0 bg-surface-2">
                     <tr>
@@ -5489,30 +5780,45 @@ export function ReportTabPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {tableRows.slice(0, 60).map((row, index) => (
+                    {visibleTableRows.map((row, index) => (
                       <tr
                         key={`${labelFromRow(row, index)}-${index}`}
                         className="border-b border-line last:border-b-0 hover:bg-surface-2"
                       >
                         {tableColumns.map((column) => (
-                          <td key={column} className="px-4 py-3 text-content-2">
-                            {formatTableValue(column, row[column])}
+                          <td key={column} className="max-w-[32rem] whitespace-normal break-words px-4 py-3 text-content-2">
+                            {formatTableValue(column, row[column], row)}
                           </td>
                         ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            ) : (
+                </div>
+              </>
+            ) : !reportPending && !reportQuery.isError ? (
               <div className="rounded-[1.35rem] border border-dashed border-line bg-surface-2 px-4 py-10 text-center text-sm font-semibold text-content-3">
                 No detailed rows are available for the current filter window.
               </div>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
     </div>
+  );
+}
+
+export function ReportTabPage(props: ReportTabPageProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-2xl border border-line bg-surface-1 p-6 text-sm text-content-3" role="status">
+          Loading report…
+        </div>
+      }
+    >
+      <ReportTabPageContent {...props} />
+    </Suspense>
   );
 }
 

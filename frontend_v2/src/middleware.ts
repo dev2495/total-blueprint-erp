@@ -42,6 +42,8 @@ function applySecurityHeaders(response: NextResponse, contentSecurityPolicy: str
 }
 
 export function middleware(request: NextRequest) {
+  // The authenticated media handler supplies a sandboxed, same-origin preview policy.
+  if (request.nextUrl.pathname.startsWith("/media/artworks/")) return NextResponse.next();
   const nonce = btoa(crypto.randomUUID());
   const contentSecurityPolicy = buildContentSecurityPolicy(nonce);
   const requestHeaders = new Headers(request.headers);

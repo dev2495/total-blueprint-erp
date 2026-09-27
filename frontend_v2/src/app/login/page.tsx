@@ -20,28 +20,28 @@ import { api, ensureCsrfToken } from "@/lib/api";
 const loginProof = [
   {
     icon: <Factory size={18} />,
-    label: "App routes",
-    value: "142",
-    copy: "Current production build",
+    label: "Your workspace",
+    value: "Role aware",
+    copy: "Your account opens its assigned tools.",
   },
   {
     icon: <ShieldCheck size={18} />,
-    label: "Role surfaces",
-    value: "10",
-    copy: "Canonical workspaces",
+    label: "Access",
+    value: "Policy controlled",
+    copy: "Permissions apply across ERP modules.",
   },
   {
     icon: <Workflow size={18} />,
-    label: "Core modules",
-    value: "8",
-    copy: "Sales to dispatch",
+    label: "Workflows",
+    value: "Connected records",
+    copy: "Continue work across linked order records.",
   },
 ];
 
 const loginRuntime = [
-  { label: "Auth", value: "Cookie + CSRF" },
-  { label: "Theme", value: "Light + dark" },
-  { label: "Deploy", value: "Render live" },
+  { label: "Account", value: "Use your work credentials" },
+  { label: "Workspace", value: "Set by your assigned role" },
+  { label: "Need access?", value: "Contact your ERP administrator" },
 ];
 
 function readableLoginError(value: unknown): string {
@@ -136,7 +136,7 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="auth-badge">
-              <ShieldCheck size={16} /> Production access
+              <ShieldCheck size={16} /> ERP access
             </div>
             <div className="auth-kicker">
               Sales, planning, production, inventory
@@ -186,7 +186,7 @@ export default function LoginPage() {
             >
               {error ? <div className="auth-error">{error}</div> : null}
               <label>
-                <span className="auth-label">Work email</span>
+                <span className="auth-label">Work email or username</span>
                 <input
                   data-testid="login-identifier"
                   className="auth-input"

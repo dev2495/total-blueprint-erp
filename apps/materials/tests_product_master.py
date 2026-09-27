@@ -18,7 +18,7 @@ from apps.production.models import JobMaterialRequirement, ProductionJob
 
 class ProductMasterApiTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="pm-api", password="x")
+        self.user = get_user_model().objects.create_user(username="pm-api", password="x", extra_permissions=['master.view', 'master.manage'])
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         RecipeGrade.objects.update_or_create(name="GP", defaults={"is_active": True})

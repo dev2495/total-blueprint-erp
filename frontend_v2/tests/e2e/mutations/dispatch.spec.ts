@@ -60,6 +60,27 @@ test("packing and dispatch queue filters change the live queues instead of actin
   await page.getByTestId("packing-filter-sort").selectOption("SO_ASC")
   await expect(page.getByTestId("packing-filter-sort")).toHaveValue("SO_ASC")
 
+  // Dispatch only contains released FG. Release one test roll through the
+  // existing Packing Yard flow so these filters exercise a real queue row.
+  const seed = readMutationSeed()
+  const targetRollId = String(seed.dispatch.roll_ids?.[0] || seed.dispatch.roll_id)
+  await selectByTestId(page, "packing-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
+  await page.getByRole("button", { name: /ROLL_PACK\s+Packed roll/i }).click()
+  const targetReleaseButton = page.getByTestId(`packing-roll-release-${targetRollId}`)
+  for (let pageTurn = 0; pageTurn < 12 && !(await targetReleaseButton.isVisible().catch(() => false)); pageTurn += 1) {
+    const next = page.getByTestId("packing-roll-work-page-next")
+    if (!(await next.isVisible().catch(() => false)) || !(await next.isEnabled().catch(() => false))) break
+    await next.click()
+  }
+  await expect(targetReleaseButton).toBeVisible({ timeout: 15_000 })
+  await targetReleaseButton.click()
+  await page.getByTestId("packing-roll-dialog").waitFor({ state: "visible", timeout: 15_000 })
+  await page.getByTestId("packing-roll-release-mode").selectOption("UNPACKED")
+  const releaseForQueueResponse = page.waitForResponse((response) => response.url().includes("/api/production/packing/release-roll/") && response.request().method() === "POST")
+  await page.getByTestId("packing-roll-submit").click()
+  expect([200, 201]).toContain((await releaseForQueueResponse).status())
+  await expect(page.getByRole("dialog")).toBeHidden({ timeout: 15_000 })
+
   await page.goto("/logistics/dispatch", { waitUntil: "domcontentloaded" })
   await page.getByTestId("dispatch-page").waitFor({ state: "visible", timeout: 30_000 })
   await assertHealthyPage(page, { requireAuth: false })
@@ -119,6 +140,7 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
   if (rollIds.length > 1) {
     await expect(page.getByTestId("packing-roll-work-total")).toContainText(/rolls/i)
     await page.getByTestId("packing-roll-select-all").click()
+    await expect(page.getByTestId("packing-roll-bulk-release")).toContainText(`(${rollIds.length})`)
     await page.getByTestId("packing-roll-bulk-release").click()
   } else {
     await page.getByTestId(`packing-roll-release-${seed.dispatch.roll_id}`).click()
@@ -142,14 +164,16 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
   await assertHealthyPage(page, { requireAuth: false })
 
   await selectByTestId(page, "dispatch-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
-  await expect(page.getByTestId(`dispatch-roll-checkbox-${rollIds[0]}`)).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByTestId("dispatch-manifest-total")).toContainText(/units/i)
+  await expect(page.getByTestId("dispatch-manifest-total")).toContainText(`of ${rollIds.length} visible units`)
   await page.getByTestId("dispatch-select-all-units").click()
   await page.getByTestId("dispatch-create-trigger").click()
+  await expect(page.getByRole("dialog")).toContainText(`${rollIds.length} roll`)
   const vehicleInput = page.getByPlaceholder("MH-XX-AB-XXXX")
   if (await vehicleInput.isVisible().catch(() => false)) {
     await vehicleInput.fill("MH12AB1234")
   }
+  await page.getByPlaceholder("Transporter or company vehicle").fill("UAT E2E Transport")
+  await page.getByPlaceholder("Enter city, destination or delivery address").fill("UAT E2E Delivery Location")
   const createResponse = page.waitForResponse((response) => response.url().includes("/api/production/challans/create_challan/") && response.request().method() === "POST")
   await page.getByTestId("dispatch-create-submit").click()
   const createdResponse = await createResponse
@@ -179,9 +203,15 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
 
   const deliverButton = page.getByTestId(`dispatch-deliver-history-${challanId}`)
   await expect(deliverButton).toBeVisible({ timeout: 15_000 })
-  const deliverResponse = page.waitForResponse((response) => response.url().includes(`/api/production/challans/${challanId}/update_status/`) && response.request().method() === "POST")
   await deliverButton.click()
-  expect((await deliverResponse).status()).toBe(200)
+  await expect(page.getByRole("dialog")).toContainText("Confirm proof of delivery")
+  await page.getByPlaceholder("Customer receiver name").fill("UAT E2E Receiver")
+  await page.getByPlaceholder("Stamp, receipt or POD number").fill(`POD-${challanId.slice(0, 8)}`)
+  const deliverResponse = page.waitForResponse((response) => response.url().includes(`/api/production/challans/${challanId}/confirm-pod/`) && response.request().method() === "POST")
+  await page.getByTestId("dispatch-confirm-pod-submit").click()
+  const podConfirmation = await deliverResponse
+  expect(podConfirmation.status()).toBe(200)
+  expect((await podConfirmation.json()).order_closed).toBe(true)
   await page.waitForTimeout(1000)
   const deliveredResponse = await fetchJson<any>(page, "/api/production/challans/list_challans/")
   const delivered = unwrapApiList<any>(deliveredResponse.data).find((row) => String(row.id) === challanId)

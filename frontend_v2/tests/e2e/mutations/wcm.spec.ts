@@ -11,7 +11,7 @@ test("wcm can assign a machine and push a queued job into execution-ready state"
     expected: "Work-center manager should be able to assign a machine and push the seeded job to operator execution without bypassing queue controls.",
   })
 
-  const seed = readMutationSeed()
+  const seed = readMutationSeed({ refresh: true })
 
   await page.goto("/dashboard/admin", { waitUntil: "domcontentloaded" })
   await switchRole(page, "Work Center Manager", "/production/work-center")
@@ -20,13 +20,25 @@ test("wcm can assign a machine and push a queued job into execution-ready state"
   await assertHealthyPage(page)
 
   await page.getByTestId(`wcm-assignment-row-${seed.wcm.assignment_id}`).click()
+
+  // The seeded extrusion recipe requires a physical granule issue. Complete
+  // that existing code/source allocation gate before testing machine release.
+  const chooseFirstCode = page.getByRole("button", { name: /Choose the first grade\/code/i })
+  await expect(chooseFirstCode).toBeVisible({ timeout: 15_000 })
+  await chooseFirstCode.click()
+  const granulePicker = page.getByRole("combobox", { name: /Grade code and source for/i }).first()
+  await expect(granulePicker).toBeVisible({ timeout: 15_000 })
+  await granulePicker.click()
+  const seededCode = page.getByRole("option").filter({ hasText: new RegExp(seed.wcm.granule_code_code, "i") }).first()
+  await expect(seededCode).toBeVisible({ timeout: 15_000 })
+  await seededCode.click()
+  await page.getByRole("button", { name: "Balance" }).first().click()
+  await expect(page.locator("body")).toContainText("11.000 / 11.000 kg")
+
   await page.getByTestId("wcm-machine-select").click()
-  const seededMachine = page.getByRole("option", { name: new RegExp(seed.wcm.machine_code || seed.wcm.machine_id, "i") }).first()
-  if (await seededMachine.isVisible().catch(() => false)) {
-    await seededMachine.click()
-  } else {
-    await page.getByRole("option").first().click()
-  }
+  const seededMachine = page.getByRole("option", { name: new RegExp(seed.wcm.machine_name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }).first()
+  await expect(seededMachine).toBeVisible({ timeout: 15_000 })
+  await seededMachine.click()
   const releaseButton = page.getByTestId("wcm-assign-release")
   await expect(releaseButton).toBeEnabled({ timeout: 20_000 })
   await expect(releaseButton).toContainText(/Assign \+ release/i, { timeout: 20_000 })

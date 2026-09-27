@@ -436,7 +436,6 @@ export default async function globalSetup(config: FullConfig) {
     } catch {
       await fs.writeFile(storagePath, JSON.stringify({ cookies: [], origins: [] }, null, 2), "utf8")
     }
-    return
   }
 
   if (!skipBootstrap) {
@@ -452,6 +451,7 @@ export default async function globalSetup(config: FullConfig) {
       UI_E2E_PYTHON: preferredPython,
       UI_E2E_LABEL_PREFIX: process.env.UI_E2E_LABEL_PREFIX || "UAT-GREEN",
       UI_E2E_RUN_TAG: runTag,
+      UI_E2E_ALLOW_TEST_FIXTURE_WRITES: "1",
     }
     run(preferredPython, [path.join(repoRoot, "scripts/ensure_superuser.py")], repoRoot, bootstrapEnv)
     trimIdleDbConnections(repoRoot, bootstrapEnv)

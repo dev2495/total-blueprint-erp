@@ -249,8 +249,8 @@ class SalesOrderCancelAndShipToTests(TestCase):
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
         dispatch = serializer.save()
-        request = APIRequestFactory().post("/")
-        user = get_user_model().objects.create_user(username="partial-dispatch", password="x")
+        request = APIRequestFactory().post("/api/sales/dispatches/confirm/")
+        user = get_user_model().objects.create_user(username="partial-dispatch", password="x", extra_permissions=['sales.view', 'sales.manage', 'logistics.manage'])
         force_authenticate(request, user=user)
         response = CustomerDispatchViewSet.as_view({"post": "confirm"})(request, pk=dispatch.id)
 
@@ -357,8 +357,8 @@ class SalesOrderCancelAndShipToTests(TestCase):
         line.line_status = "COMPLETED"
         line.save(update_fields=["line_status"])
 
-        request = APIRequestFactory().post("/")
-        user = get_user_model().objects.create_user(username="dispatch-test", password="x")
+        request = APIRequestFactory().post("/api/sales/dispatches/confirm/")
+        user = get_user_model().objects.create_user(username="dispatch-test", password="x", extra_permissions=['sales.view', 'sales.manage', 'logistics.manage'])
         force_authenticate(request, user=user)
         response = CustomerDispatchViewSet.as_view({"post": "cancel"})(request, pk=dispatch.id)
 

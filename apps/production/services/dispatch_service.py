@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 from django.db import transaction
 from django.db import connection
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from apps.production.models import (
     ProductionJob,
@@ -445,6 +445,28 @@ class FGDispatchService:
         return result
 
     @staticmethod
+    def _roll_dispatch_release_map(roll_ids: list[str]) -> dict[str, bool]:
+        """Read only the release flag needed by queue summaries.
+
+        The detailed manifest still uses ``_roll_dispatch_record_map``. Board
+        queues need no packed lines or other record payload, so projecting the
+        small release field avoids hydrating large JSON documents per roll.
+        Keep the model's newest-first ordering and overwrite behavior aligned
+        with the detailed map for legacy rolls linked to more than one record.
+        """
+        if not roll_ids:
+            return {}
+        result: dict[str, bool] = {}
+        rows = (
+            RollDispatchPackRecord.objects.filter(roll_id__in=roll_ids)
+            .order_by("-packed_at")
+            .values("roll_id", "meta_json")
+        )
+        for row in rows:
+            result[str(row["roll_id"])] = bool(dict(row.get("meta_json") or {}).get("released_to_dispatch"))
+        return result
+
+    @staticmethod
     def _packed_roll_map(roll_ids: list[str]) -> dict[str, bool]:
         dispatch_map = FGDispatchService._roll_dispatch_record_map(roll_ids)
         return {str(roll_id): bool(dispatch_map.get(str(roll_id), {}).get("packed_for_dispatch")) for roll_id in roll_ids}
@@ -654,27 +676,27 @@ class FGDispatchService:
             PackingUnit.objects.filter(
                 status="SEALED",
                 sales_order_item__isnull=False,
-            ).select_related("sales_order_item__sales_order")
+            ).values("id", "sales_order_item__sales_order_id", "meta_json")
         )
         unavailable_roll_ids, unavailable_gonny_ids = FGDispatchService._unavailable_dispatch_unit_ids(
             roll_ids=[str(row["id"]) for row in ready_rolls],
-            gonny_ids=[str(gonny.id) for gonny in ready_gonnies],
+            gonny_ids=[str(gonny["id"]) for gonny in ready_gonnies],
         )
         ready_rolls = [row for row in ready_rolls if str(row["id"]) not in unavailable_roll_ids]
         ready_gonnies = [
-            gonny for gonny in ready_gonnies if str(gonny.id) not in unavailable_gonny_ids
+            gonny for gonny in ready_gonnies if str(gonny["id"]) not in unavailable_gonny_ids
         ]
-        roll_dispatch_map = FGDispatchService._roll_dispatch_record_map([str(row["id"]) for row in ready_rolls])
+        roll_dispatch_map = FGDispatchService._roll_dispatch_release_map([str(row["id"]) for row in ready_rolls])
         so_ids_with_rolls = {
             str(row["sales_order_item__sales_order_id"])
             for row in ready_rolls
-            if roll_dispatch_map.get(str(row["id"]), {}).get("released_to_dispatch")
+            if roll_dispatch_map.get(str(row["id"]), False)
         }
 
         so_ids_with_gonnies = {
-            str(gonny.sales_order_item.sales_order_id)
+            str(gonny["sales_order_item__sales_order_id"])
             for gonny in ready_gonnies
-            if FGDispatchService._gonny_released_for_dispatch(gonny)
+            if bool(dict(gonny.get("meta_json") or {}).get("released_to_dispatch"))
         }
 
         combined_so_ids = [sid for sid in set(so_ids_with_rolls).union(so_ids_with_gonnies) if sid]
@@ -695,6 +717,359 @@ class FGDispatchService:
             }
             for order in orders
         ]
+
+    @staticmethod
+    def get_dispatch_board_snapshot() -> dict:
+        """Build dispatch queue summaries in batches without hydrating manifests.
+
+        The selected-order endpoint continues to return every dispatchable
+        physical unit with its full specification and route details. This
+        method only replaces the board's per-order summary loop.
+        """
+        order_rows = list(FGDispatchService.get_sales_orders_with_fg())
+        totals = {
+            "orders": 0,
+            "ready_rolls": 0,
+            "ready_rolls_kg": 0.0,
+            "ready_rolls_gross_kg": 0.0,
+            "ready_rolls_tare_kg": 0.0,
+            "ready_gonnies": 0,
+            "ready_gonnies_pcs": 0,
+            "ready_gonnies_gross_kg": 0.0,
+            "pending_in_packing": 0,
+        }
+        if not order_rows:
+            return {"totals": totals, "orders": []}
+
+        order_ids = [row["id"] for row in order_rows]
+        by_order = {
+            str(row["id"]): {
+                "ready": {
+                    "rolls_count": 0,
+                    "rolls_kg": 0.0,
+                    "rolls_net_kg": 0.0,
+                    "rolls_tare_kg": 0.0,
+                    "rolls_gross_kg": 0.0,
+                    "gonnies_count": 0,
+                    "gonnies_pcs": 0,
+                    "gonnies_net_kg": 0.0,
+                    "gonnies_gross_kg": 0.0,
+                },
+                "pending": {
+                    "open_gonnies_count": 0,
+                    "open_gonnies_pcs": 0,
+                    "unpacked_batch_count": 0,
+                    "unpacked_batch_pcs": 0,
+                    "unreleased_rolls_count": 0,
+                    "unreleased_sealed_gonnies_count": 0,
+                },
+                "dispatched": {"rolls_kg": 0.0, "gonnies_pcs": 0},
+            }
+            for row in order_rows
+        }
+
+        rolls = list(
+            InventoryRoll.objects.filter(
+                is_fg=True,
+                status="AVAILABLE",
+                sales_order_item__sales_order_id__in=order_ids,
+            )
+            .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
+            .values(
+                "id",
+                "sales_order_item__sales_order_id",
+                "weight_kg",
+                "net_weight_kg",
+                "tare_weight_kg",
+                "gross_weight_kg",
+            )
+        )
+        gonnies = list(
+            PackingUnit.objects.filter(
+                fg_batch__sales_order_item__sales_order_id__in=order_ids,
+                status__in=["OPEN", "SEALED", "DISPATCHED"],
+            ).values(
+                "id",
+                "fg_batch__sales_order_item__sales_order_id",
+                "status",
+                "qty_pcs",
+                "weight_kg",
+                "net_product_weight_kg",
+                "gross_weight_kg",
+                "meta_json",
+            )
+        )
+        sealed_gonny_ids = [gonny["id"] for gonny in gonnies if gonny["status"] == "SEALED"]
+        unavailable_roll_ids, unavailable_gonny_ids = FGDispatchService._unavailable_dispatch_unit_ids(
+            roll_ids=[str(row["id"]) for row in rolls],
+            gonny_ids=[str(gonny_id) for gonny_id in sealed_gonny_ids],
+        )
+        roll_release = FGDispatchService._roll_dispatch_release_map([str(row["id"]) for row in rolls])
+
+        for row in rolls:
+            order_id = str(row["sales_order_item__sales_order_id"])
+            summary = by_order.get(order_id)
+            roll_id = str(row["id"])
+            if summary is None or roll_id in unavailable_roll_ids:
+                continue
+            if not roll_release.get(roll_id, False):
+                summary["pending"]["unreleased_rolls_count"] += 1
+                continue
+
+            ready = summary["ready"]
+            weight = Decimal(str(row.get("weight_kg") or 0))
+            net = Decimal(str(row.get("net_weight_kg") or row.get("weight_kg") or 0))
+            tare = Decimal(str(row.get("tare_weight_kg") or 0))
+            gross = Decimal(str(row.get("gross_weight_kg") or (net + tare)))
+            if gross < net:
+                gross = net + tare
+            ready["rolls_count"] += 1
+            ready["rolls_kg"] += float(weight)
+            ready["rolls_net_kg"] += float(net)
+            ready["rolls_tare_kg"] += float(tare)
+            ready["rolls_gross_kg"] += float(gross)
+
+        batches = (
+            FinishedGoodsBatch.objects.filter(
+                sales_order_item__sales_order_id__in=order_ids,
+                status__in=["AVAILABLE", "PACKED"],
+                qty_pcs__gt=0,
+            )
+            .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
+            .values("sales_order_item__sales_order_id")
+            .annotate(count=Count("pk"), pcs=Sum("qty_pcs"))
+        )
+        for row in batches:
+            pending = by_order[str(row["sales_order_item__sales_order_id"])]["pending"]
+            pending["unpacked_batch_count"] = int(row["count"] or 0)
+            pending["unpacked_batch_pcs"] = int(row["pcs"] or 0)
+
+        for gonny in gonnies:
+            order_id = str(gonny["fg_batch__sales_order_item__sales_order_id"])
+            summary = by_order.get(order_id)
+            if summary is None:
+                continue
+            status_value = str(gonny["status"] or "").upper()
+            pcs = int(gonny.get("qty_pcs") or 0)
+            if status_value == "OPEN":
+                summary["pending"]["open_gonnies_count"] += 1
+                summary["pending"]["open_gonnies_pcs"] += pcs
+            elif status_value == "DISPATCHED":
+                summary["dispatched"]["gonnies_pcs"] += pcs
+            elif status_value == "SEALED":
+                if str(gonny["id"]) in unavailable_gonny_ids:
+                    continue
+                if bool(dict(gonny.get("meta_json") or {}).get("released_to_dispatch")):
+                    ready = summary["ready"]
+                    ready["gonnies_count"] += 1
+                    ready["gonnies_pcs"] += pcs
+                    ready["gonnies_net_kg"] += float(gonny.get("net_product_weight_kg") or 0)
+                    ready["gonnies_gross_kg"] += float(
+                        gonny.get("gross_weight_kg") or gonny.get("weight_kg") or 0
+                    )
+                else:
+                    summary["pending"]["unreleased_sealed_gonnies_count"] += 1
+
+        dispatched_rolls = (
+            InventoryRoll.objects.filter(
+                is_fg=True,
+                sales_order_item__sales_order_id__in=order_ids,
+                status__in=["IN_TRANSIT", "CONSUMED"],
+            )
+            .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
+            .values("sales_order_item__sales_order_id")
+            .annotate(kg=Sum("weight_kg"))
+        )
+        for row in dispatched_rolls:
+            by_order[str(row["sales_order_item__sales_order_id"])]["dispatched"]["rolls_kg"] = float(row["kg"] or 0)
+
+        cards = []
+        for row in order_rows:
+            summary = by_order[str(row["id"])]
+            card = {
+                "sales_order": row,
+                "available_for_dispatch": summary["ready"],
+                "packing_pending": summary["pending"],
+                "dispatched_qty": summary["dispatched"],
+            }
+            cards.append(card)
+            ready = card["available_for_dispatch"]
+            pending = card["packing_pending"]
+            totals["orders"] += 1
+            totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
+            totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
+            totals["ready_rolls_gross_kg"] += float(ready.get("rolls_gross_kg") or ready.get("rolls_kg") or 0)
+            totals["ready_rolls_tare_kg"] += float(ready.get("rolls_tare_kg") or 0)
+            totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
+            totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
+            totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
+            totals["pending_in_packing"] += int(pending.get("open_gonnies_count") or 0) + int(pending.get("unpacked_batch_count") or 0)
+        return {"totals": totals, "orders": cards}
+
+    @staticmethod
+    def get_packing_board_snapshot() -> dict:
+        """Build the Packing Yard queue from compact, batched projections.
+
+        This intentionally contains only the card summaries consumed before
+        an order is selected. ``get_packing_units_by_so`` remains the complete
+        inline physical manifest and is still used for the selected order.
+        """
+        order_rows = list(FGDispatchService.get_sales_orders_for_packing())
+        totals = {
+            "orders": 0,
+            "pending_batches": 0,
+            "pending_pcs": 0,
+            "open_gonnies": 0,
+            "sealed_waiting_release": 0,
+            "ready_rolls": 0,
+            "ready_rolls_kg": 0.0,
+            "ready_rolls_gross_kg": 0.0,
+            "ready_rolls_tare_kg": 0.0,
+            "ready_gonnies": 0,
+            "ready_gonnies_pcs": 0,
+            "ready_gonnies_gross_kg": 0.0,
+        }
+        if not order_rows:
+            return {"totals": totals, "orders": []}
+
+        order_ids = [row["id"] for row in order_rows]
+        by_order = {
+            str(row["id"]): {
+                "pending": {
+                    "rolls_count": 0,
+                    "batches_count": 0,
+                    "batches_pcs": 0,
+                    "open_gonnies_count": 0,
+                    "sealed_gonnies_count": 0,
+                },
+                "ready": {
+                    "rolls_count": 0,
+                    "rolls_kg": 0.0,
+                    "rolls_net_kg": 0.0,
+                    "rolls_tare_kg": 0.0,
+                    "rolls_gross_kg": 0.0,
+                    "gonnies_count": 0,
+                    "gonnies_pcs": 0,
+                    "gonnies_gross_kg": 0.0,
+                },
+            }
+            for row in order_rows
+        }
+
+        rolls = list(
+            InventoryRoll.objects.filter(
+                is_fg=True,
+                status="AVAILABLE",
+                sales_order_item__sales_order_id__in=order_ids,
+            )
+            .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
+            .values(
+                "id",
+                "sales_order_item__sales_order_id",
+                "weight_kg",
+                "net_weight_kg",
+                "tare_weight_kg",
+                "gross_weight_kg",
+            )
+        )
+        roll_release = FGDispatchService._roll_dispatch_release_map([str(row["id"]) for row in rolls])
+        for row in rolls:
+            summary = by_order.get(str(row["sales_order_item__sales_order_id"]))
+            if summary is None:
+                continue
+            pending = summary["pending"]
+            ready = summary["ready"]
+            if not roll_release.get(str(row["id"]), False):
+                pending["rolls_count"] += 1
+                continue
+
+            weight = Decimal(str(row.get("weight_kg") or 0))
+            net = Decimal(str(row.get("net_weight_kg") or row.get("weight_kg") or 0))
+            tare = Decimal(str(row.get("tare_weight_kg") or 0))
+            gross = Decimal(str(row.get("gross_weight_kg") or (net + tare)))
+            if gross < net:
+                gross = net + tare
+            ready["rolls_count"] += 1
+            ready["rolls_kg"] += float(weight)
+            ready["rolls_net_kg"] += float(net)
+            ready["rolls_tare_kg"] += float(tare)
+            ready["rolls_gross_kg"] += float(gross)
+
+        batch_rows = (
+            FinishedGoodsBatch.objects.filter(
+                sales_order_item__sales_order_id__in=order_ids,
+                qty_pcs__gt=0,
+                status__in=["AVAILABLE", "PACKED"],
+            )
+            .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
+            .values("sales_order_item__sales_order_id")
+            .annotate(count=Count("pk"), pcs=Sum("qty_pcs"))
+        )
+        for row in batch_rows:
+            pending = by_order[str(row["sales_order_item__sales_order_id"])]["pending"]
+            pending["batches_count"] = int(row["count"] or 0)
+            pending["batches_pcs"] = int(row["pcs"] or 0)
+
+        gonnies = PackingUnit.objects.filter(
+            sales_order_item__sales_order_id__in=order_ids,
+            status__in=["OPEN", "SEALED"],
+        ).values(
+            "sales_order_item__sales_order_id",
+            "status",
+            "qty_pcs",
+            "weight_kg",
+            "gross_weight_kg",
+            "meta_json",
+        )
+        for gonny in gonnies:
+            summary = by_order.get(str(gonny["sales_order_item__sales_order_id"]))
+            if summary is None:
+                continue
+            pending = summary["pending"]
+            ready = summary["ready"]
+            status_value = str(gonny["status"] or "").upper()
+            released = bool(dict(gonny.get("meta_json") or {}).get("released_to_dispatch"))
+            if status_value == "OPEN":
+                pending["open_gonnies_count"] += 1
+            elif status_value == "SEALED":
+                if released:
+                    ready["gonnies_count"] += 1
+                    ready["gonnies_pcs"] += int(gonny.get("qty_pcs") or 0)
+                    ready["gonnies_gross_kg"] += float(
+                        gonny.get("gross_weight_kg") or gonny.get("weight_kg") or 0
+                    )
+                else:
+                    pending["sealed_gonnies_count"] += 1
+
+        cards = []
+        for row in order_rows:
+            summary = by_order[str(row["id"])]
+            card = {
+                "sales_order": {
+                    "id": str(row["id"]),
+                    "order_number": row["order_number"],
+                    "customer_name": row["customer_name"],
+                    "status": row["status"],
+                },
+                "pending": summary["pending"],
+                "ready_for_dispatch": summary["ready"],
+            }
+            cards.append(card)
+            pending = card["pending"]
+            ready = card["ready_for_dispatch"]
+            totals["orders"] += 1
+            totals["pending_batches"] += int(pending.get("batches_count") or 0)
+            totals["pending_pcs"] += int(pending.get("batches_pcs") or 0)
+            totals["open_gonnies"] += int(pending.get("open_gonnies_count") or 0)
+            totals["sealed_waiting_release"] += int(pending.get("sealed_gonnies_count") or 0)
+            totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
+            totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
+            totals["ready_rolls_gross_kg"] += float(ready.get("rolls_gross_kg") or ready.get("rolls_kg") or 0)
+            totals["ready_rolls_tare_kg"] += float(ready.get("rolls_tare_kg") or 0)
+            totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
+            totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
+            totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
+        return {"totals": totals, "orders": cards}
 
     @staticmethod
     def get_sales_orders_for_packing():
@@ -1750,6 +2125,9 @@ class FGDispatchService:
                 .filter(id__in=normalized_roll_ids)
                 .order_by("id")
             )
+            pack_records = {(row.roll_id, row.sales_order_item_id): row for row in
+                            RollDispatchPackRecord.objects.select_for_update()
+                            .filter(roll_id__in=normalized_roll_ids).order_by('roll_id', 'id')}
             found_ids = {str(roll.id) for roll in rolls}
             missing_ids = [roll_id for roll_id in normalized_roll_ids if roll_id not in found_ids]
             if missing_ids:
@@ -1765,10 +2143,7 @@ class FGDispatchService:
                     raise ValueError(f"Roll {roll.label_id} is at a different plant.")
                 if roll.plant_id and str(roll.plant_id) != str(plant.id):
                     raise ValueError(f"Roll {roll.label_id} has conflicting plant lineage.")
-                dispatch_record = RollDispatchPackRecord.objects.select_for_update().filter(
-                    roll_id=roll.id,
-                    sales_order_item_id=roll.sales_order_item_id,
-                ).first()
+                dispatch_record = pack_records.get((roll.id, roll.sales_order_item_id))
                 if not dispatch_record:
                     raise ValueError(f"Roll {roll.label_id} is not released from Packing Yard.")
                 if not bool(dict(getattr(dispatch_record, "meta_json", {}) or {}).get("released_to_dispatch")):
@@ -1972,6 +2347,9 @@ class FGDispatchService:
             .filter(id__in=gonny_ids)
             .order_by("id")
         )
+        pack_records = {(row.roll_id, row.sales_order_item_id): row for row in
+                        RollDispatchPackRecord.objects.select_for_update()
+                        .filter(roll_id__in=roll_ids).order_by('roll_id', 'id')}
         roll_map = {str(roll.id): roll for roll in locked_rolls}
         gonny_map = {str(gonny.id): gonny for gonny in locked_gonnies}
         missing_roll_ids = [roll_id for roll_id in roll_ids if roll_id not in roll_map]
@@ -1997,10 +2375,7 @@ class FGDispatchService:
                     raise ValueError(f"Roll {roll.label_id} is no longer at the challan plant.")
                 if roll.plant_id and str(roll.plant_id) != str(challan.plant_id):
                     raise ValueError(f"Roll {roll.label_id} has conflicting plant lineage.")
-                dispatch_record = RollDispatchPackRecord.objects.select_for_update().filter(
-                    roll_id=roll.id,
-                    sales_order_item_id=roll.sales_order_item_id,
-                ).first()
+                dispatch_record = pack_records.get((roll.id, roll.sales_order_item_id))
                 if not dispatch_record or not bool(
                     dict(getattr(dispatch_record, "meta_json", {}) or {}).get("released_to_dispatch")
                 ):

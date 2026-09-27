@@ -51,40 +51,47 @@ export const test = base.extend<{ autoAuth: boolean }>({
         return candidates[0]().first()
       }
 
-      await page.goto("/login", { waitUntil: "domcontentloaded" })
-      await clearRoleOverride(page)
       let sessionProbe: { ok: boolean; status: number; detail: string } | undefined
       for (let attempt = 0; attempt < authAttempts; attempt += 1) {
         try {
-          const csrfResponse = await requestContext.get(`${backendOrigin}/api/users/csrf/`, {
-            failOnStatusCode: false,
-            timeout: authRequestTimeout,
-          })
-          const csrfPayload = await csrfResponse.json().catch(() => ({}))
-          const requestStateBefore = await requestContext.storageState()
-          const cookieToken = requestStateBefore.cookies.find((cookie) => cookie.name === "csrftoken")?.value
-          const csrfToken = String(cookieToken || (csrfPayload as any)?.csrfToken || (csrfPayload as any)?.csrf_token || "")
-
-          const refreshResponse = await requestContext.post(`${backendOrigin}/api/users/token/refresh/`, {
-            failOnStatusCode: false,
-            timeout: authRequestTimeout,
-            headers: {
-              "Content-Type": "application/json",
-              ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
-            },
-            data: {},
-          }).catch(() => undefined)
-
           let meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
             failOnStatusCode: false,
             timeout: authRequestTimeout,
           })
 
-          // Do not trust an access token that was valid for the probe but could
-          // expire during the test. A failed refresh means this context did not
-          // receive a newly rotated pair, so issue a fresh isolated login even
-          // when the old access token still has a few seconds left.
-          if (!refreshResponse?.ok() || !meResponse.ok()) {
+          // Playwright reloads the same saved storage state for each test
+          // context. Refresh rotation is single-use, so refreshing a still-valid
+          // cookie here would invalidate that shared state and force every later
+          // test to log in again. Reuse a valid access cookie; refresh only after
+          // the authenticated user probe fails.
+          if (!meResponse.ok()) {
+            const csrfResponse = await requestContext.get(`${backendOrigin}/api/users/csrf/`, {
+              failOnStatusCode: false,
+              timeout: authRequestTimeout,
+            })
+            const csrfPayload = await csrfResponse.json().catch(() => ({}))
+            const requestStateBefore = await requestContext.storageState()
+            const cookieToken = requestStateBefore.cookies.find((cookie) => cookie.name === "csrftoken")?.value
+            const csrfToken = String(cookieToken || (csrfPayload as any)?.csrfToken || (csrfPayload as any)?.csrf_token || "")
+
+            const refreshResponse = await requestContext.post(`${backendOrigin}/api/users/token/refresh/`, {
+              failOnStatusCode: false,
+              timeout: authRequestTimeout,
+              headers: {
+                "Content-Type": "application/json",
+                ...(csrfToken ? { "X-CSRFToken": decodeURIComponent(csrfToken) } : {}),
+              },
+              data: {},
+            }).catch(() => undefined)
+
+            if (refreshResponse?.ok()) {
+              meResponse = await requestContext.get(`${backendOrigin}/api/users/me/`, {
+                failOnStatusCode: false,
+                timeout: authRequestTimeout,
+              })
+            }
+
+            if (!meResponse.ok()) {
             await requestContext.post(`${backendOrigin}/api/users/login/`, {
               failOnStatusCode: false,
               timeout: authRequestTimeout,
@@ -98,6 +105,7 @@ export const test = base.extend<{ autoAuth: boolean }>({
               failOnStatusCode: false,
               timeout: authRequestTimeout,
             })
+            }
           }
 
           const mePayload = await meResponse.json().catch(() => ({}))

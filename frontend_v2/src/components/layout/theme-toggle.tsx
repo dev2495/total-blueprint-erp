@@ -24,7 +24,7 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
       aria-pressed={isDark}
       onClick={handleToggle}
       className={cn(
-        "theme-toggle group relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-1 text-content-2 shadow-sm outline-none transition-all duration-300 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 active:translate-y-0",
+        "theme-toggle group relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-1 text-content-2 shadow-sm outline-none transition-[color,background-color,border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0 active:translate-y-0",
         compact ? "h-10 w-10" : "h-11 w-11",
       )}
       data-theme-toggle={isDark ? "dark" : "light"}

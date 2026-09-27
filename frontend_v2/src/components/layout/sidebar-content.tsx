@@ -309,7 +309,7 @@ export function SidebarNavContent({
                     linkActive && !activeChildHref ? "true" : undefined
                   }
                   className={cn(
-                    "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-300 ease-out",
+                    "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-[color,background-color,border-color,box-shadow] duration-150 ease-out",
                     linkActive
                       ? "border-primary bg-primary text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
                       : "border-transparent bg-transparent text-content-3 hover:border-line hover:bg-surface-1 hover:text-content-1",
@@ -330,7 +330,7 @@ export function SidebarNavContent({
                     linkActive && !activeChildHref ? "true" : undefined
                   }
                   className={cn(
-                    "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-300 ease-out",
+                    "relative flex h-11 w-11 items-center justify-center rounded-xl border transition-[color,background-color,border-color,box-shadow] duration-150 ease-out",
                     linkActive
                       ? "border-primary bg-primary text-white shadow-[0_16px_28px_-18px_rgba(37,99,235,0.9)]"
                       : "border-transparent bg-transparent text-content-3 hover:border-line hover:bg-surface-1 hover:text-content-1",
@@ -342,7 +342,7 @@ export function SidebarNavContent({
               {!isDirectLink && childLinks.length > 0 ? (
                 <div
                   className={cn(
-                    "absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-line bg-surface-1 p-2 shadow-2xl ring-1 ring-line-strong/[0.04] transition-all duration-300 ease-out",
+                    "absolute left-[52px] z-50 max-h-[min(70vh,560px)] w-64 overflow-y-auto rounded-2xl border border-line bg-surface-1 p-2 shadow-2xl ring-1 ring-line-strong/[0.04] transition-[opacity,transform,visibility] duration-150 ease-out",
                     compactChildrenOpen
                       ? "visible translate-x-1 opacity-100"
                       : "invisible -translate-x-2 opacity-0",
@@ -366,7 +366,7 @@ export function SidebarNavContent({
                         data-active={link.active ? "true" : undefined}
                         data-active-current={link.active ? "true" : undefined}
                         className={cn(
-                          "group/item flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
+                          "group/item flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-[color,background-color,box-shadow] duration-150",
                           link.active
                             ? "bg-primary text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
                             : "text-content-3 hover:bg-surface-2 hover:text-content-1",
@@ -418,7 +418,7 @@ export function SidebarNavContent({
                 data-active={isActive ? "true" : undefined}
                 data-active-current={isActive ? "true" : undefined}
                 className={cn(
-                  "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-all duration-150",
+                  "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-[color,background-color,box-shadow] duration-150",
                   isActive
                     ? "bg-primary text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
                     : "text-content-3 hover:bg-surface-2 hover:text-content-1",
@@ -459,7 +459,7 @@ export function SidebarNavContent({
                   }
                   aria-expanded={childrenOpen}
                   className={cn(
-                    "group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-[13px] font-bold transition-all duration-150",
+                    "group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-[13px] font-bold transition-[color,background-color,border-color,box-shadow] duration-150",
                     isActive
                       ? "border-info-border bg-info-bg text-content-1 shadow-sm"
                       : "border-transparent text-content-2 hover:border-line hover:bg-surface-1 hover:text-content-1",
@@ -468,7 +468,7 @@ export function SidebarNavContent({
                 >
                   <div
                     className={cn(
-                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-150",
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-[color,background-color,box-shadow] duration-150",
                       isActive
                         ? "bg-primary text-white shadow-[0_10px_20px_-14px_rgba(37,99,235,0.9)]"
                         : "bg-surface-2 text-content-3 group-hover:bg-line group-hover:text-content-2",
@@ -504,7 +504,7 @@ export function SidebarNavContent({
                 </button>
                 <div
                   className={cn(
-                    "ml-[22px] mt-1 grid overflow-hidden border-l border-line pl-3 transition-all duration-300 ease-out",
+                    "ml-[22px] mt-1 grid overflow-hidden border-l border-line pl-3 transition-[grid-template-rows,opacity,visibility] duration-200 ease-out",
                     childrenOpen
                       ? "visible grid-rows-[1fr] opacity-100"
                       : "invisible pointer-events-none grid-rows-[0fr] opacity-0",
@@ -527,7 +527,7 @@ export function SidebarNavContent({
                             isChildActive ? "true" : undefined
                           }
                           className={cn(
-                            "group flex items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-all duration-150",
+                            "group flex items-center gap-3 rounded-xl px-3 py-2 text-[12px] font-semibold transition-[color,background-color,box-shadow] duration-150",
                             isChildActive
                               ? "bg-primary text-white shadow-[0_16px_28px_-20px_rgba(37,99,235,0.8)]"
                               : "text-content-3 hover:bg-surface-2 hover:text-content-1",
@@ -536,7 +536,7 @@ export function SidebarNavContent({
                         >
                           <div
                             className={cn(
-                              "flex shrink-0 items-center justify-center rounded-lg p-0.5 transition-all duration-150",
+                              "flex shrink-0 items-center justify-center rounded-lg p-0.5 transition-[color,background-color] duration-150",
                               isChildActive
                                 ? "text-white"
                                 : "text-content-4 group-hover:text-content-2",
@@ -598,7 +598,7 @@ export function SidebarFooterProfile({
   return (
     <div
       className={cn(
-        "group flex items-center gap-3 rounded-xl bg-transparent p-2 transition-all hover:bg-surface-2",
+        "group flex items-center gap-3 rounded-xl bg-transparent p-2 transition-colors duration-150 hover:bg-surface-2",
         compact ? "p-3" : "",
       )}
     >

@@ -7,6 +7,7 @@ from django.conf import settings
 from rest_framework import serializers
 
 from .models import Artwork, ArtworkImage
+from .uploads import validate_artwork_upload
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +252,20 @@ class ArtworkSerializer(serializers.ModelSerializer):
         return self._sync_images(artwork)
 
     def validate(self, attrs):
+        # Validate singleton and plural aliases independently: the singleton can
+        # be saved by ModelSerializer even when plural files take preview priority.
+        uploads = list(self._incoming_images())
+        if attrs.get('image'):
+            uploads.append(attrs['image'])
+        request = self.context.get('request')
+        if request is not None and hasattr(request, 'FILES'):
+            for key in ('image', 'images', 'images[]', 'artwork_images'):
+                uploads.extend(request.FILES.getlist(key))
+        seen = set()
+        for upload in uploads:
+            if id(upload) not in seen:
+                validate_artwork_upload(upload)
+                seen.add(id(upload))
         if "approved_by" in self.initial_data or "approved_at" in self.initial_data:
             raise serializers.ValidationError(
                 "approved_by and approved_at are managed only by the approve action."

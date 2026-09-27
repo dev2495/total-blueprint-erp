@@ -1,3 +1,6 @@
+from io import BytesIO
+from PIL import Image
+from reportlab.pdfgen.canvas import Canvas
 import shutil
 import tempfile
 from types import SimpleNamespace
@@ -14,6 +17,21 @@ from apps.inventory.models import InventoryLocation
 from apps.inventory.models import Vendor
 from apps.tooling.models import Cylinder
 from apps.users.models import Role
+
+
+def png_bytes():
+    stream = BytesIO()
+    Image.new('RGB', (2, 2), 'white').save(stream, format='PNG')
+    return stream.getvalue()
+
+
+def pdf_bytes():
+    stream = BytesIO()
+    canvas = Canvas(stream)
+    canvas.drawString(20, 20, 'Artwork proof')
+    canvas.showPage()
+    canvas.save()
+    return stream.getvalue()
 
 
 class ArtworkApiApprovalControlTests(TestCase):
@@ -69,7 +87,7 @@ class ArtworkApiApprovalControlTests(TestCase):
     def test_multipart_create_keeps_new_artwork_current(self):
         upload = SimpleUploadedFile(
             "new-artwork.png",
-            b"new-artwork-payload",
+            png_bytes(),
             content_type="image/png",
         )
 
@@ -139,7 +157,7 @@ class ArtworkApiApprovalControlTests(TestCase):
     def test_patch_persists_uploaded_artwork_image_and_returns_url(self):
         upload = SimpleUploadedFile(
             "artwork-preview.png",
-            b"not-a-production-image-but-a-valid-upload-payload",
+            png_bytes(),
             content_type="image/png",
         )
 
@@ -159,7 +177,7 @@ class ArtworkApiApprovalControlTests(TestCase):
     def test_patch_persists_uploaded_artwork_pdf_and_returns_preview_url(self):
         upload = SimpleUploadedFile(
             "artwork-proof.pdf",
-            b"%PDF-1.4\n% artwork proof\n",
+            pdf_bytes(),
             content_type="application/pdf",
         )
 
@@ -178,11 +196,11 @@ class ArtworkApiApprovalControlTests(TestCase):
         media_path = response.data["primary_image"].split("testserver", 1)[-1]
         media_response = self.client.get(media_path)
         self.assertEqual(media_response.status_code, 200)
-        self.assertNotIn("X-Frame-Options", media_response.headers)
+        self.assertEqual(media_response.headers["X-Frame-Options"], "SAMEORIGIN")
 
     def test_patch_persists_up_to_three_artwork_images(self):
         uploads = [
-            SimpleUploadedFile(f"artwork-preview-{index}.png", f"payload-{index}".encode(), content_type="image/png")
+            SimpleUploadedFile(f"artwork-preview-{index}.png", png_bytes(), content_type="image/png")
             for index in range(3)
         ]
 
@@ -251,7 +269,7 @@ class ArtworkApiApprovalControlTests(TestCase):
 
     def test_patch_rejects_more_than_three_artwork_images(self):
         uploads = [
-            SimpleUploadedFile(f"artwork-preview-{index}.png", f"payload-{index}".encode(), content_type="image/png")
+            SimpleUploadedFile(f"artwork-preview-{index}.png", png_bytes(), content_type="image/png")
             for index in range(4)
         ]
 
@@ -387,7 +405,7 @@ class ArtworkApiApprovalControlTests(TestCase):
             )
         upload = SimpleUploadedFile(
             "roto-artwork.png",
-            b"roto-artwork-upload-payload",
+            png_bytes(),
             content_type="image/png",
         )
 
@@ -432,7 +450,7 @@ class ArtworkApiApprovalControlTests(TestCase):
         location = InventoryLocation.objects.create(plant=plant, code="GEN-TOOL", name="Generated Tool Room", type="TOOLING")
         upload = SimpleUploadedFile(
             "generated-roto.pdf",
-            b"%PDF-1.4\n% generated roto proof\n",
+            pdf_bytes(),
             content_type="application/pdf",
         )
         upload_response = self.client.patch(

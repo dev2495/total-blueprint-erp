@@ -34,7 +34,7 @@ class QuotationCommercialWorkflowTests(TestCase):
         self.sales_user = User.objects.create_user(
             username="quote-sales",
             password="testpass",
-            extra_permissions=["sales.quote.cost_override"],
+            extra_permissions=["sales.quote.cost_override", "sales.view", "sales.manage"],
         )
         self.approver = User.objects.create_superuser(
             username="quote-approver", email="approver@example.com", password="testpass"
@@ -399,6 +399,21 @@ class QuotationCommercialWorkflowTests(TestCase):
         self.assertEqual(self.process_rate.cost_per_hour, Decimal("600"))
         quote.cost_build.refresh_from_db()
         self.assertEqual(quote.cost_build.cost_entry_mode, "MARGIN_LED")
+
+    def test_large_calculated_ratios_persist_without_changing_formula(self):
+        for rate, field in (("750", "markup_pct"), ("0.0001", "gross_margin_pct")):
+            with self.subTest(rate=rate):
+                quote = self._new_quote()
+                line = self._quote_scoped_line()
+                line.update({"qty": "1000", "uom": "PCS", "price_basis": "PCS", "rate": rate})
+                QuotationService.bulk_update_items(quote, [line], user=self.sales_user)
+                result = QuotationCostBuildService.persist(quote, {}, user=self.sales_user)
+                quote.cost_build.refresh_from_db()
+                self.assertGreater(abs(Decimal(result[field])), Decimal("9999"))
+                self.assertEqual(getattr(quote.cost_build, field), Decimal(result[field]))
+                denominator = Decimal(result["total_cost"] if field == "markup_pct" else result["net_sale"])
+                expected = (Decimal(result["contribution"]) / denominator * 100).quantize(Decimal("0.0001"))
+                self.assertEqual(Decimal(result[field]), expected)
 
     def test_direct_conversion_quantizes_pcs_derived_output_kg_for_snapshot(self):
         quote = self._new_quote()

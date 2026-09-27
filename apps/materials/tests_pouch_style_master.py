@@ -162,7 +162,7 @@ class PouchStyleMasterFormulaTests(TestCase):
         self.assertFalse(style.locked)
 
     def test_approve_action_locks_style_for_size_binding(self):
-        user = get_user_model().objects.create_user(username="pouch-style-approver", password="x")
+        user = get_user_model().objects.create_user(username="pouch-style-approver", password="x", extra_permissions=['master.view', 'master.manage'])
         client = APIClient()
         client.force_authenticate(user)
         style = PouchStyleMaster.objects.create(
@@ -184,7 +184,7 @@ class PouchStyleMasterFormulaTests(TestCase):
         self.assertTrue(style.locked)
 
     def test_locked_edit_same_payload_does_not_spawn_version_or_disable_old(self):
-        user = get_user_model().objects.create_user(username="pouch-style-noop", password="x")
+        user = get_user_model().objects.create_user(username="pouch-style-noop", password="x", extra_permissions=['master.view', 'master.manage'])
         client = APIClient()
         client.force_authenticate(user)
         style = PouchStyleMaster.objects.create(
@@ -216,7 +216,7 @@ class PouchStyleMasterFormulaTests(TestCase):
         self.assertFalse(style.deprecated)
 
     def test_locked_edit_changed_payload_spawns_draft_v2_and_disables_v1(self):
-        user = get_user_model().objects.create_user(username="pouch-style-version", password="x")
+        user = get_user_model().objects.create_user(username="pouch-style-version", password="x", extra_permissions=['master.view', 'master.manage'])
         client = APIClient()
         client.force_authenticate(user)
         style = PouchStyleMaster.objects.create(

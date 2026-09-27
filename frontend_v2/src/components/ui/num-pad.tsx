@@ -234,7 +234,7 @@ export function NumPad({
             type="button"
             onClick={entry.onClick}
             className={cn(
-              "flex h-14 min-h-[56px] items-center justify-center rounded-2xl text-xl font-bold tabular-nums transition-all duration-150 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20",
+              "flex h-14 min-h-[56px] items-center justify-center rounded-2xl text-xl font-bold tabular-nums transition-[color,background-color,border-color,box-shadow,transform,filter] duration-150 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20",
               entry.variant === "digit"
                 ? "border border-slate-200 bg-surface-1 text-slate-900 shadow-sm hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50"
                 : entry.variant === "danger"
@@ -251,7 +251,7 @@ export function NumPad({
         <button
           type="button"
           onClick={() => applyStep(-1)}
-          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-surface-1 text-sm font-bold text-slate-700 shadow-sm transition-all duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
+          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-surface-1 text-sm font-bold text-slate-700 shadow-sm transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
           aria-label={`Decrease by ${step}`}
         >
           <Minus className="size-4" /> {formatStepResult(step, decimals)}
@@ -259,7 +259,7 @@ export function NumPad({
         <button
           type="button"
           onClick={() => applyStep(1)}
-          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-surface-1 text-sm font-bold text-slate-700 shadow-sm transition-all duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
+          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-surface-1 text-sm font-bold text-slate-700 shadow-sm transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:border-blue-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
           aria-label={`Increase by ${step}`}
         >
           <Plus className="size-4" /> {formatStepResult(step, decimals)}
@@ -270,7 +270,7 @@ export function NumPad({
         <button
           type="button"
           onClick={clear}
-          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-danger-border bg-danger-bg text-sm font-bold text-rose-600 transition-all duration-150 ease-out active:scale-[0.97] hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20"
+          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl border border-danger-border bg-danger-bg text-sm font-bold text-rose-600 transition-[color,background-color,border-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-rose-500/20"
         >
           <X className="size-4" /> Clear
         </button>
@@ -278,7 +278,7 @@ export function NumPad({
           <button
             type="button"
             onClick={() => onConfirm?.()}
-            className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl bg-blue-600 text-sm font-bold text-white shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(37,99,235,0.45)] transition-all duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
+          className="flex h-12 min-h-[48px] items-center justify-center gap-1.5 rounded-2xl bg-blue-600 text-sm font-bold text-white shadow-[0_1px_1px_rgba(15,23,42,0.10),0_6px_16px_-8px_rgba(37,99,235,0.45)] transition-[color,background-color,border-color,box-shadow,transform,filter] duration-150 ease-out active:scale-[0.97] hover:-translate-y-px hover:brightness-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-500/20"
           >
             <Check className="size-4" /> Confirm
           </button>

@@ -42,7 +42,7 @@ export function Header() {
   };
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 border-b border-surface-1/80 bg-surface-1/90 px-3 py-2 shadow-premium backdrop-blur-xl transition-all duration-300 md:left-4 md:right-4 md:top-3 md:rounded-3xl md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:sticky lg:left-auto lg:right-auto lg:top-4 lg:mx-8 lg:px-6">
+    <header className="erp-glass-chrome fixed left-0 right-0 top-0 z-50 border-b border-surface-1/80 bg-surface-1/90 px-3 py-2 shadow-premium backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-150 md:left-4 md:right-4 md:top-3 md:rounded-3xl md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:sticky lg:left-auto lg:right-auto lg:top-4 lg:mx-8 lg:px-6">
       <div className="flex w-full flex-col gap-2.5 lg:hidden">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -87,7 +87,7 @@ export function Header() {
             </Sheet>
             <div className="min-w-0 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
               <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
-                Current role
+                Role
               </div>
               <div className="truncate text-[11px] font-bold text-content-2">
                 {getRoleDisplayName()}
@@ -139,10 +139,10 @@ export function Header() {
 
       <div className="hidden w-full items-center gap-3 md:gap-4 lg:flex lg:gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <div className="hidden min-w-0 flex-1 items-center gap-3 sm:flex lg:max-w-[18rem] xl:max-w-[24rem]">
+          <div className="hidden min-w-[9rem] max-w-[12rem] flex-1 items-center gap-3 sm:flex lg:flex lg:max-w-[12rem] xl:w-48 xl:min-w-[12rem] xl:max-w-[12rem] xl:flex-none">
             <CommandPalette />
           </div>
-          <div className="hidden shrink-0 lg:flex">
+          <div className="scrollbar-elegant hidden min-w-[7rem] max-w-[12rem] flex-[1_1_9rem] overflow-x-auto lg:flex xl:min-w-[9rem] xl:max-w-[18rem]">
             <LocationCapsule />
           </div>
         </div>
@@ -151,8 +151,8 @@ export function Header() {
           <div className="relative z-10 hidden md:block">
             <RoleSwitcher />
           </div>
-          <div className="hidden items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm md:flex">
-            <div className="h-2 w-2 animate-pulse rounded-full bg-success-fg shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+          <div className="hidden items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm 2xl:flex">
+            <div aria-hidden="true" className="h-2 w-2 rounded-full bg-success-fg shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
             <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 lg:text-[11px]">
               {getRoleDisplayName()}
             </span>

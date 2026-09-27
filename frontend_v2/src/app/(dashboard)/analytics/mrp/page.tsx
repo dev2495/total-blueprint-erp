@@ -139,7 +139,7 @@ function actionStatus(suggestion: MRPSuggestion) {
 }
 
 function isDraftedActionStatus(status: string) {
-  return status === "DRAFT_CREATED" || status.endsWith("_DRAFTED");
+  return status.endsWith("_DRAFTED");
 }
 
 function countSuggestions(rows: MRPSuggestion[]) {
@@ -352,9 +352,6 @@ export default function MRPCenter() {
       action: string;
     }) => {
       if (action === "PURCHASE") return mrpService.createDraftPO(suggestionId);
-      if (action === "PRODUCE") return mrpService.createDraftJob(suggestionId);
-      if (action === "TRANSFER")
-        return mrpService.createDraftTransfer(suggestionId);
       throw new Error(`Unsupported action: ${action}`);
     },
     onSuccess: (data) => {
@@ -1708,12 +1705,11 @@ export default function MRPCenter() {
                               variant="outline"
                               disabled={draftMutation.isPending || activePlanOutlier}
                               className="rounded-xl border-line bg-surface-1 shadow-sm"
-                              onClick={() =>
-                                draftMutation.mutate({
-                                  suggestionId: suggestion.id,
-                                  action,
-                                })
-                              }
+                              onClick={() => {
+                                if (action === "PRODUCE") router.push("/production/planner");
+                                else if (action === "TRANSFER") router.push("/inventory/inter-plant");
+                                else draftMutation.mutate({ suggestionId: suggestion.id, action });
+                              }}
                             >
                               {action === "PURCHASE" ? (
                                 <ShoppingCart className="mr-2 h-4 w-4" />
@@ -1727,8 +1723,8 @@ export default function MRPCenter() {
                                 : action === "PURCHASE"
                                 ? "Create PO"
                                 : action === "PRODUCE"
-                                  ? "Create Job"
-                                  : "Create Transfer"}
+                                  ? "Open planner"
+                                  : "Open transfers"}
                               <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                           )}

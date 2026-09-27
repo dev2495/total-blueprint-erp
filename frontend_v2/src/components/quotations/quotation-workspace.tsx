@@ -469,7 +469,8 @@ export default function QuotationWorkspace({
       id: string;
       via: "email" | "whatsapp" | "pdf_only";
     }) => {
-      await persistDraft();
+      // Send releases the already-frozen revision. Saving here would attempt
+      // to mutate an approved quote and correctly fail the backend draft gate.
       if (via !== "email") throw new Error("Only evidenced email delivery is available.");
       const recipient = contactEmail.trim();
       if (!recipient) throw new Error("Add the client email address before sending.");
@@ -791,7 +792,7 @@ export default function QuotationWorkspace({
   const readiness: { level: "GREEN" | "AMBER" | "RED"; reasons: string[] } =
     useMemo(() => {
       const reasons: string[] = [];
-      let amber = false;
+      const amber = false;
       let red = false;
       if (drafts.length === 0) {
         red = true;

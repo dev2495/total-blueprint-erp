@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Copied from the pinned pdfjs-dist package at build time.
+/public/pdfjs/

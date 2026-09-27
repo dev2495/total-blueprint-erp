@@ -4,9 +4,12 @@ erp.totalpolyprint.com {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 		X-Content-Type-Options nosniff
-		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
+	}
+
+	request_body {
+		max_size 64MB
 	}
 
 	handle /api/* {

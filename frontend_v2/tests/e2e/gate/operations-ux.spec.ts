@@ -55,7 +55,7 @@ test("inventory, logistics, artwork, cylinder, and tooling pages use the upgrade
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Packing Yard")
   await expect(page.locator("body")).toContainText("Pouch in-progress")
-  await expect(page.locator("body")).toContainText("Released unpacked")
+  await expect(page.locator("body")).toContainText("Released rolls")
 
   await page.goto("/logistics/dispatch")
   await assertHealthyPage(page)

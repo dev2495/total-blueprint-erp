@@ -518,6 +518,12 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
             'is_on_hold', 'hold_reason', 'closed_with_variance', 'completion_variance_kg',
         ]
 
+class ProductionJobBoardSerializer(ProductionJobSummarySerializer):
+    class Meta(ProductionJobSummarySerializer.Meta):
+        fields = [field for field in ProductionJobSummarySerializer.Meta.fields
+                  if field not in {'route_node', 'runtime_skip_options'}]
+
+
 from .models import PlannedOrder
 
 class PlannedOrderSerializer(serializers.ModelSerializer):

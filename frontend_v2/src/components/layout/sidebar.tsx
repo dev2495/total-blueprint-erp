@@ -22,9 +22,8 @@ export function Sidebar() {
       <aside
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
-        style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
         className={cn(
-          "pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-surface-1 bg-surface-1/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-line-strong/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-500",
+          "erp-glass-chrome pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-surface-1 bg-surface-1/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-line-strong/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-200",
           isExpanded
             ? "w-[284px] overflow-hidden shadow-[0_34px_96px_-54px_rgba(15,23,42,0.46)]"
             : "w-[64px] overflow-visible shadow-[0_22px_64px_-46px_rgba(15,23,42,0.52)]",
@@ -32,7 +31,7 @@ export function Sidebar() {
       >
         <div
           className={cn(
-            "flex h-[78px] shrink-0 items-center border-b border-line bg-surface-1/70 transition-all duration-300",
+            "flex h-[78px] shrink-0 items-center border-b border-line bg-surface-1/70 transition-[padding,background-color,border-color] duration-150",
             isExpanded ? "justify-between px-5" : "justify-center px-2",
           )}
         >
@@ -50,7 +49,7 @@ export function Sidebar() {
               onClick={togglePinned}
               aria-label={isPinned ? "Unpin navigation" : "Pin navigation"}
               className={cn(
-                "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-content-3 transition-all duration-200 hover:-translate-y-0.5 hover:text-content-1",
+                "ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-content-3 transition-[color,background-color,border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:text-content-1",
                 isPinned
                   ? "border-primary bg-primary text-white hover:text-white"
                   : "border-line bg-surface-1 shadow-sm",

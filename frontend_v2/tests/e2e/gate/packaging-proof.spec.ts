@@ -110,7 +110,7 @@ test("produced in-house packaging is visible across packaging inventory, packing
       await orderButton.click()
       await expect(page.locator("body")).toContainText(String(primaryPackGonny?.label || ""))
       await expect(page.locator("body")).toContainText(String(looseGonny?.label || ""))
-      await expect(page.locator("body")).toContainText("tare/gross preserved")
+      await expect(page.locator("body")).toContainText("net/tare/gross audit preserved")
     } else {
       await expect(page.getByTestId("packing-page")).toBeVisible()
       expect(String(proofChallan?.status || "").toUpperCase()).toMatch(/DRAFT|DISPATCHED|DELIVERED/)

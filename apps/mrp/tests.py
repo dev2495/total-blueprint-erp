@@ -215,6 +215,7 @@ class MRPViewSetFilterTests(TestCase):
         )
         user = get_user_model().objects.create_user(
             username="mrp-latest-test",
+            extra_permissions=["mrp.view"],
             password="testpass",
         )
 
@@ -252,3 +253,38 @@ class MRPViewSetFilterTests(TestCase):
         )
 
         self.assertEqual(list(viewset.get_queryset()), [included])
+
+
+class MRPReliabilityTests(TestCase):
+    def test_nightly_task_reaches_real_engine(self):
+        from apps.mrp.tasks import run_nightly_mrp
+        before = MRPPlan.objects.count()
+        result = run_nightly_mrp()
+        self.assertEqual(result['status'], 'COMPLETED')
+        self.assertEqual(MRPPlan.objects.count(), before + 1)
+
+    def test_wip_requires_material_plant_and_uom_and_subtracts_produced(self):
+        from apps.factory.models import Plant
+        from apps.templates.models import TemplateBlueprint
+        from apps.production.models import PlannedStockOrder
+        a = Plant.objects.create(code='MRP-A', name='A')
+        b = Plant.objects.create(code='MRP-B', name='B')
+        material = InventoryMaterial.objects.create(code='PACK-WIP', name='Sheet', category='PACKAGING', base_uom='KG', per_sheet_base_qty=Decimal('0.2'))
+        template = TemplateBlueprint.objects.create(name='Sheet', fg_type='POUCH')
+        PlannedStockOrder.objects.create(template=template, plant=a, packaging_material=material,
+            stock_purpose='PACKAGING', status='RELEASED', target_qty=100, produced_qty=25, quantity_uom='PCS')
+        PlannedStockOrder.objects.create(template=template, plant=b, packaging_material=material,
+            stock_purpose='PACKAGING', status='RELEASED', target_qty=500, quantity_uom='KG')
+        PlannedStockOrder.objects.create(template=template, plant=a, status='RELEASED', target_qty=999, quantity_uom='KG')
+        self.assertEqual(MRPService._get_wip_stock(material, a.pk), Decimal('15'))
+
+    def test_job_and_transfer_actions_do_not_claim_nonexistent_drafts(self):
+        material = InventoryMaterial.objects.create(code='MRP-NO-STUB', name='Sheet', category='PACKAGING', base_uom='KG')
+        plan = MRPPlan.objects.create()
+        for kind, suggestion_type in [('job', 'MTS_PRODUCE'), ('transfer', 'TRANSFER')]:
+            suggestion = MRPSuggestion.objects.create(plan=plan, material=material, type=suggestion_type, qty=10)
+            with self.assertRaisesMessage(ValueError, 'No draft has been created'):
+                MRPService.create_suggestion_draft(suggestion, kind)
+            suggestion.refresh_from_db()
+            self.assertFalse(suggestion.draft_ref)
+            self.assertEqual(suggestion.action_status, 'PENDING')

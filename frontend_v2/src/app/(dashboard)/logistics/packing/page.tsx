@@ -11,6 +11,7 @@ import {
   Layers,
   PackageCheck,
   PackageOpen,
+  RefreshCw,
   Scale,
   Search,
 } from "lucide-react";
@@ -351,13 +352,14 @@ export default function PackingYardPage() {
 
   const board = useQuery({
     queryKey: ["packing-board"],
-    queryFn: logisticsService.getPackingBoard,
+    queryFn: ({ signal }) => logisticsService.getPackingBoard(signal),
     refetchInterval: 30000,
   });
   const summary = useQuery({
     queryKey: ["packing-summary", selectedOrderId],
-    queryFn: () => logisticsService.getSOPackingSummary(selectedOrderId),
+    queryFn: ({ signal }) => logisticsService.getSOPackingSummary(selectedOrderId, signal),
     enabled: Boolean(selectedOrderId),
+    placeholderData: undefined,
   });
   const packaging = useQuery({
     queryKey: ["packaging-materials"],
@@ -651,7 +653,13 @@ export default function PackingYardPage() {
     setQueuePage((current) => Math.min(current, queuePageCount));
   }, [queuePageCount]);
 
-  const selected = summary.data as SOPackingSummary | undefined;
+  const selectedSummary = summary.data as SOPackingSummary | undefined;
+  const selected =
+    selectedOrderId &&
+    cards.some((row) => String(row.sales_order.id) === selectedOrderId) &&
+    String(selectedSummary?.sales_order.id || "") === selectedOrderId
+      ? selectedSummary
+      : undefined;
   const rawSelectedBatches = selected?.batches || [];
   const rawSelectedGonnies = [...(selected?.gonnies || [])].sort(
     (left, right) => getGonnyWorkRank(left) - getGonnyWorkRank(right),
@@ -1097,6 +1105,10 @@ export default function PackingYardPage() {
     );
   };
 
+  const boardUnavailableHint = board.isLoading
+    ? "Loading board…"
+    : "Board unavailable";
+
   return (
     <div
       className="mx-auto max-w-[1900px] space-y-3 p-3 lg:p-4"
@@ -1161,48 +1173,93 @@ export default function PackingYardPage() {
             ))}
           </div>
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+        <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4 2xl:grid-cols-8">
           <Stat
             label="In-bound jobs"
-            value={n(board.data?.totals.orders || cards.length || 0, 0)}
-            hint={`${n(cards.length, 0)} shown now`}
+            value={board.data ? n(board.data.totals.orders || cards.length || 0, 0) : "—"}
+            hint={board.data ? `${n(cards.length, 0)} shown now` : boardUnavailableHint}
           />
           <Stat
             label="Awaiting decision"
-            value={n(board.data?.totals.pending_batches || 0, 0)}
-            hint={`${n(board.data?.totals.pending_pcs || 0, 0)} pcs pending`}
+            value={board.data ? n(board.data.totals.pending_batches || 0, 0) : "—"}
+            hint={board.data ? `${n(board.data.totals.pending_pcs || 0, 0)} pcs pending` : boardUnavailableHint}
           />
           <Stat
             label="Pouch in-progress"
-            value={n(board.data?.totals.open_gonnies || 0, 0)}
-            hint="open gonnies"
+            value={board.data ? n(board.data.totals.open_gonnies || 0, 0) : "—"}
+            hint={board.data ? "open gonnies" : boardUnavailableHint}
           />
           <Stat
             label="Roll bundling"
-            value={n(board.data?.totals.ready_rolls || 0, 0)}
-            hint={`${n(board.data?.totals.ready_rolls_kg || 0)} kg net`}
+            value={board.data ? n(board.data.totals.ready_rolls || 0, 0) : "—"}
+            hint={board.data ? `${n(board.data.totals.ready_rolls_kg || 0)} kg net` : boardUnavailableHint}
           />
           <Stat
-            label="Released unpacked"
-            value={n(board.data?.totals.ready_rolls || 0, 0)}
-            hint="rolls direct"
+            label="Released rolls"
+            value={board.data ? n(board.data.totals.ready_rolls || 0, 0) : "—"}
+            hint={board.data ? "dispatch ready" : boardUnavailableHint}
           />
           <Stat
             label="Net ready"
-            value={`${n(readyNet)} kg`}
-            hint="billable product"
+            value={board.data ? `${n(readyNet)} kg` : "—"}
+            hint={board.data ? "billable product" : boardUnavailableHint}
           />
           <Stat
             label="Gross ready"
-            value={`${n(readyGross)} kg`}
-            hint="with tare"
+            value={board.data ? `${n(readyGross)} kg` : "—"}
+            hint={board.data ? "with tare" : boardUnavailableHint}
           />
           <Stat
             label="Photos missing"
-            value={n(board.data?.totals.photos_missing || 0, 0)}
-            hint="photo / hold gaps"
+            value="—"
+            hint={board.data ? "Not reported by packing board" : boardUnavailableHint}
           />
         </div>
+      </section>
+
+      <section
+        aria-live="polite"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs"
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-content-3">
+          {board.isLoading ? (
+            <span role="status" className="font-semibold">Loading packing board…</span>
+          ) : board.isError ? (
+            <span role="alert" className="font-semibold text-danger-fg">
+              {board.data ? "Packing refresh failed; showing the last loaded board." : "Packing board unavailable."} {err(board.error)}
+            </span>
+          ) : board.isFetching ? (
+            <span role="status" className="font-semibold">Refreshing packing board…</span>
+          ) : (
+            <span className="font-semibold">Packing board ready</span>
+          )}
+          {summary.isFetching && selectedOrderId && (
+            <span role="status" className="font-semibold">Refreshing selected order…</span>
+          )}
+          {summary.isError && selectedOrderId && (
+            <span role="alert" className="font-semibold text-danger-fg">Order details unavailable: {err(summary.error)}</span>
+          )}
+          {packaging.isError && (
+            <span role="alert" className="font-semibold text-danger-fg">Packaging materials unavailable: {err(packaging.error)}</span>
+          )}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            void Promise.all([
+              board.refetch(),
+              packaging.refetch(),
+              ...(selectedOrderId ? [summary.refetch()] : []),
+            ]);
+          }}
+          disabled={board.isFetching || packaging.isFetching || summary.isFetching}
+          aria-label="Refresh packing board, packaging materials, and selected order"
+        >
+          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 motion-reduce:animate-none ${board.isFetching || packaging.isFetching || summary.isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </section>
 
       <section className="sticky top-2 z-[1] rounded-[16px] border border-line bg-surface-1/95 p-2 shadow-sm backdrop-blur">
@@ -1487,7 +1544,7 @@ export default function PackingYardPage() {
             <div className="rounded-[18px] border border-dashed border-line-strong bg-surface-1 p-12 text-center">
               <PackageOpen className="mx-auto h-10 w-10 text-content-4" />
               <h2 className="mt-3 text-xl font-black">
-                Pick an SO from the queue.
+                {summary.isFetching ? "Loading selected order…" : "Pick an SO from the queue."}
               </h2>
               <p className="mt-2 text-sm font-semibold text-content-3">
                 The center panel will show its specs, route, and packing work.
@@ -1791,8 +1848,8 @@ export default function PackingYardPage() {
                       />
                       <MiniMetric
                         label="QA holds"
-                        value="0"
-                        hint="no hold in yard"
+                        value="—"
+                        hint="not reported by this view"
                       />
                     </div>
                   </div>
@@ -1809,7 +1866,12 @@ export default function PackingYardPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="max-h-[380px] overflow-auto rounded-[14px] border border-line">
+                      <div
+                        className="max-h-[380px] overflow-auto overscroll-contain rounded-[14px] border border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Pouch batch table. Scroll horizontally to view all columns."
+                      >
                         <table className="w-full min-w-[660px] text-sm">
                           <thead className="sticky top-0 bg-surface-1 text-[10px] uppercase tracking-[0.22em] text-content-4">
                             <tr>
@@ -2250,7 +2312,15 @@ export default function PackingYardPage() {
                         </Chip>
                       </div>
                     </div>
-                    <div className="max-h-[calc(100dvh-270px)] overflow-auto rounded-[14px] border border-line">
+                    <p className="mb-2 px-1 text-xs font-semibold text-content-3 md:hidden">
+                      Swipe table for specs, weight, location and actions →
+                    </p>
+                    <div
+                      className="max-h-[calc(100dvh-270px)] overflow-auto overscroll-contain rounded-[14px] border border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      tabIndex={0}
+                      role="region"
+                      aria-label="Roll packing manifest. Scroll horizontally to view all columns."
+                    >
                       <table className="w-full min-w-[920px] table-fixed text-[12px]">
                         <colgroup>
                           <col className="w-[46px]" />
@@ -2290,7 +2360,7 @@ export default function PackingYardPage() {
                                   roll.released_to_dispatch
                                     ? "bg-success-bg"
                                     : selectedRollIds.includes(roll.id)
-                                      ? "bg-info-bg"
+                                      ? "border-l-4 border-l-primary bg-info-bg"
                                       : ""
                                 }`}
                               >
@@ -2354,7 +2424,7 @@ export default function PackingYardPage() {
                                   </div>
                                   <div
                                     title={stack}
-                                    className="mt-0.5 line-clamp-2 text-[11px] font-bold leading-3 text-content-3"
+                                    className="mt-0.5 whitespace-normal break-words text-[11px] font-bold leading-4 text-content-3"
                                   >
                                     {stack !== "-" ? stack : "Order roll spec"}
                                   </div>
@@ -2463,30 +2533,30 @@ export default function PackingYardPage() {
           <div className="rounded-[18px] border border-order-border bg-order-bg p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-black text-content-1">
-                Live progress · {selected?.sales_order.order_number || "yard"}
+                {selected ? `Order progress · ${selected.sales_order.order_number}` : "Yard progress"}
               </h3>
-              <Chip tone={selectedProgress >= 100 ? "green" : "blue"}>
-                {selected ? `${selectedProgress}%` : "Live"}
+              <Chip tone={selected ? (selectedProgress >= 100 ? "green" : "blue") : "slate"}>
+                {selected ? `${selectedProgress}%` : "Select an order"}
               </Chip>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <MiniMetric
                 label="Packed"
-                value={`${n(selectedReadyUnits, 0)}`}
-                hint="units ready"
+                value={selected ? `${n(selectedReadyUnits, 0)}` : "—"}
+                hint={selected ? "units ready" : "No order selected"}
               />
               <MiniMetric
                 label="To go"
-                value={`${n(selectedPendingUnits, 0)}`}
-                hint="yard tasks"
+                value={selected ? `${n(selectedPendingUnits, 0)}` : "—"}
+                hint={selected ? "yard tasks" : "No order selected"}
               />
-              <MiniMetric label="Net" value={`${n(selectedNet)} kg`} />
-              <MiniMetric label="Gross" value={`${n(selectedGross)} kg`} />
+              <MiniMetric label="Net" value={selected ? `${n(selectedNet)} kg` : "—"} />
+              <MiniMetric label="Gross" value={selected ? `${n(selectedGross)} kg` : "—"} />
               <MiniMetric label="Value" value="Audit" hint="stock card link" />
               <MiniMetric
                 label="Photos missing"
-                value={n(board.data?.totals.photos_missing || 0, 0)}
-                alert={Number(board.data?.totals.photos_missing || 0) > 0}
+                value="—"
+                hint={board.data ? "Not reported by packing board" : "Board unavailable"}
               />
             </div>
           </div>

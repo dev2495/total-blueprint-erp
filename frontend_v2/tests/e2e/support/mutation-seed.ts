@@ -17,6 +17,9 @@ export interface MutationSeedMetadata {
   wcm: {
     work_center_id: string
     work_center_code: string
+    machine_name: string
+    granule_code_id: string
+    granule_code_code: string
     machine_id: string
     machine_code: string
     job_id: string

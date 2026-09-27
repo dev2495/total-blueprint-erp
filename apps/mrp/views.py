@@ -1,4 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
+from uuid import UUID
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -165,15 +167,27 @@ class MRPSuggestionViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='bulk-draft-po')
+    @transaction.atomic
     def bulk_draft_po(self, request):
         ids = request.data.get('suggestion_ids') or []
         if not isinstance(ids, list) or not ids:
             return Response({"error": "suggestion_ids (list) required."}, status=400)
         results = []
         errors = []
-        for sid in ids:
+        valid_ids = set()
+        for value in ids:
             try:
-                sug = MRPSuggestion.objects.get(pk=sid)
+                valid_ids.add(UUID(str(value)))
+            except (ValueError, TypeError):
+                errors.append({"suggestion_id": str(value), "error": "Invalid suggestion ID."})
+        # Acquire every suggestion lock before any PO namespace lock. Otherwise
+        # overlapping batches can hold a PO lock while waiting on each other.
+        locked = {s.pk: s for s in MRPSuggestion.objects.select_for_update().filter(pk__in=valid_ids).order_by('pk')}
+        for sid in sorted(valid_ids):
+            try:
+                sug = locked.get(sid)
+                if sug is None:
+                    raise MRPSuggestion.DoesNotExist
                 if str(sug.type or '').upper() != 'PURCHASE':
                     errors.append({"suggestion_id": str(sid), "error": "Not a PURCHASE suggestion."})
                     continue

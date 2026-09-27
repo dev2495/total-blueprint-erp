@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.db.models.deletion import ProtectedError
 from django.test import RequestFactory
@@ -35,7 +36,7 @@ from apps.inventory.services.grn import GRNService
 from apps.inventory.services.job_work import JobWorkService
 from apps.inventory.services.packaging_service import PackagingService
 from apps.inventory.services.roll_service import RollService
-from apps.materials.models import InventoryMaterial, PodSkuVariant
+from apps.materials.models import GranuleQualityCode, InventoryMaterial, PodSkuVariant
 from apps.factory.models import Machine, Process, WorkCenter, WorkCenterProcess
 from apps.physics.spec_signature import (
     build_invariant_payload,
@@ -56,6 +57,7 @@ from apps.production.models import (
     PackingUnit,
     PlannedStockOrder,
     ProductionJob,
+    QualityReading,
     RollDispatchPackRecord,
     ScrapLog,
     DowntimeLog,
@@ -141,7 +143,15 @@ class Command(BaseCommand):
         if not secondary_rm_location:
             secondary_rm_location = primary_rm_location
 
-        roll_template = self._ensure_live_template(fg_type="ROLL", admin=admin, tag=tag, plant=fg_location.plant)
+        self._ensure_route_truth_processes()
+
+        roll_template = self._ensure_live_template(
+            fg_type="ROLL",
+            admin=admin,
+            tag=tag,
+            plant=fg_location.plant,
+            minimum_route_steps=3,
+        )
         pouch_template = self._ensure_live_template(fg_type="POUCH", admin=admin, tag=tag, plant=fg_location.plant)
 
         roll_material = (
@@ -302,7 +312,19 @@ class Command(BaseCommand):
             )
 
         # GRN seed through service paths (bulk + roll) for both plants.
-        granule = InventoryMaterial.objects.filter(category="GRANULE", status="ACTIVE").order_by("created_at").first()
+        granule = (
+            InventoryMaterial.objects.filter(code="GRANULE_LDPE", category="GRANULE", status="ACTIVE").first()
+            or InventoryMaterial.objects.filter(category="GRANULE", status="ACTIVE").order_by("created_at").first()
+        )
+        granule_code = None
+        if granule:
+            granule_code = GranuleQualityCode.objects.filter(
+                granule=granule,
+                status="ACTIVE",
+                merged_into__isnull=True,
+            ).order_by("created_at", "code").first()
+        if granule and primary_rm_location and not granule_code:
+            raise CommandError(f"Acceptance requires an active quality code for granule {granule.code}.")
         ink = InventoryMaterial.objects.filter(category="INK", status="ACTIVE").order_by("created_at").first()
         adhesive = InventoryMaterial.objects.filter(code="AD-ADHESIVE", category="ADHESIVE", status="ACTIVE").first()
         solvent = InventoryMaterial.objects.filter(code="AD-SOLVENT", category="SOLVENT", status="ACTIVE").first()
@@ -315,6 +337,7 @@ class Command(BaseCommand):
                 plant=fg_location.plant,
                 cost=95.0,
                 reference=f"E2E_GRN_GRANULE_A_{tag}",
+                granule_code_id=str(granule_code.id),
             )
         if ink and primary_rm_location:
             GRNService.create_bulk_grn(
@@ -355,6 +378,7 @@ class Command(BaseCommand):
                 plant=secondary_fg_location.plant,
                 cost=97.0,
                 reference=f"E2E_GRN_GRANULE_B_{tag}",
+                granule_code_id=str(granule_code.id),
             )
 
         if primary_rm_location:
@@ -1050,7 +1074,7 @@ class Command(BaseCommand):
             internal_name=f"E2E_MTS_PACK_SHEET_{tag}",
             template=pouch_template,
             plant=fg_location.plant,
-            target_qty=Decimal("2.0000"),
+            target_qty=Decimal("1.0000"),
             quantity_uom="KG",
             produced_qty=Decimal("0"),
             geometry_snapshot=pouch_geometry,
@@ -1059,7 +1083,7 @@ class Command(BaseCommand):
             addons_snapshot=addons_snapshot,
             packaging_snapshot={},
             bom_snapshot=self._json_ready(pouch_preview["bom"]),
-            total_weight_kg=Decimal("2.0000"),
+            total_weight_kg=Decimal("1.0000"),
             stock_purpose="PACKAGING",
             packaging_material=sheet_mat,
             output_type="PACKAGING",
@@ -1087,8 +1111,9 @@ class Command(BaseCommand):
             mts_order=mts_packaging_sheet,
             admin=admin,
             route_index=0,
-            actual_qty=Decimal("2.0000"),
+            actual_qty=Decimal("1.0000"),
             target_location=fg_location,
+            assert_over_cap_rejected=True,
         )
         packaging_after_production = {
             "inner_pouch_pcs": float(self._packaging_stock_qty(inner_pouch, fg_location)),
@@ -1120,7 +1145,7 @@ class Command(BaseCommand):
             lines=[
                 {
                     "stock_id": str(sheet_stock.id),
-                    "counted_qty": Decimal("1.5000"),
+                    "counted_qty": Decimal("0.5000"),
                 }
             ],
             counted_at=timezone.now(),
@@ -1360,7 +1385,7 @@ class Command(BaseCommand):
                 "after_consumption": packaging_after_consumption,
                 "expected_remaining": {
                     "inner_pouch_pcs": float(Decimal("4") - Decimal(str(fg_primary_pack_count or 0))),
-                    "sheet_kg": float(Decimal("2.0000") - Decimal("0.5000")),
+                    "sheet_kg": float(Decimal("1.0000") - Decimal("0.5000")),
                 },
             },
             "pouch_breakdown": report["pouch_flow"],
@@ -1603,6 +1628,33 @@ class Command(BaseCommand):
             output_type="FG_ROLL",
         )
         route_profiles.update({f"modify_fallback_{key}": value for key, value in modify_fallback_bundle.profiles.items()})
+        modify_fallback_create_job = modify_fallback_bundle.jobs["create_new"]
+        self._set_job_executing(modify_fallback_create_job)
+        JobService.log_output_event(
+            modify_fallback_create_job,
+            Decimal("4.0000"),
+            completion_meta={
+                "roll_outputs": [
+                    {"width_mm": 1550, "weight_kg": 4},
+                ]
+            },
+            user=admin,
+        )
+        JobService.complete_step(modify_fallback_create_job, user=admin)
+        modify_fallback_lineage_roll = InventoryRoll.objects.filter(
+            created_by_job=modify_fallback_create_job,
+            meta_json__roll_role="OUTPUT",
+            status="AVAILABLE",
+        ).first()
+        if not modify_fallback_lineage_roll:
+            raise CommandError("WIP route proof failed to create the MODIFY_FALLBACK predecessor output.")
+
+        modify_fallback_job = modify_fallback_bundle.jobs["modify_existing"]
+        from apps.production.services.roll_allocation_service import RollAllocationService
+
+        if not RollAllocationService.get_eligible_rolls(modify_fallback_job, include_non_lineage_fallback=False).exists():
+            raise CommandError("WIP route proof did not expose the MODIFY_FALLBACK predecessor in its lineage pool.")
+
         purchased_fallback_roll = InventoryRoll.objects.create(
             label_id=f"TEST-PURCHASED-FALLBACK-{tag}",
             material=roll_material,
@@ -1620,7 +1672,6 @@ class Command(BaseCommand):
             completed_step_index=0,
             meta_json={"roll_role": "RAW_MATERIAL", "invariant_signature": roll_invariant_signature},
         )
-        modify_fallback_job = modify_fallback_bundle.jobs["modify_existing"]
         modify_fallback_before = self._summarize_pool_details(ExecutionService._resolve_wip_pool_details_v2(modify_fallback_job))
         modify_fallback_assign_error = None
         try:
@@ -2709,6 +2760,20 @@ class Command(BaseCommand):
                     "evidence": json.dumps(report["inhouse_packaging_proof"]["orders"], default=str),
                 },
                 {
+                    "scenario_id": "PACKAGING_OUTPUT_CAP_PRESERVED",
+                    "status": "PASS"
+                    if report["inhouse_packaging_proof"]["orders"]["sheet"].get("over_cap_rejected")
+                    else "FAIL",
+                    "evidence": json.dumps(
+                        {
+                            "over_cap_kg": report["inhouse_packaging_proof"]["orders"]["sheet"].get("over_cap_kg"),
+                            "cap_rejection": report["inhouse_packaging_proof"]["orders"]["sheet"].get("cap_rejection"),
+                            "valid_output_kg": report["inhouse_packaging_proof"]["orders"]["sheet"].get("produced_tx_qty"),
+                        },
+                        default=str,
+                    ),
+                },
+                {
                     "scenario_id": "INHOUSE_PACKAGING_CONSUMED_IN_POUCH",
                     "status": "PASS"
                     if Decimal(str(report["inhouse_packaging_proof"]["stock"]["after_consumption"]["inner_pouch_pcs"]))
@@ -2752,8 +2817,8 @@ class Command(BaseCommand):
                 {
                     "scenario_id": "WIP_ROUTE_MODIFY_DOWNSTREAM_RAW_REJECTED",
                     "status": "PASS"
-                    if int(report["wip_route_truth"]["modify_fallback"]["before"]["meta"]["lineage_roll_count"]) == 0
-                    and int(report["wip_route_truth"]["modify_fallback"]["before"]["meta"]["missing_lineage_rolls"]) >= 1
+                    if int(report["wip_route_truth"]["modify_fallback"]["before"]["meta"]["lineage_roll_count"]) >= 1
+                    and int(report["wip_route_truth"]["modify_fallback"]["before"]["meta"]["missing_lineage_rolls"]) == 0
                     and int(report["wip_route_truth"]["modify_fallback"]["after_assign"]["meta"]["reserved_rolls"]) == 0
                     and bool(report["wip_route_truth"]["modify_fallback"].get("assignment_error"))
                     and not bool(report["wip_route_truth"]["modify_fallback"].get("output_roll"))
@@ -3134,6 +3199,7 @@ class Command(BaseCommand):
         actual_uom="KG",
         output_pcs=None,
         target_location=None,
+        assert_over_cap_rejected=False,
     ):
         from apps.production.services.services_execution import ExecutionService
 
@@ -3269,6 +3335,49 @@ class Command(BaseCommand):
             )
             persisted_job.refresh_from_db()
         else:
+            over_cap_proof = {}
+            if assert_over_cap_rejected:
+                before_job = ProductionJob.objects.get(id=persisted_job.id)
+                before_logs = JobExecutionLog.objects.filter(production_job_id=persisted_job.id).count()
+                before_production_txs = PackagingTransaction.objects.filter(
+                    mts_order=mts_order,
+                    type="PRODUCE",
+                ).count()
+                over_cap_qty = Decimal("2.0000")
+                try:
+                    with transaction.atomic():
+                        JobService.log_output_event(
+                            before_job,
+                            over_cap_qty,
+                            completion_meta=completion_meta,
+                            user=admin,
+                        )
+                except ValueError as exc:
+                    if "exceeds max allowed" not in str(exc):
+                        raise CommandError(
+                            f"Expected the physical output cap to reject {over_cap_qty} kg; got: {exc}"
+                        ) from exc
+                    over_cap_proof = {
+                        "over_cap_rejected": True,
+                        "over_cap_kg": float(over_cap_qty),
+                        "cap_rejection": str(exc),
+                    }
+                else:
+                    raise CommandError(
+                        f"Physical output cap accepted over-cap quantity {over_cap_qty} kg."
+                    )
+                persisted_job.refresh_from_db()
+                if (
+                    JobExecutionLog.objects.filter(production_job_id=persisted_job.id).count() != before_logs
+                    or PackagingTransaction.objects.filter(mts_order=mts_order, type="PRODUCE").count()
+                    != before_production_txs
+                    or persisted_job.produced_qty != before_job.produced_qty
+                    or persisted_job.remaining_qty != before_job.remaining_qty
+                ):
+                    raise CommandError("Rejected over-cap output changed the job or packaging stock state.")
+            else:
+                over_cap_proof = {}
+
             JobService.log_output_event(persisted_job, Decimal(str(actual_qty)), completion_meta=completion_meta, user=admin)
             persisted_job.refresh_from_db()
             JobService.complete_step(persisted_job, user=admin)
@@ -3314,6 +3423,7 @@ class Command(BaseCommand):
             "transfer_tx_type": transfer_tx.type if transfer_tx else None,
             "transfer_tx_reference": transfer_tx.reference if transfer_tx else None,
             "target_location": getattr(target_location, "name", None) if target_location else None,
+            **over_cap_proof,
         }
 
     def _upsert_pod_profile(
@@ -3407,12 +3517,15 @@ class Command(BaseCommand):
             return [self._json_ready(v) for v in value]
         return value
 
-    def _ensure_live_template(self, *, fg_type: str, admin, tag: str, plant=None):
+    def _ensure_live_template(self, *, fg_type: str, admin, tag: str, plant=None, minimum_route_steps: int = 1):
         fg_type = str(fg_type or "").upper()
         templates = TemplateBlueprint.objects.filter(
             status="LIVE", fg_type=fg_type, routing_rule__isnull=False
         ).prefetch_related("process_steps__process").order_by("created_at")
         for template in templates:
+            route_codes = list(getattr(template.routing_rule, "ordered_processes", None) or [])
+            if len(route_codes) < int(minimum_route_steps):
+                continue
             if plant is None:
                 return template
             statuses = [
@@ -3423,9 +3536,17 @@ class Command(BaseCommand):
             if statuses and all(status in {"CONFIGURED", "AUTO_RESOLVABLE"} for status in statuses):
                 return template
 
-        route = self._pick_active_route_for_fg(fg_type=fg_type)
+        route = self._pick_active_route_for_fg(fg_type=fg_type, minimum_route_steps=minimum_route_steps)
         if not route:
-            raise CommandError(f"No active routing rule available to bootstrap {fg_type} template.")
+            if fg_type == "ROLL" and int(minimum_route_steps) >= 3:
+                route = RoutingRule.objects.create(
+                    name=f"TEST_ACCEPTANCE_ROUTE_{fg_type}_{tag}",
+                    description="Isolated acceptance route used to verify intermediate WIP gating.",
+                    ordered_processes=["EXTRUSION", "PRINTING", "SLITTING"],
+                    is_active=True,
+                )
+            else:
+                raise CommandError(f"No active routing rule available to bootstrap {fg_type} template.")
 
         template = TemplateBlueprint.objects.create(
             name=f"TEST_ACCEPTANCE_{fg_type}_{tag}",
@@ -3443,6 +3564,47 @@ class Command(BaseCommand):
         if plant is not None:
             self._ensure_acceptance_dispatch_capabilities(template, plant=plant, tag=tag, fg_type=fg_type)
         return template
+
+    def _ensure_route_truth_processes(self):
+        """Fill missing physical process masters for the isolated route proof.
+
+        Existing process definitions are customer master data. The acceptance
+        harness may add a missing canonical process, but it must never silently
+        rewrite an existing process with different physical behavior.
+        """
+        process_specs = (
+            ("EXTRUSION", "Extrusion", "BULK", "ROLL", "CREATE_NEW"),
+            ("PRINTING", "Flexo Printing", "ROLL", "ROLL", "MODIFY_EXISTING"),
+            ("LAMINATION", "Lamination", "ROLL", "ROLL", "MULTI_INPUT_COMBINE"),
+            ("SLITTING", "Slitting", "ROLL", "ROLL", "SPLIT"),
+            ("POUCHING", "Pouching", "ROLL", "BULK", "NONE"),
+        )
+        for code, name, input_form, output_form, roll_behavior in process_specs:
+            process, created = Process.objects.get_or_create(
+                code=code,
+                defaults={
+                    "name": name,
+                    "input_form": input_form,
+                    "output_form": output_form,
+                    "roll_behavior": roll_behavior,
+                    "active": True,
+                },
+            )
+            actual = (
+                str(process.input_form or "").upper(),
+                str(process.output_form or "").upper(),
+                str(process.roll_behavior or "").upper(),
+            )
+            expected = (input_form, output_form, roll_behavior)
+            if actual != expected:
+                raise CommandError(
+                    f"Route proof process {code} has physical behavior {actual}; "
+                    f"the proof requires {expected}. Existing process data was not changed."
+                )
+            if not process.active:
+                raise CommandError(f"Route proof process {code} is inactive; existing process data was not changed.")
+            if created:
+                self.stdout.write(f"Acceptance: created missing route process {code}")
 
     def _ensure_acceptance_dispatch_capabilities(self, template, *, plant, tag: str, fg_type: str):
         """Create isolated test-only capabilities when no live route fits the test plant."""
@@ -3464,8 +3626,12 @@ class Command(BaseCommand):
             step.work_center_selection_policy = TemplateDispatchService.AUTO_DEFAULT
             step.save(update_fields=["default_work_center", "allowed_work_center_ids", "work_center_selection_policy", "updated_at"])
 
-    def _pick_active_route_for_fg(self, *, fg_type: str):
-        routes = list(RoutingRule.objects.filter(is_active=True).order_by("created_at"))
+    def _pick_active_route_for_fg(self, *, fg_type: str, minimum_route_steps: int = 1):
+        routes = [
+            route
+            for route in RoutingRule.objects.filter(is_active=True).order_by("created_at")
+            if len(list(getattr(route, "ordered_processes", None) or [])) >= int(minimum_route_steps)
+        ]
         if not routes:
             return None
 
@@ -3488,6 +3654,7 @@ class Command(BaseCommand):
     def _cleanup_prior_test_rows(self):
         job_scope = (
             Q(job_number__startswith="JOB-TEST-")
+            | Q(job_number__startswith="JOB-DF-")
             | Q(job_number__startswith="UIE2E-MUT-")
             | Q(mts_order__internal_name__startswith="TEST_MTS_")
             | Q(mts_order__internal_name__startswith="E2E_MTS_")
@@ -3670,6 +3837,7 @@ class Command(BaseCommand):
             DowntimeLog.objects.filter(production_job_id__in=job_ids).delete()
             ScrapLog.objects.filter(production_job_id__in=job_ids).delete()
             JobExecutionLog.objects.filter(production_job_id__in=job_ids).delete()
+            QualityReading.objects.filter(production_job_id__in=job_ids).delete()
         MaterialConsumptionLog.objects.filter(production_job__job_number__startswith="UAT-GREEN-MUT-").delete()
         DowntimeLog.objects.filter(production_job__job_number__startswith="UAT-GREEN-MUT-").delete()
         ScrapLog.objects.filter(production_job__job_number__startswith="UAT-GREEN-MUT-").delete()

@@ -4,6 +4,7 @@ import os
 import runpy
 import sys
 import uuid
+from copy import deepcopy
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -32,8 +33,8 @@ from apps.inventory.services.packaging_service import PackagingService
 from apps.materials.models import CommercialFamily, InventoryMaterial, PodSku, PodSkuVariant
 from apps.production.models import FinishedGoodsBatch, JobExecutionLog, PlannedBulkStockOrder, PlannedStockOrder, PlannerSku, PlannerSkuVariant, ProductionJob
 from apps.production.services.stock_validator import first_artwork_step_index
-from apps.sales.models import Customer, SalesOrder, SalesSku, SalesSkuVariant
-from apps.sales.services.quotation_service import QuotationService
+from apps.sales.models import Customer, SalesOrder, SalesOrderItem, SalesSku, SalesSkuVariant
+from apps.sales.services.order_service import SalesOrderService
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from apps.templates.services import TemplateDispatchService
 
@@ -269,22 +270,55 @@ def _create_sales_order(
             }
         ],
     }
-    quotation = QuotationService.create_quotation(payload)
-    order = QuotationService.convert_to_sales_order(quotation)
-    order.status = "PLANNING_REQUIRED"
-    order.save(update_fields=["status"])
+    payload["order_name"] = line_name
+    payload["delivery_date"] = (timezone.localdate() + timedelta(days=7)).isoformat()
+    payload["items"] = [
+        {
+            **payload["items"][0],
+            "template_id": str(variant.sku.template_id),
+            "mode": "TEMPLATE",
+            "sku_variant_id": str(variant.id),
+            "unit_price": float(unit_price),
+            "product_master": str(variant.sku.product_master_id) if variant.sku.product_master_id else None,
+            "film_layers": deepcopy(variant.layer_snapshot or []),
+            "chemicals": deepcopy(variant.chemicals_snapshot or {}),
+            "addons": deepcopy(variant.addons_snapshot or []),
+            "axis_values": {"size": variant.code},
+        }
+    ]
+    order = SalesOrderService.create_sales_order(payload)
+    item = order.items.select_related("template").first()
+    if item and variant.sku.product_master_id and not item.axis_values.get("size"):
+        item.axis_values = {**(item.axis_values or {}), "size": variant.code}
+        item.save(update_fields=["axis_values"])
+    order = SalesOrderService.confirm_sales_order(str(order.id))
     item = order.items.select_related("template").first()
     if item and artwork:
         item.assigned_artwork = artwork
         item.printing_snapshot = _proof_printing_payload(artwork, variant.layer_snapshot or [])
         item.save(update_fields=["assigned_artwork", "printing_snapshot"])
-    return quotation, order, item
+    return None, order, item
 
 
 def _ensure_dryfruit_planner_variant(admin, template: TemplateBlueprint, plant: Plant, sales_variant: SalesSkuVariant):
     route_last_index = _route_last_index(template)
     first_artwork = first_artwork_step_index(template)
     invariant_stop_index = max(int(first_artwork) - 1, 0) if first_artwork is not None else route_last_index
+    prototype = (
+        SalesOrderItem.objects.filter(
+            sku_variant=sales_variant,
+            product_master_id=getattr(sales_variant.sku, "product_master_id", None),
+            planned_parent_width_mm__gt=0,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    geometry_snapshot = deepcopy(
+        (prototype.geometry_snapshot if prototype else None) or sales_variant.geometry_snapshot or {}
+    )
+    layer_snapshot = deepcopy(
+        (prototype.layer_snapshot if prototype else None) or sales_variant.layer_snapshot or []
+    )
     sku, _ = PlannerSku.objects.update_or_create(
         code="PLN-DRYFRUIT-COURIER",
         defaults={
@@ -312,8 +346,8 @@ def _ensure_dryfruit_planner_variant(admin, template: TemplateBlueprint, plant: 
             "planner_stock_class": "SHARED_INVARIANT_ROLL",
             "start_step_index": 0,
             "stop_step_index": invariant_stop_index,
-            "geometry_snapshot": sales_variant.geometry_snapshot or {},
-            "layer_snapshot": sales_variant.layer_snapshot or [],
+            "geometry_snapshot": geometry_snapshot,
+            "layer_snapshot": layer_snapshot,
             "printing_snapshot": sales_variant.printing_snapshot or {},
             "addons_snapshot": sales_variant.addons_snapshot or [],
             "packaging_snapshot": sales_variant.packaging_snapshot or {},
@@ -685,7 +719,15 @@ def _create_invariant_roll(
         material=material,
         batch_no=f"DRVINV-{uuid.uuid4().hex[:6].upper()}",
         thickness_micron=_d(first_layer.get("thickness_micron") or 12),
-        width_mm=_d((effective_geometry or {}).get("base", {}).get("width_mm") or 240),
+        width_mm=_d(
+            (stock_order.planner_origin_meta or {}).get("wip_roll_width_mm")
+            or (effective_geometry or {}).get("wip_roll_width_mm")
+            or (effective_geometry or {}).get("planned_parent_width_mm")
+            or (effective_geometry or {}).get("roll_width_mm")
+            or (effective_geometry or {}).get("base", {}).get("roll_width_mm")
+            or (effective_geometry or {}).get("base", {}).get("width_mm")
+            or 240
+        ),
         plant=plant,
         original_weight_kg=_d(stock_order.total_weight_kg or stock_order.target_qty or 0),
         weight_kg=_d(stock_order.total_weight_kg or stock_order.target_qty or 0),
@@ -819,15 +861,20 @@ def main():
     wip_location = _ensure_location(plant, "WIP", "UAT-WIP", "UAT WIP", True)
     fg_location = _ensure_location(plant, "FG", "UAT-FG", "UAT FG", True)
 
+    proof_artwork = _ensure_proof_artwork(admin, dryfruit_variant)
+    proof_printing = _proof_printing_payload(proof_artwork, dryfruit_variant.layer_snapshot or [])
+    _ensure_route_dispatch_defaults(courier_template, plant)
+    pricing = Decimal("8.25")
+    _, so_wip, so_wip_item = _create_sales_order(customer, plant, dryfruit_variant, 1800, pricing, "Dry Fruit WIP Continuation", artwork=proof_artwork)
+    _, so_fg, so_fg_item = _create_sales_order(customer, plant, dryfruit_variant, 2000, pricing, "Dry Fruit FG Claim", artwork=proof_artwork)
+    _, so_fresh, so_fresh_item = _create_sales_order(customer, plant, dryfruit_variant, 2200, pricing, "Dry Fruit Fresh Route", artwork=proof_artwork)
+
     dryfruit_planner_sku, dryfruit_invariant_variant = _ensure_dryfruit_planner_variant(admin, courier_template, plant, dryfruit_variant)
     packaging_assets = _ensure_packaging_assets(admin, plant)
     pod_assets = _ensure_pod_assets(admin, plant)
-    _ensure_route_dispatch_defaults(courier_template, plant)
     _ensure_route_dispatch_defaults(packaging_assets["template"], plant)
     _ensure_route_dispatch_defaults(pod_assets["template"], plant)
-    route_last_index = max(len(courier_template.routing_rule.ordered_processes or []) - 1, 0)
-    proof_artwork = _ensure_proof_artwork(admin, dryfruit_variant)
-    proof_printing = _proof_printing_payload(proof_artwork, dryfruit_variant.layer_snapshot or [])
+    route_last_index = max(len(courier_template.routing_rule.ordered_processes or []), 1) - 1
 
     direct_fg_order = _create_stock_order(
         client,
@@ -841,7 +888,13 @@ def main():
             "commitment_scope": "CUSTOMER_ARTWORK",
             "committed_customer_id": str(customer.id),
             "committed_artwork_id": str(proof_artwork.id),
-            "printing": proof_printing,
+            "product_master": str(so_fg_item.product_master_id) if so_fg_item.product_master_id else None,
+            "axis_values": deepcopy(so_fg_item.axis_values or {}),
+            "geometry": deepcopy(so_fg_item.geometry_snapshot or {}),
+            "film_layers": deepcopy(so_fg_item.layer_snapshot or []),
+            "printing": deepcopy(so_fg_item.printing_snapshot or proof_printing),
+            "addons": deepcopy(so_fg_item.addons_snapshot or []),
+            "packaging_snapshot": deepcopy(so_fg_item.packaging_snapshot or {}),
         },
     )
     invariant_order = _create_stock_order(
@@ -850,6 +903,25 @@ def main():
             "planner_sku_variant_id": str(dryfruit_invariant_variant.id),
         },
     )
+    if so_wip_item and _d(so_wip_item.planned_parent_width_mm) > 0:
+        wip_width = _d(so_wip_item.planned_parent_width_mm)
+        stock_geometry = dict(invariant_order.geometry_snapshot or {})
+        stock_geometry.update(
+            {
+                "wip_roll_width_mm": float(wip_width),
+                "planned_parent_width_mm": float(wip_width),
+                "roll_width_mm": float(wip_width),
+            }
+        )
+        stock_geometry["base"] = {
+            **(stock_geometry.get("base") if isinstance(stock_geometry.get("base"), dict) else {}),
+            "roll_width_mm": float(wip_width),
+        }
+        origin_meta = dict(invariant_order.planner_origin_meta or {})
+        origin_meta["wip_roll_width_mm"] = float(wip_width)
+        invariant_order.geometry_snapshot = stock_geometry
+        invariant_order.planner_origin_meta = origin_meta
+        invariant_order.save(update_fields=["geometry_snapshot", "planner_origin_meta", "updated_at"])
     packaging_order = _create_stock_order(
         client,
         {
@@ -873,11 +945,6 @@ def main():
         fallback_layer_snapshot=dryfruit_invariant_variant.layer_snapshot or [],
         fallback_geometry_snapshot=dryfruit_invariant_variant.geometry_snapshot or {},
     )
-
-    pricing = Decimal("8.25")
-    _, so_wip, so_wip_item = _create_sales_order(customer, plant, dryfruit_variant, 1800, pricing, "Dry Fruit WIP Continuation", artwork=proof_artwork)
-    _, so_fg, so_fg_item = _create_sales_order(customer, plant, dryfruit_variant, 2000, pricing, "Dry Fruit FG Claim", artwork=proof_artwork)
-    _, so_fresh, so_fresh_item = _create_sales_order(customer, plant, dryfruit_variant, 2200, pricing, "Dry Fruit Fresh Route", artwork=proof_artwork)
 
     control_payload = _planner_rows(client)
     row_wip = _sales_row(control_payload, so_wip)
@@ -959,6 +1026,26 @@ def main():
                 location_id=fg_location.id,
                 sales_order_item_id=so_fg_item.id,
                 reference=f"{so_fg.order_number} gonny top-up",
+                input_uom="PCS",
+            )
+
+    # The companion browser flow intentionally selects the acceptance gonny
+    # material as well. Keep its stock in this proof's exact FG location so the
+    # UI exercises the real location-specific availability check.
+    acceptance_gonny = InventoryMaterial.objects.filter(code="TEST_GONNY_PCS").first()
+    if acceptance_gonny:
+        acceptance_stock = PackagingStock.objects.filter(
+            material=acceptance_gonny,
+            location=fg_location,
+        ).first()
+        acceptance_qty = _d(acceptance_stock.qty if acceptance_stock else 0)
+        if acceptance_qty < Decimal("10"):
+            PackagingService.add_packaging_stock(
+                material_id=acceptance_gonny.id,
+                qty=Decimal("10") - acceptance_qty,
+                location_id=fg_location.id,
+                sales_order_item_id=so_fg_item.id,
+                reference=f"{so_fg.order_number} acceptance gonny top-up",
                 input_uom="PCS",
             )
 

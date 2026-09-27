@@ -275,7 +275,7 @@ class DispatchLineageTests(SimpleTestCase):
             plant_id=PLANT_ID,
         )
 
-        record_filter = SimpleNamespace(first=lambda: SimpleNamespace(meta_json={"released_to_dispatch": False}))
+        record_filter = SimpleNamespace(order_by=lambda *args: [SimpleNamespace(roll_id=roll.id, sales_order_item_id=roll.sales_order_item_id, meta_json={"released_to_dispatch": False})])
 
         with patch("apps.sales.models.SalesOrder.objects.select_for_update") as order_lock, \
              patch("apps.factory.models.Plant.objects.get", return_value=plant), \

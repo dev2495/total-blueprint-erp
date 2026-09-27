@@ -7,18 +7,26 @@ existing inventory services (BulkService / RollService / PackagingService).
 """
 
 import uuid
+import hashlib
 from decimal import Decimal
 
-from django.db import models
+from django.db import models, transaction, connections, router
+from django.db.models.functions import Length
 from django.utils import timezone
 
 
-def gen_code(prefix: str, model_cls) -> str:
+def gen_code(prefix: str, model_cls, using="default") -> str:
     """Yearly-sequential code, e.g. PO-2026-0001."""
     year = timezone.now().year
+    # Hold the namespace lock through INSERT (save() opens the transaction).
+    db = connections[using]
+    if db.vendor == "postgresql":
+        key = int.from_bytes(hashlib.sha256(f"procurement:{prefix}:{year}".encode()).digest()[:8], "big", signed=True)
+        with db.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [key])
     last = (
-        model_cls.objects.filter(code__startswith=f"{prefix}-{year}-")
-        .order_by("-code")
+        model_cls.objects.using(using).filter(code__startswith=f"{prefix}-{year}-")
+        .order_by(Length("code").desc(), "-code")
         .first()
     )
     if last:
@@ -122,9 +130,12 @@ class PurchaseOrder(models.Model):
         return f"{self.code} · {self.vendor.name}"
 
     def save(self, *args, **kwargs):
-        if not self.code:
-            self.code = gen_code("PO", PurchaseOrder)
-        super().save(*args, **kwargs)
+        if self.code:
+            return super().save(*args, **kwargs)
+        using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            self.code = gen_code("PO", PurchaseOrder, using=using)
+            return super().save(*args, **kwargs)
 
     @property
     def open_qty_total(self) -> Decimal:
@@ -241,9 +252,12 @@ class PurchaseOrderReceipt(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        if not self.code:
-            self.code = gen_code("PORG", PurchaseOrderReceipt)
-        super().save(*args, **kwargs)
+        if self.code:
+            return super().save(*args, **kwargs)
+        using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            self.code = gen_code("PORG", PurchaseOrderReceipt, using=using)
+            return super().save(*args, **kwargs)
 
 
 class PurchaseOrderReceiptLine(models.Model):
@@ -329,6 +343,9 @@ class TradingGoodReceipt(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        if not self.code:
-            self.code = gen_code("TGR", TradingGoodReceipt)
-        super().save(*args, **kwargs)
+        if self.code:
+            return super().save(*args, **kwargs)
+        using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            self.code = gen_code("TGR", TradingGoodReceipt, using=using)
+            return super().save(*args, **kwargs)

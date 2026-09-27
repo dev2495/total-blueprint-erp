@@ -6,6 +6,7 @@ type RouteHealthCheck = {
   api: string
   anchor: RegExp | string
   kind: "object" | "array"
+  tab?: string
 }
 
 const reportRouteChecks: RouteHealthCheck[] = [
@@ -20,6 +21,10 @@ const reportRouteChecks: RouteHealthCheck[] = [
   { route: "/analytics/reports/dispatch", api: "/api/analytics/reports/dispatch/", anchor: /Dispatch & Logistics/i, kind: "object" },
   { route: "/analytics/reports/operator", api: "/api/analytics/reports/operator/", anchor: /Operator Performance/i, kind: "object" },
   { route: "/analytics/reports/costing", api: "/api/analytics/reports/costing/", anchor: /Costing & Profitability/i, kind: "object" },
+  { route: "/analytics/reports/material-variance", api: "/api/analytics/reports/material-variance/", anchor: /Material Variance/i, kind: "object", tab: "material-variance" },
+  { route: "/analytics/reports/ink-intelligence", api: "/api/analytics/reports/ink-intelligence/", anchor: /Ink Intelligence/i, kind: "object", tab: "ink-intelligence" },
+  { route: "/analytics/reports/inventory-lineage", api: "/api/analytics/reports/inventory-lineage/", anchor: /Inventory Lineage/i, kind: "object", tab: "inventory-lineage" },
+  { route: "/analytics/reports/shift-performance", api: "/api/analytics/reports/shift-performance/", anchor: /Shift Performance/i, kind: "object", tab: "shift-performance" },
   { route: "/analytics/inventory-health", api: "/api/inventory/health/", anchor: /Inventory Health/i, kind: "object" },
   { route: "/analytics/inventory-history", api: "/api/inventory/snapshots/", anchor: /Inventory Snapshot History/i, kind: "array" },
   { route: "/analytics/capability-matrix", api: "/api/analytics/capability-matrix/", anchor: /Capability Matrix/i, kind: "object" },
@@ -45,6 +50,15 @@ for (const check of reportRouteChecks) {
     const response = await fetchJson(page, check.api)
     expect(response.status).toBe(200)
     expect(hasMeaningfulPayload(response.data, check.kind)).toBeTruthy()
+    if (check.tab) {
+      const payload = response.data as Record<string, unknown>
+      expect(payload.tab, `${check.api} should identify the requested report tab`).toBe(check.tab)
+      expect(payload.summary, `${check.api} should include its summary contract`).toEqual(expect.any(Object))
+      expect(payload.rows, `${check.api} should include normalized report rows`).toEqual(expect.any(Array))
+      expect(payload.series, `${check.api} should include normalized report series`).toEqual(expect.any(Array))
+      expect(payload.coverage, `${check.api} should include coverage metadata`).toEqual(expect.any(Object))
+      expect(payload.generated_at, `${check.api} should include its generation timestamp`).toEqual(expect.any(String))
+    }
 
     await page.goto(check.route, { waitUntil: "domcontentloaded", timeout: 60_000 })
     await expect(page.locator("body")).toContainText(check.anchor, { timeout: 60_000 })

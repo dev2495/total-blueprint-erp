@@ -354,47 +354,29 @@ class MRPService:
 
     @staticmethod
     def _get_wip_stock(material: InventoryMaterial, plant_id: str = None) -> Decimal:
-        """
-        Calculates expected incoming stock from active Production Jobs.
-        """
-        from apps.production.models import ProductionJob
-        
-        # Jobs that are RELEASED (Pending) or EXECUTING (Running)
-        # We assume the output material matches the requested material (true for Extrusion/Conversion)
-        # Note: This is an estimation. 
-        jobs = ProductionJob.objects.filter(
-            job_state__in=['PENDING', 'RLSE', 'EXECUTING'],
-            # For simplicity, assuming job output matches material. 
-            # In a complex BOM, we'd check the job's BOM output.
-            # Here we check if the job works ON this material (Conversion) or produces it (Extrusion)
+        """Count only explicitly identified, unfinished output in the material's UOM."""
+        from apps.inventory.services.packaging_service import PackagingService
+        from django.core.exceptions import ValidationError
+
+        orders = PlannedStockOrder.objects.filter(
+            status__in=['RELEASED', 'PLANNED'], packaging_material=material,
+            stock_purpose='PACKAGING',
         )
-        
-        # Refined: Check jobs where the Process output implies this material?
-        # Or simpler: Check PlannedStockOrders if MTS.
-        # For SO-based jobs, the material is the FG.
-        
-        # Strategy: 
-        # 1. MTS Jobs for this material
-        # 2. SO Jobs for this material (if material is FG)
-        
-        wip_qty = Decimal('0')
-        
-        # Case A: Material is an intermediate or FG from MTS
-        # We check PlannedStockOrder for this material
-        from apps.production.models import PlannedStockOrder
-        mts_wip = PlannedStockOrder.objects.filter(
-            status__in=['RELEASED', 'PLANNED'],
-            template__name__icontains=material.name # Heuristic matching if direct link missing
-            # In real implementations, PlannedStockOrder should link to InventoryMaterial variant
-        ).aggregate(total=Sum('target_qty'))['total'] or 0
-        
-        wip_qty += Decimal(str(mts_wip))
-        
-        # Case B: Active Jobs producing this material (e.g. Extrusion Job producing Base Film)
-        # This requires traversing the Job -> Process -> Output Material link.
-        # For Phase 64, we'll keep it simple and trust MTS WIP + Safety Stock logic.
-        
-        return wip_qty
+        if plant_id:
+            orders = orders.filter(plant_id=plant_id)
+        total = Decimal('0')
+        for order in orders.only('target_qty', 'produced_qty', 'quantity_uom'):
+            remaining = max(Decimal('0'), order.target_qty - order.produced_qty)
+            if not remaining:
+                continue
+            try:
+                qty, _ = PackagingService._resolve_base_qty(material, remaining, order.quantity_uom)
+            except ValidationError:
+                # Unknown conversions cannot safely offset a purchase requirement.
+                logger.warning("MRP ignored WIP with unresolved UOM: order=%s material=%s", order.pk, material.pk)
+                continue
+            total += qty
+        return total
 
     @staticmethod
     def _generate_suggestions(plan: MRPPlan, material: InventoryMaterial, shortage: Decimal, plant_id: str):
@@ -505,12 +487,13 @@ class MRPService:
         from material's last BulkTransaction.reference VENDOR:<code>) and returns
         the PO id so the UI can navigate to it.
 
-        For 'job' / 'transfer', kept as the lightweight stub for V1.
+        Job and transfer creation use the existing planning/inventory workflows.
         """
         kind = str(draft_type or '').lower().strip()
         if kind not in {'po', 'job', 'transfer'}:
             raise ValueError("draft_type must be one of: po, job, transfer")
 
+        suggestion = MRPSuggestion.objects.select_for_update().get(pk=suggestion.pk)
         sug_type = str(suggestion.type or '').upper()
         if kind == 'po' and sug_type != 'PURCHASE':
             raise ValueError("Draft PO is valid only for PURCHASE suggestions.")
@@ -526,6 +509,12 @@ class MRPService:
             from apps.procurement.models import PurchaseOrder, PurchaseOrderItem
             from apps.procurement.services.purchase_order import PurchaseOrderService
             from apps.inventory.models import BulkTransaction, Vendor
+
+            existing = PurchaseOrder.objects.filter(source_mrp_suggestion=suggestion).order_by('created_at').first()
+            if existing:
+                return {'suggestion_id': str(suggestion.id), 'action': 'PO',
+                        'action_status': suggestion.action_status, 'draft_ref': existing.code,
+                        'po_id': str(existing.id)}
 
             # Auto-pick vendor from the material's most recent INWARD BulkTransaction.
             # The vendor is stored in reference as "VENDOR:<code>".
@@ -624,21 +613,5 @@ class MRPService:
                 'po_id': str(po.id),
             }
 
-        # ── JOB / TRANSFER STUB PATH (legacy V1) ─────────────────────────
-        ts = now.strftime('%Y%m%d-%H%M%S')
-        short_id = str(suggestion.id).split('-')[0].upper()
-        prefix = {'job': 'DJOB', 'transfer': 'DTRN'}[kind]
-        draft_ref = f"{prefix}-{ts}-{short_id}"
-
-        suggestion.draft_ref = draft_ref
-        suggestion.action_status = 'DRAFT_CREATED'
-        suggestion.last_action_at = now
-        suggestion.last_action_by = user if user and getattr(user, 'is_authenticated', False) else None
-        suggestion.save(update_fields=['draft_ref', 'action_status', 'last_action_at', 'last_action_by'])
-
-        return {
-            'suggestion_id': str(suggestion.id),
-            'action': kind.upper(),
-            'action_status': suggestion.action_status,
-            'draft_ref': draft_ref,
-        }
+        destination = "Production Planner" if kind == "job" else "Inter-plant Transfers"
+        raise ValueError(f"Open {destination} to create this action with the required operational details. No draft has been created.")

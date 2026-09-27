@@ -380,7 +380,11 @@ class BackupService:
                     raise RuntimeError(f"Restore command failed: {completed_restore.stderr.strip()}")
 
                 smoke_cmd = (record.smoke_test_command or "").strip()
-                if smoke_cmd:
+                if smoke_cmd == 'RESTORED_DATABASE':
+                    record.smoke_test_passed = 'TPP_RESTORE_SMOKE_PASS' in completed_restore.stdout.splitlines()
+                    if not record.smoke_test_passed:
+                        raise RuntimeError('Restore command did not verify application reads against the restored database.')
+                elif smoke_cmd:
                     smoke_tokens = cls._parse_safe_command(
                         smoke_cmd,
                         env_name="DR_SMOKE_TEST_COMMAND",
@@ -390,6 +394,8 @@ class BackupService:
                     if smoke.returncode != 0:
                         raise RuntimeError(f"Smoke test failed: {smoke.stderr.strip()}")
 
+                if not record.smoke_test_passed:
+                    raise RuntimeError('No successful restore smoke verification was recorded.')
                 record.status = RestoreDrillRecord.RestoreStatus.SUCCEEDED
 
             finished_at = timezone.now()

@@ -216,6 +216,8 @@ class ProductionJob(models.Model):
         db_table = 'production_jobs'
         indexes = [
             models.Index(fields=["job_state", "-closed_at"], name="prod_job_state_closed"),
+            models.Index(fields=["job_state", "-created_at", "-id"], name="prod_job_state_created"),
+            models.Index(fields=["-created_at", "-id"], name="prod_job_created"),
             models.Index(fields=["sales_order_item", "job_state"], name="prod_job_soi_state"),
             models.Index(fields=["production_batch", "job_state"], name="prod_job_batch_state"),
             models.Index(fields=["route_node_id", "job_state"], name="prod_job_node_state"),

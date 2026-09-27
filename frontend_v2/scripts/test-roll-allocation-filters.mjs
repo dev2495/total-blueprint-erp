@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { matchesRollMaterial, distinctRollTargetSpecs } from "../src/lib/roll-allocation-filters.mjs";
+const roll = { material_id: "PET12", family_id: "PET" };
+assert.equal(matchesRollMaterial(roll, { variant_id: "PE50" }), false, "variant-only filter must reject unrelated material");
+assert.equal(matchesRollMaterial(roll, { family_id: "PE" }), false, "family-only filter must reject unrelated family");
+assert.equal(matchesRollMaterial(roll, { variant_id: "PET12" }), true);
+assert.equal(matchesRollMaterial(roll, { family_id: "PET" }), true);
+assert.equal(matchesRollMaterial(roll, { variant_id: "PET20", family_id: "PET" }), true, "preserve explicit family fallback");
+assert.equal(matchesRollMaterial(roll, { variant_id: "PE50", family_id: "PE" }), false);
+assert.equal(matchesRollMaterial(roll, {}), true);
+assert.equal(matchesRollMaterial({ variant_id: "PET12" }, { variant_id: "PET12" }), true);
+const base = { variant_id: "PET12", thickness_micron: 12, grade_id: "A", min_width_mm: 500, stock_form: "OPEN_WEB" };
+const slots = [base, {...base}, {...base, grade_id: "B"}, {...base, min_width_mm: 800}, {...base, stock_form: "TUBE"}];
+assert.equal(distinctRollTargetSpecs(null, slots).length, 4, "different grade, width and form slots must survive");
+assert.deepEqual(distinctRollTargetSpecs(base), [base]);
+assert.deepEqual(distinctRollTargetSpecs(null), []);
+console.log("Roll allocation filter regression checks passed (11 assertions).");

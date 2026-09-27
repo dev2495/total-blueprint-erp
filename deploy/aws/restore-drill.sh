@@ -58,4 +58,8 @@ if [ "${migration_count:-0}" -le 0 ]; then
   exit 1
 fi
 
+# Run the actual application reads before cleanup and explicitly select the clone.
+DB_NAME="$drill_db" DB_HOST="$db_host" DB_PORT="$db_port" DB_USER="$db_user" \
+  SKIP_DOTENV_IMPORT=1 python manage.py verify_restored_database
+
 echo "Restore drill passed against an isolated temporary database."

@@ -42,6 +42,8 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PATCH", "/api/routing/", "routing.manage"),
     ("DELETE", "/api/routing/", "routing.manage"),
     ("GET", "/api/engineering/", "engineering.view"),
+    ("GET", "/media/artworks/", "engineering.view"),
+    ("HEAD", "/media/artworks/", "engineering.view"),
     ("POST", "/api/engineering/", "engineering.manage"),
     ("PUT", "/api/engineering/", "engineering.manage"),
     ("PATCH", "/api/engineering/", "engineering.manage"),
@@ -315,6 +317,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "analytics.view",
     ],
     "ENGINEERING": [
+        "tooling.view",
+        "tooling.manage",
         "users.self_manage",
         "engineering.view",
         "engineering.manage",
@@ -433,6 +437,10 @@ def is_public_endpoint(path: str) -> bool:
 
 
 def resolve_required_permission(path: str, method: str) -> Optional[str]:
+    for alias in ('/api/materials/', '/api/films/', '/api/addons/', '/api/inks/', '/api/adhesives/', '/api/solvents/'):
+        if path.startswith(alias):
+            path = '/api/master/' + path[len(alias):]
+            break
     method = str(method or "").upper()
     for candidate in _candidate_paths(path):
         for map_method, prefix, permission in ROUTE_PERMISSION_MAP:

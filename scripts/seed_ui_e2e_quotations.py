@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import secrets
 from decimal import Decimal
 
 import django
@@ -12,12 +13,28 @@ django.setup()
 
 from apps.costing.models import MaterialCostSnapshot, ProcessCostRate
 from apps.factory.models import Plant, PlantLegalProfile, Process
-from apps.materials.models import InventoryMaterial, ProductMaster, ProductMasterSize
+from apps.materials.models import InventoryMaterial, PouchStyleMaster, ProductMaster, ProductMasterSize
 from apps.routing.models import RoutingRule
 from apps.sales.models import Customer, Quotation, SalesSku, SalesSkuVariant
 from apps.templates.models import TemplateBlueprint
 from scripts.e2e_green_utils import CODE_PREFIX, current_run_tag, label, runtime_dir
 
+
+# Fixture accounts and commercial records must never be written to a live DB.
+from django.conf import settings
+from django.contrib.auth import get_user_model
+
+database = settings.DATABASES["default"]
+database_name = str(database.get("NAME") or "").lower()
+if str(database.get("HOST") or "").lower() not in {"127.0.0.1", "localhost"} or not (database_name.startswith("test_") or database_name in {"tpp_test", "tpp_v2_test"} or database_name.startswith("tpp_v2_test_")):
+    raise RuntimeError("Quotation E2E seeding requires an isolated local test_ database.")
+if os.environ.get("UI_E2E_ALLOW_TEST_FIXTURE_WRITES") != "1":
+    raise RuntimeError("Set UI_E2E_ALLOW_TEST_FIXTURE_WRITES=1 for isolated quotation fixtures.")
+
+approver, _ = get_user_model().objects.get_or_create(username=f"{CODE_PREFIX}-QUOTE-APPROVER", defaults={"is_superuser": True, "is_staff": True})
+approver_password = secrets.token_urlsafe(24)
+approver.set_password(approver_password)
+approver.save(update_fields=["password"])
 
 RUN_TAG = current_run_tag()
 PLANT_CODE = f"{CODE_PREFIX}-QPLANT"
@@ -33,7 +50,7 @@ SKU_VARIANT_NAME = label("Quote Sales SKU 3 Side Seal")
 
 plant, _ = Plant.objects.update_or_create(
     code=PLANT_CODE,
-    defaults={"name": PLANT_NAME},
+    defaults={"name": PLANT_NAME, "default_margin_pct": Decimal("10")},
 )
 PlantLegalProfile.objects.update_or_create(
     plant=plant,
@@ -78,6 +95,9 @@ variant, _ = InventoryMaterial.objects.update_or_create(
 
 if not MaterialCostSnapshot.objects.filter(material=family, avg_rate_per_kg=Decimal("205.0000")).exists():
     MaterialCostSnapshot.objects.create(material=family, avg_rate_per_kg=Decimal("205.0000"))
+
+if not MaterialCostSnapshot.objects.filter(material=variant, avg_rate_per_kg=Decimal("205.0000")).exists():
+    MaterialCostSnapshot.objects.create(material=variant, avg_rate_per_kg=Decimal("205.0000"), uom="KG")
 
 process, _ = Process.objects.update_or_create(
     code=f"{CODE_PREFIX}-QPRINT",
@@ -177,6 +197,14 @@ product_master, _ = ProductMaster.objects.update_or_create(
         "active": True,
     },
 )
+pouch_style = (
+    PouchStyleMaster.objects.filter(code="THREE_SIDE_SEAL", locked=True, deprecated=False)
+    .order_by("-version")
+    .first()
+)
+if not pouch_style:
+    raise RuntimeError("Quotation UI fixture requires the canonical approved THREE_SIDE_SEAL style.")
+
 product_size, _ = ProductMasterSize.objects.update_or_create(
     product_master=product_master,
     code=f"{CODE_PREFIX}-Q140X220",
@@ -184,10 +212,16 @@ product_size, _ = ProductMasterSize.objects.update_or_create(
         "label": label("Quote 140 x 220"),
         "width_mm": Decimal("140"),
         "height_mm": Decimal("220"),
-        "roll_width_mm": Decimal("280"),
+        "roll_width_mm": Decimal("290"),
         "qty_uom": "PCS",
+        "pouch_style_master": pouch_style,
+        "pouch_style_version": pouch_style.version,
+        "child_target_width_mm": Decimal("290.00"),
         "geometry_config": {
             "pouch_style": "THREE_SIDE_SEAL",
+            "pouch_style_master": str(pouch_style.id),
+            "pouch_style_master_code": pouch_style.code,
+            "pouch_style_version": pouch_style.version,
             "multipliers": {"faces": 1},
         },
         "active": True,
@@ -259,6 +293,8 @@ sku_variant, _ = SalesSkuVariant.objects.update_or_create(
 )
 
 payload = {
+    "approver_username": approver.username,
+    "approver_password": approver_password,
     "run_tag": RUN_TAG,
     "label_prefix": label("").strip(),
     "customer_id": str(customer.id),

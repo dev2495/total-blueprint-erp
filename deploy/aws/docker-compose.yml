@@ -40,7 +40,7 @@ services:
     environment:
       BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
       DR_RESTORE_DRILL_COMMAND: /app/deploy/aws/restore-drill.sh
-      DR_SMOKE_TEST_COMMAND: /bin/true
+      DR_SMOKE_TEST_COMMAND: RESTORED_DATABASE
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,7 +67,7 @@ services:
     environment:
       BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
       DR_RESTORE_DRILL_COMMAND: /app/deploy/aws/restore-drill.sh
-      DR_SMOKE_TEST_COMMAND: /bin/true
+      DR_SMOKE_TEST_COMMAND: RESTORED_DATABASE
     depends_on:
       backend:
         condition: service_started

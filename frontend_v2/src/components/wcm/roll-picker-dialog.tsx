@@ -293,10 +293,12 @@ export function WcmRollPickerDialog({
     jobPlantCode,
   ]);
 
-  const selectedIds = Object.keys(picks).filter((id) => picks[id]);
-  const selectedCandidates = filteredCandidates.filter(
+  const selectedCandidates = candidates.filter(
     (c: any) => picks[c.roll_id],
   );
+  const selectedIds = selectedCandidates.map((candidate: any) => candidate.roll_id);
+  const visibleIds = new Set(filteredCandidates.map((candidate: any) => candidate.roll_id));
+  const hiddenSelectedCount = selectedIds.filter((id: string) => !visibleIds.has(id)).length;
   const primarySelected = selectedCandidates[0] || null;
   const isWiderOk = primarySelected?.tier === "WIDER_OK_WITH_SLIT";
 
@@ -535,6 +537,12 @@ export function WcmRollPickerDialog({
             label="Hide remainders"
           />
         </div>
+
+        {hiddenSelectedCount > 0 ? (
+          <p className="mb-2 text-xs text-content-2" role="status">
+            {hiddenSelectedCount} selected roll(s) are hidden by these filters and remain included in the allocation. Clear filters to review or deselect them.
+          </p>
+        ) : null}
 
         <div className="-mt-1 mb-2 grid grid-cols-2 gap-1.5 text-[10px] sm:grid-cols-5">
           <div className="rounded-lg bg-success-bg px-2 py-1 ring-1 ring-success-border">

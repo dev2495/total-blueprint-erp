@@ -3,9 +3,12 @@
 
 	header {
 		X-Content-Type-Options nosniff
-		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
+	}
+
+	request_body {
+		max_size 64MB
 	}
 
 	handle /api/* {

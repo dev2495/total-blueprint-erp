@@ -44,6 +44,7 @@ from apps.production.models import (
     JobMaterialRequirement,
     JobExecutionLog,
     MaterialConsumptionLog,
+    DeliveryChallan,
     ProductionBatch,
     ProductionJob,
     RollDispatchPackRecord,
@@ -205,6 +206,14 @@ def _cleanup_previous_seed_data():
         ).values_list("id", flat=True)
     )
     if seeded_roll_ids:
+        # Draft challan reservations hold a nullable FK to the physical roll.
+        # Delete the exact seeded challans/items first so SET_NULL cannot
+        # violate the active-reservation one-unit constraint during cleanup.
+        seeded_dispatch_order_ids = list(
+            SalesOrder.objects.filter(order_name=f"{PREFIX} Dispatch Seed").values_list("id", flat=True)
+        )
+        if seeded_dispatch_order_ids:
+            DeliveryChallan.objects.filter(sales_order_id__in=seeded_dispatch_order_ids).delete()
         RollMovement.objects.filter(roll_id__in=seeded_roll_ids).delete()
         RollConsumption.objects.filter(input_roll_id__in=seeded_roll_ids).delete()
         RollConsumption.objects.filter(output_roll_id__in=seeded_roll_ids).delete()
@@ -393,6 +402,16 @@ def _dispatch_target_sales_order(fallback_template=None) -> tuple[SalesOrder, Sa
         if seeded_order.status != "PACKING_READY":
             seeded_order.status = "PACKING_READY"
             seeded_order.save(update_fields=["status"])
+        # This proof releases physical FG rolls and closes the order from
+        # their measured weight. Keep the fixture target in the same KG
+        # contract even when an earlier run created a pouch/PCS line.
+        if str(seeded_item.qty_uom or "").upper() != "KG":
+            seeded_item.qty_uom = "KG"
+            seeded_item.qty_value = Decimal("37.400")
+            seeded_item.total_weight_kg = Decimal("37.400")
+            seeded_item.price_basis = "KG"
+            seeded_item.unit_weight_g = Decimal("0")
+            seeded_item.save(update_fields=["qty_uom", "qty_value", "total_weight_kg", "price_basis", "unit_weight_g"])
         return seeded_order, seeded_item
 
     for candidate in FGDispatchService.get_sales_orders_with_fg():
@@ -403,10 +422,17 @@ def _dispatch_target_sales_order(fallback_template=None) -> tuple[SalesOrder, Sa
 
     variant = (
         SalesSkuVariant.objects.select_related("sku", "sku__template")
-        .filter(active=True, sku__active=True, sku__template__isnull=False)
+        .filter(active=True, sku__active=True, sku__template__isnull=False, finished_good_type="ROLL")
         .order_by("-updated_at", "-created_at")
         .first()
     )
+    if variant is None:
+        variant = (
+            SalesSkuVariant.objects.select_related("sku", "sku__template")
+            .filter(active=True, sku__active=True, sku__template__isnull=False)
+            .order_by("-updated_at", "-created_at")
+            .first()
+        )
     template = (
         getattr(getattr(variant, "sku", None), "template", None)
         or fallback_template
@@ -429,7 +455,7 @@ def _dispatch_target_sales_order(fallback_template=None) -> tuple[SalesOrder, Sa
 
     fg_type = str(getattr(variant, "finished_good_type", "") or geometry_snapshot.get("fg_type") or getattr(template, "fg_type", "POUCH")).upper()
     qty_uom = "PCS" if fg_type == "POUCH" else "KG"
-    qty_value = Decimal("1000") if qty_uom == "PCS" else Decimal("5")
+    qty_value = Decimal("1000") if qty_uom == "PCS" else Decimal("37.400")
     unit_weight_g = Decimal("2.5000") if qty_uom == "PCS" else Decimal("0")
     total_weight_kg = (
         (qty_value * unit_weight_g) / Decimal("1000")
@@ -972,9 +998,12 @@ def main():
             "work_center_code": plant_a.work_center.code,
             "machine_id": str(plant_a.machine.id),
             "machine_code": plant_a.machine.code,
+            "machine_name": plant_a.machine.name,
             "job_id": str(wcm_job.id),
             "job_number": wcm_job.job_number,
             "assignment_id": str(wcm_assignment.id),
+            "granule_code_id": str(granule_code.id),
+            "granule_code_code": granule_code.code,
         },
         "printing_operator": {
             "machine_id": str(print_ctx.machine.id),

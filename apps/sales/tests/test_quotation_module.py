@@ -22,6 +22,7 @@ class QuotationModuleTests(TestCase):
         self.client = APIClient()
         self.user = get_user_model().objects.create_user(
             username="sales-user",
+            extra_permissions=["sales.view", "sales.manage", "master.manage", "master.view"],
             email="sales@example.com",
             password="testpass123",
         )

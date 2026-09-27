@@ -126,8 +126,25 @@ export function CommandPalette({
   const [loading, setLoading] = React.useState(false);
   const [apiResults, setApiResults] = React.useState<SearchV2Item[]>([]);
   const [meta, setMeta] = React.useState<SearchV2Response | null>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const restoreTriggerAfterCloseRef = React.useRef(false);
+  const skipTriggerRestoreRef = React.useRef(false);
   const router = useRouter();
   const { user, effectiveRole } = useAuth();
+
+  const setPaletteOpen = React.useCallback((nextOpen: boolean) => {
+    if (nextOpen) {
+      setOpen(true);
+      return;
+    }
+
+    if (skipTriggerRestoreRef.current) {
+      skipTriggerRestoreRef.current = false;
+    } else {
+      restoreTriggerAfterCloseRef.current = true;
+    }
+    setOpen(false);
+  }, []);
 
   const roleCode = String(
     effectiveRole ||
@@ -213,15 +230,22 @@ export function CommandPalette({
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((current) => !current);
-      }
-      if (e.key === "Escape" && open) {
-        setOpen(false);
+        if (open) {
+          setPaletteOpen(false);
+        } else {
+          setPaletteOpen(true);
+        }
       }
     };
 
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
+  }, [open, setPaletteOpen]);
+
+  React.useEffect(() => {
+    if (open || !restoreTriggerAfterCloseRef.current) return;
+    restoreTriggerAfterCloseRef.current = false;
+    triggerRef.current?.focus();
   }, [open]);
 
   React.useEffect(() => {
@@ -281,11 +305,12 @@ export function CommandPalette({
 
   const runCommand = React.useCallback(
     (href: string) => {
-      setOpen(false);
+      skipTriggerRestoreRef.current = true;
+      setPaletteOpen(false);
       setQuery("");
       router.push(href);
     },
-    [router],
+    [router, setPaletteOpen],
   );
 
   const hasResults = mergedResults.length > 0;
@@ -293,10 +318,11 @@ export function CommandPalette({
   return (
     <>
       <button
+        ref={triggerRef}
         onClick={() => setOpen(true)}
         data-testid={triggerTestId}
         className={cn(
-          "relative inline-flex min-w-0 max-w-full items-center justify-start border border-line bg-surface-2 font-medium text-content-3 shadow-sm transition-all hover:border-line-strong hover:bg-surface-2",
+          "relative inline-flex min-w-0 max-w-full items-center justify-start border border-line bg-surface-2 font-medium text-content-3 shadow-sm transition-[color,background-color,border-color,box-shadow] duration-150 hover:border-line-strong hover:bg-surface-2",
           compact
             ? "h-11 w-full rounded-2xl px-3 py-2 text-[13px]"
             : "h-10 w-full rounded-xl px-4 py-2 text-sm sm:pr-12",
@@ -322,7 +348,7 @@ export function CommandPalette({
         ) : null}
       </button>
 
-      <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandDialog open={open} onOpenChange={setPaletteOpen}>
         <div className="border-b px-3 pb-2">
           <CommandInput
             placeholder="Jump to route, order, job, customer, machine..."

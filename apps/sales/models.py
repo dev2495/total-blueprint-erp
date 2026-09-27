@@ -953,8 +953,9 @@ class QuotationCostSnapshot(models.Model):
     rounding_amount = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
     grand_total = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
     contribution = models.DecimalField(max_digits=18, decimal_places=4, default=Decimal("0"))
-    markup_pct = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0"))
-    gross_margin_pct = models.DecimalField(max_digits=8, decimal_places=4, default=Decimal("0"))
+    # Calculated ratios can exceed 9999% with valid low-cost or low-sale inputs.
+    markup_pct = models.DecimalField(max_digits=28, decimal_places=4, default=Decimal("0"))
+    gross_margin_pct = models.DecimalField(max_digits=28, decimal_places=4, default=Decimal("0"))
     formula_version = models.CharField(max_length=40, default="QUOTE_COST_V2")
     sensitivity_snapshot = models.JSONField(default=dict, blank=True)
     readiness_snapshot = models.JSONField(default=dict, blank=True)

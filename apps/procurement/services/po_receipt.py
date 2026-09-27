@@ -12,7 +12,8 @@ No stock-mutation logic is duplicated here.
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import connection, transaction
+import hashlib
 from django.utils import timezone
 
 from apps.inventory.models import InventoryLocation
@@ -79,6 +80,9 @@ class PurchaseOrderReceiptService:
         # this guards the multi-PO case as well.
         inv_no = (vendor_invoice_no or "").strip()
         if inv_no:
+            lock_key = int.from_bytes(hashlib.sha256(f"vendor-invoice:{po.vendor_id}:{inv_no}".encode()).digest()[:8], "big", signed=True)
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_xact_lock(%s)", [lock_key])
             if PurchaseOrderReceipt.objects.filter(
                 purchase_order__vendor=po.vendor,
                 vendor_invoice_no=inv_no,
@@ -91,7 +95,7 @@ class PurchaseOrderReceiptService:
             purchase_order=po,
             plant=po.plant,
             received_at=timezone.now(),
-            vendor_invoice_no=vendor_invoice_no or "",
+            vendor_invoice_no=inv_no,
             vendor_invoice_date=vendor_invoice_date,
             vehicle_no=vehicle_no or "",
             driver_name=driver_name or "",
@@ -101,7 +105,18 @@ class PurchaseOrderReceiptService:
             received_by=user if (user and getattr(user, "is_authenticated", True)) else None,
         )
 
-        for ld in lines_data:
+        # Lock and post in material order across all receipts, regardless of
+        # the user's line-selection order. Shared stock rows cannot be acquired
+        # A->B in one receipt and B->A in another.
+        item_ids = [ld.get('po_item_id') for ld in lines_data]
+        if any(not item_id for item_id in item_ids):
+            raise ValidationError('po_item_id is required on each receipt line.')
+        items = {str(item.pk): item for item in po.items.select_related('material')
+                 .select_for_update(of=('self',)).filter(pk__in=item_ids).order_by('material_id', 'id')}
+        if any(str(item_id) not in items for item_id in item_ids):
+            raise ValidationError('Every receipt line must belong to this purchase order.')
+        ordered_lines = sorted(lines_data, key=lambda ld: (str(items[str(ld['po_item_id'])].material_id), str(ld['po_item_id'])))
+        for ld in ordered_lines:
             po_item_id = ld.get("po_item_id")
             if not po_item_id:
                 raise ValidationError("po_item_id is required on each receipt line.")
@@ -109,7 +124,7 @@ class PurchaseOrderReceiptService:
             if qty <= 0:
                 continue
 
-            it = po.items.select_for_update().get(pk=po_item_id)
+            it = items[str(po_item_id)]
             if it.is_closed:
                 raise ValidationError(
                     f"Line {it.line_no} is already closed; cannot receive against it."

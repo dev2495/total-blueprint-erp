@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, BadgeCheck, Calculator, Database, Gauge, Layers3, LockKeyhole, Plus, Save, Trash2 } from "lucide-react";
 
+import { useAuth } from "@/components/auth-provider";
 import { useToast } from "@/hooks/use-toast";
 import { quotationService, type CostBuild, type QuotationListItem } from "@/services/quotation";
 
@@ -32,6 +33,9 @@ const uid = () => `cost-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
 export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [approvalReason, setApprovalReason] = useState("");
+  const canApproveOverrides = Boolean(user?.is_superuser || user?.is_owner || (user?.entitlements?.permissions?.includes("*") || user?.entitlements?.permissions?.includes("sales.quote.cost_override.approve")) || user?.extra_permissions?.includes("sales.quote.cost_override.approve"));
   const queryClient = useQueryClient();
   const editable = quote.status === "DRAFT";
   const [definition, setDefinition] = useState<"MARKUP_ON_COST" | "GROSS_MARGIN_ON_SALES">("GROSS_MARGIN_ON_SALES");
@@ -122,12 +126,22 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
     onError: (error: Error) => toast({ title: "Cost Build could not be saved", description: error.message, variant: "destructive" }),
   });
 
+  const approveOverridesMutation = useMutation({
+    mutationFn: () => quotationService.approveCostOverrides(quote.id, approvalReason.trim()),
+    onSuccess: async () => {
+      setApprovalReason("");
+      await queryClient.invalidateQueries({ queryKey: ["quotation", quote.id] });
+      toast({ title: "Cost overrides approved", description: "The approval and its reason are recorded against this revision." });
+    },
+    onError: (error: Error) => toast({ title: "Cost override approval blocked", description: error.message, variant: "destructive" }),
+  });
+
   const materials = useMemo(() => (result?.components || []).filter((row) => row.category === "MATERIAL"), [result]);
   const lineName = (itemId?: string) =>
     (quote.items || []).find((item) => item.id === itemId)?.line_name || "Whole quote";
   const updateConversion = (id: string, patch: Partial<ConversionDraft>) =>
     setConversion((rows) => rows.map((row) => (row.localId === id ? { ...row, ...patch } : row)));
-  const useFastCostMode = (mode: "CONVERSION_TOTAL" | "MARGIN_LED") => {
+  const setFastCostMode = (mode: "CONVERSION_TOTAL" | "MARGIN_LED") => {
     setCostEntryMode(mode);
     setConversion((current) =>
       (quote.items || []).map((item, index) => {
@@ -211,8 +225,8 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
               <p className="text-[11px] font-semibold text-content-4">Choose one calculation path. Direct conversion is the default; every quote-only value remains editable, reasoned and approval-controlled.</p>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-3" aria-label="Cost calculation method">
-              <CostModeButton active={costEntryMode === "CONVERSION_TOTAL"} disabled={!editable} icon={<Gauge className="h-4 w-4" />} title="1. Direct conversion" caption="Editable conversion ₹/kg per quote line" onClick={() => useFastCostMode("CONVERSION_TOTAL")} />
-              <CostModeButton active={costEntryMode === "MARGIN_LED"} disabled={!editable} icon={<Calculator className="h-4 w-4" />} title="2. Margin-led" caption="Cost base plus target margin or markup" onClick={() => useFastCostMode("MARGIN_LED")} />
+              <CostModeButton active={costEntryMode === "CONVERSION_TOTAL"} disabled={!editable} icon={<Gauge className="h-4 w-4" />} title="1. Direct conversion" caption="Editable conversion ₹/kg per quote line" onClick={() => setFastCostMode("CONVERSION_TOTAL")} />
+              <CostModeButton active={costEntryMode === "MARGIN_LED"} disabled={!editable} icon={<Calculator className="h-4 w-4" />} title="2. Margin-led" caption="Cost base plus target margin or markup" onClick={() => setFastCostMode("MARGIN_LED")} />
               <CostModeButton active={costEntryMode === "STEPWISE"} disabled={!editable} icon={<Layers3 className="h-4 w-4" />} title="3. Step-wise" caption="Process, labour, overhead and additions" onClick={() => setCostEntryMode("STEPWISE")} />
             </div>
           </div>
@@ -254,6 +268,20 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
           <Metric label="Markup" value={`${money(result?.markup_pct)}%`} />
           <Metric label="Gross margin" value={`${money(result?.gross_margin_pct)}%`} />
         </div>
+
+        {editable && Number(result?.readiness?.pending_override_count || 0) > 0 ? (
+          <div className="rounded-xl border border-line bg-surface-2 p-4 space-y-3">
+            <p className="text-xs font-semibold text-content-2">Cost overrides require approval by an authorized user who did not enter them.</p>
+            {canApproveOverrides ? <>
+              <label className="block text-xs font-bold text-content-2">Cost override approval reason
+                <textarea value={approvalReason} onChange={(event) => setApprovalReason(event.target.value)} rows={2} className="mt-1 w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm" />
+              </label>
+              <button type="button" disabled={!approvalReason.trim() || approveOverridesMutation.isPending} onClick={() => approveOverridesMutation.mutate()} className="h-10 rounded-xl bg-success-fg px-4 text-xs font-extrabold text-white disabled:opacity-50">
+                {approveOverridesMutation.isPending ? "Approving…" : "Approve cost overrides"}
+              </button>
+            </> : null}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-content-3"><LockKeyhole className="h-4 w-4" /> Approval freezes component sources, quantities, rates, overrides, calculation method and checksum.</div>

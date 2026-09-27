@@ -442,7 +442,7 @@ class ProductConfiguredOrderTests(TestCase):
             fixed_attributes={"fg_type": "POUCH", "layer_count": 1, "print_capable": False},
             invariant_signature="INV-PREVIEW-BLOCK-T",
         )
-        user = get_user_model().objects.create_user(username="preview-admin", password="test")
+        user = get_user_model().objects.create_user(username="preview-admin", password="test", extra_permissions=['sales.view', 'sales.manage', 'master.manage'])
         factory = APIRequestFactory()
         request = factory.post(
             f"/api/master/products/{master.id}/preview-bom/",

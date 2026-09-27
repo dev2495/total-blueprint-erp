@@ -32,6 +32,7 @@ import {
   Truck,
   Warehouse,
 } from "lucide-react";
+import { matchesRollMaterial, distinctRollTargetSpecs } from "@/lib/roll-allocation-filters.mjs";
 import { WcmRollPickerDialog } from "@/components/wcm/roll-picker-dialog";
 import {
   InkColorSwatches,
@@ -3768,6 +3769,7 @@ export default function WCMTerminal() {
                       assignedRollsForDisplay.map((roll: any) => (
                         <div
                           key={roll.id}
+                          data-testid={`wcm-assigned-roll-${String(roll.id)}`}
                           className="flex items-center gap-2 rounded-lg border border-surface-1 bg-surface-1 px-2.5 py-2"
                         >
                           <div className="min-w-0 flex-1">
@@ -7017,36 +7019,10 @@ function RollAssignmentModal({
     return ["ALL", ...Array.from(set).filter(Boolean).sort()] as string[];
   }, [manualEligibleRolls]);
 
-  const normalizedSpecs = useMemo(() => {
-    const list =
-      Array.isArray(targetSpecs) && targetSpecs.length > 0
-        ? targetSpecs
-        : [targetSpec];
-    const byKey = new Map<string, any>();
-    list.filter(Boolean).forEach((spec: any) => {
-      const key = [
-        String(spec?.variant_id || ""),
-        String(spec?.family_id || ""),
-        String(spec?.thickness_micron ?? ""),
-      ].join("|");
-      if (!byKey.has(key)) {
-        byKey.set(key, spec);
-        return;
-      }
-      const prev = byKey.get(key);
-      const prevGrade = Boolean(prev?.grade_id);
-      const nextGrade = Boolean(spec?.grade_id);
-      const prevWidth = Number(prev?.min_width_mm || 0);
-      const nextWidth = Number(spec?.min_width_mm || 0);
-      if (
-        (!prevGrade && nextGrade) ||
-        (nextGrade === prevGrade && nextWidth > prevWidth)
-      ) {
-        byKey.set(key, spec);
-      }
-    });
-    return Array.from(byKey.values());
-  }, [targetSpec, targetSpecs]);
+  const normalizedSpecs = useMemo(
+    () => distinctRollTargetSpecs(targetSpec, targetSpecs),
+    [targetSpec, targetSpecs],
+  );
 
   const { data: externalAvailability } = useQuery({
     queryKey: [
@@ -7114,14 +7090,7 @@ function RollAssignmentModal({
   const matchesAnyTargetSpec = (roll: any) => {
     if (!normalizedSpecs.length) return true;
     return normalizedSpecs.some((spec: any) => {
-      const variantOk = spec?.variant_id
-        ? String(roll?.material_id || "") === String(spec.variant_id)
-        : true;
-      const familyOk = spec?.family_id
-        ? String(roll?.family_id || "") === String(spec.family_id)
-        : true;
-      const materialOk =
-        spec?.variant_id || spec?.family_id ? variantOk || familyOk : true;
+      const materialOk = matchesRollMaterial(roll, spec);
       const thicknessOk =
         spec?.thickness_micron != null
           ? Number(roll?.thickness_micron || 0) ===
@@ -7154,13 +7123,7 @@ function RollAssignmentModal({
   const rollWidthPlanLabel = (roll: any) => {
     const mode = String(roll?.width_match_mode || "").toUpperCase();
     const spec = normalizedSpecs.find((candidate: any) => {
-      const variantOk = candidate?.variant_id
-        ? String(roll?.material_id || roll?.variant_id || "") ===
-          String(candidate.variant_id)
-        : true;
-      const familyOk = candidate?.family_id
-        ? String(roll?.family_id || "") === String(candidate.family_id)
-        : true;
+      const materialOk = matchesRollMaterial(roll, candidate);
       const thicknessOk =
         candidate?.thickness_micron != null
           ? Number(roll?.thickness_micron || 0) ===
@@ -7169,7 +7132,7 @@ function RollAssignmentModal({
       const gradeOk = candidate?.grade_id
         ? String(roll?.grade_id || "") === String(candidate.grade_id)
         : true;
-      return (candidate?.variant_id || candidate?.family_id ? variantOk || familyOk : true) && thicknessOk && gradeOk;
+      return materialOk && thicknessOk && gradeOk;
     });
     const requiredWidth = Number(
       roll?.required_width_mm ||
@@ -7424,22 +7387,6 @@ function RollAssignmentModal({
     setSelectedExternalRollIds([]);
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    if (selectedRollIds.length > 0 || selectedExternalRollIds.length > 0)
-      return;
-    if (filtered.length === 0 && externalEligibleCount > 0) {
-      setActiveTab("external");
-    } else {
-      setActiveTab("local");
-    }
-  }, [
-    open,
-    filtered.length,
-    externalEligibleCount,
-    selectedRollIds.length,
-    selectedExternalRollIds.length,
-  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -8095,36 +8042,10 @@ function RollTransferModal({
     (behaviorNormalized.includes("MULTI") &&
       behaviorNormalized.includes("COMBINE"));
 
-  const normalizedSpecs = useMemo(() => {
-    const list =
-      Array.isArray(targetSpecs) && targetSpecs.length > 0
-        ? targetSpecs
-        : [targetSpec];
-    const byKey = new Map<string, any>();
-    list.filter(Boolean).forEach((spec: any) => {
-      const key = [
-        String(spec?.variant_id || ""),
-        String(spec?.family_id || ""),
-        String(spec?.thickness_micron ?? ""),
-      ].join("|");
-      if (!byKey.has(key)) {
-        byKey.set(key, spec);
-        return;
-      }
-      const prev = byKey.get(key);
-      const prevGrade = Boolean(prev?.grade_id);
-      const nextGrade = Boolean(spec?.grade_id);
-      const prevWidth = Number(prev?.min_width_mm || 0);
-      const nextWidth = Number(spec?.min_width_mm || 0);
-      if (
-        (!prevGrade && nextGrade) ||
-        (nextGrade === prevGrade && nextWidth > prevWidth)
-      ) {
-        byKey.set(key, spec);
-      }
-    });
-    return Array.from(byKey.values());
-  }, [targetSpec, targetSpecs]);
+  const normalizedSpecs = useMemo(
+    () => distinctRollTargetSpecs(targetSpec, targetSpecs),
+    [targetSpec, targetSpecs],
+  );
 
   const { data: availability } = useQuery({
     queryKey: ["roll-availability", normalizedSpecs, targetPlantId],
@@ -8213,14 +8134,7 @@ function RollTransferModal({
   const specMatchedRolls = useMemo(() => {
     const matchSpec = (roll: any, spec: any) => {
       if (!spec) return true;
-      const rollVariantId = roll?.material_id ? String(roll.material_id) : null;
-      const rollFamilyId = roll?.family_id ? String(roll.family_id) : null;
-      const variantOk = spec.variant_id
-        ? String(spec.variant_id) === rollVariantId
-        : true;
-      const familyOk = spec.family_id
-        ? String(spec.family_id) === rollFamilyId
-        : true;
+      const materialOk = matchesRollMaterial(roll, spec);
       const thicknessOk =
         spec.thickness_micron != null
           ? Number(roll.thickness_micron) === Number(spec.thickness_micron)
@@ -8240,7 +8154,7 @@ function RollTransferModal({
         targetStockContract?.process_capabilities,
       );
       return (
-        (variantOk || familyOk) &&
+        materialOk &&
         thicknessOk &&
         gradeOk &&
         widthOk &&

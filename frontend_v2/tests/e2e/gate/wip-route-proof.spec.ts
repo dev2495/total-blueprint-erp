@@ -120,7 +120,7 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
     await expect(page.locator("body")).toContainText("1/1")
 
     await page.getByTestId(`wcm-assigned-roll-${modifyFallback!.fallback_roll_id}`).getByRole("button").click()
-    await expect(page.locator("body")).toContainText("No rolls assigned")
+    await expect(page.locator("body")).toContainText("No roll allocated for this step yet.")
   } else {
     await expect(allocationDialog).toContainText("No eligible")
     await allocationDialog.getByRole("button", { name: /^cancel$/i }).click()

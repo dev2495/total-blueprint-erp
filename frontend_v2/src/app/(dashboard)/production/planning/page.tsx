@@ -63,10 +63,14 @@ export default function PlanningBoard() {
   const [isPriorityDialogOpen, setIsPriorityDialogOpen] = useState(false);
   const [newPriority, setNewPriority] = useState<number>(100);
 
-  const { data: jobs, isLoading } = useQuery({
-    queryKey: ["production-jobs-planning"],
-    queryFn: () => productionService.getJobs(),
+  const [page, setPage] = useState(1);
+  const [boardTab, setBoardTab] = useState("planned");
+  const states: Record<string, string> = { planned: "PLANNED", released: "RELEASED", "in-progress": "EXECUTING,PAUSED", completed: "COMPLETED" };
+  const { data: jobPage, isLoading, isError, refetch } = useQuery({
+    queryKey: ["production-jobs-planning", boardTab, page],
+    queryFn: () => productionService.getJobsPage({ page, job_state: states[boardTab] }),
   });
+  const jobs = jobPage?.results;
 
   const mutation = useMutation({
     mutationFn: async (action: () => Promise<any>) => await action(),
@@ -113,6 +117,8 @@ export default function PlanningBoard() {
       </div>
     );
   }
+
+  if (isError) return <div role="alert">Could not load production jobs. <Button onClick={() => refetch()}>Retry</Button></div>;
 
   // State-based filtering logic
   const pJobs = Array.isArray(jobs) ? jobs : [];
@@ -185,7 +191,7 @@ export default function PlanningBoard() {
         </p>
       </div>
 
-      <Tabs defaultValue="planned" className="w-full">
+      <Tabs value={boardTab} onValueChange={(value) => { setBoardTab(value); setPage(1); }} className="w-full">
         <div className="flex items-center justify-between mb-4">
           <TabsList className="bg-surface-2 p-1">
             <TabsTrigger
@@ -266,6 +272,11 @@ export default function PlanningBoard() {
         </TabsContent>
       </Tabs>
 
+      <div className="flex items-center justify-end gap-3">
+        <span>Page {page} · {jobPage?.count ?? 0} jobs in this state</span>
+        <Button variant="outline" disabled={!jobPage?.previous} onClick={() => setPage(page - 1)}>Previous</Button>
+        <Button variant="outline" disabled={!jobPage?.next} onClick={() => setPage(page + 1)}>Next</Button>
+      </div>
       {/* Split Dialog */}
       <Dialog open={isSplitDialogOpen} onOpenChange={setIsSplitDialogOpen}>
         <DialogContent>

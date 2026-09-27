@@ -168,7 +168,19 @@ export interface CurrentShift {
 
 export const productionService = {
     getJobs: async (params?: any) => {
-        const { data } = await api.get<ProductionJob[]>("/api/production/jobs/", { params });
+        // Picker callers need all eligible jobs; fetch bounded pages without truncation.
+        const rows: ProductionJob[] = [];
+        let page = 1;
+        while (true) {
+            const { data } = await api.get<{ results: ProductionJob[]; next: string | null }>("/api/production/jobs/board/", { params: { ...params, page } });
+            rows.push(...data.results);
+            if (!data.next) return rows;
+            page += 1;
+        }
+    },
+
+    getJobsPage: async (params?: Record<string, unknown>) => {
+        const { data } = await api.get<{ results: ProductionJob[]; count: number; next: string | null; previous: string | null }>("/api/production/jobs/board/", { params });
         return data;
     },
 

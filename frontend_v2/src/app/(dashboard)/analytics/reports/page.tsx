@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
   BarChart3,
+  DollarSign,
   Droplets,
   Factory,
   Filter,
@@ -55,6 +57,11 @@ type ReportTabId =
   | "production"
   | "oee"
   | "scrap"
+  | "dispatch"
+  | "downtime"
+  | "operator"
+  | "costing"
+  | "inventory"
   | "interplant"
   | "material-variance"
   | "ink-intelligence"
@@ -67,6 +74,11 @@ const REPORT_TABS: Array<{ id: ReportTabId; label: string; icon: any }> = [
   { id: "production", label: "Production", icon: Factory },
   { id: "oee", label: "OEE", icon: Gauge },
   { id: "scrap", label: "Scrap", icon: AlertTriangle },
+  { id: "dispatch", label: "Dispatch", icon: Truck },
+  { id: "downtime", label: "Downtime", icon: Activity },
+  { id: "operator", label: "Operator", icon: Factory },
+  { id: "costing", label: "Costing", icon: DollarSign },
+  { id: "inventory", label: "Inventory", icon: Package },
   { id: "interplant", label: "Inter-Plant", icon: Truck },
   { id: "material-variance", label: "Material Variance", icon: Scale },
   { id: "ink-intelligence", label: "Ink Intelligence", icon: Droplets },
@@ -93,16 +105,62 @@ function toValue(value: unknown) {
   return String(value);
 }
 
-export default function ReportsHubPage() {
+function toSummaryValue(key: string, value: unknown, summary: Record<string, any>) {
+  const normalized = key.toLowerCase();
+  const hasPositive = (field: string) => {
+    const count = Number(summary[field]);
+    return Number.isFinite(count) && count > 0;
+  };
+  const hasCohort =
+    normalized === "scrap_rate" || normalized === "yield_pct"
+      ? hasPositive("total_processed_kg") || hasPositive("total_output_kg")
+      : normalized === "planning_accuracy_pct" ||
+          normalized === "issue_accuracy_pct"
+        ? hasPositive("total_materials")
+        : normalized.includes("coverage")
+          ? hasPositive("total_jobs") || hasPositive("total_materials")
+        : true;
+  if (!hasCohort) return "N/A";
+  if (/(_pct|rate|yield|accuracy|coverage)$/.test(normalized)) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric)
+      ? `${numeric.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+      : "—";
+  }
+  return toValue(value);
+}
+
+function toCoverageValue(
+  key: string,
+  value: unknown,
+  summary: Record<string, any>,
+) {
+  const hasCohort =
+    Number(summary.total_jobs) > 0 ||
+    (key === "material_actual_coverage" && Number(summary.total_materials) > 0);
+  if (!hasCohort) return "N/A";
+  const numeric = Number(value);
+  return Number.isFinite(numeric)
+    ? `${numeric.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+    : "—";
+}
+
+function ReportsHubContent() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [tab, setTab] = useState<ReportTabId>("production");
-  const [plant, setPlant] = useState("ALL");
-  const [processId, setProcessId] = useState("ALL");
-  const [shift, setShift] = useState("ALL");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const initialTab = REPORT_TABS.some((item) => item.id === searchParams?.get("tab"))
+    ? (searchParams?.get("tab") as ReportTabId)
+    : "production";
+  const [tab, setTab] = useState<ReportTabId>(initialTab);
+  const [plant, setPlant] = useState(searchParams?.get("plant") || "ALL");
+  const [processId, setProcessId] = useState(searchParams?.get("process") || "ALL");
+  const [shift, setShift] = useState(searchParams?.get("shift") || "ALL");
+  const [dateFrom, setDateFrom] = useState(searchParams?.get("date_from") || "");
+  const [dateTo, setDateTo] = useState(searchParams?.get("date_to") || "");
 
   const { data: plants = [] } = useQuery({
     queryKey: ["analytics-reports-plants"],
@@ -160,6 +218,16 @@ export default function ReportsHubPage() {
     [plant, processId, shift, dateFrom, dateTo],
   );
 
+  useEffect(() => {
+    const params = new URLSearchParams({ tab });
+    if (plant !== "ALL") params.set("plant", plant);
+    if (processId !== "ALL") params.set("process", processId);
+    if (shift !== "ALL") params.set("shift", shift);
+    if (dateFrom) params.set("date_from", dateFrom);
+    if (dateTo) params.set("date_to", dateTo);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [dateFrom, dateTo, pathname, plant, processId, router, shift, tab]);
+
   const reportQuery = useQuery<ReportTabResponse>({
     queryKey: ["analytics-report-tab", tab, filters],
     queryFn: () => analyticsApi.getReportTab(tab, filters),
@@ -167,7 +235,6 @@ export default function ReportsHubPage() {
     refetchInterval: 120_000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    placeholderData: (previous) => previous,
   });
 
   const payload: ReportTabResponse = reportQuery.data ?? {
@@ -194,9 +261,25 @@ export default function ReportsHubPage() {
     REPORT_TABS.find((item) => item.id === tab) || REPORT_TABS[0];
   const SelectedTabIcon = selectedTab.icon;
   const latestRun = reportRuns[0] ?? null;
+  const reportDeliveryAccessDenied =
+    getApiErrorStatus(reportProfilesQuery.error) === 403 ||
+    getApiErrorStatus(reportRunsQuery.error) === 403;
+  const reportSeriesRows = useMemo(
+    () =>
+      series
+        .map((row): Record<string, any> => ({
+          ...row,
+          value: row.value ?? row.output_kg ?? row.scrap_kg ?? row.weight_kg ?? null,
+        }))
+        .filter((row) => {
+          if (row.value === null || row.value === "") return false;
+          const value = Number(row.value);
+          return Number.isFinite(value);
+        }),
+    [series],
+  );
   const seriesLeaders = useMemo(() => {
-    return series
-      .slice(0, 6)
+    return reportSeriesRows
       .map((row, index) => ({
         key: `${row.name || row.date || row.shift_code || index}`,
         label: toValue(
@@ -208,12 +291,13 @@ export default function ReportsHubPage() {
             row.category ??
             selectedTab.label,
         ),
-        value: Number(row.value ?? row.output_kg ?? row.scrap_kg ?? 0),
+        value: Number(row.value),
       }))
-      .filter((row) => Number.isFinite(row.value));
-  }, [selectedTab.label, series]);
+      .sort((left, right) => Math.abs(right.value) - Math.abs(left.value))
+      .slice(0, 6);
+  }, [reportSeriesRows, selectedTab.label]);
   const leaderMax = useMemo(
-    () => Math.max(...seriesLeaders.map((row) => row.value), 1),
+    () => Math.max(...seriesLeaders.map((row) => Math.abs(row.value)), 1),
     [seriesLeaders],
   );
   const headlineMetrics = useMemo(
@@ -224,17 +308,49 @@ export default function ReportsHubPage() {
             .map(([key, value]) => ({
               key,
               label: toLabel(key),
-              value: toValue(value),
+              value: toSummaryValue(key, value, summary),
             }))
         : [
             {
               key: "profiles",
               label: "Report Packs",
-              value: reportProfiles.length || "Restricted",
+              value: getApiErrorStatus(reportProfilesQuery.error) === 403
+                ? "Restricted"
+                : reportProfilesQuery.isPending
+                  ? "Loading"
+                  : reportProfilesQuery.isError
+                    ? "Unavailable"
+                    : reportProfiles.length,
             },
-            { key: "runs", label: "Recent Runs", value: reportRuns.length },
-            { key: "rows", label: "Active Rows", value: rows.length },
-            { key: "signals", label: "Signal Lines", value: series.length },
+            {
+              key: "runs",
+              label: "Recent Runs",
+              value: reportRunsQuery.isPending
+                ? "Loading"
+                : reportRunsQuery.isError
+                  ? getApiErrorStatus(reportRunsQuery.error) === 403
+                    ? "Restricted"
+                    : "Unavailable"
+                  : reportRuns.length,
+            },
+            {
+              key: "rows",
+              label: "Active Rows",
+              value: reportQuery.isPending
+                ? "Loading"
+                : reportQuery.isError
+                  ? "Unavailable"
+                  : rows.length,
+            },
+            {
+              key: "signals",
+              label: "Signal Lines",
+              value: reportQuery.isPending
+                ? "Loading"
+                : reportQuery.isError
+                  ? "Unavailable"
+                  : series.length,
+            },
           ],
     [
       rows.length,
@@ -242,12 +358,17 @@ export default function ReportsHubPage() {
       meaningfulSummaryEntries,
       reportProfiles.length,
       reportRuns.length,
+      reportProfilesQuery.isPending,
+      reportProfilesQuery.isError,
+      reportProfilesQuery.error,
+      reportRunsQuery.isPending,
+      reportRunsQuery.isError,
+      reportRunsQuery.error,
+      reportQuery.isPending,
+      reportQuery.isError,
+      reportDeliveryAccessDenied,
     ],
   );
-
-  const reportDeliveryAccessDenied =
-    getApiErrorStatus(reportProfilesQuery.error) === 403 ||
-    getApiErrorStatus(reportRunsQuery.error) === 403;
 
   const manualSendMutation = useMutation({
     mutationFn: async (reportCode: string) =>
@@ -315,12 +436,24 @@ export default function ReportsHubPage() {
             />
             <PremiumMetricCard
               label="Report packs"
-              value={reportProfiles.length || "Restricted"}
+              value={reportDeliveryAccessDenied
+                ? "Restricted"
+                : reportProfilesQuery.isPending
+                  ? "Loading"
+                  : reportProfilesQuery.isError
+                    ? "Unavailable"
+                    : reportProfiles.length}
               tone="dark"
             />
             <PremiumMetricCard
               label="Recent report runs"
-              value={reportRuns.length}
+              value={reportRunsQuery.isPending
+                ? "Loading"
+                : reportRunsQuery.isError
+                  ? getApiErrorStatus(reportRunsQuery.error) === 403
+                    ? "Restricted"
+                    : "Unavailable"
+                  : reportRuns.length}
               tone="dark"
             />
             <PremiumMetricCard
@@ -429,19 +562,19 @@ export default function ReportsHubPage() {
                 <div className="flex items-center justify-between text-content-3">
                   <span>Execution Logs</span>
                   <span className="font-black text-content-1">
-                    {toValue(coverage.execution_log_coverage)}%
+                    {toCoverageValue("execution_log_coverage", coverage.execution_log_coverage, summary)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-content-3">
                   <span>Material Actuals</span>
                   <span className="font-black text-content-1">
-                    {toValue(coverage.material_actual_coverage)}%
+                    {toCoverageValue("material_actual_coverage", coverage.material_actual_coverage, summary)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-content-3">
                   <span>Shift Tags</span>
                   <span className="font-black text-content-1">
-                    {toValue(coverage.shift_coverage)}%
+                    {toCoverageValue("shift_coverage", coverage.shift_coverage, summary)}
                   </span>
                 </div>
               </div>
@@ -461,11 +594,37 @@ export default function ReportsHubPage() {
                     ? `Generated ${formatDisplayDateTime(payload.generated_at)}`
                     : "Awaiting first run"}
                 </span>
-                <Badge variant="outline">Live</Badge>
+                <Badge variant="outline" aria-live="polite">
+                  {reportQuery.isFetching
+                    ? "Refreshing"
+                    : reportQuery.isError
+                      ? "Unavailable"
+                      : payload.generated_at
+                        ? "Snapshot"
+                        : "Awaiting data"}
+                </Badge>
               </div>
             }
           >
             <div className="space-y-5">
+              {reportQuery.isPending ? (
+                <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-content-3" role="status">
+                  Loading this report for the selected filters…
+                </div>
+              ) : null}
+              {reportQuery.isError ? (
+                <div className="rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-fg" role="alert">
+                  This report could not be loaded. Refresh to try again.
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-3 border-danger-border bg-surface-1"
+                    onClick={() => reportQuery.refetch()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : null}
               <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9">
                 {REPORT_TABS.map((item) => {
                   const Icon = item.icon;
@@ -474,6 +633,7 @@ export default function ReportsHubPage() {
                     <button
                       key={item.id}
                       type="button"
+                      aria-pressed={tab === item.id}
                       onClick={() => setTab(item.id)}
                       className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-black uppercase tracking-[0.14em] transition ${
                         active
@@ -520,7 +680,7 @@ export default function ReportsHubPage() {
                   <div className="rounded-[1.6rem] border border-line bg-surface-2 p-4">
                     <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
                       <Activity className="h-4 w-4 text-primary" />
-                      Live Reporting Signals
+                      Report signals
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       {meaningfulSummaryEntries
@@ -534,7 +694,7 @@ export default function ReportsHubPage() {
                               {toLabel(key)}
                             </div>
                             <div className="mt-2 text-xl font-black text-content-1">
-                              {toValue(value)}
+                              {toSummaryValue(key, value, summary)}
                             </div>
                           </div>
                         ))}
@@ -561,10 +721,10 @@ export default function ReportsHubPage() {
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="truncate text-sm font-black text-content-1">
+                                <div className="break-words text-sm font-black text-content-1">
                                   {row.label}
                                 </div>
-                                <div className="mt-1 truncate text-xs text-content-3">
+                                <div className="mt-1 break-words text-xs text-content-3">
                                   {row.sublabel}
                                 </div>
                               </div>
@@ -574,39 +734,39 @@ export default function ReportsHubPage() {
                             </div>
                             <div className="mt-3 h-2 rounded-full bg-surface-2">
                               <div
-                                className="h-full rounded-full bg-[linear-gradient(90deg,#2563eb_0%,#60a5fa_55%,#22c55e_100%)]"
+                                className={`h-full rounded-full ${row.value < 0 ? "bg-danger-solid" : "bg-[linear-gradient(90deg,#2563eb_0%,#60a5fa_55%,#22c55e_100%)]"}`}
                                 style={{
-                                  width: `${Math.max((row.value / leaderMax) * 100, 8)}%`,
+                                  width: `${Math.min((Math.abs(row.value) / leaderMax) * 100, 100)}%`,
                                 }}
+                                aria-hidden="true"
                               />
                             </div>
                           </div>
                         ))
-                      ) : (
-                        <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-content-3">
-                          Signal bars will appear as soon as the active report
-                          returns chart rows.
-                        </div>
-                      )}
+                        ) : !reportQuery.isPending && !reportQuery.isError ? (
+                          <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-content-3">
+                            No nonzero report series values are available for these filters.
+                          </div>
+                        ) : null}
                     </div>
                   </div>
 
                   <div className="rounded-[1.6rem] border border-line bg-surface-2 p-4">
                     <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
                       <Factory className="h-4 w-4 text-content-2" />
-                      Throughput Leaders
+                      Report rows
                     </div>
                     <ScrollArea className="mt-4 h-[300px] pr-3">
                       <div className="space-y-3">
-                        {series.length ? (
-                          series.slice(0, 18).map((row, index) => (
+                        {reportSeriesRows.length ? (
+                          reportSeriesRows.map((row, index) => (
                             <div
                               key={`${row.name || row.date || index}-${index}`}
                               className="rounded-2xl border border-line bg-surface-1 p-3"
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="truncate text-sm font-black text-content-1">
+                                  <div className="break-words text-sm font-black text-content-1">
                                     {toValue(
                                       row.name ??
                                         row.date ??
@@ -625,19 +785,17 @@ export default function ReportsHubPage() {
                                 </div>
                                 <div className="text-sm font-black text-content-1">
                                   {toValue(
-                                    row.value ?? row.output_kg ?? row.scrap_kg,
+                                    row.value ?? row.output_kg ?? row.scrap_kg ?? row.weight_kg,
                                   )}
                                 </div>
                               </div>
                             </div>
                           ))
-                        ) : (
+                        ) : !reportQuery.isPending && !reportQuery.isError ? (
                           <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-content-3">
-                            No execution telemetry is recorded for this report
-                            yet. This section fills from live job, sales,
-                            inventory, and dispatch events as they are posted.
+                            No nonzero report series values are available for these filters.
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </ScrollArea>
                   </div>
@@ -651,20 +809,18 @@ export default function ReportsHubPage() {
                   <ScrollArea className="mt-4 h-[520px] pr-3">
                     <div className="space-y-3">
                       {rows.length ? (
-                        rows.slice(0, 36).map((row, index) => (
+                        rows.map((row, index) => (
                           <div
                             key={`row-${index}`}
                             className="rounded-2xl border border-line bg-surface-1 p-4"
                           >
                             <div className="grid gap-3 sm:grid-cols-2">
-                              {Object.entries(row)
-                                .slice(0, 6)
-                                .map(([key, value]) => (
+                              {Object.entries(row).map(([key, value]) => (
                                   <div key={`${index}-${key}`}>
                                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
                                       {toLabel(key)}
                                     </div>
-                                    <div className="mt-1 text-sm font-semibold text-content-1">
+                                    <div className="mt-1 break-words text-sm font-semibold text-content-1">
                                       {toValue(value)}
                                     </div>
                                   </div>
@@ -672,11 +828,11 @@ export default function ReportsHubPage() {
                             </div>
                           </div>
                         ))
-                      ) : (
+                      ) : !reportQuery.isPending && !reportQuery.isError ? (
                         <div className="rounded-2xl border border-dashed border-line px-4 py-12 text-center text-sm text-content-3">
                           No rows in this period for the current filters.
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </ScrollArea>
                 </div>
@@ -700,7 +856,16 @@ export default function ReportsHubPage() {
                 <RefreshCw className="h-4 w-4 text-content-4" />
               </Link>
               <Link
-                href={`/analytics/reports/${tab}`}
+                href={{
+                  pathname: `/analytics/reports/${tab}`,
+                  query: {
+                    ...(plant !== "ALL" ? { plant } : {}),
+                    ...(processId !== "ALL" ? { process: processId } : {}),
+                    ...(shift !== "ALL" ? { shift } : {}),
+                    ...(dateFrom ? { date_from: dateFrom } : {}),
+                    ...(dateTo ? { date_to: dateTo } : {}),
+                  },
+                }}
                 className="flex items-center justify-between rounded-[1.35rem] border border-line bg-surface-2 px-4 py-3 text-sm font-semibold text-content-2 transition hover:border-line-strong hover:bg-surface-1"
               >
                 <span>Open current report route</span>
@@ -774,7 +939,13 @@ export default function ReportsHubPage() {
                             <div className="font-black uppercase tracking-wide text-content-3">
                               Latest run
                             </div>
-                            {latestRun ? (
+                            {reportRunsQuery.isPending ? (
+                              <div className="mt-2" role="status">Loading latest run…</div>
+                            ) : reportRunsQuery.isError ? (
+                              <div className="mt-2" role="alert">Could not load the latest run.
+                                <Button variant="ghost" size="sm" onClick={() => reportRunsQuery.refetch()}>Retry</Button>
+                              </div>
+                            ) : latestRun ? (
                               <div className="mt-2 space-y-1">
                                 <div>
                                   Status:{" "}
@@ -857,5 +1028,19 @@ export default function ReportsHubPage() {
         </div>
       </div>
     </PremiumPageShell>
+  );
+}
+
+export default function ReportsHubPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="rounded-2xl border border-line bg-surface-1 p-6 text-sm text-content-3" role="status">
+          Loading report workspace…
+        </div>
+      }
+    >
+      <ReportsHubContent />
+    </Suspense>
   );
 }

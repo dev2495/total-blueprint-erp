@@ -122,8 +122,12 @@ test("direct FG pouch batch can move from packing yard to dispatch bay through g
   await expect(page.getByTestId(`dispatch-gonny-checkbox-${sealedGonny.id}`)).toBeVisible({ timeout: 15_000 })
   await page.getByTestId(`dispatch-gonny-checkbox-${sealedGonny.id}`).click()
   await page.getByTestId("dispatch-create-trigger").click()
-  await page.getByText(/Optional transport details/i).click()
-  await page.locator('input[placeholder="MH-XX-AB-XXXX"]:visible').fill("MH14CD5678")
+  const vehicleInput = page.locator('input[placeholder="MH-XX-AB-XXXX"]:visible')
+  if (await vehicleInput.isVisible().catch(() => false)) {
+    await vehicleInput.fill("MH14CD5678")
+  }
+  await page.getByPlaceholder("Transporter or company vehicle").fill("UAT Dryfruit Transport")
+  await page.getByPlaceholder("Enter city, destination or delivery address").fill("UAT Dryfruit Dispatch Location")
   const challanCreateResponse = page.waitForResponse((response) => response.url().includes("/api/production/challans/create_challan/") && response.request().method() === "POST")
   await page.getByTestId("dispatch-create-submit").click()
   expect((await challanCreateResponse).status()).toBe(201)

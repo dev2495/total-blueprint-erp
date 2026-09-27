@@ -76,7 +76,8 @@ class CanonicalGranuleCodeMigrationTests(TransactionTestCase):
         self.apps = executor.loader.project_state(self.migrate_to).apps
 
     def tearDown(self):
-        MigrationExecutor(connection).migrate(self.migrate_to)
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
         super().tearDown()
 
     def test_duplicate_stock_moves_to_exact_canonical_code_with_audit_entries(self):

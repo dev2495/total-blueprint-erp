@@ -13,8 +13,8 @@ prepend_bin_dir() {
 
 prepend_bin_dir "$PROJECT_DIR/node_modules/.bin"
 prepend_bin_dir "$PWD/node_modules/.bin"
-prepend_bin_dir "/opt/homebrew/opt/node@18/bin"
-prepend_bin_dir "/opt/homebrew/opt/node@20/bin"
+prepend_bin_dir "/opt/homebrew/opt/node@22/bin"
+prepend_bin_dir "/opt/homebrew/opt/node@24/bin"
 if [ -n "${WORKSPACE_NODE_BIN:-}" ] && [ -x "$WORKSPACE_NODE_BIN" ]; then
   prepend_bin_dir "$(dirname "$WORKSPACE_NODE_BIN")"
 fi
@@ -32,9 +32,9 @@ NODE_VERSION=$(node -p "process.versions.node" 2>/dev/null || true)
 NODE_MAJOR=$(node -p "Number.parseInt(process.versions.node.split('.')[0], 10)" 2>/dev/null || echo 0)
 
 case "$NODE_MAJOR" in
-  18|20|22|24) ;;
+  22|24) ;;
   *)
-    echo "Unsupported Node.js version ${NODE_VERSION:-unknown}. Install an active Node LTS release (18, 20, 22, or 24), or expose it on PATH." >&2
+    echo "Unsupported Node.js version ${NODE_VERSION:-unknown}. Install an active Node LTS release (22 or 24), or expose it on PATH." >&2
     exit 1
     ;;
 esac

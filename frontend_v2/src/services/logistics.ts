@@ -377,14 +377,15 @@ export const logisticsService = {
         })).filter((row) => row.id);
     },
 
-    async getPackingBoard(): Promise<PackingBoardSnapshot> {
-        const response = await api.get('/api/production/packing/yard-snapshot/');
+    async getPackingBoard(signal?: AbortSignal): Promise<PackingBoardSnapshot> {
+        const response = await api.get('/api/production/packing/yard-snapshot/', { signal });
         return response.data as PackingBoardSnapshot;
     },
 
-    async getSOPackingSummary(salesOrderId: string): Promise<SOPackingSummary> {
+    async getSOPackingSummary(salesOrderId: string, signal?: AbortSignal): Promise<SOPackingSummary> {
         const response = await api.get('/api/production/packing/so_summary/', {
             params: { sales_order_id: salesOrderId },
+            signal,
         });
         return (response.data?.data || response.data) as SOPackingSummary;
     },
@@ -571,14 +572,15 @@ export const logisticsService = {
         })).filter((row) => row.id);
     },
 
-    async getDispatchBoard(): Promise<DispatchBoardSnapshot> {
-        const response = await api.get('/api/production/challans/board/');
+    async getDispatchBoard(signal?: AbortSignal): Promise<DispatchBoardSnapshot> {
+        const response = await api.get('/api/production/challans/board/', { signal });
         return response.data as DispatchBoardSnapshot;
     },
 
-    async getSODispatchableItems(salesOrderId: string): Promise<SODispatchSummary> {
+    async getSODispatchableItems(salesOrderId: string, signal?: AbortSignal): Promise<SODispatchSummary> {
         const response = await api.get('/api/production/challans/get_so_dispatchable_items/', {
-            params: { sales_order_id: salesOrderId }
+            params: { sales_order_id: salesOrderId },
+            signal,
         });
         return (response.data?.data || response.data) as SODispatchSummary;
     },

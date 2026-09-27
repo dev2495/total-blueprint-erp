@@ -55,9 +55,8 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen w-full overflow-x-hidden erp-canvas">
       <Sidebar />
       <div
-        style={{ transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}
         className={cn(
-          "relative z-10 flex min-w-0 flex-col transition-[padding] duration-300",
+          "relative z-10 flex min-w-0 flex-col",
           isPinned ? "lg:pl-[304px]" : "lg:pl-[86px]",
         )}
       >

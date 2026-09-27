@@ -532,13 +532,13 @@ export function InventoryHomeV36() {
   }
 
   return (
-    <div className="space-y-4 pb-28 [scrollbar-gutter:stable]">
+    <div className="space-y-4 pb-44 sm:pb-32 [scrollbar-gutter:stable]">
       <ClassTabBar tabs={INVENTORY_CLASS_TABS} activeId="summary" />
       {/* ─── Subtle Hero ─── */}
       <SubtleHero
         eyebrow="Inventory"
         title="Stock workspace"
-        subtitle="Everything you have, where it sits, what's reserved, what's moving. One screen replaces eleven."
+        subtitle="Stock by class, location and reservation status, with links to focused inventory tasks."
         chips={[
           {
             icon: <Package className="h-3 w-3" />,
@@ -558,8 +558,12 @@ export function InventoryHomeV36() {
           },
           {
             icon: <Sparkles className="h-3 w-3" />,
-            label: "Sync",
-            value: "live",
+            label: "Data",
+            value: isLoading
+              ? "Loading"
+              : stockQuery.isFetching
+                ? "Updating"
+                : "Loaded",
           },
         ]}
         actions={
@@ -586,37 +590,45 @@ export function InventoryHomeV36() {
           tone="blue"
           icon="🧪"
           label="Bulk granules &amp; chemicals"
-          value={totals.bulkDisplay}
+          value={isLoading ? "—" : totals.bulkDisplay}
           unit=""
-          sub={`across ${totals.bulkLots} stock rows · live`}
+          sub={isLoading ? "Loading stock rows…" : `across ${totals.bulkLots} stock rows`}
         />
         <KpiTile
           tone="violet"
           icon="🌀"
           label="Active rolls"
-          value={formatNumber(totals.rollCount)}
+          value={isLoading ? "—" : formatNumber(totals.rollCount)}
           unit={totals.rollCount === 1 ? "roll" : "rolls"}
-          sub={`${formatNumber(totals.rollKg, 0)} KG total · matrix below`}
+          sub={isLoading ? "Loading roll stock…" : `${formatNumber(totals.rollKg, 0)} KG total · matrix below`}
         />
         <KpiTile
           tone="amber"
           icon="📦"
           label="Packaging materials"
-          value={totals.pkgDisplay}
+          value={isLoading ? "—" : totals.pkgDisplay}
           unit=""
-          sub={`${totals.pkgRows} packing rows · ${totals.podRows} POD rows separate`}
+          sub={isLoading ? "Loading packing stock…" : `${totals.pkgRows} packing rows · ${totals.podRows} POD rows separate`}
         />
       </div>
 
       {/* ─── Workspace launcher tiles ─── */}
-      <WorkspaceLauncher totals={totals} />
+      {isLoading ? (
+        <InventorySummaryLoading />
+      ) : (
+        <WorkspaceLauncher totals={totals} />
+      )}
 
       {/* ─── Charts strip ─── */}
-      <ChartsStrip
-        ageing={ageing}
-        classBreakdown={classBreakdown}
-        totals={totals}
-      />
+      {isLoading ? (
+        <InventorySummaryLoading />
+      ) : (
+        <ChartsStrip
+          ageing={ageing}
+          classBreakdown={classBreakdown}
+          totals={totals}
+        />
+      )}
 
       {/* ─── 2-column: filter rail + main ─── */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -648,6 +660,7 @@ export function InventoryHomeV36() {
             {search && (
               <button
                 onClick={() => setSearch("")}
+                aria-label="Clear inventory search"
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-content-4 hover:text-content-2"
               >
                 <X className="h-4 w-4" />
@@ -861,11 +874,15 @@ export function InventoryHomeV36() {
       )}
 
       {/* Sticky reservation footer */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface-1/95 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:left-[var(--sidebar-width,16rem)]">
+      <div
+        role="region"
+        aria-label="Stock reservation summary"
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface-1/95 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur lg:left-[var(--sidebar-width,16rem)]"
+      >
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-2.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
-              Reservations open
+              Filtered stock
             </span>
             <span className="rounded-full bg-order-bg px-2.5 py-0.5 font-bold text-order-fg ring-1 ring-order-border">
               SO holds visible to sales
@@ -924,6 +941,18 @@ function KpiTile({ tone, icon, label, value, unit, sub }: KpiTileProps) {
         <span className="text-sm font-bold text-white/80">{unit}</span>
       </div>
       <div className="mt-1 text-xs text-white/80">{sub}</div>
+    </div>
+  );
+}
+
+function InventorySummaryLoading() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="rounded-2xl border border-line bg-surface-1 px-4 py-5 text-sm text-content-3"
+    >
+      Loading inventory summary…
     </div>
   );
 }
@@ -994,25 +1023,34 @@ function RollMatrixSection({
         </div>
       }
     >
-      <div className="overflow-x-auto">
+      <div
+        className="overflow-x-auto"
+        tabIndex={0}
+        aria-label="Roll stock by variant and thickness"
+      >
         <table className="min-w-full text-xs">
+          <caption className="sr-only">
+            Active roll counts by variant and thickness, with total roll weight
+            in kilograms.
+          </caption>
           <thead>
             <tr className="border-b border-line text-content-3">
-              <th className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold uppercase tracking-wider">
+              <th scope="col" className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold uppercase tracking-wider">
                 Variant / size
               </th>
               {matrix.cols.map((c) => (
                 <th
                   key={c}
+                  scope="col"
                   className="px-3 py-2 text-center font-mono font-bold"
                 >
                   {c}μ
                 </th>
               ))}
-              <th className="px-3 py-2 text-center font-bold uppercase">
+              <th scope="col" className="px-3 py-2 text-center font-bold uppercase">
                 Total
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase">KG</th>
+              <th scope="col" className="px-3 py-2 text-right font-bold uppercase">KG</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -1143,7 +1181,7 @@ function BulkSection({
   return (
     <SectionShell
       title="Bulk granules &amp; chemicals"
-      eyebrow={`${rows.length} stock rows · live`}
+      eyebrow={`${rows.length} stock rows`}
       subtitle="Aggregate on-hand by material × location. Reservations from sales orders shown."
       tone="blue"
       icon="🧪"
@@ -1159,29 +1197,37 @@ function BulkSection({
           </div>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          tabIndex={0}
+          aria-label="Bulk stock by material and location"
+        >
           <table className="min-w-full text-xs">
+            <caption className="sr-only">
+              Bulk stock rows with material identity, location, on-hand,
+              reserved, available quantity and details action.
+            </caption>
             <thead>
               <tr className="border-b border-line bg-surface-2 text-content-3">
-                <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
                   Material
                 </th>
-                <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
                   Code
                 </th>
-                <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
                   Location
                 </th>
-                <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-right font-bold uppercase tracking-wider">
                   On hand
                 </th>
-                <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-right font-bold uppercase tracking-wider">
                   Reserved
                 </th>
-                <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-right font-bold uppercase tracking-wider">
                   Available
                 </th>
-                <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
                   Action
                 </th>
               </tr>
@@ -1195,7 +1241,7 @@ function BulkSection({
                   <tr
                     key={r.id || i}
                     onClick={() => onRowClick(r)}
-                    className="hover:bg-info-bg cursor-pointer"
+                    className="cursor-pointer hover:bg-info-bg"
                   >
                     <td className="px-3 py-2 font-mono font-bold text-content-1">
                       {r.material_code || r.code || "—"}
@@ -1218,9 +1264,17 @@ function BulkSection({
                       {formatStockQty(available, r)}
                     </td>
                     <td className="px-3 py-2">
-                      <span className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2 py-1 text-[10px] font-bold text-success-fg ring-1 ring-success-border">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRowClick(r);
+                        }}
+                        aria-label={`View ${r.material_name || r.material_code || r.code || "bulk stock"} details`}
+                        className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2 py-1 text-[10px] font-bold text-success-fg ring-1 ring-success-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      >
                         View <ChevronRight className="h-3 w-3" />
-                      </span>
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1837,7 +1891,7 @@ function ChartsStrip({
           <TrendingUp className="h-4 w-4 text-content-4" />
         </div>
         <div className="mt-3 rounded-xl border border-dashed border-line bg-surface-2 px-3 py-4 text-xs font-semibold leading-5 text-content-3">
-          Live stock position is shown above from current rows. In/out/net
+          Current stock position is shown above from inventory rows. In/out/net
           movement totals stay hidden until the audited inventory ledger feed is
           attached to this home card.
         </div>
@@ -2403,7 +2457,7 @@ function WorkspaceLauncher({
           </h3>
         </div>
         <span className="text-[10px] text-content-3">
-          Each with full filters · saved views · multi-view layouts
+          Rolls, bulk &amp; packaging: filters · saved views · table/grid
         </span>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">

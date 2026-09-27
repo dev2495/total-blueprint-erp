@@ -121,6 +121,11 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   }
   await page.getByTestId("machine-log-output").click()
 
+  const forceReasonInput = page.getByPlaceholder("Force complete variance reason")
+  if (await forceReasonInput.isVisible().catch(() => false)) {
+    await forceReasonInput.fill("E2E recorded the remaining step variance")
+  }
+
   await expect(page.getByTestId("machine-finalize-step")).toBeEnabled({ timeout: 20_000 })
   await page.getByTestId("machine-finalize-step").click()
 

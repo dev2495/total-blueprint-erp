@@ -1,3 +1,4 @@
+from rest_framework.pagination import PageNumberPagination
 import re
 import logging
 
@@ -7,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import F
 from django.http import FileResponse, HttpResponse
 from django.db import connection
 from django.utils import timezone
@@ -39,9 +41,21 @@ def _safe_sales_order_number(so_id):
         return "N/A"
 
 
+class ProductionBoardPagination(PageNumberPagination):
+    page_size = 100
+    page_size_query_param = 'page_size'
+    max_page_size = 200
+
+
 class ProductionJobViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
-        queryset = ProductionJob.objects.all().order_by('-created_at')
+        queryset = ProductionJob.objects.select_related(
+            'template', 'work_center', 'machine', 'operator', 'process', 'current_process',
+            'sales_order_item__sales_order', 'sales_order_item__template', 'mts_order', 'production_batch', 'routing_rule',
+            'sales_order_item__assigned_artwork', 'mts_order__committed_artwork',
+            'sales_order_item__product_master', 'sales_order_item__product_variant',
+            'sales_order_item__sku_variant', 'sales_order_item__customer_product_overlay',
+        ).order_by('-created_at', '-id')
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -55,6 +69,20 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(job_number=job_number_filter)
         return queryset
     serializer_class = ProductionJobSerializer
+    pagination_class = ProductionBoardPagination
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            from .serializers import ProductionJobBoardSerializer
+            return ProductionJobBoardSerializer
+        return super().get_serializer_class()
+
+    @action(detail=False, methods=['get'])
+    def board(self, request):
+        from .serializers import ProductionJobBoardSerializer
+        paginator = ProductionBoardPagination()
+        page = paginator.paginate_queryset(self.get_queryset(), request, view=self)
+        return paginator.get_paginated_response(ProductionJobBoardSerializer(page, many=True).data)
 
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
@@ -683,50 +711,7 @@ class PackingViewSet(viewsets.ViewSet):
         from .services.dispatch_service import FGDispatchService
 
         try:
-            order_rows = list(FGDispatchService.get_sales_orders_for_packing())
-            cards = []
-            totals = {
-                "orders": 0,
-                "pending_batches": 0,
-                "pending_pcs": 0,
-                "open_gonnies": 0,
-                "sealed_waiting_release": 0,
-                "ready_rolls": 0,
-                "ready_rolls_kg": 0.0,
-                "ready_rolls_gross_kg": 0.0,
-                "ready_rolls_tare_kg": 0.0,
-                "ready_gonnies": 0,
-                "ready_gonnies_pcs": 0,
-                "ready_gonnies_gross_kg": 0.0,
-            }
-            for row in order_rows:
-                try:
-                    summary = FGDispatchService.get_packing_units_by_so(row["id"])
-                except Exception:
-                    logger.warning("Unable to load packing summary for sales_order_id=%s", row.get("id"), exc_info=True)
-                    continue
-                pending = summary.get("packing_pending", {})
-                ready = summary.get("ready_for_dispatch", {})
-                card = {
-                    "sales_order": summary.get("sales_order") or row,
-                    "pending": pending,
-                    "ready_for_dispatch": ready,
-                }
-                cards.append(card)
-                totals["orders"] += 1
-                totals["pending_batches"] += int(pending.get("batches_count") or 0)
-                totals["pending_pcs"] += int(pending.get("batches_pcs") or 0)
-                totals["open_gonnies"] += int(pending.get("open_gonnies_count") or 0)
-                totals["sealed_waiting_release"] += int(pending.get("sealed_gonnies_count") or 0)
-                totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
-                totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
-                totals["ready_rolls_gross_kg"] += float(ready.get("rolls_gross_kg") or ready.get("rolls_kg") or 0)
-                totals["ready_rolls_tare_kg"] += float(ready.get("rolls_tare_kg") or 0)
-                totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
-                totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
-                totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
-
-            return Response({"totals": totals, "orders": cards})
+            return Response(FGDispatchService.get_packing_board_snapshot())
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1313,51 +1298,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         from .services.dispatch_service import FGDispatchService
 
         try:
-            order_rows = list(FGDispatchService.get_sales_orders_with_fg())
-            cards = []
-            totals = {
-                "orders": 0,
-                "ready_rolls": 0,
-                "ready_rolls_kg": 0.0,
-                "ready_rolls_gross_kg": 0.0,
-                "ready_rolls_tare_kg": 0.0,
-                "ready_gonnies": 0,
-                "ready_gonnies_pcs": 0,
-                "ready_gonnies_gross_kg": 0.0,
-                "pending_in_packing": 0,
-            }
-            for row in order_rows:
-                try:
-                    summary = FGDispatchService.get_dispatchable_units_by_so(row["id"])
-                except Exception:
-                    logger.warning(
-                        "Unable to load dispatchable-unit summary for sales_order_id=%s; "
-                        "omitting that dispatch-board card",
-                        row.get("id"),
-                        exc_info=True,
-                    )
-                    continue
-                ready = summary.get("available_for_dispatch", {})
-                pending = summary.get("packing_pending", {})
-                cards.append(
-                    {
-                        "sales_order": summary.get("sales_order") or row,
-                        "available_for_dispatch": ready,
-                        "packing_pending": pending,
-                        "dispatched_qty": summary.get("dispatched_qty", {}),
-                    }
-                )
-                totals["orders"] += 1
-                totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
-                totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
-                totals["ready_rolls_gross_kg"] += float(ready.get("rolls_gross_kg") or ready.get("rolls_kg") or 0)
-                totals["ready_rolls_tare_kg"] += float(ready.get("rolls_tare_kg") or 0)
-                totals["ready_gonnies"] += int(ready.get("gonnies_count") or 0)
-                totals["ready_gonnies_pcs"] += int(ready.get("gonnies_pcs") or 0)
-                totals["ready_gonnies_gross_kg"] += float(ready.get("gonnies_gross_kg") or 0)
-                totals["pending_in_packing"] += int(pending.get("open_gonnies_count") or 0) + int(pending.get("unpacked_batch_count") or 0)
-
-            return Response({"totals": totals, "orders": cards})
+            return Response(FGDispatchService.get_dispatch_board_snapshot())
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
@@ -1369,7 +1310,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             plant_id = request.query_params.get('plant_id')
             status_filter = request.query_params.get('status')
             
-            qs = DeliveryChallan.objects.select_related('plant')
+            qs = DeliveryChallan.objects.select_related('plant').annotate(so_number_display=F('sales_order__order_number')).defer('print_snapshot')
             
             if plant_id:
                 qs = qs.filter(plant_id=plant_id)
@@ -1399,7 +1340,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                     'pod_reference': ch.pod_reference or "",
                     'pod_notes': ch.pod_notes or "",
                     'plant_name': ch.plant.name if ch.plant else "N/A",
-                    'so_number': _safe_sales_order_number(ch.sales_order_id)
+                    'so_number': ch.so_number_display or 'N/A'
                 })
             return Response(data)
         except Exception as e:
