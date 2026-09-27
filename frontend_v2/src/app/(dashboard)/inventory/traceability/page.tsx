@@ -450,6 +450,8 @@ export default function RollTraceabilityPage() {
                     <div className="text-sm font-semibold text-content-1 mt-1">
                       {currentRoll.label_id}
                     </div>
+                    <div className="mt-1 break-words text-xs text-content-3">Supplier: {result?.identity?.supplier_roll || "No supplier number recorded"}</div>
+                    {result?.identity?.batch && <div className="text-xs text-content-3">Batch: {result.identity.batch}</div>}
                   </div>
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
                     <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">

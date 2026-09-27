@@ -105,6 +105,7 @@ export interface TimelineEvent {
 }
 
 export interface RollTraceResponse {
+    identity?: { supplier_roll?: string; batch?: string };
     query: string;
     matched_by: string | null;
     roll: {

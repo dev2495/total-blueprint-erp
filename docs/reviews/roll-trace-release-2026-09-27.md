@@ -70,3 +70,5 @@ The release improves the existing stack and closes the concrete roll-flow defect
 - Tablet sign-in inspected at 834 × 1112: form first, document width 834, sign-in button within the viewport.
 - Live AWS baseline: 2,058 tracked source hashes match e393c42 before the release. Read-only reservation preflight passed with 5,905 roll records.
 - Pre-release database and source backup SHA-256 verified; PostgreSQL dump restored with ON_ERROR_STOP into an isolated, network-disabled temporary container: 5,905 rolls and 366 migration records. Temporary restore container removed. This proves same-host restore readability; off-host recovery is still a separate gate.
+
+- Rendered label QR decoded independently to its expected immutable roll UUID. This validates the generated image, not physical print/scanner quality.
