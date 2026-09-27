@@ -151,7 +151,6 @@ class ManualAllocationRaceTests(TransactionTestCase):
                 context = ExecutionService.get_job_context(self.job.pk, reconcile_assignment=False)
             process_queries = [q for q in captured if q['sql'].startswith('SELECT "factory_processes".')]
             return len(process_queries), context
-        baseline, _ = measure()
         InventoryRoll.objects.bulk_create([
             InventoryRoll(label_id=f'READ-PERF-{i}', material=self.material,
                 location=self.wip, plant=self.plant, width_mm=500,
@@ -160,6 +159,10 @@ class ManualAllocationRaceTests(TransactionTestCase):
                 stage_index=0, current_step_index=0)
             for i in range(50)
         ])
+        population = InventoryRoll.objects.filter(label_id__startswith="READ-PERF-")
+        population.exclude(label_id__in=[f"READ-PERF-{i}" for i in range(10)]).update(status="CONSUMED")
+        baseline, _ = measure()
+        population.update(status="AVAILABLE")
         expanded, context = measure()
         self.assertLessEqual(expanded, baseline + 2)
         self.assertTrue(any(row["label_id"].startswith("READ-PERF-") for row in context["discoverable_pool"]), "Processed fixture rolls must exercise the context serializer")

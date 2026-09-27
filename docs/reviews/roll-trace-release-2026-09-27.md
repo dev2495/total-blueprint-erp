@@ -76,3 +76,5 @@ The release improves the existing stack and closes the concrete roll-flow defect
 ## Follow-up from the deployed performance check
 
 The first deployed read-only profile exposed 3,072 repeated process lookups in a job context (3,173 total queries). A focused follow-up preloads roll process/parent/job relations and removes unused job/template joins from stock summaries. It preserves candidate rules and returned fields. Production regression suite: 347 tests passed; expanded inventory/read regression suite: 10 tests passed, including a 50-roll query-growth guard that exercises the context serializer. Live timings and final deployed revision are recorded in the deployment evidence alongside this guide.
+
+A second profiling pass uses shared prefetched related records to avoid repeatedly hydrating the same material/process/job for thousands of rolls. Read-only candidate timings: snapshot 3.52 → 1.23 seconds; sampled job context 5.64 → 2.73 seconds, 3,173 → 118 queries. These are single-process measurements on the current live dataset, not a sustained-load SLA.

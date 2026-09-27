@@ -643,8 +643,8 @@ def _stock_snapshot_payload(request):
 
     # The summary needs identity, dimensions, cost and parent role only.
     # Loading full template/job graphs for every stock roll inflated read cost.
-    rolls_qs = InventoryRoll.objects.select_related(
-        "material", "grade", "location__plant", "parent_roll",
+    rolls_qs = InventoryRoll.objects.select_related("location__plant").prefetch_related(
+        "material", "grade", "parent_roll",
     ).exclude(status__in=["CONSUMED", "SCRAPPED", "MISSING"])
     bulk_qs = InventoryBulk.objects.select_related("material", "granule_code", "location", "plant").filter(qty_kg__gt=0)
     packaging_qs = PackagingStock.objects.select_related("material", "location", "plant").filter(qty__gt=0)
