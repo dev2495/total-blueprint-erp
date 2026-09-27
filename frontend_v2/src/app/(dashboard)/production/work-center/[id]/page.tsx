@@ -3679,6 +3679,7 @@ export default function WCMTerminal() {
                 ) : null}
                 {showRollTransfer ? (
                   <RollTransferModal
+                    jobId={activeAssignment?.production_job}
                     targetSpec={targetSpec}
                     targetSpecs={targetRollSpecs}
                     targetStockContract={selectedTargetStockContract}
@@ -6902,6 +6903,7 @@ function RollAssignmentModal({
   overrideReason = "",
 }: any) {
   const [open, setOpen] = useState(false);
+  const [transferKey, setTransferKey] = useState(() => crypto.randomUUID());
   const [activeTab, setActiveTab] = useState<"local" | "external">("local");
   const [selectedRollIds, setSelectedRollIds] = useState<string[]>([]);
   const [selectedExternalRollIds, setSelectedExternalRollIds] = useState<
@@ -7184,7 +7186,7 @@ function RollAssignmentModal({
       const q = rollSearch.toLowerCase().trim();
       if (q) {
         const searchStr =
-          `${r.label_id} ${r.material_name} ${r.material_code} ${r.family_name}`.toLowerCase();
+          `${r.label_id} ${r.supplier_roll || ""} ${r.batch_no || ""} ${r.location_name || ""} ${r.material_name} ${r.material_code} ${r.family_name}`.toLowerCase();
         if (!searchStr.includes(q)) return false;
       }
       return true;
@@ -7283,7 +7285,7 @@ function RollAssignmentModal({
       const q = rollSearch.toLowerCase().trim();
       if (q) {
         const searchStr =
-          `${r.label_id} ${r.material_name} ${r.material_code} ${r.location_name}`.toLowerCase();
+          `${r.label_id} ${r.supplier_roll || ""} ${r.batch_no || ""} ${r.location_name || ""} ${r.material_name} ${r.material_code} ${r.location_name}`.toLowerCase();
         if (!searchStr.includes(q)) return false;
       }
       return true;
@@ -7344,15 +7346,12 @@ function RollAssignmentModal({
       if (!destinationLocationId) {
         throw new Error("Target location missing");
       }
-      const challan = await inventoryService.createChallan({
+      await inventoryService.createAndDispatchChallan({
         from_plant: selectedTransferPlantId,
         to_plant: effectiveTargetPlantId,
-      });
-      const challanId = (challan as any)?.data?.id || (challan as any)?.id;
-      await inventoryService.dispatchChallan(challanId, {
-        target_location_id: destinationLocationId,
-        roll_ids: selectedExternalRollIds,
-      });
+        target_job: activeAssignment.production_job,
+        dispatch: { target_location_id: destinationLocationId, roll_ids: selectedExternalRollIds },
+      }, transferKey);
     },
     onSuccess: () => {
       toast({
@@ -7362,6 +7361,7 @@ function RollAssignmentModal({
       });
       setOpen(false);
       setSelectedExternalRollIds([]);
+      setTransferKey(crypto.randomUUID());
       onAssigned();
     },
     onError: (err: any) => {
@@ -8069,6 +8069,7 @@ function RollAssignmentModal({
 }
 
 function RollTransferModal({
+  jobId,
   targetSpec,
   targetSpecs = [],
   targetStockContract = {},
@@ -8080,6 +8081,7 @@ function RollTransferModal({
   onRequested,
 }: any) {
   const [open, setOpen] = useState(false);
+  const [transferKey, setTransferKey] = useState(() => crypto.randomUUID());
   const [selectedPlantId, setSelectedPlantId] = useState<string>("");
   const [selectedSourceLocationId, setSelectedSourceLocationId] =
     useState<string>("ALL");
@@ -8191,16 +8193,14 @@ function RollTransferModal({
       const materialOk = matchesRollMaterial(roll, spec);
       const thicknessOk =
         spec.thickness_micron != null
-          ? Number(roll.thickness_micron) === Number(spec.thickness_micron)
+          ? Math.abs(Number(roll.thickness_micron) - Number(spec.thickness_micron)) <= 0.01
           : true;
       const gradeOk = spec.grade_id
         ? String(spec.grade_id) === String(roll.grade_id || "")
         : true;
-      const widthOk = isMultiInputCombine
-        ? true
-        : spec.min_width_mm != null
-          ? Number(roll.width_mm) >= Number(spec.min_width_mm)
-          : true;
+      const widthOk = spec.min_width_mm != null
+        ? Number(roll.width_mm) >= Number(spec.min_width_mm)
+        : true;
       const targetForm = spec?.stock_form || targetStockContract?.stock_form;
       const stockFormOk = processCanUseRollForTarget(
         roll?.stock_form,
@@ -8215,13 +8215,10 @@ function RollTransferModal({
         stockFormOk
       );
     };
-    if (!normalizedSpecs.length) return rollsRaw;
+    if (!normalizedSpecs.length) return [];
     const filtered = rollsRaw.filter((r: any) =>
       normalizedSpecs.some((s: any) => matchSpec(r, s)),
     );
-    if (isMultiInputCombine && filtered.length === 0) {
-      return rollsRaw;
-    }
     return filtered;
   }, [rollsRaw, normalizedSpecs, isMultiInputCombine, targetStockContract]);
   const rolls = useMemo(() => {
@@ -8247,15 +8244,12 @@ function RollTransferModal({
       if (!effectiveTargetLocationId) {
         throw new Error("Target location missing");
       }
-      const challan = await inventoryService.createChallan({
+      await inventoryService.createAndDispatchChallan({
         from_plant: selectedPlantId,
         to_plant: targetPlantId,
-      });
-      const challanId = (challan as any)?.data?.id || (challan as any)?.id;
-      await inventoryService.dispatchChallan(challanId, {
-        target_location_id: effectiveTargetLocationId,
-        roll_ids: selectedRollIds,
-      });
+        target_job: jobId,
+        dispatch: { target_location_id: effectiveTargetLocationId, roll_ids: selectedRollIds },
+      }, transferKey);
     },
     onSuccess: () => {
       toast({
@@ -8264,6 +8258,7 @@ function RollTransferModal({
       });
       setOpen(false);
       setSelectedRollIds([]);
+      setTransferKey(crypto.randomUUID());
       if (onRequested) onRequested();
     },
     onError: (err: any) => {

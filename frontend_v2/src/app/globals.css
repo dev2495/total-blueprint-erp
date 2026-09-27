@@ -2180,7 +2180,7 @@
     }
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 1023px) {
     .auth-page {
       padding: 14px;
     }

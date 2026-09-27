@@ -117,7 +117,7 @@ class GangRollAllocationTests(TestCase):
         job.save(update_fields=["meta_json"])
 
     def _context_for(self, widths_by_job):
-        def fake_context(job_id):
+        def fake_context(job_id, **_kwargs):
             width = widths_by_job[str(job_id)]
             return {"target_roll_invariant_list": [{"min_width_mm": width}]}
 

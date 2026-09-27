@@ -54,14 +54,14 @@ test("inventory, logistics, artwork, cylinder, and tooling pages use the upgrade
   await page.goto("/logistics/packing")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Packing Yard")
-  await expect(page.locator("body")).toContainText("Pouch in-progress")
-  await expect(page.locator("body")).toContainText("Released rolls")
+  await expect(page.locator("body")).toContainText("Waiting to pack")
+  await expect(page.locator("body")).toContainText("Ready for dispatch")
 
   await page.goto("/logistics/dispatch")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Dispatch Bay")
-  await expect(page.locator("body")).toContainText("Open trips")
-  await expect(page.locator("body")).toContainText("Dispatch history")
+  await expect(page.locator("body")).toContainText("Awaiting POD")
+  await expect(page.locator("body")).toContainText("Challans")
 
   await page.goto("/logistics/transit")
   await assertHealthyPage(page)

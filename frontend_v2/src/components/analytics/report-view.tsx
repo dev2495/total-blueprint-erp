@@ -327,6 +327,18 @@ export type ReportViewProps = {
   description?: string;
 };
 
+const REPORT_ACTIONS: Record<string, { label: string; href: string; detail: string }[]> = {
+  production: [{ label: "Resolve waiting jobs", href: "/production/planner", detail: "Check the current step, materials and machine before release." }],
+  oee: [{ label: "Review machine setup", href: "/production/machine-selector", detail: "Inspect downtime and missing rated capacity; calendar estimates are not shift OEE." }],
+  scrap: [{ label: "Review production exceptions", href: "/production/planner", detail: "Use the job and process breakdown below to investigate the largest measured loss." }],
+  inventory: [{ label: "Find available rolls", href: "/inventory/rolls", detail: "Check material, grade, gauge, width, form and location." }, { label: "Review stock exceptions", href: "/inventory/alerts", detail: "Investigate aged or blocked stock before allocating it." }],
+  "inventory-lineage": [{ label: "Trace an exact roll", href: "/inventory/traceability", detail: "Use ERP ID, supplier roll reference or QR; compare physical location." }],
+  sales: [{ label: "Review overdue orders", href: "/sales/orders", detail: "Check the promised date and dispatch evidence before contacting the customer." }],
+  interplant: [{ label: "Receive an incoming transfer", href: "/inventory/inter-plant", detail: "Confirm the challan and physical receipt, then allocate at the receiving plant." }],
+  dispatch: [{ label: "Open dispatch bay", href: "/logistics/dispatch", detail: "Resolve packing and delivery blockers on the linked challan." }],
+  mrp: [{ label: "Review material demand", href: "/analytics/mrp", detail: "Compare demand with available stock before creating purchase orders." }],
+};
+
 const ROW_PAGE_SIZE = 25;
 
 function ReportViewInner({ tab, title, description }: ReportViewProps) {
@@ -338,8 +350,8 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
   const initialFrom = searchParams?.get("date_from") || "";
   const initialTo = searchParams?.get("date_to") || "";
   const [period, setPeriod] = useState<Period>((searchParams?.get("period") as Period) || (initialFrom || initialTo ? "custom" : "30d"));
-  const [dateFrom, setDateFrom] = useState(initialFrom || periodRange("30d")!.from);
-  const [dateTo, setDateTo] = useState(initialTo || periodRange("30d")!.to);
+  const [dateFrom, setDateFrom] = useState(initialFrom || (periodRange(period) || periodRange("30d"))!.from);
+  const [dateTo, setDateTo] = useState(initialTo || (periodRange(period) || periodRange("30d"))!.to);
   const [plant, setPlant] = useState(searchParams?.get("plant") || "ALL");
   const [processId, setProcessId] = useState(searchParams?.get("process") || "ALL");
   const [shift, setShift] = useState(searchParams?.get("shift") || "ALL");
@@ -394,7 +406,6 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
     queryFn: () => analyticsApi.getReportTab(tab, filters),
     staleTime: 60_000,
     refetchInterval: 180_000,
-    placeholderData: (previous) => previous,
   });
 
   const payload = (reportQuery.data || {}) as ReportTabResponse & Record<string, any>;
@@ -541,6 +552,7 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
   useEffect(() => setRowPage(1), [rowSearch, sort, tab, filters]);
 
   const exportCsv = () => {
+    if (reportQuery.isFetching || reportQuery.isError) return;
     const esc = (v: unknown) => {
       const s = v === null || v === undefined ? "" : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -654,6 +666,13 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
           </div>
         </div>
       ) : null}
+
+      {REPORT_ACTIONS[tab] && !loading && !reportQuery.isError && <section className="rounded-xl border border-line bg-surface-1 p-4" aria-label="Next actions">
+        <h2 className="mb-3 text-sm font-semibold text-content-1">Turn this report into action</h2>
+        <div className="grid gap-3 sm:grid-cols-2">{REPORT_ACTIONS[tab].map(action => <a key={action.href} href={action.href} className="rounded-lg bg-surface-2 p-3 transition-colors hover:bg-surface-3">
+          <span className="text-sm font-semibold text-primary">{action.label} →</span><p className="mt-1 text-xs text-content-3">{action.detail}</p>
+        </a>)}</div>
+      </section>}
 
       {/* KPIs */}
       <div className="erp-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -907,7 +926,7 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
             <button
               type="button"
               onClick={exportCsv}
-              disabled={!filteredRows.length}
+              disabled={reportQuery.isFetching || reportQuery.isError || !filteredRows.length}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-2.5 text-[12.5px] font-medium text-content-2 transition hover:bg-surface-2 disabled:opacity-40"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" /> CSV

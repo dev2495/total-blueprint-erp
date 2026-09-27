@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from apps.inventory.models import InventoryRoll
 from apps.materials.stock_forms import STOCK_FORM_OPEN_WEB, normalize_stock_form
@@ -140,8 +141,6 @@ class RollAllocationService:
                 status='ACTIVE',
                 roll__isnull=False,
             )
-            .exclude(job=job)
-            .exclude(job__job_state__in=['COMPLETED', 'CANCELLED'])
             .values_list('roll_id', flat=True)
         )
 
@@ -158,36 +157,12 @@ class RollAllocationService:
                 if not role:
                     role = str(((getattr(roll, "meta_json", None) or {}).get("roll_role") or "")).upper()
                 is_remainder = role == "REMAINDER" or bool((getattr(roll, "meta_json", None) or {}).get("is_remainder"))
-                # Self-heal stale remainder indices from older logs so they remain
-                # allocatable in strict stage-0 semantics.
-                if is_remainder and int(getattr(roll, "stage_index", 0) or 0) == 0:
-                    desired_current = 0
-                    desired_completed = 0
-                    if int(getattr(roll, "current_step_index", 0) or 0) != desired_current or int(getattr(roll, "completed_step_index", 0) or 0) != desired_completed:
-                        roll.current_step_index = desired_current
-                        roll.completed_step_index = desired_completed
-                        roll.save(update_fields=["current_step_index", "completed_step_index"])
-                if not include_remainder:
-                    if is_remainder:
-                        continue
-                if str(getattr(roll, "status", "")).upper() == "RESERVED":
-                    if roll.id in reserved_by_other_active:
-                        continue
-                    # Heal stale reservations from closed jobs so valid rolls remain allocatable.
-                    try:
-                        ExecutionService._unlock_roll_if_stale_reserved(roll, job=job)
-                        roll.refresh_from_db(fields=["status"])
-                    except Exception:
-                        logger.warning(
-                            "Stale reservation healing failed while evaluating roll "
-                            "roll_id=%s job_id=%s; excluding the roll from auto-allocation",
-                            getattr(roll, "id", None),
-                            getattr(job, "id", None),
-                            exc_info=True,
-                        )
-                        continue
-                    if str(getattr(roll, "status", "")).upper() != "AVAILABLE":
-                        continue
+                # Eligibility is a pure read. Legacy repair is an explicit
+                # maintenance action; do not release reservations while browsing.
+                if not include_remainder and is_remainder:
+                    continue
+                if roll.id in reserved_by_other_active or str(getattr(roll, "status", "")).upper() != "AVAILABLE":
+                    continue
                 if bool((getattr(roll, "meta_json", None) or {}).get("is_quarantined")):
                     continue
                 if is_v2 and current_step_index == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"}:
@@ -270,7 +245,7 @@ class RollAllocationService:
 
         final_target = Decimal("0")
         try:
-            ctx = ExecutionService.get_job_context(str(job.id)) or {}
+            ctx = ExecutionService.get_job_context(str(job.id), reconcile_assignment=False) or {}
             specs = ctx.get("target_roll_invariant_list") or []
             for spec in specs:
                 w = spec.get("min_width_mm") if isinstance(spec, dict) else None
@@ -312,7 +287,7 @@ class RollAllocationService:
         from apps.production.services.services_execution import ExecutionService
 
         try:
-            ctx = ExecutionService.get_job_context(str(job.id)) or {}
+            ctx = ExecutionService.get_job_context(str(job.id), reconcile_assignment=False) or {}
             specs = ctx.get("target_roll_invariant_list") or []
         except Exception:
             logger.warning(
@@ -508,7 +483,7 @@ class RollAllocationService:
 
         process = getattr(job, "current_process", None) or getattr(job, "process", None)
         try:
-            ctx = ExecutionService.get_job_context(str(job.id)) or {}
+            ctx = ExecutionService.get_job_context(str(job.id), reconcile_assignment=False) or {}
             specs = ctx.get("target_roll_invariant_list") or []
         except Exception:
             specs = []
@@ -659,6 +634,7 @@ class RollAllocationService:
         return results
 
     @classmethod
+    @transaction.atomic
     def perform_slit_assign(cls, job, roll, child_widths_mm, *, user=None, reason: str = "", assign_jobs=None):
         """
         Execute the slit-and-assign operation:
@@ -674,6 +650,21 @@ class RollAllocationService:
         """
         from django.db import transaction
         from apps.inventory.models import RollLink
+
+        from apps.production.models import ProductionJob
+        from apps.inventory.models import InventoryReservation
+        from apps.production.services.services_execution import ExecutionService
+        affected_jobs = list(assign_jobs or [job])
+        list(ProductionJob.objects.select_for_update().filter(pk__in=[j.pk for j in affected_jobs]).order_by("pk"))
+        roll = InventoryRoll.objects.select_for_update().get(pk=roll.pk)
+        if roll.status != "AVAILABLE" or InventoryReservation.objects.filter(roll=roll, status="ACTIVE").exists():
+            raise ValueError("The source roll is no longer available. Refresh stock before splitting.")
+        if roll.weight_kg <= 0 or roll.location.code == "IN_TRANSIT" or (roll.meta_json or {}).get("is_quarantined"):
+            raise ValueError("The source roll is empty, in transit or quarantined.")
+        for target in affected_jobs:
+            plant_id = ExecutionService._resolve_job_plant_id(target)
+            if plant_id and str(roll.location.plant_id) != str(plant_id):
+                raise ValueError("Receive the source roll at the target plant before splitting.")
 
         process = getattr(job, "current_process", None) or getattr(job, "process", None)
         trim_mm = resolve_process_trim_mm(process)
@@ -941,9 +932,14 @@ class RollAllocationService:
             roll_ids.append(rid)
 
         with transaction.atomic():
+            # Same lock order as manual assignment: all affected jobs, then rolls.
+            from apps.production.models import ProductionJob
+            gang_jobs, _ = cls.committed_gang_child_plan(job, strict=False)
+            job_ids = sorted({str(job.pk), *(str(j.pk) for j in gang_jobs)})
+            list(ProductionJob.objects.select_for_update().filter(pk__in=job_ids).order_by("pk"))
             # Lock all input rolls atomically up-front.
             locked = list(
-                InventoryRoll.objects.select_for_update().filter(id__in=roll_ids)
+                InventoryRoll.objects.select_for_update().filter(id__in=roll_ids).order_by("id")
             )
             locked_map = {str(r.id): r for r in locked}
 

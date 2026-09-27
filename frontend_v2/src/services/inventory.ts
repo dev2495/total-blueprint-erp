@@ -614,6 +614,23 @@ export const inventoryService = {
         return data.items || []
     },
 
+    createAndDispatchChallan: async (payload: Record<string, any>, idempotencyKey: string) => {
+        const { data } = await api.post<DeliveryChallan>("/api/inventory/inter-plant/create-and-dispatch/", payload, {
+            headers: { "Idempotency-Key": idempotencyKey },
+        })
+        return data
+    },
+
+    downloadRollLabels: async (rollIds: string[], layout = "4x2", reason = "Roll label PDF") => {
+        const { data } = await api.post<Blob>("/api/inventory/rolls/labels/", { roll_ids: rollIds, layout, reason }, { responseType: "blob" })
+        const url = URL.createObjectURL(data)
+        const anchor = document.createElement("a")
+        anchor.href = url
+        anchor.download = "roll-labels.pdf"
+        anchor.click()
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    },
+
     // GRN
     createBulkGRN: async (payload: {
         material_id: string, location_id: string, vendor_id: string, quantity: number, reference?: string, [key: string]: any

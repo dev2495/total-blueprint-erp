@@ -13,6 +13,7 @@
  */
 
 import * as React from "react";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -254,6 +255,7 @@ export function RollsWorkspaceV36() {
     col: number;
   } | null>(null);
   const [pageSize, setPageSize] = React.useState(50);
+  const [page, setPage] = React.useState(0);
   const [sort, setSort] = React.useState<{ key: string; dir: "asc" | "desc" }>({
     key: "created_at",
     dir: "desc",
@@ -399,6 +401,8 @@ export function RollsWorkspaceV36() {
     });
     return copy;
   }, [filtered, sort]);
+
+  React.useEffect(() => { setPage(0); }, [filters, pageSize, sort]);
 
   // ─── KPI ─────────────────────────────────────────────
   const kpi = React.useMemo(() => {
@@ -1075,7 +1079,7 @@ export function RollsWorkspaceV36() {
             )}
             {viewMode === "table" && (
               <TableView
-                rolls={sorted.slice(0, pageSize)}
+                rolls={sorted.slice(Math.min(page, Math.max(0, Math.ceil(sorted.length / pageSize)-1)) * pageSize, (Math.min(page, Math.max(0, Math.ceil(sorted.length / pageSize)-1)) + 1) * pageSize)}
                 total={sorted.length}
                 pageSize={pageSize}
                 onPageSize={setPageSize}
@@ -1087,13 +1091,20 @@ export function RollsWorkspaceV36() {
             )}
             {viewMode === "grid" && (
               <GridView
-                rolls={sorted.slice(0, pageSize)}
+                rolls={sorted.slice(Math.min(page, Math.max(0, Math.ceil(sorted.length / pageSize)-1)) * pageSize, (Math.min(page, Math.max(0, Math.ceil(sorted.length / pageSize)-1)) + 1) * pageSize)}
                 total={sorted.length}
                 pageSize={pageSize}
                 onPageSize={setPageSize}
                 loading={stockQuery.isLoading}
                 onSelect={setSelectedRoll}
               />
+            )}
+            {viewMode !== "matrix" && sorted.length > pageSize && (
+              <nav aria-label="Roll inventory pages" className="flex items-center justify-end gap-3 text-sm">
+                <Button variant="outline" disabled={page === 0} onClick={() => setPage(Math.max(0, page - 1))}>Previous</Button>
+                <span>Page {Math.min(page + 1, Math.ceil(sorted.length / pageSize))} of {Math.ceil(sorted.length / pageSize)}</span>
+                <Button variant="outline" disabled={(page + 1) * pageSize >= sorted.length} onClick={() => setPage(page + 1)}>Next</Button>
+              </nav>
             )}
           </main>
         </div>

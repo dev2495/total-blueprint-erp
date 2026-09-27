@@ -143,7 +143,7 @@ def _roll_query_rows(params):
         qs = qs.filter(weight_kg__lte=weight_max)
 
     rows = []
-    for roll in qs.order_by('-created_at')[:2000]:
+    for roll in qs.order_by('-created_at').iterator(chunk_size=1000):
         role = resolve_roll_role(roll)
         stage_name = resolve_roll_stage_name(roll) or 'Raw Material'
         bucket_label = 'Remainder / Freed' if role == 'REMAINDER' else stage_name
@@ -378,10 +378,13 @@ def _as_decimal(value, default="0"):
     return Decimal(str(value))
 
 
-def _latest_material_rate(material):
+def _latest_material_rate(material, snapshot_rate=Ellipsis):
     if not material:
         return Decimal("0"), "ZERO"
-    if MaterialCostSnapshot is not None:
+    if snapshot_rate is not Ellipsis:
+        if snapshot_rate is not None and _as_decimal(snapshot_rate) > 0:
+            return _as_decimal(snapshot_rate), "MATERIAL_COST_SNAPSHOT"
+    elif MaterialCostSnapshot is not None:
         snapshot = MaterialCostSnapshot.objects.filter(material=material).order_by("-effective_date").first()
         if snapshot and _as_decimal(snapshot.avg_rate_per_kg) > 0:
             return _as_decimal(snapshot.avg_rate_per_kg), "MATERIAL_COST_SNAPSHOT"
@@ -398,7 +401,7 @@ def _roll_rate(roll):
         value = meta.get(key)
         if value not in (None, "") and _as_decimal(value) > 0:
             return _as_decimal(value), "ROLL_GRN_META"
-    return _latest_material_rate(roll.material)
+    return _latest_material_rate(roll.material, getattr(roll, "_snapshot_rate", Ellipsis))
 
 
 def _resolve_material_from_payload(payload):
@@ -635,7 +638,6 @@ def _bulk_reference_vendor(reference):
 def _stock_snapshot_payload(request):
     plant_id = request.query_params.get("plant_id") or request.query_params.get("plant")
     as_of = timezone.now()
-    GRNHistoryService.reconcile_effective_stock_rates(plant_id=plant_id)
     roll_reservations = _active_reservation_weight_by_roll()
     material_reservations = _active_reservation_qty_by_material()
 
@@ -647,11 +649,17 @@ def _stock_snapshot_payload(request):
         bulk_qs = bulk_qs.filter(plant_id=plant_id)
         packaging_qs = packaging_qs.filter(plant_id=plant_id)
 
+    if MaterialCostSnapshot is not None:
+        from django.db.models import OuterRef, Subquery
+        rolls_qs = rolls_qs.annotate(_snapshot_rate=Subquery(
+            MaterialCostSnapshot.objects.filter(material_id=OuterRef("material_id"))
+            .order_by("-effective_date").values("avg_rate_per_kg")[:1]
+        ))
     roll_rows = []
     ageing_counts = {"0-30": 0, "31-60": 0, "61-90": 0, "90+": 0}
     total_roll_kg = Decimal("0")
     reservation_kg = Decimal("0")
-    for roll in rolls_qs.order_by("-created_at")[:2000]:
+    for roll in rolls_qs.order_by("-created_at").iterator(chunk_size=1000):
         kg = _as_decimal(roll.net_weight_kg if roll.net_weight_kg is not None else roll.weight_kg)
         rate, rate_source = _roll_rate(roll)
         reserved_kg = Decimal(str(roll_reservations.get(str(roll.id), 0)))
@@ -671,6 +679,16 @@ def _stock_snapshot_payload(request):
         roll_rows.append({
             "id": str(roll.id),
             "label": roll.label_id,
+            "supplier_roll": (roll.meta_json or {}).get("vendor_roll_label", ""),
+            "batch_no": roll.batch_no,
+            "vendor_roll_label": (roll.meta_json or {}).get("vendor_roll_label", ""),
+            "plant_id": str(roll.location.plant_id) if roll.location else str(roll.plant_id or ""),
+            "plant_name": roll.location.plant.name if roll.location and roll.location.plant else "",
+            "material_id": str(roll.material_id),
+            "family_id": str(roll.material.parent_family_id or ""),
+            "grade_id": str(roll.grade_id or ""),
+            "grade_name": roll.grade.name if roll.grade else "",
+            "created_at": roll.created_at.isoformat() if roll.created_at else None,
             "label_id": roll.label_id,
             "product_name": roll.material.name if roll.material else "",
             "material_name": roll.material.name if roll.material else "",
@@ -701,7 +719,7 @@ def _stock_snapshot_payload(request):
             "rate_missing": rate <= 0,
         })
 
-    bulk_stocks = list(bulk_qs.order_by("material__code", "location__code")[:2000])
+    bulk_stocks = list(bulk_qs.order_by("material__code", "location__code"))
     latest_bulk_tx_by_key = {}
     if bulk_stocks:
         material_ids = {stock.material_id for stock in bulk_stocks}
@@ -768,7 +786,7 @@ def _stock_snapshot_payload(request):
 
     packaging_rows = []
     packaging_qty = Decimal("0")
-    for stock in packaging_qs.order_by("material__code", "location__code")[:2000]:
+    for stock in packaging_qs.order_by("material__code", "location__code"):
         qty = _as_decimal(stock.qty)
         reserved = Decimal(str(material_reservations.get(str(stock.material_id), 0)))
         packaging_qty += qty
@@ -1058,7 +1076,7 @@ class InventoryV36CoverageView(APIView):
                 "reorder_health": "blocked" if free <= 0 and reserved > 0 else ("low" if free <= 0 else "ok"),
                 "suggested_action": "Inward packaging or release reservations." if free <= 0 else "No action.",
             })
-        return Response({"items": rows[:1000]})
+        return Response({"items": rows, "count": len(rows)})
 
 
 class InventoryV36SnapshotTrendView(APIView):
@@ -2398,6 +2416,32 @@ class DeliveryChallanViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['post'], url_path='create-and-dispatch')
+    def create_and_dispatch(self, request):
+        creation = self.get_serializer(data=request.data)
+        creation.is_valid(raise_exception=True)
+        dispatch = ChallanDispatchSerializer(data=request.data.get("dispatch") or {})
+        dispatch.is_valid(raise_exception=True)
+        data = creation.validated_data
+        lines = dispatch.validated_data
+        try:
+            challan = InterPlantService.create_and_dispatch(
+                request_key=str(request.headers.get("Idempotency-Key") or ""),
+                create_data={
+                    "from_plant_id": str(data["from_plant"].id),
+                    "to_plant_id": str(data["to_plant"].id),
+                    "target_job_id": str(data["target_job"].id) if data.get("target_job") else None,
+                },
+                dispatch_data={
+                    "roll_ids": sorted(str(i) for i in lines.get("roll_ids", [])),
+                    "bulk_items": lines.get("bulk_items", []),
+                    "target_location_id": str(lines["target_location_id"]) if lines.get("target_location_id") else None,
+                },
+            )
+            return Response(self.get_serializer(challan).data, status=201)
+        except (ValidationError, ValueError) as exc:
+            return Response({"error": _api_error_message(exc)}, status=400)
+
     @action(detail=True, methods=['post'], url_path='dispatch')
     def dispatch_dc(self, request, pk=None):
         serializer = ChallanDispatchSerializer(data=request.data)
@@ -2477,6 +2521,34 @@ class RollViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['status', 'stage_index', 'location', 'plant', 'material', 'grade', 'is_fg']
     
+    @action(detail=False, methods=['post'], url_path='labels')
+    def labels(self, request):
+        from .models import RollLabelExport
+        from .services.roll_labels import generate_roll_labels, roll_label_snapshot
+        ids = request.data.get("roll_ids")
+        if not isinstance(ids, list) or not 1 <= len(ids) <= 200:
+            return Response({"error": "Select between 1 and 200 inward rolls."}, status=400)
+        try:
+            ids = list(dict.fromkeys(uuid.UUID(str(value)) for value in ids))
+        except (TypeError, ValueError):
+            return Response({"error": "Every roll ID must be a UUID."}, status=400)
+        layout = str(request.data.get("layout") or "4x2")
+        if layout not in {"4x2", "100x50"}:
+            return Response({"error": "Choose 4x2 inches or 100x50 mm."}, status=400)
+        rows = {r.id: r for r in self.get_queryset().filter(id__in=ids).select_related('location__plant')}
+        if len(rows) != len(ids):
+            return Response({"error": "One or more selected rolls were not found. Refresh inventory."}, status=404)
+        snapshots = [roll_label_snapshot(rows[rid]) for rid in ids]
+        pdf = generate_roll_labels(snapshots, **({"width_mm": 100, "height_mm": 50} if layout == "100x50" else {}))
+        audit = RollLabelExport.objects.create(
+            created_by=request.user, layout=layout, snapshots=snapshots,
+            reason=str(request.data.get("reason") or "Label PDF requested")[:200],
+        )
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="roll-labels-{audit.id}.pdf"'
+        response['X-Label-Export-ID'] = str(audit.id)
+        return response
+
     def get_serializer_class(self):
         if self.action == 'retrieve' or self.action == 'genealogy':
             return RollDetailSerializer
@@ -3474,10 +3546,18 @@ class RollTraceLookupView(generics.GenericAPIView):
             matched_by = "label_exact" if roll else matched_by
 
         if not roll:
-            roll = InventoryRoll.objects.select_related(
+            candidates = list(InventoryRoll.objects.select_related(
                 "material", "grade", "location", "location__plant", "production_job", "created_by_job", "created_process"
-            ).filter(label_id__icontains=query).order_by("-created_at").first()
-            matched_by = "label_contains" if roll else matched_by
+            ).filter(Q(meta_json__vendor_roll_label__iexact=query) | Q(label_id__icontains=query)).order_by("label_id")[:21])
+            if len(candidates) > 1:
+                return Response({
+                    "error": "More than one roll matches. Select the exact ERP ID after checking supplier reference and location.",
+                    "candidates": [{"id": str(r.id), "label_id": r.label_id,
+                        "supplier_roll": (r.meta_json or {}).get("vendor_roll_label", ""),
+                        "location": r.location.name if r.location else "", "weight_kg": str(r.weight_kg)} for r in candidates[:20]],
+                }, status=409)
+            roll = candidates[0] if candidates else None
+            matched_by = "unique_reference" if roll else matched_by
 
         if not roll:
             return Response({"error": "Roll not found for provided query"}, status=404)
@@ -3495,6 +3575,7 @@ class RollTraceLookupView(generics.GenericAPIView):
         payload = {
             "query": query,
             "matched_by": matched_by,
+            "identity": {"supplier_roll": (roll.meta_json or {}).get("vendor_roll_label", ""), "batch": roll.batch_no},
             "roll": {
                 "id": str(roll.id),
                 "label_id": roll.label_id,

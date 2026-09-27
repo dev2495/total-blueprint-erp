@@ -513,7 +513,7 @@ def machine_job_context(request, machine_id, job_id):
         return Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
     
     try:
-        context = ExecutionService.get_job_context(job_id)
+        context = ExecutionService.get_job_context(job_id, reconcile_assignment=False)
         if isinstance(context, dict) and isinstance(context.get("job"), dict):
             _apply_artwork_payload(context["job"], job)
         return Response(context)

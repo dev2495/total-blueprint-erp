@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[]
@@ -63,6 +63,7 @@ export function DataTable<TData, TValue>({
                         <div className="relative flex-1 sm:flex-none">
                             <Input
                                 placeholder={filterPlaceholder}
+                                aria-label={filterPlaceholder}
                                 value={(table.getColumn(filterColumn)?.getFilterValue() as string) ?? ""}
                                 onChange={(event) =>
                                     table.getColumn(filterColumn)?.setFilterValue(event.target.value)
@@ -70,11 +71,6 @@ export function DataTable<TData, TValue>({
                                 className="h-9 w-full sm:w-[250px] lg:w-[350px]"
                             />
                         </div>
-                        {/* Future: Add Filter faceted lists here */}
-                        <Button variant="outline" size="sm" className="h-9 shrink-0 border-dashed">
-                            <SlidersHorizontal className="mr-2 h-4 w-4" />
-                            <span className="hidden sm:inline">Filters</span>
-                        </Button>
                     </div>
                 </div>
             )}
@@ -129,7 +125,8 @@ export function DataTable<TData, TValue>({
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => table.previousPage()}
+                    aria-label="Previous page"
+                        onClick={() => table.previousPage()}
                     disabled={!table.getCanPreviousPage()}
                 >
                     <ChevronLeft className="h-4 w-4" />
@@ -140,7 +137,8 @@ export function DataTable<TData, TValue>({
                 <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => table.nextPage()}
+                    aria-label="Next page"
+                        onClick={() => table.nextPage()}
                     disabled={!table.getCanNextPage()}
                 >
                     <ChevronRight className="h-4 w-4" />

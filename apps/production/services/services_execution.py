@@ -2480,6 +2480,8 @@ class ExecutionService:
 
             if spec.get("stock_form") and roll_stock_form != normalize_stock_form(spec.get("stock_form")):
                 continue
+            if spec.get("width_basis") and getattr(roll, "width_basis", None) and roll.width_basis != spec["width_basis"]:
+                continue
 
             # Strict Grade Check (User Request: "roll should match grade")
             # Must match exactly if defined in spec.
@@ -2551,12 +2553,14 @@ class ExecutionService:
         return False
 
     @classmethod
+    @transaction.atomic
     def reconcile_assignment_reservations(cls, job):
         """
         Heal legacy WCM states where `allocated_rolls` was populated but no ACTIVE
         InventoryReservation exists. This keeps requirement counters, queue badge,
         and assigned roll cards consistent after page refresh/navigation.
         """
+        job = ProductionJob.objects.select_for_update().get(pk=job.pk)
         try:
             assignment = WorkCenterAssignment.objects.get(production_job=job)
         except WorkCenterAssignment.DoesNotExist:
@@ -2668,6 +2672,8 @@ class ExecutionService:
             if (not is_roll_to_bulk) and (not lane_group_mode) and required_rolls and (len(active_roll_ids) + created) >= required_rolls:
                 break
             if roll.id in active_roll_ids:
+                continue
+            if InventoryReservation.objects.filter(roll=roll, status="ACTIVE").exclude(job=job).exists():
                 continue
             if roll.status not in ['AVAILABLE', 'RESERVED']:
                 continue
@@ -4099,8 +4105,19 @@ class ExecutionService:
                 
         return missing_report
 
+    @staticmethod
+    def _requirement_record(*, persist, defaults, **lookup):
+        if persist:
+            return JobMaterialRequirement.objects.update_or_create(defaults=defaults, **lookup)
+        row = JobMaterialRequirement.objects.filter(**lookup).first()
+        created = row is None
+        row = row or JobMaterialRequirement(**lookup)
+        for key, value in defaults.items():
+            setattr(row, key, value)
+        return row, created
+
     @classmethod
-    def calculate_requirements(cls, job_id):
+    def calculate_requirements(cls, job_id, *, persist=True):
         """
         Explodes the BOM for a job and creates/updates JobMaterialRequirement records.
         Phase 71 Refinement: Uses TemplateProcessStepMaterial.
@@ -4108,7 +4125,7 @@ class ExecutionService:
         job = ProductionJob.objects.select_related('template', 'sales_order_item').get(id=job_id)
 
         if cls._is_v2(job):
-            return cls.calculate_requirements_v2(job)
+            return cls.calculate_requirements_v2(job, persist=persist)
         
         requirements = []
 
@@ -4207,7 +4224,7 @@ class ExecutionService:
                                     layer_count = len(cls._job_layer_snapshot(job) or [{}])
                                     layer0_weight_kg = total_output_weight_kg() / Decimal(str(max(1, layer_count)))
 
-                                JobMaterialRequirement.objects.update_or_create(
+                                base_req, _ = cls._requirement_record(persist=persist,
                                     production_job=job,
                                     material=mat,
                                     process_step=step,
@@ -4216,6 +4233,8 @@ class ExecutionService:
                                         'uom': 'KG'
                                     }
                                 )
+
+                                requirements.append(base_req)
 
                     step_materials = step.materials.all().select_related('material')
                     
@@ -4247,7 +4266,7 @@ class ExecutionService:
                         else:
                             raise ValueError(f"Unsupported legacy consumption basis for {material.code}")
 
-                        req, created = JobMaterialRequirement.objects.update_or_create(
+                        req, created = cls._requirement_record(persist=persist,
                             production_job=job,
                             material=material,
                             process_step=step, # Link to step
@@ -4261,7 +4280,7 @@ class ExecutionService:
             return requirements
 
     @classmethod
-    def calculate_requirements_v2(cls, job):
+    def calculate_requirements_v2(cls, job, *, persist=True):
         """
         V2 requirements:
         - Exact consumable identities come from Sales BOM snapshot.
@@ -4507,7 +4526,7 @@ class ExecutionService:
                 uom = str(qtys.get("uom") or getattr(material, "base_uom", None) or "KG").upper()
                 if uom not in {"KG", "PCS", "METER"}:
                     uom = "KG"
-                req, _created = JobMaterialRequirement.objects.update_or_create(
+                req, _created = cls._requirement_record(persist=persist,
                     production_job=job,
                     material=material,
                     process_step=step,
@@ -5045,23 +5064,15 @@ class ExecutionService:
         if target_roll_specs:
             target_roll_spec = target_roll_specs[0]
         
-        # Ensure requirements are up-to-date (safe: update_or_create preserves consumed_qty).
-        # This also self-heals jobs created before unit-conversion fixes.
+        # Read paths project current requirements without updating quantities or
+        # creating legacy reservations. Mutation callers may explicitly reconcile.
         try:
-            cls.calculate_requirements(job.id)
+            projected_requirements = cls.calculate_requirements(job.id, persist=reconcile_assignment) or []
         except Exception:
-            # Never block WCM UI due to requirement calculation issues, but do
-            # retain job-specific evidence so the degraded context is visible.
-            logger.warning(
-                "get_job_context requirement recalculation failed for job=%s",
-                job_id,
-                exc_info=True,
-            )
-            
-        # 1. Requirements
-        reqs = job.material_requirements.select_related('material', 'process_step').filter(
-            process_step__sequence_number=job.current_step_index + 1
-        )
+            logger.warning("Requirement projection failed for job=%s", job_id, exc_info=True)
+            projected_requirements = list(job.material_requirements.select_related('material', 'process_step'))
+        reqs = [r for r in projected_requirements
+                if r.process_step and r.process_step.sequence_number == job.current_step_index + 1]
         req_data = []
         for r in reqs:
             req_data.append({
@@ -5319,6 +5330,8 @@ class ExecutionService:
             eligible_rolls.append({
                 'id': str(roll.id),
                 'label_id': roll.label_id,
+                'supplier_roll': (roll.meta_json or {}).get('vendor_roll_label', ''),
+                'batch_no': roll.batch_no,
                 'material_id': str(roll.material_id) if getattr(roll, "material_id", None) else None,
                 'variant_id': str(roll.material_id) if getattr(roll, "material_id", None) else None,
                 'material_code': roll.material.code if roll.material else 'N/A',
@@ -6008,6 +6021,8 @@ class ExecutionService:
             return {
                 'id': str(roll.id),
                 'label_id': roll.label_id,
+                'supplier_roll': (roll.meta_json or {}).get('vendor_roll_label', ''),
+                'batch_no': roll.batch_no,
                 'display_label': roll_display_label_resolver(roll) if roll_display_label_resolver else roll.label_id,
                 'material_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
                 'variant_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
@@ -6264,13 +6279,24 @@ class ExecutionService:
         }
 
     @classmethod
+    @transaction.atomic
     def assign_roll_to_job(cls, job_id, roll_id, user=None, override_reason=None, manual_override=False, defer_slot_validation=False):
         """
         Strict Reservation Logic.
         """
-        job = ProductionJob.objects.get(id=job_id)
+        job = ProductionJob.objects.select_for_update().get(id=job_id)
         process = job.current_process or job.process
-        roll = InventoryRoll.objects.get(id=roll_id)
+        roll = InventoryRoll.objects.select_for_update().get(id=roll_id)
+
+        if job.job_state in {"COMPLETED", "CANCELLED"} or job.status in {"COMPLETED", "CANCELLED"}:
+            raise ValueError("A closed job cannot receive roll allocations.")
+        job_plant = cls._resolve_job_plant_id(job)
+        if not roll.location_id or (job_plant and str(roll.location.plant_id) != str(job_plant)):
+            raise ValueError("Receive the roll at this job's plant before allocating it.")
+        if roll.location.code == "IN_TRANSIT" or bool((roll.meta_json or {}).get("is_quarantined")):
+            raise ValueError("In-transit or quarantined rolls cannot be allocated.")
+        if roll.weight_kg <= 0:
+            raise ValueError("A roll must have positive available weight.")
 
         if roll.status != 'AVAILABLE':
             if roll.status == 'RESERVED':
@@ -6278,6 +6304,9 @@ class ExecutionService:
                 roll.refresh_from_db(fields=["status"])
         if roll.status != 'AVAILABLE':
             raise ValueError(f"Roll {roll.label_id} is not AVAILABLE (Status: {roll.status})")
+
+        if InventoryReservation.objects.filter(roll=roll, status='ACTIVE').exists():
+            raise ValueError(f'Roll {roll.label_id} already has an active reservation. Refresh available stock.')
 
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
         required_rolls = cls._required_roll_count(job, process, step_roll_spec)
@@ -6473,8 +6502,11 @@ class ExecutionService:
     @classmethod
     def unassign_roll(cls, job_id, reservation_id):
         with transaction.atomic():
-            res = InventoryReservation.objects.get(id=reservation_id, job_id=job_id)
-            roll = res.roll
+            ProductionJob.objects.select_for_update().get(pk=job_id)
+            res = InventoryReservation.objects.select_for_update().get(id=reservation_id, job_id=job_id)
+            roll = InventoryRoll.objects.select_for_update().get(pk=res.roll_id) if res.roll_id else None
+            if res.status != "ACTIVE":
+                raise ValueError("Only an active reservation can be released.")
             qty = res.quantity
             material = res.material
             
@@ -6543,6 +6575,8 @@ class ExecutionService:
             grouped[family].append({
                 'id': str(roll.id),
                 'label_id': roll.label_id,
+                'supplier_roll': (roll.meta_json or {}).get('vendor_roll_label', ''),
+                'batch_no': roll.batch_no,
                 'display_label': resolve_roll_display_label(roll) if resolve_roll_display_label else roll.label_id,
                 'material_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,
                 'variant_id': str(roll.material_id) if getattr(roll, 'material_id', None) else None,

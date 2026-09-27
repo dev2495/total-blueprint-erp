@@ -101,6 +101,7 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/inventory/audit/batches/", "inventory.audit.manage"),
     ("PATCH", "/api/inventory/audit/batches/", "inventory.audit.manage"),
     ("DELETE", "/api/inventory/audit/batches/", "inventory.audit.manage"),
+    ("POST", "/api/inventory/rolls/labels", "inventory.view"),
     ("GET", "/api/inventory/", "inventory.view"),
     ("POST", "/api/inventory/", "inventory.manage"),
     ("PUT", "/api/inventory/", "inventory.manage"),

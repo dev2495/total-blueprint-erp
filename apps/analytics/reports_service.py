@@ -209,6 +209,17 @@ class ReportService:
         return filters
 
     @staticmethod
+    def _weight_logs(queryset):
+        # Never add pieces/metres directly to kilograms. PCS can be converted
+        # only when the frozen sales-line unit mass is known; unknowns stay NULL.
+        return queryset.annotate(metric_kg=Case(
+            When(uom__iexact="KG", then=F("quantity")),
+            When(uom__iexact="PCS", production_job__sales_order_item__unit_weight_g__gt=0,
+                 then=F("quantity") * F("production_job__sales_order_item__unit_weight_g") / Value(Decimal("1000"))),
+            default=Value(None), output_field=DecimalField(max_digits=24, decimal_places=6),
+        ))
+
+    @staticmethod
     def _pct(num, denom, decimals=1):
         return round(num / denom * 100, decimals) if denom else 0.0
 
@@ -256,9 +267,13 @@ class ReportService:
         )
         jobs = ReportService._apply_filters(jobs, filters, date_field='created_at')
 
+        logs = ReportService._weight_logs(logs)
+        scrap_logs = ReportService._weight_logs(scrap_logs)
+        unknown_weight_events = logs.filter(metric_kg__isnull=True).count() + scrap_logs.filter(metric_kg__isnull=True).count()
+
         # ── Aggregates ──
-        total_output = float(logs.aggregate(total=Sum('quantity'))['total'] or 0)
-        total_scrap = float(scrap_logs.aggregate(total=Sum('quantity'))['total'] or 0)
+        total_output = float(logs.aggregate(total=Sum('metric_kg'))['total'] or 0)
+        total_scrap = float(scrap_logs.aggregate(total=Sum('metric_kg'))['total'] or 0)
         total_processed = total_output + total_scrap
         yield_pct = ReportService._pct(total_output, total_processed)
         scrap_rate = round(100 - yield_pct, 1)
@@ -271,9 +286,9 @@ class ReportService:
             prev_end = start - timedelta(days=1)
             prev_start = prev_end - timedelta(days=duration)
             prev_output = float(
-                JobExecutionLog.objects.filter(
-                    logged_at__date__gte=prev_start, logged_at__date__lte=prev_end
-                ).aggregate(total=Sum('quantity'))['total'] or 0
+                ReportService._weight_logs(ReportService._apply_filters(JobExecutionLog.objects.all(),
+                    {**filters, 'start_date': prev_start, 'end_date': prev_end, 'date_from': prev_start, 'date_to': prev_end}, date_field='logged_at'
+                )).aggregate(total=Sum('metric_kg'))['total'] or 0
             )
         else:
             prev_output = 0
@@ -289,7 +304,14 @@ class ReportService:
         completion_rate = ReportService._pct(completed_jobs, total_jobs)
         active_work_centers = jobs.exclude(work_center__isnull=True).values('work_center_id').distinct().count()
         active_machines = jobs.exclude(machine__isnull=True).values('machine_id').distinct().count()
-        avg_job_size = float(jobs.aggregate(avg=Avg('quantity'))['avg'] or 0)
+        weighted_jobs = jobs.annotate(planned_metric_kg=Case(
+            When(uom__iexact="KG", then=F("quantity")),
+            When(uom__iexact="PCS", sales_order_item__unit_weight_g__gt=0,
+                 then=F("quantity") * F("sales_order_item__unit_weight_g") / Value(Decimal("1000"))),
+            default=Value(None), output_field=DecimalField(max_digits=24, decimal_places=6),
+        ))
+        unknown_job_weights = weighted_jobs.filter(planned_metric_kg__isnull=True).count()
+        avg_job_size = float(weighted_jobs.aggregate(avg=Avg('planned_metric_kg'))['avg'] or 0)
         avg_output_per_machine = round(total_output / active_machines, 2) if active_machines else 0
         jobs_with_scrap = scrap_logs.values('production_job_id').distinct().count()
 
@@ -299,7 +321,7 @@ class ReportService:
             'production_job__machine__code',
             'production_job__machine__standard_rate_kg_per_hour',
         ).annotate(
-            actual_output=Sum('quantity'),
+            actual_output=Sum('metric_kg'),
             log_count=Count('id'),
         ).order_by('-actual_output')
 
@@ -314,7 +336,7 @@ class ReportService:
             # Scrap for this machine
             m_scrap = float(scrap_logs.filter(
                 production_job__machine__name=name
-            ).aggregate(s=Sum('quantity'))['s'] or 0)
+            ).aggregate(s=Sum('metric_kg'))['s'] or 0)
             m_yield = ReportService._pct(actual, actual + m_scrap)
 
             breakdown.append({
@@ -334,7 +356,7 @@ class ReportService:
                 'production_job__process__name',
                 Value('Other'),
             )
-        ).annotate(output=Sum('quantity')).order_by('-output')[:10]
+        ).annotate(output=Sum('metric_kg')).order_by('-output')[:10]
         process_dist = [
             {"name": p['process_name'], "value": round(float(p['output'] or 0), 2)}
             for p in by_process
@@ -344,7 +366,7 @@ class ReportService:
         by_work_center = logs.values(
             wc_name=Coalesce('production_job__work_center__name', Value('Unassigned')),
         ).annotate(
-            output_kg=Sum('quantity'),
+            output_kg=Sum('metric_kg'),
             log_count=Count('id'),
             job_count=Count('production_job_id', distinct=True),
         ).order_by('-output_kg')[:10]
@@ -360,11 +382,11 @@ class ReportService:
 
         shift_output_map = {
             str(row['shift_code'] or 'UNSPECIFIED'): round(float(row['output_kg'] or 0), 2)
-            for row in logs.values('shift_code').annotate(output_kg=Sum('quantity'))
+            for row in logs.values('shift_code').annotate(output_kg=Sum('metric_kg'))
         }
         shift_scrap_map = {
             str(row['shift_code'] or 'UNSPECIFIED'): round(float(row['scrap_kg'] or 0), 2)
-            for row in scrap_logs.values('shift_code').annotate(scrap_kg=Sum('quantity'))
+            for row in scrap_logs.values('shift_code').annotate(scrap_kg=Sum('metric_kg'))
         }
         by_shift = []
         for shift_code in sorted(set(shift_output_map) | set(shift_scrap_map)):
@@ -390,7 +412,7 @@ class ReportService:
                 "scrap_kg": round(float(row['scrap_kg'] or 0), 2),
                 "event_count": row['event_count'] or 0,
             }
-            for row in scrap_logs.values('reason').annotate(scrap_kg=Sum('quantity'), event_count=Count('id')).order_by('-scrap_kg')[:10]
+            for row in scrap_logs.values('reason').annotate(scrap_kg=Sum('metric_kg'), event_count=Count('id')).order_by('-scrap_kg')[:10]
         ]
 
         operator_dist = [
@@ -401,18 +423,18 @@ class ReportService:
             }
             for row in logs.values(
                 operator_name=Coalesce('logged_by__username', Value('Unassigned'))
-            ).annotate(output_kg=Sum('quantity'), log_count=Count('id')).order_by('-output_kg')[:10]
+            ).annotate(output_kg=Sum('metric_kg'), log_count=Count('id')).order_by('-output_kg')[:10]
         ]
 
         # ── Daily Trend ──
         trend_scrap_map = {
             row['date']: round(float(row['scrap_kg'] or 0), 2)
             for row in scrap_logs.annotate(date=TruncDate('logged_at')).values('date').annotate(
-                scrap_kg=Sum('quantity')
+                scrap_kg=Sum('metric_kg')
             ).order_by('date')
         }
         trend_qs = logs.annotate(date=TruncDate('logged_at')).values('date').annotate(
-            output_kg=Sum('quantity')
+            output_kg=Sum('metric_kg')
         ).order_by('date')
         trend = [
             {
@@ -431,7 +453,7 @@ class ReportService:
         # ── Row-level production truth ──
         job_output_map = {
             row['production_job_id']: round(float(row['output_kg'] or 0), 2)
-            for row in logs.values('production_job_id').annotate(output_kg=Sum('quantity'))
+            for row in logs.values('production_job_id').annotate(output_kg=Sum('metric_kg'))
         }
         job_last_log_map = {
             row['production_job_id']: row['last_logged_at']
@@ -439,13 +461,14 @@ class ReportService:
         }
         job_scrap_map = {
             row['production_job_id']: round(float(row['scrap_kg'] or 0), 2)
-            for row in scrap_logs.values('production_job_id').annotate(scrap_kg=Sum('quantity'))
+            for row in scrap_logs.values('production_job_id').annotate(scrap_kg=Sum('metric_kg'))
         }
         recent_jobs = []
-        for job in jobs.order_by('-updated_at', '-created_at')[:60]:
-            produced_kg = float(job_output_map.get(job.id) or job.produced_qty or 0)
+        for job in weighted_jobs.order_by('-updated_at', '-created_at')[:60]:
+            unit_mass = 1.0 if str(job.uom).upper() == 'KG' else (float(getattr(job.sales_order_item, 'unit_weight_g', 0) or 0) / 1000 if str(job.uom).upper() == 'PCS' else 0.0)
+            produced_kg = float(job_output_map.get(job.id) or float(job.produced_qty or 0) * unit_mass)
             scrap_kg = float(job_scrap_map.get(job.id) or 0)
-            planned_kg = float(job.quantity or 0)
+            planned_kg = float(job.planned_metric_kg or 0)
             recent_jobs.append({
                 "job_number": job.job_number,
                 "source": job.source_type,
@@ -459,13 +482,15 @@ class ReportService:
                 "status": job.status,
                 "planned_qty_kg": round(planned_kg, 2),
                 "produced_qty_kg": round(produced_kg, 2),
-                "remaining_qty_kg": round(float(job.remaining_qty or max(planned_kg - produced_kg, 0)), 2),
+                "remaining_qty_kg": round(max(planned_kg - produced_kg, 0), 2),
                 "scrap_kg": round(scrap_kg, 2),
                 "yield_pct": ReportService._pct(produced_kg, produced_kg + scrap_kg),
                 "last_log_at": job_last_log_map.get(job.id).isoformat() if job_last_log_map.get(job.id) else None,
             })
 
-        warnings = []
+        warnings = [f"{unknown_weight_events} output/scrap events have no reliable KG conversion and are excluded from weight metrics."] if unknown_weight_events else []
+        if unknown_job_weights:
+            warnings.append(f"{unknown_job_weights} jobs have no reliable KG conversion; their planned weight is excluded from averages and shown as zero in weight rows.")
         if total_jobs and not total_output:
             warnings.append("Jobs exist in the selected window but no execution output was logged.")
         if total_scrap > total_output and total_scrap > 0:
@@ -565,17 +590,21 @@ class ReportService:
             logged_at__date__lte=end_date,
         )
 
+        exec_logs = ReportService._weight_logs(exec_logs)
+        scrap_logs = ReportService._weight_logs(scrap_logs)
+        unknown_weight_events = exec_logs.filter(metric_kg__isnull=True).count() + scrap_logs.filter(metric_kg__isnull=True).count()
+
         downtime_by_machine = {
             row["production_job__machine_id"]: row["total"]
             for row in downtime_logs.values("production_job__machine_id").annotate(total=Sum(duration))
         }
         produced_by_machine = {
             row["production_job__machine_id"]: float(row["total"] or 0)
-            for row in exec_logs.values("production_job__machine_id").annotate(total=Sum("quantity"))
+            for row in exec_logs.values("production_job__machine_id").annotate(total=Sum("metric_kg"))
         }
         scrap_by_machine = {
             row["production_job__machine_id"]: float(row["total"] or 0)
-            for row in scrap_logs.values("production_job__machine_id").annotate(total=Sum("quantity"))
+            for row in scrap_logs.values("production_job__machine_id").annotate(total=Sum("metric_kg"))
         }
         active_ids = [
             machine_id
@@ -657,8 +686,8 @@ class ReportService:
         oee_band_rows = [row for row in oee_band_rows if row["machines"] > 0]
 
         # Daily trend from three grouped queries instead of three per day.
-        day_output = {row["day"]: Decimal(str(row["total"] or 0)) for row in exec_logs.annotate(day=TruncDate("logged_at")).values("day").annotate(total=Sum("quantity"))}
-        day_scrap = {row["day"]: Decimal(str(row["total"] or 0)) for row in scrap_logs.annotate(day=TruncDate("logged_at")).values("day").annotate(total=Sum("quantity"))}
+        day_output = {row["day"]: Decimal(str(row["total"] or 0)) for row in exec_logs.annotate(day=TruncDate("logged_at")).values("day").annotate(total=Sum("metric_kg"))}
+        day_scrap = {row["day"]: Decimal(str(row["total"] or 0)) for row in scrap_logs.annotate(day=TruncDate("logged_at")).values("day").annotate(total=Sum("metric_kg"))}
         day_downtime = {row["day"]: row["total"] for row in downtime_logs.annotate(day=TruncDate("start_time")).values("day").annotate(total=Sum(duration))}
         active_machines = [machines_by_id[machine_id] for machine_id in active_ids]
         std_rate_total = Decimal(str(sum(float(machine.standard_rate_kg_per_hour or 0) for machine in active_machines)))
@@ -695,7 +724,11 @@ class ReportService:
         avg_quality = (total_output / (total_output + total_scrap)) if (total_output + total_scrap) > 0 else 0.0
         avg_oee = avg_availability * avg_performance * avg_quality * 100
 
-        warnings = [] if rows else ["No machine telemetry found in the selected window."]
+        warnings = ["Calendar-based equipment estimate: assumes 24 hours per day; not scheduled-shift OEE."]
+        if unknown_weight_events:
+            warnings.append(f"{unknown_weight_events} events excluded: missing reliable KG conversion.")
+        if not rows:
+            warnings.append("No machine telemetry found in the selected window.")
         unrated = [row["machine_name"] for row in rows if not row["rate_configured"]]
         if unrated:
             warnings.append(
@@ -842,9 +875,13 @@ class ReportService:
         )
         consumption_logs = ReportService._apply_filters(consumption_logs, filters, date_field='logged_at')
 
-        total_scrap = float(scrap_logs.aggregate(total=Sum('quantity'))['total'] or 0)
-        total_good = float(good_logs.aggregate(total=Sum('quantity'))['total'] or 0)
-        total_consumed = float(consumption_logs.aggregate(total=Sum('quantity'))['total'] or 0)
+        scrap_logs = ReportService._weight_logs(scrap_logs)
+        good_logs = ReportService._weight_logs(good_logs)
+        unknown_weight_events = scrap_logs.filter(metric_kg__isnull=True).count() + good_logs.filter(metric_kg__isnull=True).count()
+
+        total_scrap = float(scrap_logs.aggregate(total=Sum('metric_kg'))['total'] or 0)
+        total_good = float(good_logs.aggregate(total=Sum('metric_kg'))['total'] or 0)
+        total_consumed = float(consumption_logs.filter(uom__iexact='KG').aggregate(total=Sum('quantity'))['total'] or 0)
         total_processed = total_good + total_scrap
         yield_pct = ReportService._pct(total_good, total_processed)
         scrap_rate = round(100 - yield_pct, 2)
@@ -863,7 +900,7 @@ class ReportService:
 
         # By Reason
         by_reason = scrap_logs.values('reason').annotate(
-            quantity=Sum('quantity'), count=Count('id'),
+            quantity=Sum('metric_kg'), count=Count('id'),
         ).order_by('-quantity')
         reasons_data = [{
             "name": r['reason'], "value": round(float(r['quantity'] or 0), 2),
@@ -873,7 +910,7 @@ class ReportService:
 
         # By Machine
         by_machine = scrap_logs.values('production_job__machine__name').annotate(
-            quantity=Sum('quantity'),
+            quantity=Sum('metric_kg'),
         ).order_by('-quantity')[:8]
         machine_data = [{
             "machine": m['production_job__machine__name'] or "Unknown",
@@ -888,7 +925,7 @@ class ReportService:
                 Value('Other'),
             )
         ).annotate(
-            scrap=Sum('quantity'),
+            scrap=Sum('metric_kg'),
         ).order_by('-scrap')[:8]
 
         # For process yield, also get good output per process
@@ -898,7 +935,7 @@ class ReportService:
             proc_good = float(good_logs.filter(
                 Q(production_job__current_process__name=p['process_name']) |
                 Q(production_job__process__name=p['process_name'])
-            ).aggregate(g=Sum('quantity'))['g'] or 0)
+            ).aggregate(g=Sum('metric_kg'))['g'] or 0)
             proc_total = proc_good + proc_scrap
             process_yield.append({
                 "process": p['process_name'],
@@ -909,7 +946,7 @@ class ReportService:
 
         # By Operator
         by_operator = scrap_logs.values('logged_by__username').annotate(
-            quantity=Sum('quantity'), count=Count('id'),
+            quantity=Sum('metric_kg'), count=Count('id'),
         ).order_by('-quantity')[:10]
         operator_scrap = [{
             "operator": o['logged_by__username'] or "System",
@@ -924,7 +961,7 @@ class ReportService:
             'material__name',
             'granule_code__code',
         ).annotate(
-            consumed_kg=Sum('quantity'),
+            consumed_kg=Sum('quantity', filter=Q(uom__iexact='KG')),
             events=Count('id'),
         ).order_by('-consumed_kg')[:12]
         granule_code_consumption = [{
@@ -936,7 +973,7 @@ class ReportService:
 
         # Daily trend
         daily = scrap_logs.annotate(date=TruncDate('logged_at')).values('date').annotate(
-            scrap=Sum('quantity'), events=Count('id'),
+            scrap=Sum('metric_kg'), events=Count('id'),
         ).order_by('date')
         daily_trend = [{
             "date": d['date'].strftime("%Y-%m-%d"),
@@ -951,13 +988,13 @@ class ReportService:
                 'events': int(row['events'] or 0),
             }
             for row in scrap_logs.values('production_job_id').annotate(
-                scrap=Sum('quantity'),
+                scrap=Sum('metric_kg'),
                 events=Count('id'),
             )
         }
         good_by_job = {
             row['production_job_id']: float(row['good'] or 0)
-            for row in good_logs.values('production_job_id').annotate(good=Sum('quantity'))
+            for row in good_logs.values('production_job_id').annotate(good=Sum('metric_kg'))
         }
         job_ids = list(scrap_by_job.keys())
         jobs = {
@@ -992,7 +1029,7 @@ class ReportService:
         recent_events = [{
             "timestamp": log.logged_at.isoformat() if log.logged_at else None,
             "reason": log.reason,
-            "quantity_kg": round(float(log.quantity or 0), 2),
+            "quantity_kg": round(float(log.metric_kg), 2) if log.metric_kg is not None else None,
             "job_number": log.production_job.job_number if log.production_job else None,
             "machine_name": (
                 log.production_job.machine.name
@@ -1055,7 +1092,7 @@ class ReportService:
                 "target_scrap_rate": TARGET_SCRAP_RATE,
                 "target_yield": TARGET_FPY,
             },
-            "warnings": [] if total_events else ["No scrap events were logged for the selected filter window."],
+            "warnings": ([f"{unknown_weight_events} events excluded from KG metrics: missing reliable unit-weight conversion."] if unknown_weight_events else []) + ([] if total_events else ["No scrap events were logged for the selected filter window."]),
         }
 
     # ═══════════════════════════════════════════════════════════
@@ -1989,7 +2026,9 @@ class ReportService:
                 "converted_quotes": converted_quotes,
                 "conversion_pct": round(ReportService._pct(converted_quotes, total_quotes), 2),
             },
-            "benchmarks": {"target_otif": TARGET_OTIF},
+            "metric_definitions": {"otif_rate": "Legacy completion-timing proxy: on-time completed orders / all completed orders. Dispatch timestamp falls back to confirmation or creation; full quantity and POD are not verified."},
+            "warnings": ["Completion timing is a proxy, not OTIF. Full-quantity and promised-delivery/POD policy must be configured before using an OTIF score."],
+            "benchmarks": {},
         }
 
     # ═══════════════════════════════════════════════════════════

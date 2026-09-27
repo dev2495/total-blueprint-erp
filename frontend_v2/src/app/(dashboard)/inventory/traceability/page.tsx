@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -35,6 +35,7 @@ import {
 } from "@/services/observability";
 import { listRolls, type Roll } from "@/services/rolls";
 import Link from "next/link";
+import { RollLabelActions } from "@/components/inventory/roll-label-actions";
 import { formatDisplayDateTime } from "@/lib/date-format";
 
 function fmtKg(value: unknown): string {
@@ -225,6 +226,7 @@ function NodeCard({
 
 export default function RollTraceabilityPage() {
   const [query, setQuery] = useState("");
+  const [matches, setMatches] = useState<Array<{id:string;label_id:string;location:string;weight_kg:string}>>([]);
   const [selectedRoll, setSelectedRoll] = useState("");
   const [result, setResult] = useState<RollTraceResponse | null>(null);
   const [errorText, setErrorText] = useState("");
@@ -251,13 +253,21 @@ export default function RollTraceabilityPage() {
     mutationFn: async (value: string) => observabilityApi.getRollTrace(value),
     onSuccess: (data) => {
       setResult(data);
+      setMatches([]);
       setErrorText("");
     },
     onError: (err: any) => {
       setResult(null);
+      setMatches(err?.response?.data?.candidates || []);
       setErrorText(err?.response?.data?.error || "Unable to trace this roll.");
     },
   });
+
+  const { mutate: traceRoll } = traceMutation;
+  useEffect(() => {
+    const initial = new URLSearchParams(window.location.search).get("q");
+    if (initial) { setQuery(initial); traceRoll(initial); }
+  }, [traceRoll]);
 
   const currentRoll = result?.roll;
   const genealogy = result?.genealogy;
@@ -345,7 +355,7 @@ export default function RollTraceabilityPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-content-4" />
                 <Input
                   className="pl-10 h-12 rounded-2xl font-semibold"
-                  placeholder="Enter roll label (e.g. MattPet12 or R-S000001-... ) or UUID"
+                  placeholder="Scan QR, or enter ERP ID / supplier roll number"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -370,6 +380,11 @@ export default function RollTraceabilityPage() {
           </CardContent>
         </Card>
 
+        {matches.length > 0 && <Card className="p-4">
+          <p className="text-sm font-semibold">Choose the physical roll by ERP ID and location</p>
+          {matches.map(match => <Button key={match.id} variant="outline" className="m-1" onClick={() => { setQuery(match.id); traceRoll(match.id); }}>{match.label_id} · {match.location} · {match.weight_kg} kg</Button>)}
+        </Card>}
+        {currentRoll && <RollLabelActions rolls={[{ id: currentRoll.id, ref: currentRoll.label_id }]} />}
         {currentRoll && genealogy && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

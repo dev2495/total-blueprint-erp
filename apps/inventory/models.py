@@ -787,6 +787,8 @@ class DeliveryChallan(models.Model):
     from_plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, related_name='outgoing_challans')
     to_plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, related_name='incoming_challans')
     dc_no = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    request_key = models.CharField(max_length=128, unique=True, null=True, blank=True, editable=False)
+    request_fingerprint = models.CharField(max_length=64, blank=True, default='', editable=False)
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
     dispatched_at = models.DateTimeField(null=True, blank=True)
@@ -1250,6 +1252,7 @@ class InventoryReservation(models.Model):
     class Meta:
         db_table = 'inventory_reservations'
         verbose_name = "Inventory Reservation"
+        constraints = [models.UniqueConstraint(fields=["roll"], condition=models.Q(status="ACTIVE", roll__isnull=False), name="one_active_reservation_per_roll")]
         indexes = [
             models.Index(fields=['job', 'status']),
             models.Index(fields=['roll', 'status']),
@@ -1263,3 +1266,23 @@ class InventoryReservation(models.Model):
 
 # Stock Adjustment unified audit models — imported here so Django sees them via apps.inventory.
 from .models_adjustment import StockAdjustment, StockAdjustmentLine  # noqa: F401, E402
+
+
+class RollLabelExport(models.Model):
+    """Records PDF generation, never claims a printer or physical scan succeeded."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_by = models.ForeignKey('users.User', on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    layout = models.CharField(max_length=20, default='4x2')
+    snapshots = models.JSONField(default=list)
+    reason = models.CharField(max_length=200, blank=True)
+
+
+class InventoryMaintenanceAudit(models.Model):
+    """Explicit legacy repair, separate from customer receipts and movements."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_by = models.ForeignKey('users.User', on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField()
+    before = models.JSONField(default=dict)
+    after = models.JSONField(default=dict)

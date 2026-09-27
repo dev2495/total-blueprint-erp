@@ -2245,7 +2245,8 @@ class WCManagerService:
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
             cls._ensure_pre_release_editable(assignment)
-            job = assignment.production_job
+            job = ProductionJob.objects.select_for_update().get(pk=assignment.production_job_id)
+            list(InventoryRoll.objects.select_for_update().filter(id__in=roll_ids or []).order_by("id"))
             process = job.current_process or job.process
 
             # Enforce physics-driven roll count (never user-defined).
@@ -2256,7 +2257,7 @@ class WCManagerService:
                 for rid in InventoryReservation.objects.filter(job=job, status='ACTIVE', roll__isnull=False)
                 .values_list('roll_id', flat=True)
             )
-            requested = [str(rid) for rid in (roll_ids or [])]
+            requested = list(dict.fromkeys(str(rid) for rid in (roll_ids or [])))
             new_roll_ids = [rid for rid in requested if rid and rid not in existing_reserved]
             candidate_roll_ids = list(existing_reserved) + new_roll_ids
 

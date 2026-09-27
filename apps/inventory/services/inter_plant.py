@@ -2,7 +2,9 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import transaction, connection
+import hashlib
+import json
 from django.utils import timezone
 
 from apps.inventory.models import (
@@ -18,8 +20,38 @@ from apps.materials.models import GranuleQualityCode
 
 
 class InterPlantService:
+    @staticmethod
+    def _lock_namespace(key):
+        if connection.vendor == "postgresql":
+            lock_id = int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], "big", signed=True)
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_xact_lock(%s)", [lock_id])
+
+    @classmethod
+    @transaction.atomic
+    def create_and_dispatch(cls, *, request_key, create_data, dispatch_data):
+        if not request_key or len(request_key) > 128:
+            raise ValidationError("A valid Idempotency-Key is required (maximum 128 characters).")
+        fingerprint = hashlib.sha256(json.dumps(
+            {"create": create_data, "dispatch": dispatch_data}, sort_keys=True, default=str,
+        ).encode()).hexdigest()
+        cls._lock_namespace("interplant-request:" + request_key)
+        previous = DeliveryChallan.objects.filter(request_key=request_key).first()
+        if previous:
+            if previous.request_fingerprint != fingerprint:
+                raise ValidationError("This transfer key was already used for different items. Start a new transfer.")
+            return previous
+        challan = cls.create_challan(**create_data)
+        cls.dispatch_challan(str(challan.id), **dispatch_data)
+        challan.refresh_from_db()
+        challan.request_key = request_key
+        challan.request_fingerprint = fingerprint
+        challan.save(update_fields=["request_key", "request_fingerprint"])
+        return challan
+
     @classmethod
     def _next_dc_no(cls) -> str:
+        cls._lock_namespace("interplant-number")
         date_part = timezone.now().strftime("%Y%m%d")
         prefix = f"IPDC-{date_part}-"
         last = (
@@ -119,7 +151,7 @@ class InterPlantService:
         if challan.status not in ["DRAFT", "APPROVED"]:
             raise ValidationError("Challan is not in DRAFT/APPROVED status.")
 
-        roll_ids = [str(rid) for rid in (roll_ids or []) if rid]
+        roll_ids = sorted(set(str(rid) for rid in (roll_ids or []) if rid))
         bulk_items = bulk_items or []
 
         if not roll_ids and not bulk_items:
@@ -136,8 +168,8 @@ class InterPlantService:
         # 1) Roll lines
         if roll_ids:
             rolls = list(
-                InventoryRoll.objects.select_related("location", "material")
-                .filter(id__in=roll_ids)
+                InventoryRoll.objects.select_for_update(of=("self",)).select_related("location", "material", "grade")
+                .filter(id__in=roll_ids).order_by("id")
             )
             found_ids = {str(r.id) for r in rolls}
             missing = [rid for rid in roll_ids if rid not in found_ids]
@@ -147,8 +179,25 @@ class InterPlantService:
             for roll in rolls:
                 if not roll.location or str(roll.location.plant_id) != str(challan.from_plant_id):
                     raise ValidationError(f"Roll {roll.label_id} does not belong to source plant.")
+                if roll.weight_kg <= 0 or (roll.meta_json or {}).get("is_quarantined"):
+                    raise ValidationError(f"Roll {roll.label_id} is empty or quarantined.")
                 if roll.status != "AVAILABLE":
                     raise ValidationError(f"Roll {roll.label_id} is not AVAILABLE.")
+
+                from apps.inventory.models import InventoryReservation
+                if InventoryReservation.objects.filter(roll=roll, status="ACTIVE").exists():
+                    raise ValidationError(f"Roll {roll.label_id} has an active job reservation.")
+                if challan.target_job_id:
+                    from apps.production.services.services_execution import ExecutionService
+                    job = challan.target_job
+                    if str(ExecutionService._resolve_job_plant_id(job)) != str(challan.to_plant_id):
+                        raise ValidationError("Target job does not belong to the receiving plant.")
+                    process = job.current_process or job.process
+                    if not ExecutionService._is_roll_step_compatible(
+                        job, process, roll, ExecutionService._build_step_target_specs(job, process),
+                        allow_input_stock_fallback=True,
+                    ):
+                        raise ValidationError(f"Roll {roll.label_id} does not match the target job step.")
 
                 source_location = roll.location
                 qty = Decimal(str(roll.weight_kg or 0))

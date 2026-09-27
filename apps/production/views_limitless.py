@@ -14,7 +14,7 @@ class WCMExecutionViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'], url_path='execution-context')
     def execution_context(self, request, pk=None):
         try:
-            context = ExecutionService.get_job_context(pk)
+            context = ExecutionService.get_job_context(pk, reconcile_assignment=False)
             return Response(context)
         except ProductionJob.DoesNotExist:
             return Response({'error': 'Job not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -59,7 +59,7 @@ class WCMExecutionViewSet(viewsets.ViewSet):
             job = ProductionJob.objects.get(id=pk)
             JobService.start_job(job)
             # Return updated context
-            return Response(ExecutionService.get_job_context(pk))
+            return Response(ExecutionService.get_job_context(pk, reconcile_assignment=False))
         except Exception as e:
              return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -76,6 +76,6 @@ class WCMExecutionViewSet(viewsets.ViewSet):
             qty = Decimal(str(actual_qty))
             
             JobService.complete_job(job, qty, user=request.user)
-            return Response(ExecutionService.get_job_context(pk))
+            return Response(ExecutionService.get_job_context(pk, reconcile_assignment=False))
         except Exception as e:
              return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

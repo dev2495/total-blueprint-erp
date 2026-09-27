@@ -101,6 +101,8 @@ class WipRouteTruthTests(SimpleTestCase):
         roll = SimpleNamespace(status="RESERVED", save=MagicMock())
         reservation = SimpleNamespace(
             roll=roll,
+            roll_id="roll-1",
+            status="ACTIVE",
             quantity=Decimal("2.5000"),
             material="material-1",
             delete=MagicMock(),
@@ -112,7 +114,9 @@ class WipRouteTruthTests(SimpleTestCase):
         remaining_roll_qs = object()
 
         with patch("apps.production.services.services_execution.transaction.atomic", return_value=nullcontext()), \
-             patch("apps.production.services.services_execution.InventoryReservation.objects.get", return_value=reservation), \
+             patch("apps.production.services.services_execution.ProductionJob.objects.select_for_update"), \
+             patch("apps.production.services.services_execution.InventoryRoll.objects.select_for_update", return_value=SimpleNamespace(get=lambda **kw: roll)), \
+             patch("apps.production.services.services_execution.InventoryReservation.objects.select_for_update", return_value=SimpleNamespace(get=lambda **kw: reservation)), \
              patch("apps.production.services.services_execution.JobMaterialRequirement.objects.filter") as requirement_filter, \
              patch("apps.production.services.services_execution.WorkCenterAssignment.objects.filter") as assignment_filter, \
              patch("apps.production.services.services_execution.InventoryReservation.objects.filter", return_value=remaining_reservations), \

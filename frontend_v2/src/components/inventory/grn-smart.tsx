@@ -67,6 +67,8 @@ import {
 } from "@/services/trading-goods";
 import { MaterialPicker } from "@/components/inventory/material-picker";
 
+import { RollLabelActions } from "./roll-label-actions";
+
 type ClassKind = "BULK" | "ROLL" | "PACKAGING" | "TRADING";
 type BulkMaterialFilter =
   | "ALL"
@@ -88,6 +90,7 @@ interface ItemDraft {
   qty: string;
   uom: string;
   vendor_lot_ref: string;
+  vendor_roll_label?: string;
   unit_cost: string;
   best_before: string;
   location: string;
@@ -103,6 +106,7 @@ interface ItemDraft {
   width_basis?: WidthBasis;
 }
 interface PostedReceipt {
+  rolls: Array<{ id: string; ref?: string }>;
   grn_no: string;
   klass: ClassKind;
   total_qty: number;
@@ -453,6 +457,7 @@ export function GrnSmartV36() {
   const [vendorInvoiceDate, setVendorInvoiceDate] = React.useState("");
   const [lrVehicle, setLrVehicle] = React.useState("");
   const [warehouseId, setWarehouseId] = React.useState("");
+  const [downloadLabelsAfterPost, setDownloadLabelsAfterPost] = React.useState(false);
   const [receiptDate, setReceiptDate] = React.useState(
     new Date().toISOString().slice(0, 10),
   );
@@ -739,6 +744,7 @@ export function GrnSmartV36() {
             rate_per_uom: Number(rest.unit_cost) || 0,
             rate_per_kg: Number(rest.unit_cost) || 0,
             vendor_lot_ref: rest.vendor_lot_ref,
+            vendor_roll_label: rest.vendor_roll_label || "",
             expiry_date: rest.best_before || undefined,
             net_weight_kg:
               klass === "ROLL" ? lineQty(rest) || undefined : undefined,
@@ -769,6 +775,7 @@ export function GrnSmartV36() {
     },
     onSuccess: (receipt: any) => {
       const posted: PostedReceipt = {
+        rolls: (receipt?.stock_movements || []).filter((row: any) => row.type === "ROLL"),
         grn_no: String(receipt?.grn_no || receipt?.code || "GRN posted"),
         klass,
         total_qty: receiptTotalQty(receipt, totalQty),
@@ -790,6 +797,17 @@ export function GrnSmartV36() {
       queryClient.invalidateQueries({ queryKey: ["procurement-po-for-grn"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
       setLastPosted(posted);
+      if (downloadLabelsAfterPost && posted.rolls.length) {
+        void (async () => {
+          try {
+            for (let offset = 0; offset < posted.rolls.length; offset += 200) {
+              await inventoryService.downloadRollLabels(posted.rolls.slice(offset, offset + 200).map(roll => roll.id), "4x2");
+            }
+          } catch {
+            toast({ title: "Stock saved; label download needs retry", description: "Use Download all labels on the saved receipt.", variant: "destructive" });
+          }
+        })();
+      }
       resetDraftAfterPost();
       toast({
         title: "GRN posted",
@@ -834,6 +852,7 @@ export function GrnSmartV36() {
         return;
       }
       const posted: PostedReceipt = {
+        rolls: (receipt?.stock_movements || []).filter((row: any) => row.type === "ROLL"),
         grn_no: String(receipt?.grn_no || "GRN posted"),
         klass: "ROLL",
         total_qty: Number(receipt?.totals?.qty ?? 0) || 0,
@@ -851,6 +870,17 @@ export function GrnSmartV36() {
       queryClient.invalidateQueries({ queryKey: ["grn-history"] });
       setKlass("ROLL");
       setLastPosted(posted);
+      if (downloadLabelsAfterPost && posted.rolls.length) {
+        void (async () => {
+          try {
+            for (let offset = 0; offset < posted.rolls.length; offset += 200) {
+              await inventoryService.downloadRollLabels(posted.rolls.slice(offset, offset + 200).map(roll => roll.id), "4x2");
+            }
+          } catch {
+            toast({ title: "Stock saved; label download needs retry", description: "Use Download all labels on the saved receipt.", variant: "destructive" });
+          }
+        })();
+      }
       setRollUploadPreview(null);
       setRollReviewRows([]);
       toast({
@@ -914,6 +944,7 @@ export function GrnSmartV36() {
       }),
     onSuccess: (receipt: any) => {
       const posted: PostedReceipt = {
+        rolls: (receipt?.stock_movements || []).filter((row: any) => row.type === "ROLL"),
         grn_no: String(receipt?.grn_no || "GRN posted"),
         klass: "ROLL",
         total_qty: Number(receipt?.totals?.qty ?? 0) || 0,
@@ -931,6 +962,17 @@ export function GrnSmartV36() {
       queryClient.invalidateQueries({ queryKey: ["grn-history"] });
       setKlass("ROLL");
       setLastPosted(posted);
+      if (downloadLabelsAfterPost && posted.rolls.length) {
+        void (async () => {
+          try {
+            for (let offset = 0; offset < posted.rolls.length; offset += 200) {
+              await inventoryService.downloadRollLabels(posted.rolls.slice(offset, offset + 200).map(roll => roll.id), "4x2");
+            }
+          } catch {
+            toast({ title: "Stock saved; label download needs retry", description: "Use Download all labels on the saved receipt.", variant: "destructive" });
+          }
+        })();
+      }
       setRollUploadPreview(null);
       setRollReviewRows([]);
       toast({
@@ -1045,6 +1087,12 @@ export function GrnSmartV36() {
           </div>
         </div>
       )}
+      {klass === "ROLL" && (
+        <label className="flex items-center gap-2 rounded-lg border border-line bg-surface-1 px-3 py-2 text-xs text-content-2">
+          <input type="checkbox" checked={downloadLabelsAfterPost} onChange={event => setDownloadLabelsAfterPost(event.target.checked)} />
+          Download 4 × 2 inch roll labels after saving inward (optional)
+        </label>
+      )}
       {lastPosted && (
         <div
           data-testid="smart-grn-confirmation"
@@ -1074,6 +1122,7 @@ export function GrnSmartV36() {
               Clear
             </Button>
           </div>
+          <RollLabelActions rolls={lastPosted.rolls} />
           <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-3">
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
               <div className="font-semibold uppercase tracking-wider text-success-fg">
@@ -1405,6 +1454,7 @@ export function GrnSmartV36() {
                 queryClient.invalidateQueries({ queryKey: ["trading-goods"] });
                 queryClient.invalidateQueries({ queryKey: ["grn-history"] });
                 setLastPosted({
+                  rolls: [],
                   grn_no: receipt.code,
                   klass: "TRADING",
                   total_qty: Number(receipt.qty_received) || 0,
@@ -2710,11 +2760,12 @@ function RollFastEntryGrid({
         </div>
       </div>
       <div className="max-h-[64vh] overflow-auto">
-        <table className="min-w-[1780px] text-left text-[11px]">
+        <table className="min-w-[1940px] text-left text-[11px]">
           <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[260px] px-2 py-2">Film variant</th>
+              <th className="w-[160px] px-2 py-2">Supplier roll number</th>
               <th className="w-[150px] px-2 py-2">Stock form</th>
               <th className="w-[120px] px-2 py-2">Width</th>
               <th className="w-[110px] px-2 py-2">Micron</th>
@@ -2761,6 +2812,13 @@ function RollFastEntryGrid({
                       testId={`smart-grn-line-${index}-material`}
                       className="h-8 rounded-lg font-mono text-[11px]"
                     />
+                  </td>
+                  <td className="px-2 py-2">
+                    <Input data-testid={`smart-grn-line-${index}-supplier-roll`}
+                      aria-label={`Supplier roll number ${index + 1}`} placeholder="Optional supplier ID"
+                      value={item.vendor_roll_label || ""}
+                      onChange={event => patch(index, { vendor_roll_label: event.target.value })}
+                      className="h-8 rounded-lg text-[11px]" />
                   </td>
                   <td className="px-2 py-2">
                     <Select
@@ -4037,6 +4095,10 @@ function ItemEditor({
             className="h-9 rounded-lg border-line font-mono text-xs shadow-sm"
           />
         </Field>
+        {klass === "ROLL" && <Field label="Supplier roll number (physical identity)">
+          <Input value={item.vendor_roll_label || ""} onChange={e => onChange({ vendor_roll_label: e.target.value })}
+            placeholder="Number on the supplier roll" className="h-9 rounded-lg border-line font-mono text-xs" />
+        </Field>}
         <Field label="Vendor lot ref">
           <Input
             value={item.vendor_lot_ref}

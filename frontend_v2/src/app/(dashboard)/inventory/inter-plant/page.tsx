@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { QueryFailure } from "@/components/ui/query-failure";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -41,7 +42,7 @@ import { inventoryService, DeliveryChallan } from "@/services/inventory";
 import { factoryService, Plant } from "@/services/factory";
 
 export default function InterPlantPage() {
-  const { data: challans, isLoading } = useQuery({
+  const { data: challans, isLoading, isError, refetch } = useQuery({
     queryKey: ["inter-plant-challans"],
     queryFn: inventoryService.getChallans,
   });
@@ -90,6 +91,8 @@ export default function InterPlantPage() {
       return;
     }
   };
+
+  if (isError) return <QueryFailure subject="Inter-plant transfers" retry={() => void refetch()} />;
 
   return (
     <div className="space-y-6" data-testid="interplant-page">
@@ -611,38 +614,29 @@ function CreateChallanDialog() {
     }>;
   }, [availableBulk, bulkQtyByKey]);
 
+  const [transferKey, setTransferKey] = useState(() => crypto.randomUUID());
+
   const mutation = useMutation({
     mutationFn: async () => {
       if (!fromPlant || !toPlant)
         throw new Error("Source and destination plants are required.");
       if (fromPlant === toPlant)
         throw new Error("Source and destination must be different.");
-      const created = await inventoryService.createChallan({
-        from_plant: fromPlant,
-        to_plant: toPlant,
-      });
-      const challanId = (created as any)?.data?.id || (created as any)?.id;
-      if (!challanId) throw new Error("Failed to create challan.");
-      if (!dispatchNow) return;
-      if (!destinationLocationId)
-        throw new Error("Select destination location.");
-      if (transferMode === "ROLL") {
-        if (selectedRolls.length === 0)
-          throw new Error("Select at least one roll for dispatch.");
-        await inventoryService.dispatchChallan(challanId, {
-          target_location_id: destinationLocationId,
-          roll_ids: selectedRolls,
-        });
-      } else {
-        if (selectedBulkItems.length === 0)
-          throw new Error("Enter quantity for at least one bulk line.");
-        await inventoryService.dispatchChallan(challanId, {
-          target_location_id: destinationLocationId,
-          bulk_items: selectedBulkItems,
-        });
+      if (!dispatchNow) {
+        return inventoryService.createChallan({ from_plant: fromPlant, to_plant: toPlant });
       }
+      if (!destinationLocationId) throw new Error("Select destination location.");
+      if (transferMode === "ROLL" && !selectedRolls.length) throw new Error("Select at least one roll for dispatch.");
+      if (transferMode !== "ROLL" && !selectedBulkItems.length) throw new Error("Enter quantity for at least one bulk line.");
+      return inventoryService.createAndDispatchChallan({
+        from_plant: fromPlant, to_plant: toPlant,
+        dispatch: { target_location_id: destinationLocationId,
+          ...(transferMode === "ROLL" ? { roll_ids: selectedRolls } : { bulk_items: selectedBulkItems }),
+        },
+      }, transferKey);
     },
     onSuccess: async () => {
+      setTransferKey(crypto.randomUUID());
       toast.success(
         dispatchNow
           ? "Challan created and dispatched"

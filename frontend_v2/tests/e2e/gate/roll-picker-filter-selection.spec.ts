@@ -5,8 +5,8 @@ test("tiered roll filters retain selected rolls and send the same complete selec
   const proof = readRuntimeJson<any>("acceptance/wip_route_truth.json")
   const job = proof.ui_jobs.modify_fallback
   const candidates = [
-    { roll_id: "filter-exact", label_id: "FILTER-EXACT", tier: "EXACT", weight_kg: 4, width_mm: 500, thickness_micron: 50, material_name: "Filter fixture", created_at: new Date().toISOString() },
-    { roll_id: "filter-remainder", label_id: "FILTER-REMAINDER", tier: "REMAINDER_POOL", weight_kg: 3, width_mm: 500, thickness_micron: 50, material_name: "Filter fixture", created_at: new Date().toISOString() },
+    { roll_id: "filter-exact", label_id: "FILTER-EXACT", supplier_roll: "SHARED-SUPPLIER", tier: "EXACT", weight_kg: 4, width_mm: 500, thickness_micron: 50, material_name: "Filter fixture", created_at: new Date().toISOString() },
+    { roll_id: "filter-remainder", label_id: "FILTER-REMAINDER", supplier_roll: "SHARED-SUPPLIER", tier: "REMAINDER_POOL", weight_kg: 3, width_mm: 500, thickness_micron: 50, material_name: "Filter fixture", created_at: new Date().toISOString() },
   ]
   await page.route(`**/api/production/jobs/${job.job_id}/tiered-rolls{,/,?*}`, async route => {
     await route.fulfill({ json: { candidates, target_width_mm: 500, remaining_qty_kg: 7 } })
@@ -21,10 +21,22 @@ test("tiered roll filters retain selected rolls and send the same complete selec
   await page.getByTestId(`wcm-assignment-row-${job.assignment_id}`).click()
   await page.getByRole("button", { name: "Pick with tiers" }).click()
   const dialog = page.getByRole("dialog")
-  await dialog.getByRole("button").filter({ hasText: "FILTER-EXACT" }).click()
+  await expect(dialog.getByRole("button").filter({ hasText: "FILTER-EXACT" })).toBeVisible()
+  const scan = dialog.getByTestId("roll-picker-scan-input")
+  await scan.fill("SHARED-SUPPLIER")
+  await scan.press("Enter")
+  await expect(dialog.getByTestId("roll-picker-scan-status")).toContainText("Reference is ambiguous")
+  await scan.fill("NOT-ELIGIBLE")
+  await scan.press("Enter")
+  await expect(dialog.getByTestId("roll-picker-scan-status")).toContainText("No eligible roll found")
+  for (let i = 0; i < 2; i++) {
+    await scan.fill("FILTER-EXACT")
+    await scan.press("Enter")
+  }
+  await expect(dialog.getByRole("button", { name: /Assign to job/i })).toBeEnabled()
   await dialog.getByRole("button").filter({ hasText: "FILTER-REMAINDER" }).click()
   await dialog.getByRole("button", { name: /Hide remainders/i }).click()
-  await expect(dialog.getByRole("status")).toContainText("1 selected roll(s) are hidden")
+  await expect(dialog.getByRole("status").filter({ hasText: "hidden" })).toContainText("1 selected roll(s) are hidden")
   await expect(dialog.getByRole("button", { name: /Allocate 2 rolls/i })).toBeEnabled()
   await dialog.getByRole("button", { name: /Allocate 2 rolls/i }).click()
   await expect.poll(() => submitted?.picks?.map((pick: any) => pick.roll_id).sort()).toEqual(["filter-exact", "filter-remainder"])

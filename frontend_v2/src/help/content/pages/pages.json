@@ -8015,16 +8015,20 @@
     ],
     "keyActions": [
       {
-        "en": "Open the current workspace and check the summary, filters, and selected context.",
-        "hi": "Open the current workspace and check the summary, filters, and selected context."
+        "en": "Choose Roll, the receiving warehouse and film variant. Enter measured width, thickness, gross and tare for each physical roll.",
+        "hi": "रोल, प्राप्ति गोदाम और फिल्म चुनें। हर रोल की चौड़ाई, मोटाई, सकल और टेयर वजन दर्ज करें।"
       },
       {
-        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
-        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+        "en": "Enter the supplier roll number if present. After saving, write the ERP roll ID on any roll that has no unique physical reference. Keep its rack/location correct.",
+        "hi": "सप्लायर रोल नंबर हो तो दर्ज करें। सेव करने के बाद बिना विशिष्ट पहचान वाले रोल पर ERP रोल ID लिखें और सही रैक/लोकेशन रखें।"
       },
       {
-        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
-        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+        "en": "Labels are optional. Select download after saving or use Download all labels / Label reprint on the saved receipt. Each roll has one PDF page.",
+        "hi": "लेबल वैकल्पिक हैं। सेव के बाद डाउनलोड चुनें या सेव हुई रसीद से सभी/एक रोल का लेबल लें। प्रत्येक रोल का एक PDF पृष्ठ है।"
+      },
+      {
+        "en": "If label download fails, retry from the saved receipt or trace page. Do not submit another inward for the same stock.",
+        "hi": "लेबल डाउनलोड विफल हो तो सेव रसीद या ट्रेस पेज से दोबारा लें। उसी स्टॉक की नई इनवर्ड न करें।"
       }
     ],
     "fieldHelp": [
@@ -8107,10 +8111,10 @@
       }
     ],
     "relatedRoutes": [
-      "/inventory",
       "/inventory/grn",
-      "/inventory/stock-lifecycle",
-      "/inventory/traceability"
+      "/inventory/traceability",
+      "/inventory/inter-plant",
+      "/production/work-center"
     ],
     "screenshotKeys": [
       "inventory-grn-overview",
@@ -8159,16 +8163,16 @@
     ],
     "keyActions": [
       {
-        "en": "Open the current workspace and check the summary, filters, and selected context.",
-        "hi": "Open the current workspace and check the summary, filters, and selected context."
+        "en": "Select source and destination plants and exact physical rolls. Reserved, quarantined or empty rolls cannot be dispatched.",
+        "hi": "स्रोत, गंतव्य प्लांट और वास्तविक रोल चुनें। आरक्षित, क्वारंटीन या खाली रोल डिस्पैच नहीं हो सकते।"
       },
       {
-        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
-        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+        "en": "Create and dispatch is one transaction. If the response is interrupted, retry in the same dialog; the request key prevents a duplicate challan.",
+        "hi": "बनाना और डिस्पैच एक लेनदेन है। जवाब रुकने पर उसी डायलॉग में पुनः प्रयास करें; अनुरोध कुंजी डुप्लिकेट चालान रोकती है।"
       },
       {
-        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
-        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+        "en": "Receive the dispatched challan at the destination and verify quantity and location before allocating stock there.",
+        "hi": "गंतव्य पर डिस्पैच चालान प्राप्त करें और आवंटन से पहले मात्रा तथा लोकेशन जांचें।"
       }
     ],
     "fieldHelp": [
@@ -8251,10 +8255,10 @@
       }
     ],
     "relatedRoutes": [
-      "/inventory",
       "/inventory/grn",
-      "/inventory/stock-lifecycle",
-      "/inventory/traceability"
+      "/inventory/traceability",
+      "/inventory/inter-plant",
+      "/production/work-center"
     ],
     "screenshotKeys": [
       "inventory-inter-plant-overview",
@@ -9106,16 +9110,20 @@
     ],
     "keyActions": [
       {
-        "en": "Open the current workspace and check the summary, filters, and selected context.",
-        "hi": "Open the current workspace and check the summary, filters, and selected context."
+        "en": "Search the exact ERP roll ID, scan its QR value, or enter its supplier roll number. A shared supplier reference needs an explicit roll selection.",
+        "hi": "सटीक ERP रोल ID, QR मान या सप्लायर रोल नंबर खोजें। साझा सप्लायर नंबर पर सही रोल चुनना जरूरी है।"
       },
       {
-        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
-        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
+        "en": "Check current plant, location, status and available weight against the physical roll before moving or allocating it.",
+        "hi": "स्थानांतरण या आवंटन से पहले वर्तमान प्लांट, लोकेशन, स्थिति और उपलब्ध वजन का वास्तविक रोल से मिलान करें।"
       },
       {
-        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
-        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+        "en": "Use Label / reprint for the same immutable identity. Printing does not create stock or reserve a roll.",
+        "hi": "उसी स्थायी पहचान का लेबल दोबारा निकालें। प्रिंट से नया स्टॉक या आरक्षण नहीं बनता।"
+      },
+      {
+        "en": "Trace the parent, child and movement records when investigating splitting or consumption. Escalate an unidentified physical roll to Store before allocation.",
+        "hi": "स्लिटिंग या खपत जांच में मूल, चाइल्ड और मूवमेंट रिकॉर्ड देखें। बिना पहचान वाले रोल को आवंटन से पहले स्टोर से सत्यापित कराएं।"
       }
     ],
     "fieldHelp": [
@@ -9198,10 +9206,10 @@
       }
     ],
     "relatedRoutes": [
-      "/inventory",
       "/inventory/grn",
-      "/inventory/stock-lifecycle",
-      "/inventory/traceability"
+      "/inventory/traceability",
+      "/inventory/inter-plant",
+      "/production/work-center"
     ],
     "screenshotKeys": [
       "inventory-traceability-overview",
@@ -13651,16 +13659,20 @@
     ],
     "keyActions": [
       {
-        "en": "Review page KPIs or status cards to identify pending actions.",
-        "hi": "लंबित कार्य पहचानने के लिए KPI या स्टेटस कार्ड की समीक्षा करें।"
+        "en": "Open the correct assignment and current production step. Review every input lane, material, grade, width, thickness and required quantity.",
+        "hi": "सही असाइनमेंट और वर्तमान उत्पादन चरण खोलें। हर इनपुट, सामग्री, ग्रेड, चौड़ाई, मोटाई और जरूरी मात्रा जांचें।"
       },
       {
-        "en": "Apply filters, open target record, and verify required fields.",
-        "hi": "फिल्टर लागू करें, लक्ष्य रिकॉर्ड खोलें, और आवश्यक फ़ील्ड सत्यापित करें।"
+        "en": "Pick with tiers shows eligible stock. Scan an exact ERP/QR/supplier ID or choose manually after checking its location and physical identity. Repeated scanning keeps one selection.",
+        "hi": "टियर पिकर में योग्य स्टॉक देखें। सटीक ERP/QR/सप्लायर ID स्कैन करें या पहचान और लोकेशन जांचकर चुनें। दोबारा स्कैन से एक ही चयन रहता है।"
       },
       {
-        "en": "Submit action, confirm success toast, and re-check downstream impact.",
-        "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
+        "en": "No match: check the plant, step, dimensions, grade, stock form, quarantine and existing reservations. Never substitute a random roll to clear the warning.",
+        "hi": "मिलान न हो तो प्लांट, चरण, माप, ग्रेड, स्टॉक फॉर्म, क्वारंटीन और आरक्षण जांचें। चेतावनी हटाने के लिए कोई भी रोल न चुनें।"
+      },
+      {
+        "en": "Review total selected quantity, including selections hidden by filters. Confirm allocation; if another user reserved the roll, refresh and select another eligible roll.",
+        "hi": "फिल्टर में छिपे चयन सहित कुल मात्रा जांचें। आवंटन करें; दूसरे उपयोगकर्ता ने रोल आरक्षित किया हो तो रिफ्रेश कर दूसरा योग्य रोल चुनें।"
       }
     ],
     "fieldHelp": [
@@ -13733,9 +13745,10 @@
       }
     ],
     "relatedRoutes": [
-      "/production/machine-selector",
-      "/production/machine/[machine_id]",
-      "/production/planner"
+      "/inventory/grn",
+      "/inventory/traceability",
+      "/inventory/inter-plant",
+      "/production/work-center"
     ],
     "screenshotKeys": [],
     "faqRefs": [
@@ -22533,6 +22546,494 @@
     "screenshotKeys": [
       "system-shift-timing-workflow"
     ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/analytics/reports/material-variance",
+    "title": {
+      "en": "Material variance",
+      "hi": "सामग्री अंतर"
+    },
+    "module": "Analytics",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "PLANNER",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Compare planned and consumed material for the same period and plant. Open production jobs to investigate excess consumption before changing a BOM.",
+      "hi": "एक ही अवधि और प्लांट की नियोजित तथा वास्तविक खपत तुलना करें। BOM बदलने से पहले उत्पादन जॉब में अतिरिक्त खपत जांचें।"
+    },
+    "purpose": {
+      "en": "Compare planned and consumed material for the same period and plant. Open production jobs to investigate excess consumption before changing a BOM.",
+      "hi": "एक ही अवधि और प्लांट की नियोजित तथा वास्तविक खपत तुलना करें। BOM बदलने से पहले उत्पादन जॉब में अतिरिक्त खपत जांचें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm role access and location context before making changes.",
+        "hi": "परिवर्तन करने से पहले भूमिका एक्सेस और लोकेशन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Validate upstream data (master/order/job) is already approved.",
+        "hi": "सुनिश्चित करें कि अपस्ट्रीम डेटा (मास्टर/ऑर्डर/जॉब) पहले से अनुमोदित है।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Compare planned and consumed material for the same period and plant. Open production jobs to investigate excess consumption before changing a BOM.",
+        "hi": "एक ही अवधि और प्लांट की नियोजित तथा वास्तविक खपत तुलना करें। BOM बदलने से पहले उत्पादन जॉब में अतिरिक्त खपत जांचें।"
+      },
+      {
+        "en": "Check the active period and data warnings before exporting. Open the next-action link for operational work.",
+        "hi": "निर्यात से पहले सक्रिय अवधि और डेटा चेतावनी जांचें। काम के लिए अगली कार्रवाई लिंक खोलें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Primary Selector",
+          "hi": "प्राथमिक चयन"
+        },
+        "help": {
+          "en": "Always choose the correct plant/work center/machine context first.",
+          "hi": "हमेशा पहले सही प्लांट/वर्क सेंटर/मशीन संदर्भ चुनें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "स्थिति"
+        },
+        "help": {
+          "en": "Status transitions are controlled; only valid next states are allowed.",
+          "hi": "स्थिति परिवर्तन नियंत्रित हैं; केवल वैध अगली स्थिति ही अनुमत है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "ऑडिट नोट्स"
+        },
+        "help": {
+          "en": "Record reason codes and comments for every override decision.",
+          "hi": "हर ओवरराइड निर्णय के लिए कारण कोड और टिप्पणियाँ दर्ज करें।"
+        }
+      }
+    ],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Permission denied / action hidden",
+          "hi": "अनुमति अस्वीकृत / कार्रवाई छिपी हुई"
+        },
+        "reason": {
+          "en": "Role matrix or governance visibility is missing for this module/action.",
+          "hi": "इस मॉड्यूल/कार्रवाई के लिए रोल मैट्रिक्स या गवर्नेंस दृश्यता सेट नहीं है।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed on submit",
+          "hi": "सबमिट पर वैलिडेशन विफल"
+        },
+        "reason": {
+          "en": "Mandatory fields are blank or context selection is inconsistent.",
+          "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and re-open the target record from list view.",
+        "hi": "पेज रिफ्रेश करें और सूची दृश्य से लक्ष्य रिकॉर्ड फिर खोलें।"
+      },
+      {
+        "en": "Validate role override context, then retry with correct module permissions.",
+        "hi": "रोल ओवरराइड संदर्भ सत्यापित करें, फिर सही अनुमति के साथ पुनः प्रयास करें।"
+      },
+      {
+        "en": "If issue persists, raise Governance ticket with route, payload, and timestamp.",
+        "hi": "समस्या बनी रहे तो route, payload और timestamp सहित Governance टिकट उठाएँ।"
+      }
+    ],
+    "relatedRoutes": [
+      "/production/planner",
+      "/analytics/reports"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/analytics/reports/shift-performance",
+    "title": {
+      "en": "Shift performance",
+      "hi": "शिफ्ट प्रदर्शन"
+    },
+    "module": "Analytics",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "PLANNER",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Select the date, plant and shift. Check output and downtime evidence with the work center before adjusting the next shift plan.",
+      "hi": "तिथि, प्लांट और शिफ्ट चुनें। अगली शिफ्ट योजना बदलने से पहले वर्क सेंटर से आउटपुट और डाउनटाइम जांचें।"
+    },
+    "purpose": {
+      "en": "Select the date, plant and shift. Check output and downtime evidence with the work center before adjusting the next shift plan.",
+      "hi": "तिथि, प्लांट और शिफ्ट चुनें। अगली शिफ्ट योजना बदलने से पहले वर्क सेंटर से आउटपुट और डाउनटाइम जांचें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm role access and location context before making changes.",
+        "hi": "परिवर्तन करने से पहले भूमिका एक्सेस और लोकेशन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Validate upstream data (master/order/job) is already approved.",
+        "hi": "सुनिश्चित करें कि अपस्ट्रीम डेटा (मास्टर/ऑर्डर/जॉब) पहले से अनुमोदित है।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Select the date, plant and shift. Check output and downtime evidence with the work center before adjusting the next shift plan.",
+        "hi": "तिथि, प्लांट और शिफ्ट चुनें। अगली शिफ्ट योजना बदलने से पहले वर्क सेंटर से आउटपुट और डाउनटाइम जांचें।"
+      },
+      {
+        "en": "Check the active period and data warnings before exporting. Open the next-action link for operational work.",
+        "hi": "निर्यात से पहले सक्रिय अवधि और डेटा चेतावनी जांचें। काम के लिए अगली कार्रवाई लिंक खोलें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Primary Selector",
+          "hi": "प्राथमिक चयन"
+        },
+        "help": {
+          "en": "Always choose the correct plant/work center/machine context first.",
+          "hi": "हमेशा पहले सही प्लांट/वर्क सेंटर/मशीन संदर्भ चुनें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "स्थिति"
+        },
+        "help": {
+          "en": "Status transitions are controlled; only valid next states are allowed.",
+          "hi": "स्थिति परिवर्तन नियंत्रित हैं; केवल वैध अगली स्थिति ही अनुमत है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "ऑडिट नोट्स"
+        },
+        "help": {
+          "en": "Record reason codes and comments for every override decision.",
+          "hi": "हर ओवरराइड निर्णय के लिए कारण कोड और टिप्पणियाँ दर्ज करें।"
+        }
+      }
+    ],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Permission denied / action hidden",
+          "hi": "अनुमति अस्वीकृत / कार्रवाई छिपी हुई"
+        },
+        "reason": {
+          "en": "Role matrix or governance visibility is missing for this module/action.",
+          "hi": "इस मॉड्यूल/कार्रवाई के लिए रोल मैट्रिक्स या गवर्नेंस दृश्यता सेट नहीं है।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed on submit",
+          "hi": "सबमिट पर वैलिडेशन विफल"
+        },
+        "reason": {
+          "en": "Mandatory fields are blank or context selection is inconsistent.",
+          "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and re-open the target record from list view.",
+        "hi": "पेज रिफ्रेश करें और सूची दृश्य से लक्ष्य रिकॉर्ड फिर खोलें।"
+      },
+      {
+        "en": "Validate role override context, then retry with correct module permissions.",
+        "hi": "रोल ओवरराइड संदर्भ सत्यापित करें, फिर सही अनुमति के साथ पुनः प्रयास करें।"
+      },
+      {
+        "en": "If issue persists, raise Governance ticket with route, payload, and timestamp.",
+        "hi": "समस्या बनी रहे तो route, payload और timestamp सहित Governance टिकट उठाएँ।"
+      }
+    ],
+    "relatedRoutes": [
+      "/production/work-center",
+      "/analytics/reports"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/analytics/reports/inventory-lineage",
+    "title": {
+      "en": "Inventory lineage",
+      "hi": "इन्वेंटरी वंशावली"
+    },
+    "module": "Analytics",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "PLANNER",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Find the roll and follow its parent, child and movement evidence. Open traceability to verify the current physical location and identity.",
+      "hi": "रोल खोजें और उसके मूल, चाइल्ड तथा मूवमेंट प्रमाण देखें। वर्तमान स्थान और पहचान ट्रेस पेज पर जांचें।"
+    },
+    "purpose": {
+      "en": "Find the roll and follow its parent, child and movement evidence. Open traceability to verify the current physical location and identity.",
+      "hi": "रोल खोजें और उसके मूल, चाइल्ड तथा मूवमेंट प्रमाण देखें। वर्तमान स्थान और पहचान ट्रेस पेज पर जांचें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm role access and location context before making changes.",
+        "hi": "परिवर्तन करने से पहले भूमिका एक्सेस और लोकेशन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Validate upstream data (master/order/job) is already approved.",
+        "hi": "सुनिश्चित करें कि अपस्ट्रीम डेटा (मास्टर/ऑर्डर/जॉब) पहले से अनुमोदित है।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Find the roll and follow its parent, child and movement evidence. Open traceability to verify the current physical location and identity.",
+        "hi": "रोल खोजें और उसके मूल, चाइल्ड तथा मूवमेंट प्रमाण देखें। वर्तमान स्थान और पहचान ट्रेस पेज पर जांचें।"
+      },
+      {
+        "en": "Check the active period and data warnings before exporting. Open the next-action link for operational work.",
+        "hi": "निर्यात से पहले सक्रिय अवधि और डेटा चेतावनी जांचें। काम के लिए अगली कार्रवाई लिंक खोलें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Primary Selector",
+          "hi": "प्राथमिक चयन"
+        },
+        "help": {
+          "en": "Always choose the correct plant/work center/machine context first.",
+          "hi": "हमेशा पहले सही प्लांट/वर्क सेंटर/मशीन संदर्भ चुनें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "स्थिति"
+        },
+        "help": {
+          "en": "Status transitions are controlled; only valid next states are allowed.",
+          "hi": "स्थिति परिवर्तन नियंत्रित हैं; केवल वैध अगली स्थिति ही अनुमत है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "ऑडिट नोट्स"
+        },
+        "help": {
+          "en": "Record reason codes and comments for every override decision.",
+          "hi": "हर ओवरराइड निर्णय के लिए कारण कोड और टिप्पणियाँ दर्ज करें।"
+        }
+      }
+    ],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Permission denied / action hidden",
+          "hi": "अनुमति अस्वीकृत / कार्रवाई छिपी हुई"
+        },
+        "reason": {
+          "en": "Role matrix or governance visibility is missing for this module/action.",
+          "hi": "इस मॉड्यूल/कार्रवाई के लिए रोल मैट्रिक्स या गवर्नेंस दृश्यता सेट नहीं है।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed on submit",
+          "hi": "सबमिट पर वैलिडेशन विफल"
+        },
+        "reason": {
+          "en": "Mandatory fields are blank or context selection is inconsistent.",
+          "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and re-open the target record from list view.",
+        "hi": "पेज रिफ्रेश करें और सूची दृश्य से लक्ष्य रिकॉर्ड फिर खोलें।"
+      },
+      {
+        "en": "Validate role override context, then retry with correct module permissions.",
+        "hi": "रोल ओवरराइड संदर्भ सत्यापित करें, फिर सही अनुमति के साथ पुनः प्रयास करें।"
+      },
+      {
+        "en": "If issue persists, raise Governance ticket with route, payload, and timestamp.",
+        "hi": "समस्या बनी रहे तो route, payload और timestamp सहित Governance टिकट उठाएँ।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/traceability",
+      "/analytics/reports"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/analytics/reports/ink-intelligence",
+    "title": {
+      "en": "Ink intelligence",
+      "hi": "स्याही विश्लेषण"
+    },
+    "module": "Analytics",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "PLANNER",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Compare ink demand and consumption for the selected window. Open ink control to investigate stock and job usage before making corrections.",
+      "hi": "चयनित अवधि की स्याही मांग और खपत तुलना करें। सुधार से पहले इंक कंट्रोल में स्टॉक तथा जॉब उपयोग जांचें।"
+    },
+    "purpose": {
+      "en": "Compare ink demand and consumption for the selected window. Open ink control to investigate stock and job usage before making corrections.",
+      "hi": "चयनित अवधि की स्याही मांग और खपत तुलना करें। सुधार से पहले इंक कंट्रोल में स्टॉक तथा जॉब उपयोग जांचें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm role access and location context before making changes.",
+        "hi": "परिवर्तन करने से पहले भूमिका एक्सेस और लोकेशन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Validate upstream data (master/order/job) is already approved.",
+        "hi": "सुनिश्चित करें कि अपस्ट्रीम डेटा (मास्टर/ऑर्डर/जॉब) पहले से अनुमोदित है।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Compare ink demand and consumption for the selected window. Open ink control to investigate stock and job usage before making corrections.",
+        "hi": "चयनित अवधि की स्याही मांग और खपत तुलना करें। सुधार से पहले इंक कंट्रोल में स्टॉक तथा जॉब उपयोग जांचें।"
+      },
+      {
+        "en": "Check the active period and data warnings before exporting. Open the next-action link for operational work.",
+        "hi": "निर्यात से पहले सक्रिय अवधि और डेटा चेतावनी जांचें। काम के लिए अगली कार्रवाई लिंक खोलें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Primary Selector",
+          "hi": "प्राथमिक चयन"
+        },
+        "help": {
+          "en": "Always choose the correct plant/work center/machine context first.",
+          "hi": "हमेशा पहले सही प्लांट/वर्क सेंटर/मशीन संदर्भ चुनें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "स्थिति"
+        },
+        "help": {
+          "en": "Status transitions are controlled; only valid next states are allowed.",
+          "hi": "स्थिति परिवर्तन नियंत्रित हैं; केवल वैध अगली स्थिति ही अनुमत है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "ऑडिट नोट्स"
+        },
+        "help": {
+          "en": "Record reason codes and comments for every override decision.",
+          "hi": "हर ओवरराइड निर्णय के लिए कारण कोड और टिप्पणियाँ दर्ज करें।"
+        }
+      }
+    ],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Permission denied / action hidden",
+          "hi": "अनुमति अस्वीकृत / कार्रवाई छिपी हुई"
+        },
+        "reason": {
+          "en": "Role matrix or governance visibility is missing for this module/action.",
+          "hi": "इस मॉड्यूल/कार्रवाई के लिए रोल मैट्रिक्स या गवर्नेंस दृश्यता सेट नहीं है।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed on submit",
+          "hi": "सबमिट पर वैलिडेशन विफल"
+        },
+        "reason": {
+          "en": "Mandatory fields are blank or context selection is inconsistent.",
+          "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and re-open the target record from list view.",
+        "hi": "पेज रिफ्रेश करें और सूची दृश्य से लक्ष्य रिकॉर्ड फिर खोलें।"
+      },
+      {
+        "en": "Validate role override context, then retry with correct module permissions.",
+        "hi": "रोल ओवरराइड संदर्भ सत्यापित करें, फिर सही अनुमति के साथ पुनः प्रयास करें।"
+      },
+      {
+        "en": "If issue persists, raise Governance ticket with route, payload, and timestamp.",
+        "hi": "समस्या बनी रहे तो route, payload और timestamp सहित Governance टिकट उठाएँ।"
+      }
+    ],
+    "relatedRoutes": [
+      "/production/ink-control",
+      "/analytics/reports"
+    ],
+    "screenshotKeys": [],
     "faqRefs": [
       "faq-access-control",
       "faq-data-refresh"

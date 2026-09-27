@@ -67,6 +67,21 @@ class LiveReportTruthTests(TestCase):
         self.assertEqual(payload["recent_challans"][0]["dc_no"], "DC-LIVE-001")
         self.assertEqual(payload["daily_trend"][0]["weight_kg"], 245.5)
 
+    def test_unknown_piece_weights_are_not_reported_as_kilograms(self):
+        self.test_production_report_exposes_richer_breakdowns_and_recent_jobs()
+        job = ProductionJob.objects.get(job_number="JOB-LIVE-001")
+        job.uom = "PCS"
+        job.save(update_fields=["uom"])
+        JobExecutionLog.objects.filter(production_job=job).update(uom="PCS")
+        ScrapLog.objects.filter(production_job=job).update(uom="PCS")
+        response = self.client.get("/api/analytics/reports/production/")
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertEqual(payload["summary"]["total_output_kg"], 0)
+        self.assertEqual(payload["summary"]["total_scrap_kg"], 0)
+        self.assertEqual(payload["summary"]["avg_job_size_kg"], 0)
+        self.assertTrue(any("KG conversion" in str(w) for w in payload["warnings"]))
+
     def test_production_report_exposes_richer_breakdowns_and_recent_jobs(self):
         process = Process.objects.create(code="PRINT-LIVE", name="Printing", input_form="ROLL", output_form="ROLL", roll_behavior="MODIFY_EXISTING")
         work_center = WorkCenter.objects.create(plant=self.plant_a, name="Printing WC", code="WC-PRINT-LIVE")

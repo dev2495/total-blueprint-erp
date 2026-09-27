@@ -9,6 +9,8 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { RollLabelActions } from "./roll-label-actions";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -84,7 +86,9 @@ function roleTone(role?: string | null) {
 }
 
 export function TraceabilityV36() {
-  const [query, setQuery] = React.useState("");
+  const searchParams = useSearchParams();
+  const [query, setQuery] = React.useState(searchParams?.get("q") || "");
+  const [matches, setMatches] = React.useState<Array<{id:string; label_id:string; location:string; weight_kg:string}>>([]);
   const [errorText, setErrorText] = React.useState("");
   const [result, setResult] = React.useState<RollTraceResponse | null>(null);
 
@@ -109,13 +113,21 @@ export function TraceabilityV36() {
     mutationFn: (q: string) => observabilityApi.getRollTrace(q),
     onSuccess: (data) => {
       setResult(data);
+      setMatches([]);
       setErrorText("");
     },
     onError: (err: any) => {
       setResult(null);
+      setMatches(err?.response?.data?.candidates || []);
       setErrorText(err?.response?.data?.error || "Unable to trace this roll.");
     },
   });
+
+  const initialLookup = React.useRef(false);
+  React.useEffect(() => {
+    const fromUrl = searchParams?.get("q");
+    if (!initialLookup.current && fromUrl) { initialLookup.current = true; traceMutation.mutate(fromUrl); }
+  }, [searchParams, traceMutation]);
 
   const r = result?.roll;
   const g = result?.genealogy;
@@ -189,7 +201,7 @@ export function TraceabilityV36() {
                 if (e.key === "Enter" && query.trim())
                   traceMutation.mutate(query.trim());
               }}
-              placeholder="Roll label (TPP/RM/2026/0001) or UUID…"
+              placeholder="ERP ID, supplier roll number or scanned UUID…"
               className="h-12 rounded-xl pl-10 font-mono text-sm"
             />
           </div>
@@ -222,7 +234,11 @@ export function TraceabilityV36() {
             </span>
           )}
         </div>
-        {errorText && (
+        {matches.length > 0 && <div className="rounded-xl border border-line bg-surface-1 p-4">
+        <p className="mb-2 text-sm font-semibold">Check the physical roll, then select its exact identity</p>
+        {matches.map(m => <Button key={m.id} variant="outline" className="m-1" onClick={() => { setQuery(m.id); traceMutation.mutate(m.id); }}>{m.label_id} · {m.location} · {m.weight_kg} kg</Button>)}
+      </div>}
+      {errorText && (
           <div className="mt-3 flex items-center gap-2 rounded-lg bg-danger-bg px-3 py-2 text-xs font-bold text-danger-fg ring-1 ring-danger-border">
             <AlertTriangle className="h-3.5 w-3.5" /> {errorText}
           </div>
@@ -262,6 +278,7 @@ export function TraceabilityV36() {
             <Kpi tone="rose" icon="🎯" label="Yield" value={`${flow.yield}%`} />
           </div>
 
+          <RollLabelActions rolls={[{ id: r.id, ref: r.label_id }]} />
           {/* Header card */}
           <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
             <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">

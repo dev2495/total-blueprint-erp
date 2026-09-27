@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { QueryFailure } from "@/components/ui/query-failure";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -67,11 +68,11 @@ function KpiCard({
 }
 
 export default function LogisticsHubPage() {
-  const { data: dispatchReport, isLoading: dispatchLoading } = useQuery({
+  const { data: dispatchReport, isLoading: dispatchLoading, isError: dispatchError, refetch: retryDispatch } = useQuery({
     queryKey: ["analytics", "dispatch-report", "hub"],
     queryFn: () => analyticsApi.getReportDispatch({}),
   });
-  const { data: transitReport, isLoading: transitLoading } = useQuery({
+  const { data: transitReport, isLoading: transitLoading, isError: transitError, refetch: retryTransit } = useQuery({
     queryKey: ["analytics", "interplant-report", "hub"],
     queryFn: () => analyticsApi.getReportTab("interplant", {}),
   });
@@ -101,6 +102,8 @@ export default function LogisticsHubPage() {
 
   const recentChallans = dispatchReport?.recent_challans || [];
   const transitRows = (transitReport?.rows || []).slice(0, 5);
+
+  if (dispatchError || transitError) return <QueryFailure subject="Logistics" retry={() => { void retryDispatch(); void retryTransit(); }} />;
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4">

@@ -335,7 +335,7 @@ export const REPORT_CONFIG: Record<string, ReportConfig> = {
     kpis: [
       { key: "total_revenue", label: "Order value", format: "inr" },
       { key: "total_weight_ordered_kg", label: "Weight ordered", format: "kg" },
-      { key: "otif_rate", label: "On time in full", format: "pct", target: "target_otif", higherIsBetter: true },
+      { key: "otif_rate", label: "On-time completion proxy", format: "pct", higherIsBetter: true },
       { key: "backlog_count", label: "Open orders", format: "count" },
       { key: "overdue_count", label: "Overdue orders", format: "count", higherIsBetter: false },
       { key: "completed_count", label: "Completed", format: "count" },

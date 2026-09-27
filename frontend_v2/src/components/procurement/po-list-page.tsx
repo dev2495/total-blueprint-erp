@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { QueryFailure } from "@/components/ui/query-failure";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, Plus, ShoppingCart, Truck, Loader2 } from "lucide-react";
 
@@ -46,7 +47,7 @@ export function PurchaseOrderListWorkspace() {
   );
   const [search, setSearch] = React.useState("");
 
-  const { data, isLoading } = useQuery<PurchaseOrderListItem[]>({
+  const { data, isLoading, isError, refetch } = useQuery<PurchaseOrderListItem[]>({
     queryKey: ["procurement", "list", statusFilter, search],
     queryFn: () =>
       procurementService.list({
@@ -80,6 +81,8 @@ export function PurchaseOrderListWorkspace() {
       total: rows.length,
     };
   }, [rows]);
+
+  if (isError) return <QueryFailure subject="Purchase orders" retry={() => void refetch()} />;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
@@ -119,12 +122,12 @@ export function PurchaseOrderListWorkspace() {
             accent="text-order-fg"
           />
           <KpiCard
-            label="Overdue"
+            label="Overdue · filtered"
             value={String(totals.overdue)}
             accent="text-danger-fg"
           />
           <KpiCard
-            label="MTD Spend (INR)"
+            label="MTD PO commitments · filtered (INR)"
             value={formatINR(totals.mtdValue)}
             accent="text-success-fg"
           />

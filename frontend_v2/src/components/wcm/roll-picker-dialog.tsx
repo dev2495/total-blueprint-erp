@@ -194,6 +194,7 @@ export function WcmRollPickerDialog({
   const [picks, setPicks] = React.useState<Record<string, boolean>>({});
   const [reason, setReason] = React.useState("");
   const [slitMode, setSlitMode] = React.useState<SlitMode>("ONE");
+  const [scanMessage, setScanMessage] = React.useState("");
   const [scanInput, setScanInput] = React.useState("");
   const [showAged30, setShowAged30] = React.useState(false);
   const [hideRemainders, setHideRemainders] = React.useState(false);
@@ -363,25 +364,19 @@ export function WcmRollPickerDialog({
     e.preventDefault();
     const value = scanInput.trim();
     if (!value) return;
-    const match = filteredCandidates.find(
-      (c: any) =>
-        String(c.label_id || "").toLowerCase() === value.toLowerCase() ||
-        String(c.label_id || "")
-          .toLowerCase()
-          .endsWith(value.toLowerCase()),
+    const matches = candidates.filter((c: any) =>
+      [c.roll_id, c.label_id, c.supplier_roll].some((id) => id && String(id).toLowerCase() === value.toLowerCase()),
     );
-    if (match) {
-      togglePick(match.roll_id);
-      toast({
-        title: "Roll scanned",
-        description: `${match.label_id} added to selection.`,
-      });
+    if (matches.length === 1 && !tieredQuery.isError) {
+      const match = matches[0];
+      setScanMessage(`${match.label_id} selected. Confirm physical identity and location.`);
+      setPicks((prev) => ({ ...prev, [match.roll_id]: true }));
+      toast({ title: "Roll selected", description: `${match.label_id} selected. Confirm the physical roll and location before allocating.` });
     } else {
-      toast({
-        title: "No match",
-        description: `No candidate with label "${value}".`,
-        variant: "destructive",
-      });
+      setScanMessage(matches.length > 1 ? "Reference is ambiguous. Use the exact ERP roll ID." : "No eligible roll found. Check the job requirements and plant.");
+      toast({ title: matches.length > 1 ? "Reference is ambiguous" : "No eligible roll found",
+        description: matches.length > 1 ? "Several rolls share this supplier reference. Use the exact ERP roll ID." : "Refresh candidates and check the roll ID, job requirements and plant.",
+        variant: "destructive" });
     }
     setScanInput("");
   };
@@ -473,6 +468,7 @@ export function WcmRollPickerDialog({
         : `Assign to job${pickedKgLabel}`;
 
   const confirmDisabledReason: string | null = (() => {
+    if (tieredQuery.isError) return "Refresh stock successfully before allocating.";
     if (selectedCandidates.length === 0)
       return "Select at least one roll to allocate.";
     if (slitMutation.isPending) return "Allocation in flight — please wait…";
@@ -507,6 +503,7 @@ export function WcmRollPickerDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {scanMessage && <p role="status" data-testid="roll-picker-scan-status" className="text-xs text-content-2">{scanMessage}</p>}
         {/* Scanner + filter chips */}
         <div className="-mt-1 mb-2 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
@@ -516,8 +513,9 @@ export function WcmRollPickerDialog({
               value={scanInput}
               onChange={(e) => setScanInput(e.target.value)}
               onKeyDown={handleScanKey}
-              placeholder="Scan or type label ID + Enter…"
+              placeholder="Scan QR, ERP ID or supplier roll number + Enter…"
               className="h-8 rounded-lg pl-8 text-xs"
+              disabled={tieredQuery.isPending || tieredQuery.isError}
               data-testid="roll-picker-scan-input"
             />
           </div>
@@ -604,6 +602,11 @@ export function WcmRollPickerDialog({
           <div className="flex items-center justify-center p-10 text-content-3">
             <Loader2 className="h-5 w-5 animate-spin" /> Loading candidates…
           </div>
+        ) : tieredQuery.isError ? (
+          <div role="alert" className="rounded-lg border border-danger-border bg-danger-bg p-4 text-danger-fg">
+            <p>Eligible stock could not be refreshed. Allocation is paused until stock can be checked.</p>
+            <Button variant="outline" onClick={() => void tieredQuery.refetch()}>Retry stock check</Button>
+          </div>
         ) : filteredCandidates.length === 0 ? (
           <ZeroCandidatesState totalRaw={candidates.length} />
         ) : (
@@ -662,6 +665,7 @@ export function WcmRollPickerDialog({
                       </Tooltip>
                       <span className="font-mono text-sm font-semibold text-content-1">
                         {c.label_id}
+                        {c.supplier_roll && <span className="ml-2 text-xs text-muted-foreground">Supplier {c.supplier_roll}</span>}
                       </span>
                       <span className="text-xs text-content-3">
                         {c.material_name || c.material_code}

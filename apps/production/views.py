@@ -230,6 +230,8 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             payload.append({
                 "roll_id": str(roll.id),
                 "label_id": roll.label_id,
+                "supplier_roll": (roll.meta_json or {}).get("vendor_roll_label", ""),
+                "batch_no": roll.batch_no,
                 "width_mm": float(roll.width_mm or 0),
                 "stock_form": getattr(roll, "stock_form", "OPEN_WEB"),
                 "width_basis": getattr(roll, "width_basis", ""),
@@ -2162,7 +2164,7 @@ class ExecutionViewSet(viewsets.ViewSet):
     def job_context(self, request, pk=None):
         """Get full job execution context."""
         try:
-            context = ExecutionService.get_job_context(pk)
+            context = ExecutionService.get_job_context(pk, reconcile_assignment=False)
             return Response(context)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

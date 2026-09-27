@@ -774,7 +774,7 @@ export default function AnalyticsPage() {
                 return (
                   <Link
                     key={report.id}
-                    href={`/analytics/reports/${report.id === "inventory-lineage" ? "inventory" : report.id}`}
+                    href={`/analytics/reports/${report.id}`}
                     className="block rounded-[1.35rem] border border-line bg-surface-2 p-5 transition hover:border-line-strong hover:bg-surface-1"
                   >
                     <div className="flex items-start justify-between gap-4">
