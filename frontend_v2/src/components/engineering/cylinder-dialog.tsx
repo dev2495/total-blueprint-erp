@@ -393,7 +393,7 @@ export function CylinderDialog({
           >
             <div className="space-y-4 overflow-y-auto pr-1">
               <section className="space-y-3 rounded-lg border border-line p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-content-3">
                   Identity
                 </h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -435,7 +435,7 @@ export function CylinderDialog({
               </section>
 
               <section className="space-y-3 rounded-lg border border-line p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-content-3">
                   Artwork Mapping
                 </h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -580,7 +580,7 @@ export function CylinderDialog({
               </section>
 
               <section className="space-y-3 rounded-lg border border-line p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-content-3">
                   Technical Finalization
                 </h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -666,7 +666,7 @@ export function CylinderDialog({
               </section>
 
               <section className="space-y-3 rounded-lg border border-line p-3">
-                <h3 className="text-xs font-black uppercase tracking-wide text-content-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-content-3">
                   Lifecycle
                 </h3>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

@@ -62,6 +62,11 @@ def _compact(value: Any, places: int = 3) -> str:
     return formatted.rstrip("0").rstrip(".") if "." in formatted else formatted
 
 
+def _compact_grade_label(value: Any) -> str:
+    """Use the shop-floor abbreviation without changing the stored grade."""
+    return re.sub(r"\bMETALLOCENE\b", "MTL", _text(value), flags=re.IGNORECASE)
+
+
 def _clip(value: Any, width: int) -> str:
     raw = str(value or "").replace("\n", " ").strip()
     if len(raw) <= width:
@@ -123,10 +128,12 @@ def _grade_label(layers: list[Any]) -> str:
     for row in layers:
         if not isinstance(row, dict):
             continue
-        grade = _text(row.get("grade_code"), row.get("grade_name"), row.get("default_grade"), row.get("grade"))
+        grade = _compact_grade_label(
+            _text(row.get("grade_code"), row.get("grade_name"), row.get("default_grade"), row.get("grade"))
+        )
         if not grade:
             continue
-        key = grade.lower()
+        key = grade.casefold()
         if key in seen:
             continue
         seen.add(key)
@@ -141,7 +148,6 @@ def _layer_material_label(layers: list[Any]) -> str:
     must not be repeated inside the layer name.
     """
     values: list[str] = []
-    seen: set[str] = set()
     for row in layers:
         if not isinstance(row, dict):
             continue
@@ -156,10 +162,6 @@ def _layer_material_label(layers: list[Any]) -> str:
         )
         if not label:
             continue
-        key = label.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
         values.append(label)
     return " / ".join(values)
 
@@ -899,13 +901,6 @@ class DispatchListPDFService:
     ) -> str:
         normalized_rows = [cls._row_from_legacy_dict(row) if "gross_kg" not in row else dict(row) for row in rows]
         fallback_line_numbers: dict[str, int] = {}
-        entries: list[dict[str, Any]] = []
-        for row_no, row in enumerate(normalized_rows, start=1):
-            line_key = str(row.get("sales_order_item_id") or row.get("line_key") or "UNLINKED")
-            if line_key not in fallback_line_numbers:
-                fallback_line_numbers[line_key] = len(fallback_line_numbers) + 1
-            row["so_line_no"] = str(row.get("so_line_no") or fallback_line_numbers[line_key])
-            entries.append({"row_no": row_no, "row": row})
 
         totals = cls._totals(normalized_rows)
         printed_at = cls._fmt_dt(timezone.now())
@@ -921,6 +916,30 @@ class DispatchListPDFService:
         def clean(value: Any) -> str:
             return re.sub(r"\s+", " ", str(value or "").replace("\n", " ")).strip().encode("ascii", "replace").decode("ascii")
 
+        def wrapped_cell(value: Any, width: int, separators: tuple[str, ...] = ()) -> list[str]:
+            """Wrap a printable value without silently dropping specification data."""
+            remaining = clean(value) or "-"
+            chunks: list[str] = []
+            while len(remaining) > width:
+                cut = width
+                separator_cut = -1
+                for separator in separators:
+                    index = remaining.rfind(separator, 0, width + 1)
+                    if index > 0:
+                        candidate = index + len(separator)
+                        if candidate <= width and candidate > separator_cut:
+                            separator_cut = candidate
+                if separator_cut > 0:
+                    cut = separator_cut
+                chunk = remaining[:cut].rstrip()
+                if not chunk:
+                    chunk = remaining[:width]
+                    cut = width
+                chunks.append(chunk)
+                remaining = remaining[cut:].lstrip()
+            chunks.append(remaining or "-")
+            return chunks
+
         def cell(value: Any, width: int, align: str = "left") -> str:
             text = clean(value)
             if len(text) > width:
@@ -932,6 +951,28 @@ class DispatchListPDFService:
 
         def divider(char: str = "-") -> str:
             return char * cls.DOT_MATRIX_COLUMNS
+
+        entries: list[dict[str, Any]] = []
+        for row_no, row in enumerate(normalized_rows, start=1):
+            line_key = str(row.get("sales_order_item_id") or row.get("line_key") or "UNLINKED")
+            if line_key not in fallback_line_numbers:
+                fallback_line_numbers[line_key] = len(fallback_line_numbers) + 1
+            row["so_line_no"] = str(row.get("so_line_no") or fallback_line_numbers[line_key])
+            row["grade"] = _compact_grade_label(row.get("grade")) or "-"
+            wrapped = {
+                "description": wrapped_cell(row.get("description"), 25, (" / ", "/", "+")),
+                "grade": wrapped_cell(row.get("grade"), 16, ("+", " / ", "/")),
+                "size": wrapped_cell(row.get("size"), 10, ("X", "x", "+")),
+                "thickness": wrapped_cell(row.get("thickness"), 6, ("+",)),
+            }
+            entries.append(
+                {
+                    "row_no": row_no,
+                    "row": row,
+                    "wrapped": wrapped,
+                    "height": max(len(parts) for parts in wrapped.values()),
+                }
+            )
 
         table_header = row_line(
             [
@@ -972,10 +1013,28 @@ class DispatchListPDFService:
             raise RuntimeError("Dispatch slip has too many balance lines for the configured form length.")
         pages: list[list[dict[str, Any]]] = []
         remaining = list(entries)
-        while len(remaining) > final_capacity:
-            take = min(regular_capacity, len(remaining) - final_capacity)
-            pages.append(remaining[:take])
-            remaining = remaining[take:]
+        remaining_height = sum(entry["height"] for entry in remaining)
+        while remaining_height > final_capacity:
+            required_height = remaining_height - final_capacity
+            target_height = min(regular_capacity, required_height)
+            page: list[dict[str, Any]] = []
+            used_height = 0
+            while remaining:
+                next_height = remaining[0]["height"]
+                if next_height > regular_capacity:
+                    raise RuntimeError("One dispatch row is too tall for the configured form length.")
+                if page and used_height + next_height > regular_capacity:
+                    break
+                page.append(remaining.pop(0))
+                used_height += next_height
+                remaining_height -= next_height
+                if used_height >= target_height:
+                    break
+            if not page:
+                raise RuntimeError("Dispatch rows cannot fit the configured form length.")
+            pages.append(page)
+        if not remaining:
+            raise RuntimeError("One dispatch row is too tall to share a page with the dispatch footer.")
         pages.append(remaining)
         page_count = len(pages)
 
@@ -1010,23 +1069,26 @@ class DispatchListPDFService:
 
             for entry in page_entries:
                 row = entry["row"]
-                lines.append(
-                    row_line(
-                        [
-                            (entry["row_no"], 3, "left"),
-                            (f"L{row.get('so_line_no') or '-'}", 4, "left"),
-                            (_display_unit_id(row.get("unit_id"), row.get("unit_type")), 10, "left"),
-                            (row.get("description"), 25, "left"),
-                            (row.get("grade"), 16, "left"),
-                            (row.get("size"), 10, "left"),
-                            (row.get("thickness"), 6, "right"),
-                            (_compact(row.get("gross_kg")), 7, "right"),
-                            ("N/A" if row.get("unit_type") == "ROLL" else str(_int(row.get("pcs")) or "-"), 6, "right"),
-                            (_compact(row.get("tare_kg")), 6, "right"),
-                            (_compact(row.get("net_kg")), 7, "right"),
-                        ]
+                wrapped = entry["wrapped"]
+                for continuation in range(entry["height"]):
+                    first_line = continuation == 0
+                    lines.append(
+                        row_line(
+                            [
+                                (entry["row_no"] if first_line else "", 3, "left"),
+                                (f"L{row.get('so_line_no') or '-'}" if first_line else "", 4, "left"),
+                                (_display_unit_id(row.get("unit_id"), row.get("unit_type")) if first_line else "", 10, "left"),
+                                (wrapped["description"][continuation] if continuation < len(wrapped["description"]) else "", 25, "left"),
+                                (wrapped["grade"][continuation] if continuation < len(wrapped["grade"]) else "", 16, "left"),
+                                (wrapped["size"][continuation] if continuation < len(wrapped["size"]) else "", 10, "left"),
+                                (wrapped["thickness"][continuation] if continuation < len(wrapped["thickness"]) else "", 6, "right"),
+                                (_compact(row.get("gross_kg")) if first_line else "", 7, "right"),
+                                (("N/A" if row.get("unit_type") == "ROLL" else str(_int(row.get("pcs")) or "-")) if first_line else "", 6, "right"),
+                                (_compact(row.get("tare_kg")) if first_line else "", 6, "right"),
+                                (_compact(row.get("net_kg")) if first_line else "", 7, "right"),
+                            ]
+                        )
                     )
-                )
 
             if page_number < page_count:
                 lines.append("")

@@ -46,6 +46,25 @@ class FGDispatchRollListTests(TestCase):
         self.assertNotIn("layer", label.lower())
         self.assertNotIn("425", label)
 
+    def test_dispatch_layer_stack_label_preserves_positions_and_compacts_metallocene(self):
+        label = FGDispatchService._sales_order_item_layer_stack_label(
+            [
+                {"variant_code": "PET", "grade": "GP", "thickness_micron": 12},
+                {"variant_code": "PET", "grade": "GP", "thickness_micron": 12},
+                {
+                    "variant_code": "LDNAT-ML",
+                    "grade": "20% METALLOCENE",
+                    "thickness_micron": 40,
+                },
+            ]
+        )
+
+        self.assertEqual(
+            label,
+            "PET · GP · 12µ + PET · GP · 12µ + LDNAT-ML · 20% MTL · 40µ",
+        )
+        self.assertNotIn("METALLOCENE", label)
+
     def _create_sales_order_with_fg_rolls(
         self,
         roll_count=5,

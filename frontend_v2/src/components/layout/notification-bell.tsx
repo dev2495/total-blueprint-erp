@@ -274,7 +274,7 @@ export function NotificationBell({
                         <span className="text-content-4">·</span>
                         <Badge
                           variant="outline"
-                          className="h-[18px] text-[9px] font-semibold px-1.5 rounded-md border-line text-content-3"
+                          className="h-[18px] text-[10px] font-semibold px-1.5 rounded-md border-line text-content-3"
                         >
                           {notification.type.replace(/_/g, " ")}
                         </Badge>

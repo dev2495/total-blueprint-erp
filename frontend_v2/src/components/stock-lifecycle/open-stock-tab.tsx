@@ -901,7 +901,7 @@ export function OpenStockTab({
                 className="h-10 rounded-xl pl-9"
               />
             </div>
-            <label className="grid min-w-[220px] gap-1 text-[10px] font-extrabold uppercase tracking-[0.16em] text-content-3">
+            <label className="grid min-w-[220px] gap-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
               Opening balance as of
               <Input
                 type="datetime-local"
@@ -937,7 +937,7 @@ export function OpenStockTab({
         </div>
 
         <div className="rounded-[20px] border border-line bg-surface-3 p-4 text-white shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/60">
             Post readiness
           </div>
           <div className="mt-2 flex items-end justify-between">
@@ -1014,7 +1014,7 @@ export function OpenStockTab({
             <Save className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success-fg">
               Draft recovery
             </div>
             <div className="mt-1 text-sm font-bold text-content-1">
@@ -1064,7 +1064,7 @@ export function OpenStockTab({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-order-fg">
+              <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-order-fg">
                 <ClipboardList className="h-4 w-4" />
                 Fast paste
               </div>
@@ -1092,7 +1092,7 @@ export function OpenStockTab({
               type="button"
               size="sm"
               onClick={applyQuickPaste}
-              className="rounded-xl bg-surface-3 text-white hover:bg-line"
+              className="rounded-xl bg-surface-3 text-white hover:bg-primary"
             >
               <ClipboardList className="mr-2 h-4 w-4" />
               Apply paste
@@ -1116,7 +1116,7 @@ export function OpenStockTab({
         <div className="space-y-3 rounded-[18px] border border-info-border bg-info-bg p-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
+              <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
                 <Upload className="h-4 w-4" />
                 Bulk upload
               </div>
@@ -1143,7 +1143,7 @@ export function OpenStockTab({
                       "noopener,noreferrer",
                     )
                   }
-                  className="inline-flex items-center gap-1 rounded-full border border-info-border bg-surface-1 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-primary hover:bg-info-bg"
+                  className="inline-flex items-center gap-1 rounded-full border border-info-border bg-surface-1 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary hover:bg-info-bg"
                 >
                   <Download className="h-3 w-3" />
                   {klass}
@@ -1239,7 +1239,7 @@ export function OpenStockTab({
       <div className="rounded-[22px] border border-line bg-surface-1 p-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
               Focused editor
             </div>
             <div className="mt-0.5 text-sm font-bold text-content-1">
@@ -1273,7 +1273,7 @@ export function OpenStockTab({
                   type="button"
                   onClick={() => setActiveCategory(item.key)}
                   className={cn(
-                    "inline-flex min-w-max items-center gap-2 rounded-xl border px-3 py-2 text-xs font-extrabold transition",
+                    "inline-flex min-w-max items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition",
                     active
                       ? "border-line-strong bg-surface-3 text-white shadow-sm"
                       : "border-line bg-surface-2 text-content-3 hover:border-line-strong hover:bg-surface-1",
@@ -1337,7 +1337,7 @@ export function OpenStockTab({
                       {list.length}
                     </Badge>
                   </div>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-white/75">
                     {rollList.length
                       ? "physical roll entry"
                       : "pooled stock entry"}
@@ -1522,7 +1522,7 @@ export function OpenStockTab({
                               className="rounded-2xl border border-info-border bg-info-bg p-3"
                             >
                               <div className="mb-2 flex items-center justify-between gap-2">
-                                <div className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.14em] text-primary">
+                                <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-primary">
                                   <Boxes className="h-4 w-4" />
                                   Roll {index + 1}
                                 </div>
@@ -1803,7 +1803,7 @@ function Field({
 }) {
   return (
     <label className="grid gap-1">
-      <span className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-content-3">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
         {label}
       </span>
       {children}

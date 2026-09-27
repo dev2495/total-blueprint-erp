@@ -214,16 +214,16 @@ export default function QuotationListPage() {
   return (
     <main className="mx-auto max-w-[1480px] px-5 py-7 lg:px-8 lg:py-8 space-y-6">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-order-fg via-order-fg to-order-fg p-6 text-white shadow-[0_24px_60px_-36px_rgba(79,70,229,0.6)]">
+      <section className="erp-hero relative overflow-hidden rounded-[28px] p-6 text-white">
         <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-surface-1/10 blur-3xl" />
         <div className="absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-order-fg blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[.22em] text-order-border">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-order-border">
               <span className="h-2 w-2 rounded-full bg-success-fg" />
               Quotations · Workspace
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight mt-1.5 flex items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight mt-1.5 flex items-center gap-3">
               <Sparkles className="h-7 w-7" strokeWidth={2.2} />
               Quotations
             </h1>
@@ -234,7 +234,7 @@ export default function QuotationListPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/sales/quotations/new"
-              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-surface-1 text-order-fg font-extrabold text-sm hover:bg-order-bg shadow-md"
+              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-surface-1 text-order-fg font-semibold text-sm hover:bg-order-bg shadow-md"
             >
               <Plus className="h-4 w-4" strokeWidth={2.5} />
               New Quotation
@@ -254,11 +254,11 @@ export default function QuotationListPage() {
                 key={s}
                 className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]"
               >
-                <div className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                   {style.label}
                 </div>
-                <div className="mt-2 text-2xl font-extrabold text-content-1 font-mono">
+                <div className="mt-2 text-2xl font-semibold text-content-1 font-mono">
                   {k.count}
                 </div>
                 <div className="mt-0.5 text-[12px] font-semibold text-content-3 font-mono">
@@ -292,7 +292,7 @@ export default function QuotationListPage() {
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className={`h-8 px-3 rounded-full text-[11px] font-extrabold uppercase tracking-wider ring-1 transition ${
+                  className={`h-8 px-3 rounded-full text-[11px] font-semibold uppercase tracking-wider ring-1 transition ${
                     active
                       ? "bg-surface-3 text-white ring-line-strong"
                       : "bg-surface-2 text-content-3 ring-line hover:bg-surface-2"
@@ -309,7 +309,7 @@ export default function QuotationListPage() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-content-4" />
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
               Date
             </span>
           </div>
@@ -325,7 +325,7 @@ export default function QuotationListPage() {
               <button
                 key={id}
                 onClick={() => setDateFilter(id)}
-                className={`h-7 px-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ring-1 transition ${
+                className={`h-7 px-2.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ring-1 transition ${
                   active
                     ? "bg-brand-navy text-white ring-brand-navy"
                     : "bg-surface-2 text-content-3 ring-line hover:bg-surface-2"
@@ -337,13 +337,13 @@ export default function QuotationListPage() {
           })}
           {selected.size > 0 ? (
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[11px] font-extrabold uppercase tracking-widest text-content-2">
+              <span className="text-[11px] font-semibold uppercase tracking-widest text-content-2">
                 {selected.size} selected
               </span>
               <button
                 onClick={() => bulkCloneMut.mutate(Array.from(selected))}
                 disabled={bulkCloneMut.isPending}
-                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-order-bg text-order-fg ring-1 ring-order-border font-extrabold text-[11px] uppercase hover:bg-order-bg disabled:opacity-60"
+                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-order-bg text-order-fg ring-1 ring-order-border font-semibold text-[11px] uppercase hover:bg-order-bg disabled:opacity-60"
               >
                 {bulkCloneMut.isPending ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -355,7 +355,7 @@ export default function QuotationListPage() {
               <button
                 onClick={() => bulkExpireMut.mutate(Array.from(selected))}
                 disabled={bulkExpireMut.isPending}
-                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-warning-bg text-warning-fg ring-1 ring-warning-border font-extrabold text-[11px] uppercase hover:bg-warning-bg disabled:opacity-60"
+                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-warning-bg text-warning-fg ring-1 ring-warning-border font-semibold text-[11px] uppercase hover:bg-warning-bg disabled:opacity-60"
               >
                 {bulkExpireMut.isPending ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -396,22 +396,22 @@ export default function QuotationListPage() {
           </div>
         ) : quoteQuery.isError ? (
           <div className="rounded-2xl bg-danger-bg ring-1 ring-danger-border p-8 text-center">
-            <div className="text-sm font-extrabold text-danger-fg">
+            <div className="text-sm font-semibold text-danger-fg">
               Couldn&apos;t load quotations.
             </div>
             <button
               onClick={() => quoteQuery.refetch()}
-              className="mt-3 inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-danger-solid text-white font-extrabold text-xs uppercase hover:bg-danger-solid"
+              className="mt-3 inline-flex items-center gap-2 h-9 px-3 rounded-lg bg-danger-solid text-white font-semibold text-xs uppercase hover:bg-danger-solid"
             >
               Retry
             </button>
           </div>
         ) : filtered.length === 0 && quotes.length === 0 ? (
           <div className="rounded-2xl bg-gradient-to-br from-order-bg via-white to-order-bg ring-1 ring-order-border p-12 text-center">
-            <div className="mx-auto h-20 w-20 rounded-3xl bg-gradient-to-br from-order-fg via-order-fg to-order-fg flex items-center justify-center text-white shadow-md">
+            <div className="erp-hero mx-auto h-20 w-20 rounded-3xl flex items-center justify-center text-white shadow-md">
               <Sparkles className="h-9 w-9" />
             </div>
-            <div className="mt-4 text-lg font-extrabold text-content-1">
+            <div className="mt-4 text-lg font-semibold text-content-1">
               No quotations yet
             </div>
             <p className="mt-1 text-sm font-semibold text-content-3">
@@ -420,7 +420,7 @@ export default function QuotationListPage() {
             </p>
             <Link
               href="/sales/quotations/new"
-              className="mt-5 inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-gradient-to-br from-order-fg via-order-fg to-order-fg text-white font-extrabold text-sm hover:opacity-95 shadow-md"
+              className="mt-5 inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-gradient-to-br from-order-fg via-order-fg to-order-fg text-white font-semibold text-sm hover:opacity-95 shadow-md"
             >
               <Plus className="h-4 w-4" strokeWidth={2.5} />
               Start your first quote
@@ -475,11 +475,11 @@ export default function QuotationListPage() {
                   >
                     <div className="flex flex-col gap-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-base font-extrabold text-content-1">
+                        <span className="font-mono text-base font-semibold text-content-1">
                           {q.quote_number}
                         </span>
                         <span
-                          className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${style.chip}`}
+                          className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider ${style.chip}`}
                         >
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${style.dot}`}
@@ -492,7 +492,7 @@ export default function QuotationListPage() {
                             : null;
                           if (cnt === null) return null;
                           return (
-                            <span className="inline-flex items-center h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-order-bg text-order-fg ring-1 ring-order-border">
+                            <span className="inline-flex items-center h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-order-bg text-order-fg ring-1 ring-order-border">
                               {cnt} lines
                             </span>
                           );
@@ -518,7 +518,7 @@ export default function QuotationListPage() {
                                 : `${days}d left`;
                           return (
                             <span
-                              className={`inline-flex items-center h-6 px-2 rounded-full text-[10px] font-extrabold uppercase tracking-wider ring-1 ${color}`}
+                              className={`inline-flex items-center h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider ring-1 ${color}`}
                             >
                               {label}
                             </span>
@@ -548,10 +548,10 @@ export default function QuotationListPage() {
                     className="flex items-center gap-3"
                   >
                     <div className="text-right">
-                      <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                         Total
                       </div>
-                      <div className="font-mono text-lg font-extrabold text-content-1">
+                      <div className="font-mono text-lg font-semibold text-content-1">
                         ₹ {formatInr(value)}
                       </div>
                     </div>

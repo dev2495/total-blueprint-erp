@@ -158,7 +158,7 @@ export default function LogisticsDashboard() {
                 Logistics Network
               </span>
             </div>
-            <h1 className="text-4xl font-black tracking-tight mb-2 text-content-1">
+            <h1 className="text-4xl font-semibold tracking-tight mb-2 text-content-1">
               Total Logistics Hub
             </h1>
             <p className="text-content-3 max-w-md font-medium">
@@ -195,7 +195,7 @@ export default function LogisticsDashboard() {
               >
                 {metric.label}
               </CardDescription>
-              <CardTitle className="text-3xl font-black text-content-1">
+              <CardTitle className="text-3xl font-semibold text-content-1">
                 {metric.value}
               </CardTitle>
             </CardHeader>
@@ -236,7 +236,7 @@ export default function LogisticsDashboard() {
         {/* Protocol Metrics Bar Chart */}
         <Card className="lg:col-span-2 border border-line shadow-sm bg-surface-1 rounded-2xl overflow-hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black text-content-1">
+            <CardTitle className="text-xl font-semibold text-content-1">
               Challan Flow Distribution
             </CardTitle>
             <CardDescription className="font-medium text-content-3">
@@ -312,7 +312,7 @@ export default function LogisticsDashboard() {
           <CardHeader className="pb-2 border-b border-line">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-black text-content-1">
+                <CardTitle className="text-lg font-semibold text-content-1">
                   Execution Ledger
                 </CardTitle>
                 <CardDescription className="text-xs font-bold text-content-4 uppercase tracking-wider">
@@ -329,11 +329,11 @@ export default function LogisticsDashboard() {
                 className="flex flex-col p-4 border-b border-line hover:bg-surface-2 transition-colors group"
               >
                 <div className="flex justify-between items-start mb-1">
-                  <span className="text-sm font-black text-content-1 font-mono group-hover:text-primary transition-colors">
+                  <span className="text-sm font-semibold text-content-1 font-mono group-hover:text-primary transition-colors">
                     {challan.dc_no}
                   </span>
                   <span
-                    className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                    className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md ${
                       challan.status === "DRAFT"
                         ? "bg-warning-bg text-warning-fg"
                         : challan.status === "DISPATCHED"
@@ -351,7 +351,7 @@ export default function LogisticsDashboard() {
                     {challan.customer_name}
                   </span>
                   {challan.vehicle_no && (
-                    <span className="text-[10px] font-black uppercase text-content-4 flex items-center gap-1">
+                    <span className="text-[10px] font-semibold uppercase text-content-4 flex items-center gap-1">
                       <Truck className="w-3 h-3" /> {challan.vehicle_no}
                     </span>
                   )}

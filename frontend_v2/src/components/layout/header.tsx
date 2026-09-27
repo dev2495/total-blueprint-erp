@@ -42,7 +42,7 @@ export function Header() {
   };
 
   return (
-    <header className="erp-glass-chrome fixed left-0 right-0 top-0 z-50 border-b border-surface-1/80 bg-surface-1/90 px-3 py-2 shadow-premium backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-150 md:left-4 md:right-4 md:top-3 md:rounded-3xl md:border md:px-4 md:py-3 md:hover:shadow-premium-hover lg:sticky lg:left-auto lg:right-auto lg:top-4 lg:mx-8 lg:px-6">
+    <header className="erp-glass-chrome fixed left-0 right-0 top-0 z-50 border-b border-line bg-surface-1/85 px-3 py-2 shadow-[var(--shadow-sm)] backdrop-blur-xl backdrop-saturate-150 transition-[background-color,border-color,box-shadow] duration-150 md:left-4 md:right-4 md:top-3 md:rounded-[18px] md:border md:px-4 md:py-2.5 lg:sticky lg:left-auto lg:right-auto lg:top-3 lg:mx-6 lg:px-4 xl:mx-8">
       <div className="flex w-full flex-col gap-2.5 lg:hidden">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -86,7 +86,7 @@ export function Header() {
               </SheetContent>
             </Sheet>
             <div className="min-w-0 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
-              <div className="truncate text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
+              <div className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                 Role
               </div>
               <div className="truncate text-[11px] font-bold text-content-2">
@@ -153,7 +153,7 @@ export function Header() {
           </div>
           <div className="hidden items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm 2xl:flex">
             <div aria-hidden="true" className="h-2 w-2 rounded-full bg-success-fg shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-            <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3 lg:text-[11px]">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 lg:text-[11px]">
               {getRoleDisplayName()}
             </span>
           </div>

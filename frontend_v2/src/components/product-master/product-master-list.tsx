@@ -348,7 +348,7 @@ export function ProductMasterListWorkspace() {
           type="button"
           onClick={() => setCatalogTab("active")}
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition",
+            "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition",
             catalogTab === "active"
               ? "bg-surface-3 text-white shadow-sm"
               : "text-content-3 hover:bg-surface-2 hover:text-content-1",
@@ -371,7 +371,7 @@ export function ProductMasterListWorkspace() {
           type="button"
           onClick={() => setCatalogTab("disabled")}
           className={cn(
-            "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-black transition",
+            "inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition",
             catalogTab === "disabled"
               ? "bg-surface-3 text-white shadow-sm"
               : "text-content-3 hover:bg-surface-2 hover:text-content-1",
@@ -401,7 +401,7 @@ export function ProductMasterListWorkspace() {
         {/* ─── Filter rail (sticky) ─── */}
         <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Filters
             </span>
             <button
@@ -440,7 +440,7 @@ export function ProductMasterListWorkspace() {
 
           {/* Kind */}
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
               Kind
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -469,7 +469,7 @@ export function ProductMasterListWorkspace() {
 
           {/* Reporting group */}
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
               Reporting group
             </div>
             <select
@@ -488,7 +488,7 @@ export function ProductMasterListWorkspace() {
 
           {/* Capabilities */}
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
               Capabilities
             </div>
             <FilterCheck
@@ -711,7 +711,7 @@ function ProductMasterCard({
           <div className="flex flex-wrap items-center gap-1">
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1 ring-inset",
+                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
                 meta.tone,
               )}
             >
@@ -719,7 +719,7 @@ function ProductMasterCard({
             </span>
             {hasCatalog && (
               <span
-                className="rounded-full bg-order-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-order-fg ring-1 ring-order-border"
+                className="rounded-full bg-order-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border"
                 title="Variant choices are pulled from a master catalog such as packaging, POD, or add-ons."
               >
                 CATALOG AXES
@@ -728,7 +728,7 @@ function ProductMasterCard({
             {needsCatalogLinks && (
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1",
+                  "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
                   catalogLinks > 0
                     ? "bg-success-bg text-success-fg ring-success-border"
                     : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -739,12 +739,12 @@ function ProductMasterCard({
               </span>
             )}
             {isPrint && (
-              <span className="rounded-full bg-order-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-order-fg ring-1 ring-order-border">
+              <span className="rounded-full bg-order-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border">
                 PRINT
               </span>
             )}
             {!master.active && (
-              <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-danger-fg ring-1 ring-danger-border">
+              <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger-fg ring-1 ring-danger-border">
                 INACTIVE
               </span>
             )}
@@ -764,7 +764,7 @@ function ProductMasterCard({
         </div>
         <span
           className={cn(
-            "flex-none rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1 ring-inset",
+            "flex-none rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
             readinessTone,
           )}
           title="Readiness uses route, size, and layer or variant facts only"
@@ -858,7 +858,7 @@ function ProductMasterCard({
           <button
             type="button"
             onClick={onClone}
-            className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-black text-content-2 ring-1 ring-line hover:bg-order-bg hover:text-order-fg hover:ring-order-border"
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-semibold text-content-2 ring-1 ring-line hover:bg-order-bg hover:text-order-fg hover:ring-order-border"
           >
             <Copy className="h-3 w-3" />
             Clone
@@ -868,7 +868,7 @@ function ProductMasterCard({
             onClick={onToggleActive}
             disabled={isToggling}
             className={cn(
-              "inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-black ring-1 disabled:opacity-60",
+              "inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-semibold ring-1 disabled:opacity-60",
               master.active
                 ? "text-warning-fg ring-warning-border hover:bg-warning-bg"
                 : "text-success-fg ring-success-border hover:bg-success-bg",
@@ -883,7 +883,7 @@ function ProductMasterCard({
           </button>
           <Link
             href={`/master/products/${master.id}`}
-            className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-3 px-2.5 text-[10px] font-black text-white hover:bg-line"
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-3 px-2.5 text-[10px] font-semibold text-white hover:bg-primary"
           >
             Open <ArrowRight className="h-3 w-3" />
           </Link>
@@ -920,7 +920,7 @@ function ReadinessPill({
 function Kvp({ label, v }: { label: string; v: number }) {
   return (
     <div className="bg-surface-1 px-3 py-2 text-center">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-4">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">
         {label}
       </div>
       <div className="font-display text-base font-bold text-content-1">{v}</div>

@@ -88,7 +88,7 @@ export function JobCard({ job }: JobCardProps) {
                     </span>
                     <Badge
                       variant="outline"
-                      className={`text-[9px] font-bold px-1.5 py-0 ${
+                      className={`text-[10px] font-bold px-1.5 py-0 ${
                         roll.status === "IN_PROCESS"
                           ? "bg-success-fg text-white border-transparent"
                           : roll.status === "CONSUMED"

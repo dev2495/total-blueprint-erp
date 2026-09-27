@@ -27,6 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { HealthBar, type HealthSegment } from "../HealthBar";
 import { InventorySelectDialog } from "../inventory-select-dialog";
 import { ArtworkPickerDialog } from "../artwork-picker-dialog";
+import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
 import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
 import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
 import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
@@ -334,6 +335,7 @@ export default function PlanQueueTab() {
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [releaseDialogOrder, setReleaseDialogOrder] = useState<PlannerControlOrder | null>(null);
     const [artworkDialogOrder, setArtworkDialogOrder] = useState<PlannerControlOrder | null>(null);
+    const [colorRevisionOrder, setColorRevisionOrder] = useState<PlannerControlOrder | null>(null);
     const savedViewQuery = useMemo(() => filtersToQuery(filters), [filters]);
 
     const serverFilters = useMemo(() => ({
@@ -652,7 +654,7 @@ export default function PlanQueueTab() {
                                 onChange={(event) => setFilters((f) => ({ ...f, overdueOnly: event.target.checked }))}
                                 style={{ width: 14, height: 14, accentColor: "var(--danger)" }}
                             />
-                            <span style={{ fontSize: 11, fontWeight: 850, color: filters.overdueOnly ? "var(--danger)" : "var(--text-2)" }}>Overdue only</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: filters.overdueOnly ? "var(--danger)" : "var(--text-2)" }}>Overdue only</span>
                         </label>
                     </FilterGroup>
                 </div>
@@ -695,6 +697,7 @@ export default function PlanQueueTab() {
                             loadingDetail={selectedDetailQ.isFetching && !selectedDetailQ.data?.detail_order}
                             onOpenRelease={() => setReleaseDialogOrder(selectedDetail)}
                             onOpenArtwork={() => setArtworkDialogOrder(selectedDetail)}
+                            onOpenColorRevision={() => setColorRevisionOrder(selectedDetail)}
                             onInvalidate={invalidateAll}
                         />
                     ) : (
@@ -711,6 +714,11 @@ export default function PlanQueueTab() {
                 onCommitted={invalidateAll}
             />
             <ArtworkPickerDialog order={artworkDialogOrder} onClose={() => setArtworkDialogOrder(null)} />
+            <PrintColorRevisionDialog
+                order={colorRevisionOrder}
+                onClose={() => setColorRevisionOrder(null)}
+                onCommitted={invalidateAll}
+            />
         </div>
     );
 }
@@ -798,7 +806,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
 
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8, marginBottom: 8, flexWrap: "wrap" }}>
                 <span style={{
-                    fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                    fontSize: 9, fontWeight: 650, padding: "2px 8px",
                     borderRadius: "var(--r-pill)",
                     background: sourceTag.bg, color: sourceTag.fg,
                 }}>
@@ -806,7 +814,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
                 </span>
                 {o.line_status_display && (
                     <span style={{
-                        fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                        fontSize: 9, fontWeight: 650, padding: "2px 8px",
                         borderRadius: "var(--r-pill)",
                         background: "var(--surface-2)", color: "var(--text-2)",
                         border: "1px solid var(--border-soft)",
@@ -816,7 +824,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
                 )}
                 {partialReplan && (
                     <span style={{
-                        fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                        fontSize: 9, fontWeight: 650, padding: "2px 8px",
                         borderRadius: "var(--r-pill)",
                         background: "rgba(245,158,11,.12)", color: "var(--warning)",
                         border: "1px solid rgba(245,158,11,.25)",
@@ -861,11 +869,12 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
 
 // ----------------- Order detail panel -----------------
 
-function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenArtwork, onInvalidate }: {
+function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenArtwork, onOpenColorRevision, onInvalidate }: {
     order: PlannerControlOrder;
     loadingDetail?: boolean;
     onOpenRelease: () => void;
     onOpenArtwork: () => void;
+    onOpenColorRevision: () => void;
     onInvalidate: () => void;
 }) {
     const { toast } = useToast();
@@ -906,6 +915,10 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const artworkCopy = artworkGateCopy(order, factSheet, printingSnap, artworkRequired, artworkAssigned);
     const packagingInfo = packagingInnerPackInfo(packagingSnap);
     const artworkPreview = order.artwork_preview || null;
+    const colorRevision = printingSnap?.color_revision || null;
+    const releasedColorWindow = Number(order.jobs_released || 0) > 0
+        || ["RELEASED", "IN_PRODUCTION"].includes(lineStatus)
+        || ["RELEASED", "IN_PRODUCTION"].includes(String(order.status || "").toUpperCase());
 
     const cancelLineMutation = useMutation({
         mutationFn: async () => {
@@ -1049,7 +1062,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                             <span style={{
                                                 display: "inline-flex", alignItems: "center", gap: 5,
                                                 padding: "3px 10px",
-                                                fontSize: 11, fontWeight: 800,
+                                                fontSize: 11, fontWeight: 650,
                                                 textTransform: "uppercase", letterSpacing: ".05em",
                                                 borderRadius: "var(--r-pill)",
                                                 background: c.bg, color: c.fg,
@@ -1122,7 +1135,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
                             <div className="t-eyebrow">Sales line lifecycle</div>
-                            <div style={{ marginTop: 5, fontSize: 15, fontWeight: 800, color: "var(--text-1)" }}>
+                            <div style={{ marginTop: 5, fontSize: 15, fontWeight: 650, color: "var(--text-1)" }}>
                                 {order.line_label || order.display_name || order.order_number}
                             </div>
                             <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -1450,6 +1463,28 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                 </Card>
             )}
 
+            {printingOn && artworkAssigned && releasedColorWindow && (
+                <Card style={{ borderColor: "rgba(37,99,235,.30)", background: "linear-gradient(135deg, rgba(239,246,255,.84), rgba(245,243,255,.84))" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <div className="t-eyebrow" style={{ color: "var(--br-700)" }}>Live print color contract</div>
+                            <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700, color: "var(--text-1)", lineHeight: 1.25 }}>
+                                {printColors || "Color names pending"}
+                            </div>
+                            <div style={{ marginTop: 5, fontSize: 11, fontWeight: 650, color: "var(--text-3)" }}>
+                                {colorRevision
+                                    ? `Revision v${colorRevision.revision_no} · ${colorRevision.reason} · previous colors remain visible downstream`
+                                    : "Released contract · Planner may revise color names only; all other production specs stay locked."}
+                            </div>
+                        </div>
+                        <Button variant="primary" onClick={onOpenColorRevision}>
+                            <Printer size={14} style={{ marginRight: 6 }} />
+                            Revise colors only
+                        </Button>
+                    </div>
+                </Card>
+            )}
+
             {/* Release Checklist + CTA */}
             <Card>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1545,7 +1580,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                         }}
                     >
                         <div className="t-eyebrow">{resolutionMode === "cancel" ? "Cancel sales line" : "Short-close sales line"}</div>
-                        <div style={{ marginTop: 6, fontSize: 18, fontWeight: 800, color: "var(--text-1)" }}>
+                        <div style={{ marginTop: 6, fontSize: 18, fontWeight: 650, color: "var(--text-1)" }}>
                             {order.line_label || order.display_name || order.order_number}
                         </div>
                         <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-3)" }}>
@@ -1667,10 +1702,10 @@ function ArtworkPreviewTile({ preview }: { preview: NonNullable<PlannerControlOr
                     )}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--br-700)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--br-700)" }}>
                         Artwork
                     </div>
-                    <div style={{ marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 800, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 650, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {code || "Assigned"}
                     </div>
                     {(name || colors > 0) && (

@@ -310,7 +310,7 @@ export function ProductMasterCreateModal({
       <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-3xl border-none p-0 shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
         <div className="shrink-0 bg-gradient-to-br from-primary via-order-fg to-order-fg px-6 py-5 text-white">
           <DialogHeader className="space-y-1 border-none pb-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
               Master · Product
             </div>
             <DialogTitle className="font-display text-2xl font-bold leading-tight text-white">
@@ -325,7 +325,7 @@ export function ProductMasterCreateModal({
         </div>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6">
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Product kind
             </Label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -406,7 +406,7 @@ export function ProductMasterCreateModal({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Master code
               </Label>
               <Input
@@ -417,7 +417,7 @@ export function ProductMasterCreateModal({
               />
             </div>
             <div>
-              <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Reporting group
               </Label>
               <Select
@@ -437,7 +437,7 @@ export function ProductMasterCreateModal({
               </Select>
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Master name
               </Label>
               <Input
@@ -448,7 +448,7 @@ export function ProductMasterCreateModal({
               />
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Live route / template
               </Label>
               <Select
@@ -496,7 +496,7 @@ export function ProductMasterCreateModal({
             <div className="space-y-3 rounded-2xl border border-info-border bg-info-bg p-3 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+                  <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                     Number of layers
                   </Label>
                   <div className="mt-0.5 text-[11px] text-primary">
@@ -505,7 +505,7 @@ export function ProductMasterCreateModal({
                     and layer axes.
                   </div>
                 </div>
-                <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-primary ring-1 ring-info-border">
+                <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary ring-1 ring-info-border">
                   workspace setup
                 </span>
               </div>
@@ -520,7 +520,7 @@ export function ProductMasterCreateModal({
                   -
                 </Button>
                 <div className="text-center">
-                  <div className="font-display text-3xl font-black text-content-1">
+                  <div className="font-display text-3xl font-semibold text-content-1">
                     {layerCount}
                   </div>
                   <div className="text-[11px] font-semibold text-content-3">
@@ -543,7 +543,7 @@ export function ProductMasterCreateModal({
               </div>
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Description (optional)
               </Label>
               <Textarea
@@ -563,7 +563,7 @@ export function ProductMasterCreateModal({
                   policies pass validation.
                 </div>
               </div>
-              <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg ring-1 ring-warning-border">
+              <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg ring-1 ring-warning-border">
                 hidden
               </span>
             </div>

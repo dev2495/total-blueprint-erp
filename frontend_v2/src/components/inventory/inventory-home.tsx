@@ -635,7 +635,7 @@ export function InventoryHomeV36() {
         {/* Filter rail */}
         <aside className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Filters
             </span>
             <button
@@ -669,7 +669,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
               Class
             </div>
             <div className="flex flex-col gap-1">
@@ -717,7 +717,7 @@ export function InventoryHomeV36() {
                   <span>{c.label}</span>
                   <span
                     className={cn(
-                      "rounded px-1.5 py-0.5 text-[10px] font-black",
+                      "rounded px-1.5 py-0.5 text-[10px] font-semibold",
                       classFilter === c.id ? "bg-surface-1/20" : "bg-surface-2",
                     )}
                   >
@@ -729,7 +729,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
               Location
             </div>
             <select
@@ -747,7 +747,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
               Aging
             </div>
             <div className="grid grid-cols-2 gap-1 text-[11px]">
@@ -794,7 +794,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4 rounded-xl border border-order-border bg-order-bg p-3">
-            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-order-fg">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-order-fg">
               <Sparkles className="h-3 w-3" /> Reservations
             </div>
             <p className="mt-1 text-[10px] leading-snug text-order-fg">
@@ -881,7 +881,7 @@ export function InventoryHomeV36() {
       >
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-2.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Filtered stock
             </span>
             <span className="rounded-full bg-order-bg px-2.5 py-0.5 font-bold text-order-fg ring-1 ring-order-border">
@@ -917,30 +917,23 @@ interface KpiTileProps {
   sub: string;
 }
 function KpiTile({ tone, icon, label, value, unit, sub }: KpiTileProps) {
-  const TONE = {
-    blue: "from-primary via-order-fg to-order-fg ring-primary",
-    violet: "from-order-fg via-order-fg to-danger-solid ring-order-border",
-    amber: "from-warning-fg via-warm to-danger-solid ring-warning-border",
-    emerald: "from-success-fg via-info-fg to-info-fg ring-success-border",
+  const ACCENT = {
+    blue: "bg-info-bg text-info-fg ring-info-border",
+    violet: "bg-order-bg text-order-fg ring-order-border",
+    amber: "bg-warning-bg text-warning-fg ring-warning-border",
+    emerald: "bg-success-bg text-success-fg ring-success-border",
   }[tone];
   return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-2xl ring-1 hover:shadow-2xl",
-        TONE,
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
-          {label}
-        </div>
-        <span className="text-2xl">{icon}</span>
+    <div className="rounded-[16px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-[12px] font-medium text-content-3">{label}</div>
+        <span className={cn("grid h-8 w-8 place-items-center rounded-lg text-[15px] ring-1", ACCENT)}>{icon}</span>
       </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className="font-display text-4xl font-black">{value}</span>
-        <span className="text-sm font-bold text-white/80">{unit}</span>
+      <div className="mt-2 flex items-baseline gap-1.5">
+        <span className="text-[26px] font-semibold leading-none tracking-[-0.03em] text-content-1 tabular-nums">{value}</span>
+        <span className="text-[13px] font-medium text-content-3">{unit}</span>
       </div>
-      <div className="mt-1 text-xs text-white/80">{sub}</div>
+      <div className="mt-2 text-[12px] text-content-3">{sub}</div>
     </div>
   );
 }
@@ -1111,7 +1104,7 @@ function RollMatrixSection({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
                 Total
               </td>
               {matrix.cols.map((c) => (
@@ -1247,7 +1240,7 @@ function BulkSection({
                       {r.material_code || r.code || "—"}
                     </td>
                     <td className="px-3 py-2">
-                      <span className="rounded-md bg-order-bg px-1.5 py-0.5 font-mono text-[10px] font-black text-order-fg ring-1 ring-order-border">
+                      <span className="rounded-md bg-order-bg px-1.5 py-0.5 font-mono text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
                         {bulkStockCode(r)}
                       </span>
                     </td>
@@ -1350,7 +1343,7 @@ function PackagingSection({
         <div>
           <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-2 sm:divide-x sm:divide-y-0">
             <div className="p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg mb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
                 Inner pouches
               </div>
               {innerPouches.length ? (
@@ -1364,7 +1357,7 @@ function PackagingSection({
               )}
             </div>
             <div className="p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg mb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
                 Outer / shipping
               </div>
               {outers.length ? (
@@ -1380,7 +1373,7 @@ function PackagingSection({
             {others.length > 0 && (
               <div className="p-4 sm:col-span-2 border-t border-line">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
                     Other packing
                   </span>
                   <span className="text-[10px] text-content-3">
@@ -1628,7 +1621,7 @@ function SectionShell({
             {icon}
           </span>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               {eyebrow}
             </div>
             <h2 className="font-display text-lg font-bold text-content-1">
@@ -1682,7 +1675,7 @@ function CellDrawer({
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Roll cell drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1">
@@ -1702,7 +1695,7 @@ function CellDrawer({
           {cell && (
             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[9px] font-black uppercase text-content-3">
+                <div className="text-[10px] font-semibold uppercase text-content-3">
                   Rolls
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1710,7 +1703,7 @@ function CellDrawer({
                 </div>
               </div>
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[9px] font-black uppercase text-content-3">
+                <div className="text-[10px] font-semibold uppercase text-content-3">
                   Total KG
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1721,7 +1714,7 @@ function CellDrawer({
           )}
         </div>
         <div className="px-5 py-4">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
             Individual rolls
           </div>
           {!cell || cell.rollCount === 0 ? (
@@ -1806,7 +1799,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Stock by age
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -1846,7 +1839,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Stock by class
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -1881,7 +1874,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Movement pulse
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -1964,7 +1957,7 @@ function Donut({
         y="44"
         textAnchor="middle"
         className="font-display fill-content-1"
-        style={{ fontSize: 16, fontWeight: 800 }}
+        style={{ fontSize: 16, fontWeight: 650 }}
       >
         {total === 1 ? 0 : total}
       </text>
@@ -2058,7 +2051,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                 Bulk stock drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1 truncate">
@@ -2111,7 +2104,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
 
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Vendor &amp; details
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -2134,7 +2127,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               Sales reservations holding this stock row
             </div>
             {rsvQuery.isLoading && (
@@ -2209,7 +2202,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-warning-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
                 Packaging drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1 truncate">
@@ -2246,7 +2239,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Specs
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -2260,7 +2253,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               SO holds
             </div>
             {rsvQuery.isLoading && (
@@ -2321,7 +2314,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="font-display text-sm font-bold mt-0.5">{value}</div>
@@ -2332,7 +2325,7 @@ function Stat({
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="text-[12px] font-bold text-content-2 truncate">
@@ -2446,53 +2439,30 @@ function WorkspaceLauncher({
     },
   ];
   return (
-    <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
-            Drill into
-          </div>
-          <h3 className="font-display text-base font-bold text-content-1">
-            Dedicated workspaces
-          </h3>
-        </div>
-        <span className="text-[10px] text-content-3">
-          Rolls, bulk &amp; packaging: filters · saved views · table/grid
-        </span>
+    <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-[14.5px] font-semibold tracking-[-0.01em] text-content-1">Dedicated workspaces</h3>
+        <span className="text-[12px] text-content-3">Filters, saved views, table or grid</span>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {TILES.map((t) => (
           <Link
             key={t.href}
             href={t.href}
-            className={cn(
-              "overflow-hidden rounded-2xl bg-gradient-to-br p-3.5 text-white shadow-md ring-1 ring-surface-1/10 hover:shadow-2xl",
-              t.tone,
-            )}
+            className="group rounded-2xl border border-line bg-surface-1 p-3.5 transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:border-line-strong hover:shadow-[var(--shadow-md)]"
           >
             <div className="flex items-start justify-between">
-              <span className="text-2xl">{t.icon}</span>
-              <ArrowRight className="h-4 w-4 text-white/80" />
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-2 text-[17px] ring-1 ring-line">{t.icon}</span>
+              <ArrowRight className="h-4 w-4 text-content-4 transition group-hover:translate-x-0.5 group-hover:text-content-1" />
             </div>
-            <div className="mt-2 font-display text-base font-bold leading-tight">
-              {t.title}
-            </div>
-            <div className="mt-0.5 text-[10px] text-white/80 leading-snug">
-              {t.subtitle}
-            </div>
+            <div className="mt-2.5 text-[13.5px] font-semibold leading-tight text-content-1">{t.title}</div>
+            <div className="mt-0.5 text-[11.5px] leading-snug text-content-3">{t.subtitle}</div>
             {t.kpis.length > 0 && (
               <div className="mt-2.5 grid grid-cols-2 gap-1.5">
                 {t.kpis.map((k, i) => (
-                  <div
-                    key={i}
-                    className="rounded-md bg-surface-1/15 px-1.5 py-0.5 backdrop-blur-sm"
-                  >
-                    <div className="text-[9px] font-black uppercase tracking-wider text-white/80">
-                      {k.label}
-                    </div>
-                    <div className="font-mono text-[11px] font-bold">
-                      {k.value}
-                    </div>
+                  <div key={i} className="rounded-lg bg-surface-2 px-2 py-1">
+                    <div className="text-[10.5px] text-content-3">{k.label}</div>
+                    <div className="text-[12px] font-semibold tabular-nums text-content-1">{k.value}</div>
                   </div>
                 ))}
               </div>

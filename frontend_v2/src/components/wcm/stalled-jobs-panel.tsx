@@ -61,7 +61,7 @@ export function StalledJobsPanel({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-warning-fg px-2.5 py-1 font-mono text-xs font-bold tabular-nums text-warning-fg ring-1 ring-warning-border">
+          <span className="rounded-full bg-warning-bg px-2.5 py-1 font-mono text-xs font-bold tabular-nums text-warning-fg ring-1 ring-warning-border">
             {rows.length}
           </span>
           {onRefresh ? (

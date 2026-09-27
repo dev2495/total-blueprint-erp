@@ -186,7 +186,7 @@ function ReorderRow({
       <td className="px-3 py-3 align-middle text-right">
         <Button
           size="sm"
-          className="h-8 rounded-full bg-surface-3 text-white hover:bg-line"
+          className="h-8 rounded-full bg-surface-3 text-white hover:bg-primary"
           disabled={saving}
           onClick={save}
         >
@@ -258,14 +258,14 @@ export default function ReorderPolicyPage() {
 
   return (
     <div className="min-h-screen space-y-6 bg-surface-2 p-6">
-      <section className="rounded-[2rem] border border-line bg-gradient-to-br from-surface-3 via-surface-3 to-surface-3 px-8 py-7 text-white shadow-lg">
+      <section className="erp-hero rounded-[2rem] border px-8 py-7 text-white shadow-lg">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/90">
+            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/90">
               <ShieldCheck className="h-3.5 w-3.5" />
               System Settings
             </div>
-            <h1 className="mt-3 text-3xl font-black tracking-tight">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight">
               Reorder &amp; safety stock policy
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-content-4">
@@ -331,7 +331,7 @@ export default function ReorderPolicyPage() {
 
       <Card className="border-line">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg font-black text-content-1">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold text-content-1">
             <Filter className="h-5 w-5 text-primary" />
             Filter
           </CardTitle>
@@ -374,7 +374,7 @@ export default function ReorderPolicyPage() {
       <Card className="border-line">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-lg font-black text-content-1">
+            <CardTitle className="text-lg font-semibold text-content-1">
               Materials
             </CardTitle>
             <CardDescription>
@@ -452,11 +452,11 @@ function StatCard({
   return (
     <Card className={`rounded-2xl ${toneClasses}`}>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-content-3">
+        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-content-3">
           {icon}
           {label}
         </div>
-        <div className="mt-2 font-mono text-3xl font-black tracking-tight text-content-1">
+        <div className="mt-2 font-mono text-3xl font-semibold tracking-tight text-content-1">
           {value}
         </div>
         {hint ? (

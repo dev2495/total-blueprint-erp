@@ -65,3 +65,5 @@ wc_perf.json
 /tmp_*.js
 *.bad
 frontend_v2/tmp_ui_probe.mjs
+.env.local-polish
+.claude/

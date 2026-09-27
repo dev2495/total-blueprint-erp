@@ -48,7 +48,7 @@ export function Cart({
       <div className="overflow-hidden rounded-[18px] border border-line bg-surface-1 shadow-sm">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <div>
-            <div className="text-sm font-black text-content-1">Lines</div>
+            <div className="text-sm font-semibold text-content-1">Lines</div>
             <div className="text-[11px] font-semibold text-content-3">
               The same label carries into planner, WCM, packing and dispatch.
             </div>
@@ -59,7 +59,7 @@ export function Cart({
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-order-bg ring-1 ring-order-border">
               <ShoppingBag className="h-7 w-7 text-order-fg" />
             </div>
-            <div className="mt-4 text-base font-black text-content-1">
+            <div className="mt-4 text-base font-semibold text-content-1">
               Start the first production line
             </div>
             <p className="mt-1 text-sm text-content-3">
@@ -80,7 +80,7 @@ export function Cart({
               <span className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-1 text-primary ring-1 ring-info-border">
                 <Package className="h-6 w-6" />
               </span>
-              <div className="mt-3 text-sm font-black text-content-1">
+              <div className="mt-3 text-sm font-semibold text-content-1">
                 Live BOM preview
               </div>
               <div className="mt-1 max-w-[240px] text-xs font-semibold leading-5 text-content-3">
@@ -116,7 +116,7 @@ export function Cart({
       <div className="overflow-hidden rounded-[16px] border border-line bg-surface-1 shadow-sm">
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <div>
-            <div className="text-sm font-black text-content-1">Lines</div>
+            <div className="text-sm font-semibold text-content-1">Lines</div>
             <div className="text-[11px] font-semibold text-content-3">
               The same label carries into planner, WCM, packing and dispatch.
             </div>
@@ -146,7 +146,7 @@ export function Cart({
           <div className="min-w-[1120px]">
             <div
               className={cn(
-                "grid bg-surface-2 text-[10px] font-black uppercase tracking-[0.14em] text-content-4",
+                "grid bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-content-4",
                 LINE_TABLE_GRID,
               )}
             >
@@ -183,7 +183,7 @@ export function Cart({
                   <LineCell first isActive={isActive}>
                     <span
                       className={cn(
-                        "grid h-7 w-7 place-items-center rounded-lg text-[12px] font-black",
+                        "grid h-7 w-7 place-items-center rounded-lg text-[12px] font-semibold",
                         isActive
                           ? "bg-primary text-white"
                           : "bg-surface-2 text-content-3 ring-1 ring-line",
@@ -194,7 +194,7 @@ export function Cart({
                   </LineCell>
                   <LineCell isActive={isActive}>
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-content-1">
+                      <div className="truncate text-sm font-semibold text-content-1">
                         {line.line_label || master?.name || "New sales product"}
                       </div>
                       <div className="truncate font-mono text-[10px] font-bold text-content-3">
@@ -208,7 +208,7 @@ export function Cart({
                   <LineCell isActive={isActive}>
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-1 text-[10px] font-black ring-1",
+                        "inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ring-1",
                         line.artwork_mode === "DEFER"
                           ? "bg-warning-bg text-warning-fg ring-warning-border"
                           : line.artwork_assignment?.artwork_id
@@ -224,14 +224,14 @@ export function Cart({
                     </span>
                   </LineCell>
                   <LineCell isActive={isActive}>
-                    <span className="font-mono text-sm font-black text-content-1">
+                    <span className="font-mono text-sm font-semibold text-content-1">
                       {line.qty_value > 0
                         ? `${Number(line.qty_value).toLocaleString()} ${line.qty_uom}`
                         : "—"}
                     </span>
                   </LineCell>
                   <LineCell isActive={isActive}>
-                    <span className="font-mono text-sm font-black text-content-1">
+                    <span className="font-mono text-sm font-semibold text-content-1">
                       {lineTotal > 0
                         ? `₹${Math.round(lineTotal).toLocaleString("en-IN")}`
                         : "—"}
@@ -240,7 +240,7 @@ export function Cart({
                   <LineCell isActive={isActive}>
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-black ring-1",
+                        "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ring-1",
                         issues.length
                           ? "bg-danger-bg text-danger-fg ring-danger-border"
                           : "bg-success-bg text-success-fg ring-success-border",
@@ -269,10 +269,10 @@ export function Cart({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] border border-line bg-surface-1 px-4 py-2.5 shadow-sm">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-order-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Line {activeIndex + 1} · build
               </div>
-              <div className="truncate text-sm font-black text-content-1">
+              <div className="truncate text-sm font-semibold text-content-1">
                 {activeLine.line_label ||
                   activeMaster?.name ||
                   "Enter qty, price, order-ready Product Master, axes, artwork and packing"}
@@ -390,7 +390,7 @@ function SpecSpine({
         <span
           key={`${token.tone}-${token.label}`}
           className={cn(
-            "max-w-[180px] truncate rounded-full px-2 py-1 font-mono text-[10px] font-black ring-1",
+            "max-w-[180px] truncate rounded-full px-2 py-1 font-mono text-[10px] font-semibold ring-1",
             token.tone === "blue" &&
               "bg-info-bg text-primary ring-info-border",
             token.tone === "green" &&

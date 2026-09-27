@@ -773,7 +773,7 @@ export function StockLifecycleWorkspace() {
                   data-testid={`stock-lifecycle-tab-${tab.key}`}
                   onClick={() => setActiveTab(tab.key)}
                   className={cn(
-                    "inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-extrabold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-line-strong",
+                    "inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-line-strong",
                     active
                       ? "bg-surface-3 text-white shadow-[0_14px_28px_-18px_rgba(15,23,42,0.8)]"
                       : "border border-line bg-surface-1 text-content-3 hover:border-line-strong hover:bg-surface-2",
@@ -826,7 +826,7 @@ export function StockLifecycleWorkspace() {
             <Button
               type="button"
               onClick={exportCurrentView}
-              className="h-10 rounded-xl bg-surface-3 px-4 text-xs font-extrabold text-white hover:bg-line"
+              className="h-10 rounded-xl bg-surface-3 px-4 text-xs font-semibold text-white hover:bg-primary"
             >
               <Download className="mr-2 h-4 w-4" />
               Export
@@ -937,15 +937,15 @@ function Hero({
   loading: boolean;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-order-fg via-order-fg to-order-fg p-6 text-white shadow-[0_26px_70px_-42px_rgba(15,23,42,0.45)]">
+    <section className="erp-hero relative overflow-hidden rounded-[26px] p-6 text-white">
       <div className="absolute -right-16 -top-16 h-60 w-60 rounded-full bg-surface-1/10 blur-3xl" />
       <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-order-border dark:text-white/80">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-order-border dark:text-white/80">
             <span className="h-2 w-2 rounded-full bg-success-fg" />
             Stock Lifecycle · Inventory Control Cockpit
           </div>
-          <h1 className="mt-1.5 max-w-5xl text-3xl font-extrabold tracking-tight sm:text-4xl">
+          <h1 className="mt-1.5 max-w-5xl text-3xl font-semibold tracking-tight sm:text-4xl">
             Open · Count · Close — plus the analytics that were missing.
           </h1>
           <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-order-border dark:text-white/90">
@@ -1029,7 +1029,7 @@ function HeroMetric({
       </div>
       <div
         className={cn(
-          "mt-1 font-mono text-2xl font-extrabold",
+          "mt-1 font-mono text-2xl font-semibold",
           tone === "amber" && "text-warning-border",
         )}
       >
@@ -1062,7 +1062,7 @@ function StatusChip({
   return (
     <span
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[11px] font-extrabold ring-1",
+        "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold ring-1",
         className,
       )}
     >
@@ -1241,7 +1241,7 @@ function KpiCard({
     >
       <div
         className={cn(
-          "text-[10px] font-extrabold uppercase tracking-[0.13em]",
+          "text-[10px] font-semibold uppercase tracking-[0.08em]",
           tone === "amber" ? "text-warning-fg" : "text-content-3",
         )}
       >
@@ -1249,7 +1249,7 @@ function KpiCard({
       </div>
       <div
         className={cn(
-          "mt-1 font-mono text-xl font-extrabold",
+          "mt-1 font-mono text-xl font-semibold",
           tone === "amber" ? "text-warning-fg" : "text-content-1",
         )}
       >
@@ -1300,10 +1300,10 @@ function ValueMix({
         >
           <div className="grid h-[90px] w-[90px] place-items-center rounded-full bg-surface-1 text-center">
             <div>
-              <div className="font-mono text-base font-extrabold">
+              <div className="font-mono text-base font-semibold">
                 {money(total, true)}
               </div>
-              <div className="text-[9px] font-bold uppercase text-content-4">
+              <div className="text-[10px] font-bold uppercase text-content-4">
                 Total
               </div>
             </div>
@@ -1509,10 +1509,10 @@ function MovementWaterfall({
   return (
     <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
           Movement this period · opening + ins - outs +/- adjustments = closing
         </div>
-        <span className="inline-flex h-7 items-center rounded-full bg-surface-2 px-3 text-[11px] font-extrabold text-content-3">
+        <span className="inline-flex h-7 items-center rounded-full bg-surface-2 px-3 text-[11px] font-semibold text-content-3">
           {financialYear} · {plantLabel}
         </span>
       </div>
@@ -1529,7 +1529,7 @@ function MovementWaterfall({
                 style={{ height }}
               />
               <div
-                className={cn("truncate text-[10px] font-extrabold", row.text)}
+                className={cn("truncate text-[10px] font-semibold", row.text)}
               >
                 {row.label}
               </div>
@@ -1594,7 +1594,7 @@ function DeadStock({
 }) {
   return (
     <div className="rounded-[18px] border border-warning-border bg-warning-bg p-4 shadow-sm">
-      <div className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.13em] text-warning-fg">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-warning-fg">
         Dead stock · no movement 90d+
       </div>
       {rows.length ? (
@@ -1640,7 +1640,7 @@ function Panel({
 }) {
   return (
     <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-      <div className="mb-3 text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
         {title}
       </div>
       {children}
@@ -1667,7 +1667,7 @@ function LifecycleTabShell({
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-xl font-extrabold tracking-tight text-content-1">
+            <h2 className="text-xl font-semibold tracking-tight text-content-1">
               {title}
             </h2>
             <p className="mt-1 max-w-4xl text-sm font-semibold leading-6 text-content-3">
@@ -1675,7 +1675,7 @@ function LifecycleTabShell({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-success-border bg-success-bg px-3 py-1.5 text-[11px] font-extrabold text-success-fg">
+        <div className="flex items-center gap-2 rounded-full border border-success-border bg-success-bg px-3 py-1.5 text-[11px] font-semibold text-success-fg">
           <CheckCircle2 className="h-3.5 w-3.5" />
           Live backend workflow
         </div>
@@ -1884,7 +1884,7 @@ function SnapshotsPanel({
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="font-mono text-lg font-extrabold">
+                  <div className="font-mono text-lg font-semibold">
                     {period.financial_year}
                   </div>
                   {period.status === "CLOSED" ? (
@@ -1929,12 +1929,12 @@ function SnapshotsPanel({
                       : "border-line bg-surface-2 hover:border-line-strong",
                 )}
               >
-                <div className="text-sm font-extrabold text-content-1">
+                <div className="text-sm font-semibold text-content-1">
                   {month.label}
                 </div>
                 <div
                   className={cn(
-                    "mt-1 text-[10px] font-extrabold uppercase",
+                    "mt-1 text-[10px] font-semibold uppercase",
                     month.counted
                       ? "text-success-fg"
                       : month.snapshot
@@ -1958,7 +1958,7 @@ function SnapshotsPanel({
             <div className="mt-4 rounded-2xl border border-line bg-surface-1 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-sm font-extrabold text-content-1">
+                  <div className="text-sm font-semibold text-content-1">
                     {selectedMonth.label} month close
                   </div>
                   <div className="mt-1 text-xs font-semibold leading-5 text-content-3">
@@ -1977,7 +1977,7 @@ function SnapshotsPanel({
                     monthSnapshotMutation.isPending
                   }
                   onClick={() => monthSnapshotMutation.mutate()}
-                  className="h-10 rounded-xl bg-surface-3 px-4 text-xs font-extrabold text-white hover:bg-line"
+                  className="h-10 rounded-xl bg-surface-3 px-4 text-xs font-semibold text-white hover:bg-primary"
                   title={
                     selectedMonth.isCurrent
                       ? "Capture current live stock as this month's snapshot"
@@ -2020,7 +2020,7 @@ function SnapshotsPanel({
                 type="button"
                 variant="outline"
                 onClick={() => setMonthProofOpen(true)}
-                className="mt-3 h-9 w-full rounded-xl text-xs font-extrabold"
+                className="mt-3 h-9 w-full rounded-xl text-xs font-semibold"
               >
                 <FileText className="mr-2 h-4 w-4" />
                 View month proof
@@ -2034,7 +2034,7 @@ function SnapshotsPanel({
         <Panel title="Audit sheet history">
           {actionBatches.length ? (
             <div className="mb-4 rounded-2xl border border-warning-border bg-warning-bg p-3">
-              <div className="text-xs font-extrabold uppercase tracking-[0.13em] text-warning-fg">
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-warning-fg">
                 Action required before FY close
               </div>
               <div className="mt-2 grid gap-2">
@@ -2044,7 +2044,7 @@ function SnapshotsPanel({
                     className="flex flex-col gap-2 rounded-xl bg-surface-1 p-3 ring-1 ring-warning-border sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-extrabold text-content-1">
+                      <div className="truncate text-sm font-semibold text-content-1">
                         {batch.batch_no || batchLabel(batch)}
                       </div>
                       <div className="mt-1 text-[11px] font-bold text-warning-fg">
@@ -2057,7 +2057,7 @@ function SnapshotsPanel({
                         type="button"
                         size="sm"
                         onClick={() => setSelectedBatchId(String(batch.id))}
-                        className="h-8 rounded-xl bg-surface-3 px-3 text-xs font-extrabold text-white hover:bg-line"
+                        className="h-8 rounded-xl bg-surface-3 px-3 text-xs font-semibold text-white hover:bg-primary"
                       >
                         Open sheet
                       </Button>
@@ -2067,7 +2067,7 @@ function SnapshotsPanel({
                         variant="outline"
                         disabled={cancelBatchMutation.isPending}
                         onClick={() => cancelDraftBatch(batch)}
-                        className="h-8 rounded-xl border-warning-border bg-surface-1 text-xs font-extrabold text-warning-fg hover:bg-warning-bg"
+                        className="h-8 rounded-xl border-warning-border bg-surface-1 text-xs font-semibold text-warning-fg hover:bg-warning-bg"
                       >
                         Cancel
                       </Button>
@@ -2088,14 +2088,14 @@ function SnapshotsPanel({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-extrabold text-content-1">
+                      <div className="truncate text-sm font-semibold text-content-1">
                         {batchLabel(batch)}
                       </div>
                       <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-order-fg">
                         {batchScopeText(batch)}
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-extrabold text-order-fg">
+                    <span className="shrink-0 rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-semibold text-order-fg">
                       {batch.line_count || batch.lines?.length || 0} lines
                     </span>
                   </div>
@@ -2116,7 +2116,7 @@ function SnapshotsPanel({
           ) : (
             <div className="max-h-[460px] overflow-auto">
               <table className="w-full min-w-[620px] text-sm">
-                <thead className="sticky top-0 bg-surface-1 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+                <thead className="sticky top-0 bg-surface-1 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
                   <tr>
                     <th className="py-2">Sheet</th>
                     <th>Label</th>
@@ -2135,7 +2135,7 @@ function SnapshotsPanel({
                         <button
                           type="button"
                           onClick={() => setSelectedBatchId(String(batch.id))}
-                          className="text-left font-mono text-xs font-extrabold text-primary underline-offset-4 hover:underline"
+                          className="text-left font-mono text-xs font-semibold text-primary underline-offset-4 hover:underline"
                         >
                           {batch.batch_no || batch.id}
                         </button>
@@ -2147,7 +2147,7 @@ function SnapshotsPanel({
                         {batchScopeText(batch)}
                       </td>
                       <td className="pr-2">
-                        <span className="rounded-full border border-line bg-surface-2 px-2 py-1 text-[10px] font-extrabold text-content-3">
+                        <span className="rounded-full border border-line bg-surface-2 px-2 py-1 text-[10px] font-semibold text-content-3">
                           {batch.status}
                         </span>
                       </td>
@@ -2305,7 +2305,7 @@ function StockCardDrill({
             ))}
           </SelectContent>
         </Select>
-        <div className="inline-flex h-10 items-center rounded-xl bg-surface-2 px-3 text-xs font-extrabold text-content-3">
+        <div className="inline-flex h-10 items-center rounded-xl bg-surface-2 px-3 text-xs font-semibold text-content-3">
           {isFetching
             ? "Refreshing"
             : `${rows.length} ledger rows · ${postedCount} posted sheets`}
@@ -2324,7 +2324,7 @@ function StockCardDrill({
       ) : (
       <div className="max-h-[460px] overflow-auto rounded-2xl border border-line">
         <table className="w-full min-w-[860px] text-xs">
-          <thead className="sticky top-0 bg-surface-2 text-left font-extrabold uppercase tracking-[0.13em] text-content-3">
+          <thead className="sticky top-0 bg-surface-2 text-left font-semibold uppercase tracking-[0.08em] text-content-3">
             <tr>
               <th className="px-3 py-2">Date</th>
               <th>Ref</th>
@@ -2542,7 +2542,7 @@ function AuditBatchDrawer({
         <DialogHeader className="border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
-              <DialogTitle className="truncate text-xl font-extrabold text-content-1">
+              <DialogTitle className="truncate text-xl font-semibold text-content-1">
                 {batch?.batch_no || "Audit sheet"}
               </DialogTitle>
               <DialogDescription className="mt-1 text-sm font-semibold text-content-3">
@@ -2554,26 +2554,26 @@ function AuditBatchDrawer({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-9 rounded-xl text-xs font-extrabold"
+                  className="h-9 rounded-xl text-xs font-semibold"
                   onClick={() => window.open(inventoryService.getAuditBatchExportUrl(batch.id), "_blank")}
                 >
                   <FileSpreadsheet className="mr-2 h-4 w-4" />
                   Export
                 </Button>
                 {canSubmit ? (
-                  <Button type="button" className="h-9 rounded-xl text-xs font-extrabold" disabled={mutate.isPending} onClick={() => mutate.mutate("submit")}>
+                  <Button type="button" className="h-9 rounded-xl text-xs font-semibold" disabled={mutate.isPending} onClick={() => mutate.mutate("submit")}>
                     Submit
                   </Button>
                 ) : null}
                 {canApprove ? (
-                  <Button type="button" className="h-9 rounded-xl text-xs font-extrabold" disabled={mutate.isPending} onClick={() => mutate.mutate("approve")}>
+                  <Button type="button" className="h-9 rounded-xl text-xs font-semibold" disabled={mutate.isPending} onClick={() => mutate.mutate("approve")}>
                     Approve
                   </Button>
                 ) : null}
                 {canPost ? (
                   <Button
                     type="button"
-                    className="h-9 rounded-xl bg-success-fg text-xs font-extrabold text-white hover:bg-success-fg/90"
+                    className="h-9 rounded-xl bg-success-fg text-xs font-semibold text-white hover:bg-success-fg/90"
                     disabled={mutate.isPending}
                     onClick={() => {
                       if (window.confirm(`Post ${batch.batch_no}? This commits stock movement and cannot be edited.`)) mutate.mutate("post");
@@ -2586,7 +2586,7 @@ function AuditBatchDrawer({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-9 rounded-xl border-warning-border text-xs font-extrabold text-warning-fg"
+                    className="h-9 rounded-xl border-warning-border text-xs font-semibold text-warning-fg"
                     disabled={mutate.isPending}
                     onClick={() => {
                       if (window.confirm(`Cancel ${batch.batch_no}? Posted sheets are untouched.`)) mutate.mutate("cancel");
@@ -2614,7 +2614,7 @@ function AuditBatchDrawer({
                 <div className="rounded-2xl border border-line bg-surface-1">
                   <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
                     <div>
-                      <div className="text-sm font-extrabold text-content-1">Posted sheet proof lines</div>
+                      <div className="text-sm font-semibold text-content-1">Posted sheet proof lines</div>
                       <div className="text-xs font-semibold text-content-3">
                         Showing every loaded material/location line with {quantityLabel.toLowerCase()}, {movementLabel.toLowerCase()}, value, and posted reference.
                       </div>
@@ -2626,7 +2626,7 @@ function AuditBatchDrawer({
                         variant="outline"
                         disabled={mutate.isPending}
                         onClick={() => mutate.mutate("validate")}
-                        className="h-8 rounded-xl text-xs font-extrabold"
+                        className="h-8 rounded-xl text-xs font-semibold"
                       >
                         <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                         Validate
@@ -2652,19 +2652,19 @@ function AuditBatchDrawer({
                           <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-xs font-extrabold text-content-1">{row.materialCode}</span>
+                                <span className="font-mono text-xs font-semibold text-content-1">{row.materialCode}</span>
                                 {row.stockClass ? (
-                                  <span className="rounded-full border border-line bg-surface-1 px-2 py-0.5 text-[10px] font-extrabold text-content-3">
+                                  <span className="rounded-full border border-line bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-3">
                                     {row.stockClass}
                                   </span>
                                 ) : null}
                                 {row.rowErrors?.length ? (
-                                  <span className="rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-extrabold text-danger-fg">
+                                  <span className="rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger-fg">
                                     {row.rowErrors.length} issue{row.rowErrors.length === 1 ? "" : "s"}
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="mt-1 text-sm font-extrabold leading-5 text-content-1">
+                              <div className="mt-1 text-sm font-semibold leading-5 text-content-1">
                                 {row.materialName || row.materialCode}
                               </div>
                               <div className="mt-1 text-xs font-semibold text-content-3">{row.locationName}</div>
@@ -2703,7 +2703,7 @@ function AuditBatchDrawer({
                     <ProofMetric label="Line value" value={money(rowTotals.value)} />
                   </div>
                   <div className="rounded-2xl border border-line bg-surface-2 p-4">
-                    <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-content-4">Posted proof</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-4">Posted proof</div>
                     <div className="mt-3 space-y-2 text-xs font-semibold text-content-3">
                       <div className="flex justify-between gap-3">
                         <span>Rows loaded</span>
@@ -2747,8 +2747,8 @@ function AuditBatchDrawer({
 function ProofMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-3">
-      <div className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-content-4">{label}</div>
-      <div className="mt-1 truncate text-sm font-extrabold text-content-1">{value || "-"}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
+      <div className="mt-1 truncate text-sm font-semibold text-content-1">{value || "-"}</div>
     </div>
   );
 }
@@ -2766,10 +2766,10 @@ function ProofMiniMetric({
 }) {
   return (
     <div className="rounded-xl border border-line bg-surface-1 px-3 py-2">
-      <div className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-content-4">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-4">{label}</div>
       <div
         className={cn(
-          "mt-1 truncate font-mono text-xs font-extrabold",
+          "mt-1 truncate font-mono text-xs font-semibold",
           strong ? "text-content-1" : "text-content-2",
           tone === "success" && "text-success-fg",
           tone === "danger" && "text-danger-fg",
@@ -2804,7 +2804,7 @@ function MonthProofDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl rounded-[24px] border-line bg-surface-1">
         <DialogHeader>
-          <DialogTitle className="text-xl font-extrabold text-content-1">
+          <DialogTitle className="text-xl font-semibold text-content-1">
             {month?.label || "Month"} stock proof
           </DialogTitle>
           <DialogDescription className="font-semibold text-content-3">
@@ -2818,7 +2818,7 @@ function MonthProofDialog({
         </div>
         <div className="max-h-[420px] overflow-auto rounded-2xl border border-line">
           <table className="w-full min-w-[620px] text-xs">
-            <thead className="bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+            <thead className="bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
               <tr>
                 <th className="px-3 py-2">Sheet</th>
                 <th>Scope</th>
@@ -2867,7 +2867,7 @@ function LedgerSourceDialog({
     <Dialog open={Boolean(row)} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="max-w-2xl rounded-[24px] border-line bg-surface-1">
         <DialogHeader>
-          <DialogTitle className="text-xl font-extrabold text-content-1">
+          <DialogTitle className="text-xl font-semibold text-content-1">
             {row?.reference || "Stock movement proof"}
           </DialogTitle>
           <DialogDescription className="font-semibold text-content-3">
@@ -2882,7 +2882,7 @@ function LedgerSourceDialog({
               <ProofMetric label="Qty" value={qtyWithUom(row.qty, row.uom)} />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-4">
-              <div className="text-xs font-extrabold uppercase tracking-[0.16em] text-content-4">Source metadata</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-4">Source metadata</div>
               <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl bg-surface-1 p-3 text-[11px] font-semibold text-content-3">
                 {JSON.stringify(row.meta || row, null, 2)}
               </pre>
@@ -2922,7 +2922,7 @@ function EodPackingProofPanel({
           type="date"
           value={date}
           onChange={(event) => onDateChange(event.target.value)}
-          className="h-10 rounded-xl font-mono text-xs font-extrabold lg:w-[170px]"
+          className="h-10 rounded-xl font-mono text-xs font-semibold lg:w-[170px]"
         />
       </div>
       <div className="grid gap-2 sm:grid-cols-4">
@@ -2943,7 +2943,7 @@ function EodPackingProofPanel({
       ) : (
       <div className="mt-3 max-h-[360px] overflow-auto rounded-2xl border border-line">
         <table className="w-full min-w-[900px] text-xs">
-          <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+          <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
             <tr>
               <th className="px-3 py-2">Time</th>
               <th>Material</th>
@@ -3020,13 +3020,13 @@ function InkFloorProofPanel({
             type="date"
             value={date}
             onChange={(event) => onDateChange(event.target.value)}
-            className="h-10 rounded-xl font-mono text-xs font-extrabold lg:w-[170px]"
+            className="h-10 rounded-xl font-mono text-xs font-semibold lg:w-[170px]"
           />
           <Button
             type="button"
             variant="outline"
             onClick={() => window.location.assign("/production/ink-control?tab=counts")}
-            className="h-10 rounded-xl text-xs font-extrabold"
+            className="h-10 rounded-xl text-xs font-semibold"
           >
             <ExternalLink className="mr-2 h-3.5 w-3.5" />
             Open ink control
@@ -3052,7 +3052,7 @@ function InkFloorProofPanel({
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
             <table className="w-full min-w-[620px] text-xs">
-              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Count</th>
                   <th>Location</th>
@@ -3081,7 +3081,7 @@ function InkFloorProofPanel({
           </div>
           <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
             <table className="w-full min-w-[760px] text-xs">
-              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Time</th>
                   <th>Type</th>
@@ -3208,7 +3208,7 @@ function CategoryRail({
           type="button"
           onClick={() => onChange(null)}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-extrabold ring-1",
+            "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold ring-1",
             active === null
               ? "bg-surface-3 text-white ring-line-strong"
               : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",
@@ -3226,7 +3226,7 @@ function CategoryRail({
               type="button"
               onClick={() => onChange(selected ? null : category.key)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-extrabold ring-1",
+                "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold ring-1",
                 selected
                   ? "bg-surface-3 text-white ring-line-strong"
                   : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",

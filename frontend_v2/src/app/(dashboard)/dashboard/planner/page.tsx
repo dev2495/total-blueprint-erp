@@ -9,9 +9,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -141,12 +138,12 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 const PIE_COLORS = [
-  "#111827",
-  "#2563eb",
-  "#14b8a6",
-  "#f59e0b",
-  "#60a5fa",
-  "#ef4444",
+  "var(--viz-1)",
+  "var(--viz-2)",
+  "var(--viz-3)",
+  "var(--viz-4)",
+  "var(--viz-5)",
+  "var(--viz-8)",
 ];
 
 export default function PlannerDashboardPage() {
@@ -232,19 +229,22 @@ export default function PlannerDashboardPage() {
 
   const outputMix = useMemo(
     () => [
-      { name: "FG", value: Number(sourceMix.fg_batch_count || 0) },
+      { name: "FG", value: Number(sourceMix.fg_batch_count || 0), unit: "batches" },
       {
         name: "Invariant",
         value: Number(sourceMix.invariant_roll_kg || 0),
+        unit: "kg",
       },
-      { name: "WIP", value: Number(sourceMix.upstream_roll_kg || 0) },
+      { name: "WIP", value: Number(sourceMix.upstream_roll_kg || 0), unit: "kg" },
       {
         name: "POD",
         value: Number(replenishmentMix.pod_bulk_open || 0),
+        unit: "open",
       },
       {
         name: "Packaging",
         value: Number(replenishmentMix.packaging_open || 0),
+        unit: "open",
       },
     ],
     [replenishmentMix, sourceMix],
@@ -315,8 +315,7 @@ export default function PlannerDashboardPage() {
             Planner Command Center
           </div>
           <h1 className={styles.title}>
-            Contained planner analytics for release, replenishment, and route
-            pressure.
+            Release, replenishment and route pressure
           </h1>
           <p className={styles.description}>
             Watch queue health, output mix, capacity, and readiness without
@@ -498,30 +497,7 @@ export default function PlannerDashboardPage() {
                 <Boxes className={styles.panelIcon} />
               </div>
               <div className={styles.pieWrap}>
-                {outputMixTotal > 0 ? (
-                  <div className={styles.pieChart}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={outputMix}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={42}
-                          outerRadius={66}
-                          paddingAngle={3}
-                        >
-                          {outputMix.map((entry, index) => (
-                            <Cell
-                              key={entry.name}
-                              fill={PIE_COLORS[index % PIE_COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<ChartTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
+                {outputMixTotal > 0 ? null : (
                   <div className={styles.pieEmpty}>
                     {dataUnavailable
                       ? unavailableText
@@ -544,7 +520,8 @@ export default function PlannerDashboardPage() {
                           entry.name === "Invariant" || entry.name === "WIP"
                             ? 1
                             : 0,
-                        )}
+                        )}{" "}
+                        {(entry as any).unit}
                       </span>
                     </div>
                   ))}

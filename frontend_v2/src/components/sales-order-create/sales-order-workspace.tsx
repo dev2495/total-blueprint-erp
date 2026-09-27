@@ -305,7 +305,7 @@ export function SalesOrderV34Workspace() {
       {draft.lines.length > 0 ? (
         <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-            <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Order remarks (optional)
             </Label>
             <Textarea
@@ -357,15 +357,15 @@ function SubtleHero({
   blockerCount: number;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-[20px] bg-[linear-gradient(135deg,#1b2a41_0%,#2458e6_56%,#00a7b5_100%)] p-4 text-white shadow-lg">
+    <section className="erp-hero relative overflow-hidden rounded-[20px] p-4 text-white shadow-lg">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_24rem)]" />
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-black uppercase tracking-[0.24em] text-order-border">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-order-border">
             <span className="mr-2 inline-block h-2 w-2 rounded-full bg-success-fg" />
             Sales Order · Create · Full Line Workspace
           </div>
-          <h1 className="mt-1 font-display text-xl font-black tracking-tight md:text-2xl">
+          <h1 className="mt-1 font-display text-xl font-semibold tracking-tight md:text-2xl">
             {customer
               ? `${customer.name} order workspace`
               : "Every field, organised for fast order entry"}
@@ -375,7 +375,7 @@ function SubtleHero({
               ? "Customer header, overlay shortcuts, repeat lines, full product-master axes, artwork, packing, quantity and live BOM now sit in one tabbed build surface."
               : `Pick one of ${customerCount} customers to unlock overlays, repeat orders, and the line workspace.`}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black">
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
             <span
               className={cn(
                 "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
@@ -424,7 +424,7 @@ function SubtleHero({
           </div>
         </div>
         <div className="hidden rounded-2xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur md:block">
-          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/58">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/58">
             Flow
           </div>
           <div className="mt-2 grid gap-1 text-xs font-bold">
@@ -694,13 +694,13 @@ function BlockerPanel({
         <div>
           <div
             className={cn(
-              "text-[10px] font-black uppercase tracking-[0.2em]",
+              "text-[10px] font-semibold uppercase tracking-[0.12em]",
               isReady ? "text-success-fg" : "text-danger-fg",
             )}
           >
             {isReady ? "Ready to send" : "Submit blockers"}
           </div>
-          <div className="text-sm font-black text-content-1">
+          <div className="text-sm font-semibold text-content-1">
             {isReady
               ? "BOM and order checks are clear"
               : `${blockingIssues.length} item${blockingIssues.length === 1 ? "" : "s"} need attention`}
@@ -764,7 +764,7 @@ function StickyCartBar({
       <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Cart
             </span>
             <span className="rounded-full bg-info-bg px-2.5 py-0.5 text-xs font-bold text-primary">
@@ -827,7 +827,7 @@ function StickyCartBar({
               <ClipboardCheck className="h-4 w-4" />
             )}
             Create + send to planner
-            <span className="hidden rounded bg-surface-1/15 px-1.5 py-0.5 text-[10px] font-black sm:inline">
+            <span className="hidden rounded bg-surface-1/15 px-1.5 py-0.5 text-[10px] font-semibold sm:inline">
               ⌘↵
             </span>
             <ArrowRight className="h-4 w-4" />

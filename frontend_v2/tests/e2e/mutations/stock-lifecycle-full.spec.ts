@@ -4,6 +4,7 @@ import path from "node:path"
 
 import { test, expect } from "../support/base"
 import { annotate, assertHealthyPage, fetchJson, readRuntimeJson, selectByTestId, unwrapApiList } from "../support/test-helpers"
+import { assertLocalUiE2ETestDatabase } from "../support/test-db-safety"
 
 interface StockLifecycleSeed {
   plant_id: string
@@ -40,6 +41,7 @@ function resolvePython(repoRoot: string) {
 
 function refreshStockLifecycleSeed() {
   const repoRoot = resolveRepoRoot()
+  assertLocalUiE2ETestDatabase("Stock lifecycle seed")
   execFileSync(resolvePython(repoRoot), [path.join(repoRoot, "scripts/seed_ui_e2e_stock_lifecycle.py")], {
     cwd: repoRoot,
     stdio: "inherit",

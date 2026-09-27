@@ -10,6 +10,7 @@
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { Pager } from "@/components/logistics/yard-ui";
 import {
   Server,
   Play,
@@ -115,6 +116,26 @@ export default function MachineSelectorPage() {
     });
   }, [machines, plantFilter, query, statusFilter, workCenterFilter]);
 
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 24;
+  // Last-used terminal first, then machines with work running, then active ones.
+  const orderedMachines = useMemo(
+    () =>
+      [...filteredMachines].sort((a, b) => {
+        const score = (m: any) =>
+          (String(m.id) === String(lastMachineId) ? 1000 : 0) +
+          (m.current_job ? 100 : 0) +
+          (String(m.status || "").toUpperCase() === "ACTIVE" ? 10 : 0) +
+          Math.min(9, Number(m.queue_count || 0));
+        return score(b) - score(a);
+      }),
+    [filteredMachines, lastMachineId],
+  );
+  const pageCount = Math.max(1, Math.ceil(orderedMachines.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pagedMachines = orderedMachines.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  useEffect(() => setPage(1), [query, statusFilter, workCenterFilter, plantFilter]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const remembered = window.localStorage.getItem(storageKey) || "";
@@ -183,10 +204,10 @@ export default function MachineSelectorPage() {
         <section className="rounded-lg border border-line bg-surface-1 p-5 shadow-[0_18px_50px_-38px_rgba(15,23,42,0.75)]">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-primary">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
                 Production floor terminal
               </div>
-              <h1 className="mt-1 text-3xl font-black tracking-tight text-content-1">
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-content-1">
                 Machine Selector
               </h1>
               <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-content-3">
@@ -205,12 +226,12 @@ export default function MachineSelectorPage() {
                   key={String(label)}
                   className="min-w-[120px] rounded-lg border border-line bg-surface-2 px-3 py-2"
                 >
-                  <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                     {label}
                   </div>
                   <div
                     className={cn(
-                      "mt-1 text-xl font-black tabular-nums",
+                      "mt-1 text-xl font-semibold tabular-nums",
                       String(tone),
                     )}
                   >
@@ -294,7 +315,7 @@ export default function MachineSelectorPage() {
         </section>
 
         <section className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {filteredMachines.map((machine, idx) => {
+          {pagedMachines.map((machine, idx) => {
             const isActive = machine.status === "ACTIVE";
             const isExecuting = Boolean(machine.current_job);
             const isLastUsed = String(machine.id) === String(lastMachineId);
@@ -302,8 +323,8 @@ export default function MachineSelectorPage() {
             return (
               <div
                 key={machine.id}
-                className="group relative animate-in fade-in zoom-in-95 duration-500"
-                style={{ animationDelay: `${idx * 100}ms` }}
+                className="group relative animate-in fade-in duration-300"
+                style={{ animationDelay: `${Math.min(idx, 8) * 30}ms`, animationFillMode: "backwards" }}
               >
                 <Card
                   className={cn(
@@ -313,6 +334,14 @@ export default function MachineSelectorPage() {
                       : "",
                   )}
                   data-testid={`machine-card-${machine.id}`}
+                  role="link"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      (event.currentTarget as HTMLElement).click();
+                    }
+                  }}
                   onClick={() => {
                     if (typeof window !== "undefined") {
                       window.localStorage.setItem(
@@ -348,7 +377,7 @@ export default function MachineSelectorPage() {
                           <Server className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
-                          <h3 className="truncate text-lg font-black tracking-tight text-content-1 transition-colors group-hover:text-primary">
+                          <h3 className="truncate text-lg font-semibold tracking-tight text-content-1 transition-colors group-hover:text-primary">
                             {machine.name}
                           </h3>
                           <p className="text-xs font-bold uppercase tracking-wider text-content-4">
@@ -396,11 +425,11 @@ export default function MachineSelectorPage() {
                               <div className="absolute inset-0 animate-ping rounded-full bg-info-fg opacity-20"></div>
                               <Play className="relative h-3.5 w-3.5 text-primary" />
                             </div>
-                            <span className="text-[10px] font-black text-primary uppercase tracking-widest">
+                            <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">
                               Active Execution
                             </span>
                           </div>
-                          <p className="text-sm font-black text-content-2 line-clamp-1 mb-1">
+                          <p className="text-sm font-semibold text-content-2 line-clamp-1 mb-1">
                             {machine.current_job?.job_number}
                           </p>
                           <p className="text-[11px] font-medium text-content-3 line-clamp-1">
@@ -427,10 +456,10 @@ export default function MachineSelectorPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-lg font-black text-content-1 leading-none">
+                        <span className="text-lg font-semibold text-content-1 leading-none">
                           {machine.queue_count}
                         </span>
-                        <div className="px-1.5 py-0.5 rounded bg-info-bg text-primary text-[10px] font-black uppercase">
+                        <div className="px-1.5 py-0.5 rounded bg-info-bg text-primary text-[10px] font-semibold uppercase">
                           Queue
                         </div>
                       </div>
@@ -446,6 +475,15 @@ export default function MachineSelectorPage() {
             );
           })}
         </section>
+
+        {pageCount > 1 ? (
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-line bg-surface-1 px-4 py-2.5 text-[12px] text-content-3">
+            <span>
+              Showing {(safePage - 1) * PAGE_SIZE + 1}-{Math.min(orderedMachines.length, safePage * PAGE_SIZE)} of {orderedMachines.length} machines
+            </span>
+            <Pager page={safePage} pageCount={pageCount} onPageChange={setPage} testId="machine-selector-pager" />
+          </div>
+        ) : null}
 
         {!filteredMachines.length ? (
           <div className="mt-5 rounded-lg border border-dashed border-line-strong bg-surface-1 p-8 text-center text-sm font-semibold text-content-3">

@@ -880,7 +880,7 @@ export function BulkWorkspaceV36() {
               />
 
               <div>
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
                   Location
                 </div>
                 <select
@@ -925,12 +925,12 @@ export function BulkWorkspaceV36() {
                 Purchased add-ons only
               </label>
               <div className="rounded-xl border border-success-border bg-success-bg p-3">
-                <div className="text-[10px] font-black uppercase tracking-wider text-success-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
                   Addon badge rule
                 </div>
                 <p className="mt-1 text-[10px] leading-snug text-success-fg">
                   Only purchased add-ons from the Add-on Master get the{" "}
-                  <span className="rounded-sm bg-order-bg px-1 py-0.5 font-mono font-black text-order-fg ring-1 ring-order-border">
+                  <span className="rounded-sm bg-order-bg px-1 py-0.5 font-mono font-semibold text-order-fg ring-1 ring-order-border">
                     ADDON
                   </span>{" "}
                   badge. Regular inks, adhesives and solvents remain normal bulk
@@ -1014,7 +1014,7 @@ function DonutChart({
         y="51"
         textAnchor="middle"
         className="fill-content-1"
-        style={{ fontSize: 16, fontWeight: 800 }}
+        style={{ fontSize: 16, fontWeight: 650 }}
       >
         {data
           .reduce((s, d) => s + d.kg, 0)
@@ -1106,7 +1106,7 @@ function BulkTable({
                         {r.material_code || r.code || "—"}
                       </span>
                       {addon && (
-                        <span className="rounded-sm bg-order-bg px-1 py-0.5 text-[9px] font-black text-order-fg ring-1 ring-order-border">
+                        <span className="rounded-sm bg-order-bg px-1 py-0.5 text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
                           ADDON
                         </span>
                       )}
@@ -1128,7 +1128,7 @@ function BulkTable({
                       {displayLocation(r)}
                     </div>
                   </td>
-                  <td className="px-3 py-2 font-mono text-[11px] font-black text-content-2">
+                  <td className="px-3 py-2 font-mono text-[11px] font-semibold text-content-2">
                     {stockCode(r)}
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-content-1">
@@ -1219,7 +1219,7 @@ function BulkGrid({
                       {r.material_code || "—"}
                     </span>
                     {addon && (
-                      <span className="rounded-sm bg-order-bg px-1 py-0.5 text-[8px] font-black text-order-fg ring-1 ring-order-border">
+                      <span className="rounded-sm bg-order-bg px-1 py-0.5 text-[8px] font-semibold text-order-fg ring-1 ring-order-border">
                         ADDON
                       </span>
                     )}
@@ -1228,13 +1228,13 @@ function BulkGrid({
                     {r.material_name || ""}
                   </div>
                 </div>
-                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold uppercase text-content-2 ring-1 ring-line">
+                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold uppercase text-content-2 ring-1 ring-line">
                   {stockCode(r)}
                 </span>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-surface-2 p-2 text-center">
                 <div>
-                  <div className="text-[8px] font-black uppercase text-content-3">
+                  <div className="text-[8px] font-semibold uppercase text-content-3">
                     On hand
                   </div>
                   <div className="font-mono text-sm font-bold text-content-1">
@@ -1242,7 +1242,7 @@ function BulkGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[8px] font-black uppercase text-content-3">
+                  <div className="text-[8px] font-semibold uppercase text-content-3">
                     Reserved
                   </div>
                   <div className="font-mono text-sm font-bold text-order-fg">
@@ -1250,7 +1250,7 @@ function BulkGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[8px] font-black uppercase text-content-3">
+                  <div className="text-[8px] font-semibold uppercase text-content-3">
                     Free
                   </div>
                   <div className="font-mono text-sm font-bold text-success-fg">
@@ -1316,7 +1316,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-success-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
                 Bulk stock row
               </div>
               <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
@@ -1357,7 +1357,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             />
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Code details
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1383,7 +1383,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               Sales reservations
             </div>
             {rsvQuery.isLoading && (
@@ -1443,7 +1443,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>
@@ -1462,7 +1462,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

@@ -1,28 +1,54 @@
+/* Self-hosted fonts: no render-blocking third-party stylesheet. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --canvas-base: #f4f7fc;
-    --canvas-tint: #eaf0fa;
+    --canvas-base: #f3f4f7;
+    --canvas-tint: #eceff5;
     --surface-1: #ffffff;
-    --surface-1-soft: #fbfcfe;
-    --surface-2: #fafbff;
-    --surface-3: #0b0f1c;
-    --surface-glass: rgba(255, 255, 255, 0.74);
+    --surface-1-soft: #fbfbfd;
+    --surface-2: #f7f8fa;
+    --surface-3: #0c111d;
+    --surface-glass: rgba(255, 255, 255, 0.8);
     --surface-glass-edge: rgba(255, 255, 255, 0.42);
 
-    --text-1: #0b1220;
-    --text-2: #1e293b;
-    --text-3: #475569;
-    --text-4: #94a3b8;
+    --text-1: #0a0e17;
+    --text-2: #1d2433;
+    --text-3: #535c6d;
+    --text-4: #8b94a5;
     --text-on-dark: #f8fafc;
     --text-on-brand: #ffffff;
 
-    --border-soft: #eef0f7;
-    --border-strong: #cbd5e1;
-    --divider: #e9edf6;
+    --border-soft: #e7e9ee;
+    --border-strong: #d2d7e0;
+    --divider: #eceef2;
 
     --brand-50: #eff6ff;
     --brand-100: #dbeafe;
@@ -50,12 +76,12 @@
 
     --shadow-flat: 0 1px 0 rgba(15, 23, 42, 0.04);
     --shadow-sm:
-      0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -8px rgba(15, 23, 42, 0.1);
+      0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
     --shadow-md:
-      0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -12px rgba(15, 23, 42, 0.16);
+      0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 20px -10px rgba(16, 24, 40, 0.12);
     --shadow-lg:
-      0 6px 16px -8px rgba(15, 23, 42, 0.18),
-      0 24px 56px -24px rgba(15, 23, 42, 0.24);
+      0 2px 6px rgba(16, 24, 40, 0.05),
+      0 20px 44px -18px rgba(16, 24, 40, 0.2);
     --shadow-glow-brand:
       0 0 0 1px rgba(37, 99, 235, 0.18),
       0 12px 28px -12px rgba(37, 99, 235, 0.32);
@@ -83,12 +109,12 @@
     --dur-panel: 220ms;
     --dur-slow: 320ms;
 
-    --font-ui: "Inter", "SF Pro Text", system-ui, sans-serif;
+    --font-ui: "Inter", -apple-system, "SF Pro Text", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
-    --font-display: "Fraunces", "Inter", serif;
+    --font-display: "Inter", -apple-system, "SF Pro Display", system-ui, sans-serif;
 
-    --background: 222 50% 97%;
-    --foreground: 222 51% 8%;
+    --background: 225 17% 96%;
+    --foreground: 222 39% 6%;
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -99,23 +125,51 @@
     --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 224 44% 95%;
+    --secondary: 220 20% 95%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 222 42% 95%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 220 20% 96%;
+    --muted-foreground: 219 12% 38%;
 
-    --accent: 214 100% 97%;
+    --accent: 220 60% 97%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 349 89% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 218 31% 89%;
-    --input: 218 31% 89%;
+    --border: 225 14% 92%;
+    --input: 223 14% 86%;
     --ring: 221 83% 53%;
 
     --radius: 0.75rem;
+
+
+    /* Data-viz tokens: validated categorical order (CVD-safe adjacent pairs). */
+    --viz-1: #2a78d6;
+    --viz-2: #eb6834;
+    --viz-3: #1baf7a;
+    --viz-4: #eda100;
+    --viz-5: #e87ba4;
+    --viz-6: #008300;
+    --viz-7: #4a3aa7;
+    --viz-8: #e34948;
+    --viz-grid: #e8eaee;
+    --viz-axis: #c9ced8;
+    --viz-muted: #8a91a0;
+    --viz-good: #0ca30c;
+    --viz-warning: #fab219;
+    --viz-serious: #ec835a;
+    --viz-critical: #d03b3b;
+
+    /* One hero surface for every page header across the app. */
+    --hero-surface:
+      radial-gradient(900px 420px at 94% -30%, rgba(88, 140, 255, 0.36) 0%, transparent 60%),
+      radial-gradient(720px 380px at -6% 130%, rgba(56, 189, 248, 0.14) 0%, transparent 62%),
+      linear-gradient(135deg, #0b1122 0%, #10193a 52%, #172a5c 100%);
+    --hero-edge: rgba(255, 255, 255, 0.1);
+    --hero-tile: rgba(255, 255, 255, 0.06);
+    --hero-tile-edge: rgba(255, 255, 255, 0.1);
+    --hero-muted: rgba(214, 222, 238, 0.74);
 
     --shadow-premium: var(--shadow-md);
     --shadow-premium-hover: var(--shadow-lg);
@@ -138,9 +192,9 @@
     --i-50: #eef2ff;
     --i-500: #6366f1;
     --i-700: #4338ca;
-    --v-50: #f5f3ff;
-    --v-500: #8b5cf6;
-    --v-700: #6d28d9;
+    --v-50: #eef2ff;
+    --v-500: #4f6bed;
+    --v-700: #3346c9;
     --e-500: var(--emerald-500);
     --e-700: var(--emerald-700);
     --a-500: var(--amber-500);
@@ -207,9 +261,9 @@
     --p-sky-50: #f0f9ff;
     --p-sky-200: #bae6fd;
     --p-sky-700: #0369a1;
-    --p-violet-50: #f5f3ff;
-    --p-violet-200: #ddd6fe;
-    --p-violet-700: #6d28d9;
+    --p-violet-50: #eef2ff;
+    --p-violet-200: #d3dcfd;
+    --p-violet-700: #3346c9;
     --p-red: #c9303b;
     --p-orange: #f58634;
 
@@ -245,25 +299,25 @@
   .dark {
     color-scheme: dark;
 
-    --canvas-base: #0f172a;
-    --canvas-tint: #142033;
-    --surface-1: #172033;
-    --surface-1-soft: #1c2940;
-    --surface-2: #101827;
-    --surface-3: #0b1120;
-    --surface-glass: rgba(16, 24, 39, 0.84);
+    --canvas-base: #0b0e14;
+    --canvas-tint: #0f131b;
+    --surface-1: #141924;
+    --surface-1-soft: #181e2a;
+    --surface-2: #10141c;
+    --surface-3: #080a0f;
+    --surface-glass: rgba(16, 20, 28, 0.82);
     --surface-glass-edge: rgba(148, 163, 184, 0.18);
 
     --text-1: #f8fafc;
-    --text-2: #e5eefb;
-    --text-3: #b8c6da;
-    --text-4: #8796ad;
+    --text-2: #e4e8ef;
+    --text-3: #a9b2c2;
+    --text-4: #798396;
     --text-on-dark: #ffffff;
     --text-on-brand: #ffffff;
 
-    --border-soft: #26364f;
-    --border-strong: #3d5272;
-    --divider: #22314a;
+    --border-soft: #222936;
+    --border-strong: #343d4f;
+    --divider: #1c222d;
 
     --brand-50: rgba(74, 126, 255, 0.14);
     --brand-100: rgba(85, 140, 255, 0.2);
@@ -309,35 +363,54 @@
       0 0 0 1px rgba(94, 226, 173, 0.18),
       0 14px 30px -18px rgba(94, 226, 173, 0.38);
 
-    --background: 222 47% 11%;
+    --background: 222 27% 6%;
     --foreground: 214 32% 94%;
-    --card: 222 38% 15%;
+    --card: 222 26% 11%;
     --card-foreground: 214 32% 94%;
-    --popover: 222 38% 15%;
+    --popover: 222 26% 11%;
     --popover-foreground: 214 32% 94%;
     --primary: 220 91% 68%;
     --primary-foreground: 220 30% 10%;
-    --secondary: 221 34% 18%;
+    --secondary: 222 20% 15%;
     --secondary-foreground: 214 30% 92%;
-    --muted: 221 34% 18%;
+    --muted: 222 20% 15%;
     --muted-foreground: 216 18% 72%;
-    --accent: 221 34% 19%;
+    --accent: 222 22% 16%;
     --accent-foreground: 214 32% 94%;
     --destructive: 349 89% 72%;
     --destructive-foreground: 220 30% 10%;
-    --border: 217 30% 30%;
-    --input: 217 30% 30%;
+    --border: 220 18% 18%;
+    --input: 220 16% 24%;
     --ring: 220 91% 68%;
 
     --shadow-premium: var(--shadow-md);
     --shadow-premium-hover: var(--shadow-lg);
     --shadow-glass: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
 
+    --hero-surface:
+      radial-gradient(900px 420px at 94% -30%, rgba(88, 140, 255, 0.24) 0%, transparent 60%),
+      radial-gradient(720px 380px at -6% 130%, rgba(56, 189, 248, 0.08) 0%, transparent 62%),
+      linear-gradient(135deg, #0e1424 0%, #121b33 55%, #17254a 100%);
+    --hero-edge: rgba(255, 255, 255, 0.08);
+
+    --viz-1: #3987e5;
+    --viz-2: #d95926;
+    --viz-3: #199e70;
+    --viz-4: #c98500;
+    --viz-5: #d55181;
+    --viz-6: #008300;
+    --viz-7: #9085e9;
+    --viz-8: #e66767;
+    --viz-grid: #212735;
+    --viz-axis: #353d4e;
+    --viz-muted: #8a91a0;
+
+
     --p-white: #ffffff;
-    --p-slate-50: #101827;
-    --p-slate-100: #172033;
-    --p-slate-200: #26364f;
-    --p-slate-300: #3d5272;
+    --p-slate-50: #10141c;
+    --p-slate-100: #141924;
+    --p-slate-200: #222936;
+    --p-slate-300: #343d4f;
     --p-slate-400: #8796ad;
     --p-slate-500: #a4b3c7;
     --p-slate-600: #b8c6da;
@@ -365,9 +438,9 @@
     --p-sky-50: rgba(56, 189, 248, 0.13);
     --p-sky-200: rgba(103, 215, 255, 0.34);
     --p-sky-700: #9be4ff;
-    --p-violet-50: rgba(167, 139, 250, 0.14);
-    --p-violet-200: rgba(196, 181, 253, 0.34);
-    --p-violet-700: #d6c8ff;
+    --p-violet-50: rgba(111, 140, 255, 0.14);
+    --p-violet-200: rgba(150, 172, 255, 0.34);
+    --p-violet-700: #b9c6ff;
     --p-red: #ff7f91;
     --p-orange: #ffbd7a;
 
@@ -384,9 +457,9 @@
     --info-fg: #9be4ff;
     --info-bg: rgba(56, 189, 248, 0.13);
     --info-border: rgba(103, 215, 255, 0.34);
-    --accent-order-fg: #d6c8ff;
-    --accent-order-bg: rgba(167, 139, 250, 0.14);
-    --accent-order-border: rgba(196, 181, 253, 0.34);
+    --accent-order-fg: #b9c6ff;
+    --accent-order-bg: rgba(111, 140, 255, 0.14);
+    --accent-order-border: rgba(150, 172, 255, 0.34);
     --accent-critical: #ff7f91;
     --accent-warm: #ffbd7a;
   }
@@ -403,14 +476,20 @@
     color: var(--text-2);
     background: var(--canvas-base);
     text-rendering: optimizeLegibility;
+    font-feature-settings: "cv11", "ss03";
+    -webkit-font-smoothing: antialiased;
   }
 
   h1,
-  h2,
+  h2 {
+    color: inherit;
+    letter-spacing: -0.02em;
+  }
+
   h3,
   h4 {
     color: inherit;
-    letter-spacing: 0;
+    letter-spacing: -0.01em;
   }
 
   ::selection {
@@ -418,22 +497,23 @@
     color: var(--text-1);
   }
 
-  :where(html.theme-ready),
-  :where(html.theme-ready body),
-  :where(html.theme-ready body *) {
+  /* Colour transitions on every element are only applied while the theme is
+     switching in browsers without View Transitions. Leaving them on
+     permanently made every hover and status change feel sluggish. */
+  :where(html.theme-transitioning-fallback),
+  :where(html.theme-transitioning-fallback body),
+  :where(html.theme-transitioning-fallback body *) {
     transition:
-      background-color 560ms cubic-bezier(0.16, 1, 0.3, 1),
-      background 560ms cubic-bezier(0.16, 1, 0.3, 1),
-      border-color 560ms cubic-bezier(0.16, 1, 0.3, 1),
-      box-shadow 560ms cubic-bezier(0.16, 1, 0.3, 1),
-      color 520ms cubic-bezier(0.16, 1, 0.3, 1),
-      fill 520ms cubic-bezier(0.16, 1, 0.3, 1),
-      stroke 520ms cubic-bezier(0.16, 1, 0.3, 1);
+      background-color 360ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 360ms cubic-bezier(0.16, 1, 0.3, 1),
+      color 320ms cubic-bezier(0.16, 1, 0.3, 1),
+      fill 320ms cubic-bezier(0.16, 1, 0.3, 1),
+      stroke 320ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   ::view-transition-old(root),
   ::view-transition-new(root) {
-    animation-duration: 740ms;
+    animation-duration: 520ms;
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
     animation-fill-mode: both;
     mix-blend-mode: normal;
@@ -458,9 +538,9 @@
       transition-duration: 0.01ms !important;
     }
 
-    :where(html.theme-ready),
-    :where(html.theme-ready body),
-    :where(html.theme-ready body *),
+    :where(html.theme-transitioning-fallback),
+    :where(html.theme-transitioning-fallback body),
+    :where(html.theme-transitioning-fallback body *),
     ::view-transition-old(root),
     ::view-transition-new(root) {
       transition: none !important;
@@ -483,6 +563,12 @@
 
   .font-display {
     font-family: var(--font-display);
+    letter-spacing: -0.025em;
+  }
+
+  .tabular-nums,
+  .font-mono-token {
+    font-variant-numeric: tabular-nums;
   }
 
   .font-mono-token {
@@ -490,48 +576,39 @@
   }
 
   .erp-canvas {
-    background:
-      linear-gradient(0deg, rgba(90, 141, 247, 0.055) 1px, transparent 1px) 0
-        0 / 24px 100%,
-      linear-gradient(90deg, rgba(90, 141, 247, 0.045) 1px, transparent 1px) 0
-        0 / 100% 24px,
-      radial-gradient(
-        900px 600px at 100% -10%,
-        color-mix(in srgb, var(--brand-500) 18%, transparent) 0%,
-        transparent 55%
-      ),
-      radial-gradient(
-        700px 500px at -10% 110%,
-        color-mix(in srgb, var(--info-fg) 13%, transparent) 0%,
-        transparent 60%
-      ),
-      linear-gradient(180deg, var(--canvas-tint) 0%, var(--canvas-base) 42%),
-      var(--canvas-base);
-    background-attachment: fixed;
+    position: relative;
+    isolation: isolate;
+    background: var(--canvas-base);
   }
 
-  .dark .erp-canvas {
+  /* Ambient light lives on its own fixed, composited layer so scrolling never
+     repaints the page background. */
+  .erp-canvas::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background:
-      linear-gradient(0deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px) 0
-        0 / 24px 100%,
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px) 0
-        0 / 100% 24px,
-      radial-gradient(
-        980px 680px at 100% -12%,
-        rgba(143, 184, 255, 0.19) 0%,
-        transparent 58%
-      ),
-      radial-gradient(
-        840px 560px at -12% 108%,
-        rgba(103, 215, 255, 0.13) 0%,
-        transparent 62%
-      ),
-      linear-gradient(
-        180deg,
-        var(--canvas-tint) 0%,
-        var(--canvas-base) 48%,
-        var(--surface-3) 100%
-      );
+      radial-gradient(1100px 520px at 88% -12%, color-mix(in srgb, var(--brand-500) 9%, transparent) 0%, transparent 62%),
+      radial-gradient(900px 480px at -8% -6%, color-mix(in srgb, var(--info-fg) 6%, transparent) 0%, transparent 60%),
+      linear-gradient(180deg, var(--canvas-tint) 0%, var(--canvas-base) 38%);
+    transform: translateZ(0);
+  }
+
+  .dark .erp-canvas::before {
+    background:
+      radial-gradient(1100px 560px at 88% -14%, rgba(111, 160, 255, 0.1) 0%, transparent 62%),
+      radial-gradient(900px 520px at -8% -8%, rgba(103, 215, 255, 0.05) 0%, transparent 60%),
+      linear-gradient(180deg, var(--canvas-tint) 0%, var(--canvas-base) 40%);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .erp-glass-chrome {
+      background-color: var(--surface-1);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
   }
 
   @media (prefers-reduced-transparency: reduce) {
@@ -736,23 +813,8 @@
     position: relative;
     overflow: hidden;
     color: var(--text-on-dark);
-    background:
-      radial-gradient(
-        900px 500px at 90% -10%,
-        rgba(59, 130, 246, 0.55) 0%,
-        transparent 60%
-      ),
-      radial-gradient(
-        700px 400px at 0% 110%,
-        rgba(37, 99, 235, 0.45) 0%,
-        transparent 65%
-      ),
-      linear-gradient(
-        135deg,
-        var(--brand-950) 0%,
-        var(--brand-900) 50%,
-        var(--brand-600) 100%
-      );
+    background: var(--hero-surface);
+    border: 1px solid var(--hero-edge);
     box-shadow: var(--shadow-md);
   }
 
@@ -760,45 +822,19 @@
     position: relative;
     overflow: hidden;
     color: var(--text-on-dark);
-    background:
-      radial-gradient(
-        800px 400px at 90% 0%,
-        rgba(59, 130, 246, 0.35) 0%,
-        transparent 65%
-      ),
-      radial-gradient(
-        700px 400px at 0% 100%,
-        rgba(37, 99, 235, 0.3) 0%,
-        transparent 65%
-      ),
-      linear-gradient(135deg, #060d2c 0%, #0b1f55 55%, #1e3a8a 100%);
+    background: var(--hero-surface);
+    border: 1px solid var(--hero-edge);
     box-shadow: var(--shadow-md);
   }
 
-  .erp-hero::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background:
-      linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0
-        0 / 40px 100%,
-      linear-gradient(0deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0
-        0 / 100% 40px;
-    mask-image: linear-gradient(180deg, black 20%, transparent 100%);
-  }
-
+  .erp-hero::before,
   .erp-admin-hero::before {
     content: "";
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background:
-      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0
-        0 / 40px 100%,
-      linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0
-        0 / 100% 40px;
-    mask-image: linear-gradient(180deg, black 20%, transparent 100%);
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
 
   .erp-hero h1,
@@ -946,18 +982,18 @@
   .t-eyebrow {
     color: var(--text-4);
     font-family: var(--font-ui);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.22em;
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.1em;
     line-height: 1.2;
     text-transform: uppercase;
   }
 
   .t-display-md {
     font-family: var(--font-display);
-    font-size: clamp(32px, 3.1vw, 48px);
-    font-weight: 800;
-    letter-spacing: 0;
+    font-size: clamp(28px, 2.6vw, 40px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
     line-height: 1.03;
   }
 
@@ -986,43 +1022,15 @@
 
   .ds-card.is-hero,
   .ds-card.is-hero-admin {
-    border-color: rgba(255, 255, 255, 0.16);
+    border-color: var(--hero-edge);
     color: #fff;
     padding: clamp(22px, 2.5vw, 32px);
     box-shadow: var(--shadow-lg);
   }
 
-  .ds-card.is-hero {
-    background:
-      linear-gradient(0deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0
-        0 / 44px 44px,
-      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px) 0
-        0 / 44px 44px,
-      radial-gradient(
-        900px 420px at 96% -16%,
-        rgba(96, 165, 250, 0.56),
-        transparent 60%
-      ),
-      radial-gradient(
-        760px 460px at -8% 110%,
-        rgba(99, 102, 241, 0.42),
-        transparent 65%
-      ),
-      linear-gradient(135deg, #172554 0%, #1e40af 54%, #2563eb 100%);
-  }
-
+  .ds-card.is-hero,
   .ds-card.is-hero-admin {
-    background:
-      linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0
-        0 / 44px 44px,
-      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) 0
-        0 / 44px 44px,
-      radial-gradient(
-        760px 420px at 96% -16%,
-        rgba(59, 130, 246, 0.38),
-        transparent 62%
-      ),
-      linear-gradient(135deg, #071023 0%, #0b1f55 56%, #1e3a8a 100%);
+    background: var(--hero-surface);
   }
 
   .ds-card.is-hoverable {
@@ -1040,19 +1048,19 @@
 
   .ds-glass {
     min-width: 0;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    border: 1px solid var(--hero-tile-edge, rgba(255, 255, 255, 0.1));
     border-radius: var(--r-4);
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--hero-tile, rgba(255, 255, 255, 0.06));
     padding: 14px 16px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
     backdrop-filter: blur(10px);
   }
 
   .ds-glass-eyebrow {
-    color: rgba(226, 232, 240, 0.78);
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.22em;
+    color: rgba(226, 232, 240, 0.72);
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
@@ -1060,9 +1068,11 @@
     margin-top: 8px;
     color: #fff;
     font-family: var(--font-display);
-    font-size: clamp(24px, 2.4vw, 34px);
-    font-weight: 800;
+    font-size: clamp(22px, 2.1vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.025em;
     line-height: 1;
+    font-variant-numeric: tabular-nums;
   }
 
   .ds-glass-sub {
@@ -1084,7 +1094,7 @@
     padding: 0 14px;
     color: var(--text-1);
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 650;
     line-height: 1;
     transition:
       transform var(--dur-fast) var(--ease-out),
@@ -1156,7 +1166,7 @@
     padding: 3px 9px;
     color: var(--text-2);
     font-size: 10px;
-    font-weight: 900;
+    font-weight: 650;
     letter-spacing: 0.03em;
     line-height: 1.2;
     text-transform: uppercase;
@@ -1435,8 +1445,8 @@
   .ds-kpi-eyebrow {
     color: var(--text-4);
     font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.2em;
+    font-weight: 650;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
@@ -1445,7 +1455,7 @@
     color: var(--text-1);
     font-family: var(--font-display);
     font-size: 30px;
-    font-weight: 800;
+    font-weight: 650;
     line-height: 1;
   }
 
@@ -1721,7 +1731,7 @@
   .auth-mark-title {
     color: #0f172a;
     font-size: 15px;
-    font-weight: 900;
+    font-weight: 650;
     letter-spacing: 0.08em;
     line-height: 1;
     text-transform: uppercase;
@@ -1731,8 +1741,8 @@
     margin-top: 5px;
     color: #475569;
     font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.18em;
+    font-weight: 650;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
   }
 
@@ -1747,8 +1757,8 @@
     padding: 8px 14px;
     color: rgba(224, 242, 254, 0.92);
     font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.2em;
+    font-weight: 650;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
@@ -1757,7 +1767,7 @@
     color: rgba(224, 242, 254, 0.82);
     font-size: 13px;
     font-weight: 700;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
@@ -1811,8 +1821,8 @@
   .auth-mini-label {
     color: rgba(224, 242, 254, 0.84);
     font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.2em;
+    font-weight: 650;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
@@ -1911,8 +1921,8 @@
     padding: 6px 10px;
     color: var(--success-fg);
     font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.18em;
+    font-weight: 650;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
   }
 
@@ -1951,8 +1961,8 @@
     margin-bottom: 6px;
     color: var(--content-3);
     font-size: 11px;
-    font-weight: 900;
-    letter-spacing: 0.16em;
+    font-weight: 650;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
   }
 
@@ -1991,7 +2001,7 @@
 
   .auth-input.mono {
     font-family: var(--font-mono);
-    letter-spacing: 0.18em;
+    letter-spacing: 0.09em;
   }
 
   .auth-password-field {
@@ -2052,7 +2062,7 @@
     background-color: var(--brand-700);
     color: #fff;
     font-size: 15px;
-    font-weight: 800;
+    font-weight: 650;
     cursor: pointer;
     box-shadow: 0 10px 24px -16px rgba(37, 99, 235, 0.72);
     transition:
@@ -2244,5 +2254,131 @@
     .auth-panel {
       animation: none;
     }
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion + loading primitives (shared across every module)            */
+/* ------------------------------------------------------------------ */
+@keyframes erp-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes erp-shimmer {
+  from {
+    background-position: -480px 0;
+  }
+  to {
+    background-position: 480px 0;
+  }
+}
+
+@layer utilities {
+  /* `backwards` fill: once finished no transform remains, so fixed/sticky
+     descendants keep the viewport as their containing block. */
+  .erp-page-enter {
+    animation: erp-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .erp-enter {
+    animation: erp-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+
+  .erp-stagger > * {
+    animation: erp-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .erp-stagger > *:nth-child(2) { animation-delay: 30ms; }
+  .erp-stagger > *:nth-child(3) { animation-delay: 60ms; }
+  .erp-stagger > *:nth-child(4) { animation-delay: 90ms; }
+  .erp-stagger > *:nth-child(5) { animation-delay: 120ms; }
+  .erp-stagger > *:nth-child(6) { animation-delay: 150ms; }
+  .erp-stagger > *:nth-child(n + 7) { animation-delay: 170ms; }
+
+  .erp-skeleton {
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in srgb, var(--surface-1) 70%, transparent) 50%,
+        transparent 100%
+      ),
+      var(--surface-2);
+    background-size: 480px 100%, auto;
+    background-repeat: no-repeat;
+    animation: erp-shimmer 1.3s linear infinite;
+  }
+
+  .dark .erp-skeleton {
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 50%, transparent 100%),
+      var(--surface-1);
+    background-size: 480px 100%, auto;
+    background-repeat: no-repeat;
+  }
+
+  .erp-route-progress {
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 100;
+    height: 2px;
+    pointer-events: none;
+    transform-origin: 0 50%;
+    transform: scaleX(0);
+    opacity: 0;
+    background: linear-gradient(90deg, var(--viz-1), color-mix(in srgb, var(--viz-1) 60%, #7dd3fc));
+    box-shadow: 0 0 8px color-mix(in srgb, var(--viz-1) 60%, transparent);
+  }
+
+  .erp-route-progress[data-state="running"] {
+    opacity: 1;
+    transform: scaleX(0.82);
+    transition:
+      transform 2.4s cubic-bezier(0.1, 0.7, 0.2, 1),
+      opacity 120ms linear;
+  }
+
+  .erp-route-progress[data-state="done"] {
+    opacity: 0;
+    transform: scaleX(1);
+    transition:
+      transform 180ms ease-out,
+      opacity 260ms ease 140ms;
+  }
+
+  .erp-panel {
+    transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .erp-page-enter,
+    .erp-enter,
+    .erp-stagger > *,
+    .erp-skeleton {
+      animation: none !important;
+    }
+  }
+}
+
+/* Manifest tables (Packing Yard, Dispatch Bay) */
+@layer utilities {
+  .erp-manifest-row > td {
+    transition: background-color 120ms ease-out;
+  }
+  .erp-manifest-row:hover > td {
+    background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  }
+  .erp-manifest-row.is-selected > td {
+    background: color-mix(in srgb, var(--info-bg) 85%, transparent);
+  }
+  .erp-manifest-row.is-selected > td:first-child {
+    box-shadow: inset 3px 0 0 hsl(var(--primary));
+  }
+  .erp-manifest tbody tr:last-child > td {
+    border-bottom: 0;
   }
 }

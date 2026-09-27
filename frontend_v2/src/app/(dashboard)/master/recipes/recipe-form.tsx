@@ -263,10 +263,10 @@ export function RecipeForm({
           <div className="overflow-hidden rounded-2xl border border-primary/20 bg-info-bg/40">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-primary/10 px-4 py-3">
               <div>
-                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-primary">
+                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
                   <GitCompareArrows className="h-3.5 w-3.5" /> Exact recipe contract
                 </div>
-                <div className="mt-1 text-base font-black text-content-1">
+                <div className="mt-1 text-base font-semibold text-content-1">
                   {initialData.film_variant_name} · {initialData.grade_name} · {initialData.thickness_min_micron}–{initialData.thickness_max_micron} μ
                 </div>
                 <p className="mt-1 text-xs font-medium text-content-3">
@@ -274,8 +274,8 @@ export function RecipeForm({
                 </p>
               </div>
               <div className="rounded-xl border border-primary/15 bg-surface-1 px-3 py-2 text-right">
-                <div className="text-[10px] font-black uppercase tracking-wider text-content-4">Current revision</div>
-                <div className="font-mono text-lg font-black tabular-nums text-primary">v{initialData.revision_no || 1}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">Current revision</div>
+                <div className="font-mono text-lg font-semibold tabular-nums text-primary">v{initialData.revision_no || 1}</div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-px bg-primary/10 sm:grid-cols-4">
@@ -286,10 +286,10 @@ export function RecipeForm({
                 { label: "Released", value: impact?.released ?? "—", icon: ShieldCheck },
               ].map((metric) => (
                 <div key={metric.label} className="bg-surface-1 px-3 py-2.5">
-                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-content-4">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-4">
                     <metric.icon className="h-3.5 w-3.5" /> {metric.label}
                   </div>
-                  <div className="mt-1 font-mono text-lg font-black tabular-nums text-content-1">
+                  <div className="mt-1 font-mono text-lg font-semibold tabular-nums text-content-1">
                     {impactLoading ? "…" : metric.value}
                   </div>
                 </div>
@@ -297,15 +297,15 @@ export function RecipeForm({
             </div>
             {impact?.samples?.length ? (
               <div className="border-t border-primary/10 bg-surface-1 px-4 py-3">
-                <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-content-4">Recent matching order lines</div>
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-content-4">Recent matching order lines</div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {impact.samples.slice(0, 4).map((sample) => (
                     <div key={sample.line_id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2">
                       <div>
-                        <div className="font-mono text-xs font-black text-content-1">{sample.order_number}</div>
+                        <div className="font-mono text-xs font-semibold text-content-1">{sample.order_number}</div>
                         <div className="text-[10px] font-semibold text-content-4">{sample.line_status || sample.order_status}</div>
                       </div>
-                      <span className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-wider ${sample.outcome === "FROZEN" ? "bg-info-bg text-primary" : "bg-success-bg text-success-fg"}`}>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${sample.outcome === "FROZEN" ? "bg-info-bg text-primary" : "bg-success-bg text-success-fg"}`}>
                         {sample.outcome === "FROZEN" ? "Keeps old recipe" : "Will refresh"}
                       </span>
                     </div>
@@ -313,6 +313,10 @@ export function RecipeForm({
                 </div>
               </div>
             ) : null}
+            <div className="flex items-start gap-2 border-t border-primary/10 bg-info-bg px-4 py-3 text-xs font-semibold text-primary">
+              <ShieldCheck className="mt-0.5 h-4 w-4 flex-none" />
+              <span>Identity is locked for this revision stream. Edit formulation percentages below. For a different variant, grade, or thickness range, disable this contract and create a new recipe.</span>
+            </div>
           </div>
         ) : null}
         <div className="grid grid-cols-2 gap-4">
@@ -326,6 +330,7 @@ export function RecipeForm({
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                   value={field.value}
+                  disabled={Boolean(initialData)}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -355,6 +360,7 @@ export function RecipeForm({
                   onValueChange={field.onChange}
                   defaultValue={field.value}
                   value={field.value}
+                  disabled={Boolean(initialData)}
                 >
                   <FormControl>
                     <SelectTrigger>
@@ -387,6 +393,8 @@ export function RecipeForm({
                     type="number"
                     {...field}
                     value={field.value as number}
+                    readOnly={Boolean(initialData)}
+                    className={initialData ? "cursor-not-allowed bg-surface-2 text-content-3" : undefined}
                   />
                 </FormControl>
                 <FormMessage />
@@ -404,6 +412,8 @@ export function RecipeForm({
                     type="number"
                     {...field}
                     value={field.value as number}
+                    readOnly={Boolean(initialData)}
+                    className={initialData ? "cursor-not-allowed bg-surface-2 text-content-3" : undefined}
                   />
                 </FormControl>
                 <FormMessage />
@@ -415,12 +425,12 @@ export function RecipeForm({
         <div className="overflow-hidden rounded-2xl border border-line bg-surface-2">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-surface-1 px-4 py-3">
             <div>
-              <h3 className="text-sm font-black text-content-1">Family formulation</h3>
+              <h3 className="text-sm font-semibold text-content-1">Family formulation</h3>
               <p className="mt-1 max-w-xl text-xs font-medium text-content-3">
                 Define consumption by granule family. WCM chooses one or more internal grade codes and source stores before machine release.
               </p>
               {initialData ? (
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-wider">
+                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
                   <span className="rounded-full bg-success-bg px-2 py-1 text-success-fg">{addedFamilies} added</span>
                   <span className="rounded-full bg-warning-bg px-2 py-1 text-warning-fg">{changedFamilies} changed</span>
                   <span className="rounded-full bg-surface-3 px-2 py-1 text-content-3">{removedFamilies} removed</span>
@@ -570,7 +580,7 @@ export function RecipeForm({
             name="change_reason"
             render={({ field }) => (
               <FormItem className="rounded-2xl border border-line bg-surface-2 p-4">
-                <FormLabel className="flex items-center gap-2 text-sm font-black text-content-1">
+                <FormLabel className="flex items-center gap-2 text-sm font-semibold text-content-1">
                   <History className="h-4 w-4 text-primary" /> Revision reason
                 </FormLabel>
                 <FormControl>

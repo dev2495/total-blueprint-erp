@@ -136,7 +136,7 @@ export default function InventoryHistoryPage() {
     return (
       <ReportLayout
         title="Inventory Snapshot History"
-        description="Track the inventory estate over time, keep Inventory snapshot rhythm visible from the top of the page, surface the Snapshot ledger immediately for audit review, and spot which plants are carrying the most stock pressure."
+        description="Stock across every plant over time: bulk, rolls, WIP and reserves per snapshot, and which plants carry the most."
       >
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -157,17 +157,13 @@ export default function InventoryHistoryPage() {
   return (
     <ReportLayout
       title="Inventory Snapshot History"
-      description="Track the inventory estate over time, keep Inventory snapshot rhythm visible from the top of the page, surface the Snapshot ledger immediately for audit review, and spot which plants are carrying the most stock pressure."
+      description="Stock across every plant over time: bulk, rolls, WIP and reserves per snapshot, and which plants carry the most."
       onRefresh={loadSnapshots}
       actions={
         latest ? (
-          <div className="rounded-2xl border border-line bg-surface-1/90 px-4 py-3 shadow-sm">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
-              Latest capture
-            </div>
-            <div className="mt-1 text-sm font-semibold text-content-2">
-              {formatFullDate(latest.created_at)}
-            </div>
+          <div className="rounded-xl border border-white/15 bg-white/[0.06] px-3 py-1.5 text-white">
+            <div className="text-[11px] text-white/60">Latest capture</div>
+            <div className="text-[12.5px] font-medium">{formatFullDate(latest.created_at)}</div>
           </div>
         ) : undefined
       }
@@ -215,7 +211,7 @@ export default function InventoryHistoryPage() {
         <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
             <CardHeader className="border-b border-line bg-surface-1/70">
-              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+              <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                 Inventory snapshot rhythm
               </CardTitle>
               <p className="text-sm text-content-3">
@@ -328,7 +324,7 @@ export default function InventoryHistoryPage() {
 
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
             <CardHeader className="border-b border-line bg-surface-1/70">
-              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+              <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                 Latest plant load
               </CardTitle>
               <p className="text-sm text-content-3">
@@ -405,21 +401,21 @@ export default function InventoryHistoryPage() {
                       <div className="rounded-xl bg-surface-1 px-3 py-2">
                         Bulk
                         <br />
-                        <span className="text-sm font-black text-content-1">
+                        <span className="text-sm font-semibold text-content-1">
                           {formatKg(snapshot.total_bulk_kg)}
                         </span>
                       </div>
                       <div className="rounded-xl bg-surface-1 px-3 py-2">
                         Rolls
                         <br />
-                        <span className="text-sm font-black text-content-1">
+                        <span className="text-sm font-semibold text-content-1">
                           {formatKg(snapshot.total_roll_kg)}
                         </span>
                       </div>
                       <div className="rounded-xl bg-surface-1 px-3 py-2">
                         WIP
                         <br />
-                        <span className="text-sm font-black text-content-1">
+                        <span className="text-sm font-semibold text-content-1">
                           {formatKg(snapshot.total_wip_kg)}
                         </span>
                       </div>
@@ -435,7 +431,7 @@ export default function InventoryHistoryPage() {
           <CardHeader className="border-b border-line bg-surface-1/70">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                   Snapshot ledger
                 </CardTitle>
                 <p className="text-sm text-content-3">
@@ -472,7 +468,7 @@ export default function InventoryHistoryPage() {
                   >
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                       <div>
-                        <div className="text-base font-black tracking-tight text-content-1">
+                        <div className="text-base font-semibold tracking-tight text-content-1">
                           {snapshot.plant_name}
                         </div>
                         <div className="mt-1 text-xs font-medium text-content-3">
@@ -535,10 +531,10 @@ export default function InventoryHistoryPage() {
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-surface-1 px-3 py-3 shadow-sm">
-      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
         {label}
       </div>
-      <div className="mt-2 text-sm font-black text-content-1">{value}</div>
+      <div className="mt-2 text-sm font-semibold text-content-1">{value}</div>
     </div>
   );
 }

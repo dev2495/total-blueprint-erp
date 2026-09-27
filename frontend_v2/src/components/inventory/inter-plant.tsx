@@ -250,7 +250,7 @@ export function InterPlantV36() {
         <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                 Live transfers · plant → plant
               </div>
               <h3 className="font-display text-base font-bold text-content-1">
@@ -360,12 +360,12 @@ function Kpi({
       )}
     >
       <div className="flex items-start justify-between">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
           {label}
         </div>
         <span className="text-xl">{icon}</span>
       </div>
-      <div className="mt-2 font-display text-3xl font-black">{value}</div>
+      <div className="mt-2 font-display text-3xl font-semibold">{value}</div>
       <div className="mt-1 text-xs text-white/80">{sub}</div>
     </div>
   );
@@ -434,7 +434,7 @@ function Lane({
         </div>
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-black",
+            "rounded-full px-2 py-0.5 text-[10px] font-semibold",
             TONE.num,
           )}
         >
@@ -473,13 +473,13 @@ function Card({ c, onClick }: { c: DeliveryChallan; onClick: () => void }) {
         </div>
         <div className="flex items-center gap-1">
           {c.is_system_generated && (
-            <span className="rounded-md bg-info-bg px-1.5 py-0.5 text-[9px] font-bold text-primary ring-1 ring-info-border">
+            <span className="rounded-md bg-info-bg px-1.5 py-0.5 text-[10px] font-bold text-primary ring-1 ring-info-border">
               AUTO
             </span>
           )}
           <span
             className={cn(
-              "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+              "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
               statusBadge(c.status),
             )}
           >
@@ -535,7 +535,7 @@ function Pill({
         TONE,
       )}
     >
-      <span className="text-[8px] font-black uppercase opacity-70">
+      <span className="text-[8px] font-semibold uppercase opacity-70">
         {label}
       </span>
       <span className="font-mono text-[10px] font-bold">{value}</span>
@@ -561,7 +561,7 @@ function DetailDrawer({
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                 Inter-plant DC
               </div>
               <div className="font-display text-lg font-bold text-content-1">
@@ -626,7 +626,7 @@ function DetailDrawer({
 
           {/* Logistics */}
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Logistics
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -642,7 +642,7 @@ function DetailDrawer({
 
           {/* Timeline */}
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Lifecycle
             </div>
             <ol className="relative ml-3 border-l-2 border-line space-y-3">
@@ -664,7 +664,7 @@ function DetailDrawer({
           {Array.isArray(challan.item_preview) &&
             challan.item_preview.length > 0 && (
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
                   Lines preview
                 </div>
                 <div className="space-y-1.5">
@@ -713,7 +713,7 @@ function DetailDrawer({
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 text-xs font-bold text-content-2 truncate">
@@ -740,7 +740,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold">{value}</div>

@@ -308,7 +308,12 @@ class RollAllocationBatchTests(_FakeAssignMixin, TestCase):
         request = factory.get(f"/api/production/jobs/{self.job.id}/tiered-rolls/")
         force_authenticate(request, user=self.user)
 
-        response = view(request, pk=str(self.job.id))
+        # This endpoint now requires the same physical input contract as allocation.
+        with patch(
+            "apps.production.services.services_execution.ExecutionService._job_layer_snapshot",
+            return_value=[{"variant_id": str(self.material.id), "thickness_micron": 25, "width_mm": 500}],
+        ):
+            response = view(request, pk=str(self.job.id))
 
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["job_plant_id"], str(self.plant.id))

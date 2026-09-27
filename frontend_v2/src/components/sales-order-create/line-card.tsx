@@ -90,7 +90,7 @@ export function LineCard({
       >
         <span
           className={cn(
-            "flex h-8 w-8 flex-none items-center justify-center rounded-xl text-xs font-black shadow-sm ring-1",
+            "flex h-8 w-8 flex-none items-center justify-center rounded-xl text-xs font-semibold shadow-sm ring-1",
             hasIssue
               ? "bg-danger-solid text-white ring-danger-border"
               : "bg-gradient-to-br from-primary to-order-fg text-white ring-primary",
@@ -100,7 +100,7 @@ export function LineCard({
         </span>
         <div className="min-w-0 flex-1">
           {line.line_label ? (
-            <div className="truncate font-display text-sm font-black text-content-1">
+            <div className="truncate font-display text-sm font-semibold text-content-1">
               {line.line_label}
             </div>
           ) : null}
@@ -211,7 +211,7 @@ function Chip({
     violet: "bg-order-bg text-order-fg ring-order-border",
     amber: "bg-warning-bg text-warning-fg ring-warning-border",
     sky: "bg-info-bg text-info-fg ring-info-border",
-    orange: "bg-warm text-warm ring-warning-border",
+    orange: "bg-warning-bg text-warning-fg ring-warning-border",
     fuchsia: "bg-order-bg text-order-fg ring-order-border",
     slate: "bg-surface-2 text-content-3 ring-line",
   };

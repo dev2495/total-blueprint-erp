@@ -61,6 +61,11 @@ const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
   "/analytics/reports/operator": "page.analytics.reports_operator.view",
   "/analytics/reports/interplant": "page.analytics.reports_interplant.view",
   "/analytics/reports/scrap": "page.analytics.reports_scrap.view",
+  // Newer report pages reuse the permission of their closest sibling report.
+  "/analytics/reports/material-variance": "page.analytics.reports_mrp.view",
+  "/analytics/reports/ink-intelligence": "page.analytics.reports_mrp.view",
+  "/analytics/reports/inventory-lineage": "page.analytics.reports_inventory.view",
+  "/analytics/reports/shift-performance": "page.analytics.reports_production.view",
   "/dashboard/owner": "page.dashboard.owner.view",
   "/dashboard/admin": "page.dashboard.admin.view",
   "/dashboard/planner": "page.dashboard.planner.view",

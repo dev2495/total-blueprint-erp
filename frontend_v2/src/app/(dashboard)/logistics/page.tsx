@@ -54,10 +54,10 @@ function KpiCard({
             <Icon className="h-5 w-5" strokeWidth={2.2} />
           </div>
         </div>
-        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
           {label}
         </div>
-        <div className="mt-2 text-4xl font-black tracking-tight text-content-1">
+        <div className="mt-2 text-4xl font-semibold tracking-tight text-content-1">
           {value}
         </div>
         <div className="mt-2 text-sm font-medium text-content-3">{helper}</div>
@@ -103,16 +103,16 @@ export default function LogisticsHubPage() {
   const transitRows = (transitReport?.rows || []).slice(0, 5);
 
   return (
-    <div className="min-h-screen space-y-8 bg-[radial-gradient(circle_at_top,#e2e8f0_0%,#f8fafc_35%,#f8fafc_100%)] p-6 lg:p-10">
-      <section className="overflow-hidden rounded-[2rem] border border-line bg-surface-3 px-6 py-7 text-white shadow-[0_30px_90px_-48px_rgba(15,23,42,0.85)]">
+    <div className="mx-auto max-w-[1600px] space-y-4">
+      <section className="erp-hero overflow-hidden rounded-[22px] px-6 py-6 text-white">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-fg px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-info-border">
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-white/60">
               <Truck className="h-3.5 w-3.5" />
               Live Logistics Truth
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight">
+              <h1 className="text-4xl font-semibold tracking-tight">
                 Dispatch, packing, and transit control
               </h1>
               <p className="mt-2 max-w-3xl text-sm font-medium text-content-4">
@@ -181,7 +181,7 @@ export default function LogisticsHubPage() {
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card className="rounded-[2rem] border border-line bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-line pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold tracking-tight text-content-1">
               <Activity className="h-5 w-5 text-info-fg" />
               Dispatch weight trend
             </CardTitle>
@@ -239,7 +239,7 @@ export default function LogisticsHubPage() {
 
         <Card className="rounded-[2rem] border border-line bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-line pb-4">
-            <CardTitle className="flex items-center gap-2 text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold tracking-tight text-content-1">
               <Factory className="h-5 w-5 text-primary" />
               Top dispatch customers
             </CardTitle>
@@ -280,7 +280,7 @@ export default function LogisticsHubPage() {
       <section className="grid gap-6 xl:grid-cols-2">
         <Card className="rounded-[2rem] border border-line bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-line pb-4">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Latest challans
             </CardTitle>
           </CardHeader>
@@ -298,14 +298,14 @@ export default function LogisticsHubPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-base font-black tracking-tight text-content-1">
+                      <div className="text-base font-semibold tracking-tight text-content-1">
                         {row.dc_no}
                       </div>
                       <div className="mt-1 text-sm font-medium text-content-3">
                         {row.customer || "Unknown customer"}
                       </div>
                     </div>
-                    <div className="rounded-full bg-surface-3 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-white">
+                    <div className="rounded-full bg-surface-3 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
                       {String(row.status || "").replace(/_/g, " ")}
                     </div>
                   </div>
@@ -324,7 +324,7 @@ export default function LogisticsHubPage() {
 
         <Card className="rounded-[2rem] border border-line bg-surface-1 shadow-sm">
           <CardHeader className="border-b border-line pb-4">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Inter-plant live lanes
             </CardTitle>
           </CardHeader>
@@ -342,7 +342,7 @@ export default function LogisticsHubPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-base font-black tracking-tight text-content-1">
+                      <div className="text-base font-semibold tracking-tight text-content-1">
                         {row.dc_no}
                       </div>
                       <div className="mt-1 text-sm font-medium text-content-3">
@@ -350,7 +350,7 @@ export default function LogisticsHubPage() {
                         {row.to_plant || "Unknown"}
                       </div>
                     </div>
-                    <div className="rounded-full bg-info-bg px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-info-fg">
+                    <div className="rounded-full bg-info-bg px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-info-fg">
                       {String(row.status || "").replace(/_/g, " ")}
                     </div>
                   </div>

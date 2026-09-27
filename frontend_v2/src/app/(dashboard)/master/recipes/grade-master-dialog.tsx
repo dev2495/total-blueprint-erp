@@ -200,7 +200,7 @@ export function GradeMasterDialog() {
                       <span className="font-medium text-content-2">
                         {grade.name}
                       </span>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                         <Button
                           size="icon"
                           variant="ghost"

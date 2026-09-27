@@ -122,7 +122,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
         title="Saved on this device"
         {...props}
       >
-        <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-content-3">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-content-3">
           <Star className="h-3 w-3 text-primary" />
           Views
         </span>

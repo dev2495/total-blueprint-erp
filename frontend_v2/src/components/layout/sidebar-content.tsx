@@ -116,7 +116,7 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
         />
       </div>
       <div className="flex min-w-0 flex-col overflow-hidden leading-none transition-[opacity,transform] duration-300 ease-out">
-        <span className="text-[9px] font-semibold uppercase tracking-[0.15em] text-content-3">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
           ERP System
         </span>
       </div>
@@ -349,7 +349,7 @@ export function SidebarNavContent({
                     flyoutPlacement,
                   )}
                 >
-                  <div className="px-2 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                  <div className="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                     {item.title}
                   </div>
                   <div className="space-y-1">
@@ -387,7 +387,7 @@ export function SidebarNavContent({
                         {link.badge ? (
                           <span
                             className={cn(
-                              "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                              "rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase",
                               link.active
                                 ? "bg-surface-1/15 text-white"
                                 : "border border-line bg-surface-2 text-content-3",
@@ -440,7 +440,7 @@ export function SidebarNavContent({
               <>
                 <div
                   className={cn(
-                    "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.22em] text-content-4",
+                    "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-content-4",
                     isActive ? "text-primary" : "",
                     mobile ? "mt-4 px-3 text-[10px]" : "",
                   )}
@@ -483,7 +483,7 @@ export function SidebarNavContent({
                   {childCount > 0 ? (
                     <span
                       className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[9px] font-black",
+                        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                         isActive
                           ? "bg-primary/10 text-primary"
                           : "bg-surface-2 text-content-4",
@@ -551,7 +551,7 @@ export function SidebarNavContent({
                           {child.badge ? (
                             <span
                               className={cn(
-                                "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                                "rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase",
                                 isChildActive
                                   ? "bg-surface-1/15 text-white"
                                   : "border border-line bg-surface-2 text-content-3",

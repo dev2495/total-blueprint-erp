@@ -118,7 +118,7 @@ export default function InterPlantPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black">{stats.total}</div>
+            <div className="text-2xl font-semibold">{stats.total}</div>
           </CardContent>
         </Card>
         <Card>
@@ -128,7 +128,7 @@ export default function InterPlantPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-warning-fg">
+            <div className="text-2xl font-semibold text-warning-fg">
               {stats.draft}
             </div>
           </CardContent>
@@ -140,7 +140,7 @@ export default function InterPlantPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-primary">
+            <div className="text-2xl font-semibold text-primary">
               {stats.inTransit}
             </div>
           </CardContent>
@@ -152,7 +152,7 @@ export default function InterPlantPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-success-fg">
+            <div className="text-2xl font-semibold text-success-fg">
               {stats.received}
             </div>
           </CardContent>
@@ -231,7 +231,7 @@ function LifecycleColumn({
     <Card className={statusClass}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-black flex items-center gap-2">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
             {icon}
             {title}
           </CardTitle>

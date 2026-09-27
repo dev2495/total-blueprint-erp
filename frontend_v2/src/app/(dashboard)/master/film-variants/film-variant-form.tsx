@@ -234,7 +234,7 @@ export function FilmVariantForm({
 
         {/* Sales / Trade Order section */}
         <div className="rounded-2xl border border-success-border bg-success-bg p-4 space-y-3">
-          <div className="text-[11px] font-black uppercase tracking-wider text-success-fg">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-success-fg">
             Sales · Trade Orders
           </div>
           <FormField

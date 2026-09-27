@@ -385,7 +385,7 @@ function CellButton({
       <span className="truncate">{axisLabel}</span>
       {variant && inUse && (
         <span
-          className="ml-1 hidden rounded-full bg-primary px-1 text-[9px] font-bold text-white sm:inline"
+          className="ml-1 hidden rounded-full bg-primary px-1 text-[10px] font-bold text-white sm:inline"
           aria-hidden
         >
           •

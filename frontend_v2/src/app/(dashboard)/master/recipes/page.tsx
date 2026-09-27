@@ -212,7 +212,7 @@ export default function RecipesPage() {
             <div className="flex items-start gap-3">
               <div className="rounded-xl bg-success-bg p-2 text-success-fg"><CheckCircle2 className="h-5 w-5" /></div>
               <div>
-                <div className="text-sm font-black text-content-1">Revision v{lastSave.revision_no || 1} is live</div>
+                <div className="text-sm font-semibold text-content-1">Revision v{lastSave.revision_no || 1} is live</div>
                 <div className="mt-0.5 text-xs font-semibold text-content-3">
                   {lastSave.film_variant_name} · {lastSave.grade_name} · {lastSave.thickness_min_micron}–{lastSave.thickness_max_micron} μ
                 </div>
@@ -228,8 +228,8 @@ export default function RecipesPage() {
               { label: "Needs review", value: (lastSave.bom_refresh?.failed || 0) + (lastSave.bom_refresh?.still_blocked || 0), icon: ShieldCheck },
             ].map((metric) => (
               <div key={metric.label} className="bg-surface-1 px-4 py-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-content-4"><metric.icon className="h-3.5 w-3.5" />{metric.label}</div>
-                <div className="mt-1 font-mono text-xl font-black tabular-nums text-content-1">{metric.value}</div>
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-4"><metric.icon className="h-3.5 w-3.5" />{metric.label}</div>
+                <div className="mt-1 font-mono text-xl font-semibold tabular-nums text-content-1">{metric.value}</div>
               </div>
             ))}
           </div>

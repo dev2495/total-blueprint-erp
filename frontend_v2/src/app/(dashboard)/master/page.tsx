@@ -300,7 +300,7 @@ export default function MasterDataPage() {
           <Link key={index} href={master.href}>
             <Card className="cursor-pointer border-none shadow-premium hover:shadow-premium-hover hover:-translate-y-1 transition-all duration-300 h-full rounded-[1.5rem] group relative overflow-hidden bg-surface-1">
               <div
-                className={`absolute top-0 left-0 w-1 h-full ${master.bg.replace("bg-", "bg-gradient-to-b from-")} to-white/0 opacity-0 group-hover:opacity-100 transition-opacity`}
+                className={`absolute top-0 left-0 w-1 h-full ${master.bg.replace("bg-", "bg-gradient-to-b from-")} to-white/0 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity`}
               />
 
               <CardContent className="p-5 sm:p-6 flex flex-col h-full">
@@ -340,7 +340,7 @@ export default function MasterDataPage() {
                       kind="approval"
                       value="APPROVED"
                       label="Live"
-                      className="text-[9px]"
+                      className="text-[10px]"
                     />
                   </div>
                 </div>

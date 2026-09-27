@@ -54,7 +54,7 @@ export const getColumns = ({
     cell: ({ row }) => (
       <div className="flex flex-col">
         <div className="font-bold text-content-2">{row.original.name}</div>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-content-4">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
           {row.original.contact_person ||
             row.original.under_group ||
             "Primary contact pending"}

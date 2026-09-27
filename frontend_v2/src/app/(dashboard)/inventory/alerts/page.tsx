@@ -157,12 +157,12 @@ export default function AlertsCenterPage() {
         <div className="pointer-events-none absolute -right-10 -top-8 h-36 w-36 rounded-full bg-danger-solid blur-3xl" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-danger-border bg-danger-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-danger-fg">
+            <div className="inline-flex items-center gap-2 rounded-full border border-danger-border bg-danger-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-danger-fg">
               <ShieldAlert className="h-3.5 w-3.5" />
               Inventory Alert Console
             </div>
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-content-1">
+              <h1 className="text-3xl font-semibold tracking-tight text-content-1">
                 Alerts Center
               </h1>
               <p className="mt-2 max-w-3xl text-sm font-medium text-content-3">
@@ -227,7 +227,7 @@ export default function AlertsCenterPage() {
           value={criticalCount.toLocaleString()}
           subLabel="Highest-severity unresolved alerts"
           icon={AlertTriangle}
-          toneClassName="bg-warm text-warm"
+          toneClassName="bg-warning-bg text-warning-fg"
         />
         <SummaryStatCard
           label="Resolved in view"
@@ -254,7 +254,7 @@ export default function AlertsCenterPage() {
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           <CardHeader className="border-b border-line bg-surface-1/70">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Severity mix
             </CardTitle>
             <p className="text-sm text-content-3">
@@ -300,7 +300,7 @@ export default function AlertsCenterPage() {
 
         <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           <CardHeader className="border-b border-line bg-surface-1/70">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Top alert families
             </CardTitle>
             <p className="text-sm text-content-3">
@@ -327,7 +327,7 @@ export default function AlertsCenterPage() {
                         Rank #{index + 1}
                       </div>
                     </div>
-                    <div className="text-2xl font-black tracking-tight text-content-1">
+                    <div className="text-2xl font-semibold tracking-tight text-content-1">
                       {row.count}
                     </div>
                   </div>
@@ -340,7 +340,7 @@ export default function AlertsCenterPage() {
 
       <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
         <CardHeader className="border-b border-line bg-surface-1/70">
-          <CardTitle className="text-lg font-black tracking-tight text-content-1">
+          <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
             Alert queue
           </CardTitle>
           <p className="text-sm text-content-3">
@@ -352,7 +352,7 @@ export default function AlertsCenterPage() {
           {filteredAlerts.length === 0 ? (
             <div className="rounded-[1.5rem] border border-dashed border-success-border bg-success-bg p-10 text-center">
               <CheckCircle2 className="mx-auto h-10 w-10 text-success-fg" />
-              <div className="mt-4 text-base font-black tracking-tight text-content-1">
+              <div className="mt-4 text-base font-semibold tracking-tight text-content-1">
                 No alerts found
               </div>
               <div className="mt-1 text-sm text-content-3">
@@ -374,12 +374,12 @@ export default function AlertsCenterPage() {
                         value={alert.resolved ? "APPROVED" : "REVIEW"}
                         label={alert.resolved ? "Resolved" : "Needs action"}
                       />
-                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-content-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-4">
                         {alert.type_display}
                       </div>
                     </div>
                     <div>
-                      <div className="text-base font-black tracking-tight text-content-1">
+                      <div className="text-base font-semibold tracking-tight text-content-1">
                         {alert.message}
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs font-medium text-content-3">
@@ -412,7 +412,7 @@ export default function AlertsCenterPage() {
                       {alert.resolved && (
                         <div className="mt-3 rounded-xl border border-success-border bg-success-bg px-3 py-2 text-xs text-success-fg">
                           Resolved by{" "}
-                          <span className="font-black">
+                          <span className="font-semibold">
                             {alert.resolved_by_name || "ERP user"}
                           </span>
                           {alert.resolved_at
@@ -452,7 +452,7 @@ export default function AlertsCenterPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3">
-              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-content-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 Alert
               </div>
               <div className="mt-1 text-sm font-bold text-content-1">

@@ -298,7 +298,7 @@ function PulseMatrixCard({ matrix }: { matrix: PulseMatrix }) {
         <table className="min-w-full text-[11px]">
           <thead>
             <tr className="text-content-3">
-              <th className="sticky left-0 bg-surface-1 pr-2 py-1 text-left font-bold uppercase tracking-wider text-[9px]">
+              <th className="sticky left-0 bg-surface-1 pr-2 py-1 text-left font-bold uppercase tracking-wider text-[10px]">
                 {matrix.rowLabel} \\ {matrix.colLabel}
               </th>
               {showCols.map((c) => (
@@ -417,7 +417,7 @@ function PulseTopList({
               </div>
               <div
                 className={cn(
-                  "font-mono text-sm font-black tabular-nums flex-none",
+                  "font-mono text-sm font-semibold tabular-nums flex-none",
                   TONE,
                 )}
               >
@@ -473,7 +473,7 @@ function PulseKpiTile({
         )}
       />
       <div className="flex items-start justify-between gap-2 pl-1">
-        <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-3 truncate">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 truncate">
           {label}
         </div>
         {icon && (
@@ -488,13 +488,13 @@ function PulseKpiTile({
         )}
       </div>
       <div className="mt-1.5 flex items-baseline gap-1.5 pl-1">
-        <span className="font-display text-2xl font-black text-content-1 tabular-nums">
+        <span className="font-display text-2xl font-semibold text-content-1 tabular-nums">
           {value}
         </span>
         {delta && (
           <span
             className={cn(
-              "rounded px-1 py-0.5 text-[9px] font-black",
+              "rounded px-1 py-0.5 text-[10px] font-semibold",
               delta.positive
                 ? "bg-success-bg text-success-fg"
                 : "bg-danger-bg text-danger-fg",
@@ -571,11 +571,11 @@ function MicroStat({ label, value, sub, tone = "default" }: PulseStat) {
   }[tone];
   return (
     <div className="border-l-2 border-line pl-3">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div
-        className={cn("font-display text-base font-black tabular-nums", TONE)}
+        className={cn("font-display text-base font-semibold tabular-nums", TONE)}
       >
         {value}
       </div>
@@ -672,7 +672,7 @@ function HorizontalBars({
                 <span className="font-mono text-content-2 tabular-nums">
                   {fmt(e.value, 0)} {unit}
                 </span>
-                <span className="font-mono text-[9px] font-bold text-content-4 tabular-nums w-9 text-right">
+                <span className="font-mono text-[10px] font-bold text-content-4 tabular-nums w-9 text-right">
                   {sharePct.toFixed(1)}%
                 </span>
               </span>
@@ -749,7 +749,7 @@ function Donut({
           y="51"
           textAnchor="middle"
           className="fill-content-1"
-          style={{ fontSize: 14, fontWeight: 800 }}
+          style={{ fontSize: 14, fontWeight: 650 }}
         >
           {fmt(total, 0)}
         </text>
@@ -853,11 +853,11 @@ function AgeBucket({
   }[color];
   return (
     <div className={cn("rounded-lg px-2 py-1.5 ring-1", TONE)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="font-mono text-sm font-bold tabular-nums">{fmt(n)}</div>
-      <div className="text-[9px] opacity-60 tabular-nums">
+      <div className="text-[10px] opacity-60 tabular-nums">
         {pct.toFixed(0)}%
       </div>
     </div>
@@ -941,7 +941,7 @@ export function ClassTabBar({
               {typeof t.badge !== "undefined" && (
                 <span
                   className={cn(
-                    "ml-1 rounded-full px-1.5 py-0.5 text-[9px] font-black",
+                    "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                     active
                       ? "bg-surface-1/20 text-white"
                       : "bg-surface-2 text-content-3",
@@ -1062,10 +1062,10 @@ export function SubtleHero({
       <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-order-fg via-order-fg to-order-fg" />
       <div className="flex flex-wrap items-start justify-between gap-3 pl-2">
         <div className="min-w-0">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
             {eyebrow}
           </div>
-          <h1 className="font-display text-2xl font-black text-content-1 mt-0.5 tracking-tight">
+          <h1 className="font-display text-2xl font-semibold text-content-1 mt-0.5 tracking-tight">
             {title}
           </h1>
           {subtitle && (

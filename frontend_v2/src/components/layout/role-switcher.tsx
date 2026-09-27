@@ -70,7 +70,7 @@ export function RoleSwitcher({
           className={cn(
             "border-line bg-surface-1 text-content-2 transition-colors hover:bg-surface-2",
             compact
-              ? "h-10 w-[132px] rounded-2xl px-3 text-[11px] font-black uppercase tracking-[0.14em]"
+              ? "h-10 w-[132px] rounded-2xl px-3 text-[11px] font-semibold uppercase tracking-[0.08em]"
               : "h-8 w-[160px] text-xs font-bold",
           )}
           data-testid={triggerTestId}

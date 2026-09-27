@@ -6,6 +6,7 @@ import { CheckCircle2, Layers3, Settings2, Wrench } from "lucide-react";
 import { analyticsApi } from "@/services/analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageHero } from "@/components/premium";
 
 const SECTION_ICON = {
   SUPPORTED_NOW: CheckCircle2,
@@ -53,25 +54,14 @@ export default function CapabilityMatrixPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-2 p-6 space-y-6">
-      <Card className="border-line shadow-sm">
-        <CardContent className="flex items-start justify-between gap-4 p-6">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-primary">
-              <Layers3 className="h-3.5 w-3.5" />
-              Capability Matrix
-            </div>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-content-1">
-              What this ERP can support today, by config, or only with new logic
-            </h1>
-            <p className="mt-2 max-w-4xl text-sm text-content-3">
-              This matrix is the honest support boundary for stock naming,
-              rolls, pouches, and future flexible-packaging extensions. It
-              separates taxonomy work from real manufacturing logic changes.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="mx-auto max-w-[1600px] space-y-4">
+      <PageHero
+        compact
+        eyebrow="Capability Matrix"
+        icon={<Layers3 />}
+        title="What this ERP supports today, by configuration, or only with new logic"
+        description="The support boundary for stock naming, rolls, pouches and future flexible-packaging extensions: taxonomy work versus real manufacturing logic."
+      />
 
       {(Array.isArray(data.sections) ? data.sections : []).map(
         (section, sectionIndex) => {
@@ -96,10 +86,10 @@ export default function CapabilityMatrixPage() {
                     <Icon className="h-5 w-5 text-content-1" />
                   </div>
                   <div>
-                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-content-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
                       {sectionStatus.replaceAll("_", " ")}
                     </div>
-                    <div className="text-xl font-black tracking-tight text-content-1">
+                    <div className="text-xl font-semibold tracking-tight text-content-1">
                       {sectionLabel}
                     </div>
                   </div>
@@ -123,13 +113,13 @@ export default function CapabilityMatrixPage() {
                         className="border-line shadow-sm"
                       >
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-lg font-black text-content-1">
+                          <CardTitle className="text-lg font-semibold text-content-1">
                             {family}
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 text-sm">
                           <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-4">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                               What it means
                             </div>
                             <p className="mt-1 text-content-2">
@@ -140,7 +130,7 @@ export default function CapabilityMatrixPage() {
                             </p>
                           </div>
                           <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-4">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                               Why
                             </div>
                             <p className="mt-1 text-content-2">
@@ -148,7 +138,7 @@ export default function CapabilityMatrixPage() {
                             </p>
                           </div>
                           <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-4">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                               Examples
                             </div>
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -168,7 +158,7 @@ export default function CapabilityMatrixPage() {
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div>
-                              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-4">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                                 Needs only config
                               </div>
                               <ul className="mt-2 space-y-1 text-content-2">
@@ -181,7 +171,7 @@ export default function CapabilityMatrixPage() {
                               </ul>
                             </div>
                             <div>
-                              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-4">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                                 Needs code / module
                               </div>
                               <ul className="mt-2 space-y-1 text-content-2">
@@ -195,7 +185,7 @@ export default function CapabilityMatrixPage() {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-4">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                               Limits
                             </div>
                             <ul className="mt-2 space-y-1 text-content-2">

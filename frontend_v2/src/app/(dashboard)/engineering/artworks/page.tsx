@@ -222,10 +222,10 @@ export default function EngineeringArtworksPage() {
                 <CardContent className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black tracking-tight text-content-1">
+                      <div className="text-sm font-semibold tracking-tight text-content-1">
                         {artwork.name}
                       </div>
-                      <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-content-4">
+                      <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-content-4">
                         {artwork.design_code}
                       </div>
                     </div>
@@ -262,25 +262,25 @@ export default function EngineeringArtworksPage() {
 
                   <div className="grid grid-cols-2 gap-3 rounded-2xl bg-surface-2 p-4 text-sm">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                         Front / Back
                       </div>
-                      <div className="mt-1 font-black text-content-1">
+                      <div className="mt-1 font-semibold text-content-1">
                         F{artwork.front_colors_count || 0} / B
                         {artwork.back_colors_count || 0}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                         Print / Film
                       </div>
-                      <div className="mt-1 font-black text-content-1">
+                      <div className="mt-1 font-semibold text-content-1">
                         {artwork.print_type || "FLEXO"} ·{" "}
                         {artwork.substrate_mode || "SHEET"}
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                         Color Identity
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">

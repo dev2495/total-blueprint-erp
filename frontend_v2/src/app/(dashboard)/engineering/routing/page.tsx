@@ -293,11 +293,11 @@ function RouteFlowPreview({
             )}
           >
             <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                 Stage {stagePosition + 1}
               </span>
               {stage.nodes.length > 1 ? (
-                <span className="rounded-full border border-warning-border bg-surface-1 px-2 py-0.5 text-[10px] font-black text-warning-fg">
+                <span className="rounded-full border border-warning-border bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-warning-fg">
                   + parallel
                 </span>
               ) : null}
@@ -306,11 +306,11 @@ function RouteFlowPreview({
               {stage.nodes.map((node, nodeIndex) => (
                 <div key={node.id} className="flex items-center gap-2">
                   {nodeIndex > 0 ? (
-                    <span className="text-base font-black text-warning-fg">+</span>
+                    <span className="text-base font-semibold text-warning-fg">+</span>
                   ) : null}
                   <span
                     className={cn(
-                      "inline-flex min-h-10 items-center rounded-xl border px-3 py-2 text-xs font-black shadow-sm",
+                      "inline-flex min-h-10 items-center rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm",
                       flowTone(nodeIndex + stagePosition),
                       compact && "min-h-8 px-2 py-1 text-[11px]",
                     )}
@@ -372,11 +372,11 @@ function RouteFlowBuilder({
     <div className="rounded-[1.5rem] border border-info-border bg-info-bg/40 p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm font-black text-content-1">
+          <div className="flex items-center gap-2 text-sm font-semibold text-content-1">
             <GitBranch className="h-4 w-4 text-primary" /> Route flow
           </div>
           <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-content-3">
-            Route Master only decides the path. Use <span className="font-black text-warning-fg">+</span>{" "}
+            Route Master only decides the path. Use <span className="font-semibold text-warning-fg">+</span>{" "}
             when two processes can run at the same time; the next stage waits
             for every process in that row.
           </p>
@@ -413,10 +413,10 @@ function RouteFlowBuilder({
                     : "border-line bg-surface-1",
                 )}
               >
-                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-content-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-4">
                   Step {index + 1}
                 </div>
-                <div className="mt-1 text-xs font-black text-content-1">
+                <div className="mt-1 text-xs font-semibold text-content-1">
                   {processName(node.process_code, allProcesses)}
                 </div>
                 <div className="mt-2 text-[11px] font-semibold text-content-3">
@@ -436,7 +436,7 @@ function RouteFlowBuilder({
                   variant={runsTogether ? "default" : "outline"}
                   onClick={() => setRunsWithPrevious(index, !runsTogether)}
                   className={cn(
-                    "mt-3 h-8 w-full rounded-xl text-[11px] font-black",
+                    "mt-3 h-8 w-full rounded-xl text-[11px] font-semibold",
                     runsTogether
                       ? "bg-warning-fg text-white hover:bg-warning-fg/90"
                       : "bg-surface-1",
@@ -792,7 +792,7 @@ export default function RoutingRulesPage() {
                   setVisibleCount(24);
                 }}
                 className={cn(
-                  "h-9 rounded-xl px-4 text-[10px] font-black uppercase tracking-wider",
+                  "h-9 rounded-xl px-4 text-[10px] font-semibold uppercase tracking-wider",
                   statusFilter === value
                     ? "bg-surface-3 text-white"
                     : "text-content-3 hover:text-content-1",

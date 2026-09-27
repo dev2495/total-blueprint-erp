@@ -196,7 +196,7 @@ export default function EngineeringDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-content-1 tracking-tight">
+          <h1 className="text-2xl font-semibold text-content-1 tracking-tight">
             Engineering Hub
           </h1>
           <p className="text-content-3 font-medium">
@@ -204,12 +204,12 @@ export default function EngineeringDashboard() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Link href="/engineering/artworks/new">
+          <Link href="/engineering/artworks">
             <Button className="bg-primary hover:bg-primary">
               <Palette className="mr-2 h-4 w-4" /> New Artwork
             </Button>
           </Link>
-          <Link href="/engineering/cylinders/new">
+          <Link href="/engineering/cylinders">
             <Button variant="outline">
               <Disc className="mr-2 h-4 w-4" /> New Cylinder
             </Button>
@@ -258,7 +258,7 @@ export default function EngineeringDashboard() {
               <div className="flex items-center gap-3 rounded-lg border border-success-border bg-success-bg p-4 text-success-fg">
                 <CheckCircle2 className="h-5 w-5 shrink-0" />
                 <div>
-                  <p className="text-sm font-black">No engineering queue</p>
+                  <p className="text-sm font-semibold">No engineering queue</p>
                   <p className="text-xs font-semibold opacity-80">
                     Current artwork and template records have no pending
                     decision items.
@@ -283,7 +283,7 @@ export default function EngineeringDashboard() {
                     Artworks
                   </span>
                 </div>
-                <p className="text-2xl font-black text-content-1">
+                <p className="text-2xl font-semibold text-content-1">
                   {health?.artworkReadyPct === null ||
                   health?.artworkReadyPct === undefined
                     ? "—"
@@ -304,7 +304,7 @@ export default function EngineeringDashboard() {
                     Routes
                   </span>
                 </div>
-                <p className="text-2xl font-black text-content-1">
+                <p className="text-2xl font-semibold text-content-1">
                   {health?.routeCoveragePct === null ||
                   health?.routeCoveragePct === undefined
                     ? "—"

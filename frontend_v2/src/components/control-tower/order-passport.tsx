@@ -200,7 +200,7 @@ export function OrderPassportStrip({
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: compact ? 7 : 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
-                <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 11 : 12, fontWeight: 800, color: "var(--text-1)" }}>
+                <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 11 : 12, fontWeight: 650, color: "var(--text-1)" }}>
                     {order.order_number}
                 </span>
                 <Chip kind={fgKind}>{p.fgType || "ORDER"}</Chip>
@@ -221,14 +221,14 @@ export function OrderPassportStrip({
                                 color: "white",
                                 fontFamily: "var(--f-mono)",
                                 fontSize: 10,
-                                fontWeight: 900,
+                                fontWeight: 700,
                             }}>{lineBadge}</span>
                         )}
                         <div style={{
                             minWidth: 0,
                             fontSize: compact ? 13 : 15,
                             lineHeight: 1.25,
-                            fontWeight: 900,
+                            fontWeight: 700,
                             color: "var(--text-1)",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -317,15 +317,15 @@ export function OrderIntentKpis({ order, compact = false }: { order: PlannerCont
                     borderRadius: "var(--r-3)",
                     background: cell.tone === "success" ? "rgba(16,185,129,.07)" : cell.tone === "warn" ? "rgba(245,158,11,.08)" : cell.tone === "info" ? "rgba(37,99,235,.06)" : "var(--surface-1)",
                 }}>
-                    <div style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>{cell.label}</div>
+                    <div style={{ fontSize: 8, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>{cell.label}</div>
                     <div style={{ marginTop: 3, display: "flex", alignItems: "baseline", gap: 3, minWidth: 0 }}>
-                        <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 12 : 15, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 12 : 15, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {cell.value}
                         </span>
-                        <span style={{ fontSize: 8, fontWeight: 800, color: "var(--text-3)" }}>{cell.suffix}</span>
+                        <span style={{ fontSize: 8, fontWeight: 650, color: "var(--text-3)" }}>{cell.suffix}</span>
                     </div>
                     {cell.sub && (
-                        <div style={{ marginTop: 2, fontSize: 8, fontWeight: 800, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ marginTop: 2, fontSize: 8, fontWeight: 650, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {cell.sub}
                         </div>
                     )}
@@ -412,7 +412,7 @@ export function RouteGraphSvg({
                                             {node.sequence_number != null ? node.sequence_number : index + 1}
                                         </text>
                                         <foreignObject x="-54" y="20" width="108" height="30">
-                                            <div style={{ fontSize: 9, fontWeight: 800, lineHeight: 1.1, textAlign: "center", color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            <div style={{ fontSize: 9, fontWeight: 650, lineHeight: 1.1, textAlign: "center", color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis" }}>
                                                 {label}
                                             </div>
                                         </foreignObject>
@@ -773,7 +773,7 @@ function TraceSection({ eyebrow, title, caption, children }: { eyebrow: string; 
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 8 }}>
                 <div style={{ minWidth: 0 }}>
                     <div className="t-eyebrow">{eyebrow}</div>
-                    <div style={{ marginTop: 2, fontSize: 13, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+                    <div style={{ marginTop: 2, fontSize: 13, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
                 </div>
                 {caption && <div style={{ maxWidth: 360, fontSize: 10, lineHeight: 1.35, color: "var(--text-4)", textAlign: "right" }}>{caption}</div>}
             </div>
@@ -815,8 +815,8 @@ function DecisionCard({ label, value, detail, tone }: { label: string; value: st
     const colors = stateColors(tone || "WAITING");
     return (
         <div style={{ padding: "9px 11px", border: `1px solid ${colors.stroke}33`, borderRadius: "var(--r-3)", background: colors.bg }}>
-            <div style={{ fontSize: 8, fontWeight: 900, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-4)" }}>{label}</div>
-            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 900, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-4)" }}>{label}</div>
+            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
             <div style={{ marginTop: 2, fontSize: 10, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{detail}</div>
         </div>
     );
@@ -876,26 +876,26 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { i
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                 <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ width: 24, height: 24, borderRadius: 999, display: "inline-grid", placeItems: "center", background: colors.bg, border: `2px solid ${colors.stroke}`, color: colors.text, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 900 }}>
+                        <span style={{ width: 24, height: 24, borderRadius: 999, display: "inline-grid", placeItems: "center", background: colors.bg, border: `2px solid ${colors.stroke}`, color: colors.text, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 700 }}>
                             {index + 1}
                         </span>
                         <StepStatePill state={primary?.state || "WAITING"} />
                     </div>
-                    <div style={{ marginTop: 7, fontSize: 13, fontWeight: 950, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ marginTop: 7, fontSize: 13, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {steps.length > 1 ? `Parallel set (${steps.length})` : primary.process_name || primary.step_name || primary.process_code}
                     </div>
                     <div style={{ marginTop: 2, fontFamily: "var(--f-mono)", fontSize: 9, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {steps.map((step) => firstText(step.input_form, "INPUT") + " -> " + firstText(step.output_form, "OUTPUT")).join(" / ")}
                     </div>
                 </div>
-                {parallel && <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: "rgba(99,102,241,.10)", color: "var(--i-700)", fontSize: 9, fontWeight: 900 }}>{maxLaneCount || steps.length} lanes</span>}
+                {parallel && <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: "rgba(99,102,241,.10)", color: "var(--i-700)", fontSize: 9, fontWeight: 700 }}>{maxLaneCount || steps.length} lanes</span>}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                 {steps.map((step) => (
                     <div key={step.step_id || step.id || `${step.sequence_number}-${step.process_code}`} style={{ padding: "6px 8px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-2)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
-                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 900, color: "var(--text-1)" }}>{step.process_name || step.step_name || step.process_code}</span>
+                            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 700, color: "var(--text-1)" }}>{step.process_name || step.step_name || step.process_code}</span>
                             <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, color: "var(--text-4)", whiteSpace: "nowrap" }}>{step.process_code || `S${step.sequence_number}`}</span>
                         </div>
                         <div style={{ marginTop: 3, display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -931,7 +931,7 @@ function StepStatePill({ state }: { state: string }) {
                 ? "Audit only"
                 : clean(state).replace(/_/g, " ") || "Waiting";
     return (
-        <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
+        <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}>
             {label}
         </span>
     );
@@ -939,7 +939,7 @@ function StepStatePill({ state }: { state: string }) {
 
 function MiniRouteTag({ children }: { children: React.ReactNode }) {
     return (
-        <span style={{ minWidth: 0, maxWidth: "100%", padding: "2px 6px", borderRadius: "var(--r-pill)", border: "1px solid var(--border-soft)", background: "var(--surface-1)", color: "var(--text-3)", fontSize: 8, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ minWidth: 0, maxWidth: "100%", padding: "2px 6px", borderRadius: "var(--r-pill)", border: "1px solid var(--border-soft)", background: "var(--surface-1)", color: "var(--text-3)", fontSize: 8, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {children}
         </span>
     );
@@ -963,7 +963,7 @@ function JobLedgerCards({ jobs, dense, emptyMode, order, trace }: { jobs: any[];
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 8, maxHeight: dense ? undefined : 460, overflowY: dense ? "visible" : "auto", paddingRight: dense ? 0 : 2, overscrollBehavior: "contain", scrollbarGutter: dense ? undefined : "stable", contain: "layout paint" }}>
             {jobs.slice(0, limit).map((job, index) => <JobTraceRow key={job.id || job.job_number || index} job={job} order={order} index={index} />)}
             {jobs.length > limit && (
-                <div style={{ padding: "9px 10px", border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", background: "var(--surface-2)", color: "var(--text-3)", fontSize: 10, fontWeight: 800 }}>
+                <div style={{ padding: "9px 10px", border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", background: "var(--surface-2)", color: "var(--text-3)", fontSize: 10, fontWeight: 650 }}>
                     +{jobs.length - limit} more WCM job row{jobs.length - limit === 1 ? "" : "s"} in this order
                 </div>
             )}
@@ -985,19 +985,19 @@ function MaterialIssueCards({ lines, dense }: { lines: any[]; dense?: boolean })
             {lines.slice(0, limit).map((line: any, index) => (
                 <div key={index} style={{ padding: "8px 10px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-1)", display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
                     <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 11, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.material_name || line.material_code || "Material"}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.material_name || line.material_code || "Material"}</div>
                         <div style={{ fontFamily: "var(--f-mono)", fontSize: 9, color: "var(--text-4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.step_name || line.category_code || line.policy_key || "-"}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                        <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-1)", whiteSpace: "nowrap" }}>
+                        <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)", whiteSpace: "nowrap" }}>
                             {fmt(line.planned_issue_qty ?? line.theoretical_qty, 3)} {line.uom || ""}
                         </div>
-                        {line.capture_mode && <div style={{ marginTop: 1, fontSize: 8, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase" }}>{line.capture_mode}</div>}
+                        {line.capture_mode && <div style={{ marginTop: 1, fontSize: 8, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase" }}>{line.capture_mode}</div>}
                     </div>
                 </div>
             ))}
             {lines.length > limit && (
-                <div style={{ padding: "8px 10px", border: "1px dashed var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-2)", color: "var(--text-3)", fontSize: 10, fontWeight: 800 }}>
+                <div style={{ padding: "8px 10px", border: "1px dashed var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-2)", color: "var(--text-3)", fontSize: 10, fontWeight: 650 }}>
                     +{lines.length - limit} more material issue row{lines.length - limit === 1 ? "" : "s"} attached
                 </div>
             )}
@@ -1015,11 +1015,11 @@ function TraceMetric({ icon, label, value, sub, tone = "default" }: { icon: Reac
     }[tone];
     return (
         <div style={{ minWidth: 0, padding: "9px 11px", border: `1px solid ${styles.border}`, borderRadius: "var(--r-3)", background: styles.bg }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
                 {icon}
                 {label}
             </div>
-            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 900, color: styles.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: styles.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
             {sub && <div style={{ marginTop: 2, fontSize: 9, fontWeight: 700, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
         </div>
     );
@@ -1039,10 +1039,10 @@ function JobTraceRow({ job, order, index }: { job: any; order: PlannerControlOrd
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                 <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-                        <span style={{ width: 24, height: 24, borderRadius: 8, display: "inline-grid", placeItems: "center", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 900, flex: "0 0 auto" }}>
+                        <span style={{ width: 24, height: 24, borderRadius: 8, display: "inline-grid", placeItems: "center", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 700, flex: "0 0 auto" }}>
                             {index + 1}
                         </span>
-                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {job.job_number || job.id || "Job"}
                         </span>
                     </div>
@@ -1066,7 +1066,7 @@ function JobTraceRow({ job, order, index }: { job: any; order: PlannerControlOrd
                 <SmallLog label={closedAt ? "Closed" : "Updated"} value={closedAt || updatedAt || "-"} />
             </div>
             {batchLabel && (
-                <div style={{ marginTop: 7, padding: "5px 7px", borderRadius: "var(--r-2)", background: "var(--surface-2)", color: "var(--text-3)", fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ marginTop: 7, padding: "5px 7px", borderRadius: "var(--r-2)", background: "var(--surface-2)", color: "var(--text-3)", fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     Batch {batchLabel}
                 </div>
             )}
@@ -1077,8 +1077,8 @@ function JobTraceRow({ job, order, index }: { job: any; order: PlannerControlOrd
 function SmallLog({ label, value }: { label: string; value: string }) {
     return (
         <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-4)" }}>{label}</div>
-            <div style={{ marginTop: 1, fontSize: 10, fontWeight: 800, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+            <div style={{ fontSize: 8, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-4)" }}>{label}</div>
+            <div style={{ marginTop: 1, fontSize: 10, fontWeight: 650, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
         </div>
     );
 }

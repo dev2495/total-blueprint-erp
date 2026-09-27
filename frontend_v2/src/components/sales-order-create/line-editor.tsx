@@ -631,19 +631,19 @@ export function LineEditor({
       <div className="space-y-3">
         <div className="rounded-[18px] border border-warning-border bg-gradient-to-r from-warning-bg via-surface-1 to-info-bg px-4 py-3 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-warning-fg text-sm font-black text-white">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-warning-fg text-sm font-semibold text-white">
               {(lineIndex ?? 0) + 1}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-black uppercase text-warning-fg">
+              <div className="text-[10px] font-semibold uppercase text-warning-fg">
                 Line label used across sales, planner, WCM, packing and dispatch
               </div>
-              <div className="mt-0.5 truncate font-mono text-[12px] font-black text-content-1">
+              <div className="mt-0.5 truncate font-mono text-[12px] font-semibold text-content-1">
                 {liveLineLabel || "Enter quantity, price and Product Master to build label"}
               </div>
             </div>
             {master ? (
-              <span className="rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-black text-success-fg ring-1 ring-success-border">
+              <span className="rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
                 order-ready master
               </span>
             ) : null}
@@ -773,7 +773,7 @@ export function LineEditor({
                 {master.code}
               </span>
             ) : (
-              <span className="text-[10px] font-black uppercase tracking-wider text-danger-fg">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-danger-fg">
                 required
               </span>
             )
@@ -903,7 +903,7 @@ export function LineEditor({
                       >
                         <span
                           className={cn(
-                            "inline-flex h-6 items-center justify-center rounded-full px-2 text-[10px] font-extrabold text-white",
+                            "inline-flex h-6 items-center justify-center rounded-full px-2 text-[10px] font-semibold text-white",
                             toneBadge,
                           )}
                         >
@@ -1042,7 +1042,7 @@ export function LineEditor({
                           : "border-line bg-surface-1 hover:border-order-border",
                       )}
                     >
-                      <div className="text-sm font-extrabold text-content-1">
+                      <div className="text-sm font-semibold text-content-1">
                         {lane}-up
                       </div>
                       <div
@@ -1116,6 +1116,7 @@ export function LineEditor({
                 hint="optional · cylinder + colorway"
               >
                 <ArtworkSection
+                  compact
                   mode={line.artwork_mode}
                   onModeChange={(m) =>
                     onPatch({
@@ -1190,7 +1191,7 @@ export function LineEditor({
                         masterChemistry.parts.map((part) => (
                           <span
                             key={part.label}
-                            className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-black text-primary ring-1 ring-info-border"
+                            className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-semibold text-primary ring-1 ring-info-border"
                           >
                             {part.label}
                           </span>
@@ -1201,7 +1202,7 @@ export function LineEditor({
                         </span>
                       )}
                       {masterChemistry.label ? (
-                        <span className="rounded-full bg-primary px-2 py-1 font-mono text-[10px] font-black text-white">
+                        <span className="rounded-full bg-primary px-2 py-1 font-mono text-[10px] font-semibold text-white">
                           {masterChemistry.label}
                         </span>
                       ) : null}
@@ -1283,7 +1284,7 @@ export function LineEditor({
                       />
                     </SoField>
                     <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] leading-5 text-warning-fg">
-                      <span className="font-black uppercase tracking-wider text-warning-fg">
+                      <span className="font-semibold uppercase tracking-wider text-warning-fg">
                         BOM rule
                       </span>
                       <div>
@@ -1459,7 +1460,7 @@ function SectionCard({
         >
           {icon}
         </span>
-        <span className="font-display text-sm font-black text-content-1">
+        <span className="font-display text-sm font-semibold text-content-1">
           {title}
         </span>
         {badge ? (
@@ -1580,10 +1581,10 @@ function IssuePolicyCard({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-black uppercase text-warning-fg ring-1 ring-warning-border">
+                      <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-semibold uppercase text-warning-fg ring-1 ring-warning-border">
                         {policyRow.category || "material"}
                       </span>
-                      <span className="font-mono text-[11px] font-black text-content-1">
+                      <span className="font-mono text-[11px] font-semibold text-content-1">
                         {policyRow.materialCode || policyRow.policyKey}
                       </span>
                       {policyRow.stepName ? (
@@ -1601,7 +1602,7 @@ function IssuePolicyCard({
                     onClick={() => resetOverride(policyRow.policyKey)}
                     disabled={!overrideActive}
                     className={cn(
-                      "rounded-lg px-2 py-1 text-[10px] font-black uppercase ring-1",
+                      "rounded-lg px-2 py-1 text-[10px] font-semibold uppercase ring-1",
                       overrideActive
                         ? "bg-surface-1 text-warning-fg ring-warning-border hover:bg-warning-bg"
                         : "cursor-not-allowed bg-surface-2 text-content-4 ring-line",
@@ -1710,10 +1711,10 @@ function PolicyReadout({
           : "bg-surface-2 text-content-2 ring-line",
       )}
     >
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
-      <div className="font-mono text-[11px] font-black">{value}</div>
+      <div className="font-mono text-[11px] font-semibold">{value}</div>
     </div>
   );
 }
@@ -1847,7 +1848,7 @@ function MasterPicker({
             <Package className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-display text-sm font-black text-content-1">
+            <div className="truncate font-display text-sm font-semibold text-content-1">
               {m.name}
             </div>
             <div className="truncate font-mono text-[11px] font-bold text-content-3">
@@ -1869,7 +1870,7 @@ function MasterPicker({
       <div className="flex items-center gap-3 rounded-xl border border-warning-border bg-warning-bg px-3.5 py-2.5">
         <AlertTriangle className="h-4 w-4 shrink-0 text-warning-fg" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-black text-warning-fg">
+          <div className="text-sm font-semibold text-warning-fg">
             Product Master is no longer selectable
           </div>
           <div className="text-[11px] font-semibold text-warning-fg">
@@ -1922,7 +1923,7 @@ function MasterPicker({
                 <Package className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-extrabold text-content-1">
+                <span className="block truncate text-sm font-semibold text-content-1">
                   {m.name}
                 </span>
                 <span className="block truncate font-mono text-[10px] font-bold text-content-3">
@@ -1930,13 +1931,13 @@ function MasterPicker({
                 </span>
               </span>
               <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                <span className="rounded-md bg-info-bg px-1.5 py-0.5 text-[9px] font-extrabold text-primary ring-1 ring-info-border">
+                <span className="rounded-md bg-info-bg px-1.5 py-0.5 text-[10px] font-semibold text-primary ring-1 ring-info-border">
                   {kind}
                 </span>
-                <span className="rounded-md bg-success-bg px-1.5 py-0.5 text-[9px] font-extrabold text-success-fg ring-1 ring-success-border">
+                <span className="rounded-md bg-success-bg px-1.5 py-0.5 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
                   {m.layer_template.length}L
                 </span>
-                <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-[9px] font-extrabold text-order-fg ring-1 ring-order-border">
+                <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
                   {(m.variant_axes || []).length} axes
                 </span>
               </span>
@@ -2044,7 +2045,7 @@ function SizeAxis({
                     : "border-line bg-surface-1 hover:border-order-border hover:bg-info-bg",
                 )}
               >
-                <div className="font-mono text-[12px] font-black text-content-1">
+                <div className="font-mono text-[12px] font-semibold text-content-1">
                   {compactSizeCode(s)}
                 </div>
                 <div className="mt-0.5 text-[10px] font-bold text-content-3">
@@ -2075,7 +2076,7 @@ function SizeAxis({
                   : "cursor-not-allowed border-dashed border-line bg-surface-2 text-content-4",
             )}
           >
-            <div className="font-mono text-[12px] font-black">
+            <div className="font-mono text-[12px] font-semibold">
               {allowAdHoc ? "+ New size" : "Ad-hoc blocked"}
             </div>
             <div className="mt-0.5 text-[10px] font-bold">
@@ -2093,7 +2094,7 @@ function SizeAxis({
                 New size is allowed only inside this Product Master; preview and submit carry the geometry.
               </div>
             </div>
-            <span className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-black text-primary ring-1 ring-info-border">
+            <span className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-semibold text-primary ring-1 ring-info-border">
               {adHoc?.code || value}
             </span>
           </div>
@@ -2585,7 +2586,7 @@ function AddonPicker({
               <span>{a.name || a.code}</span>
               <span
                 className={cn(
-                  "ml-1 font-mono text-[9px] uppercase",
+                  "ml-1 font-mono text-[10px] uppercase",
                   active ? "text-warning-border" : "text-content-4",
                 )}
               >
@@ -2597,7 +2598,7 @@ function AddonPicker({
       </div>
       {selectedRows.length ? (
         <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg">
             Add-on usage preview
           </div>
           <div className="mt-1 space-y-1">

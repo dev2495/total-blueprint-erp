@@ -97,20 +97,20 @@ export function RecordTimelinePanel({
         <CardHeader className="flex flex-col gap-4 border-b border-line px-5 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-content-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Timeline
               </div>
               {status ? (
                 <Badge
                   variant="outline"
-                  className="rounded-full border-line bg-surface-1 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-content-2"
+                  className="rounded-full border-line bg-surface-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-2"
                 >
                   {status}
                 </Badge>
               ) : null}
             </div>
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               {title}
             </CardTitle>
             {description ? (
@@ -134,10 +134,10 @@ export function RecordTimelinePanel({
                   key={item.label}
                   className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4"
                 >
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                     {item.label}
                   </div>
-                  <div className="mt-2 break-words text-lg font-black tracking-tight text-content-1">
+                  <div className="mt-2 break-words text-lg font-semibold tracking-tight text-content-1">
                     {item.value}
                   </div>
                   {item.hint ? (
@@ -156,7 +156,7 @@ export function RecordTimelinePanel({
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Clock3 className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-black uppercase tracking-[0.22em] text-content-3">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-content-3">
                   Event History
                 </h3>
               </div>
@@ -183,14 +183,14 @@ export function RecordTimelinePanel({
                               <div className="flex flex-wrap items-center gap-2">
                                 <Badge
                                   variant="outline"
-                                  className="rounded-full border-info-border bg-info-bg px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary"
+                                  className="rounded-full border-info-border bg-info-bg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary"
                                 >
                                   {event.event_type || "EVENT"}
                                 </Badge>
                                 {event.entity_type ? (
                                   <Badge
                                     variant="outline"
-                                    className="rounded-full border-line bg-surface-2 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-content-2"
+                                    className="rounded-full border-line bg-surface-2 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-2"
                                   >
                                     {event.entity_type}
                                   </Badge>
@@ -206,7 +206,7 @@ export function RecordTimelinePanel({
                                 {formatTimestamp(event.timestamp)}
                               </div>
                               {event.actor ? (
-                                <div className="mt-0.5 text-[11px] font-black uppercase tracking-[0.18em] text-content-4">
+                                <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                                   {event.actor}
                                 </div>
                               ) : null}
@@ -223,7 +223,7 @@ export function RecordTimelinePanel({
                             {typeof event.delta_qty_kg === "number" ? (
                               <span
                                 className={cn(
-                                  "inline-flex items-center rounded-full px-2.5 py-1 font-black uppercase tracking-[0.16em]",
+                                  "inline-flex items-center rounded-full px-2.5 py-1 font-semibold uppercase tracking-[0.1em]",
                                   event.delta_qty_kg >= 0
                                     ? "bg-success-bg text-success-fg"
                                     : "bg-danger-bg text-danger-fg",
@@ -242,7 +242,7 @@ export function RecordTimelinePanel({
                                   key={key}
                                   className="inline-flex max-w-full items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-1 text-xs text-content-3"
                                 >
-                                  <span className="font-black uppercase tracking-[0.16em] text-content-4">
+                                  <span className="font-semibold uppercase tracking-[0.1em] text-content-4">
                                     {formatKey(key)}:
                                   </span>
                                   <span className="truncate font-semibold text-content-2">
@@ -270,7 +270,7 @@ export function RecordTimelinePanel({
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <ArrowUpRight className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-black uppercase tracking-[0.22em] text-content-3">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-content-3">
                   Related Records
                 </h3>
               </div>
@@ -285,16 +285,16 @@ export function RecordTimelinePanel({
                             {record.type ? (
                               <Badge
                                 variant="outline"
-                                className="rounded-full border-line bg-surface-2 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-content-3"
+                                className="rounded-full border-line bg-surface-2 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3"
                               >
                                 {record.type}
                               </Badge>
                             ) : null}
-                            <span className="text-sm font-black text-content-1">
+                            <span className="text-sm font-semibold text-content-1">
                               {record.label}
                             </span>
                           </div>
-                          <CardDescription className="break-words text-xs font-semibold uppercase tracking-[0.18em] text-content-3">
+                          <CardDescription className="break-words text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                             {record.reference}
                           </CardDescription>
                         </CardHeader>

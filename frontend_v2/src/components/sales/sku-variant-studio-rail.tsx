@@ -38,10 +38,10 @@ function PreviewMetric({
 }) {
   return (
     <div className="rounded-[1.4rem] border border-line bg-surface-1/92 px-4 py-4 shadow-[0_14px_40px_-38px_rgba(15,23,42,0.4)]">
-      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
         {label}
       </div>
-      <div className="mt-2 text-[1.45rem] font-black tracking-tight text-content-1">
+      <div className="mt-2 text-[1.45rem] font-semibold tracking-tight text-content-1">
         {value}
       </div>
       {hint ? (
@@ -91,12 +91,12 @@ export function SkuVariantStudioRail({
     <aside className="space-y-4 xl:sticky xl:top-6">
       <section className="overflow-hidden rounded-[1.9rem] border border-line bg-[linear-gradient(180deg,rgba(15,23,42,0.97),rgba(30,41,59,0.96))] text-white shadow-[0_32px_90px_-48px_rgba(15,23,42,0.6)]">
         <div className="border-b border-surface-1/10 px-5 py-5">
-          <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-info-border">
+          <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
             <Sparkles className="h-3.5 w-3.5" />
             Preview Studio
           </div>
           <div className="mt-3 space-y-2">
-            <h3 className="text-xl font-black tracking-tight text-white">
+            <h3 className="text-xl font-semibold tracking-tight text-white">
               Preview quantity and snapshot
             </h3>
             <p className="max-w-md text-sm leading-6 text-content-4">
@@ -109,7 +109,7 @@ export function SkuVariantStudioRail({
         <div className="space-y-4 px-5 py-5">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1.3fr)_110px]">
             <div className="space-y-2">
-              <Label className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 Preview quantity
               </Label>
               <Input
@@ -123,7 +123,7 @@ export function SkuVariantStudioRail({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 UOM
               </Label>
               {isRoll ? (
@@ -150,10 +150,10 @@ export function SkuVariantStudioRail({
           </div>
 
           <div className="rounded-[1.5rem] border border-surface-1/10 bg-surface-1/10 px-4 py-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-info-border">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
               Previewing for
             </div>
-            <div className="mt-2 text-lg font-black text-white">
+            <div className="mt-2 text-lg font-semibold text-white">
               {previewContext}
             </div>
             <p className="mt-1 text-sm leading-6 text-content-4">
@@ -186,7 +186,7 @@ export function SkuVariantStudioRail({
       <section className="space-y-3 rounded-[1.8rem] border border-line bg-surface-1/92 p-4 shadow-[0_24px_55px_-46px_rgba(15,23,42,0.45)]">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-black uppercase tracking-[0.22em] text-content-2">
+            <div className="text-sm font-semibold uppercase tracking-[0.12em] text-content-2">
               Preview result
             </div>
             <div className="mt-1 text-sm text-content-3">
@@ -256,7 +256,7 @@ export function SkuVariantStudioRail({
             </div>
 
             <div className="space-y-3">
-              <div className="text-sm font-black uppercase tracking-[0.22em] text-content-2">
+              <div className="text-sm font-semibold uppercase tracking-[0.12em] text-content-2">
                 BOM snapshot
               </div>
               <ScrollArea className="max-h-[18rem] pr-2">
@@ -274,7 +274,7 @@ export function SkuVariantStudioRail({
                         <span className="font-medium text-content-2">
                           {component.material_name}
                         </span>
-                        <span className="font-black text-content-1">
+                        <span className="font-semibold text-content-1">
                           {formatNumber(asNumber(component.qty, 0), 3)}{" "}
                           {component.uom}
                         </span>

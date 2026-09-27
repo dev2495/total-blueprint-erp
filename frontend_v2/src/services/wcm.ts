@@ -33,6 +33,15 @@ export interface WorkCenterAssignment {
     // --- Queue row enrichment (WCM queue serializer) ---
     /** Artwork color names from the job's committed artwork; not ink-master mapping. */
     ink_colors?: string[];
+    front_colors?: string[];
+    back_colors?: string[];
+    color_revision_no?: number;
+    color_revision_changed_at?: string | null;
+    color_revision_changed_by?: string;
+    color_revision_reason?: string;
+    previous_front_colors?: string[];
+    previous_back_colors?: string[];
+    operator_notice_required?: boolean;
     artwork_id?: string | null;
     artwork_code?: string | null;
     artwork_name?: string | null;
@@ -145,9 +154,9 @@ export interface CurrentStepMaterialPolicyResponse {
 }
 
 export const wcmService = {
-    getQueue: async (wcId: string, limit = 100) => {
+    getQueue: async (wcId: string, limit = 300, search = "") => {
         const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`, {
-            params: { limit, summary: 1 },
+            params: { limit, summary: 1, ...(search.trim() ? { q: search.trim() } : {}) },
             timeout: 30000,
         });
         return data;

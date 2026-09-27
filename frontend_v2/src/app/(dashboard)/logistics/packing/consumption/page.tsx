@@ -60,10 +60,10 @@ function Kpi({
 }) {
   return (
     <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 p-4 text-white shadow-sm backdrop-blur">
-      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/65">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65">
         {label}
       </div>
-      <div className="mt-1 text-2xl font-black tracking-tight">{value}</div>
+      <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
       <div className="mt-1 text-xs font-semibold text-white/70">{hint}</div>
     </div>
   );
@@ -238,23 +238,23 @@ export default function PackingConsumptionPage() {
       className="mx-auto max-w-[1600px] space-y-5 p-4 lg:p-6"
       data-testid="packing-consumption-page"
     >
-      <section className="overflow-hidden rounded-[22px] border border-success-border bg-gradient-to-br from-success-fg via-info-fg to-primary p-5 text-white shadow-xl ">
+      <section className="overflow-hidden rounded-[22px] border border-success-border bg-gradient-to-br from-success-fg via-info-fg to-primary p-5 text-white shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/70">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
               Logistics · Packing materials
             </div>
-            <h1 className="mt-1 text-2xl font-black tracking-tight">
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">
               Packing stock count
             </h1>
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-black">
+              <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-semibold">
                 Sheet · tape · label · box
               </span>
-              <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-black">
+              <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-semibold">
                 timestamped backflush
               </span>
-              <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-black">
+              <span className="rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-xs font-semibold">
                 all packing masters
               </span>
             </div>
@@ -262,13 +262,13 @@ export default function PackingConsumptionPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/logistics/packing"
-              className="inline-flex h-10 items-center rounded-full border border-surface-1/20 bg-surface-1/10 px-3 text-sm font-black text-white transition hover:bg-surface-1/20"
+              className="inline-flex h-10 items-center rounded-full border border-surface-1/20 bg-surface-1/10 px-3 text-sm font-semibold text-white transition hover:bg-surface-1/20"
             >
               <ArrowLeft className="mr-1.5 h-4 w-4" /> Packing Yard
             </Link>
             <Link
               href={`/inventory/stock-lifecycle?tab=count&scope=PACKING${selectedLocation?.plant ? `&plant=${selectedLocation.plant}` : ""}${selectedLocationId ? `&location=${selectedLocationId}` : ""}`}
-              className="inline-flex h-10 items-center rounded-full border border-surface-1/20 bg-surface-1/10 px-3 text-sm font-black text-white transition hover:bg-surface-1/20"
+              className="inline-flex h-10 items-center rounded-full border border-surface-1/20 bg-surface-1/10 px-3 text-sm font-semibold text-white transition hover:bg-surface-1/20"
             >
               <ClipboardList className="mr-1.5 h-4 w-4" /> Stock Lifecycle
             </Link>
@@ -336,16 +336,16 @@ export default function PackingConsumptionPage() {
           />
         </div>
         <div className="mt-3 grid gap-2 md:grid-cols-3">
-          <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 px-4 py-3 text-sm font-black text-white">
+          <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 px-4 py-3 text-sm font-semibold text-white">
             Scope:{" "}
             {selectedLocation
               ? `${selectedLocation.name} · ${selectedLocation.type}`
               : "Pick location"}
           </div>
-          <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 px-4 py-3 text-sm font-black text-white">
+          <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 px-4 py-3 text-sm font-semibold text-white">
             Posted rows: {n(enteredLines.length, 0)}
           </div>
-          <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 px-4 py-3 text-sm font-black text-white">
+          <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 px-4 py-3 text-sm font-semibold text-white">
             Stock Lifecycle: packing scope
           </div>
         </div>
@@ -362,10 +362,10 @@ export default function PackingConsumptionPage() {
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-success-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
                   Closing stock
                 </div>
-                <h2 className="text-lg font-black text-content-1">
+                <h2 className="text-lg font-semibold text-content-1">
                   Location closing count for packing stock
                 </h2>
                 <p className="mt-1 text-xs font-semibold text-content-3">
@@ -398,7 +398,7 @@ export default function PackingConsumptionPage() {
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-y-2">
                 <thead>
-                  <tr className="text-left text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+                  <tr className="text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                     <th className="px-3 py-2">Material</th>
                     <th className="px-3 py-2">Location</th>
                     <th className="px-3 py-2 text-right">Book</th>
@@ -420,7 +420,7 @@ export default function PackingConsumptionPage() {
                         className="rounded-[14px] bg-surface-2 text-sm font-semibold text-content-2"
                       >
                         <td className="rounded-l-[14px] border-y border-l border-line px-3 py-3">
-                          <div className="font-mono text-sm font-black text-content-1">
+                          <div className="font-mono text-sm font-semibold text-content-1">
                             {row.material_code}
                           </div>
                           <div className="mt-1 line-clamp-1 text-xs text-content-3">
@@ -428,12 +428,12 @@ export default function PackingConsumptionPage() {
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             <span
-                              className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-black uppercase ${kindTone(row.packaging_kind)}`}
+                              className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase ${kindTone(row.packaging_kind)}`}
                             >
                               {row.packaging_kind || "PACKING"}
                             </span>
                             {row.is_virtual ? (
-                              <span className="inline-flex rounded-md border border-order-border bg-order-bg px-2 py-0.5 text-[10px] font-black uppercase text-order-fg">
+                              <span className="inline-flex rounded-md border border-order-border bg-order-bg px-2 py-0.5 text-[10px] font-semibold uppercase text-order-fg">
                                 no stock row yet
                               </span>
                             ) : null}
@@ -445,7 +445,7 @@ export default function PackingConsumptionPage() {
                             {row.plant_name}
                           </div>
                         </td>
-                        <td className="border-y border-line px-3 py-3 text-right font-mono font-black">
+                        <td className="border-y border-line px-3 py-3 text-right font-mono font-semibold">
                           {n(row.book_qty)} {row.base_uom}
                         </td>
                         <td className="border-y border-line px-3 py-3">
@@ -462,11 +462,11 @@ export default function PackingConsumptionPage() {
                             step="0.001"
                             min="0"
                             placeholder="Closing qty"
-                            className="h-11 min-w-[150px] bg-surface-1 font-mono font-black"
+                            className="h-11 min-w-[150px] bg-surface-1 font-mono font-semibold"
                           />
                         </td>
                         <td
-                          className={`rounded-r-[14px] border-y border-r border-line px-3 py-3 text-right font-mono font-black ${delta === null ? "text-content-4" : delta < 0 ? "text-danger-fg" : delta > 0 ? "text-success-fg" : "text-content-2"}`}
+                          className={`rounded-r-[14px] border-y border-r border-line px-3 py-3 text-right font-mono font-semibold ${delta === null ? "text-content-4" : delta < 0 ? "text-danger-fg" : delta > 0 ? "text-success-fg" : "text-content-2"}`}
                         >
                           {delta === null ? "-" : n(delta)}
                         </td>
@@ -490,7 +490,7 @@ export default function PackingConsumptionPage() {
           </div>
 
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Count note
             </div>
             <Textarea
@@ -506,7 +506,7 @@ export default function PackingConsumptionPage() {
           <div className="rounded-[18px] border border-info-border bg-info-bg p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-primary" />
-              <div className="text-sm font-black text-content-1">
+              <div className="text-sm font-semibold text-content-1">
                 Same-day allocation pool
               </div>
             </div>
@@ -516,20 +516,20 @@ export default function PackingConsumptionPage() {
                   key={`${row.sales_order_item_id}-${row.location_id}`}
                   className="rounded-[14px] border border-info-border bg-surface-1 p-3"
                 >
-                  <div className="font-mono text-sm font-black text-content-1">
+                  <div className="font-mono text-sm font-semibold text-content-1">
                     {row.order_number || "SO"}
                   </div>
                   <div className="mt-1 text-xs font-semibold text-content-3">
                     {row.customer_name || "Customer"} · {row.location_name}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className="rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black uppercase text-primary">
+                    <span className="rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
                       {n(row.units, 0)} units
                     </span>
                     {row.sources.slice(0, 3).map((source) => (
                       <span
                         key={`${source.source}-${source.label}`}
-                        className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-black uppercase text-content-3"
+                        className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase text-content-3"
                       >
                         {source.source}
                       </span>
@@ -549,43 +549,43 @@ export default function PackingConsumptionPage() {
             <div className="rounded-[18px] border border-success-border bg-success-bg p-4 shadow-sm">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-success-fg" />
-                <div className="text-sm font-black text-content-1">
+                <div className="text-sm font-semibold text-content-1">
                   Last posted count
                 </div>
               </div>
-              <div className="mt-3 rounded-[12px] bg-surface-1 p-3 font-mono text-xs font-black text-content-2">
+              <div className="mt-3 rounded-[12px] bg-surface-1 p-3 font-mono text-xs font-semibold text-content-2">
                 {lastResult.session_id}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                     Rows
                   </div>
-                  <div className="text-xl font-black">
+                  <div className="text-xl font-semibold">
                     {n(lastResult.results.length, 0)}
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                     Txns
                   </div>
-                  <div className="text-xl font-black">
+                  <div className="text-xl font-semibold">
                     {n(lastResult.posted_transactions, 0)}
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                     Consumed
                   </div>
-                  <div className="text-xl font-black">
+                  <div className="text-xl font-semibold">
                     {n(lastAllocation.qty)}
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                     Mapped SO
                   </div>
-                  <div className="text-xl font-black">
+                  <div className="text-xl font-semibold">
                     {n(lastAllocation.orders, 0)}
                   </div>
                 </div>
@@ -613,7 +613,7 @@ export default function PackingConsumptionPage() {
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <Scale className="h-4 w-4 text-content-3" />
-              <div className="text-sm font-black text-content-1">
+              <div className="text-sm font-semibold text-content-1">
                 Posting rule
               </div>
             </div>

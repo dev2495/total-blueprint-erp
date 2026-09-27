@@ -97,8 +97,8 @@ const originRegistry: Record<string, SemanticMeta> = {
   REMAINDER: {
     label: "Remainder",
     icon: Layers,
-    badgeClassName: "border-warning-border bg-warm text-warm",
-    softSurfaceClassName: "border-warning-border bg-warm text-warm",
+    badgeClassName: "border-warning-border bg-warning-bg text-warning-fg",
+    softSurfaceClassName: "border-warning-border bg-warning-bg text-warning-fg",
     chartColor: "#F97316",
   },
 };
@@ -152,8 +152,8 @@ const rollRoleRegistry: Record<string, SemanticMeta> = {
   REMAINDER: {
     label: "Remainder",
     icon: Layers,
-    badgeClassName: "border-warning-border bg-warm text-warm",
-    softSurfaceClassName: "border-warning-border bg-warm text-warm",
+    badgeClassName: "border-warning-border bg-warning-bg text-warning-fg",
+    softSurfaceClassName: "border-warning-border bg-warning-bg text-warning-fg",
     chartColor: "#F97316",
   },
 };
@@ -235,8 +235,8 @@ const materialCategoryRegistry: Record<string, SemanticMeta> = {
   SOLVENT: {
     label: "Solvent",
     icon: FlaskConical,
-    badgeClassName: "border-warning-border bg-warm text-warm",
-    softSurfaceClassName: "border-warning-border bg-warm text-warm",
+    badgeClassName: "border-warning-border bg-warning-bg text-warning-fg",
+    softSurfaceClassName: "border-warning-border bg-warning-bg text-warning-fg",
     chartColor: "#EA580C",
   },
   GRANULE: {
@@ -349,8 +349,8 @@ const toolingStatusRegistry: Record<string, SemanticMeta> = {
   MAINTENANCE: {
     label: "Maintenance",
     icon: Wrench,
-    badgeClassName: "border-warning-border bg-warm text-warm",
-    softSurfaceClassName: "border-warning-border bg-warm text-warm",
+    badgeClassName: "border-warning-border bg-warning-bg text-warning-fg",
+    softSurfaceClassName: "border-warning-border bg-warning-bg text-warning-fg",
     chartColor: "#F97316",
   },
   RETIRED: {
@@ -491,8 +491,8 @@ const severityRegistry: Record<string, SemanticMeta> = {
   MEDIUM: {
     label: "Attention",
     icon: AlertCircle,
-    badgeClassName: "border-warning-border bg-warm text-warm",
-    softSurfaceClassName: "border-warning-border bg-warm text-warm",
+    badgeClassName: "border-warning-border bg-warning-bg text-warning-fg",
+    softSurfaceClassName: "border-warning-border bg-warning-bg text-warning-fg",
     chartColor: "#F97316",
   },
   HIGH: {

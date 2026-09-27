@@ -112,7 +112,7 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
   await expect(allocationDialog).toContainText("Resource Discovery & Allocation")
   if (modifyFallback!.fallback_roll_id && modifyFallback!.fallback_roll_label) {
     await expect(allocationDialog).toContainText(modifyFallback!.fallback_roll_label)
-    await expect(allocationDialog).toContainText("Manual assignment only")
+    await expect(allocationDialog).toContainText("physical contract still applies")
     await allocationDialog.getByTestId(`wcm-local-roll-select-${modifyFallback!.fallback_roll_id}`).click()
     await allocationDialog.getByRole("button", { name: /finalize allocation/i }).click()
     await expect(page.getByTestId(`wcm-assigned-roll-${modifyFallback!.fallback_roll_id}`)).toBeVisible()
@@ -120,7 +120,8 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
     await expect(page.locator("body")).toContainText("1/1")
 
     await page.getByTestId(`wcm-assigned-roll-${modifyFallback!.fallback_roll_id}`).getByRole("button").click()
-    await expect(page.locator("body")).toContainText("No roll allocated for this step yet.")
+    await expect(page.getByTestId(`wcm-assigned-roll-${modifyFallback!.fallback_roll_id}`)).toHaveCount(0)
+    await expect(page.locator("body")).toContainText("0/1 allocated")
   } else {
     await expect(allocationDialog).toContainText("No eligible")
     await allocationDialog.getByRole("button", { name: /^cancel$/i }).click()
@@ -147,8 +148,8 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
     const combineDialog = page.getByTestId("wcm-allocation-dialog")
     await expect(combineDialog).toContainText("Required")
     await expect(combineDialog).toContainText(String(combineFallback!.required_rolls || 3))
-    await expect(combineDialog).toContainText("Slot Coverage")
-    await expect(combineDialog).toContainText("Manual assignment only")
+    await expect(combineDialog).toContainText(/Slot coverage/i)
+    await expect(combineDialog).toContainText("physical contract still applies")
 
     for (const rollId of combineFallback!.lineage_roll_ids || []) {
       await combineDialog.getByTestId(`wcm-local-roll-select-${rollId}`).click()

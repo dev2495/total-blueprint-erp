@@ -446,7 +446,7 @@ export default function StockIntelligenceTab() {
                                     <Flame size={20} color="#fda4af" />
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".10em", color: "rgba(255,255,255,.6)" }}>
+                                    <div style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".10em", color: "rgba(255,255,255,.6)" }}>
                                         Critical · Build now
                                     </div>
                                     <div style={{ fontFamily: "var(--f-display)", fontSize: 20, fontWeight: 700, color: "#fff", marginTop: 2 }}>
@@ -467,7 +467,7 @@ export default function StockIntelligenceTab() {
                                         {b.templateName}
                                     </div>
                                     <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
-                                        <span style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 800, color: "#fda4af", lineHeight: 1 }}>
+                                        <span style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 650, color: "#fda4af", lineHeight: 1 }}>
                                             {fmt(b.deficitKg, 0)}
                                         </span>
                                         <span style={{ fontSize: 10, color: "rgba(255,255,255,.6)", fontWeight: 700 }}>KG SHORT</span>
@@ -526,7 +526,7 @@ export default function StockIntelligenceTab() {
                                         <div style={{ flex: 1, height: 7, borderRadius: 999, overflow: "hidden", background: "var(--surface-2)" }}>
                                             <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, coverage))}%`, background: tone }} />
                                         </div>
-                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: tone, whiteSpace: "nowrap" }}>{pct(coverage)}</span>
+                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: tone, whiteSpace: "nowrap" }}>{pct(coverage)}</span>
                                         <Link href="/dashboard/planner/control-tower/plan-queue" style={{ textDecoration: "none" }}>
                                             <Button variant="secondary" size="sm">Plan</Button>
                                         </Link>
@@ -564,7 +564,7 @@ export default function StockIntelligenceTab() {
                                     <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", opacity: 0.85 }}>
                                         {stage.stage}
                                     </div>
-                                    <div style={{ fontFamily: "var(--f-display)", fontSize: 28, fontWeight: 800, marginTop: 2, lineHeight: 1 }}>
+                                    <div style={{ fontFamily: "var(--f-display)", fontSize: 28, fontWeight: 650, marginTop: 2, lineHeight: 1 }}>
                                         {fmt(stage.value)}
                                     </div>
                                 </div>
@@ -586,7 +586,7 @@ export default function StockIntelligenceTab() {
                     <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                             <Flame size={16} color="var(--danger)" />
-                            <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-3)" }}>
+                            <span style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-3)" }}>
                                 Demand vs Stock
                             </span>
                         </div>
@@ -838,7 +838,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                         </span>
                         {row.fgType && <Chip kind={row.fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{row.fgType}</Chip>}
                         <span style={{
-                            fontSize: 9, fontWeight: 800, padding: "2px 8px",
+                            fontSize: 9, fontWeight: 650, padding: "2px 8px",
                             borderRadius: "var(--r-pill)",
                             background: tone.bg, color: tone.fg,
                         }}>
@@ -847,7 +847,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                         {!row.linkedToTemplate ? (
                             <span style={{
                                 fontSize: 9,
-                                fontWeight: 800,
+                                fontWeight: 650,
                                 padding: "2px 8px",
                                 borderRadius: "var(--r-pill)",
                                 background: "var(--warning-bg)",
@@ -879,7 +879,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                             title={canLaunch ? "Open quick stock launcher (auto-release)" : "No template seed available"}
                             style={{
                                 padding: "7px 12px",
-                                fontSize: 10, fontWeight: 800,
+                                fontSize: 10, fontWeight: 650,
                                 textTransform: "uppercase", letterSpacing: ".05em",
                                 background: canLaunch ? (isShort ? "var(--danger)" : "var(--brand-600)") : "var(--surface-2)",
                                 color: canLaunch ? "#fff" : "var(--text-4)",
@@ -956,7 +956,7 @@ function PackagingStockCard({ openCount, balances, onLaunch }: { openCount: numb
                 <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <Package size={16} color="var(--v-700)" />
-                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--v-700)" }}>
+                        <span style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--v-700)" }}>
                             Packaging in-house
                         </span>
                     </div>
@@ -1058,7 +1058,7 @@ function PODStockCard({ openCount, balances }: { openCount: number; balances: Te
                 <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <Send size={16} color="var(--a-700)" />
-                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--a-700)" }}>
+                        <span style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--a-700)" }}>
                             POD bulk stock
                         </span>
                     </div>
@@ -1148,11 +1148,11 @@ function PoolStat({ label, value, suffix, tone }: { label: string; value: string
             border: `1px solid ${colors.border}`,
             borderRadius: "var(--r-3)",
         }}>
-            <div style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: colors.fg }}>
+            <div style={{ fontSize: 9, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: colors.fg }}>
                 {label}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 2 }}>
-                <span style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 800, color: "var(--text-1)", lineHeight: 1 }}>
+                <span style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 650, color: "var(--text-1)", lineHeight: 1 }}>
                     {value}
                 </span>
                 <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-3)" }}>{suffix}</span>
@@ -1203,7 +1203,7 @@ function AgedJobsList({ jobs }: { jobs: any[] }) {
                         </div>
                     </div>
                     <span style={{
-                        fontSize: 10, fontWeight: 800,
+                        fontSize: 10, fontWeight: 650,
                         padding: "3px 10px",
                         borderRadius: "var(--r-pill)",
                         background: tone.bg, color: tone.fg,
@@ -1223,7 +1223,7 @@ function SectionHeader({ eyebrow, title, icon }: { eyebrow: string; title: strin
             <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {icon}
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-3)" }}>
+                    <span style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-3)" }}>
                         {eyebrow}
                     </span>
                 </div>

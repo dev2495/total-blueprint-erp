@@ -48,13 +48,13 @@ export const getColumns = ({
             <Badge
               key={code.id}
               variant="outline"
-              className="bg-success-bg text-[10px] font-black text-success-fg"
+              className="bg-success-bg text-[10px] font-semibold text-success-fg"
             >
               {code.code}
             </Badge>
           ))}
           {codes.length > 4 ? (
-            <Badge variant="outline" className="text-[10px] font-black">
+            <Badge variant="outline" className="text-[10px] font-semibold">
               +{codes.length - 4}
             </Badge>
           ) : null}
@@ -70,7 +70,7 @@ export const getColumns = ({
         <div className="space-y-1">
           <Badge
             variant="outline"
-            className="border-success-border bg-success-bg text-[10px] font-black text-success-fg"
+            className="border-success-border bg-success-bg text-[10px] font-semibold text-success-fg"
           >
             Sellable
           </Badge>

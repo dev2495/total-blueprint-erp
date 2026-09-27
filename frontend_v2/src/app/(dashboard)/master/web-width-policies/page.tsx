@@ -104,7 +104,7 @@ export default function WebWidthPolicyListPage() {
           </div>
         ) : (
           <table className="w-full text-[12px]">
-            <thead className="bg-surface-2 text-left text-[10px] font-black uppercase tracking-wider text-content-3">
+            <thead className="bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-wider text-content-3">
               <tr>
                 <th className="px-4 py-2">Code</th>
                 <th className="px-4 py-2">Name</th>

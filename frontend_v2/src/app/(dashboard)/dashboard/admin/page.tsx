@@ -1,97 +1,64 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Cookies from "js-cookie";
-import { analyticsApi } from "@/services/analytics";
-import { RbacService } from "@/services/rbac";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import {
   Activity,
-  Database,
-  Server,
-  AlertCircle,
+  ArrowUpRight,
+  Building2,
   Clock,
-  RotateCcw,
-  Trash2,
   Cpu,
-  MemoryStick,
+  Database,
+  FileBarChart,
   HardDrive,
+  ListChecks,
+  MemoryStick,
+  RefreshCw,
+  Server,
   ShieldCheck,
+  Timer,
+  Trash2,
+  Users,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
+import { Button } from "@/components/ui/button";
+import { analyticsApi } from "@/services/analytics";
+import { RbacService } from "@/services/rbac";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import {
+  CompositionBar,
+  HeroChip,
+  HeroStat,
+  HeroStats,
+  Meter,
+  PageHero,
+  Panel,
+  PanelEmpty,
+  heroButtonClass,
+} from "@/components/premium";
+import { count, sentence } from "@/components/premium/format";
 
-const HealthRing = ({
-  value,
-  label,
-  colorClass,
-  icon: Icon,
-}: {
-  value: number | null;
-  label: string;
-  colorClass: string;
-  icon: any;
-}) => {
-  const radius = 35;
-  const circumference = 2 * Math.PI * radius;
-  const hasValue = value !== null && Number.isFinite(value);
-  const safeValue = hasValue ? value : 0;
-  const strokeDashoffset = circumference - (safeValue / 100) * circumference;
+const ADMIN_LINKS = [
+  { href: "/system/users", label: "Users", copy: "Accounts, roles and access", icon: Users },
+  { href: "/system/role-matrix", label: "Role matrix", copy: "What each role can see and do", icon: ShieldCheck },
+  { href: "/system/audit", label: "Audit centre", copy: "Every change, who and when", icon: ListChecks },
+  { href: "/system/company-profile", label: "Company profile", copy: "Legal entities and plants", icon: Building2 },
+  { href: "/system/shift-timing", label: "Shift timing", copy: "Shift windows per plant", icon: Timer },
+  { href: "/system/report-center", label: "Report centre", copy: "Scheduled report delivery", icon: FileBarChart },
+];
 
-  return (
-    <div className="flex flex-col items-center justify-center p-4">
-      <div className="relative flex items-center justify-center w-24 h-24 mb-4">
-        {/* Background Ring */}
-        <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-          <circle
-            className="text-content-4"
-            strokeWidth="8"
-            stroke="currentColor"
-            fill="transparent"
-            r={radius}
-            cx="48"
-            cy="48"
-          />
-          {/* Foreground Ring */}
-          <circle
-            className={cn("transition-all duration-1000 ease-out", colorClass)}
-            strokeWidth="8"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            stroke="currentColor"
-            fill="transparent"
-            r={radius}
-            cx="48"
-            cy="48"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-1/50 rounded-full m-2 shadow-sm border border-line backdrop-blur-sm">
-          <Icon className={cn("w-4 h-4 mb-0.5", colorClass)} />
-          <span className="text-sm font-black text-content-2 tracking-tight">
-            {hasValue ? `${value}%` : "—"}
-          </span>
-        </div>
-      </div>
-      <span className="text-[11px] font-bold text-content-3 uppercase tracking-widest">
-        {label}
-      </span>
-    </div>
-  );
-};
+function resourceTone(value: number | null) {
+  if (value === null) return "neutral" as const;
+  if (value >= 90) return "bad" as const;
+  if (value >= 75) return "warn" as const;
+  return "good" as const;
+}
 
 export default function SystemHealthDashboard() {
+  const [confirmVacuum, setConfirmVacuum] = useState(false);
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_ALLOW_ROLE_PREVIEW === "true") return;
     Cookies.remove("x_role_override", { path: "/" });
@@ -103,463 +70,244 @@ export default function SystemHealthDashboard() {
     }
   }, []);
 
-  const {
-    data: health,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
+  const health = useQuery({
     queryKey: ["system-health"],
     queryFn: analyticsApi.getSystemHealth,
     refetchInterval: 15000,
     retry: 1,
   });
-  const { data: visibilityMap } = useQuery({
+  const visibility = useQuery({
     queryKey: ["admin-role-visibility-widget"],
     queryFn: RbacService.revalidateRoleVisibility,
     refetchInterval: 60000,
     retry: 1,
   });
 
-  const signoffSummary = useMemo(() => {
-    const rows = Object.entries(visibilityMap || {}).map(
-      ([roleCode, values]) => ({ roleCode, ...values }),
-    );
+  const maintenance = useMutation({
+    mutationFn: async (action: "clear_cache" | "vacuum_db") => {
+      const res = await analyticsApi.performMaintenance(action);
+      if (!res.success) throw new Error(res.message);
+      return res;
+    },
+    onSuccess: (res, action) => {
+      toast.success(action === "clear_cache" ? "Cache cleared" : "Database vacuum complete", { description: res.message });
+      setConfirmVacuum(false);
+      void health.refetch();
+    },
+    onError: (error: any, action) =>
+      toast.error(action === "clear_cache" ? "Could not clear cache" : "Vacuum failed", { description: error?.message }),
+  });
+
+  const signoff = useMemo(() => {
+    const rows = Object.entries(visibility.data || {}).map(([roleCode, values]: [string, any]) => ({ roleCode, ...values }));
     const total = rows.reduce((acc, row) => acc + (Number(row.total) || 0), 0);
-    const approved = rows.reduce(
-      (acc, row) => acc + (Number(row.approved) || 0),
-      0,
-    );
-    const pending = rows.reduce(
-      (acc, row) => acc + (Number(row.pending) || 0),
-      0,
-    );
-    const topBlockers = rows
-      .filter((row) => Number(row.pending) > 0)
-      .sort((a, b) => Number(b.pending) - Number(a.pending))
-      .slice(0, 3);
-    return { total, approved, pending, topBlockers };
-  }, [visibilityMap]);
+    const approved = rows.reduce((acc, row) => acc + (Number(row.approved) || 0), 0);
+    const pending = rows.reduce((acc, row) => acc + (Number(row.pending) || 0), 0);
+    const blockers = rows.filter((row) => Number(row.pending) > 0).sort((a, b) => Number(b.pending) - Number(a.pending)).slice(0, 5);
+    return { total, approved, pending, blockers };
+  }, [visibility.data]);
 
-  if (isLoading) {
-    return (
-      <div className="p-8 flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-12 h-12 border-4 border-info-border border-t-blue-600 rounded-full animate-spin mb-4 shadow-premium"></div>
-        <div className="text-content-3 font-medium tracking-wide">
-          Initializing Command Center...
-        </div>
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="p-8 min-h-[60vh] flex items-center justify-center">
-        <Card className="max-w-xl w-full border border-warning-border bg-warning-bg shadow-md">
-          <CardHeader>
-            <CardTitle className="text-warning-fg flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Telemetry Degraded
-            </CardTitle>
-            <CardDescription className="text-warning-fg">
-              System health metrics did not respond in time. Core dashboard is
-              safe to use; retry when backend is healthy.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-between gap-3">
-            <div className="text-xs text-warning-fg break-all">
-              {String(
-                (error as any)?.message || "System health request failed",
-              )}
-            </div>
-            <Button onClick={() => refetch()} className="shrink-0">
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const system = health || {
-    status: "unknown",
-    uptime: "-",
-    active_users: 0,
-    error_rate: "-",
-    db_health: "-",
-    version: "-",
-    cpu_usage: 0,
-    memory_usage: 0,
-    disk_usage: 0,
-    db_size_mb: 0,
-    active_connections: 0,
-    logs: [],
-  };
-  const telemetryDegraded =
-    system.telemetry_scope === "fallback" || system.telemetry_fresh === false;
-  const telemetryNumber = (value: unknown) => {
-    if (telemetryDegraded) return null;
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : null;
-  };
+  const system: any = health.data || {};
+  const degraded = system.telemetry_scope === "fallback" || system.telemetry_fresh === false;
+  const num = (v: unknown) => (degraded || !Number.isFinite(Number(v)) ? null : Number(v));
+  const cpu = num(system.cpu_usage);
+  const mem = num(system.memory_usage);
+  const disk = num(system.disk_usage);
+  const dbLatency = String(system.db_health || "").match(/(\d+)\s*ms/)?.[1];
+  const online = String(system.status || "").toLowerCase() === "online";
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 relative">
-      <section className="erp-admin-hero rounded-3xl border border-surface-1/10 px-6 py-6 text-white shadow-xl sm:px-8">
-        <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
-              <Activity className="h-3.5 w-3.5" />
-              Command center
-            </div>
-            <h1 className="mt-3 font-display text-[2rem] font-bold leading-tight tracking-normal text-white sm:text-[2.6rem]">
-              System Admin Console
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">
-              Platform telemetry & infrastructure maintenance. Every refresh
-              hits the live cluster.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div
-              className={cn(
-                "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-xs font-black uppercase tracking-[0.16em] backdrop-blur",
-                system.status === "online"
-                  ? telemetryDegraded
-                    ? "border-warning-border bg-surface-1/10 text-warning-fg"
-                    : "border-success-border bg-surface-1/10 text-success-fg"
-                  : "border-danger-border bg-surface-1/10 text-danger-fg",
-              )}
-            >
-              {system.status === "online" && !telemetryDegraded ? (
-                <>
-                  <span className="h-2 w-2 rounded-full bg-success-fg shadow-[0_0_12px_rgba(52,211,153,0.9)]" />{" "}
-                  Online
-                </>
-              ) : system.status === "online" ? (
-                <>
-                  <AlertCircle className="h-4 w-4" /> Telemetry degraded
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-4 w-4" /> Offline
-                </>
-              )}
-            </div>
-            <Button
-              onClick={() => refetch()}
-              className="h-10 rounded-2xl border border-surface-1/20 bg-surface-1/10 px-5 text-white shadow-none hover:bg-surface-1/20"
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Refresh vitals
-            </Button>
-          </div>
+    <div className="mx-auto max-w-[1600px] space-y-4" data-testid="admin-dashboard">
+      <PageHero
+        eyebrow="Command center"
+        icon={<Activity />}
+        title="System Admin Console"
+        description="Server vitals, database health, access sign-off and maintenance for the whole ERP."
+        meta={
+          <>
+            <HeroChip tone={health.isError ? "bad" : online ? "good" : "warn"}>{health.isError ? "Telemetry unavailable" : online ? "Online" : sentence(system.status || "unknown")}</HeroChip>
+            {system.version ? <HeroChip>Build {system.version}</HeroChip> : null}
+            {system.uptime ? <HeroChip>Up {system.uptime}</HeroChip> : null}
+            {degraded ? <HeroChip tone="warn">Telemetry stale</HeroChip> : null}
+          </>
+        }
+        actions={
+          <button type="button" onClick={() => void health.refetch()} disabled={health.isFetching} className={heroButtonClass("primary")}>
+            <RefreshCw className={cn(health.isFetching && "animate-spin motion-reduce:animate-none")} /> Refresh vitals
+          </button>
+        }
+      >
+        <HeroStats columns={4}>
+          <HeroStat label="Active users" value={health.data ? count(system.active_users) : "—"} hint="signed in, last 24 h" />
+          <HeroStat label="Error rate" tone={String(system.error_rate || "").startsWith("0") ? "good" : "warn"} value={system.error_rate || "—"} hint="failed requests" />
+          <HeroStat label="Database latency" tone={dbLatency && Number(dbLatency) > 200 ? "warn" : "good"} value={dbLatency ? `${dbLatency} ms` : "—"} hint={String(system.db_health || "").split("(")[0].trim() || "connection check"} />
+          <HeroStat label="Database size" value={system.db_size_mb ? `${count(system.db_size_mb)} MB` : "—"} hint={`${count(system.active_connections || 0)} open connections`} />
+        </HeroStats>
+      </PageHero>
+
+      {health.isError ? (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-[13px] text-warning-fg">
+          System health did not respond. The rest of the ERP is unaffected.
+          <Button size="sm" variant="outline" onClick={() => health.refetch()}>
+            Retry
+          </Button>
         </div>
+      ) : null}
 
-        {telemetryDegraded ? (
-          <div className="relative z-10 mt-4 rounded-2xl border border-warning-border bg-warning-bg px-4 py-3 text-sm font-semibold text-warning-fg">
-            Live server telemetry is degraded. CPU, memory, and storage rings
-            are paused instead of showing fallback numbers.
-          </div>
-        ) : null}
-
-        <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          {[
-            { label: "Uptime", value: system.uptime, sub: "since restart" },
-            {
-              label: "Active users",
-              value: system.active_users,
-              sub: "last 24h",
-            },
-            {
-              label: "Error rate",
-              value: system.error_rate,
-              sub: "success margin",
-              good: true,
-            },
-            {
-              label: "DB latency",
-              value: system.db_health,
-              sub: "connected · healthy",
-            },
-            {
-              label: "DB size",
-              value: `${system.db_size_mb}MB`,
-              sub: "active volume",
-            },
-            {
-              label: "Storage",
-              value: telemetryDegraded ? "—" : `${system.disk_usage}%`,
-              sub: telemetryDegraded
-                ? "telemetry paused"
-                : system.disk_usage > 90
-                  ? "near limit"
-                  : "capacity normal",
-              danger: !telemetryDegraded && system.disk_usage > 90,
-            },
-          ].map((metric) => (
-            <div
-              key={metric.label}
-              className={cn(
-                "rounded-2xl border bg-surface-1/10 p-4 text-white backdrop-blur",
-                metric.danger ? "border-danger-border" : "border-surface-1/15",
-              )}
-            >
-              <div
-                className={cn(
-                  "text-[10px] font-black uppercase tracking-[0.2em]",
-                  metric.danger ? "text-danger-fg" : "text-white/72",
-                )}
-              >
-                {metric.label}
-              </div>
-              <div
-                className={cn(
-                  "mt-2 truncate font-display text-[1.75rem] font-bold leading-none",
-                  metric.good
-                    ? "text-success-fg"
-                    : metric.danger
-                      ? "text-danger-fg"
-                      : "text-white",
-                )}
-              >
-                {metric.value}
-              </div>
-              <div
-                className={cn(
-                  "mt-2 text-[11px]",
-                  metric.danger ? "text-danger-fg" : "text-white/72",
-                )}
-              >
-                {metric.sub}
-              </div>
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <Panel icon={<Server />} title="Server resources" description="Live host utilisation">
+          {health.isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="erp-skeleton h-10 rounded-lg" />
+              ))}
             </div>
-          ))}
-        </div>
-      </section>
+          ) : (
+            <div className="space-y-4">
+              {[
+                { label: "CPU", value: cpu, icon: Cpu },
+                { label: "Memory", value: mem, icon: MemoryStick },
+                { label: "Disk", value: disk, icon: HardDrive },
+              ].map((r) => (
+                <div key={r.label} className="flex items-center gap-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-content-2">
+                    <r.icon className="h-4 w-4" />
+                  </span>
+                  <Meter className="flex-1" label={r.label} value={r.value ?? 0} max={100} display={r.value === null ? "—" : `${r.value}%`} tone={resourceTone(r.value)} />
+                </div>
+              ))}
+              {disk !== null && disk >= 85 ? (
+                <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[12px] text-warning-fg">
+                  Disk is {disk}% full. Prune old backups and Docker images before it reaches capacity.
+                </div>
+              ) : null}
+            </div>
+          )}
+        </Panel>
 
-      <Card className="border border-info-border bg-surface-1/80 backdrop-blur-xl shadow-premium">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-info-fg" />
-            Department Signoff Progress
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Quick governance status for role/module visibility approvals.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="bg-surface-2">
-              Total: {signoffSummary.total}
-            </Badge>
-            <Badge
-              variant="success"
-              className="bg-success-fg text-surface-3"
-            >
-              Approved: {signoffSummary.approved}
-            </Badge>
-            <Badge variant="secondary">Pending: {signoffSummary.pending}</Badge>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {signoffSummary.topBlockers.map((blocker) => (
-              <Badge key={blocker.roleCode} variant="outline">
-                {blocker.roleCode}: {blocker.pending} pending
-              </Badge>
-            ))}
-            {!signoffSummary.topBlockers.length ? (
-              <Badge variant="success" className="bg-success-fg text-surface-3">
-                All roles ready
-              </Badge>
-            ) : null}
-          </div>
-          <Button asChild variant="outline" className="w-full md:w-auto">
-            <Link href="/system/governance?tab=signoffs">
+        <Panel
+          icon={<ShieldCheck />}
+          title="Department sign-off"
+          description="Role and module visibility approvals"
+          actions={
+            <Link href="/system/governance?tab=signoffs" className="text-[12.5px] font-medium text-primary hover:underline">
               Open Governance Console
             </Link>
-          </Button>
-        </CardContent>
-      </Card>
+          }
+        >
+          {signoff.total ? (
+            <>
+              <CompositionBar
+                parts={[
+                  { label: "Approved", value: signoff.approved, color: "var(--viz-good)" },
+                  { label: "Pending", value: signoff.pending, color: "var(--viz-warning)" },
+                ]}
+                valueFormat={count}
+              />
+              {signoff.blockers.length ? (
+                <ul className="mt-4 space-y-1.5">
+                  {signoff.blockers.map((b) => (
+                    <li key={b.roleCode} className="flex items-center justify-between rounded-lg bg-surface-2/70 px-3 py-2 text-[12.5px]">
+                      <span className="text-content-2">{sentence(b.roleCode)}</span>
+                      <span className="tabular-nums text-warning-fg">{count(b.pending)} pending</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="mt-3 text-[12.5px] text-success-fg">Every role is signed off.</div>
+              )}
+            </>
+          ) : (
+            <PanelEmpty title={visibility.isLoading ? "Loading sign-off…" : "No sign-off records"} />
+          )}
+        </Panel>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="bg-surface-1/60 backdrop-blur-xl rounded-3xl border border-surface-1 shadow-premium p-6 flex flex-col items-center justify-center hover:bg-surface-1/80 transition-colors">
-          <HealthRing
-            value={telemetryNumber(system.cpu_usage)}
-            label="CPU Utilization"
-            icon={Cpu}
-            colorClass={
-              telemetryDegraded
-                ? "text-content-4"
-                : system.cpu_usage > 80
-                ? "text-danger-fg"
-                : system.cpu_usage > 60
-                  ? "text-warning-fg"
-                  : "text-primary"
-            }
-          />
-        </div>
-        <div className="bg-surface-1/60 backdrop-blur-xl rounded-3xl border border-surface-1 shadow-premium p-6 flex flex-col items-center justify-center hover:bg-surface-1/80 transition-colors">
-          <HealthRing
-            value={telemetryNumber(system.memory_usage)}
-            label="Memory Pressure"
-            icon={MemoryStick}
-            colorClass={
-              telemetryDegraded
-                ? "text-content-4"
-                : system.memory_usage > 85
-                ? "text-danger-fg"
-                : system.memory_usage > 70
-                  ? "text-warning-fg"
-                  : "text-success-fg"
-            }
-          />
-        </div>
-        <div className="bg-surface-1/60 backdrop-blur-xl rounded-3xl border border-surface-1 shadow-premium p-6 flex flex-col items-center justify-center hover:bg-surface-1/80 transition-colors">
-          <HealthRing
-            value={telemetryNumber(system.disk_usage)}
-            label="Storage Capacity"
-            icon={HardDrive}
-            colorClass={
-              telemetryDegraded
-                ? "text-content-4"
-                : system.disk_usage > 90
-                  ? "text-danger-fg"
-                  : "text-info-fg"
-            }
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="col-span-2 bg-surface-1/70 backdrop-blur-xl rounded-3xl border border-surface-1 shadow-premium overflow-hidden flex flex-col">
-          <div className="px-6 py-5 border-b border-line flex items-center justify-between bg-surface-1/50">
-            <div className="flex items-center gap-3">
-              <Server className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-black text-content-2 tracking-tight">
-                System Event Stream
-              </h2>
-            </div>
-            <Badge
-              variant="outline"
-              className="bg-surface-2 text-content-3 border-line"
+        <Panel icon={<Database />} title="Maintenance" description="Safe housekeeping actions">
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              disabled={maintenance.isPending}
+              onClick={() => maintenance.mutate("clear_cache")}
+              className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface-1 px-3.5 py-3 text-left transition hover:border-line-strong hover:bg-surface-2 disabled:opacity-50"
             >
-              Live
-            </Badge>
-          </div>
-          <div className="p-2 flex-1 relative bg-surface-2">
-            <ScrollArea className="h-[320px] rounded-2xl p-4">
-              <div className="space-y-3">
-                {system.logs?.map((log: any, i: number) => (
-                  <div
-                    key={i}
-                    className="flex gap-4 p-3 rounded-xl bg-surface-1 border border-line shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <div
-                      className={cn(
-                        "mt-0.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest h-fit",
-                        log.level === "ERROR"
-                          ? "bg-danger-bg text-danger-fg"
-                          : log.level === "WARN"
-                            ? "bg-warning-bg text-warning-fg"
-                            : "bg-success-bg text-success-fg",
-                      )}
-                    >
-                      {log.level}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-content-2 leading-snug">
-                        {log.message}
-                      </div>
-                      <div className="text-xs text-content-4 mt-1 font-medium flex items-center gap-1.5">
-                        <Clock className="w-3 h-3" /> {log.time}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {(!system.logs || system.logs.length === 0) && (
-                  <div className="h-full flex flex-col items-center justify-center text-content-4 space-y-3 py-10">
-                    <Activity className="w-8 h-8 opacity-20" />
-                    <p className="font-medium">No recent system events.</p>
-                  </div>
+              <Trash2 className="h-4 w-4 text-content-3" />
+              <span className="flex-1">
+                <span className="block text-[13px] font-semibold text-content-1">Clear application cache</span>
+                <span className="block text-[12px] text-content-3">Drops cached reports and dashboards; they rebuild on next view.</span>
+              </span>
+            </button>
+            <div className="rounded-xl border border-line bg-surface-1 px-3.5 py-3">
+              <div className="flex items-center gap-3">
+                <Database className="h-4 w-4 text-content-3" />
+                <span className="flex-1">
+                  <span className="block text-[13px] font-semibold text-content-1">Vacuum database</span>
+                  <span className="block text-[12px] text-content-3">Reclaims space and refreshes planner statistics. Best run off-shift.</span>
+                </span>
+              </div>
+              <div className="mt-2.5 flex justify-end gap-2">
+                {confirmVacuum ? (
+                  <>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirmVacuum(false)}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" disabled={maintenance.isPending} onClick={() => maintenance.mutate("vacuum_db")}>
+                      {maintenance.isPending && maintenance.variables === "vacuum_db" ? "Running…" : "Run vacuum now"}
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setConfirmVacuum(true)}>
+                    Vacuum…
+                  </Button>
                 )}
               </div>
-            </ScrollArea>
-          </div>
-        </div>
-
-        <div className="col-span-1 bg-surface-3 text-white rounded-3xl border border-line-strong shadow-premium flex flex-col relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-success-fg" />
-          <div className="px-6 py-5 border-b border-surface-1/10">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/55">
-              Maintenance tasks
             </div>
-            <h2 className="mt-1 text-lg font-black tracking-tight text-white">
-              Infrastructure Ops
-            </h2>
           </div>
-          <div className="p-6 space-y-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                toast.promise(
-                  new Promise((resolve) => setTimeout(resolve, 2000)),
-                  {
-                    loading: "Restarting core services...",
-                    success:
-                      "All services successfully restarted and verified.",
-                    error: "Failed to restart services.",
-                  },
-                );
-              }}
-              className="w-full justify-start h-12 rounded-xl border-surface-1/10 bg-surface-1/10 text-danger-border hover:bg-surface-1/20 hover:text-danger-border transition-colors font-bold"
-            >
-              <RotateCcw className="h-4 w-4 mr-3" />
-              Restart Services
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const promise = analyticsApi
-                  .performMaintenance("clear_cache")
-                  .then((res) => {
-                    if (!res.success) throw new Error(res.message);
-                    return res;
-                  });
-                toast.promise(promise, {
-                  loading: "Purging distributed cache...",
-                  success: "System cache cleared. RAM reclaimed.",
-                  error: "Failed to clear cache.",
-                });
-              }}
-              className="w-full justify-start h-12 rounded-xl border-surface-1/10 bg-surface-1/10 text-white/85 hover:bg-surface-1/20 hover:text-white transition-colors font-bold"
-            >
-              <Trash2 className="h-4 w-4 mr-3" />
-              Clear System Cache
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const promise = analyticsApi
-                  .performMaintenance("vacuum_db")
-                  .then((res) => {
-                    if (!res.success) throw new Error(res.message);
-                    return res;
-                  });
-                toast.promise(promise, {
-                  loading: "Executing DB Vacuum operation...",
-                  success: "Database vacuum complete. Performance optimized.",
-                  error: "Vacuum operation failed.",
-                });
-              }}
-              className="w-full justify-start h-12 rounded-xl border-surface-1/10 bg-surface-1/10 text-white/85 hover:bg-surface-1/20 hover:text-white transition-colors font-bold"
-            >
-              <Database className="h-4 w-4 mr-3" />
-              Vacuum Database
-            </Button>
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <Panel icon={<Activity />} title="System event stream" description="Latest activity recorded by the platform">
+          {(system.logs || []).length ? (
+            <ul className="divide-y divide-line">
+              {(system.logs || []).map((log: any, i: number) => (
+                <li key={i} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span
+                    className={cn(
+                      "mt-0.5 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold",
+                      log.level === "ERROR" ? "bg-danger-bg text-danger-fg" : log.level === "WARN" ? "bg-warning-bg text-warning-fg" : "bg-surface-2 text-content-3",
+                    )}
+                  >
+                    {sentence(log.level)}
+                  </span>
+                  <span className="min-w-0 flex-1 text-[12.5px] text-content-1">{log.message}</span>
+                  <span className="flex shrink-0 items-center gap-1 text-[11.5px] text-content-4">
+                    <Clock className="h-3 w-3" /> {log.time}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <PanelEmpty title="No recent system events" />
+          )}
+        </Panel>
+        <Panel title="Administration" description="Jump to a system area">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {ADMIN_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className="group flex items-start gap-3 rounded-xl border border-line bg-surface-1 p-3 transition hover:border-line-strong hover:bg-surface-2">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-content-2 group-hover:bg-content-1 group-hover:text-surface-1">
+                  <l.icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between text-[13px] font-semibold text-content-1">
+                    {l.label}
+                    <ArrowUpRight className="h-3.5 w-3.5 text-content-4" />
+                  </span>
+                  <span className="block text-[11.5px] text-content-3">{l.copy}</span>
+                </span>
+              </Link>
+            ))}
           </div>
-        </div>
+        </Panel>
       </div>
     </div>
   );

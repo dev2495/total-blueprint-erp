@@ -560,12 +560,12 @@ export default function ReasonCodesPage() {
   return (
     <div className="p-6 lg:p-8">
       {/* Gradient hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-surface-3 via-surface-3 to-primary p-6 text-white shadow-lg ring-1 ring-surface-1/10 lg:p-8">
+      <div className="erp-hero relative overflow-hidden rounded-3xl p-6 text-white shadow-lg ring-1 ring-surface-1/10 lg:p-8">
         <div className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-primary blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 left-10 size-48 rounded-full bg-order-fg blur-3xl" />
         <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-info-border">
+            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-info-border">
               <Tags className="size-3" /> Production · Reason Codes
             </div>
             <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">

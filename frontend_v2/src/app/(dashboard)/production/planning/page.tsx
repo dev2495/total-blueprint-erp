@@ -153,7 +153,7 @@ export default function PlanningBoard() {
         );
       case "EXECUTING":
         return (
-          <Badge className="bg-success-fg uppercase text-[10px] font-black animate-pulse">
+          <Badge className="bg-success-fg uppercase text-[10px] font-semibold animate-pulse">
             Running
           </Badge>
         );
@@ -165,7 +165,7 @@ export default function PlanningBoard() {
         );
       case "COMPLETED":
         return (
-          <Badge className="bg-success-fg uppercase text-[10px] font-black">
+          <Badge className="bg-success-fg uppercase text-[10px] font-semibold">
             Completed
           </Badge>
         );
@@ -183,7 +183,7 @@ export default function PlanningBoard() {
   return (
     <div className="space-y-6 p-6 max-w-[1600px] mx-auto">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-black tracking-tight text-content-1 uppercase">
+        <h1 className="text-3xl font-semibold tracking-tight text-content-1 uppercase">
           Production Planning Board
         </h1>
         <p className="text-sm text-muted-foreground font-medium">
@@ -201,7 +201,7 @@ export default function PlanningBoard() {
               Planned{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[9px] border-line-strong"
+                className="h-4 px-1 text-[10px] border-line-strong"
               >
                 {PLANNED.length}
               </Badge>
@@ -213,7 +213,7 @@ export default function PlanningBoard() {
               Released{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[9px] border-line-strong"
+                className="h-4 px-1 text-[10px] border-line-strong"
               >
                 {RELEASED.length}
               </Badge>
@@ -225,7 +225,7 @@ export default function PlanningBoard() {
               In Progress{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[9px] border-line-strong"
+                className="h-4 px-1 text-[10px] border-line-strong"
               >
                 {IN_PROGRESS.length}
               </Badge>
@@ -237,7 +237,7 @@ export default function PlanningBoard() {
               Completed{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[9px] border-line-strong"
+                className="h-4 px-1 text-[10px] border-line-strong"
               >
                 {COMPLETED.length}
               </Badge>
@@ -281,7 +281,7 @@ export default function PlanningBoard() {
       <Dialog open={isSplitDialogOpen} onOpenChange={setIsSplitDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="uppercase font-black tracking-tighter">
+            <DialogTitle className="uppercase font-semibold tracking-tighter">
               Split Job: {selectedJob?.job_number}
             </DialogTitle>
           </DialogHeader>
@@ -290,7 +290,7 @@ export default function PlanningBoard() {
               <Label className="text-[11px] font-bold uppercase text-content-3">
                 Current Quantity
               </Label>
-              <p className="text-lg font-black">
+              <p className="text-lg font-semibold">
                 {selectedJob?.quantity} {selectedJob?.uom}
               </p>
             </div>
@@ -343,7 +343,7 @@ export default function PlanningBoard() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="uppercase font-black tracking-tighter">
+            <DialogTitle className="uppercase font-semibold tracking-tighter">
               Adjust Priority: {selectedJob?.job_number}
             </DialogTitle>
           </DialogHeader>
@@ -387,25 +387,25 @@ export default function PlanningBoard() {
         <Table>
           <TableHeader className="bg-surface-2">
             <TableRow>
-              <TableHead className="uppercase text-[10px] font-black w-[150px]">
+              <TableHead className="uppercase text-[10px] font-semibold w-[150px]">
                 Job ID
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-black">
+              <TableHead className="uppercase text-[10px] font-semibold">
                 Product / Template
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-black">
+              <TableHead className="uppercase text-[10px] font-semibold">
                 Quantity
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-black">
+              <TableHead className="uppercase text-[10px] font-semibold">
                 Process
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-black">
+              <TableHead className="uppercase text-[10px] font-semibold">
                 Priority
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-black">
+              <TableHead className="uppercase text-[10px] font-semibold">
                 State
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-black text-right">
+              <TableHead className="uppercase text-[10px] font-semibold text-right">
                 Actions
               </TableHead>
             </TableRow>
@@ -433,7 +433,7 @@ export default function PlanningBoard() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="font-black text-content-2">
+                  <div className="font-semibold text-content-2">
                     {job.quantity} {job.uom}
                   </div>
                 </TableCell>
@@ -462,7 +462,7 @@ export default function PlanningBoard() {
                 </TableCell>
                 <TableCell>{getStateBadge(job.job_state)}</TableCell>
                 <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     {job.job_state === "PLANNED" && (
                       <>
                         <Button

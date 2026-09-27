@@ -578,7 +578,7 @@ export function PackagingWorkspaceV36() {
         <div className="rounded-2xl border border-success-border bg-success-bg p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
                 EOD packing count · {countDate}
               </div>
               <div className="mt-1 text-sm font-bold text-content-2">
@@ -589,7 +589,7 @@ export function PackagingWorkspaceV36() {
             </div>
             <Link
               href="/logistics/packing/consumption"
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-success-fg px-4 py-2 text-xs font-black text-white shadow-sm hover:bg-success-fg"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-success-fg px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-success-fg"
             >
               Open EOD count <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -621,7 +621,7 @@ export function PackagingWorkspaceV36() {
               {eod.top_materials.map((row) => (
                 <span
                   key={row.material_code}
-                  className="rounded-full border border-success-border bg-surface-1 px-2.5 py-1 text-[10px] font-black text-success-fg"
+                  className="rounded-full border border-success-border bg-surface-1 px-2.5 py-1 text-[10px] font-semibold text-success-fg"
                 >
                   {row.material_code} · {fmtNum(row.qty, 2)}
                 </span>
@@ -630,10 +630,10 @@ export function PackagingWorkspaceV36() {
           ) : null}
         </div>
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
             Unassigned count short
           </div>
-          <div className="mt-1 font-display text-2xl font-black text-content-1">
+          <div className="mt-1 font-display text-2xl font-semibold text-content-1">
             {fmtNum(eod?.unassigned_qty || 0, 2)}
           </div>
           <div className="mt-1 text-xs font-semibold text-content-3">
@@ -761,7 +761,7 @@ export function PackagingWorkspaceV36() {
       {/* Kind breakdown grid */}
       {mode === "browse" && kindBreakdown.length > 0 && (
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-3">
             Mix · by kind
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
@@ -790,13 +790,13 @@ export function PackagingWorkspaceV36() {
                   )}
                 >
                   <div className="text-2xl">{KIND_ICON[b.kind]}</div>
-                  <div className="mt-1 text-[10px] font-black uppercase tracking-wider opacity-70">
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-wider opacity-70">
                     {b.kind.replace("_", " ")}
                   </div>
-                  <div className="font-display text-base font-black mt-0.5">
+                  <div className="font-display text-base font-semibold mt-0.5">
                     {fmtNum(b.pcs, 0)}
                   </div>
-                  <div className="text-[9px] opacity-60">{b.count} SKU</div>
+                  <div className="text-[10px] opacity-60">{b.count} SKU</div>
                 </button>
               );
             })}
@@ -892,7 +892,7 @@ export function PackagingWorkspaceV36() {
                 }))}
               />
               <div>
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
                   Location
                 </div>
                 <select
@@ -1151,7 +1151,7 @@ function PkgGrid({
                 <span className="text-2xl">{KIND_ICON[k]}</span>
                 <span
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                    "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase",
                     h.bucket === "HEALTHY"
                       ? "bg-success-bg text-success-fg"
                       : h.bucket === "LOW"
@@ -1168,7 +1168,7 @@ function PkgGrid({
               <div className="text-[10px] text-content-3 truncate">
                 {r.name || r.material_name || ""}
               </div>
-              <div className="mt-2 font-display text-lg font-black text-content-1">
+              <div className="mt-2 font-display text-lg font-semibold text-content-1">
                 {fmtQty(qty, uom)}
               </div>
               <div className="text-[10px] text-content-3">
@@ -1224,7 +1224,7 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-warning-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
                 Packaging item · {KIND_ICON[k]} {k.replace("_", " ")}
               </div>
               <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
@@ -1257,7 +1257,7 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Specs
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1280,7 +1280,7 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               SO holds
             </div>
             {rsvQuery.isLoading && (
@@ -1332,7 +1332,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>
@@ -1351,7 +1351,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

@@ -53,7 +53,7 @@ export default function OrderProfitabilityListPage() {
       <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-content-4 italic">
+          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-content-4">
             Downloading Profitability Ledger...
           </p>
         </div>
@@ -66,10 +66,10 @@ export default function OrderProfitabilityListPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-black uppercase tracking-widest shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-semibold uppercase tracking-widest shadow-sm">
             <DollarSign className="h-3 w-3 fill-info-fg" /> Commercial Analytics
           </div>
-          <h1 className="text-4xl font-black tracking-tight text-content-1 flex items-center gap-3 italic">
+          <h1 className="text-4xl font-semibold tracking-tight text-content-1 flex items-center gap-3 italic">
             Order <span className="text-primary">Profitability</span>
           </h1>
           <p className="text-content-3 font-medium text-sm flex items-center gap-2">
@@ -94,7 +94,7 @@ export default function OrderProfitabilityListPage() {
           >
             <Filter className="h-4 w-4 text-content-3" />
           </Button>
-          <Button className="h-12 px-6 rounded-xl bg-surface-3 border-none shadow-xl hover:bg-primary text-white font-black uppercase text-[10px] tracking-widest transition-all">
+          <Button className="h-12 px-6 rounded-xl bg-surface-3 border-none shadow-xl hover:bg-primary text-white font-semibold uppercase text-[10px] tracking-widest transition-all">
             <Download className="h-4 w-4 mr-2" /> Export
           </Button>
         </div>
@@ -105,22 +105,22 @@ export default function OrderProfitabilityListPage() {
         <Table>
           <TableHeader className="bg-surface-2">
             <TableRow className="border-none">
-              <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 px-8 italic">
+              <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 px-8">
                 Order Details
               </TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center text-primary font-black tracking-widest leading-none mt-1">
+              <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center text-primary font-semibold tracking-widest leading-none mt-1">
                 Direct Material
               </TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">
+              <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
                 Conversion
               </TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">
+              <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
                 Total Cost
               </TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">
+              <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
                 Sales Price
               </TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-right">
+              <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-right">
                 Margin Health
               </TableHead>
               <TableHead className="text-right py-6 px-8"></TableHead>
@@ -132,7 +132,7 @@ export default function OrderProfitabilityListPage() {
                 <TableCell colSpan={7} className="h-60 text-center">
                   <div className="flex flex-col items-center justify-center space-y-3 opacity-30">
                     <AlertCircle className="h-12 w-12 text-content-4" />
-                    <p className="font-black uppercase tracking-widest text-xs">
+                    <p className="font-semibold uppercase tracking-widest text-xs">
                       No matching orders found in the ledger
                     </p>
                   </div>
@@ -151,39 +151,39 @@ export default function OrderProfitabilityListPage() {
                 >
                   <TableCell className="py-8 px-8">
                     <div className="flex flex-col">
-                      <span className="font-black text-content-1 uppercase tracking-tight text-[14px] leading-tight italic">
+                      <span className="font-semibold text-content-1 uppercase tracking-tight text-[14px] leading-tight">
                         {o.order_number}
                       </span>
-                      <span className="text-[9px] font-bold text-content-4 uppercase tracking-[0.1em] mt-1">
+                      <span className="text-[10px] font-bold text-content-4 uppercase tracking-[0.1em] mt-1">
                         {o.customer_name}
                       </span>
-                      <span className="text-[10px] font-bold text-primary uppercase mt-1 italic">
+                      <span className="text-[10px] font-bold text-primary uppercase mt-1">
                         {o.product_name}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="font-black text-content-3 text-[13px] tabular-nums">
+                    <span className="font-semibold text-content-3 text-[13px] tabular-nums">
                       ₹{Math.round(Number(o.material_cost)).toLocaleString()}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="font-black text-content-3 text-[13px] tabular-nums">
+                    <span className="font-semibold text-content-3 text-[13px] tabular-nums">
                       ₹{Math.round(Number(o.conversion_cost)).toLocaleString()}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="inline-flex flex-col items-center">
-                      <span className="font-black text-content-1 text-[13px] tabular-nums">
+                      <span className="font-semibold text-content-1 text-[13px] tabular-nums">
                         ₹{Math.round(Number(o.total_cost)).toLocaleString()}
                       </span>
-                      <span className="text-[8px] font-black uppercase text-content-4 mt-0.5 tracking-tighter">
+                      <span className="text-[8px] font-semibold uppercase text-content-4 mt-0.5 tracking-tighter">
                         Manufacturing Value
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="font-black text-content-1 text-[13px] tabular-nums">
+                    <span className="font-semibold text-content-1 text-[13px] tabular-nums">
                       ₹{Math.round(Number(o.selling_price)).toLocaleString()}
                     </span>
                   </TableCell>
@@ -191,7 +191,7 @@ export default function OrderProfitabilityListPage() {
                     <div className="flex flex-col items-end">
                       <span
                         className={cn(
-                          "font-black text-sm tabular-nums italic",
+                          "font-semibold text-sm tabular-nums italic",
                           isLoss
                             ? "text-danger-fg"
                             : isHealthy
@@ -207,7 +207,7 @@ export default function OrderProfitabilityListPage() {
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[8px] font-black uppercase tracking-tighter h-4 mt-1 border-none bg-opacity-10",
+                          "text-[8px] font-semibold uppercase tracking-tighter h-4 mt-1 border-none bg-opacity-10",
                           isLoss
                             ? "bg-danger-solid text-danger-fg"
                             : isHealthy
@@ -243,25 +243,25 @@ export default function OrderProfitabilityListPage() {
         <div className="flex gap-10">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-danger-solid shadow-sm" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-content-3 italic">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
               Loss Making / Critical
             </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-warning-fg shadow-sm" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-content-3 italic">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
               Low Margin (&lt; 15%)
             </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-success-fg shadow-sm" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-content-3 italic">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
               Target Margin Healthy
             </span>
           </div>
         </div>
         <div className="bg-surface-1 px-6 py-3 rounded-2xl border border-surface-1 shadow-md">
-          <p className="text-[9px] font-black text-content-4 uppercase tracking-widest">
+          <p className="text-[10px] font-semibold text-content-4 uppercase tracking-widest">
             Total Evaluated Orders:{" "}
             <span className="text-primary">{orderCosts?.length || 0}</span>
           </p>

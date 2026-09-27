@@ -174,10 +174,10 @@ export function RichHero({
       <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-b from-order-fg via-order-fg to-order-fg shadow-[0_0_18px_2px_rgba(139,92,246,0.45)]" />
       <div className="relative pl-3 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
             {eyebrow}
           </div>
-          <h1 className="font-display text-3xl sm:text-4xl font-black tracking-tight bg-gradient-to-br from-surface-3 via-order-fg to-order-fg bg-clip-text text-transparent mt-1">
+          <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight bg-gradient-to-br from-surface-3 via-order-fg to-order-fg bg-clip-text text-transparent mt-1">
             {title}
           </h1>
           {subtitle ? (
@@ -200,10 +200,10 @@ export function RichHero({
                       {c.icon}
                     </span>
                   ) : null}
-                  <span className="text-[9px] font-black uppercase tracking-wider opacity-70">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
                     {c.label}
                   </span>
-                  <span className="font-mono font-black">{c.value}</span>
+                  <span className="font-mono font-semibold">{c.value}</span>
                 </span>
               ))}
             </div>
@@ -284,7 +284,7 @@ export function RichSection({
                 {typeof index === "number" ? (
                   <span
                     className={cn(
-                      "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1 text-[10px] font-black ring-1 ring-inset",
+                      "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1 text-[10px] font-semibold ring-1 ring-inset",
                       t.iconBg,
                     )}
                   >
@@ -294,7 +294,7 @@ export function RichSection({
                 {eyebrow ? (
                   <span
                     className={cn(
-                      "text-[10px] font-black uppercase tracking-[0.22em]",
+                      "text-[10px] font-semibold uppercase tracking-[0.12em]",
                       t.eyebrow,
                     )}
                   >
@@ -303,7 +303,7 @@ export function RichSection({
                 ) : null}
                 {badge}
               </div>
-              <div className="font-display text-base font-black text-content-1 tracking-tight">
+              <div className="font-display text-base font-semibold text-content-1 tracking-tight">
                 {title}
               </div>
               {subtitle ? (
@@ -613,7 +613,7 @@ export function PouchStylePicker({
                 {opt.label}
               </span>
               {active ? (
-                <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-fg text-[9px] font-black text-white shadow ring-2 ring-surface-1">
+                <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-fg text-[10px] font-semibold text-white shadow ring-2 ring-surface-1">
                   ✓
                 </span>
               ) : null}
@@ -629,7 +629,7 @@ export function PouchStylePicker({
             : "bg-order-bg text-order-fg ring-order-border",
         )}
       >
-        <span className="text-[9px] font-black uppercase tracking-wider opacity-70">
+        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
           Roll W ={" "}
         </span>
         {formula}
@@ -657,7 +657,7 @@ export function LayerStatePill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
         variable
           ? "bg-gradient-to-r from-success-bg to-success-bg text-success-fg ring-success-border shadow-sm"
           : "bg-info-bg text-primary ring-info-border",
@@ -670,7 +670,7 @@ export function LayerStatePill({
         )}
       />
       <span>{axis}</span>
-      <span className="text-[9px] opacity-80">
+      <span className="text-[10px] opacity-80">
         {variable ? "Variable" : "Fixed"}
       </span>
     </span>

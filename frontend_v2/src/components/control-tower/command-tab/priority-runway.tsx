@@ -144,7 +144,7 @@ export function PriorityRunway({ orders }: PriorityRunwayProps) {
                                             <span style={{
                                                 display: "inline-flex", alignItems: "center", gap: 5,
                                                 padding: "3px 10px",
-                                                fontSize: 11, fontWeight: 800,
+                                                fontSize: 11, fontWeight: 650,
                                                 textTransform: "uppercase", letterSpacing: ".05em",
                                                 borderRadius: "var(--r-pill)",
                                                 background: ageBg, color: ageTone,

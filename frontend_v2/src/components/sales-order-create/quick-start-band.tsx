@@ -191,7 +191,7 @@ export function QuickStartBand({
     <div className="space-y-3" data-testid="sales-quick-start-band">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-order-fg ring-1 ring-order-border">
+          <span className="rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg ring-1 ring-order-border">
             <Zap className="-mt-0.5 mr-1 inline h-2.5 w-2.5" />
             Quick Start
           </span>
@@ -272,7 +272,7 @@ function QuickStartCardView({
           </span>
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1 ring-inset",
+              "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
               tone.badgeBg,
               tone.badgeText,
             )}

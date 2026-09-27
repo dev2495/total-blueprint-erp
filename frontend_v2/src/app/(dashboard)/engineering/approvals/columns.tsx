@@ -20,7 +20,7 @@ export const columns: ColumnDef<TemplateBlueprint>[] = [
           {row.original.created_from === "CUSTOM_ORDER" ? (
             <Badge
               variant="destructive"
-              className="text-[10px] py-0 h-4 px-1.5 uppercase font-black tracking-tighter"
+              className="text-[10px] py-0 h-4 px-1.5 uppercase font-semibold tracking-tighter"
             >
               Custom Order
             </Badge>

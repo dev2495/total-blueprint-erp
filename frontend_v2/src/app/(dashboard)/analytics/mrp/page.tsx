@@ -698,16 +698,16 @@ export default function MRPCenter() {
         <section className="rounded-[2rem] border border-surface-1/70 bg-surface-1/88 p-6 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-primary">
+              <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
                 <BrainCircuit className="h-3.5 w-3.5" />
                 Material Planning Center
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-3 text-white shadow-lg ">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-3 text-white shadow-lg">
                   <ClipboardList className="h-5 w-5" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-black tracking-tight text-content-1">
+                  <h1 className="text-3xl font-semibold tracking-tight text-content-1">
                     MRP Center
                   </h1>
                   <p className="mt-1 max-w-3xl text-sm text-content-3">
@@ -722,7 +722,7 @@ export default function MRPCenter() {
             <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end">
               <div className="grid gap-3 md:grid-cols-[minmax(240px,320px)_minmax(180px,240px)]">
                 <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                     Plan run
                   </div>
                   <Select
@@ -758,7 +758,7 @@ export default function MRPCenter() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                     Active status
                   </div>
                   <div className="flex h-11 items-center justify-between rounded-2xl border border-line bg-surface-1/90 px-4 shadow-sm">
@@ -853,7 +853,7 @@ export default function MRPCenter() {
               </Button>
               <Button
                 size="lg"
-                className="h-11 rounded-2xl bg-surface-3 px-5 font-semibold text-white shadow-lg transition hover:bg-line"
+                className="h-11 rounded-2xl bg-surface-3 px-5 font-semibold text-white shadow-lg transition hover:bg-primary"
                 onClick={() => runMutation.mutate()}
                 disabled={isRunning}
               >
@@ -871,10 +871,10 @@ export default function MRPCenter() {
             <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-line bg-surface-1 shadow-2xl">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface-1 px-6 py-4">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-content-4">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-content-4">
                     Plan diff
                   </div>
-                  <div className="text-lg font-black text-content-1">
+                  <div className="text-lg font-semibold text-content-1">
                     {diffData.from_plan
                       ? "Previous → current"
                       : "Current run (no prior to compare)"}
@@ -891,7 +891,7 @@ export default function MRPCenter() {
               <div className="space-y-4 p-6">
                 <Card className="rounded-2xl border-success-border bg-success-bg">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-black text-success-fg">
+                    <CardTitle className="text-sm font-semibold text-success-fg">
                       Added materials ({diffData.added_materials.length})
                     </CardTitle>
                   </CardHeader>
@@ -917,7 +917,7 @@ export default function MRPCenter() {
                 </Card>
                 <Card className="rounded-2xl border-danger-border bg-danger-bg">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-black text-danger-fg">
+                    <CardTitle className="text-sm font-semibold text-danger-fg">
                       Removed materials ({diffData.removed_materials.length})
                     </CardTitle>
                   </CardHeader>
@@ -943,7 +943,7 @@ export default function MRPCenter() {
                 </Card>
                 <Card className="rounded-2xl border-line">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-black text-content-1">
+                    <CardTitle className="text-sm font-semibold text-content-1">
                       Qty changes ({diffData.qty_changes.length})
                     </CardTitle>
                   </CardHeader>
@@ -983,7 +983,7 @@ export default function MRPCenter() {
 
           <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
             <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-line bg-surface-2 px-3 py-3">
-              <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 Action focus
               </span>
               {ACTION_FILTERS.map((value) => {
@@ -1037,7 +1037,7 @@ export default function MRPCenter() {
               </Select>
             </div>
             <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-3 text-right shadow-sm">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 Plan owner
               </div>
               <div className="mt-1 text-sm font-semibold text-content-2">
@@ -1137,7 +1137,7 @@ export default function MRPCenter() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs font-black uppercase tracking-[0.16em]">
+                    <div className="text-xs font-semibold uppercase tracking-[0.1em]">
                       {tab.label}
                     </div>
                     <Badge
@@ -1195,7 +1195,7 @@ export default function MRPCenter() {
         <section className="grid gap-6 xl:grid-cols-[1.6fr_0.95fr] xl:items-start">
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
-              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+              <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                 Supply vs demand trend
               </CardTitle>
               <CardDescription>
@@ -1332,19 +1332,19 @@ export default function MRPCenter() {
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   {filterActive ? "Visible KG coverage" : "Latest run coverage"}
-                  <div className="mt-1 text-base font-black text-content-1">
+                  <div className="mt-1 text-base font-semibold text-content-1">
                     {formatKg(displayCoveredKg)}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   Uncovered gap
-                  <div className="mt-1 text-base font-black text-content-1">
+                  <div className="mt-1 text-base font-semibold text-content-1">
                     {formatKg(displayShortageKg)}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
                   Excess cover
-                  <div className="mt-1 text-base font-black text-content-1">
+                  <div className="mt-1 text-base font-semibold text-content-1">
                     {formatKg(Math.max(displayEffectiveSupplyKg - displayDemandKg, 0))}
                   </div>
                 </div>
@@ -1355,7 +1355,7 @@ export default function MRPCenter() {
           <div className="grid gap-6">
             <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
               <CardHeader className="border-b border-line bg-surface-1/75">
-                <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                   Execution posture
                 </CardTitle>
                 <CardDescription>
@@ -1431,7 +1431,7 @@ export default function MRPCenter() {
 
             <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
               <CardHeader className="border-b border-line bg-surface-1/75">
-                <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                   KG risk concentration
                 </CardTitle>
                 <CardDescription>
@@ -1507,7 +1507,7 @@ export default function MRPCenter() {
           {activeView !== "actions" ? (
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
-              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+              <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                 Material shortage ledger
               </CardTitle>
               <CardDescription>
@@ -1529,7 +1529,7 @@ export default function MRPCenter() {
                     >
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-1">
-                          <div className="text-sm font-black tracking-tight text-content-1">
+                          <div className="text-sm font-semibold tracking-tight text-content-1">
                             {requirement.name}
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-content-3">
@@ -1607,7 +1607,7 @@ export default function MRPCenter() {
             <CardHeader className="border-b border-line bg-surface-1/75">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <CardTitle className="text-lg font-black tracking-tight text-content-1">
+                  <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                     Action execution board
                   </CardTitle>
                   <CardDescription>
@@ -1626,7 +1626,7 @@ export default function MRPCenter() {
             <CardContent className="max-h-[620px] space-y-3 overflow-y-auto p-6">
               {filteredSuggestions.length === 0 ? (
                 <div className="rounded-[1.5rem] border border-dashed border-line bg-surface-2 p-10 text-center">
-                  <div className="text-sm font-black text-content-1">
+                  <div className="text-sm font-semibold text-content-1">
                     No {actionCopy(actionFilter).toLowerCase()} suggestions in this view.
                   </div>
                   <div className="mx-auto mt-2 max-w-xl text-sm font-semibold leading-6 text-content-3">
@@ -1677,7 +1677,7 @@ export default function MRPCenter() {
                                 "UNCATEGORISED"}
                             </Badge>
                           </div>
-                          <div className="text-base font-black tracking-tight text-content-1">
+                          <div className="text-base font-semibold tracking-tight text-content-1">
                             {suggestion.material_name ||
                               suggestion.material_details?.name ||
                               "Material not linked"}
@@ -1749,7 +1749,7 @@ export default function MRPCenter() {
         <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr] xl:items-start">
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
-              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+              <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                 Planning summary
               </CardTitle>
               <CardDescription>
@@ -1802,7 +1802,7 @@ export default function MRPCenter() {
 
           <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/88 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)]">
             <CardHeader className="border-b border-line bg-surface-1/75">
-              <CardTitle className="text-lg font-black tracking-tight text-content-1">
+              <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
                 Recent plan runs
               </CardTitle>
               <CardDescription>
@@ -1832,11 +1832,11 @@ export default function MRPCenter() {
                     >
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                          <div className="text-sm font-black tracking-tight">
+                          <div className="text-sm font-semibold tracking-tight">
                             {formatPlanLabel(plan)}
                             {isPlanOperationalOutlier(plan) ? (
                               <span
-                                className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] ${active ? "bg-warning-bg text-warning-fg" : "bg-warning-bg text-warning-fg"}`}
+                                className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${active ? "bg-warning-bg text-warning-fg" : "bg-warning-bg text-warning-fg"}`}
                               >
                                 Audit outlier
                               </span>
@@ -1926,10 +1926,10 @@ function MetricCard({
     <div className="rounded-[1.75rem] border border-surface-1/70 bg-surface-1/88 p-5 shadow-[0_18px_55px_-40px_rgba(15,23,42,0.42)] transition hover:-translate-y-0.5 hover:shadow-[0_26px_70px_-45px_rgba(15,23,42,0.45)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
             {label}
           </div>
-          <div className="mt-2 text-2xl font-black tracking-tight text-content-1">
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-content-1">
             {value}
           </div>
         </div>
@@ -1966,10 +1966,10 @@ function PostureTile({
 
   return (
     <div className={`rounded-[1.3rem] border px-4 py-3 ${toneMap[tone]}`}>
-      <div className="text-[10px] font-black uppercase tracking-[0.22em]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em]">
         {label}
       </div>
-      <div className="mt-2 text-xl font-black tracking-tight">{value}</div>
+      <div className="mt-2 text-xl font-semibold tracking-tight">{value}</div>
       <div className="mt-1 text-xs font-semibold opacity-80">{detail}</div>
     </div>
   );
@@ -1998,10 +1998,10 @@ function SummaryStrip({
     <div
       className={`rounded-[1.4rem] border border-line bg-gradient-to-br px-4 py-4 ${accentMap[accent]}`}
     >
-      <div className="text-[10px] font-black uppercase tracking-[0.22em]">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em]">
         {title}
       </div>
-      <div className="mt-2 break-words text-xl font-black tracking-tight">
+      <div className="mt-2 break-words text-xl font-semibold tracking-tight">
         {value}
       </div>
       <div className="mt-1 text-xs font-semibold opacity-85">{note}</div>

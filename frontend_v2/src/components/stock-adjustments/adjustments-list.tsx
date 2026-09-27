@@ -230,7 +230,7 @@ function AdjustmentCard({ a }: { a: StockAdjustment }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-surface-2 px-2 py-2">
-      <div className="text-[9px] font-bold uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold text-content-1">

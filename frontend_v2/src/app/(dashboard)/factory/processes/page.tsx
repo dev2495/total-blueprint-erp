@@ -158,7 +158,7 @@ function StockFormChecklist({
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-4">
       <div className="mb-3">
-        <div className="text-sm font-black text-content-1">{title}</div>
+        <div className="text-sm font-semibold text-content-1">{title}</div>
         <div className="text-xs text-content-3">{description}</div>
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
@@ -171,7 +171,7 @@ function StockFormChecklist({
               onClick={() => toggle(option.code)}
               className={`rounded-xl border p-3 text-left transition ${active ? "border-primary bg-info-bg text-primary" : "border-line bg-surface-1 text-content-2 hover:border-info-border"}`}
             >
-              <div className="text-xs font-black uppercase tracking-[0.12em]">
+              <div className="text-xs font-semibold uppercase tracking-[0.12em]">
                 {option.label}
               </div>
               <div className="mt-1 text-[11px] leading-snug text-content-3">
@@ -261,7 +261,7 @@ function ProcessForm({
               <Settings2 className="h-4 w-4" />
             </div>
             <div>
-              <h4 className="text-sm font-black text-content-1">
+              <h4 className="text-sm font-semibold text-content-1">
                 Stock-form capability
               </h4>
               <p className="mt-1 text-xs leading-relaxed text-content-3">
@@ -496,7 +496,7 @@ function ProcessForm({
               <ArrowRight className="h-4 w-4" />
             </div>
             <div>
-              <h4 className="text-sm font-black text-content-1">
+              <h4 className="text-sm font-semibold text-content-1">
                 Route behavior capability
               </h4>
               <p className="mt-1 text-xs leading-relaxed text-content-3">
@@ -754,7 +754,7 @@ export default function ProcessesPage() {
                 >
                   {process.code}
                 </Badge>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -879,7 +879,7 @@ export default function ProcessesPage() {
                         </Badge>
                       ))}
                     </div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.12em] text-content-3">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                       Mode{" "}
                       {(process.stock_form_output_mode || "PRESERVE").replace(
                         /_/g,

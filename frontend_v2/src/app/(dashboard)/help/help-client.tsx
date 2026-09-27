@@ -98,7 +98,7 @@ export default function HelpCenterPage() {
       <div className="rounded-2xl border border-line bg-surface-1 p-6 shadow-sm">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-content-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-content-1">
               {locale === "hi" ? "यूज़र हेल्प सेंटर" : "User Help Center"}
             </h1>
             <p className="text-sm text-content-3 mt-1">
@@ -252,7 +252,7 @@ export default function HelpCenterPage() {
                           key={`${guide.routePattern}-field-${idx}`}
                           className="rounded-lg border border-line bg-surface-1 p-3"
                         >
-                          <p className="text-xs font-black uppercase tracking-wide text-content-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-content-3">
                             {localize(entry.field, locale)}
                           </p>
                           <p className="mt-1 text-sm font-semibold leading-5 text-content-2">

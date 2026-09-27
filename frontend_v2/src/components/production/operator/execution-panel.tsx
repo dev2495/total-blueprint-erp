@@ -70,7 +70,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
           </div>
           <Badge
             variant="outline"
-            className="text-[10px] font-black uppercase tracking-widest"
+            className="text-[10px] font-semibold uppercase tracking-widest"
           >
             {job.job_state}
           </Badge>
@@ -80,7 +80,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
       <CardContent className="flex-1 p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Machine
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">
@@ -88,7 +88,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Work Center
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">
@@ -96,7 +96,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Target
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">
@@ -104,7 +104,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Current Process
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">
@@ -117,7 +117,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
           <div className="flex items-start gap-3">
             <Factory className="h-5 w-5 mt-0.5 text-primary" />
             <div className="space-y-1">
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-primary">
+              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
                 Low-Click Operator Flow
               </div>
               <p className="text-sm text-primary font-medium leading-relaxed">

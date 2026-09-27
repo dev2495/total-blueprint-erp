@@ -25,7 +25,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Pager, Pill } from "@/components/logistics/yard-ui";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,7 +56,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 // --- Form Component ---
@@ -191,7 +191,7 @@ const getLocationColor = (type: string) => {
     case "RM":
       return "bg-info-bg text-primary hover:bg-info-bg";
     case "WIP":
-      return "bg-warm text-warm hover:bg-warm";
+      return "bg-warning-bg text-warning-fg hover:bg-warm";
     case "QC":
       return "bg-info-bg text-primary hover:bg-info-bg";
     case "DISPATCH":
@@ -226,6 +226,10 @@ export default function LocationsPage() {
   const [editingItem, setEditingItem] = useState<Location | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Location | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [plantFilter, setPlantFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 40;
 
   const { data: locations } = useQuery({
     queryKey: ["locations"],
@@ -287,13 +291,32 @@ export default function LocationsPage() {
       }),
   });
 
-  const filteredLocations =
-    locations?.filter(
-      (loc) =>
-        loc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        loc.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        loc.type.toLowerCase().includes(searchQuery.toLowerCase()),
-    ) || [];
+  const plantNames = useMemo(
+    () => new Map((plants || []).map((p) => [p.id, p.name])),
+    [plants],
+  );
+  const locationTypes = useMemo(
+    () => Array.from(new Set((locations || []).map((loc) => loc.type).filter(Boolean))).sort(),
+    [locations],
+  );
+  const filteredLocations = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    return (locations || []).filter((loc) => {
+      if (plantFilter !== "ALL" && loc.plant !== plantFilter) return false;
+      if (typeFilter !== "ALL" && loc.type !== typeFilter) return false;
+      if (!term) return true;
+      return (
+        loc.name.toLowerCase().includes(term) ||
+        loc.code.toLowerCase().includes(term) ||
+        loc.type.toLowerCase().includes(term) ||
+        String(plantNames.get(loc.plant) || loc.plant_name || "").toLowerCase().includes(term)
+      );
+    });
+  }, [locations, plantFilter, plantNames, searchQuery, typeFilter]);
+  const pageCount = Math.max(1, Math.ceil(filteredLocations.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pagedLocations = filteredLocations.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  useEffect(() => setPage(1), [searchQuery, plantFilter, typeFilter]);
 
   return (
     <FactoryPageLayout
@@ -322,78 +345,117 @@ export default function LocationsPage() {
         </Dialog>
       }
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredLocations.map((location) => {
-          const Icon = getLocationIcon(location.type);
-          const plant = plants?.find((p) => p.id === location.plant);
-
-          return (
-            <Card
-              key={location.id}
-              className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group"
-            >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-surface-2 border-b border-line">
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className="bg-surface-1 text-xs font-mono"
-                  >
-                    {location.code}
-                  </Badge>
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 hover:text-primary"
-                    onClick={() => setEditingItem(location)}
-                  >
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 hover:text-danger-fg"
-                    onClick={() => setItemToDelete(location)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`p-2 rounded-lg ${getLocationColor(location.type).split(" ")[0]} ${getLocationColor(location.type).split(" ")[1]}`}
-                    >
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-lg text-content-1 leading-tight">
-                        {location.name}
-                      </h3>
-                      <div className="flex items-center text-xs text-content-3 mt-1">
-                        <MapPin className="h-3 w-3 mr-1" />
-                        {plant?.name || "Unknown Plant"}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select
+          value={plantFilter}
+          onChange={(e) => setPlantFilter(e.target.value)}
+          className="h-9 rounded-xl border border-line bg-surface-1 pl-3 pr-8 text-[12.5px] font-medium"
+          aria-label="Filter by plant"
+        >
+          <option value="ALL">All plants</option>
+          {(plants || []).map((plant) => (
+            <option key={plant.id} value={plant.id}>
+              {plant.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className="h-9 rounded-xl border border-line bg-surface-1 pl-3 pr-8 text-[12.5px] font-medium"
+          aria-label="Filter by type"
+        >
+          <option value="ALL">All types</option>
+          {locationTypes.map((type) => (
+            <option key={type} value={type}>
+              {type.replace(/_/g, " ").toLowerCase()}
+            </option>
+          ))}
+        </select>
+        <span className="ml-auto text-[12px] text-content-3">
+          {filteredLocations.length.toLocaleString("en-IN")} of {(locations || []).length.toLocaleString("en-IN")} locations
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-[13px]">
+            <thead>
+              <tr className="border-b border-line bg-surface-2/80 text-left text-[11.5px] text-content-3">
+                <th className="px-4 py-2.5 font-medium">Location</th>
+                <th className="px-3 py-2.5 font-medium">Code</th>
+                <th className="px-3 py-2.5 font-medium">Plant</th>
+                <th className="px-3 py-2.5 font-medium">Type</th>
+                <th className="px-3 py-2.5 font-medium">Status</th>
+                <th className="px-4 py-2.5 text-right font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedLocations.map((location) => {
+                const Icon = getLocationIcon(location.type);
+                return (
+                  <tr key={location.id} className="erp-manifest-row border-b border-line last:border-0">
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`grid h-7 w-7 place-items-center rounded-lg ${getLocationColor(location.type).split(" ").slice(0, 2).join(" ")}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="font-medium text-content-1">{location.name}</span>
+                        {location.is_system ? <Pill tone="neutral">System</Pill> : null}
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-line">
-                  <Badge
-                    className={`${getLocationColor(location.type)} border-transparent`}
-                  >
-                    {location.type}
-                  </Badge>
-                  <div className="text-xs text-content-4 font-medium">
-                    Active
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-[12px] text-content-2">{location.code}</td>
+                    <td className="px-3 py-2.5 text-content-2">
+                      <span className="inline-flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-content-4" />
+                        {plantNames.get(location.plant) || location.plant_name || "Unknown plant"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Badge className={`${getLocationColor(location.type)} border-transparent`}>{location.type}</Badge>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <Pill tone={location.is_active === false ? "neutral" : "good"} dot>
+                        {location.is_active === false ? "Inactive" : "Active"}
+                      </Pill>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="inline-flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Edit ${location.code}`} onClick={() => setEditingItem(location)}>
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:text-danger-fg"
+                          aria-label={`Delete ${location.code}`}
+                          disabled={location.is_system}
+                          onClick={() => setItemToDelete(location)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!pagedLocations.length ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-[13px] text-content-3">
+                    {locations ? "No locations match these filters." : "Loading locations…"}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        {pageCount > 1 ? (
+          <div className="flex items-center justify-between border-t border-line px-4 py-2.5 text-[11.5px] text-content-3">
+            <span>
+              Page {safePage} of {pageCount}
+            </span>
+            <Pager page={safePage} pageCount={pageCount} onPageChange={setPage} testId="locations-page" />
+          </div>
+        ) : null}
       </div>
 
       <Dialog

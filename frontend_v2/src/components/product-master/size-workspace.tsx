@@ -494,7 +494,7 @@ export function ProductSizeWorkspace({
             <FileSpreadsheet className="h-4 w-4" />
           </span>
           <div>
-            <div className="text-sm font-black text-content-1">
+            <div className="text-sm font-semibold text-content-1">
               Compact size workspace
             </div>
             <div className="mt-0.5 text-xs leading-5 text-content-3">
@@ -575,7 +575,7 @@ export function ProductSizeWorkspace({
             <div className="border-b border-line p-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-content-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                     Size rows
                   </div>
                   <div className="text-sm font-bold text-content-1">
@@ -608,7 +608,7 @@ export function ProductSizeWorkspace({
                     type="button"
                     onClick={() => setFilterMode(item.value)}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 transition",
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 transition",
                       filterMode === item.value
                         ? "bg-success-fg text-white ring-success-border"
                         : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",
@@ -740,7 +740,7 @@ export function ProductSizeWorkspace({
                             </TableCell>
                           ) : null}
                           <TableCell className="align-top">
-                            <div className="font-mono text-xs font-black text-content-1">
+                            <div className="font-mono text-xs font-semibold text-content-1">
                               {row.code || `SZ-${index + 1}`}
                             </div>
                             <div className="mt-0.5 truncate text-[11px] text-content-3">
@@ -761,7 +761,7 @@ export function ProductSizeWorkspace({
                             />
                           </TableCell>
                           <TableCell className="align-top">
-                            <div className="font-mono text-xs font-black text-success-fg">
+                            <div className="font-mono text-xs font-semibold text-success-fg">
                               {webWidthCopy(row, normalizedOutput, geometry)}
                             </div>
                             <div className="mt-0.5 text-[10px] text-content-3">
@@ -771,14 +771,14 @@ export function ProductSizeWorkspace({
                             </div>
                           </TableCell>
                           <TableCell className="align-top">
-                            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-black text-content-2">
+                            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-content-2">
                               {row.qty_uom || "KG"}
                             </span>
                           </TableCell>
                           <TableCell className="align-top">
                             <span
                               className={cn(
-                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ring-1",
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
                                 row.active === false
                                   ? "bg-danger-bg text-danger-fg ring-danger-border"
                                   : "bg-success-bg text-success-fg ring-success-border",
@@ -846,10 +846,10 @@ export function ProductSizeWorkspace({
               <>
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-line pb-3">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success-fg">
                       Selected size
                     </div>
-                    <div className="mt-0.5 font-display text-lg font-black text-content-1">
+                    <div className="mt-0.5 font-display text-lg font-semibold text-content-1">
                       {selectedRow.code || `Size ${selectedIndex + 1}`}
                     </div>
                     <div className="text-xs text-content-3">
@@ -1032,7 +1032,7 @@ function FormulaVersionBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1",
+        "inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
         info.tone === "indigo" && "bg-order-bg text-order-fg ring-order-border",
         info.tone === "amber" &&
           "bg-warning-bg text-warning-fg ring-warning-border",
@@ -1062,10 +1062,10 @@ function LaneUpPreview({
   if (outputKind !== "POUCH") {
     return (
       <div className="mb-3 rounded-xl border border-info-border bg-info-bg px-3 py-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
           Roll width preview
         </div>
-        <div className="mt-1 font-mono text-sm font-black text-primary">
+        <div className="mt-1 font-mono text-sm font-semibold text-primary">
           {formatMm(baseWidth)} mm
         </div>
       </div>
@@ -1076,7 +1076,7 @@ function LaneUpPreview({
     <div className="mb-3 rounded-xl border border-success-border bg-success-bg px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success-fg">
             Lane-up preview
           </div>
           <div className="mt-0.5 text-[11px] font-semibold text-content-3">
@@ -1094,10 +1094,10 @@ function LaneUpPreview({
             key={lane}
             className="rounded-lg bg-surface-1 px-2 py-1.5 ring-1 ring-success-border"
           >
-            <div className="text-[9px] font-black uppercase tracking-wider text-success-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
               {lane}-up
             </div>
-            <div className="font-mono text-xs font-black text-content-1">
+            <div className="font-mono text-xs font-semibold text-content-1">
               {formatMm(baseWidth * lane)} mm
             </div>
           </div>
@@ -1144,7 +1144,7 @@ function BulkReviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[88vh] max-w-[min(1180px,calc(100vw-2rem))] overflow-hidden p-0">
         <DialogHeader className="border-b border-line px-5 py-4">
-          <DialogTitle className="flex items-center gap-2 text-lg font-black">
+          <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
             <FileSpreadsheet className="h-5 w-5 text-success-fg" />
             Review size import
           </DialogTitle>
@@ -1201,7 +1201,7 @@ function BulkReviewDialog({
                     <TableCell>
                       <span
                         className={cn(
-                          "rounded-full px-2 py-0.5 text-[10px] font-black uppercase ring-1",
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1",
                           item.action === "update"
                             ? "bg-info-bg text-primary ring-info-border"
                             : "bg-success-bg text-success-fg ring-success-border",
@@ -1339,7 +1339,7 @@ function BulkReviewDialog({
                           <span>{item.errors.join(", ")}</span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-success-fg">
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-success-fg">
                           <CheckCircle2 className="h-3 w-3" /> Ready
                         </div>
                       )}
@@ -1411,10 +1411,10 @@ function ReviewStat({
         tone === "rose" && "bg-danger-bg text-danger-fg ring-danger-border",
       )}
     >
-      <div className="text-[10px] font-black uppercase tracking-widest opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-widest opacity-70">
         {label}
       </div>
-      <div className="font-mono text-lg font-black">{value}</div>
+      <div className="font-mono text-lg font-semibold">{value}</div>
     </div>
   );
 }

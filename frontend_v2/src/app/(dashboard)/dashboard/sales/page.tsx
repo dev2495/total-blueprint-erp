@@ -1,616 +1,330 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowRight,
+  ArrowUpRight,
+  ClipboardList,
   Clock3,
-  Layers3,
-  Package2,
+  Crown,
+  PackageCheck,
+  Plus,
+  ShoppingBag,
   ShoppingCart,
   Target,
-  TrendingUp,
-  Wallet,
 } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  Bar,
-  BarChart,
-} from "recharts";
 
 import { api } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { analyticsApi } from "@/services/analytics";
+import {
+  HeroChip,
+  HeroStat,
+  HeroStats,
+  PageHero,
+  Panel,
+  PanelEmpty,
+  RankedBars,
+  Segmented,
+  StatCard,
+  StatGrid,
+  heroButtonClass,
+  vizColor,
+} from "@/components/premium";
+import { Bars, Donut, TrendArea } from "@/components/premium/charts";
+import { Pill } from "@/components/logistics/yard-ui";
+import { count, inrCompact, kgCompact, pct, relativeTime, sentence } from "@/components/premium/format";
 
-const CHART_COLORS = [
-  "#2563eb",
-  "#3b82f6",
-  "#0ea5e9",
-  "#10b981",
-  "#f59e0b",
-  "#f97316",
-];
+const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-function metricValue(metrics: any[], label: string) {
-  return (
-    metrics.find(
-      (metric) =>
-        String(metric?.label || "").toLowerCase() === label.toLowerCase(),
-    ) || null
-  );
-}
+const metricOf = (metrics: any[], label: string) => metrics.find((m) => m?.label === label);
 
-function compactValue(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—";
-  return String(value);
-}
+const statusTone = (status: string) => {
+  const s = status.toUpperCase().replace(/\s+/g, "_");
+  if (["COMPLETED", "DELIVERED", "DISPATCH_READY"].includes(s)) return "good" as const;
+  if (["DRAFT", "PLANNING_REQUIRED"].includes(s)) return "warn" as const;
+  if (s === "CANCELLED") return "bad" as const;
+  return "info" as const;
+};
 
 export default function SalesDashboard() {
-  const { data: stats, isError, isFetched, refetch } = useQuery({
+  const [trendMode, setTrendMode] = useState<"weight" | "orders">("weight");
+  const dashboard = useQuery({
     queryKey: ["sales-dashboard-stats"],
-    queryFn: async () => {
-      const response = await api.get("/api/analytics/sales-dashboard/");
-      return response.data;
-    },
+    queryFn: async () => (await api.get("/api/analytics/sales-dashboard/")).data,
     refetchInterval: 120_000,
     staleTime: 90_000,
   });
+  const range = useMemo(() => ({ date_from: iso(new Date(Date.now() - 29 * 86400000)), date_to: iso(new Date()) }), []);
+  const fulfillment = useQuery({
+    queryKey: ["sales-dashboard-fulfillment", range],
+    queryFn: () => analyticsApi.getReportTab("sales", range),
+    staleTime: 120_000,
+  });
 
-  const dataReady = Boolean(stats?.generated_at && stats?.data_quality?.source_ready !== false) && !isError;
-  const dataUnavailable = isError || (isFetched && !dataReady);
-  const metrics = dataReady && Array.isArray(stats?.metrics) ? stats.metrics : [];
-  const trendData = dataReady && Array.isArray(stats?.trend_data) ? stats.trend_data : [];
-  const customerDistribution = dataReady && Array.isArray(stats?.customer_distribution)
-    ? stats.customer_distribution
-    : [];
-  const statusBreakdown = dataReady && Array.isArray(stats?.status_breakdown)
-    ? stats.status_breakdown
-    : [];
-  const recentOrders = dataReady && Array.isArray(stats?.recent_orders)
-    ? stats.recent_orders
-    : [];
-  const alerts = dataReady && Array.isArray(stats?.alerts) ? stats.alerts : [];
-  const forecast = dataReady && stats?.forecast?.target_configured ? stats.forecast : null;
-  const latestTrend = trendData[trendData.length - 1];
-  const peakDailyWeight = trendData.length
-    ? Math.max(...trendData.map((row: any) => Number(row.weight || 0)))
-    : null;
-  const forecastPct = forecast?.percentage == null ? null : Number(forecast.percentage);
-
-  const metricCards = [
-    {
-      label: "Orders Today",
-      value: compactValue(metricValue(metrics, "Orders Today")?.value),
-      sublabel: compactValue(metricValue(metrics, "Orders Today")?.unit),
-      icon: ShoppingCart,
-      tone: "bg-info-bg text-info-fg",
-    },
-    {
-      label: "Pipeline Volume",
-      value: compactValue(metricValue(metrics, "Pipeline Volume")?.value),
-      sublabel: compactValue(metricValue(metrics, "Pipeline Volume")?.unit),
-      icon: Layers3,
-      tone: "bg-info-bg text-primary",
-    },
-    {
-      label: "Revenue (MTD)",
-      value: compactValue(metricValue(metrics, "Revenue (MTD)")?.value),
-      sublabel: compactValue(metricValue(metrics, "Revenue (MTD)")?.unit),
-      icon: Wallet,
-      tone: "bg-success-bg text-success-fg",
-    },
-    {
-      label: "Dispatch Ready",
-      value: compactValue(metricValue(metrics, "Dispatch Ready")?.value),
-      sublabel: compactValue(metricValue(metrics, "Dispatch Ready")?.unit),
-      icon: Package2,
-      tone: "bg-warning-bg text-warning-fg",
-    },
-    {
-      label: "Overdue Orders",
-      value: compactValue(metricValue(metrics, "Overdue Orders")?.value),
-      sublabel: compactValue(metricValue(metrics, "Overdue Orders")?.unit),
-      icon: Clock3,
-      tone: "bg-danger-bg text-danger-fg",
-    },
-  ];
+  const stats = (dashboard.data || {}) as any;
+  const report = (fulfillment.data || {}) as any;
+  const summary = report.summary || {};
+  const metrics: any[] = Array.isArray(stats.metrics) ? stats.metrics : [];
+  const loading = !dashboard.data && dashboard.isFetching;
+  const trendData = useMemo(
+    () => (stats.trend_data || []).map((r: any) => ({ date: r.date, orders: Number(r.orders || 0), weight: Number(r.weight || 0) })),
+    [stats.trend_data],
+  );
+  const statusBreakdown: any[] = stats.status_breakdown || [];
+  const openStatuses = statusBreakdown.filter((s) => !["COMPLETED", "CANCELLED"].includes(String(s.status)));
+  const totalOpen = openStatuses.reduce((s, r) => s + Number(r.count || 0), 0);
+  const pipelineWeight = String(metricOf(metrics, "Pipeline Volume")?.value || "");
+  const pipelineKg = Number(pipelineWeight.replace(/[^0-9.]/g, "")) || 0;
+  const draftCount = Number(statusBreakdown.find((s) => s.status === "DRAFT")?.count || 0);
+  const dispatchReady = Number(metricOf(metrics, "Dispatch Ready")?.value || 0);
+  const overdue = Number(metricOf(metrics, "Overdue Orders")?.value || summary.overdue_count || 0);
+  // OTIF is only meaningful once orders have completed in the window.
+  const otif = Number(summary.completed_count || 0) > 0 ? summary.otif_rate : undefined;
+  const quotesInWindow = Number(report.quote_conversion?.total_quotes || 0);
+  const otifTarget = report.benchmarks?.target_otif ?? 95;
+  const alerts: any[] = stats.alerts || [];
+  const forecast = stats.forecast || {};
 
   return (
-    <div className="space-y-5 pb-8">
-      <section className="overflow-hidden rounded-[2rem] border border-line bg-[linear-gradient(135deg,#1e1b4b_0%,#1d4ed8_46%,#2563eb_100%)] px-5 py-5 text-white shadow-[0_24px_80px_-36px_rgba(49,46,129,0.55)] md:px-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="max-w-3xl space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-info-border">
-              <Target className="h-3.5 w-3.5" />
-              Commercial Command
-            </div>
-            <div>
-              <h1 className="text-3xl font-black tracking-[-0.05em] md:text-4xl">
-                Sales Command Center
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-info-border">
-                Compact commercial landing with queue pressure, dispatch-ready
-                demand, customer mix, and recent order movement.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              asChild
-              className="h-11 rounded-full bg-surface-1 px-5 text-sm font-black text-primary hover:bg-info-bg"
-            >
-              <Link href="/sales/orders/create">
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Create Order
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="h-11 rounded-full border-surface-1/20 bg-surface-1/10 px-5 text-sm font-black text-white hover:bg-surface-1/15 hover:text-white"
-            >
-              <Link href="/sales/orders">
-                View Orders
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
+    <div className="mx-auto max-w-[1600px] space-y-4" data-testid="sales-dashboard">
+      <PageHero
+        eyebrow="Commercial command"
+        icon={<ShoppingCart />}
+        title="Sales Command Center"
+        description="Order intake, pipeline, delivery promise and customer mix — calculated live from sales orders."
+        meta={
+          <>
+            <HeroChip tone={dashboard.isError ? "bad" : "good"}>{dashboard.isError ? "Data unavailable" : "Live"}</HeroChip>
+            {stats.generated_at ? <HeroChip>Updated {relativeTime(stats.generated_at)}</HeroChip> : null}
+          </>
+        }
+        actions={
+          <>
+            <Link href="/sales/orders" className={heroButtonClass("ghost")}>
+              View orders <ArrowRight />
+            </Link>
+            <Link href="/sales/orders/create" className={heroButtonClass("primary")}>
+              <Plus /> Create order
+            </Link>
+          </>
+        }
+      >
+        <HeroStats columns={4}>
+          <HeroStat label="Order value · 30 days" tone="info" value={summary.total_revenue !== undefined ? inrCompact(summary.total_revenue) : "—"} hint={summary.total_weight_ordered_kg !== undefined ? `${kgCompact(summary.total_weight_ordered_kg)} ordered` : "last 30 days"} />
+          <HeroStat label="Open pipeline" value={pipelineKg ? kgCompact(pipelineKg) : "—"} hint={`${count(totalOpen)} open orders`} />
+          <HeroStat
+            label="On time in full"
+            tone={otif === undefined ? "neutral" : otif >= otifTarget ? "good" : "bad"}
+            value={otif === undefined ? "—" : pct(otif)}
+            hint={otif === undefined ? "no completed orders yet" : `target ${pct(otifTarget, 0)}`}
+          />
+          <HeroStat label="Overdue orders" tone={overdue ? "bad" : "good"} value={count(overdue)} hint="past promised delivery" />
+        </HeroStats>
+      </PageHero>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {metricCards.map((metric) => (
-          <CompactMetricCard key={metric.label} {...metric} />
-        ))}
-      </section>
+      <StatGrid columns={4} className="erp-stagger">
+        <StatCard label="Orders today" icon={<ShoppingCart />} value={Number(metricOf(metrics, "Orders Today")?.value || 0)} hint="new orders created" loading={loading} href="/sales/orders" />
+        <StatCard label="Drafts to confirm" icon={<ClipboardList />} tone={draftCount ? "warn" : "neutral"} value={draftCount} hint="waiting for confirmation" loading={loading} href="/sales/orders" />
+        <StatCard label="Ready to ship" icon={<PackageCheck />} tone="good" value={dispatchReady} hint="orders in Dispatch Bay" loading={loading} href="/logistics/dispatch" />
+        <StatCard
+          label="Quote conversion"
+          icon={<Target />}
+          value={quotesInWindow > 0 ? Number(summary.quote_conversion_pct || 0) : null}
+          format={(v) => pct(v)}
+          hint={report.quote_conversion ? `${count(report.quote_conversion.converted_quotes)} of ${count(report.quote_conversion.total_quotes)} quotes` : "quotes won"}
+          loading={!fulfillment.data && fulfillment.isFetching}
+          href="/sales/quotations"
+        />
+      </StatGrid>
 
-      {dataUnavailable ? (
-        <div className="rounded-[1.2rem] border border-warning-border bg-warning-bg p-4 text-sm font-semibold leading-6 text-warning-fg">
-          Sales dashboard feed is unavailable. KPI cards are intentionally paused instead of showing fallback zeros.
-          <Button variant="outline" className="ml-3 h-8 rounded-full" onClick={() => refetch()}>
-            Retry
-          </Button>
-        </div>
-      ) : null}
-
-      <section className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-        <PanelCard
-          title="Sales Velocity"
-          description="30-day commercial volume and order creation pulse."
-          action={
-            <Badge
-              variant="outline"
-              className="rounded-full border-info-border bg-info-bg text-primary"
-            >
-              Auto-refreshing
-            </Badge>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+        <Panel
+          icon={<ShoppingCart />}
+          title="Order intake · last 30 days"
+          description={trendMode === "weight" ? "Ordered weight per day" : "Orders created per day"}
+          actions={
+            <Segmented
+              size="sm"
+              value={trendMode}
+              onChange={setTrendMode}
+              options={[
+                { value: "weight", label: "Weight" },
+                { value: "orders", label: "Orders" },
+              ]}
+            />
           }
         >
-          {trendData.length ? (
-            <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData}>
-                    <defs>
-                      <linearGradient
-                        id="sales-volume-fill"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor="#2563eb"
-                          stopOpacity={0.28}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor="#2563eb"
-                          stopOpacity={0.02}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke="#e2e8f0"
-                    />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 11 }}
-                      stroke="#94a3b8"
-                    />
-                    <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="weight"
-                      stroke="#2563eb"
-                      strokeWidth={2.5}
-                      fill="url(#sales-volume-fill)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid gap-3">
-                <InsetStat
-                  label="Latest order count"
-                  value={compactValue(latestTrend?.orders)}
-                  hint="Orders created on the latest visible day"
-                />
-                <InsetStat
-                  label="Peak daily weight"
-                  value={peakDailyWeight == null ? "—" : `${peakDailyWeight.toLocaleString("en-IN", { maximumFractionDigits: 1 })} KG`}
-                  hint="Highest visible day in the 30-day window"
-                />
-                <InsetStat
-                  label="Forecast"
-                  value={forecastPct == null ? "—" : `${forecastPct}%`}
-                  hint={compactValue(forecast?.status_text || stats?.forecast?.status_text)}
-                />
-              </div>
+          {loading ? (
+            <div className="erp-skeleton h-[250px] rounded-xl" />
+          ) : trendData.some((r: any) => r.orders || r.weight) ? (
+            trendMode === "weight" ? (
+              <TrendArea data={trendData} xKey="date" series={[{ key: "weight", label: "Weight" }]} height={250} valueFormat={(v) => kgCompact(v)} />
+            ) : (
+              <Bars data={trendData} xKey="date" series={[{ key: "orders", label: "Orders" }]} height={250} valueFormat={count} />
+            )
+          ) : (
+            <PanelEmpty title="No orders in the last 30 days" />
+          )}
+          {forecast.target_configured ? (
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[12.5px]">
+              <span className="text-content-3">Monthly target progress</span>
+              <span className="font-semibold tabular-nums">{pct(forecast.percentage)}</span>
+            </div>
+          ) : null}
+        </Panel>
+        <Panel icon={<AlertTriangle />} title="Needs attention" description="Work waiting on the sales desk">
+          {alerts.length ? (
+            <ul className="space-y-2">
+              {alerts.map((a: any) => (
+                <li key={a.type}>
+                  <Link
+                    href={a.type === "dispatch" ? "/logistics/dispatch" : a.href || "/sales/orders"}
+                    className="group flex items-center gap-3 rounded-xl border border-line bg-surface-1 px-3 py-3 transition hover:border-line-strong hover:bg-surface-2"
+                  >
+                    <span
+                      className={cn(
+                        "grid h-9 w-9 shrink-0 place-items-center rounded-lg text-[14px] font-semibold tabular-nums",
+                        a.type === "overdue" ? "bg-danger-bg text-danger-fg" : a.type === "draft" ? "bg-warning-bg text-warning-fg" : "bg-success-bg text-success-fg",
+                      )}
+                    >
+                      {count(a.count)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold text-content-1">{a.title}</span>
+                      <span className="block truncate text-[12px] text-content-3">{a.description}</span>
+                    </span>
+                    <ArrowUpRight className="h-4 w-4 text-content-4 transition group-hover:text-content-1" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <PanelEmpty title="Nothing waiting" />
+          )}
+        </Panel>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <Panel icon={<ClipboardList />} title="Order pipeline" description={`${count(totalOpen)} open orders by stage`}>
+          {openStatuses.length ? (
+            <div className="grid items-center gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
+              <Donut
+                data={openStatuses.map((s) => ({ name: sentence(s.status), value: Number(s.count || 0) }))}
+                height={160}
+                centerValue={count(totalOpen)}
+                centerLabel="open"
+                valueFormat={count}
+              />
+              <ul className="space-y-2 text-[12.5px]">
+                {openStatuses.map((s, i) => (
+                  <li key={s.status} className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-content-2">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: vizColor(i) }} />
+                      {sentence(s.status)}
+                    </span>
+                    <span className="tabular-nums text-content-1">{count(s.count)}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : (
-            <EmptyState text="Sales trend data is not available yet." />
+            <PanelEmpty title="No open orders" />
           )}
-        </PanelCard>
+        </Panel>
+        <Panel icon={<Crown />} title="Top customers" description="By ordered weight">
+          {(stats.customer_distribution || []).length ? (
+            <RankedBars
+              items={(stats.customer_distribution || []).map((c: any) => ({ key: c.name, label: c.name, value: Number(c.value || 0) }))}
+              valueFormat={kgCompact}
+              limit={6}
+            />
+          ) : (
+            <PanelEmpty title="No customer orders yet" />
+          )}
+        </Panel>
+        <Panel icon={<ShoppingBag />} title="Products by value · 30 days" description="What customers are buying">
+          {(report.sku_breakdown || []).length ? (
+            <RankedBars
+              items={(report.sku_breakdown || []).map((s: any) => ({
+                key: s.sku,
+                label: s.sku,
+                value: Number(s.value || 0),
+                sub: `${kgCompact(s.weight_kg)} · ${count(s.orders)} orders`,
+              }))}
+              valueFormat={inrCompact}
+              limit={6}
+            />
+          ) : (
+            <PanelEmpty title="No product sales in the last 30 days" />
+          )}
+        </Panel>
+      </div>
 
-        <PanelCard
-          title="Customer and Status Mix"
-          description="Where load is concentrated and which order states are dominant."
-        >
-          <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="rounded-[1.2rem] border border-line bg-surface-2 p-4">
-              {customerDistribution.length ? (
-                <>
-                  <div className="h-[210px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={customerDistribution}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={54}
-                          outerRadius={86}
-                          paddingAngle={3}
-                        >
-                          {customerDistribution.map((_: any, index: number) => (
-                            <Cell
-                              key={`customer-${index}`}
-                              fill={CHART_COLORS[index % CHART_COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="mt-2 space-y-2">
-                    {customerDistribution
-                      .slice(0, 4)
-                      .map((row: any, index: number) => (
-                        <div
-                          key={row.name}
-                          className="flex items-center justify-between gap-3 text-xs font-semibold text-content-3"
-                        >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span
-                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                              style={{
-                                backgroundColor:
-                                  CHART_COLORS[index % CHART_COLORS.length],
-                              }}
-                            />
-                            <span className="truncate">{row.name}</span>
-                          </div>
-                          <span>
-                            {Number(row.value || 0).toLocaleString("en-IN", {
-                              maximumFractionDigits: 1,
-                            })}{" "}
-                            KG
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                </>
-              ) : (
-                <EmptyState
-                  text="Customer mix will appear here once live sales volume is visible."
-                  compact
-                />
-              )}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <Panel flush icon={<ClipboardList />} title="Recent orders" actions={<Link href="/sales/orders" className="text-[12.5px] font-medium text-primary hover:underline">All orders</Link>}>
+          {(stats.recent_orders || []).length ? (
+            <div className="overflow-x-auto border-t border-line">
+              <table className="w-full text-[12.5px]">
+                <thead>
+                  <tr className="text-left text-content-3">
+                    <th className="px-4 py-2.5 font-medium">Order</th>
+                    <th className="px-3 py-2.5 font-medium">Customer</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Weight</th>
+                    <th className="px-3 py-2.5 font-medium">Status</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(stats.recent_orders || []).map((o: any) => (
+                    <tr key={o.id} className="erp-manifest-row">
+                      <td className="border-t border-line px-4 py-2.5">
+                        <Link href={`/sales/orders/${o.id}`} className="font-mono font-semibold text-content-1 hover:underline">
+                          {o.order_number}
+                        </Link>
+                      </td>
+                      <td className="max-w-[240px] truncate border-t border-line px-3 py-2.5 text-content-2">{o.customer}</td>
+                      <td className="border-t border-line px-3 py-2.5 text-right tabular-nums">{o.weight}</td>
+                      <td className="border-t border-line px-3 py-2.5">
+                        <Pill tone={statusTone(String(o.status))} dot>
+                          {sentence(o.status)}
+                        </Pill>
+                      </td>
+                      <td className="border-t border-line px-4 py-2.5 text-right text-content-3">{o.date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            <div className="rounded-[1.2rem] border border-line bg-surface-2 p-4">
-              {statusBreakdown.length ? (
-                <div className="h-[290px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={statusBreakdown}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis
-                        dataKey="status"
-                        tick={{ fontSize: 10 }}
-                        stroke="#94a3b8"
-                      />
-                      <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" />
-                      <Tooltip />
-                      <Bar
-                        dataKey="count"
-                        fill="#0f766e"
-                        radius={[8, 8, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <EmptyState
-                  text="Status breakdown is not available yet."
-                  compact
-                />
-              )}
+          ) : (
+            <div className="px-5 pb-5">
+              <PanelEmpty title="No orders yet" />
             </div>
-          </div>
-        </PanelCard>
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <PanelCard
-          title="Recent Commercial Activity"
-          description="Latest order movement with direct jump to the register."
-          action={
-            <Button
-              asChild
-              variant="ghost"
-              className="h-8 rounded-full px-3 text-xs font-black text-primary hover:bg-info-bg"
-            >
-              <Link href="/sales/orders">Open register</Link>
-            </Button>
-          }
-        >
-          <div className="space-y-3">
-            {recentOrders.length ? (
-              recentOrders.slice(0, 8).map((order: any, index: number) => (
-                <div
-                  key={`${order.id}-${index}`}
-                  className="flex flex-col gap-3 rounded-[1.2rem] border border-line bg-surface-2 p-4 md:flex-row md:items-center md:justify-between"
-                >
+          )}
+        </Panel>
+        <Panel icon={<Clock3 />} title="Most overdue" description="Promised delivery has passed" actions={<Link href="/analytics/reports/sales" className="text-[12.5px] font-medium text-primary hover:underline">Fulfillment report</Link>}>
+          {(report.overdue_orders || []).length ? (
+            <ul className="divide-y divide-line">
+              {(report.overdue_orders || []).slice(0, 7).map((o: any) => (
+                <li key={o.order_number} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                   <div className="min-w-0">
-                    <div className="text-sm font-black text-content-1">
-                      {order.order_number || order.id}
-                    </div>
-                    <div className="mt-1 text-xs font-semibold text-content-3">
-                      {order.customer}
+                    <div className="font-mono text-[12.5px] font-semibold text-content-1">{o.order_number}</div>
+                    <div className="truncate text-[12px] text-content-3">
+                      {o.customer_name} · due {o.delivery_date}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-content-3">
-                    <span>{compactValue(order.weight)}</span>
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-line bg-surface-1 text-content-2"
-                    >
-                      {order.status}
-                    </Badge>
-                    <span>{order.date}</span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState text="No recent sales orders are visible yet." />
-            )}
-          </div>
-        </PanelCard>
-
-        <div className="space-y-5">
-          <PanelCard
-            title="Commercial Watchlist"
-            description="Only actionable queue pressure and exceptions are shown here."
-          >
-            <div className="space-y-3">
-              {alerts.length ? (
-                alerts.map((alert: any, index: number) => (
-                  <div
-                    key={`${alert.type}-${index}`}
-                    className="flex items-start gap-3 rounded-[1.2rem] border border-line bg-surface-2 p-4"
-                  >
-                    <div
-                      className={cn(
-                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                        alert.type === "overdue"
-                          ? "bg-danger-bg text-danger-fg"
-                          : "bg-info-bg text-primary",
-                      )}
-                    >
-                      {alert.type === "overdue" ? (
-                        <AlertTriangle className="h-4 w-4" />
-                      ) : (
-                        <TrendingUp className="h-4 w-4" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-black text-content-1">
-                        {alert.title}
-                      </div>
-                      <div className="mt-1 text-xs font-semibold leading-5 text-content-3">
-                        {alert.description}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <EmptyState
-                  text="No commercial alerts are open right now."
-                  compact
-                />
-              )}
-            </div>
-          </PanelCard>
-
-          <PanelCard
-            title="Monthly Target Pulse"
-            description="Simple commercial forecast against the current monthly target."
-          >
-            <div className="rounded-[1.2rem] border border-info-border bg-[linear-gradient(135deg,#eef2ff,#eefbf7)] p-4">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">
-                    Progress
-                  </div>
-                  <div className="mt-2 text-3xl font-black tracking-[-0.05em] text-content-1">
-                    {forecastPct == null ? "—" : `${forecastPct}%`}
-                  </div>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="rounded-full border-info-border bg-surface-1 text-primary"
-                >
-                  {forecast ? "Live target" : "Target pending"}
-                </Badge>
-              </div>
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface-1">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{
-                    width: `${forecastPct == null ? 0 : Math.max(0, Math.min(100, forecastPct))}%`,
-                  }}
-                />
-              </div>
-              <div className="mt-3 text-sm font-medium leading-6 text-content-3">
-                {compactValue(forecast?.status_text || stats?.forecast?.status_text)}
-              </div>
-            </div>
-          </PanelCard>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function CompactMetricCard({
-  label,
-  value,
-  sublabel,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sublabel: string;
-  icon: any;
-  tone: string;
-}) {
-  return (
-    <Card className="rounded-[1.5rem] border border-line bg-surface-1 shadow-sm">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
-              {label}
-            </div>
-            <div className="mt-2 break-words text-[1.9rem] font-black leading-none tracking-[-0.05em] text-content-1">
-              {value}
-            </div>
-            <div className="mt-2 text-xs font-semibold text-content-3">
-              {sublabel}
-            </div>
-          </div>
-          <div
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl",
-              tone,
-            )}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function PanelCard({
-  title,
-  description,
-  action,
-  children,
-}: {
-  title: string;
-  description: string;
-  action?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <Card className="rounded-[1.75rem] border border-line bg-surface-1 shadow-sm">
-      <CardHeader className="space-y-2 pb-2">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
-              {title}
-            </CardTitle>
-            <div className="mt-1 text-sm font-medium leading-6 text-content-3">
-              {description}
-            </div>
-          </div>
-          {action ? <div className="shrink-0">{action}</div> : null}
-        </div>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
-
-function InsetStat({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className="rounded-[1.2rem] border border-line bg-surface-2 p-4">
-      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
-        {label}
+                  <Pill tone={Number(o.days_overdue) > 30 ? "bad" : "warn"}>{count(o.days_overdue)} days late</Pill>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <PanelEmpty title="Nothing overdue" />
+          )}
+        </Panel>
       </div>
-      <div className="mt-2 text-xl font-black tracking-[-0.04em] text-content-1">
-        {value}
-      </div>
-      <div className="mt-2 text-xs font-semibold leading-5 text-content-3">
-        {hint}
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  text,
-  compact = false,
-}: {
-  text: string;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-[1.2rem] border border-dashed border-line bg-surface-2 text-center text-sm font-semibold text-content-3",
-        compact ? "px-4 py-8" : "px-4 py-12",
-      )}
-    >
-      {text}
     </div>
   );
 }

@@ -311,7 +311,7 @@ export function ProductionOrderSpecRail({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div
           className={cn(
-            "text-[11px] font-black uppercase tracking-[0.2em]",
+            "text-[11px] font-semibold uppercase tracking-[0.12em]",
             dark ? "text-info-border" : "text-content-3",
           )}
         >
@@ -319,7 +319,7 @@ export function ProductionOrderSpecRail({
         </div>
         <span
           className={cn(
-            "rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider",
+            "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
             dark
               ? "border-white/20 bg-white/10 text-white"
               : "border-line bg-surface-1 text-content-2",
@@ -343,11 +343,11 @@ export function ProductionOrderSpecRail({
               )}
               data-spec-field={metric.key}
             >
-              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.15em] opacity-75">
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] opacity-75">
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span>{metric.label}</span>
               </div>
-              <div className="mt-1 break-words font-mono text-lg font-black leading-tight md:text-xl">
+              <div className="mt-1 break-words font-mono text-lg font-semibold leading-tight md:text-xl">
                 {metric.value}
               </div>
               {metric.details?.length ? (
@@ -355,7 +355,7 @@ export function ProductionOrderSpecRail({
                   {metric.details.map((detail) => (
                     <span
                       key={detail}
-                      className="rounded-md border border-current/20 bg-white/65 px-2 py-1 text-xs font-black leading-none"
+                      className="rounded-md border border-current/20 bg-white/65 px-2 py-1 text-xs font-semibold leading-none"
                     >
                       {detail}
                     </span>
@@ -385,19 +385,19 @@ export function ProductionOrderSpecRail({
             >
               <span
                 className={cn(
-                  "grid h-8 w-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-black",
+                  "grid h-8 w-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-semibold",
                   dark ? "bg-white text-[#153f73]" : "bg-surface-1 text-order-fg",
                 )}
               >
                 L{layer.index}
               </span>
               <div className="min-w-0 flex-1">
-                <div className="break-words font-mono text-base font-black leading-tight md:text-lg">
+                <div className="break-words font-mono text-base font-semibold leading-tight md:text-lg">
                   {layerVariantLabel(layer)}
                 </div>
                 <div
                   className={cn(
-                    "mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-black",
+                    "mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-semibold",
                     dark ? "text-info-border" : "text-order-fg/80",
                   )}
                 >

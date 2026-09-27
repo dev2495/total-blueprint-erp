@@ -10,7 +10,12 @@ from django.test import SimpleTestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.production.views import DeliveryChallanViewSet
-from apps.production.services.dispatch_pdf import DispatchListPDFService, _line_spec, canvas
+from apps.production.services.dispatch_pdf import (
+    DispatchListPDFService,
+    _compact_grade_label,
+    _line_spec,
+    canvas,
+)
 
 
 def _pdf_page_count(payload: bytes) -> int:
@@ -169,6 +174,53 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertNotIn("16X20", spec["description"])
         self.assertNotIn("12", spec["description"])
 
+    def test_line_spec_shows_every_thickness_and_every_distinct_grade(self):
+        item = SimpleNamespace(
+            id="soi-multilayer",
+            axis_values={"size": "220X310X80"},
+            geometry_snapshot={"finished_good_type": "POUCH"},
+            layer_snapshot=[
+                {"material_code": "PET", "thickness_micron": 12},
+                {"material_code": "LDNAT-ML", "thickness_micron": 80, "grade_code": "20% METALLOCENE"},
+                {"material_code": "COEX", "thickness_micron": 25, "grade_code": "35% METALLOCENE"},
+            ],
+            product_master=SimpleNamespace(code="PM-POUCH", name="Pouch"),
+            product_variant=None,
+            template=None,
+        )
+
+        spec = _line_spec(item)
+
+        self.assertEqual(spec["description"], "PET / LDNAT-ML / COEX")
+        self.assertEqual(spec["thickness"], "12+80+25")
+        self.assertEqual(spec["grade"], "20% MTL+35% MTL")
+
+    def test_line_spec_preserves_repeated_layer_positions_but_not_repeated_grade(self):
+        item = SimpleNamespace(
+            id="soi-repeat",
+            axis_values={"size": "500"},
+            geometry_snapshot={"finished_good_type": "ROLL", "base": {"width_mm": 500}},
+            layer_snapshot=[
+                {"material_code": "PET", "thickness_micron": 12, "grade_code": "GP"},
+                {"material_code": "PET", "thickness_micron": 18, "grade_code": "GP"},
+                {"material_code": "LD", "thickness_micron": 80, "grade_code": "SP"},
+            ],
+            product_master=SimpleNamespace(code="PM-ROLL", name="Roll"),
+            product_variant=None,
+            template=None,
+        )
+
+        spec = _line_spec(item)
+
+        self.assertEqual(spec["description"], "PET / PET / LD")
+        self.assertEqual(spec["thickness"], "12+18+80")
+        self.assertEqual(spec["grade"], "GP+SP")
+
+    def test_grade_abbreviation_only_replaces_the_complete_word(self):
+        self.assertEqual(_compact_grade_label("20% METALLOCENE"), "20% MTL")
+        self.assertEqual(_compact_grade_label("metallocene 35%"), "MTL 35%")
+        self.assertEqual(_compact_grade_label("METALLOCENIC BLEND"), "METALLOCENIC BLEND")
+
     def test_line_spec_prefers_actual_geometry_over_size_code(self):
         item = SimpleNamespace(
             id="soi-2",
@@ -210,7 +262,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         spec = _line_spec(item)
 
         self.assertEqual(spec["description"], "LD-MW")
-        self.assertEqual(spec["grade"], "20% METALLOCENE")
+        self.assertEqual(spec["grade"], "20% MTL")
         self.assertEqual(spec["size"], "495MM")
         self.assertEqual(spec["thickness"], "80")
         self.assertNotIn("V3", spec["description"])
@@ -541,14 +593,59 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertNotIn("Security:", text)
         self.assertNotIn("Dispatch slip only", text)
 
-    def test_grade_column_keeps_live_fifteen_character_grade_visible(self):
+    def test_grade_column_abbreviates_live_metallocene_grade(self):
         row = _ready_row(1)
         row.update({"description": "LD-MW", "grade": "20% METALLOCENE", "size": "495MM", "thickness": "80"})
 
         text = DispatchListPDFService.render_text(_snapshot_challan([row], version=3))
 
-        self.assertIn("20% METALLOCENE", text)
-        self.assertNotIn("20% METAL.", text)
+        self.assertIn("20% MTL", text)
+        self.assertNotIn("METALLOCENE", text)
+
+    def test_long_multilayer_spec_wraps_without_losing_layers_grades_or_microns(self):
+        row = _ready_row(1)
+        row.update(
+            {
+                "description": "PET / NYLON / ALUMINIUM / LDNAT-ML",
+                "grade": "GP+20% METALLOCENE+35% METALLOCENE+PLAIN",
+                "size": "1200X1800X250",
+                "thickness": "12+15+9+80",
+            }
+        )
+
+        text = DispatchListPDFService.render_text(_snapshot_challan([row], version=3))
+
+        self.assertNotIn("METALLOCENE", text)
+        for expected in ("PET / NYLON / ALUMINIUM /", "LDNAT-ML", "GP+20% MTL+", "35% MTL+PLAIN", "12+15+", "9+80"):
+            self.assertIn(expected, text)
+        pages = text.rstrip("\r\n").split("\f")
+        self.assertTrue(
+            all(len(page.split("\r\n")) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages)
+        )
+        self.assertTrue(all(len(line) <= 110 for page in pages for line in page.split("\r\n")))
+
+    def test_wrapped_multilayer_rows_paginate_by_physical_printed_height(self):
+        rows = []
+        for index in range(1, 19):
+            row = _ready_row(index, line_key=f"line-{index % 3}")
+            row.update(
+                {
+                    "description": "PET / NYLON / ALUMINIUM / LDNAT-ML",
+                    "grade": "20% METALLOCENE+35% METALLOCENE",
+                    "thickness": "12+15+9+80",
+                }
+            )
+            rows.append(row)
+
+        text = DispatchListPDFService.render_text(_snapshot_challan(rows, version=3))
+
+        pages = text.rstrip("\r\n").split("\f")
+        self.assertGreater(len(pages), 1)
+        self.assertEqual(text.count("UNIT-"), len(rows))
+        self.assertTrue(
+            all(len(page.split("\r\n")) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages)
+        )
+        self.assertTrue(all(len(line) <= 110 for page in pages for line in page.split("\r\n")))
 
     def test_packing_slip_does_not_ask_for_or_print_dispatch_transport(self):
         sales_order = SimpleNamespace(id="so-1", order_number="SO-READY-1", customer_name="Ready Customer")

@@ -266,7 +266,7 @@ export function TraceabilityV36() {
           <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
             <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                   Roll header
                 </div>
                 <h2 className="font-display text-lg font-bold text-content-1">
@@ -324,7 +324,7 @@ export function TraceabilityV36() {
             <div className="border-t border-line px-5 py-4">
               <div className="flex items-center gap-2 mb-2">
                 <Weight className="h-4 w-4 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                   Weight flow · original → consumed → current
                 </span>
               </div>
@@ -335,7 +335,7 @@ export function TraceabilityV36() {
               />
               <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                 <div className="rounded-lg bg-info-bg px-2.5 py-1.5 ring-1 ring-info-border">
-                  <div className="text-[9px] font-black uppercase text-primary">
+                  <div className="text-[10px] font-semibold uppercase text-primary">
                     Current
                   </div>
                   <div className="font-mono font-bold text-primary">
@@ -343,7 +343,7 @@ export function TraceabilityV36() {
                   </div>
                 </div>
                 <div className="rounded-lg bg-danger-bg px-2.5 py-1.5 ring-1 ring-danger-border">
-                  <div className="text-[9px] font-black uppercase text-danger-fg">
+                  <div className="text-[10px] font-semibold uppercase text-danger-fg">
                     Consumed
                   </div>
                   <div className="font-mono font-bold text-danger-fg">
@@ -351,7 +351,7 @@ export function TraceabilityV36() {
                   </div>
                 </div>
                 <div className="rounded-lg bg-order-bg px-2.5 py-1.5 ring-1 ring-order-border">
-                  <div className="text-[9px] font-black uppercase text-order-fg">
+                  <div className="text-[10px] font-semibold uppercase text-order-fg">
                     Original
                   </div>
                   <div className="font-mono font-bold text-order-fg">
@@ -366,7 +366,7 @@ export function TraceabilityV36() {
           {ancestors.length > 0 && (
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
               <header className="border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
                   Ancestor chain · oldest → this roll
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -414,7 +414,7 @@ export function TraceabilityV36() {
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
               <header className="border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                   Genealogy tree · this roll → children
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -436,7 +436,7 @@ export function TraceabilityV36() {
 
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
               <header className="border-b border-line bg-gradient-to-r from-success-bg via-white to-white px-5 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
                   Timeline · movement &amp; consumption
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -463,7 +463,7 @@ export function TraceabilityV36() {
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span
                             className={cn(
-                              "rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ring-1",
+                              "rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
                               evt.type === "MOVEMENT"
                                 ? "bg-info-bg text-primary ring-info-border"
                                 : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -506,7 +506,7 @@ export function TraceabilityV36() {
           <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
             <header className="flex items-center justify-between border-b border-line bg-gradient-to-r from-warning-bg via-white to-white px-5 py-3">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
                   Physical movements
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -574,12 +574,12 @@ function Kpi({
       )}
     >
       <div className="flex items-start justify-between">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
           {label}
         </div>
         <span className="text-lg">{icon}</span>
       </div>
-      <div className="mt-2 font-display text-2xl font-black">{value}</div>
+      <div className="mt-2 font-display text-2xl font-semibold">{value}</div>
     </div>
   );
 }
@@ -595,7 +595,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-3 py-2 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-sm font-bold text-content-2 truncate">
@@ -687,7 +687,7 @@ function Node({
               <div className="font-mono text-xs font-bold text-content-1 truncate flex items-center gap-2">
                 {node.label_id}
                 {node.job_number && (
-                  <span className="rounded-sm bg-info-bg px-1 text-[9px] font-bold text-primary ring-1 ring-info-border">
+                  <span className="rounded-sm bg-info-bg px-1 text-[10px] font-bold text-primary ring-1 ring-info-border">
                     JOB · {node.job_number}
                   </span>
                 )}
@@ -701,7 +701,7 @@ function Node({
           <div className="flex flex-col items-end gap-1 flex-none">
             <span
               className={cn(
-                "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+                "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
                 roleTone((node as any).roll_role),
               )}
             >
@@ -709,7 +709,7 @@ function Node({
             </span>
             <span
               className={cn(
-                "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+                "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
                 statusTone(node.status),
               )}
             >
@@ -719,25 +719,25 @@ function Node({
         </div>
         <div className="mt-2 grid grid-cols-4 gap-1.5 rounded-lg bg-surface-2 p-2 text-[10px]">
           <div>
-            <div className="font-black text-content-4">ORIG</div>
+            <div className="font-semibold text-content-4">ORIG</div>
             <div className="font-mono font-bold text-content-2">
               {fmtKg(node.original_weight_kg, 1)}
             </div>
           </div>
           <div>
-            <div className="font-black text-content-4">NOW</div>
+            <div className="font-semibold text-content-4">NOW</div>
             <div className="font-mono font-bold text-content-2">
               {fmtKg(node.weight_kg, 1)}
             </div>
           </div>
           <div>
-            <div className="font-black text-content-4">SIZE</div>
+            <div className="font-semibold text-content-4">SIZE</div>
             <div className="font-mono text-content-2">
               {Number(node.width_mm || 0)}×{Number(node.thickness_micron || 0)}
             </div>
           </div>
           <div>
-            <div className="font-black text-content-4">LOC</div>
+            <div className="font-semibold text-content-4">LOC</div>
             <div className="font-mono text-content-2 truncate">
               {node.location || "—"}
             </div>

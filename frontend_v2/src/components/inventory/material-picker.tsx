@@ -155,7 +155,7 @@ export function MaterialPicker({
                     </span>
                     {/* Category/Family badge (shown inline) */}
                     {(item.category || item.type) && (
-                      <span className="text-[9px] font-bold uppercase text-primary bg-info-bg px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
+                      <span className="text-[10px] font-bold uppercase text-primary bg-info-bg px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
                         {item.category || item.type}
                       </span>
                     )}

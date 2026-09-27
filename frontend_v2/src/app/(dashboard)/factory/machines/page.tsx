@@ -24,7 +24,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Pager } from "@/components/logistics/yard-ui";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -359,7 +360,7 @@ const getStatusColor = (status: string) => {
     case "DOWN":
       return "bg-danger-bg text-danger-fg hover:bg-danger-bg border-danger-border";
     case "MAINTENANCE":
-      return "bg-warm text-warm hover:bg-warm border-warning-border";
+      return "bg-warning-bg text-warning-fg hover:bg-warm border-warning-border";
     default:
       return "bg-surface-2 text-content-2 hover:bg-line border-line";
   }
@@ -386,6 +387,7 @@ export default function MachinesPage() {
   const [editingItem, setEditingItem] = useState<Machine | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Machine | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [createSubmitError, setCreateSubmitError] = useState<string | null>(
     null,
   );
@@ -497,6 +499,13 @@ export default function MachinesPage() {
         .includes(query),
   );
 
+  const PAGE_SIZE = 48;
+  const pageCount = Math.max(1, Math.ceil(filteredMachines.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pagedMachines = filteredMachines.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const workCenterById = useMemo(() => new Map((workCenters || []).map((w) => [w.id, w])), [workCenters]);
+  useEffect(() => setPage(1), [searchQuery]);
+
   return (
     <FactoryPageLayout
       title="Machines"
@@ -556,9 +565,9 @@ export default function MachinesPage() {
       }
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredMachines.map((machine) => {
+        {pagedMachines.map((machine) => {
           const StatusIcon = getStatusIcon(machine.status);
-          const wc = workCenters?.find((w) => w.id === machine.work_center);
+          const wc = workCenterById.get(machine.work_center);
 
           return (
             <Card
@@ -574,7 +583,7 @@ export default function MachinesPage() {
                   {machine.status}
                 </Badge>
 
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -603,11 +612,11 @@ export default function MachinesPage() {
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="secondary"
-                          className="h-6 bg-surface-3 px-2.5 text-[11px] font-bold tracking-[0.18em] text-white"
+                          className="h-6 bg-surface-3 px-2.5 text-[11px] font-bold tracking-[0.1em] text-white"
                         >
                           {machine.code}
                         </Badge>
-                        <span className="text-xs font-medium uppercase tracking-[0.18em] text-content-4">
+                        <span className="text-xs font-medium uppercase tracking-[0.1em] text-content-4">
                           {wc?.code || "NO-WC"}
                         </span>
                       </div>
@@ -637,6 +646,15 @@ export default function MachinesPage() {
           );
         })}
       </div>
+      {pageCount > 1 ? (
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-line bg-surface-1 px-4 py-2.5 text-[12px] text-content-3">
+          <span>
+            Showing {(safePage - 1) * PAGE_SIZE + 1}-{Math.min(filteredMachines.length, safePage * PAGE_SIZE)} of {filteredMachines.length} machines
+          </span>
+          <Pager page={safePage} pageCount={pageCount} onPageChange={setPage} testId="machines-page" />
+        </div>
+      ) : null}
+
 
       <Dialog
         open={!!editingItem}

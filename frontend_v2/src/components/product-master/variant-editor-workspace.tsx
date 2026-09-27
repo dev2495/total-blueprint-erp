@@ -245,7 +245,7 @@ export function VariantEditorWorkspace({
         >
           <ArrowLeft className="h-3.5 w-3.5" /> Back to master
         </Link>
-        <span className="rounded-full bg-order-bg px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-order-fg ring-1 ring-order-border">
+        <span className="rounded-full bg-order-bg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border">
           {mode === "create" ? "NEW VARIANT" : "EDIT VARIANT"}
         </span>
       </div>
@@ -260,7 +260,7 @@ export function VariantEditorWorkspace({
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
               Configuring a variant of
             </div>
             <div className="font-display mt-1 text-2xl font-bold text-content-1">
@@ -280,19 +280,19 @@ export function VariantEditorWorkspace({
               The variant tuple uniquely identifies a stockable / sellable item.
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5 text-[10px]">
-              <span className="rounded-full bg-info-bg px-2 py-0.5 font-black uppercase tracking-wider text-primary ring-1 ring-info-border">
+              <span className="rounded-full bg-info-bg px-2 py-0.5 font-semibold uppercase tracking-wider text-primary ring-1 ring-info-border">
                 {master.product_kind}
               </span>
-              <span className="rounded-full bg-success-bg px-2 py-0.5 font-black uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+              <span className="rounded-full bg-success-bg px-2 py-0.5 font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
                 {master.layer_template.length} LAYERS · {totalThickness}μ
               </span>
               {catalogAxes.length > 0 && (
-                <span className="rounded-full bg-order-bg px-2 py-0.5 font-black uppercase tracking-wider text-order-fg ring-1 ring-order-border">
+                <span className="rounded-full bg-order-bg px-2 py-0.5 font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border">
                   {catalogAxes.length} CATALOG AXES
                 </span>
               )}
               {master.fixed_attributes?.print_capable && (
-                <span className="rounded-full bg-order-bg px-2 py-0.5 font-black uppercase tracking-wider text-order-fg ring-1 ring-order-border">
+                <span className="rounded-full bg-order-bg px-2 py-0.5 font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border">
                   PRINT · {master.fixed_attributes.print_type || "ROTO"}
                 </span>
               )}
@@ -300,7 +300,7 @@ export function VariantEditorWorkspace({
           </div>
           {/* Live variant code preview (the killer) */}
           <div className="rounded-xl bg-surface-3 px-4 py-3 text-white shadow-md">
-            <div className="text-[9px] font-black uppercase tracking-[0.22em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Variant code (live)
             </div>
             <div className="mt-1 mono text-[12px] font-bold text-success-border break-all">
@@ -308,11 +308,11 @@ export function VariantEditorWorkspace({
             </div>
             <div className="mt-2 flex items-center gap-2">
               {validation.ok ? (
-                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-success-fg">
+                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg">
                   VALID · NEW
                 </span>
               ) : (
-                <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-danger-fg">
+                <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger-fg">
                   {validation.errors[0]}
                 </span>
               )}
@@ -329,7 +329,7 @@ export function VariantEditorWorkspace({
           {requiredAxes.length > 0 && (
             <div className="rounded-2xl border border-danger-border bg-gradient-to-br from-danger-bg to-white shadow-sm">
               <div className="border-b border-danger-border bg-danger-bg px-4 py-2 flex items-center justify-between">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-danger-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-danger-fg">
                   Required axes
                 </div>
                 <span className="text-[10px] text-danger-fg">Must be set</span>
@@ -364,7 +364,7 @@ export function VariantEditorWorkspace({
                                     {s.code}
                                   </span>
                                   {s.standard_qty && (
-                                    <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-fg ring-1 ring-success-border">
+                                    <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[10px] font-bold text-success-fg ring-1 ring-success-border">
                                       {s.standard_qty}
                                       {s.qty_uom}
                                     </span>
@@ -389,7 +389,7 @@ export function VariantEditorWorkspace({
           {/* Optional axes */}
           <div className="rounded-2xl border border-line bg-surface-1 shadow-sm">
             <div className="border-b border-line bg-surface-2 px-4 py-2 flex items-center justify-between">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Configuration
               </div>
               <span className="text-[10px] text-content-3">
@@ -429,7 +429,7 @@ export function VariantEditorWorkspace({
                         return (
                           <tr key={idx}>
                             <td className="px-3 py-2">
-                              <span className="rounded-md bg-info-bg px-1.5 py-0.5 mono text-[10px] font-black text-primary">
+                              <span className="rounded-md bg-info-bg px-1.5 py-0.5 mono text-[10px] font-semibold text-primary">
                                 L{idx}
                               </span>
                             </td>
@@ -493,7 +493,7 @@ export function VariantEditorWorkspace({
                       <tr>
                         <td
                           colSpan={2}
-                          className="px-3 py-2 text-right text-[10px] font-black uppercase tracking-wider text-content-3"
+                          className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3"
                         >
                           Total
                         </td>
@@ -552,7 +552,7 @@ export function VariantEditorWorkspace({
                             )
                           }
                           className={cn(
-                            "rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-wider shadow-sm transition",
+                            "rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider shadow-sm transition",
                             active
                               ? "bg-gradient-to-r from-primary to-order-fg text-white"
                               : "bg-surface-1 text-content-2 ring-1 ring-line hover:bg-info-bg",
@@ -605,7 +605,7 @@ export function VariantEditorWorkspace({
           {overlays.length > 0 && (
             <div className="rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg to-white shadow-sm">
               <div className="border-b border-warning-border bg-warning-bg px-4 py-2 flex items-center justify-between">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-warning-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
                   Pricing reference
                 </div>
                 <span className="text-[10px] text-content-3">
@@ -656,7 +656,7 @@ export function VariantEditorWorkspace({
           {/* Material breakdown */}
           <div className="overflow-hidden rounded-2xl border border-info-border bg-surface-1 shadow-md ring-1 ring-info-border">
             <div className="bg-gradient-to-br from-primary via-order-fg to-order-fg px-4 py-3 text-white">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
                 🧪 Material breakdown
               </div>
               <div className="text-sm font-bold">
@@ -664,7 +664,7 @@ export function VariantEditorWorkspace({
               </div>
             </div>
             <div className="px-4 py-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Catalog BOM lines
               </div>
               <ul className="mt-1.5 space-y-1 text-[11px]">
@@ -672,7 +672,7 @@ export function VariantEditorWorkspace({
                   .filter(([_, v]) => v)
                   .map(([axis, code]) => (
                     <li key={axis} className="flex items-center gap-1.5">
-                      <span className="rounded-full bg-order-bg mono text-[9px] font-bold text-order-fg ring-1 ring-order-border ring-inset px-1.5 py-0.5">
+                      <span className="rounded-full bg-order-bg mono text-[10px] font-bold text-order-fg ring-1 ring-order-border ring-inset px-1.5 py-0.5">
                         {axis.replace(/_/g, " ")}
                       </span>
                       <span className="mono font-bold text-content-2 truncate flex-1">
@@ -689,7 +689,7 @@ export function VariantEditorWorkspace({
                   </li>
                 )}
               </ul>
-              <div className="mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Layer materials
               </div>
               <ul className="mt-1.5 space-y-1 text-[11px]">
@@ -717,7 +717,7 @@ export function VariantEditorWorkspace({
                     <li key={idx} className="flex items-center gap-1.5">
                       <span
                         className={cn(
-                          "rounded-full mono text-[9px] font-bold ring-1 ring-inset px-1.5 py-0.5",
+                          "rounded-full mono text-[10px] font-bold ring-1 ring-inset px-1.5 py-0.5",
                           TONE[tone],
                         )}
                       >
@@ -750,14 +750,14 @@ export function VariantEditorWorkspace({
           <div className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg to-white p-4 shadow-md ring-1 ring-success-border">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
                   Stock match preview
                 </div>
                 <div className="text-sm font-bold text-content-1">
                   Where will this pull from?
                 </div>
               </div>
-              <span className="rounded-full bg-success-fg px-2 py-0.5 text-[9px] font-black uppercase text-white">
+              <span className="rounded-full bg-success-fg px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
                 live
               </span>
             </div>
@@ -782,7 +782,7 @@ export function VariantEditorWorkspace({
 
           {/* Save CTAs */}
           <div className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Save options
             </div>
             <div className="mt-2 flex flex-col gap-1.5">
@@ -829,7 +829,7 @@ export function VariantEditorWorkspace({
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface-1/95 backdrop-blur px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Variant draft
             </span>
             {validation.ok ? (
@@ -860,7 +860,7 @@ export function VariantEditorWorkspace({
             <Button
               onClick={() => createMutation.mutate()}
               disabled={!validation.ok || createMutation.isPending}
-              className="gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-order-fg text-white shadow-md "
+              className="gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-order-fg text-white shadow-md"
             >
               {createMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -896,7 +896,7 @@ function AxisBlock({
         <span className="mono text-xs font-bold text-content-1">{name}</span>
         <span className="text-[10px] text-content-3">{label}</span>
         {required && (
-          <span className="rounded-full bg-danger-bg px-1.5 py-0.5 text-[9px] font-black uppercase text-danger-fg ring-1 ring-danger-border">
+          <span className="rounded-full bg-danger-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-danger-fg ring-1 ring-danger-border">
             Required
           </span>
         )}
@@ -1016,7 +1016,7 @@ function CatalogAxisField({
                   {o.code}
                 </span>
                 {axis.default_value === o.code && (
-                  <span className="rounded-sm bg-success-bg px-1.5 py-0.5 text-[9px] font-black text-success-fg">
+                  <span className="rounded-sm bg-success-bg px-1.5 py-0.5 text-[10px] font-semibold text-success-fg">
                     DEFAULT
                   </span>
                 )}

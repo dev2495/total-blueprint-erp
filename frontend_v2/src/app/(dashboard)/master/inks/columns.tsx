@@ -25,7 +25,7 @@ export const getColumns = ({
     accessorKey: "base_type",
     header: "Base",
     cell: ({ row }) => (
-      <div className="font-black text-xs px-2 py-0.5 bg-surface-2 rounded-full inline-block">
+      <div className="font-semibold text-xs px-2 py-0.5 bg-surface-2 rounded-full inline-block">
         {row.getValue("base_type")}
       </div>
     ),

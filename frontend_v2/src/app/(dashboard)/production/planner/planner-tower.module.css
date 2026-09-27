@@ -49,23 +49,8 @@
   padding: clamp(1.35rem, 2.6vw, 1.9rem);
   border-radius: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.24);
-  background:
-    radial-gradient(
-      900px 500px at 90% -10%,
-      rgba(59, 130, 246, 0.55) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      700px 400px at 0% 110%,
-      rgba(37, 99, 235, 0.45) 0%,
-      transparent 65%
-    ),
-    linear-gradient(
-      135deg,
-      var(--brand-950) 0%,
-      var(--brand-900) 50%,
-      var(--brand-600) 100%
-    );
+  background: var(--hero-surface);
+  border: 1px solid var(--hero-edge);
   box-shadow: 0 28px 70px -42px rgba(37, 99, 235, 0.72);
   position: relative;
   overflow: hidden;
@@ -90,9 +75,9 @@
 
 .eyebrow {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.09em;
   color: var(--brand-200);
   margin-bottom: 0.45rem;
   display: flex;
@@ -102,11 +87,11 @@
 
 .pageTitle {
   font-size: clamp(2rem, 4vw, 3.1rem);
-  font-weight: 900;
+  font-weight: 650;
   color: var(--text-on-dark) !important;
   letter-spacing: 0;
   line-height: 1.1;
-  text-shadow: 0 18px 42px rgba(15, 23, 42, 0.28);
+  text-shadow: none;
 }
 
 .pageHeader p {
@@ -181,9 +166,9 @@
 
 .analyticsTitle {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
 }
 
@@ -285,16 +270,16 @@
 
 .kpiLabel {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
   margin-bottom: 7px;
 }
 
 .kpiValue {
   font-size: 28px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.6px;
   line-height: 1;
@@ -302,7 +287,7 @@
 
 .kpiValueSm {
   font-size: 16px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.3;
 }
@@ -367,7 +352,7 @@
   padding: 0 6px;
   border-radius: 10px;
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 600;
   background: var(--surface-2);
   color: var(--content-3);
 }
@@ -412,7 +397,7 @@
 
 .queueRailTitle {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-2);
   display: flex;
   align-items: center;
@@ -459,7 +444,7 @@
   border: 1px solid var(--border-default);
   background: var(--surface-1);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--content-3);
@@ -561,7 +546,7 @@
 
 .queueOrderNum {
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.2px;
 }
@@ -593,7 +578,7 @@
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   white-space: nowrap;
@@ -703,16 +688,16 @@
 
 .orderKindLabel {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.09em;
   color: var(--brand-600);
   margin-bottom: 4px;
 }
 
 .orderTitle {
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.4px;
   line-height: 1.1;
@@ -751,16 +736,16 @@
 
 .factCellLabel {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
   margin-bottom: 5px;
 }
 
 .factCellValue {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   letter-spacing: -0.2px;
   display: flex;
@@ -801,9 +786,9 @@
 
 .artworkGateTitle {
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--brand-700);
   margin-bottom: 3px;
 }
@@ -843,7 +828,7 @@
 
 .salesSheetTitle {
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.04em;
 }
@@ -872,7 +857,7 @@
 .sheetSectionTitle {
   margin-top: 2px;
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.04em;
 }
@@ -900,16 +885,16 @@
 
 .routeKpiLabel {
   font-size: 11.5px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
 }
 
 .routeKpiValue {
   margin-top: 4px;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.28;
   overflow-wrap: anywhere;
@@ -1027,7 +1012,7 @@
 .summaryMatrixValue {
   margin-top: 5px;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.35;
 }
@@ -1060,7 +1045,7 @@
 
 .detailLabel {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--content-4);
@@ -1069,7 +1054,7 @@
 .detailValue {
   margin-top: 1px;
   font-size: 13.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.16;
   overflow-wrap: anywhere;
@@ -1125,7 +1110,7 @@
 
 .salesSpecLabel {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--content-4);
@@ -1138,7 +1123,7 @@
 
 .salesSpecValue {
   font-size: 14.5px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -1224,7 +1209,7 @@
   color: var(--brand-700);
   padding: 0 5px;
   font-size: 8px;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -1239,7 +1224,7 @@
   color: var(--content-3);
   padding: 0 5px;
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.04em;
 }
 
@@ -1258,7 +1243,7 @@
   display: block;
   width: 100%;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.1;
   overflow-wrap: anywhere;
@@ -1333,7 +1318,7 @@
   color: var(--content-3);
   padding: 0 9px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   transition: all 0.16s ease;
 }
 
@@ -1383,14 +1368,14 @@
 
 .wipChooserOptionTitle {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   overflow-wrap: anywhere;
 }
 
 .wipChooserOptionQty {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--brand-700);
   white-space: nowrap;
 }
@@ -1478,7 +1463,7 @@
 
 .sectionTitle {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-2);
   display: flex;
   align-items: center;
@@ -1564,7 +1549,7 @@
 
 .sourceBtnLabel {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
 }
 
@@ -1585,7 +1570,7 @@
   padding: 2px 8px;
   border-radius: 8px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   background: var(--surface-2);
   color: var(--content-3);
   margin-top: 8px;
@@ -1615,7 +1600,7 @@
   padding: 9px 14px;
   text-align: left;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--content-4);
@@ -1695,9 +1680,9 @@
 
 .wipPanelLabel {
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.09em;
   color: var(--brand-700);
   margin-bottom: 6px;
 }
@@ -1708,7 +1693,7 @@
 
 .wipPanelCount {
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.5px;
 }
@@ -1737,7 +1722,7 @@
 
 .wipRouteNumber {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
 }
 
@@ -1783,7 +1768,7 @@
 
 .accordionTriggerLabel {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-2);
 }
 
@@ -1885,7 +1870,7 @@
 
 .policyPillLabel {
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--content-4);
@@ -1946,7 +1931,7 @@
 
 .railCardTitle {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-2);
   display: flex;
   align-items: center;
@@ -1984,9 +1969,9 @@
 
 .recLabel {
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--brand-700);
   margin-bottom: 4px;
   display: flex;
@@ -2003,7 +1988,7 @@
 
 .recTitle {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-2);
 }
 
@@ -2032,9 +2017,9 @@
 
 .releaseBannerLabel {
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
 }
 
 .releaseBannerReady .releaseBannerLabel {
@@ -2102,7 +2087,7 @@
 
 .checklistItemLabel {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -2135,7 +2120,7 @@
 
 .blockerCode {
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--warning-fg);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -2189,7 +2174,7 @@
   padding: 8px 18px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   border: none;
   background: var(--success-fg);
@@ -2289,7 +2274,7 @@
 
 .artworkRailTitle {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--brand-700);
   margin-bottom: 4px;
   display: flex;
@@ -2387,7 +2372,7 @@
 
 .activeToolbarMeta strong {
   color: var(--content-1);
-  font-weight: 800;
+  font-weight: 600;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
@@ -2430,7 +2415,7 @@
   color: var(--content-3);
   padding: 0 10px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -2505,7 +2490,7 @@
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.4;
 }
@@ -2527,7 +2512,7 @@
   min-height: 22px;
   padding: 0 9px;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .auditTemplatePill {
@@ -2598,7 +2583,7 @@
 
 .historyGroupTitle {
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.02em;
 }
@@ -2626,7 +2611,7 @@
   padding: 11px 16px;
   text-align: left;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--content-4);
@@ -2677,7 +2662,7 @@
   min-height: 22px;
   padding: 0 9px;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 600;
   transition:
     border-color 0.15s ease,
     background 0.15s ease,
@@ -2735,7 +2720,7 @@
 
 .historyJobsTitle {
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -2817,7 +2802,7 @@
 
 .historyJobNumber {
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
 }
 
@@ -2838,7 +2823,7 @@
 
 .historyJobClosedAt {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-3);
   white-space: nowrap;
 }
@@ -2860,7 +2845,7 @@
 .historyJobMetaLabel {
   display: block;
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--content-4);
@@ -2877,7 +2862,7 @@
 }
 
 .cellBold {
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   font-size: 14px;
 }
@@ -2940,9 +2925,9 @@
 
 .kanbanColTitle {
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.09em;
   color: var(--content-3);
   display: flex;
   align-items: center;
@@ -2979,7 +2964,7 @@
   padding: 0 6px;
   border-radius: 10px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   background: var(--border-default);
   color: var(--content-3);
 }
@@ -3006,7 +2991,7 @@
 
 .kanbanCardNum {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
 }
 
@@ -3046,7 +3031,7 @@
 
 .emptyTitle {
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-3);
 }
 
@@ -3140,7 +3125,7 @@
   background: var(--surface-1);
   color: var(--content-1);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   transition: all 0.18s ease;
 }
 
@@ -3170,7 +3155,7 @@
 
 .commandDeckTitle {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.04em;
   line-height: 1.02;
@@ -3201,14 +3186,14 @@
   background: var(--brand-50);
   color: var(--brand-700);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.18s;
 }
 
 .commandDeckQty {
   margin-left: 8px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-2);
 }
 
@@ -3231,7 +3216,7 @@
   border: none;
   background: transparent;
   font-size: 8px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-3);
   cursor: pointer;
   transition: all 0.18s;
@@ -3274,16 +3259,16 @@
 .commandStatLabel,
 .sideMetricLabel {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
 }
 
 .commandStat strong,
 .sideMetricCard strong {
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.03em;
 }
@@ -3359,9 +3344,9 @@
 
 .statusRibbonTitle {
   font-size: 0.62rem;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
 }
 
@@ -3455,7 +3440,7 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
 }
 
@@ -3479,7 +3464,7 @@
   color: var(--content-3);
   padding: 0 10px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   transition: all 0.16s ease;
@@ -3516,7 +3501,7 @@
   background: var(--brand-600);
   color: var(--text-on-dark);
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -3578,7 +3563,7 @@
 
 .queueDockOrder {
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   letter-spacing: -0.02em;
 }
@@ -3597,7 +3582,7 @@
   border-radius: 999px;
   padding: 0 9px;
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   border: 1px solid transparent;
@@ -3652,7 +3637,7 @@
   background: var(--surface-1);
   color: var(--content-1);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.02em;
   transition:
     border-color 0.16s ease,
@@ -3721,9 +3706,9 @@
 
 .sheetSectionEyebrow {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
   margin-bottom: 5px;
 }
@@ -3762,7 +3747,7 @@
 .operatingDeskDecisionCard strong,
 .operatingDeskField strong {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
   line-height: 1.35;
 }
@@ -3790,9 +3775,9 @@
 
 .operatingDeskPanelTitle {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
 }
 
@@ -3825,9 +3810,9 @@
 
 .operatingDeskRowHeader {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
 }
 
@@ -3897,7 +3882,7 @@
 
 .summaryLabel {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--content-4);
@@ -3936,9 +3921,9 @@
 
 .specSheetLabel {
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   color: var(--content-4);
   padding-top: 6px;
 }
@@ -3969,22 +3954,8 @@
   gap: 1.35rem;
   padding: clamp(1.45rem, 2.8vw, 2.1rem);
   border-radius: 2rem;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.065) 1px, transparent 1px) 0 0 / 52px
-      52px,
-    linear-gradient(90deg, rgba(255, 255, 255, 0.065) 1px, transparent 1px) 0
-      0 / 52px 52px,
-    radial-gradient(
-      900px 460px at 100% 0%,
-      rgba(79, 70, 229, 0.42) 0%,
-      transparent 62%
-    ),
-    linear-gradient(
-      135deg,
-      var(--brand-900) 0%,
-      var(--brand-900) 48%,
-      var(--brand-600) 100%
-    );
+  background: var(--hero-surface);
+  border: 1px solid var(--hero-edge);
   box-shadow: 0 24px 62px -34px rgba(37, 99, 235, 0.8);
 }
 
@@ -4037,9 +4008,9 @@
 .heroGlassLabel {
   color: rgba(255, 255, 255, 0.68);
   font-size: 0.62rem;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
   line-height: 1.3;
 }
 
@@ -4047,7 +4018,7 @@
   margin-top: 0.45rem;
   font-size: 1.85rem;
   line-height: 1;
-  font-weight: 950;
+  font-weight: 650;
 }
 
 .heroGlassSub {
@@ -4075,7 +4046,7 @@
   align-items: center;
   gap: 0.45rem;
   font-size: 0.86rem;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .inlineError p {
@@ -4094,7 +4065,7 @@
   padding: 0 1rem;
   color: var(--danger-fg);
   font-size: 0.78rem;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .tabsBar {
@@ -4286,9 +4257,9 @@
 .specDeckLabel {
   color: var(--content-3);
   font-size: 0.64rem;
-  font-weight: 900;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.09em;
 }
 
 .specDeckTitle {
@@ -4296,7 +4267,7 @@
   color: var(--content-1);
   font-size: clamp(1.05rem, 1.6vw, 1.35rem);
   line-height: 1.2;
-  font-weight: 950;
+  font-weight: 650;
 }
 
 .specDeckSub,
@@ -4316,7 +4287,7 @@
   padding: 0.45rem 0.7rem;
   color: var(--content-3);
   font-size: 0.67rem;
-  font-weight: 900;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -4447,7 +4418,7 @@
   color: var(--text-on-dark);
   padding: 0 0.55rem;
   font-size: 0.58rem;
-  font-weight: 950;
+  font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
@@ -4456,7 +4427,7 @@
   margin-top: 0.65rem;
   color: var(--content-3);
   font-size: 0.63rem;
-  font-weight: 950;
+  font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -4466,7 +4437,7 @@
   color: var(--content-1);
   font-size: 1.05rem;
   line-height: 1.2;
-  font-weight: 950;
+  font-weight: 650;
 }
 
 .releasePathCopy {
@@ -4494,7 +4465,7 @@
 .releasePathStats strong {
   min-width: 0;
   color: var(--content-1);
-  font-weight: 950;
+  font-weight: 650;
   text-align: right;
   overflow-wrap: anywhere;
 }
@@ -4511,7 +4482,7 @@
   background: var(--success);
   color: var(--text-on-dark);
   font-size: 0.82rem;
-  font-weight: 950;
+  font-weight: 650;
 }
 
 .releasePathWip .releasePathAction {
@@ -4551,7 +4522,7 @@
   background: transparent;
   color: var(--accent-order-fg);
   font-size: 0.78rem;
-  font-weight: 950;
+  font-weight: 650;
 }
 
 .inventoryList {
@@ -4592,7 +4563,7 @@
   background: var(--success-bg);
   color: var(--success-fg);
   font-size: 0.68rem;
-  font-weight: 950;
+  font-weight: 650;
 }
 
 .inventoryMain {
@@ -4605,7 +4576,7 @@
 .inventoryMain strong {
   color: var(--content-1);
   font-size: 0.86rem;
-  font-weight: 950;
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
 
@@ -4619,7 +4590,7 @@
 .inventoryQty {
   color: var(--content-1);
   font-size: 1rem;
-  font-weight: 950;
+  font-weight: 650;
   text-align: right;
 }
 
@@ -4633,7 +4604,7 @@
   align-items: center;
   justify-content: center;
   font-size: 0.76rem;
-  font-weight: 950;
+  font-weight: 650;
   white-space: nowrap;
 }
 

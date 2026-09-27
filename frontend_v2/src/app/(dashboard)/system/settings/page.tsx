@@ -38,11 +38,11 @@ export default function SettingsPage() {
       <section className="rounded-[2rem] border border-line bg-surface-1 px-6 py-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               <Settings2 className="h-3.5 w-3.5" />
               System Settings
             </div>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-content-1">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-content-1">
               Report delivery settings removed
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-content-3">
@@ -53,7 +53,7 @@ export default function SettingsPage() {
           </div>
           <Button
             asChild
-            className="rounded-full bg-surface-3 text-white hover:bg-line"
+            className="rounded-full bg-surface-3 text-white hover:bg-primary"
           >
             <Link href="/system/report-center">
               Open Report Center
@@ -71,7 +71,7 @@ export default function SettingsPage() {
 
       <Card className="border-line">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg font-black text-content-1">
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold text-content-1">
             <BellRing className="h-5 w-5 text-primary" />
             New report model
           </CardTitle>
@@ -107,10 +107,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card className="border-line">
       <CardContent className="p-5">
-        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
           {label}
         </div>
-        <div className="mt-2 text-3xl font-black text-content-1">{value}</div>
+        <div className="mt-2 text-3xl font-semibold text-content-1">{value}</div>
       </CardContent>
     </Card>
   );

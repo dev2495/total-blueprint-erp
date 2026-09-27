@@ -181,7 +181,7 @@ export function LiveBomRail({
             ⚡
           </span>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
               {effectiveTitle}
             </div>
             <div className="font-display text-sm font-bold text-content-1 leading-tight">
@@ -301,12 +301,12 @@ function RouteRibbon({
                   tone,
                 )}
               >
-                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-surface-1/80 text-[9px] font-black">
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-surface-1/80 text-[10px] font-semibold">
                   {s.index ?? i + 1}
                 </span>
                 {label}
                 {s.has_artwork ? (
-                  <span className="inline-flex h-4 items-center rounded-full bg-order-fg px-1 text-[9px] font-black text-white">
+                  <span className="inline-flex h-4 items-center rounded-full bg-order-fg px-1 text-[10px] font-semibold text-white">
                     art
                   </span>
                 ) : null}
@@ -337,7 +337,7 @@ function ScopeChipRow({
   deferred.push("qty");
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-order-border bg-order-bg px-5 py-2 text-[10px]">
-      <span className="font-black uppercase tracking-[0.18em] text-order-fg">
+      <span className="font-semibold uppercase tracking-[0.1em] text-order-fg">
         Resolved on order
       </span>
       {deferred.map((d) => (
@@ -431,10 +431,10 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
           Quantity conversion
         </div>
         <div className="rounded-xl bg-surface-2 px-3 py-2 ring-1 ring-line">
-          <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
             Roll order
           </div>
-          <div className="font-mono text-sm font-black text-content-1">
+          <div className="font-mono text-sm font-semibold text-content-1">
             {fmtQty(totalKg)} kg
           </div>
           <div className="mt-1 text-[10px] font-semibold text-content-3">
@@ -478,7 +478,7 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
           Quantity conversion
         </div>
         {primary.material_code ? (
-          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
+          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
             {primary.material_code}
           </span>
         ) : null}
@@ -489,7 +489,7 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
             key={cell.label}
             className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line"
           >
-            <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
               {cell.label}
             </div>
             <div className="font-mono text-sm font-bold tabular-nums text-content-1">
@@ -512,7 +512,7 @@ function IdentityCard({ preview }: { preview: PreviewBomResult }) {
   const tuple = summariseTuple(preview);
   return (
     <section className="rounded-2xl bg-gradient-to-br from-order-bg via-order-bg to-white ring-1 ring-order-border px-3 py-2.5 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-order-fg">
+      <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-order-fg">
         Selected tuple
       </div>
       <div className="mt-1 font-mono text-[12px] font-bold leading-snug text-order-fg break-words">
@@ -904,7 +904,7 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
           {featureTags.map((tag) => (
             <span
               key={String(tag)}
-              className="rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-success-fg ring-1 ring-success-border"
+              className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border"
             >
               {tag}
             </span>
@@ -1011,7 +1011,7 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
                 : "bg-surface-2 ring-line",
             )}
           >
-            <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
               {c.label}
             </div>
             <div
@@ -1073,7 +1073,7 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
     <section className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-content-3 mb-2">
         <span>Layer stack</span>
-        <span className="font-mono text-success-fg font-black">
+        <span className="font-mono text-success-fg font-semibold">
           total {total} μ
         </span>
       </div>
@@ -1100,7 +1100,7 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
                 <span className="text-content-3"> · </span>
                 <span className="font-bold">{t} μ</span>
                 {l.grade ? (
-                  <span className="text-success-fg font-black"> {l.grade}</span>
+                  <span className="text-success-fg font-semibold"> {l.grade}</span>
                 ) : null}
               </span>
             </div>
@@ -1366,7 +1366,7 @@ function MaterialBreakdown({
           const weightNeutral = WEIGHT_NEUTRAL_KEYS.has(g.key);
           return (
             <section key={g.key} className={cn("px-3 py-2", g.tile)}>
-              <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider mb-1">
+              <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider mb-1">
                 <span className={cn("flex items-center gap-1.5", g.eyebrow)}>
                   {g.label} · {list.length}{" "}
                   {list.length === 1 ? "line" : "lines"}
@@ -1516,13 +1516,13 @@ function StockSourceBar({ preview }: { preview: PreviewBomResult }) {
             key={t.label}
             className={cn("rounded-lg px-2 py-1.5 ring-1", t.tile)}
           >
-            <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+            <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
               {t.label}
             </div>
             <div className="font-mono text-sm font-bold tabular-nums">
               {t.value || 0}
             </div>
-            <div className="text-[9px] opacity-60 tabular-nums">
+            <div className="text-[10px] opacity-60 tabular-nums">
               {t.pct.toFixed(0)}%
             </div>
           </div>
@@ -1551,7 +1551,7 @@ function ChecksList({ preview }: { preview: PreviewBomResult }) {
         <div key={`c-${i}`} className="flex items-start gap-2 text-[11px]">
           <span
             className={cn(
-              "mt-0.5 flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-[8px] font-black",
+              "mt-0.5 flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-[8px] font-semibold",
               c.ok
                 ? "bg-success-bg text-success-fg"
                 : c.tone === "error"
@@ -1600,10 +1600,10 @@ function LineFooter({
     <footer className="bg-success-fg px-5 py-3 text-white sticky bottom-0">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-success-border">
+          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-success-border">
             This line · ready to add
           </div>
-          <div className="font-display text-base font-black tabular-nums">
+          <div className="font-display text-base font-semibold tabular-nums">
             {qty > 0 ? `${fmtNum(qty)} ${line.uom || ""}` : "Set qty"}
             {subtotal > 0 ? (
               <span className="ml-2">· {fmtCurrency(subtotal)}</span>
@@ -1620,7 +1620,7 @@ function LineFooter({
             onClick={line.onAdd}
             disabled={line.addDisabled}
             className={cn(
-              "rounded-xl bg-surface-1 px-4 py-2 text-[12px] font-black text-success-fg hover:bg-success-bg inline-flex items-center gap-1",
+              "rounded-xl bg-surface-1 px-4 py-2 text-[12px] font-semibold text-success-fg hover:bg-success-bg inline-flex items-center gap-1",
               line.addDisabled && "opacity-50 cursor-not-allowed",
             )}
           >

@@ -708,10 +708,10 @@ export default function AuditCenterPage() {
     return (
       <div className="max-w-2xl space-y-6">
         <section className="rounded-[28px] border border-warning-border bg-warning-bg p-8 shadow-sm">
-          <Badge className="rounded-full border border-warning-border bg-surface-1 text-[11px] font-black uppercase tracking-[0.26em] text-warning-fg">
+          <Badge className="rounded-full border border-warning-border bg-surface-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
             Audit Access
           </Badge>
-          <h1 className="mt-4 text-3xl font-black tracking-tight text-content-1">
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight text-content-1">
             Audit Center
           </h1>
           <p className="mt-3 text-sm font-semibold leading-6 text-content-2">
@@ -721,7 +721,7 @@ export default function AuditCenterPage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/inventory/traceability">
-              <Button className="rounded-2xl bg-surface-3 text-white hover:bg-line">
+              <Button className="rounded-2xl bg-surface-3 text-white hover:bg-primary">
                 <Waypoints className="mr-2 h-4 w-4" />
                 Open Roll Genealogy
               </Button>
@@ -746,7 +746,7 @@ export default function AuditCenterPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-black uppercase tracking-[0.24em] text-white/60">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">
                     System · Audit
                   </span>
                   <span className={cn(styles.chip, styles.chipLive)}>
@@ -760,7 +760,7 @@ export default function AuditCenterPage() {
                     Tamper-aware business evidence
                   </span>
                 </div>
-                <h1 className="text-4xl font-black tracking-tight text-white">
+                <h1 className="text-4xl font-semibold tracking-tight text-white">
                   Audit Center
                 </h1>
                 <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-white/72">
@@ -954,7 +954,7 @@ export default function AuditCenterPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className={styles.eyebrow}>{stream.label}</div>
-                    <div className="mt-1 text-2xl font-black text-content-1">
+                    <div className="mt-1 text-2xl font-semibold text-content-1">
                       {streamCount.toLocaleString()}
                     </div>
                     <div className="mt-1 text-[11px] font-semibold text-content-3">
@@ -1016,7 +1016,7 @@ export default function AuditCenterPage() {
                 onClick={setView}
               />
               <div className="flex-1" />
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-content-3">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 <span>
                   Page {page.toLocaleString()} of {pageCount.toLocaleString()}
                 </span>
@@ -1207,7 +1207,7 @@ function ActivityHeatmap({ events }: { events: AuditEvent[] }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className={styles.eyebrow}>Activity heatmap</div>
-          <div className="mt-1 text-sm font-black text-content-1">
+          <div className="mt-1 text-sm font-semibold text-content-1">
             7 day x 24 hour audit density
           </div>
         </div>
@@ -1261,7 +1261,7 @@ function ActorBoard({
   return (
     <div className={cn(styles.card, styles.actorCard)}>
       <div className={styles.eyebrow}>Actor leaderboard</div>
-      <div className="mb-3 mt-1 text-sm font-black text-content-1">
+      <div className="mb-3 mt-1 text-sm font-semibold text-content-1">
         Who changed the system
       </div>
       <div className="space-y-2">
@@ -1281,7 +1281,7 @@ function ActorBoard({
               {initials(item.actor)}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12px] font-black text-content-1">
+              <span className="block truncate text-[12px] font-semibold text-content-1">
                 {item.actor}
               </span>
               <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -1316,7 +1316,7 @@ function ActionMix({
   return (
     <div className={cn(styles.card, styles.actionCard)}>
       <div className={styles.eyebrow}>Action mix</div>
-      <div className="mb-3 mt-1 text-sm font-black text-content-1">
+      <div className="mb-3 mt-1 text-sm font-semibold text-content-1">
         Top actions
       </div>
       <div className="space-y-2">
@@ -1334,7 +1334,7 @@ function ActionMix({
             <span className="min-w-0 flex-1 truncate">
               {item.action.replaceAll("_", " ")}
             </span>
-            <span className="font-black">
+            <span className="font-semibold">
               {total ? Math.round((item.count / total) * 100) : 0}%
             </span>
           </button>
@@ -1359,7 +1359,7 @@ function SignalPanel({
   return (
     <div className={cn(styles.card, styles.signalCard)}>
       <div className={styles.eyebrow}>Signal health</div>
-      <div className="mb-3 mt-1 text-sm font-black text-content-1">
+      <div className="mb-3 mt-1 text-sm font-semibold text-content-1">
         Severity spread
       </div>
       <div className={styles.severityBar}>
@@ -1578,7 +1578,7 @@ function DiffView({ event }: { event: AuditEvent | null }) {
         <span className={cn(styles.chip, styles.chipPurple)}>
           {event?.action || "Select event"}
         </span>
-        <span className="text-sm font-black text-content-1">
+        <span className="text-sm font-semibold text-content-1">
           {event?.reference || event?.entityType || "No event selected"}
         </span>
       </div>
@@ -1667,7 +1667,7 @@ function InvestigationPanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className={styles.eyebrow}>Investigation</div>
-          <h2 className="mt-1 text-xl font-black text-content-1">
+          <h2 className="mt-1 text-xl font-semibold text-content-1">
             {entity?.reference || event?.reference || event?.id || "Live trace"}
           </h2>
           <p className="mt-1 text-xs font-semibold leading-5 text-content-3">
@@ -1775,7 +1775,7 @@ function InvestigationPanel({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-xs font-black text-content-1">
+                      <div className="truncate text-xs font-semibold text-content-1">
                         {label}
                       </div>
                       <div className="mt-1 text-[11px] font-semibold text-content-3">
@@ -1911,7 +1911,7 @@ function EmptyConsole({ label }: { label: string }) {
     <div className="grid min-h-[360px] place-items-center p-8 text-center">
       <div>
         <FileSearch className="mx-auto h-8 w-8 text-content-4" />
-        <div className="mt-3 text-sm font-black text-content-2">{label}</div>
+        <div className="mt-3 text-sm font-semibold text-content-2">{label}</div>
         <div className="mt-1 text-xs font-medium text-content-3">
           Change filters, enable all streams, or search a reference.
         </div>

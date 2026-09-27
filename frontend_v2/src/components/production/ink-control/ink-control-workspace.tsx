@@ -632,9 +632,9 @@ export function InkControlWorkspace() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-surface-3 via-surface-2 to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen px-4 py-4 sm:px-6">
       <div className="mx-auto flex max-w-[1540px] flex-col gap-4">
-        <section className="overflow-hidden rounded-lg border border-info-border bg-gradient-to-br from-primary via-info-fg to-success-fg px-4 py-4 text-white shadow-xl">
+        <section className="erp-hero overflow-hidden rounded-[20px] px-5 py-5 text-white">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-white/70">

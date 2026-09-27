@@ -872,7 +872,7 @@ export function RollsWorkspaceV36() {
             )}
 
             <div className="rounded-xl border border-info-border bg-info-bg p-3">
-              <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-primary">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
                 Size filters
               </div>
               <div className="space-y-3">
@@ -1008,7 +1008,7 @@ export function RollsWorkspaceV36() {
             />
 
             <div>
-              <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
                 Location
               </div>
               <select
@@ -1043,7 +1043,7 @@ export function RollsWorkspaceV36() {
             />
 
             <div className="rounded-xl border border-info-border bg-info-bg p-3">
-              <div className="text-[10px] font-black uppercase tracking-wider text-primary">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
                 Quick actions
               </div>
               <div className="mt-2 grid grid-cols-2 gap-1.5">
@@ -1235,7 +1235,7 @@ function MatrixView({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
                 Total
               </td>
               {matrix.cols.map((c: number) => (
@@ -1297,7 +1297,7 @@ function TableView({
   }) => (
     <th
       className={cn(
-        "px-3 py-2 text-[10px] font-black uppercase tracking-wider text-content-3",
+        "px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-content-3",
         align || "text-left",
       )}
     >
@@ -1335,7 +1335,7 @@ function TableView({
               <Th k="roll_role" label="Role" />
               <Th k="location_code" label="Location" />
               <Th k="created_at" label="Created" />
-              <th className="px-3 py-2 text-right text-[10px] font-black uppercase tracking-wider text-content-3">
+              <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
                 Action
               </th>
             </tr>
@@ -1361,7 +1361,7 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
                       stockFormTone(r.stock_form),
                     )}
                   >
@@ -1380,7 +1380,7 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
                       statusTone(r.status || ""),
                     )}
                   >
@@ -1390,7 +1390,7 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
                       roleTone(r.roll_role || ""),
                     )}
                   >
@@ -1489,7 +1489,7 @@ function GridView({
               </div>
               <span
                 className={cn(
-                  "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+                  "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
                   statusTone(r.status || ""),
                 )}
               >
@@ -1499,7 +1499,7 @@ function GridView({
             <div className="mt-2">
               <span
                 className={cn(
-                  "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase ring-1",
+                  "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
                   stockFormTone(r.stock_form),
                 )}
               >
@@ -1508,30 +1508,30 @@ function GridView({
             </div>
             <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-surface-2 p-2">
               <div className="text-center">
-                <div className="text-[8px] font-black uppercase text-content-3">
+                <div className="text-[8px] font-semibold uppercase text-content-3">
                   Width
                 </div>
                 <div className="font-mono text-[11px] font-bold text-content-1">
                   {fmtNum(Number(r.width_mm || 0))}
-                  <span className="text-[9px] text-content-3">mm</span>
+                  <span className="text-[10px] text-content-3">mm</span>
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-[8px] font-black uppercase text-content-3">
+                <div className="text-[8px] font-semibold uppercase text-content-3">
                   Thick
                 </div>
                 <div className="font-mono text-[11px] font-bold text-content-1">
                   {fmtNum(Number(r.thickness_micron || 0))}
-                  <span className="text-[9px] text-content-3">μ</span>
+                  <span className="text-[10px] text-content-3">μ</span>
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-[8px] font-black uppercase text-content-3">
+                <div className="text-[8px] font-semibold uppercase text-content-3">
                   Weight
                 </div>
                 <div className="font-mono text-[11px] font-bold text-content-1">
                   {fmtNum(Number(r.net_weight_kg || r.weight_kg || 0), 1)}
-                  <span className="text-[9px] text-content-3">kg</span>
+                  <span className="text-[10px] text-content-3">kg</span>
                 </div>
               </div>
             </div>
@@ -1597,7 +1597,7 @@ function CellDrawer({
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Roll cell drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1">
@@ -1617,7 +1617,7 @@ function CellDrawer({
           {cell && (
             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[9px] font-black uppercase text-content-3">
+                <div className="text-[10px] font-semibold uppercase text-content-3">
                   Rolls
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1625,7 +1625,7 @@ function CellDrawer({
                 </div>
               </div>
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[9px] font-black uppercase text-content-3">
+                <div className="text-[10px] font-semibold uppercase text-content-3">
                   Total KG
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1636,7 +1636,7 @@ function CellDrawer({
           )}
         </div>
         <div className="px-5 py-4">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
             Individual rolls
           </div>
           {!cell || cell.rollCount === 0 ? (
@@ -1692,7 +1692,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                 Roll detail
               </div>
               <div className="font-mono font-display text-lg font-bold text-primary truncate">
@@ -1768,7 +1768,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Where
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1791,7 +1791,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Lifecycle
             </div>
             <div className="rounded-xl border border-line bg-surface-2 p-3 space-y-1 text-[11px]">
@@ -1839,7 +1839,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold text-content-1">
@@ -1860,7 +1860,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

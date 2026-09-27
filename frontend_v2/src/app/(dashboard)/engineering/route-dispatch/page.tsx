@@ -78,7 +78,7 @@ const POLICY_HINTS: Record<SelectionPolicy, string> = {
 };
 
 const labelClassName =
-  "text-[10px] font-black uppercase tracking-[0.16em] text-content-4";
+  "text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4";
 
 function initialDraft(row: RouteDispatchRow): DispatchDraft {
   return {
@@ -433,7 +433,7 @@ export default function RouteDispatchPage() {
               </span>
               <div>
                 <p className={labelClassName}>Template route dispatch</p>
-                <h1 className="text-3xl font-black tracking-tight text-content-1">
+                <h1 className="text-3xl font-semibold tracking-tight text-content-1">
                   Work-center setup by template
                 </h1>
               </div>
@@ -603,7 +603,7 @@ function SummaryTile({
       )}
     >
       <p className={labelClassName}>{label}</p>
-      <p className="mt-2 text-2xl font-black text-content-1">{value}</p>
+      <p className="mt-2 text-2xl font-semibold text-content-1">{value}</p>
     </div>
   );
 }
@@ -654,7 +654,7 @@ function TemplateRouteCard({
                 <GitBranch className="h-5 w-5" />
               </span>
               <div>
-                <CardTitle className="text-xl font-black text-content-1">
+                <CardTitle className="text-xl font-semibold text-content-1">
                   {group.templateName}
                 </CardTitle>
                 <p className="mt-1 text-sm font-bold text-content-4">
@@ -665,7 +665,7 @@ function TemplateRouteCard({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge className={cn("rounded-xl px-3 py-2 text-xs font-black", routeStatus.className)}>
+            <Badge className={cn("rounded-xl px-3 py-2 text-xs font-semibold", routeStatus.className)}>
               {routeStatus.label}
             </Badge>
             {isLive ? (
@@ -708,7 +708,7 @@ function TemplateRouteCard({
               <span
                 key={row.step_id}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black",
+                  "inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold",
                   meta.className,
                 )}
               >
@@ -787,14 +787,14 @@ function RouteStepPanel({
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-surface-1 text-primary ring-1 ring-line">
               <Factory className="h-4 w-4" />
             </span>
-            <h3 className="text-lg font-black text-content-1">
+            <h3 className="text-lg font-semibold text-content-1">
               Step {row.sequence_number}: {row.process_code}
             </h3>
           </div>
           <p className="mt-1 text-sm font-bold text-content-3">{row.process_name}</p>
         </div>
 
-        <Badge className={cn("w-fit rounded-xl px-3 py-2 text-xs font-black", meta.className)}>
+        <Badge className={cn("w-fit rounded-xl px-3 py-2 text-xs font-semibold", meta.className)}>
           <StatusIcon className="mr-1.5 h-3.5 w-3.5" />
           {statusLabel(row.status)}
         </Badge>
@@ -845,7 +845,7 @@ function RouteStepPanel({
                       }
                     />
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-black">
+                      <span className="block truncate text-sm font-semibold">
                         {workCenterName(candidate)}
                       </span>
                       <span className="mt-1 flex flex-wrap items-center gap-2 text-xs font-bold text-content-4">
@@ -946,7 +946,7 @@ function RouteStepPanel({
               <div className="mt-3 space-y-3">
                 <label className="flex items-start justify-between gap-4 rounded-2xl bg-surface-1 p-3">
                   <span>
-                    <span className="block text-xs font-black text-content-1">Planner optional</span>
+                    <span className="block text-xs font-semibold text-content-1">Planner optional</span>
                     <span className="mt-1 block text-xs font-bold text-content-4">
                       Show skip choice when planner releases or replans.
                     </span>
@@ -959,7 +959,7 @@ function RouteStepPanel({
                 </label>
                 <label className="flex items-start justify-between gap-4 rounded-2xl bg-surface-1 p-3">
                   <span>
-                    <span className="block text-xs font-black text-content-1">WCM skip after output</span>
+                    <span className="block text-xs font-semibold text-content-1">WCM skip after output</span>
                     <span className="mt-1 block text-xs font-bold text-content-4">
                       Let WCM skip this step for one produced batch after prior output.
                     </span>

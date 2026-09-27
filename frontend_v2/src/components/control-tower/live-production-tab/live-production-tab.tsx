@@ -20,6 +20,7 @@ import { SavedViewBar } from "@/components/ds";
 import { useToast } from "@/hooks/use-toast";
 import { ChipRow, FilterChip, FilterSearch, PlannerFilterDock } from "../filter-dock";
 import { getOrderTraceQuantitySummary, OrderPassportStrip, ProductionTracePanel } from "../order-passport";
+import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -64,6 +65,7 @@ export default function LiveProductionTab() {
     const [stateFilter, setStateFilter] = useState<"all" | "running" | "released" | "waiting" | "replan" | "blocked">("all");
     const [pathFilter, setPathFilter] = useState<"all" | "production" | "handoff" | "replan">("all");
     const [page, setPage] = useState(1);
+    const [colorRevisionOrder, setColorRevisionOrder] = useState<PlannerControlOrder | null>(null);
     const deferredSearch = useDeferredValue(search.trim());
     const savedViewQuery = useMemo(() => {
         const params = new URLSearchParams();
@@ -344,7 +346,7 @@ export default function LiveProductionTab() {
                         placeholder="Search live order, customer, PM, route"
                     />
                     <div>
-                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>State</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>State</div>
                         <ChipRow>
                             {([
                                 ["all", "All states", "brand"],
@@ -368,7 +370,7 @@ export default function LiveProductionTab() {
                         </ChipRow>
                     </div>
                     <div>
-                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Route path</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Route path</div>
                         <ChipRow>
                             {([
                                 ["all", "All paths", "brand"],
@@ -413,6 +415,7 @@ export default function LiveProductionTab() {
                                     key={`${order.order_kind}:${order.order_id}:${order.sales_order_item_id || "order"}`}
                                     order={order}
                                     jobs={jobsByOrder.get(order.order_number) || []}
+                                    onOpenColorRevision={() => setColorRevisionOrder(order)}
                                 />
                             ))}
                             <PaginationBar
@@ -432,7 +435,7 @@ export default function LiveProductionTab() {
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", marginBottom: 10 }}>
                             <div>
                                 <div className="t-eyebrow">Release blockers</div>
-                                <div style={{ fontSize: 16, fontWeight: 900, color: "var(--text-1)", marginTop: 2 }}>Subtle exceptions to clear</div>
+                                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-1)", marginTop: 2 }}>Subtle exceptions to clear</div>
                             </div>
                             <AlertTriangle size={16} color="var(--text-3)" />
                         </div>
@@ -443,7 +446,7 @@ export default function LiveProductionTab() {
                                 {exceptions.map((order) => (
                                     <div key={`${order.order_kind}:${order.order_id}:${order.sales_order_item_id || "order"}`} style={{ padding: "10px 12px", border: "1px solid rgba(245,158,11,.18)", borderRadius: "var(--r-3)", background: "rgba(245,158,11,.06)" }}>
                                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-1)" }}>{order.order_number}</span>
+                                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)" }}>{order.order_number}</span>
                                             <Chip kind={orderState(order) === "REPLAN_REQUIRED" ? "paused" : "blocked"}>{orderState(order)}</Chip>
                                         </div>
                                         <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -459,7 +462,7 @@ export default function LiveProductionTab() {
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", marginBottom: 10 }}>
                             <div>
                                 <div className="t-eyebrow">Output rhythm</div>
-                                <div style={{ fontSize: 16, fontWeight: 900, color: "var(--text-1)", marginTop: 2 }}>30-day posted KG</div>
+                                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-1)", marginTop: 2 }}>30-day posted KG</div>
                             </div>
                             <Activity size={16} color="var(--text-3)" />
                         </div>
@@ -487,6 +490,11 @@ export default function LiveProductionTab() {
                     </Card>
                 </div>
             </div>
+            <PrintColorRevisionDialog
+                order={colorRevisionOrder}
+                onClose={() => setColorRevisionOrder(null)}
+                onCommitted={refreshAll}
+            />
         </div>
     );
 }
@@ -511,12 +519,12 @@ function PaginationBar({
     return (
         <Card style={{ padding: "10px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 800, color: "var(--text-3)" }}>
+                <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 650, color: "var(--text-3)" }}>
                     {start}-{end} of {fmt(total)} live order lines
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Button variant="secondary" size="sm" disabled={page <= 1} onClick={onPrev}>Prev</Button>
-                    <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-2)" }}>
+                    <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-2)" }}>
                         Page {page} / {pageCount}
                     </span>
                     <Button variant="secondary" size="sm" disabled={page >= pageCount} onClick={onNext}>Next</Button>
@@ -526,7 +534,11 @@ function PaginationBar({
     );
 }
 
-function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[] }) {
+function LiveOrderCard({ order, jobs, onOpenColorRevision }: {
+    order: PlannerControlOrder;
+    jobs: any[];
+    onOpenColorRevision: () => void;
+}) {
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const [resolutionMode, setResolutionMode] = useState<"cancel" | "short-close" | null>(null);
@@ -540,6 +552,15 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
     const lineClosed = isClosedLine(order);
     const canCancel = isSalesLine && !lineClosed;
     const canShortClose = isSalesLine && !lineClosed && (order.partial_replan_required || Number(order.partial_shortfall_kg || 0) > 0 || Number(order.qty_open || 0) > 0);
+    const printSnapshot = order.printing_snapshot || {};
+    const frontColors = Array.isArray(printSnapshot.front_colors) ? printSnapshot.front_colors : [];
+    const backColors = Array.isArray(printSnapshot.back_colors) ? printSnapshot.back_colors : [];
+    const colorNames = [...frontColors, ...backColors]
+        .map((row: any) => String(row?.name || row?.color_name || row || "").trim().toUpperCase())
+        .filter(Boolean);
+    const canRevisePrintColors = !lineClosed && colorNames.length > 0 && jobs.some((job) =>
+        ["RELEASED", "EXECUTING", "RUNNING", "PAUSED"].includes(String(job?.state || job?.status || "").toUpperCase()),
+    );
 
     const cancelMutation = useMutation({
         mutationFn: () => plannerService.cancelPlannedLine(order.order_kind as PlannerOrderKind, order.order_id, {
@@ -582,10 +603,10 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 14, alignItems: "start" }}>
                 <OrderPassportStrip order={order} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-                    <span style={{ padding: "4px 10px", borderRadius: "var(--r-pill)", border: `1px solid ${tone.border}`, background: tone.bg, color: tone.fg, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".05em", animation: tone.pulse ? "ds-pulse 1.8s var(--eo) infinite" : "none" }}>
+                    <span style={{ padding: "4px 10px", borderRadius: "var(--r-pill)", border: `1px solid ${tone.border}`, background: tone.bg, color: tone.fg, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", animation: tone.pulse ? "ds-pulse 1.8s var(--eo) infinite" : "none" }}>
                         {tone.label}
                     </span>
-                    <div style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 900, color: "var(--text-1)", whiteSpace: "nowrap" }}>
+                    <div style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--text-1)", whiteSpace: "nowrap" }}>
                         {fmt(qty.producedKg, 1)} / {fmt(qty.targetKg, 1)} KG
                     </div>
                 </div>
@@ -598,10 +619,29 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
             {blockers.length > 0 && (
                 <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {blockers.slice(0, 4).map((blocker: any, index: number) => (
-                        <span key={index} style={{ padding: "4px 8px", borderRadius: "var(--r-pill)", background: "rgba(244,63,94,.08)", color: "var(--danger)", fontSize: 10, fontWeight: 800 }}>
+                        <span key={index} style={{ padding: "4px 8px", borderRadius: "var(--r-pill)", background: "rgba(244,63,94,.08)", color: "var(--danger)", fontSize: 10, fontWeight: 650 }}>
                             {blocker.message || blocker.code || "Blocker"}
                         </span>
                     ))}
+                </div>
+            )}
+
+            {colorNames.length > 0 && (
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "12px 14px", border: "1px solid rgba(37,99,235,.22)", borderRadius: "var(--r-3)", background: "rgba(37,99,235,.06)" }}>
+                    <div style={{ minWidth: 0 }}>
+                        <div className="t-eyebrow" style={{ color: "var(--br-700)" }}>Current governed print colors</div>
+                        <div style={{ marginTop: 5, fontSize: 17, lineHeight: 1.35, fontWeight: 700, color: "var(--text-1)", overflowWrap: "anywhere" }}>
+                            {colorNames.join(" · ")}
+                        </div>
+                        {printSnapshot.color_revision?.revision_no ? (
+                            <div style={{ marginTop: 4, fontSize: 11, fontWeight: 650, color: "var(--text-3)" }}>
+                                Revised v{printSnapshot.color_revision.revision_no} · {printSnapshot.color_revision.reason}
+                            </div>
+                        ) : null}
+                    </div>
+                    <Button variant="primary" size="sm" disabled={!canRevisePrintColors} onClick={onOpenColorRevision}>
+                        Revise colors
+                    </Button>
                 </div>
             )}
 
@@ -629,7 +669,7 @@ function LiveOrderCard({ order, jobs }: { order: PlannerControlOrder; jobs: any[
                 <div role="dialog" aria-modal="true" onClick={() => setResolutionMode(null)} style={{ position: "fixed", inset: 0, zIndex: "var(--z-modal)" as any, background: "rgba(15,23,42,.42)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
                     <div onClick={(event) => event.stopPropagation()} style={{ width: "min(520px, 100%)", borderRadius: "var(--r-5)", border: "1px solid var(--border-soft)", background: "var(--surface-1)", boxShadow: "var(--sh-lg)", padding: 20 }}>
                         <div className="t-eyebrow">{resolutionMode === "cancel" ? "Cancel live sales line" : "Short-close live sales line"}</div>
-                        <div style={{ marginTop: 6, fontSize: 18, fontWeight: 900, color: "var(--text-1)" }}>{order.line_label || order.order_number}</div>
+                        <div style={{ marginTop: 6, fontSize: 18, fontWeight: 700, color: "var(--text-1)" }}>{order.line_label || order.order_number}</div>
                         <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-3)" }}>
                             {resolutionMode === "cancel"
                                 ? "The API will reject cancellation if production activity means the line must be short-closed instead."
@@ -684,7 +724,7 @@ function ActionRuleNote({ order, canCancel, canShortClose }: { order: PlannerCon
 function RulePill({ label, value, enabled }: { label: string; value: string; enabled: boolean }) {
     return (
         <div style={{ padding: "8px 10px", borderRadius: "var(--r-3)", border: `1px solid ${enabled ? "rgba(37,99,235,.22)" : "var(--border-soft)"}`, background: enabled ? "rgba(37,99,235,.06)" : "var(--surface-2)" }}>
-            <div style={{ fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em", color: enabled ? "var(--br-700)" : "var(--text-4)" }}>{label}</div>
+            <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: enabled ? "var(--br-700)" : "var(--text-4)" }}>{label}</div>
             <div style={{ marginTop: 3, fontSize: 10, lineHeight: 1.35, color: "var(--text-3)" }}>{value}</div>
         </div>
     );

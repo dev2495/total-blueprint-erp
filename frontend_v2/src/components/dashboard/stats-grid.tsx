@@ -59,12 +59,12 @@ export function StatsGrid({ metrics }: { metrics: Metric[] }) {
             <div className="relative flex h-full flex-col gap-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                     {metric.label}
                   </div>
                   <div
                     className={cn(
-                      "break-words text-[1.9rem] font-black leading-none tracking-tight",
+                      "break-words text-[1.9rem] font-semibold leading-none tracking-tight",
                       tone.value,
                     )}
                   >
@@ -87,7 +87,7 @@ export function StatsGrid({ metrics }: { metrics: Metric[] }) {
                 </div>
                 <div
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]",
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]",
                     trendPositive && "bg-success-bg text-success-fg",
                     trendNegative && "bg-danger-bg text-danger-fg",
                     !trendPositive &&

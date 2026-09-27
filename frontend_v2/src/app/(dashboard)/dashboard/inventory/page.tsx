@@ -1,511 +1,259 @@
 "use client";
 
+import Link from "next/link";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Package,
   AlertTriangle,
-  ArrowRight,
-  ClipboardList,
-  Activity,
-  CircleDot,
+  ArrowUpRight,
   Boxes,
-  Layers,
-  CheckCircle2,
+  Clock3,
+  Factory,
+  MapPin,
+  PackagePlus,
+  Stethoscope,
+  Warehouse,
 } from "lucide-react";
-import Link from "next/link";
-import { StatsGrid } from "@/components/dashboard/stats-grid";
+
+import { cn } from "@/lib/utils";
 import { observabilityApi } from "@/services/observability";
+import { analyticsApi } from "@/services/analytics";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-} from "recharts";
-import { useInView } from "react-intersection-observer";
+  CompositionBar,
+  HeroChip,
+  HeroStat,
+  HeroStats,
+  PageHero,
+  Panel,
+  PanelEmpty,
+  RankedBars,
+  StatCard,
+  StatGrid,
+  heroButtonClass,
+  vizColor,
+} from "@/components/premium";
+import { Donut } from "@/components/premium/charts";
+import { count, inrCompact, kgCompact, pct, relativeTime, sentence } from "@/components/premium/format";
 
-const COLORS = ["#60a5fa", "#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
-
-function ScrollTriggeredChart({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const { ref, inView } = useInView({ threshold: 0.1 });
-  return (
-    <div ref={ref} className={className}>
-      {inView ? children : null}
-    </div>
-  );
-}
+const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 export default function InventoryDashboard() {
-  // Fetch live inventory health
-  const {
-    data: health,
-    isLoading: isHealthLoading,
-    isError: isHealthError,
-  } = useQuery({
+  const health = useQuery({
     queryKey: ["inventory-health-stats"],
-    queryFn: async () => {
-      return await observabilityApi.getHealth();
-    },
-    refetchInterval: 30000, // Every 30s
+    queryFn: () => observabilityApi.getHealth(),
+    refetchInterval: 30000,
   });
-
-  // Fetch live alerts
-  const {
-    data: alerts,
-    isLoading: isAlertsLoading,
-    isError: isAlertsError,
-  } = useQuery({
+  const alerts = useQuery({
     queryKey: ["inventory-critical-alerts"],
     queryFn: async () => {
-      // Only fetch unresolved
-      const allAlerts = await observabilityApi.getAlerts({ resolved: false });
-      // Pre-sort critical -> high -> medium -> low
-      const priority: Record<string, number> = {
-        CRITICAL: 0,
-        HIGH: 1,
-        MEDIUM: 2,
-        LOW: 3,
-      };
-      return allAlerts.sort(
-        (a, b) => priority[a.severity] - priority[b.severity],
-      );
+      const rows = await observabilityApi.getAlerts({ resolved: false });
+      const priority: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+      return [...rows].sort((a: any, b: any) => (priority[a.severity] ?? 9) - (priority[b.severity] ?? 9));
     },
     refetchInterval: 30000,
   });
+  const range = useMemo(() => ({ date_from: iso(new Date(Date.now() - 89 * 86400000)), date_to: iso(new Date()) }), []);
+  const report = useQuery({
+    queryKey: ["inventory-dashboard-report", range],
+    queryFn: () => analyticsApi.getReportTab("inventory", range),
+    staleTime: 120_000,
+  });
 
-  const healthUnavailable = !isHealthLoading && (isHealthError || !health);
-  const alertsUnavailable =
-    !isAlertsLoading && (isAlertsError || !Array.isArray(alerts));
-  const safeAlerts = Array.isArray(alerts) ? alerts : [];
-  const alertCounts = health?.alerts ?? null;
-
-  const metrics = [
-    {
-      label: "Bulk Stock",
-      value: health ? `${Math.round(health.bulk.total_kg / 1000)} t` : "—",
-      unit: health
-        ? `${health.bulk.sku_count} SKUs`
-        : "Health payload unavailable",
-      icon: Package,
-      color: "text-content-2",
-      bg: "bg-surface-2",
-    },
-    {
-      label: "WIP Rolls",
-      value: health
-        ? `${Math.round((health.rolls.available_kg + health.rolls.reserved_kg) / 1000)} t`
-        : "—",
-      unit: health
-        ? `${health.rolls.available_count + health.rolls.reserved_count} Rolls`
-        : "Health payload unavailable",
-      icon: CircleDot,
-      color: "text-primary",
-      bg: "bg-info-bg",
-    },
-    {
-      label: "Finished Goods",
-      value: health ? `${Math.round(health.rolls.fg_kg / 1000)} t` : "—",
-      unit: health
-        ? `${health.rolls.fg_count} Rolls`
-        : "Health payload unavailable",
-      icon: Boxes,
-      color: "text-success-fg",
-      bg: "bg-success-bg",
-    },
-    {
-      label: "System Alerts",
-      value: alertCounts ? String(alertCounts.total_open) : "—",
-      unit: alertCounts
-        ? `${alertCounts.critical} Critical`
-        : "Health payload unavailable",
-      icon: AlertTriangle,
-      color:
-        alertCounts && alertCounts.total_open > 0
-          ? "text-danger-fg"
-          : "text-content-4",
-      bg:
-        alertCounts && alertCounts.total_open > 0
-          ? "bg-danger-bg"
-          : "bg-surface-2",
-      alert: Boolean(alertCounts && alertCounts.critical > 0),
-    },
-  ];
-
-  // Graph Data formatting
-  const stockDistData = health
-    ? [
-        { name: "Bulk Raw", value: health.bulk.total_kg },
-        {
-          name: "WIP Rolls",
-          value: health.rolls.available_kg + health.rolls.reserved_kg,
-        },
-        { name: "Finished Goods", value: health.rolls.fg_kg },
-      ].filter((d) => d.value > 0)
-    : [];
-
-  const alertSeverityData = alertCounts
-    ? [
-        { name: "Critical", count: alertCounts.critical },
-        { name: "High", count: alertCounts.high },
-        {
-          name: "Medium",
-          count: Math.max(
-            0,
-            alertCounts.total_open - alertCounts.critical - alertCounts.high,
-          ),
-        },
-      ]
-    : [];
+  const h: any = health.data || {};
+  const r: any = report.data || {};
+  const s = r.summary || {};
+  const alertRows: any[] = Array.isArray(alerts.data) ? alerts.data : [];
+  const loading = !health.data && health.isFetching;
+  const rollKg = Number(h.rolls?.available_kg || 0) + Number(h.rolls?.reserved_kg || 0);
+  const reservedShare = rollKg > 0 ? (Number(h.rolls?.reserved_kg || 0) / rollKg) * 100 : 0;
+  const alertTypes = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of alertRows) map.set(a.type_display || sentence(a.type), (map.get(a.type_display || sentence(a.type)) || 0) + 1);
+    return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+  }, [alertRows]);
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* SaaS Subtle Hero Hub */}
-      <div className="relative overflow-hidden rounded-3xl bg-surface-3 border border-line-strong p-8 text-white shadow-2xl ">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-primary blur-3xl" />
-
-        <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="flex h-2 w-2 rounded-full bg-success-fg animate-pulse" />
-              <span className="text-xs font-bold uppercase tracking-widest text-content-4">
-                Stock Nexus
-              </span>
-            </div>
-            <h1 className="text-4xl font-black tracking-tight mb-2 text-white">
-              Inventory Control Hub
-            </h1>
-            <p className="text-content-4 max-w-md font-medium">
-              Monitor live network-wide stock volumes, manage raw material
-              allocations, and rapidly triage supply chain choke points.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3">
-            <Link href="/inventory/grn">
-              <Button
-                size="lg"
-                className="w-full bg-success-fg text-white hover:bg-success-fg font-bold px-8 rounded-xl shadow-xl transition-all hover:scale-105 active:scale-95"
-              >
-                <ClipboardList className="mr-2 h-5 w-5" strokeWidth={2} />{" "}
-                Create GRN
-              </Button>
+    <div className="mx-auto max-w-[1600px] space-y-4" data-testid="inventory-dashboard">
+      <PageHero
+        eyebrow="Stock nexus"
+        icon={<Warehouse />}
+        title="Inventory Control Hub"
+        description="What is on hand, where it sits, how old it is and what needs attention — across every plant."
+        meta={
+          <>
+            <HeroChip tone={health.isError ? "bad" : "good"}>{health.isError ? "Health unavailable" : "Live · every 30s"}</HeroChip>
+            {r.generated_at ? <HeroChip>Aging as of {relativeTime(r.generated_at)}</HeroChip> : null}
+          </>
+        }
+        actions={
+          <>
+            <Link href="/analytics/inventory-health" className={heroButtonClass("ghost")}>
+              <Stethoscope /> Health diagnostics
             </Link>
-            <Link href="/analytics/inventory-health">
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full bg-surface-1/10 text-white border-surface-1/20 hover:bg-surface-1/20 font-bold px-8 rounded-xl shadow-xl transition-all active:scale-95"
-              >
-                <Activity className="mr-2 h-5 w-5" /> Health Diagnostics
-              </Button>
+            <Link href="/inventory/grn" className={heroButtonClass("primary")}>
+              <PackagePlus /> Create GRN
             </Link>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      >
+        <HeroStats columns={4}>
+          <HeroStat label="Bulk stock" value={health.data ? kgCompact(h.bulk?.total_kg) : "—"} hint={health.data ? `${count(h.bulk?.sku_count)} SKUs · granules & chemicals` : "—"} />
+          <HeroStat label="Rolls on hand" value={health.data ? kgCompact(rollKg) : "—"} hint={health.data ? `${count(Number(h.rolls?.available_count || 0) + Number(h.rolls?.reserved_count || 0))} rolls` : "—"} />
+          <HeroStat label="Finished goods" tone="good" value={health.data ? kgCompact(h.rolls?.fg_kg) : "—"} hint={health.data ? `${count(h.rolls?.fg_count)} FG rolls` : "—"} />
+          <HeroStat
+            label="Open alerts"
+            tone={Number(h.alerts?.critical) ? "bad" : Number(h.alerts?.total_open) ? "warn" : "good"}
+            value={health.data ? count(h.alerts?.total_open) : "—"}
+            hint={health.data ? `${count(h.alerts?.critical)} critical · ${count(h.alerts?.high)} high` : "—"}
+          />
+        </HeroStats>
+      </PageHero>
 
-      {/* 4-Card Interaction Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {metrics.map((metric, i) => (
-          <Card
-            key={i}
-            className={`group relative overflow-hidden border-none shadow-md ring-1 ring-line bg-surface-1 transition-all duration-300`}
-          >
-            <div
-              className={`absolute top-0 right-0 p-4 opacity-5 ${metric.color}`}
-            >
-              <metric.icon className="h-24 w-24" />
-            </div>
-            <CardHeader className="pb-2">
-              <CardDescription
-                className={`font-bold uppercase tracking-wider text-xs ${metric.color}`}
-              >
-                {metric.label}
-              </CardDescription>
-              <CardTitle className="text-3xl font-black text-content-1">
-                {isHealthLoading ? "..." : metric.value}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2 text-sm mt-1">
-                <Badge
-                  variant="outline"
-                  className={`${metric.bg} ${metric.color} ${(metric as any).alert ? "animate-pulse" : ""} border-transparent shadow-sm font-bold`}
-                >
-                  {isHealthLoading ? "Loading..." : metric.unit}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatGrid columns={4} className="erp-stagger">
+        <StatCard label="Available rolls" icon={<Boxes />} value={Number(h.rolls?.available_kg || 0)} format={kgCompact} hint={`${count(h.rolls?.available_count)} rolls free to plan`} loading={loading} href="/inventory/rolls" />
+        <StatCard label="Reserved rolls" icon={<Clock3 />} value={Number(h.rolls?.reserved_kg || 0)} format={kgCompact} hint={`${pct(reservedShare)} of roll stock held for orders`} loading={loading} href="/inventory/rolls" />
+        <StatCard
+          label="Aged stock (90d+)"
+          icon={<AlertTriangle />}
+          tone={Number(s.aged_stock_weight_kg) > 0 ? "warn" : "good"}
+          value={s.aged_stock_weight_kg !== undefined ? Number(s.aged_stock_weight_kg) : null}
+          format={kgCompact}
+          hint={s.aged_stock_items !== undefined ? `${count(s.aged_stock_items)} items to review` : "from stock aging"}
+          loading={!report.data && report.isFetching}
+          href="/analytics/reports/inventory"
+        />
+        <StatCard
+          label="Rated stock value"
+          icon={<Factory />}
+          value={s.estimated_value !== null && s.estimated_value !== undefined ? Number(s.estimated_value) : null}
+          format={inrCompact}
+          hint={s.valuation_rate_coverage_pct !== undefined ? `${pct(s.valuation_rate_coverage_pct)} of materials have a rate` : "valuation"}
+          loading={!report.data && report.isFetching}
+          href="/analytics/reports/inventory"
+        />
+      </StatGrid>
 
-      {/* Recharts Analytics Matrices */}
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Volume Distribution Pie */}
-        <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-black text-content-1">
-              Network Weight Topology
-            </CardTitle>
-            <CardDescription className="font-medium text-content-3">
-              Live tonnage mapping by inventory stage.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[280px]">
-            {stockDistData.length > 0 ? (
-              <ScrollTriggeredChart className="w-full h-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={stockDistData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={95}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {stockDistData.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={COLORS[index % COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip
-                      formatter={(value: any) => [
-                        `${Math.round(value / 1000)} Tonnes`,
-                        "Volume",
-                      ]}
-                      contentStyle={{
-                        borderRadius: "8px",
-                        border: "none",
-                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ScrollTriggeredChart>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-content-4">
-                <Layers className="h-8 w-8 mb-2 opacity-50" />
-                <span className="text-xs font-bold uppercase tracking-widest">
-                  {healthUnavailable ? "Health payload unavailable" : "No stock volume"}
-                </span>
-                <span className="mt-1 max-w-[220px] text-center text-[11px] font-semibold text-content-4">
-                  {healthUnavailable
-                    ? "Inventory mix is paused until the live health feed responds."
-                    : "Stock mix will appear once inventory exists in the selected stages."}
-                </span>
-              </div>
-            )}
-            {/* Legend */}
-            <div className="flex items-center justify-center gap-4 pb-2">
-              {stockDistData.map((d, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-content-3 uppercase tracking-widest"
-                >
-                  <div
-                    className="h-2.5 w-2.5 rounded-sm"
-                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                  />
-                  {d.name}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Live Critical Action Center */}
-        <Card className="lg:col-span-2 border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden">
-          <CardHeader className="border-b border-line bg-surface-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl font-black text-content-1 flex items-center gap-2">
-                  <AlertTriangle
-                    className="h-5 w-5 text-danger-fg"
-                    strokeWidth={2.5}
-                  />
-                  Critical Action Center
-                </CardTitle>
-                <CardDescription className="font-medium text-content-3">
-                  Urgent bottlenecks and structural warnings actively requiring
-                  human triage.
-                </CardDescription>
-              </div>
-              <Badge className="bg-danger-bg text-danger-fg border-0 font-bold px-3 py-1">
-                {isAlertsLoading
-                  ? "Loading"
-                  : alertsUnavailable
-                    ? "Paused"
-                    : `${safeAlerts.length} Unresolved`}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 max-h-[300px] overflow-y-auto scrollbar-elegant">
-            <div className="divide-y divide-line">
-              {alertsUnavailable && (
-                <div className="py-16 px-6 text-center">
-                  <div className="mx-auto w-12 h-12 bg-warning-bg rounded-full flex items-center justify-center mb-3">
-                    <AlertTriangle className="h-6 w-6 text-warning-fg" />
-                  </div>
-                  <p className="text-sm font-bold text-warning-fg uppercase tracking-widest">
-                    Alert feed unavailable
-                  </p>
-                  <p className="mt-2 text-xs font-semibold text-content-3">
-                    The page is pausing the all-clear state until live alerts
-                    load again.
-                  </p>
-                </div>
-              )}
-              {safeAlerts.slice(0, 8).map((alert: any) => {
-                const isAccel =
-                  alert.severity === "CRITICAL" || alert.severity === "HIGH";
-                return (
-                  <div
-                    key={alert.id}
-                    className="group flex items-center justify-between p-4 hover:bg-surface-2 transition-colors"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={`text-[9px] font-black uppercase tracking-widest ${isAccel ? "border-danger-border text-danger-fg bg-danger-bg" : "border-warning-border text-warning-fg bg-warning-bg"}`}
-                        >
-                          {alert.severity}
-                        </Badge>
-                        <span className="text-sm font-black text-content-1">
-                          {alert.type_display}
-                        </span>
-                      </div>
-                      <p className="text-xs font-medium text-content-3 max-w-xl truncate">
-                        {alert.message}
-                      </p>
-                    </div>
-                    <Link href="/analytics/inventory-health">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="hidden group-hover:flex h-8 bg-surface-1 border border-line shadow-sm font-bold text-xs text-content-3 transition-all hover:bg-surface-2"
-                      >
-                        Resolve <ArrowRight className="ml-1.5 h-3 w-3" />
-                      </Button>
-                    </Link>
-                  </div>
-                );
-              })}
-              {safeAlerts.length === 0 &&
-                !isAlertsLoading &&
-                !alertsUnavailable && (
-                <div className="py-20 text-center">
-                  <div className="mx-auto w-12 h-12 bg-success-bg rounded-full flex items-center justify-center mb-3">
-                    <CheckCircle2 className="h-6 w-6 text-success-fg" />
-                  </div>
-                  <p className="text-sm font-bold text-success-fg uppercase tracking-widest">
-                    No active inventory alerts
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg font-black text-content-1">
-            Warehouse Alert Distribution Matrix
-          </CardTitle>
-          <CardDescription className="font-medium text-content-3">
-            Volumetric aggregation of inventory fragmentation warnings.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {healthUnavailable ? (
-            <div className="h-[200px] mt-4 flex flex-col items-center justify-center rounded-2xl border border-warning-border bg-warning-bg text-center text-warning-fg">
-              <AlertTriangle className="h-6 w-6 mb-2" />
-              <div className="text-xs font-black uppercase tracking-widest">
-                Health payload unavailable
-              </div>
-              <div className="mt-1 text-xs font-semibold">
-                Alert distribution is paused until the live health endpoint
-                responds.
-              </div>
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        <Panel icon={<Clock3 />} title="Stock aging" description="Roll weight by age band">
+          {(r.aging || []).length ? (
+            <CompositionBar parts={(r.aging || []).map((a: any) => ({ label: a.range, value: Number(a.weight_kg || 0) }))} valueFormat={kgCompact} />
+          ) : (
+            <PanelEmpty title={report.isFetching ? "Loading aging…" : "No aging data"} />
+          )}
+        </Panel>
+        <Panel icon={<Boxes />} title="By stage" description="Where roll stock sits in the process">
+          {(r.by_stage || []).length ? (
+            <div className="grid items-center gap-4 sm:grid-cols-[150px_minmax(0,1fr)]">
+              <Donut
+                data={(r.by_stage || []).map((x: any) => ({ name: x.stage, value: Number(x.weight_kg || 0) }))}
+                height={150}
+                centerValue={kgCompact((r.by_stage || []).reduce((sum: number, x: any) => sum + Number(x.weight_kg || 0), 0))}
+                valueFormat={kgCompact}
+              />
+              <ul className="space-y-2 text-[12.5px]">
+                {(r.by_stage || []).map((x: any, i: number) => (
+                  <li key={x.stage} className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-2 text-content-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: vizColor(i) }} />
+                      <span className="truncate">{sentence(x.stage)}</span>
+                    </span>
+                    <span className="tabular-nums">{kgCompact(x.weight_kg)}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : (
-            <ScrollTriggeredChart className="h-[200px] w-full mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={alertSeverityData}
-                  margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke="#E2E8F0"
-                  />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12, fill: "#64748B", fontWeight: 600 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12, fill: "#64748B" }}
-                  />
-                  <RechartsTooltip
-                    cursor={{ fill: "#F1F5F9" }}
-                    contentStyle={{
-                      borderRadius: "8px",
-                      border: "none",
-                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                    }}
-                  />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={50}>
-                    {alertSeverityData.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={
-                          entry.name === "Critical"
-                            ? "#ef4444"
-                            : entry.name === "High"
-                              ? "#f97316"
-                              : "#eab308"
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </ScrollTriggeredChart>
+            <PanelEmpty title="No stage data" />
           )}
-        </CardContent>
-      </Card>
+        </Panel>
+        <Panel icon={<AlertTriangle />} title="Alert mix" description={`${count(alertRows.length)} unresolved alerts by type`}>
+          {alertTypes.length ? (
+            <RankedBars items={alertTypes.map((t) => ({ key: t.name, label: t.name, value: t.value }))} valueFormat={count} colorByIndex />
+          ) : (
+            <PanelEmpty title="No open alerts" />
+          )}
+        </Panel>
+        <Panel icon={<Boxes />} title="Largest stock families" description="Weight on hand · oldest item age">
+          {(r.by_family || []).length ? (
+            <RankedBars
+              items={(r.by_family || []).map((f: any) => ({
+                key: `${f.family}-${f.form_label}`,
+                label: f.family,
+                value: Number(f.weight_kg || 0),
+                sub: `${count(f.count)} items · oldest ${count(f.oldest_age_days)} d${Number(f.reserved_kg) ? ` · ${kgCompact(f.reserved_kg)} reserved` : ""}`,
+              }))}
+              valueFormat={kgCompact}
+              limit={6}
+            />
+          ) : (
+            <PanelEmpty title="No stock families" />
+          )}
+        </Panel>
+        <Panel icon={<MapPin />} title="By location" description="Top storage locations">
+          {(r.by_location || []).length ? (
+            <RankedBars items={(r.by_location || []).map((l: any) => ({ key: l.location, label: l.location, value: Number(l.weight_kg || 0), sub: `${count(l.count)} items` }))} valueFormat={kgCompact} limit={6} />
+          ) : (
+            <PanelEmpty title="No location data" />
+          )}
+        </Panel>
+        <Panel icon={<Factory />} title="By plant" description="Roll stock per plant">
+          {(r.by_plant || []).length ? (
+            <RankedBars items={(r.by_plant || []).map((p: any) => ({ key: p.plant, label: p.plant, value: Number(p.weight_kg || 0) }))} valueFormat={kgCompact} limit={6} colorByIndex />
+          ) : (
+            <PanelEmpty title="No plant data" />
+          )}
+        </Panel>
+      </div>
+
+      <Panel
+        icon={<AlertTriangle />}
+        title="Critical action centre"
+        description="Unresolved stock alerts, most severe first"
+        actions={
+          <Link href="/inventory/alerts" className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary hover:underline">
+            All alerts <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
+        }
+      >
+        {alerts.isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="erp-skeleton h-14 rounded-xl" />
+            ))}
+          </div>
+        ) : alertRows.length ? (
+          <ul className="grid gap-2 lg:grid-cols-2">
+            {alertRows.slice(0, 10).map((a: any) => {
+              const sev = String(a.severity || "").toUpperCase();
+              return (
+                <li key={a.id} className="flex items-start gap-3 rounded-xl border border-line bg-surface-1 px-3 py-2.5">
+                  <span
+                    className={cn(
+                      "mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold",
+                      sev === "CRITICAL" ? "bg-danger-bg text-danger-fg" : sev === "HIGH" ? "bg-warning-bg text-warning-fg" : "bg-surface-2 text-content-3",
+                    )}
+                  >
+                    {a.severity_display || sentence(sev)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12.5px] font-medium text-content-1">
+                      {a.type_display || sentence(a.type)}
+                      {a.material_code ? <span className="ml-1.5 font-mono text-[11.5px] text-content-3">{a.material_code}</span> : null}
+                    </div>
+                    <div className="mt-0.5 line-clamp-2 text-[12px] text-content-3">{a.message}</div>
+                    <div className="mt-0.5 text-[11px] text-content-4">
+                      {a.plant_name ? `${a.plant_name} · ` : ""}
+                      {relativeTime(a.created_at)}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <PanelEmpty title="All clear">No unresolved stock alerts.</PanelEmpty>
+        )}
+      </Panel>
     </div>
   );
 }

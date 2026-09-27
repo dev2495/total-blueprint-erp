@@ -42,6 +42,7 @@ import {
   PlantCostPoolMonth,
 } from "@/services/costing";
 import { factoryService } from "@/services/factory";
+import { HeroStat, HeroStats, PageHero } from "@/components/premium";
 
 function money(value: string | number | undefined | null) {
   const numeric = Number(value || 0);
@@ -71,7 +72,7 @@ function toneForMode(mode: string) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-content-3">
+    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
       {children}
     </div>
   );
@@ -93,7 +94,7 @@ function StatTile({
       className={`rounded-[1.4rem] border px-4 py-4 ${inverted ? "border-surface-1/10 bg-surface-1/10 text-white" : "border-line bg-surface-1 text-content-1"}`}
     >
       <div
-        className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${inverted ? "text-content-4" : "text-content-3"}`}
+        className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${inverted ? "text-content-4" : "text-content-3"}`}
       >
         {label}
       </div>
@@ -188,7 +189,7 @@ function CostGroupLineCard({
           <div className="text-base font-semibold text-content-1">
             {row.cost_group_label}
           </div>
-          <div className="mt-1 text-xs uppercase tracking-[0.18em] text-content-3">
+          <div className="mt-1 text-xs uppercase tracking-[0.1em] text-content-3">
             {row.cost_group_code}
           </div>
         </div>
@@ -246,7 +247,7 @@ function CostGroupLineCard({
           while the month is being closed.
         </div>
         <Button
-          className="rounded-2xl bg-surface-3 text-white hover:bg-line"
+          className="rounded-2xl bg-surface-3 text-white hover:bg-primary"
           disabled={disabled}
           onClick={onSave}
         >
@@ -582,93 +583,39 @@ export default function CostingCenterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.14),_transparent_32%),linear-gradient(180deg,#f7f5ef_0%,#f9fbff_52%,#f4f7fb_100%)] px-6 py-8">
-      <div className="mx-auto flex max-w-[1560px] flex-col gap-6">
-        <section className="overflow-hidden rounded-[34px] border border-line bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_46%,#f7f8ec_100%)] px-8 py-8 text-content-1 shadow-[0_30px_90px_-56px_rgba(15,23,42,0.24)]">
-          <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">
-            <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-info-fg">
-                <Layers3 className="h-4 w-4" /> Costing Center
-              </div>
-              <div className="space-y-3">
-                <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] tracking-[-0.04em]">
-                  Close plant months, steer absorption, and manage costing
-                  groups from one calm command deck.
-                </h1>
-                <p className="max-w-3xl text-sm leading-6 text-content-3">
-                  Plants, work centers, machines, and monthly pools now share
-                  the same visible cost-group language. Pick the month, control
-                  allocations, and keep assignment gaps visible before the close
-                  is frozen.
-                </p>
-              </div>
-              <div className="grid gap-4 md:grid-cols-4">
-                <StatTile
-                  label="Coverage"
-                  value={formatCoveragePct(
-                    summary?.kpis?.avg_actual_cost_coverage_pct,
-                  )}
-                  hint="Average actual-cost confidence"
-                />
-                <StatTile
-                  label="Unabsorbed Pool"
-                  value={money(summary?.kpis?.unabsorbed_pool_value)}
-                  hint="Still outside productive runtime"
-                />
-                <StatTile
-                  label="Groups"
-                  value={String(
-                    summary?.kpis?.cost_group_count || groups.length || 0,
-                  )}
-                  hint="Editable cost buckets"
-                />
-                <StatTile
-                  label="Locked Months"
-                  value={String(summary?.kpis?.locked_months || 0)}
-                  hint="Frozen close periods"
-                />
-              </div>
+    <div>
+      <div className="mx-auto flex max-w-[1600px] flex-col gap-4">
+        <PageHero
+          eyebrow="Costing Center"
+          icon={<Layers3 />}
+          title="Costing Center"
+          description="Close plant months, steer overhead absorption and manage cost groups across plants, work centres and machines."
+          actions={
+            <div className="rounded-xl border border-white/15 bg-white/[0.06] p-0.5" role="group" aria-label="Costing workspace">
+              {[
+                { key: "WORKSPACE" as const, label: "Month close" },
+                { key: "GROUPS" as const, label: "Cost groups" },
+              ].map((panel) => (
+                <button
+                  key={panel.key}
+                  type="button"
+                  aria-pressed={view === panel.key}
+                  onClick={() => setView(panel.key)}
+                  className={`rounded-[10px] px-3 py-1.5 text-[12.5px] font-medium transition ${view === panel.key ? "bg-white text-[#0b1122]" : "text-white/75 hover:text-white"}`}
+                >
+                  {panel.label}
+                </button>
+              ))}
             </div>
-
-            <div className="rounded-[28px] border border-line bg-surface-1/92 p-5 shadow-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-info-fg">
-                Workspace focus
-              </div>
-              <div className="mt-3 grid gap-3">
-                {[
-                  {
-                    key: "WORKSPACE" as const,
-                    title: "Costing Command Deck",
-                    body: "Month close, plant totals, live line editor, and close discipline.",
-                  },
-                  {
-                    key: "GROUPS" as const,
-                    title: "Cost Group Master",
-                    body: "Create groups, see usage across plants and machines, and fix assignment drift.",
-                  },
-                ].map((panel) => (
-                  <button
-                    key={panel.key}
-                    type="button"
-                    onClick={() => setView(panel.key)}
-                    className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${view === panel.key ? "border-line-strong bg-surface-3 text-white" : "border-line bg-surface-1 hover:bg-surface-2"}`}
-                  >
-                    <div
-                      className={`text-sm font-semibold ${view === panel.key ? "text-white" : "text-content-1"}`}
-                    >
-                      {panel.title}
-                    </div>
-                    <div
-                      className={`mt-1 text-sm leading-6 ${view === panel.key ? "text-content-4" : "text-content-3"}`}
-                    >
-                      {panel.body}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
+          }
+        >
+          <HeroStats columns={4}>
+            <HeroStat label="Actual-cost coverage" value={formatCoveragePct(summary?.kpis?.avg_actual_cost_coverage_pct)} hint="average confidence" />
+            <HeroStat label="Unabsorbed pool" value={money(summary?.kpis?.unabsorbed_pool_value)} hint="outside productive runtime" />
+            <HeroStat label="Cost groups" value={String(summary?.kpis?.cost_group_count || groups.length || 0)} hint="editable buckets" />
+            <HeroStat label="Locked months" value={String(summary?.kpis?.locked_months || 0)} hint="frozen close periods" />
+          </HeroStats>
+        </PageHero>
 
         {view === "WORKSPACE" ? (
           <section className="grid gap-6 xl:grid-cols-[296px_minmax(0,1.2fr)_320px]">
@@ -723,7 +670,7 @@ export default function CostingCenterPage() {
                     </FieldShell>
                   </div>
                   <div className="rounded-[1.5rem] border border-line bg-surface-2 p-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-content-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
                       Entry model
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -734,7 +681,7 @@ export default function CostingCenterPage() {
                           onClick={() => setMode(entryMode)}
                           className={`rounded-[1.25rem] border px-4 py-3 text-left transition ${mode === entryMode ? "border-line-strong bg-surface-3 text-white" : "border-line bg-surface-1 text-content-2 hover:border-line-strong"}`}
                         >
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em]">
+                          <div className="text-xs font-semibold uppercase tracking-[0.1em]">
                             {entryMode}
                           </div>
                           <div className="mt-1 text-xs leading-5">
@@ -747,7 +694,7 @@ export default function CostingCenterPage() {
                     </div>
                   </div>
                   <Button
-                    className="h-12 w-full rounded-2xl bg-surface-3 text-white hover:bg-line"
+                    className="h-12 w-full rounded-2xl bg-surface-3 text-white hover:bg-primary"
                     disabled={!selectedPlant || createMonth.isPending}
                     onClick={() =>
                       createMonth.mutate({
@@ -901,7 +848,7 @@ export default function CostingCenterPage() {
                 {selectedMonth ? (
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button
-                      className="rounded-2xl bg-surface-3 text-white hover:bg-line"
+                      className="rounded-2xl bg-surface-3 text-white hover:bg-primary"
                       onClick={() =>
                         updateMonth.mutate({
                           id: selectedMonth.id,
@@ -1032,7 +979,7 @@ export default function CostingCenterPage() {
                 </div>
                 <div className="mt-4 space-y-3">
                   <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-content-3">
+                    <div className="text-xs uppercase tracking-[0.1em] text-content-3">
                       Plants missing defaults
                     </div>
                     <div className="mt-1 text-lg font-semibold text-content-1">
@@ -1040,7 +987,7 @@ export default function CostingCenterPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-content-3">
+                    <div className="text-xs uppercase tracking-[0.1em] text-content-3">
                       Work centers missing defaults
                     </div>
                     <div className="mt-1 text-lg font-semibold text-content-1">
@@ -1048,7 +995,7 @@ export default function CostingCenterPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.18em] text-content-3">
+                    <div className="text-xs uppercase tracking-[0.1em] text-content-3">
                       Machines using inheritance
                     </div>
                     <div className="mt-1 text-lg font-semibold text-content-1">
@@ -1135,7 +1082,7 @@ export default function CostingCenterPage() {
                   </p>
                 </div>
                 <Button
-                  className="rounded-2xl bg-surface-3 text-white hover:bg-line"
+                  className="rounded-2xl bg-surface-3 text-white hover:bg-primary"
                   onClick={() => openGroupSheet()}
                 >
                   <Plus className="mr-2 h-4 w-4" /> New Cost Group
@@ -1153,7 +1100,7 @@ export default function CostingCenterPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-content-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
                             {group.code}
                           </div>
                           <div className="mt-2 text-xl font-semibold text-content-1">
@@ -1231,7 +1178,7 @@ export default function CostingCenterPage() {
                   truly needs its own absorption behavior.
                 </div>
               </div>
-              <div className="rounded-[28px] border border-line bg-[linear-gradient(180deg,#0f172a_0%,#18223e_100%)] p-6 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
+              <div className="erp-hero rounded-[28px] border p-6 text-white">
                 <SectionLabel>Setup shortcuts</SectionLabel>
                 <div className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">
                   Assign groups while setting up masters
@@ -1420,7 +1367,7 @@ export default function CostingCenterPage() {
 
             <div className="mt-6 flex gap-2">
               <Button
-                className="rounded-2xl bg-surface-3 text-white hover:bg-line"
+                className="rounded-2xl bg-surface-3 text-white hover:bg-primary"
                 disabled={createGroup.isPending || updateGroup.isPending}
                 onClick={() => {
                   const payload = { ...groupDraft };

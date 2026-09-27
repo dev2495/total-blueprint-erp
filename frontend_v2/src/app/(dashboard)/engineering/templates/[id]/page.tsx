@@ -62,7 +62,7 @@ function hasDispatchBlocker(step: TemplateProcessStep) {
 function StatusPill({ label, active }: { label: string; active: boolean }) {
   return (
     <span
-      className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${active ? "bg-success-bg text-success-fg" : "bg-surface-2 text-content-3"}`}
+      className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${active ? "bg-success-bg text-success-fg" : "bg-surface-2 text-content-3"}`}
     >
       {label}
     </span>
@@ -121,13 +121,13 @@ function StudioStepper({
           className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-sm ${done ? "border-success-border bg-success-bg text-success-fg" : index === activeIndex ? "border-info-border bg-surface-1 text-primary " : "border-line bg-surface-1 text-content-2"}`}
         >
           <div
-            className={`grid h-8 w-8 place-items-center rounded-xl text-xs font-black ${done ? "bg-success-fg text-white" : index === activeIndex ? "bg-primary text-white" : "bg-surface-2 text-content-3"}`}
+            className={`grid h-8 w-8 place-items-center rounded-xl text-xs font-semibold ${done ? "bg-success-fg text-white" : index === activeIndex ? "bg-primary text-white" : "bg-surface-2 text-content-3"}`}
           >
             {done ? "✓" : index + 1}
           </div>
           <div>
             <div
-              className={`text-[10px] font-black uppercase tracking-[0.14em] ${done ? "text-success-fg" : index === 1 ? "text-primary" : "text-content-4"}`}
+              className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${done ? "text-success-fg" : index === 1 ? "text-primary" : "text-content-4"}`}
             >
               {done
                 ? `Step ${index + 1} · Complete`
@@ -179,11 +179,11 @@ function ReadinessDashboard({
     <section className="rounded-[20px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
         <div className="min-w-[260px] flex-1">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
             Template readiness
           </div>
           <div className="mt-2 flex items-baseline gap-3">
-            <div className="text-3xl font-extrabold tracking-tight">
+            <div className="text-3xl font-semibold tracking-tight">
               {pct}
               <span className="text-xl text-content-4">%</span>
             </div>
@@ -216,7 +216,7 @@ function ReadinessDashboard({
         </div>
         <div className="hidden w-px self-stretch bg-surface-2 xl:block" />
         <div className="min-w-[320px] flex-1">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
             Blocking checks
           </div>
           <div className="mt-3 space-y-2 text-sm">
@@ -245,7 +245,7 @@ function ReadinessDashboard({
         </div>
         <div className="hidden w-px self-stretch bg-surface-2 xl:block" />
         <div className="min-w-[230px]">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
             What is next
           </div>
           <p className="mt-2 text-sm font-medium text-content-3">
@@ -277,10 +277,10 @@ function LifecycleRail({ status }: { status: string }) {
   return (
     <section className="rounded-[20px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
           Lifecycle
         </div>
-        <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-primary">
+        <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
           Currently: {String(status || "Draft").replace("_", " ")}
         </span>
       </div>
@@ -288,11 +288,11 @@ function LifecycleRail({ status }: { status: string }) {
         {stages.map((stage, index) => (
           <div key={stage} className="text-center">
             <div
-              className={`mx-auto grid h-9 w-9 place-items-center rounded-full text-sm font-black ${index <= activeIndex ? "bg-primary text-white" : "bg-surface-2 text-content-3"}`}
+              className={`mx-auto grid h-9 w-9 place-items-center rounded-full text-sm font-semibold ${index <= activeIndex ? "bg-primary text-white" : "bg-surface-2 text-content-3"}`}
             >
               {index + 1}
             </div>
-            <div className="mt-2 text-sm font-black text-content-1">
+            <div className="mt-2 text-sm font-semibold text-content-1">
               {stage.replace("_", " ")}
             </div>
             <div className="text-[11px] font-medium text-content-3">
@@ -314,11 +314,11 @@ function ReadinessPanel({ readiness }: { readiness: any }) {
       <CardContent className="p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Review gate
             </div>
             <div
-              className={`mt-1 text-xl font-black ${ready ? "text-success-fg" : "text-warning-fg"}`}
+              className={`mt-1 text-xl font-semibold ${ready ? "text-success-fg" : "text-warning-fg"}`}
             >
               {ready ? "Ready for LIVE publish" : "Needs attention before LIVE"}
             </div>
@@ -366,10 +366,10 @@ function StepCard({ step }: { step: TemplateProcessStep }) {
     <div className="rounded-3xl border border-line bg-surface-1 p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.24em] text-primary">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
             Step {step.sequence_number}
           </div>
-          <h3 className="mt-1 text-lg font-black text-content-1">
+          <h3 className="mt-1 text-lg font-semibold text-content-1">
             {step.process_name}
           </h3>
           <p className="mt-1 text-xs font-semibold text-content-3">
@@ -392,7 +392,7 @@ function StepCard({ step }: { step: TemplateProcessStep }) {
       </div>
       {isLamination ? (
         <div className="mt-4 rounded-3xl border border-info-border bg-info-bg p-4">
-          <div className="flex items-center gap-2 text-sm font-black text-primary">
+          <div className="flex items-center gap-2 text-sm font-semibold text-primary">
             <Layers3 className="h-4 w-4" /> Lamination pass builder
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -445,7 +445,7 @@ function StepCard({ step }: { step: TemplateProcessStep }) {
         {(step.materials || []).map((material) => (
           <span
             key={material.id}
-            className="rounded-full bg-surface-2 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-content-3"
+            className="rounded-full bg-surface-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3"
           >
             {material.category_code}
           </span>
@@ -529,17 +529,17 @@ function DispatchStepEditor({
     <div className="rounded-3xl border border-line bg-surface-1 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
             Stage {step.sequence_number}
           </div>
-          <h3 className="mt-1 text-base font-black text-content-1">
+          <h3 className="mt-1 text-base font-semibold text-content-1">
             {step.process_name}
           </h3>
           <p className="mt-1 text-xs font-semibold text-content-3">
             {candidates.length} capable work center{candidates.length === 1 ? "" : "s"}
           </p>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${dispatchStatusClass(status?.status)}`}>
+        <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${dispatchStatusClass(status?.status)}`}>
           {dispatchStatusLabel(status?.status)}
         </span>
       </div>
@@ -553,7 +553,7 @@ function DispatchStepEditor({
           <div className="rounded-2xl border border-line bg-surface-2 p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                   Allowed centers
                 </div>
                 <div className="text-xs font-semibold text-content-3">
@@ -595,7 +595,7 @@ function DispatchStepEditor({
                       }}
                     />
                     <span>
-                      <span className="block font-black text-content-1">{candidate.code}</span>
+                      <span className="block font-semibold text-content-1">{candidate.code}</span>
                       <span className="text-xs text-content-3">{candidate.name}</span>
                     </span>
                   </label>
@@ -671,13 +671,13 @@ function DispatchStepEditor({
               />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-3">
-              <div className="mb-3 text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+              <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                 Route behavior
               </div>
               <div className="space-y-3">
                 <label className="flex items-start justify-between gap-4">
                   <span>
-                    <span className="block text-xs font-black text-content-1">Planner may skip at release</span>
+                    <span className="block text-xs font-semibold text-content-1">Planner may skip at release</span>
                     <span className="mt-1 block text-xs font-semibold text-content-4">
                       Optional only for this template route. Existing routes stay required.
                     </span>
@@ -692,7 +692,7 @@ function DispatchStepEditor({
                 </label>
                 <label className="flex items-start justify-between gap-4">
                   <span>
-                    <span className="block text-xs font-black text-content-1">WCM may skip after previous output</span>
+                    <span className="block text-xs font-semibold text-content-1">WCM may skip after previous output</span>
                     <span className="mt-1 block text-xs font-semibold text-content-4">
                       Batch-level skip after the prior step is posted.
                     </span>
@@ -739,7 +739,7 @@ function WorkCenterDispatchPanel({
       <CardContent className="space-y-4 p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm font-black">
+            <div className="flex items-center gap-2 text-sm font-semibold">
               <Workflow className="h-4 w-4 text-primary" /> 4. Template route dispatch
             </div>
             <p className="mt-1 text-xs font-semibold text-content-3">
@@ -749,7 +749,7 @@ function WorkCenterDispatchPanel({
             </p>
           </div>
           {template.status === "LIVE" ? (
-            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-success-fg">
+            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-success-fg">
               Safe edit required
             </span>
           ) : null}
@@ -870,7 +870,7 @@ function BatchExecutionPolicyCard({
       <CardContent className="space-y-5 p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm font-black">
+            <div className="flex items-center gap-2 text-sm font-semibold">
               <GitBranch className="h-4 w-4 text-primary" /> 2. Batch and lot execution
             </div>
             <p className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-content-3">
@@ -879,10 +879,10 @@ function BatchExecutionPolicyCard({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-primary">
+            <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
               template policy
             </span>
-            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-success-fg">
+            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-success-fg">
               one sales line stays one demand
             </span>
           </div>
@@ -891,19 +891,19 @@ function BatchExecutionPolicyCard({
         <div className="rounded-[1.5rem] border border-line bg-surface-1 p-4">
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                 Selected route flow · read only
               </div>
-              <div className="mt-1 text-sm font-black text-content-1">
+              <div className="mt-1 text-sm font-semibold text-content-1">
                 {route?.name || route?.routing_rule_name || "No route selected"}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-[10px] font-black text-primary">
+              <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-[10px] font-semibold text-primary">
                 {routeStages.length} stages
               </span>
               {parallelGroups ? (
-                <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-[10px] font-black text-warning-fg">
+                <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-warning-fg">
                   {parallelGroups} + branch{parallelGroups === 1 ? "" : "es"}
                 </span>
               ) : null}
@@ -916,17 +916,17 @@ function BatchExecutionPolicyCard({
                   <div
                     className={`w-full rounded-2xl border p-3 ${stage.nodes.length > 1 ? "border-warning-border bg-warning-bg/50" : "border-line bg-surface-2"}`}
                   >
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       Stage {stagePosition + 1}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {stage.nodes.map((node, nodeIndex) => (
                         <div key={node.id} className="flex items-center gap-2">
                           {nodeIndex > 0 ? (
-                            <span className="text-base font-black text-warning-fg">+</span>
+                            <span className="text-base font-semibold text-warning-fg">+</span>
                           ) : null}
                           <span
-                            className={`inline-flex min-h-9 items-center rounded-xl border px-3 py-1.5 text-xs font-black ${templateFlowTone(nodeIndex + stagePosition)}`}
+                            className={`inline-flex min-h-9 items-center rounded-xl border px-3 py-1.5 text-xs font-semibold ${templateFlowTone(nodeIndex + stagePosition)}`}
                           >
                             {node.label}
                           </span>
@@ -950,7 +950,7 @@ function BatchExecutionPolicyCard({
         </div>
 
         <div className="space-y-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
             Batch creation
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -993,7 +993,7 @@ function BatchExecutionPolicyCard({
         </div>
 
         <div className="space-y-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
             Release behavior
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -1024,7 +1024,7 @@ function BatchExecutionPolicyCard({
                 className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-surface-1 px-4 py-3"
               >
                 <div>
-                  <div className="text-xs font-black text-content-1">{label}</div>
+                  <div className="text-xs font-semibold text-content-1">{label}</div>
                   <div className="mt-1 text-[11px] font-semibold leading-4 text-content-3">
                     {help}
                   </div>
@@ -1358,11 +1358,11 @@ export default function TemplateStudioPage() {
             >
               <ArrowLeft className="mr-2 h-4 w-4" /> Back
             </Button>
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-sm font-black text-white">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface-3 text-sm font-semibold text-white">
               T
             </div>
             <div className="min-w-0">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                 Template Studio · execution rules
               </div>
               <div className="truncate text-[15px] font-semibold text-content-1">
@@ -1467,7 +1467,7 @@ export default function TemplateStudioPage() {
         <main className="space-y-5">
           <Card className="rounded-[2rem]">
             <CardContent className="space-y-4 p-5">
-              <div className="flex items-center gap-2 text-sm font-black">
+              <div className="flex items-center gap-2 text-sm font-semibold">
                 <ShieldCheck className="h-4 w-4 text-primary" /> 1. Basics and
                 route binding
               </div>
@@ -1577,7 +1577,7 @@ export default function TemplateStudioPage() {
 
           <Card className="rounded-[2rem]">
             <CardContent className="p-5">
-              <div className="mb-4 flex items-center gap-2 text-sm font-black">
+              <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
                 <GitBranch className="h-4 w-4 text-primary" /> 3. Route stages
                 and lamination lanes
               </div>
@@ -1588,10 +1588,10 @@ export default function TemplateStudioPage() {
                       <div
                         className={`rounded-2xl border px-4 py-3 ${String(step.process_roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE" ? "border-warning-border bg-warning-bg" : "border-info-border bg-surface-1"}`}
                       >
-                        <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                           Stage {step.sequence_number}
                         </div>
-                        <div className="mt-1 text-sm font-black text-content-1">
+                        <div className="mt-1 text-sm font-semibold text-content-1">
                           {step.process_name}
                         </div>
                         <div className="mt-1 text-[10px] font-semibold text-content-3">
@@ -1633,7 +1633,7 @@ export default function TemplateStudioPage() {
 
           <div>
             <div className="mb-3">
-              <div className="text-sm font-black text-content-1">
+              <div className="text-sm font-semibold text-content-1">
                 5. Step material rules
               </div>
               <p className="mt-1 text-xs font-semibold text-content-3">
@@ -1644,7 +1644,7 @@ export default function TemplateStudioPage() {
             <TemplateBomEditor template={template as any} />
           </div>
           <details className="rounded-[2rem] border border-line bg-surface-1 p-5 shadow-sm">
-            <summary className="cursor-pointer text-sm font-black">
+            <summary className="cursor-pointer text-sm font-semibold">
               Template Studio glossary
             </summary>
             <div className="mt-4 grid gap-3 text-xs md:grid-cols-3">
@@ -1685,7 +1685,7 @@ export default function TemplateStudioPage() {
           <ReadinessPanel readiness={readiness} />
           <Card className="rounded-[2rem]">
             <CardContent className="space-y-4 p-5">
-              <div className="text-sm font-black">6. Review and make live</div>
+              <div className="text-sm font-semibold">6. Review and make live</div>
               <div className="space-y-2 text-xs font-semibold text-content-3">
                 <div>Route: {template.routing_rule_name || "Not selected"}</div>
                 <div>

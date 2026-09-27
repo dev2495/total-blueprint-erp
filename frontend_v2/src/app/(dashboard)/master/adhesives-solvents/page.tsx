@@ -57,7 +57,7 @@ export default function AdhesivesSolventsPage() {
           value: adhesive ? 1 : 0,
           subLabel: adhesive?.code || "Missing",
           icon: PackageCheck,
-          toneClassName: "bg-warm text-warm",
+          toneClassName: "bg-warning-bg text-warning-fg",
         },
         {
           label: "Solvent",
@@ -82,7 +82,7 @@ export default function AdhesivesSolventsPage() {
     >
       <Card className="border-none shadow-premium rounded-[1.75rem] bg-surface-1/90">
         <CardHeader className="border-b border-line">
-          <CardTitle className="flex items-center gap-2 text-base font-black text-content-1">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold text-content-1">
             <Lock className="h-4 w-4 text-primary" />
             Locked chemistry policy
           </CardTitle>
@@ -98,13 +98,13 @@ export default function AdhesivesSolventsPage() {
               key={item.id}
               className="rounded-2xl border border-line bg-surface-2 p-5 shadow-sm"
             >
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                 {item.category}
               </div>
-              <div className="mt-2 text-lg font-black tracking-tight text-content-1">
+              <div className="mt-2 text-lg font-semibold tracking-tight text-content-1">
                 {item.name}
               </div>
-              <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-content-3">
+              <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-content-3">
                 {item.code}
               </div>
               <div className="mt-4 text-xs text-content-3">

@@ -100,7 +100,7 @@ const CHART_COLORS = [
 ];
 const AGE_COLUMNS = ["0-7d", "8-30d", "31-60d", ">60d"];
 const FILTER_TRIGGER_BASE_CLASS =
-  "h-10 rounded-full px-4 text-xs font-black transition-all duration-150 focus:ring-2 focus:ring-success-border data-[state=open]:border-success-border data-[state=open]:bg-success-bg data-[state=open]:text-content-1";
+  "h-10 rounded-full px-4 text-xs font-semibold transition-all duration-150 focus:ring-2 focus:ring-success-border data-[state=open]:border-success-border data-[state=open]:bg-success-bg data-[state=open]:text-content-1";
 const FILTER_TRIGGER_IDLE_CLASS =
   "border-line bg-surface-1 text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-success-border hover:bg-success-bg";
 const FILTER_TRIGGER_ACTIVE_CLASS =
@@ -1234,39 +1234,39 @@ export function InventoryWorkspaceShell() {
       <div className="mx-auto max-w-[1440px] space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-success-fg to-info-fg text-base font-black text-white shadow-sm">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-success-fg to-info-fg text-base font-semibold text-white shadow-sm">
               T
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-content-3">
+              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-3">
                 Total Poly Print ERP
               </div>
-              <div className="text-sm font-black text-content-1">Inventory</div>
+              <div className="text-sm font-semibold text-content-1">Inventory</div>
             </div>
           </div>
           <Tabs value={tab} onValueChange={switchTab}>
             <TabsList className="flex h-auto flex-wrap justify-start gap-1 rounded-[14px] bg-surface-1/80 p-1 shadow-sm ring-1 ring-line">
               <TabsTrigger
                 value="rolls"
-                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
+                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-semibold data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
               >
                 <Archive className="h-4 w-4" /> Roll Explorer
               </TabsTrigger>
               <TabsTrigger
                 value="bulk"
-                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
+                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-semibold data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
               >
                 <Boxes className="h-4 w-4" /> Bulk Inventory
               </TabsTrigger>
               <TabsTrigger
                 value="packaging"
-                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
+                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-semibold data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
               >
                 <Package className="h-4 w-4" /> Packaging Stock
               </TabsTrigger>
               <TabsTrigger
                 value="grn"
-                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-black data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
+                className="gap-2 rounded-[10px] px-4 py-2 text-xs font-semibold data-[state=active]:bg-surface-3 data-[state=active]:text-white data-[state=active]:shadow-none"
               >
                 <ShieldCheck className="h-4 w-4" /> GRN History
               </TabsTrigger>
@@ -1276,10 +1276,10 @@ export function InventoryWorkspaceShell() {
 
         <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Inventory · {tab === "grn" ? "Audit" : title}
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-content-1">
+            <h1 className="text-3xl font-semibold tracking-tight text-content-1">
               {title}
             </h1>
             <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-content-3">
@@ -1289,14 +1289,14 @@ export function InventoryWorkspaceShell() {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              className="h-10 rounded-xl border-line bg-surface-1 text-xs font-black shadow-sm hover:bg-surface-2"
+              className="h-10 rounded-xl border-line bg-surface-1 text-xs font-semibold shadow-sm hover:bg-surface-2"
               onClick={refreshWorkspace}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
             <Button
-              className="h-10 rounded-xl bg-surface-3 text-xs font-black shadow-sm hover:bg-line"
+              className="h-10 rounded-xl bg-surface-3 text-xs font-semibold shadow-sm hover:bg-line"
               onClick={() => switchTab("grn")}
             >
               <ShieldCheck className="mr-2 h-4 w-4" />
@@ -2085,7 +2085,7 @@ export function InventoryFilterBar({
               variant="outline"
               data-testid="inventory-saved-views-trigger"
               className={cn(
-                "h-10 rounded-full border-line bg-surface-1 px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-success-border hover:bg-success-bg",
+                "h-10 rounded-full border-line bg-surface-1 px-4 text-xs font-semibold text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-success-border hover:bg-success-bg",
                 savedViews.length
                   ? "border-success-border bg-success-bg/50 text-success-fg"
                   : "",
@@ -2108,7 +2108,7 @@ export function InventoryFilterBar({
             <div className="rounded-xl bg-surface-2 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                     My saved views
                   </div>
                   <div className="mt-0.5 text-xs font-semibold text-content-3">
@@ -2145,7 +2145,7 @@ export function InventoryFilterBar({
               {savedViews.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-line bg-surface-1 px-3 py-5 text-center">
                   <BookmarkPlus className="mx-auto h-5 w-5 text-success-fg" />
-                  <div className="mt-2 text-sm font-black text-content-1">
+                  <div className="mt-2 text-sm font-semibold text-content-1">
                     No saved views yet
                   </div>
                   <div className="mt-1 text-xs font-semibold leading-5 text-content-3">
@@ -2185,11 +2185,11 @@ export function InventoryFilterBar({
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-2">
-                            <span className="truncate text-sm font-black text-content-1">
+                            <span className="truncate text-sm font-semibold text-content-1">
                               {view.name}
                             </span>
                             {isCurrent ? (
-                              <span className="shrink-0 rounded-full bg-surface-1 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-success-fg ring-1 ring-success-border">
+                              <span className="shrink-0 rounded-full bg-surface-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg ring-1 ring-success-border">
                                 Current
                               </span>
                             ) : null}
@@ -2220,7 +2220,7 @@ export function InventoryFilterBar({
             <DropdownMenuSeparator className="my-2 bg-surface-2" />
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-black text-success-fg transition hover:bg-success-bg"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-success-fg transition hover:bg-success-bg"
               onClick={openSaveViewDialog}
             >
               <BookmarkPlus className="h-4 w-4" />
@@ -2234,7 +2234,7 @@ export function InventoryFilterBar({
         </DropdownMenu>
         <Button
           variant="outline"
-          className="h-10 rounded-full border-line bg-surface-1 px-4 text-xs font-black text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-success-border hover:bg-success-bg hover:text-[#0f172a]"
+          className="h-10 rounded-full border-line bg-surface-1 px-4 text-xs font-semibold text-[#0f172a] shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-success-border hover:bg-success-bg hover:text-[#0f172a]"
           onClick={() => onChange(resetPayload)}
         >
           Reset
@@ -2244,7 +2244,7 @@ export function InventoryFilterBar({
         <DialogContent className="rounded-[24px] border-line bg-surface-1 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] sm:max-w-lg">
           <div className="rounded-t-[24px] bg-gradient-to-br from-success-bg via-white to-info-bg px-6 py-5">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-xl font-black text-content-1">
+              <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-content-1">
                 <BookmarkPlus className="h-5 w-5 text-success-fg" />
                 Save inventory view
               </DialogTitle>
@@ -2258,7 +2258,7 @@ export function InventoryFilterBar({
             <div className="space-y-2">
               <Label
                 htmlFor="inventory-saved-view-name"
-                className="text-xs font-black uppercase tracking-[0.16em] text-content-3"
+                className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3"
               >
                 View name
               </Label>
@@ -2275,7 +2275,7 @@ export function InventoryFilterBar({
               />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                 Current filter snapshot
               </div>
               <div className="mt-1 text-sm font-bold leading-6 text-content-2">
@@ -2305,7 +2305,7 @@ export function InventoryFilterBar({
               </Button>
               <Button
                 type="button"
-                className="rounded-xl bg-surface-3 font-black hover:bg-line"
+                className="rounded-xl bg-surface-3 font-semibold hover:bg-line"
                 onClick={saveCurrentView}
               >
                 Save view
@@ -2380,7 +2380,7 @@ function FilterTextInput({
       placeholder={label}
       data-testid={testId}
       className={cn(
-        "h-10 w-[150px] rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-success-border",
+        "h-10 w-[150px] rounded-full px-4 text-xs font-semibold transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-success-border",
         active
           ? "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg text-success-fg placeholder:text-success-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
           : "border-info-border bg-gradient-to-br from-white via-info-bg to-success-bg text-content-2 placeholder:text-content-3 hover:border-success-border hover:from-success-bg hover:via-white hover:to-info-bg hover:text-success-fg",
@@ -2409,7 +2409,7 @@ function FilterDateInput({
       aria-label={label}
       data-testid={testId}
       className={cn(
-        "h-10 w-[148px] rounded-full px-4 text-xs font-black transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-success-border",
+        "h-10 w-[148px] rounded-full px-4 text-xs font-semibold transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-success-border",
         active
           ? "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg text-success-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
           : "border-info-border bg-gradient-to-br from-white via-info-bg to-success-bg text-content-2 hover:border-success-border hover:from-success-bg hover:via-white hover:to-info-bg hover:text-success-fg",
@@ -2435,13 +2435,13 @@ function StockTabHeader({
         <TabsList className="h-auto gap-1 rounded-2xl bg-surface-2 p-1">
           <TabsTrigger
             value="pulse"
-            className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:text-success-fg data-[state=active]:shadow-sm"
+            className="gap-2 rounded-xl px-5 py-2 text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:text-success-fg data-[state=active]:shadow-sm"
           >
             <Activity className="h-4 w-4" /> Pulse
           </TabsTrigger>
           <TabsTrigger
             value="browse"
-            className="gap-2 rounded-xl px-5 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:text-success-fg data-[state=active]:shadow-sm"
+            className="gap-2 rounded-xl px-5 py-2 text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:text-success-fg data-[state=active]:shadow-sm"
           >
             <TableProperties className="h-4 w-4" /> Browse
           </TabsTrigger>
@@ -2452,13 +2452,13 @@ function StockTabHeader({
           <TabsList className="h-auto gap-1 rounded-2xl bg-surface-2 p-1">
             <TabsTrigger
               value="table"
-              className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
+              className="rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
             >
               Table
             </TabsTrigger>
             <TabsTrigger
               value="cards"
-              className="rounded-xl px-4 py-2 text-xs font-black data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
+              className="rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-sm"
             >
               Cards
             </TabsTrigger>
@@ -2748,10 +2748,10 @@ function InventoryKpiCard({
       <div className={cn("absolute left-0 top-0 h-full w-1", accent)} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
             {label}
           </div>
-          <div className="mt-2 text-2xl font-black tracking-tight text-content-1">
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-content-1">
             {value}
           </div>
           <div className="mt-1 text-xs font-semibold text-content-3">
@@ -2797,10 +2797,10 @@ function FreshnessBandCard({
   return (
     <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
           Freshness Bands
         </div>
-        <CardTitle className="text-base font-black text-content-1">
+        <CardTitle className="text-base font-semibold text-content-1">
           How old is your stock
         </CardTitle>
       </CardHeader>
@@ -2811,7 +2811,7 @@ function FreshnessBandCard({
           return (
             <div key={row.name} className="space-y-2">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className={cn("font-black", textClass[row.name])}>
+                <span className={cn("font-semibold", textClass[row.name])}>
                   {labels[row.name]}
                 </span>
                 <span className="font-semibold text-content-3">
@@ -2843,10 +2843,10 @@ function StageDistributionCard({
   return (
     <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
           Stage Distribution
         </div>
-        <CardTitle className="text-base font-black text-content-1">
+        <CardTitle className="text-base font-semibold text-content-1">
           {title}
         </CardTitle>
       </CardHeader>
@@ -2862,7 +2862,7 @@ function StageDistributionCard({
                 key={row.name}
                 className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2"
               >
-                <div className="text-xs font-black text-primary">
+                <div className="text-xs font-semibold text-primary">
                   {formatShort(row.value)}
                 </div>
                 <div
@@ -2920,10 +2920,10 @@ function LargestPositionsCard({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
           Largest Positions
         </div>
-        <CardTitle className="text-base font-black text-content-1">
+        <CardTitle className="text-base font-semibold text-content-1">
           Click a row to jump to Browse pre-filtered
         </CardTitle>
       </CardHeader>
@@ -2941,18 +2941,18 @@ function LargestPositionsCard({
                 className="flex w-full items-center gap-4 py-3 text-left transition hover:bg-surface-2"
                 onClick={() => onBrowse?.({ view: "browse", q: row.name })}
               >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-3 text-sm font-black text-white">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-3 text-sm font-semibold text-white">
                   {index + 1}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-base font-black text-content-1">
+                  <span className="block truncate text-base font-semibold text-content-1">
                     {row.name}
                   </span>
                   <span className="block truncate text-xs font-semibold text-content-3">
                     {row.subtitle}
                   </span>
                 </span>
-                <span className="text-lg font-black text-success-fg">
+                <span className="text-lg font-semibold text-success-fg">
                   {formatShort(row.value)} {row.unit}
                 </span>
               </button>
@@ -2976,7 +2976,7 @@ function ChartCard({
   return (
     <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-content-3">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-content-3">
           <Activity className="h-4 w-4 text-success-fg" />
           {title}
         </CardTitle>
@@ -3011,7 +3011,7 @@ function ChartCard({
                       />
                       <span className="truncate">{entry.name}</span>
                     </span>
-                    <span className="shrink-0 font-black text-content-2">
+                    <span className="shrink-0 font-semibold text-content-2">
                       {pct}%
                     </span>
                   </div>
@@ -3088,10 +3088,10 @@ function CssDonut({ data }: { data: Array<{ name: string; value: number }> }) {
       >
         <div className="grid h-28 w-28 place-items-center rounded-full bg-surface-1 shadow-inner">
           <div className="text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
               Total
             </div>
-            <div className="text-2xl font-black text-content-1">
+            <div className="text-2xl font-semibold text-content-1">
               {formatShort(total)}
             </div>
           </div>
@@ -3150,10 +3150,10 @@ export function AgeHeatmap({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
           Age Heatmap
         </div>
-        <CardTitle className="text-base font-black text-content-1">
+        <CardTitle className="text-base font-semibold text-content-1">
           Family x age band, {kind === "packaging" ? "qty" : "kg"} per cell
         </CardTitle>
       </CardHeader>
@@ -3165,7 +3165,7 @@ export function AgeHeatmap({
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[560px] space-y-2">
-              <div className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2 text-[11px] font-black text-content-3">
+              <div className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2 text-[11px] font-semibold text-content-3">
                 <div />
                 {AGE_COLUMNS.map((col) => (
                   <div key={col} className="text-center">
@@ -3178,7 +3178,7 @@ export function AgeHeatmap({
                   key={label}
                   className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2"
                 >
-                  <div className="truncate py-2 text-xs font-black text-content-2">
+                  <div className="truncate py-2 text-xs font-semibold text-content-2">
                     {label}
                   </div>
                   {AGE_COLUMNS.map((col) => {
@@ -3195,7 +3195,7 @@ export function AgeHeatmap({
                         key={col}
                         type="button"
                         data-testid={`inventory-age-heatmap-cell-${kind}`}
-                        className="rounded-lg px-2 py-3 text-center text-xs font-black text-content-2 ring-1 ring-line-strong transition hover:ring-2 hover:ring-success-border"
+                        className="rounded-lg px-2 py-3 text-center text-xs font-semibold text-content-2 ring-1 ring-line-strong transition hover:ring-2 hover:ring-success-border"
                         style={{
                           backgroundColor: value ? tone : "var(--surface-2)",
                         }}
@@ -3319,11 +3319,11 @@ export function InventoryHeatmap({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
           <Thermometer className="h-4 w-4 text-danger-fg" />
           Size / Variant Matrix
         </div>
-        <CardTitle className="text-base font-black text-content-1">
+        <CardTitle className="text-base font-semibold text-content-1">
           Variant x size group, {kind === "packaging" ? "qty" : "kg"} per cell
         </CardTitle>
       </CardHeader>
@@ -3335,7 +3335,7 @@ export function InventoryHeatmap({
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[620px] space-y-2">
-              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-[11px] font-black uppercase tracking-[0.12em] text-content-4">
+              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 <div>Variant</div>
                 {matrix.cols.map((col) => (
                   <div key={col} className="truncate text-center">
@@ -3359,7 +3359,7 @@ export function InventoryHeatmap({
                         key={col}
                         type="button"
                         data-testid={`inventory-size-heatmap-cell-${kind}`}
-                        className="rounded-lg px-2 py-2 text-center text-xs font-black text-content-1 ring-1 ring-success-border transition hover:ring-2 hover:ring-success-border"
+                        className="rounded-lg px-2 py-2 text-center text-xs font-semibold text-content-1 ring-1 ring-success-border transition hover:ring-2 hover:ring-success-border"
                         style={{
                           backgroundColor: `rgba(13, 148, 136, ${alpha})`,
                         }}
@@ -3475,7 +3475,7 @@ function InventoryRow({
   return (
     <TableRow>
       <TableCell>
-        <div className="font-black text-content-1">
+        <div className="font-semibold text-content-1">
           {kind === "rolls" ? row.label_id : row.material_name}
         </div>
         <div className="text-xs text-content-3">
@@ -3486,7 +3486,7 @@ function InventoryRow({
         {kind === "rolls" && (productionBatchLabel(row) || routeNodeLabel(row)) ? (
           <div className="mt-1 flex flex-wrap gap-1">
             {productionBatchLabel(row) ? (
-              <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-black text-primary">
+              <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-semibold text-primary">
                 {productionBatchLabel(row)}
               </span>
             ) : null}
@@ -3512,7 +3512,7 @@ function InventoryRow({
         <div className="font-medium">{displayPlant(row)}</div>
         <div className="text-xs text-content-3">{displayLocation(row)}</div>
       </TableCell>
-      <TableCell className="text-right font-black">{qty}</TableCell>
+      <TableCell className="text-right font-semibold">{qty}</TableCell>
       <TableCell>
         <AgePill date={ageDate} />
       </TableCell>
@@ -3554,7 +3554,7 @@ function InventoryCard({
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="font-black text-content-1">{title}</div>
+            <div className="font-semibold text-content-1">{title}</div>
             <div className="mt-1 text-xs font-medium text-content-3">
               {kind === "rolls"
                 ? row.variant_display_name || row.material_name
@@ -3563,7 +3563,7 @@ function InventoryCard({
           </div>
           <AgePill date={row.created_at || row.updated_at} />
         </div>
-        <div className="text-2xl font-black tracking-tight text-content-1">
+        <div className="text-2xl font-semibold tracking-tight text-content-1">
           {qty}
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
@@ -3601,7 +3601,7 @@ function AgePill({ date }: { date?: string | null }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-1 text-[11px] font-black",
+        "rounded-full px-2 py-1 text-[11px] font-semibold",
         band === "Fresh"
           ? "bg-success-bg text-success-fg"
           : band === "Watch"
@@ -3697,7 +3697,7 @@ export function GrnHistoryTab({
                     />
                   </TableCell>
                   <TableCell>
-                    <div className="font-black text-content-1">
+                    <div className="font-semibold text-content-1">
                       {row.label_id || row.material_name || row.material_code}
                     </div>
                     <div className="text-xs text-content-3">
@@ -3715,7 +3715,7 @@ export function GrnHistoryTab({
                       {displayLocation(row)}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-black">
+                  <TableCell className="text-right font-semibold">
                     {formatQty(num(row.quantity), row.uom)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -3807,7 +3807,7 @@ function CorrectionDialog({
     <Dialog open={Boolean(row)} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl rounded-[24px]">
         <DialogHeader>
-          <DialogTitle className="text-xl font-black">
+          <DialogTitle className="text-xl font-semibold">
             Correct GRN History Row
           </DialogTitle>
         </DialogHeader>

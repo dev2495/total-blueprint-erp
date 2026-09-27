@@ -80,7 +80,7 @@ export function GranuleCodeSourcePicker({
         >
           {selected ? (
             <span className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 font-black text-content-1">{selected.code}</span>
+              <span className="shrink-0 font-semibold text-content-1">{selected.code}</span>
               <span className="truncate text-content-3">
                 {selected.plant_name} / {selected.location_name}
               </span>
@@ -131,10 +131,10 @@ export function GranuleCodeSourcePicker({
                   >
                     <span className="min-w-0">
                       <span className="flex items-center gap-2">
-                        <span className="font-black text-content-1">{option.code}</span>
+                        <span className="font-semibold text-content-1">{option.code}</span>
                         <span
                           className={cn(
-                            "rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider",
+                            "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                             exactStore
                               ? "bg-success-bg text-success-fg"
                               : "bg-info-bg text-primary",
@@ -149,7 +149,7 @@ export function GranuleCodeSourcePicker({
                       </span>
                     </span>
                     <span className="flex items-center gap-2 self-center">
-                      <span className="font-mono text-xs font-black tabular-nums text-content-1">
+                      <span className="font-mono text-xs font-semibold tabular-nums text-content-1">
                         {Number(option.available_qty_kg || 0).toFixed(3)} kg
                       </span>
                       <Check

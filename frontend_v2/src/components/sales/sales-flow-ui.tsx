@@ -521,7 +521,7 @@ export function SalesSpecChip({
   return (
     <span
       className={cn(
-        "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[11px] font-black leading-none",
+        "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[11px] font-semibold leading-none",
         CHIP_CLASS[tone],
         className,
       )}
@@ -591,7 +591,7 @@ export function SalesOverflowChipGroup({
         disabled={disabled}
         onClick={() => onChange(nextValue)}
         className={cn(
-          "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-black leading-none transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-xs font-semibold leading-none transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg disabled:pointer-events-none disabled:opacity-50",
           active
             ? "border-primary bg-primary text-white shadow-[0_14px_24px_-18px_rgba(37,99,235,0.7)]"
             : option
@@ -618,7 +618,7 @@ export function SalesOverflowChipGroup({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="inline-flex h-9 shrink-0 items-center text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+      <span className="inline-flex h-9 shrink-0 items-center text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
       </span>
       {renderButton(null)}
@@ -630,7 +630,7 @@ export function SalesOverflowChipGroup({
               type="button"
               variant="outline"
               disabled={disabled}
-              className="h-9 shrink-0 rounded-full bg-surface-1 px-3 text-xs font-black shadow-sm"
+              className="h-9 shrink-0 rounded-full bg-surface-1 px-3 text-xs font-semibold shadow-sm"
             >
               +{hiddenOptions.length} more
               <ChevronDown className="ml-1.5 h-4 w-4" />
@@ -640,7 +640,7 @@ export function SalesOverflowChipGroup({
             align="start"
             className="max-h-[22rem] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-line p-2"
           >
-            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
               {label} options
             </DropdownMenuLabel>
             {hiddenOptions.length > 8 ? (
@@ -664,14 +664,14 @@ export function SalesOverflowChipGroup({
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                   <span
                     className={cn(
-                      "truncate rounded-full border px-3 py-1 text-xs font-black",
+                      "truncate rounded-full border px-3 py-1 text-xs font-semibold",
                       CHIP_CLASS[option.tone || "muted"],
                     )}
                   >
                     {option.label}
                   </span>
                   {typeof option.count === "number" ? (
-                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-black text-content-3">
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-content-3">
                       {option.count}
                     </span>
                   ) : null}
@@ -714,19 +714,19 @@ export function SalesSmartRangeFilter({
   return (
     <label
       className={cn(
-        "inline-flex h-9 min-w-[9.5rem] shrink-0 items-center gap-2 rounded-full border border-line bg-surface-1 px-3 text-xs font-black text-content-2 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-info-border",
+        "inline-flex h-9 min-w-[9.5rem] shrink-0 items-center gap-2 rounded-full border border-line bg-surface-1 px-3 text-xs font-semibold text-content-2 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-info-border",
         activePreset && "border-info-border bg-info-bg",
         className,
       )}
     >
-      <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] text-content-4">
+      <span className="shrink-0 text-[10px] uppercase tracking-[0.1em] text-content-4">
         {label}
       </span>
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-6 min-w-0 flex-1 border-0 bg-transparent p-0 text-center text-xs font-black shadow-none focus-visible:ring-0"
+        className="h-6 min-w-0 flex-1 border-0 bg-transparent p-0 text-center text-xs font-semibold shadow-none focus-visible:ring-0"
       />
       {suffix ? (
         <span className="shrink-0 text-[10px] text-content-4">{suffix}</span>
@@ -746,14 +746,14 @@ export function SalesSmartRangeFilter({
             align="start"
             className="max-h-[20rem] w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-line p-2"
           >
-            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
               {label} presets
             </DropdownMenuLabel>
             <DropdownMenuItem
               className="rounded-xl p-3"
               onClick={() => onChange("")}
             >
-              <div className="font-black text-content-1">
+              <div className="font-semibold text-content-1">
                 Any {label.toLowerCase()}
               </div>
             </DropdownMenuItem>
@@ -764,11 +764,11 @@ export function SalesSmartRangeFilter({
                 onClick={() => onChange(preset.value)}
               >
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                  <span className="truncate font-black text-content-1">
+                  <span className="truncate font-semibold text-content-1">
                     {preset.label}
                   </span>
                   {typeof preset.count === "number" ? (
-                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-black text-content-3">
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-content-3">
                       {preset.count}
                     </span>
                   ) : null}
@@ -818,7 +818,7 @@ export function SalesSpecChips({
       {resolvedFgType ? (
         <span
           className={cn(
-            "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[11px] font-black leading-none",
+            "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[11px] font-semibold leading-none",
             fgChipClass(resolvedFgType),
           )}
         >
@@ -904,7 +904,7 @@ export function SalesLayerTable({
         className,
       )}
     >
-      <div className="grid grid-cols-[3rem_minmax(0,1.35fr)_0.7fr_0.85fr_0.7fr] border-b border-line bg-surface-2 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
+      <div className="grid grid-cols-[3rem_minmax(0,1.35fr)_0.7fr_0.85fr_0.7fr] border-b border-line bg-surface-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
         <div>#</div>
         <div>Layer variant</div>
         <div>Grade</div>
@@ -920,9 +920,9 @@ export function SalesLayerTable({
               dense ? "py-2 text-xs" : "py-3 text-sm",
             )}
           >
-            <div className="font-black text-content-4">L{layer.index}</div>
+            <div className="font-semibold text-content-4">L{layer.index}</div>
             <div className="min-w-0">
-              <div className="truncate font-black text-content-1">
+              <div className="truncate font-semibold text-content-1">
                 {layer.variantName ||
                   layer.variantCode ||
                   `Layer ${layer.index}`}
@@ -979,10 +979,10 @@ export function SalesProductSpecCard({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
             {title}
           </div>
-          <h2 className="mt-1 break-words text-2xl font-black tracking-tight text-content-1">
+          <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight text-content-1">
             {spec.productName}
           </h2>
           <div className="mt-1 text-sm font-bold text-content-3">
@@ -1008,18 +1008,18 @@ export function SalesProductSpecCard({
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-info-border bg-info-bg px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-fg">
             Final product size
           </div>
-          <div className="mt-2 text-xl font-black text-content-1">
+          <div className="mt-2 text-xl font-semibold text-content-1">
             {spec.size.label}
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
             Order context
           </div>
-          <div className="mt-2 text-sm font-black text-content-1">
+          <div className="mt-2 text-sm font-semibold text-content-1">
             {spec.templateName || spec.variantName || "Template pending"}
           </div>
         </div>
@@ -1053,10 +1053,10 @@ export function SalesOutputSummaryCard({
     <section className="rounded-[1.75rem] border border-line bg-surface-1 p-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
             {title}
           </div>
-          <h3 className="mt-1 text-xl font-black tracking-tight text-content-1">
+          <h3 className="mt-1 text-xl font-semibold tracking-tight text-content-1">
             {outputLabel}
           </h3>
         </div>
@@ -1064,24 +1064,24 @@ export function SalesOutputSummaryCard({
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-info-border bg-info-bg px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
             Step target
           </div>
-          <div className="mt-2 text-lg font-black text-content-1">{target}</div>
+          <div className="mt-2 text-lg font-semibold text-content-1">{target}</div>
         </div>
         <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-success-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success-fg">
             Produced
           </div>
-          <div className="mt-2 text-lg font-black text-content-1">
+          <div className="mt-2 text-lg font-semibold text-content-1">
             {produced || "0"}
           </div>
         </div>
         <div className="rounded-2xl border border-warning-border bg-warning-bg px-4 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-warning-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg">
             Remaining
           </div>
-          <div className="mt-2 text-lg font-black text-content-1">
+          <div className="mt-2 text-lg font-semibold text-content-1">
             {remaining}
           </div>
         </div>
@@ -1197,7 +1197,7 @@ export function SalesSavedViewsBar({
       data-testid={`sales-saved-views-${scope}`}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
           Saved views
         </div>
         <div className="text-[10px] font-semibold text-content-4">
@@ -1217,7 +1217,7 @@ export function SalesSavedViewsBar({
                 onApply(view.filters);
               }}
               className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-black transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg",
+                "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-semibold transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg",
                 isActive
                   ? "border-primary bg-gradient-to-br from-primary to-info-fg text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]"
                   : "border-line bg-surface-1 text-content-2",
@@ -1263,7 +1263,7 @@ export function SalesSavedViewsBar({
                 onApply(view.filters);
               }}
               className={cn(
-                "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-black transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg",
+                "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-semibold transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg",
                 isActive
                   ? "border-primary bg-gradient-to-br from-primary to-info-fg text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]"
                   : "border-line bg-surface-1 text-content-2",
@@ -1278,7 +1278,7 @@ export function SalesSavedViewsBar({
           <Button
             type="button"
             variant="outline"
-            className="h-9 rounded-full border-info-border bg-info-bg px-4 text-xs font-black text-primary hover:bg-info-bg"
+            className="h-9 rounded-full border-info-border bg-info-bg px-4 text-xs font-semibold text-primary hover:bg-info-bg"
             onClick={() => updateSavedView(updateTarget.id)}
           >
             <Bookmark className="mr-2 h-4 w-4" />
@@ -1288,7 +1288,7 @@ export function SalesSavedViewsBar({
         <Button
           type="button"
           variant="outline"
-          className="h-9 rounded-full border-dashed bg-surface-1 px-4 text-xs font-black"
+          className="h-9 rounded-full border-dashed bg-surface-1 px-4 text-xs font-semibold"
           onClick={openSaveDialog}
         >
           <BookmarkPlus className="mr-2 h-4 w-4" />
@@ -1299,7 +1299,7 @@ export function SalesSavedViewsBar({
             <Button
               type="button"
               variant="outline"
-              className="h-9 rounded-full bg-surface-1 text-xs font-black"
+              className="h-9 rounded-full bg-surface-1 text-xs font-semibold"
             >
               All views
               <ChevronDown className="ml-2 h-4 w-4" />
@@ -1309,7 +1309,7 @@ export function SalesSavedViewsBar({
             align="end"
             className="w-[min(28rem,calc(100vw-2rem))] rounded-2xl border-line p-2 shadow-[0_24px_58px_-28px_rgba(15,23,42,0.38)]"
           >
-            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
               Starter views
             </DropdownMenuLabel>
             {starters.map((view) => (
@@ -1322,7 +1322,7 @@ export function SalesSavedViewsBar({
                 }}
               >
                 <div className="min-w-0">
-                  <div className="font-black text-content-1">{view.name}</div>
+                  <div className="font-semibold text-content-1">{view.name}</div>
                   <div className="mt-0.5 truncate text-xs text-content-3">
                     {summarizeFilters(view.filters)}
                   </div>
@@ -1330,7 +1330,7 @@ export function SalesSavedViewsBar({
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
               My saved views
             </DropdownMenuLabel>
             {!savedViews.length ? (
@@ -1352,7 +1352,7 @@ export function SalesSavedViewsBar({
                       setMenuOpen(false);
                     }}
                   >
-                    <div className="truncate text-sm font-black text-content-1">
+                    <div className="truncate text-sm font-semibold text-content-1">
                       {view.name}
                     </div>
                     <div className="mt-0.5 truncate text-xs text-content-3">
@@ -1448,7 +1448,7 @@ export function SalesVariantCard({
       <button type="button" className="w-full text-left" onClick={onSelect}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-sm font-black text-content-1">
+            <div className="truncate text-sm font-semibold text-content-1">
               {variant.code}
             </div>
             <div className="mt-1 line-clamp-2 text-sm font-bold leading-5 text-content-2">
@@ -1475,7 +1475,7 @@ export function SalesVariantCard({
       {onAdd ? (
         <Button
           type="button"
-          className="mt-3 h-10 w-full rounded-full bg-surface-3 text-xs font-black uppercase tracking-[0.14em] hover:bg-line"
+          className="mt-3 h-10 w-full rounded-full bg-surface-3 text-xs font-semibold uppercase tracking-[0.08em] hover:bg-line"
           onClick={onAdd}
         >
           <PackageCheck className="mr-2 h-4 w-4" />

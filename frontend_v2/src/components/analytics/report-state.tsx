@@ -78,7 +78,7 @@ export function ReportStateBanner({
             <AlertTriangle className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-sm font-black">{title}</div>
+            <div className="text-sm font-semibold">{title}</div>
             <div className="mt-1 text-sm font-medium opacity-80">{message}</div>
           </div>
         </div>
@@ -106,7 +106,7 @@ export function ReportEmptyCard({
 }) {
   return (
     <div className="rounded-[1.35rem] border border-dashed border-line bg-surface-2 px-4 py-6 text-sm font-semibold text-content-3">
-      <div className="text-sm font-black text-content-2">{title}</div>
+      <div className="text-sm font-semibold text-content-2">{title}</div>
       <div className="mt-1 text-sm font-medium text-content-3">{message}</div>
     </div>
   );

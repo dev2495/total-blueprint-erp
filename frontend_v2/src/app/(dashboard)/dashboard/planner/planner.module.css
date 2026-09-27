@@ -20,12 +20,8 @@
   align-items: flex-start;
   padding: 1.6rem 1.8rem;
   border-radius: 1.6rem;
-  background: linear-gradient(
-    135deg,
-    var(--content-1) 0%,
-    var(--brand-900) 52%,
-    var(--brand-700) 100%
-  );
+  background: var(--hero-surface);
+  border: 1px solid var(--hero-edge);
   color: var(--text-on-dark);
   box-shadow: 0 24px 64px -42px rgba(15, 23, 42, 0.45);
 }
@@ -36,8 +32,8 @@
   align-items: center;
   gap: 0.42rem;
   font-size: 0.66rem;
-  font-weight: 900;
-  letter-spacing: 0.22em;
+  font-weight: 650;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
@@ -52,12 +48,12 @@
 .title {
   margin-top: 0.45rem;
   max-width: 50rem;
-  font-size: clamp(1.85rem, 3vw, 2.5rem);
-  line-height: 1.02;
-  letter-spacing: 0;
-  font-weight: 900;
+  font-size: clamp(1.55rem, 2.2vw, 1.9rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-weight: 650;
   color: var(--text-on-dark);
-  text-shadow: 0 18px 42px rgba(15, 23, 42, 0.28);
+  text-shadow: none;
 }
 
 .description {
@@ -84,7 +80,7 @@
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.14);
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -147,8 +143,8 @@
 
 .metricLabel {
   font-size: 0.66rem;
-  font-weight: 900;
-  letter-spacing: 0.18em;
+  font-weight: 650;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--content-3);
 }
@@ -183,7 +179,7 @@
   font-size: 1.6rem;
   line-height: 1;
   letter-spacing: -0.05em;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
 }
 
@@ -233,14 +229,14 @@
 .panelTitle {
   margin-top: 0.28rem;
   font-size: 1.02rem;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: -0.03em;
   color: var(--content-1);
 }
 
 .panelStat {
   font-size: 0.86rem;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--brand-700);
 }
 
@@ -334,7 +330,7 @@
   padding: 1rem;
   color: var(--content-4);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.45;
   text-align: center;
   background: var(--surface-2);
@@ -406,7 +402,7 @@
 .readinessTitle {
   margin-top: 0.22rem;
   font-size: 0.92rem;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
 }
 
@@ -457,7 +453,7 @@
   padding: 0.7rem 0.55rem;
   color: var(--content-3);
   font-size: 0.68rem;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   border-bottom: 1px solid var(--border-default);
@@ -483,7 +479,7 @@
 
 .activityTitle {
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--content-1);
 }
 
@@ -499,7 +495,7 @@
   background: var(--info-bg);
   color: var(--brand-600);
   font-size: 0.66rem;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -535,13 +531,13 @@
   background: var(--content-1);
   color: var(--text-on-dark);
   font-size: 0.82rem;
-  font-weight: 900;
+  font-weight: 650;
   flex: 0 0 auto;
 }
 
 .alertTitle {
   font-size: 0.8rem;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
 }
 
@@ -576,7 +572,7 @@
 .coverageValue {
   font-size: 2rem;
   line-height: 1;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: -0.05em;
   color: var(--content-1);
 }
@@ -603,7 +599,7 @@
 
 .costChip span {
   font-size: 0.66rem;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--content-3);
@@ -611,7 +607,7 @@
 
 .costChip strong {
   font-size: 0.98rem;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
 }
 
@@ -624,7 +620,7 @@
 .actionCard {
   color: var(--content-1);
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 600;
   transition:
     transform 0.16s ease,
     border-color 0.16s ease,
@@ -646,7 +642,7 @@
 
 .chartTooltipLabel {
   font-size: 0.74rem;
-  font-weight: 900;
+  font-weight: 650;
   color: var(--content-1);
   margin-bottom: 0.3rem;
 }
@@ -678,23 +674,8 @@
 }
 
 :global(.dark) .hero {
-  background:
-    radial-gradient(
-      circle at 82% 8%,
-      rgba(143, 184, 255, 0.28),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 8% 0%,
-      rgba(94, 226, 173, 0.1),
-      transparent 26%
-    ),
-    linear-gradient(
-      135deg,
-      var(--surface-3) 0%,
-      var(--brand-950) 46%,
-      var(--brand-900) 100%
-    );
+  background: var(--hero-surface);
+  border: 1px solid var(--hero-edge);
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 

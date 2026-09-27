@@ -287,7 +287,7 @@ export function PlannerFilterDock({
                 <div className="ct-filter-dock__saved">
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                         <Bookmark size={13} color="var(--text-4)" />
-                        <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-4)" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-4)" }}>
                             Saved views
                         </span>
                     </div>
@@ -313,7 +313,7 @@ export function FilterBadge({ label, tone = "neutral" }: { label: string; tone?:
                 background: t.bg,
                 color: t.fg,
                 fontSize: 11,
-                fontWeight: 850,
+                fontWeight: 700,
                 whiteSpace: "nowrap",
             }}
         >
@@ -341,7 +341,7 @@ export function FilterGroup({
         >
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
                 {icon && <span style={{ color: t.fg, display: "inline-flex" }}>{icon}</span>}
-                <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", color: t.fg }}>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: t.fg }}>
                     {label}
                 </span>
             </div>
@@ -416,7 +416,7 @@ export function FilterSelect({
 }) {
     return (
         <label style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-            <span style={{ fontSize: 9, fontWeight: 850, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--text-4)" }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--text-4)" }}>
                 {label}
             </span>
             <select

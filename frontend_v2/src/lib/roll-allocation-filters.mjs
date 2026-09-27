@@ -4,10 +4,8 @@ export function matchesRollMaterial(roll, spec) {
   const variant = String(spec?.variant_id || "");
   const family = String(spec?.family_id || "");
   if (!variant && !family) return true;
-  return Boolean(
-    (variant && String(roll?.material_id || roll?.variant_id || "") === variant) ||
-    (family && String(roll?.family_id || "") === family),
-  );
+  if (variant) return String(roll?.material_id || roll?.variant_id || "") === variant;
+  return String(roll?.family_id || "") === family;
 }
 
 export function distinctRollTargetSpecs(targetSpec, targetSpecs = []) {

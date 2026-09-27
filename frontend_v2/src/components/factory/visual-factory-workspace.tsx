@@ -141,31 +141,31 @@ function StatusPill({ status }: { status: string }) {
   const s = String(status || "").toUpperCase();
   if (s === "RUNNING" || s === "ACTIVE")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-fg">
+      <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-1.5 py-0.5 text-[10px] font-bold text-success-fg">
         <span className="h-1 w-1 rounded-full bg-success-fg animate-pulse" />{" "}
         running
       </span>
     );
   if (s === "CHANGEOVER" || s === "SETUP")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-1.5 py-0.5 text-[9px] font-bold text-warning-fg">
+      <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-1.5 py-0.5 text-[10px] font-bold text-warning-fg">
         changeover
       </span>
     );
   if (s === "DOWN" || s === "MAINTENANCE")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-1.5 py-0.5 text-[9px] font-black text-danger-fg">
+      <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-1.5 py-0.5 text-[10px] font-semibold text-danger-fg">
         ⚠ down
       </span>
     );
   if (s === "IDLE")
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-content-3">
+      <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-content-3">
         idle
       </span>
     );
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-content-3">
+    <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-content-3">
       {s.toLowerCase() || "unknown"}
     </span>
   );
@@ -368,10 +368,10 @@ function TopHero({
         <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-order-fg via-order-fg to-order-fg" />
         <div className="relative pl-3 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
               Operations · live floor
             </div>
-            <h1 className="font-display text-3xl font-black tracking-tight text-content-1 mt-1">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-content-1 mt-1">
               Visual Factory
             </h1>
             <p className="mt-1.5 max-w-2xl text-xs text-content-3">
@@ -605,7 +605,7 @@ function OverviewTab({
             <Info className="h-3.5 w-3.5" />
           </span>
           <div className="flex-1">
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-order-fg">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-order-fg">
               OEE shown as two real numbers — A and Q
             </div>
             <p className="text-[12px] text-content-2 mt-1">
@@ -617,10 +617,10 @@ function OverviewTab({
             </p>
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="rounded-xl bg-surface-1 ring-1 ring-success-border px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-wider text-success-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
                   A · Availability
                 </div>
-                <div className="font-mono text-lg font-black text-success-fg">
+                <div className="font-mono text-lg font-semibold text-success-fg">
                   {availabilityPct.toFixed(0)}
                   <span className="text-sm">%</span>
                 </div>
@@ -631,10 +631,10 @@ function OverviewTab({
                 </div>
               </div>
               <div className="rounded-xl bg-surface-1 ring-1 ring-line-strong px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-wider text-content-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-content-2">
                   P · Performance
                 </div>
-                <div className="font-mono text-lg font-black text-content-4">
+                <div className="font-mono text-lg font-semibold text-content-4">
                   —
                 </div>
                 <div className="text-[10px] text-content-3">
@@ -644,10 +644,10 @@ function OverviewTab({
                 </div>
               </div>
               <div className="rounded-xl bg-surface-1 ring-1 ring-order-border px-3 py-2">
-                <div className="text-[10px] font-black uppercase tracking-wider text-order-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-order-fg">
                   Q · Quality
                 </div>
-                <div className="font-mono text-lg font-black text-order-fg">
+                <div className="font-mono text-lg font-semibold text-order-fg">
                   {qualityPct.toFixed(1)}
                   <span className="text-sm">%</span>
                 </div>
@@ -695,12 +695,12 @@ function KpiTile({
 }) {
   const body = (
     <>
-      <div className="text-[10px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div
         className={cn(
-          "font-display text-xl font-black tabular-nums",
+          "font-display text-xl font-semibold tabular-nums",
           valueClass || "text-content-1",
         )}
       >
@@ -777,7 +777,7 @@ function RouteSwimlane({
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
       <header className="border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
             Route flow · today
           </div>
           <h2 className="font-display text-lg font-bold text-content-1">
@@ -822,13 +822,13 @@ function RouteSwimlane({
                   <div className="flex items-center justify-between mb-2">
                     <div
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-wider",
+                        "text-[10px] font-semibold uppercase tracking-wider",
                         tone.tone,
                       )}
                     >
                       {tone.emoji} {tone.label} · {list.length} mc
                     </div>
-                    <span className="rounded-full bg-surface-1 px-1.5 py-0.5 text-[9px] font-bold text-content-2 ring-1 ring-line">
+                    <span className="rounded-full bg-surface-1 px-1.5 py-0.5 text-[10px] font-bold text-content-2 ring-1 ring-line">
                       {running}/{list.length} running
                     </span>
                   </div>
@@ -849,7 +849,7 @@ function RouteSwimlane({
                           title={`Open ${machine.code} machine console`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-mono font-black text-[11px] text-content-1">
+                            <span className="font-mono font-semibold text-[11px] text-content-1">
                               {machine.code}
                             </span>
                             <StatusPill
@@ -862,7 +862,7 @@ function RouteSwimlane({
                                 {live.current_job.product_name ||
                                   live.current_job.job_number}
                               </div>
-                              <div className="text-[9px] text-content-3 truncate">
+                              <div className="text-[10px] text-content-3 truncate">
                                 {live.current_job.job_number}
                                 {(live as any).operator?.name
                                   ? ` · Op: ${(live as any).operator?.name}`
@@ -875,7 +875,7 @@ function RouteSwimlane({
                             </div>
                           )}
                           {(live as any)?.queue_count ? (
-                            <div className="mt-1 text-[9px] font-mono text-content-3">
+                            <div className="mt-1 text-[10px] font-mono text-content-3">
                               queue · {(live as any).queue_count} jobs
                             </div>
                           ) : null}
@@ -932,7 +932,7 @@ function WipAgingPanel({
     <div className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
       <header className="border-b border-line bg-gradient-to-r from-success-bg via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
             WIP pools · aged
           </div>
           <h2 className="font-display text-base font-bold text-content-1">
@@ -956,7 +956,7 @@ function WipAgingPanel({
         </div>
       </header>
       <div className="bg-surface-2 border-b border-line px-5 py-2 flex flex-wrap items-center gap-3 text-[10px] font-bold">
-        <span className="text-[10px] font-black uppercase tracking-wider text-content-3">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
           aging buckets
         </span>
         <span className="inline-flex items-center gap-1.5">
@@ -1001,7 +1001,7 @@ function WipPoolRow({ pool }: { pool: WipAgingPool }) {
       className="block px-5 py-3 grid grid-cols-12 gap-3 items-center hover:bg-surface-2"
     >
       <div className="col-span-3">
-        <div className="font-mono text-[11px] font-black text-content-2">
+        <div className="font-mono text-[11px] font-semibold text-content-2">
           {pool.klass}
         </div>
         <div className="text-[11px] font-bold text-content-2">{pool.label}</div>
@@ -1009,7 +1009,7 @@ function WipPoolRow({ pool }: { pool: WipAgingPool }) {
           <div className="text-[10px] text-content-3">{pool.description}</div>
         ) : null}
       </div>
-      <div className="col-span-2 font-mono font-black text-content-1">
+      <div className="col-span-2 font-mono font-semibold text-content-1">
         {fmtKg(pool.total)}{" "}
         <span className="text-[10px] font-bold text-content-3">{pool.uom}</span>
       </div>
@@ -1020,7 +1020,7 @@ function WipPoolRow({ pool }: { pool: WipAgingPool }) {
           <div className="bg-warm" style={{ width: seg(pool.stale) }} />
           <div className="bg-danger-solid" style={{ width: seg(pool.dead) }} />
         </div>
-        <div className="mt-1 flex justify-between text-[9px] font-bold text-content-3">
+        <div className="mt-1 flex justify-between text-[10px] font-bold text-content-3">
           <span>fresh {fmtKg(pool.fresh)}</span>
           <span>aging {fmtKg(pool.aging)}</span>
           <span className={pool.stale > 0 ? "text-warm" : ""}>
@@ -1033,7 +1033,7 @@ function WipPoolRow({ pool }: { pool: WipAgingPool }) {
       </div>
       <div className="col-span-3 flex items-center justify-end gap-1.5">
         {pool.line_counts ? (
-          <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[9px] font-bold text-content-2 ring-1 ring-line">
+          <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-content-2 ring-1 ring-line">
             {pool.line_counts.fresh +
               pool.line_counts.aging +
               pool.line_counts.stale +
@@ -1139,7 +1139,7 @@ function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
             <AlertTriangle className="h-3.5 w-3.5" />
           </span>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-danger-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-danger-fg">
               Live alerts
             </div>
             <div className="font-display text-sm font-bold text-content-1">
@@ -1189,7 +1189,7 @@ function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
                 <div className="flex items-center justify-between gap-2">
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[9px] font-black uppercase",
+                      "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase",
                       tone.pill,
                     )}
                   >
@@ -1266,7 +1266,7 @@ function PlantsTab({
     <section className="space-y-4">
       <div className="rounded-2xl border border-line bg-surface-1 px-5 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[11px] font-bold">
-          <span className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
             {plants.length} plants
           </span>
           <Link
@@ -1403,10 +1403,10 @@ function PlantBlock({
               <Factory className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Plant · {plant.code}
               </div>
-              <h3 className="font-display text-xl font-black text-content-1 mt-0.5">
+              <h3 className="font-display text-xl font-semibold text-content-1 mt-0.5">
                 {plant.name}
               </h3>
               <div className="text-[11px] text-content-3 mt-1">
@@ -1496,7 +1496,7 @@ function PlantBlock({
                   <div>
                     <div
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-wider",
+                        "text-[10px] font-semibold uppercase tracking-wider",
                         tone.tone,
                       )}
                     >
@@ -1535,7 +1535,7 @@ function PlantBlock({
                           )}
                         >
                           <div className="flex justify-between">
-                            <span className="font-mono font-black text-[11px]">
+                            <span className="font-mono font-semibold text-[11px]">
                               {mc.code}
                             </span>
                             <StatusPill
@@ -1548,7 +1548,7 @@ function PlantBlock({
                                 {live.current_job.product_name ||
                                   live.current_job.job_number}
                               </div>
-                              <div className="flex justify-between text-[9px]">
+                              <div className="flex justify-between text-[10px]">
                                 <span className="text-content-3 truncate">
                                   {(live as any).operator?.name
                                     ? `Op: ${(live as any).operator?.name}`
@@ -1577,7 +1577,7 @@ function PlantBlock({
           <div className="rounded-xl border border-line bg-surface-2 p-3">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-content-2">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-content-2">
                   Material yard · this plant
                 </div>
                 <div className="text-[10px] text-content-3">
@@ -1605,15 +1605,15 @@ function PlantBlock({
                       {fmtKg(p.total)} {p.uom}
                     </span>
                     {p.dead > 0 ? (
-                      <span className="rounded-full bg-danger-bg px-1.5 py-0.5 text-[9px] font-bold text-danger-fg">
+                      <span className="rounded-full bg-danger-bg px-1.5 py-0.5 text-[10px] font-bold text-danger-fg">
                         {fmtKg(p.dead)} dead
                       </span>
                     ) : p.stale > 0 ? (
-                      <span className="rounded-full bg-warning-bg px-1.5 py-0.5 text-[9px] font-bold text-warning-fg">
+                      <span className="rounded-full bg-warning-bg px-1.5 py-0.5 text-[10px] font-bold text-warning-fg">
                         {fmtKg(p.stale)} stale
                       </span>
                     ) : (
-                      <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[9px] font-bold text-success-fg">
+                      <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[10px] font-bold text-success-fg">
                         fresh
                       </span>
                     )}
@@ -1639,12 +1639,12 @@ function KpiSmall({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 ring-1 ring-line px-2.5 py-1.5">
-      <div className="text-[9px] font-bold uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div
         className={cn(
-          "font-mono text-lg font-black",
+          "font-mono text-lg font-semibold",
           valueClass || "text-content-1",
         )}
       >
@@ -1784,7 +1784,7 @@ function CustomersTab({
 
       <div className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
         <header className="border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
             Order age distribution · {salesOrders.length} open lines
           </div>
           <h2 className="font-display text-base font-bold text-content-1">
@@ -1914,7 +1914,7 @@ function CustomerCard({
         <div className="flex items-center gap-3 min-w-0">
           <span
             className={cn(
-              "flex h-10 w-10 items-center justify-center rounded-xl text-white font-black",
+              "flex h-10 w-10 items-center justify-center rounded-xl text-white font-semibold",
               group.hasAged
                 ? "bg-gradient-to-br from-danger-bg to-danger-fg"
                 : "bg-gradient-to-br from-success-bg to-success-fg",
@@ -1925,7 +1925,7 @@ function CustomerCard({
           <div className="min-w-0">
             <div
               className={cn(
-                "text-[10px] font-black uppercase tracking-[0.22em]",
+                "text-[10px] font-semibold uppercase tracking-[0.12em]",
                 group.hasAged ? "text-danger-fg" : "text-success-fg",
               )}
             >
@@ -1945,11 +1945,11 @@ function CustomerCard({
         </div>
         <div className="flex flex-col items-end gap-1">
           {group.hasAged ? (
-            <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[9px] font-black text-danger-fg ring-1 ring-danger-border">
+            <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger-fg ring-1 ring-danger-border">
               oldest {oldestAge} days
             </span>
           ) : (
-            <span className="rounded-full bg-success-bg px-2 py-0.5 text-[9px] font-black text-success-fg ring-1 ring-success-border">
+            <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
               0 aged
             </span>
           )}
@@ -1992,7 +1992,7 @@ function CustomerCard({
             >
               <span
                 className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white",
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white",
                   tone.pill,
                 )}
               >
@@ -2023,7 +2023,7 @@ function CustomerCard({
       </div>
       {Object.keys(inFlight).length > 0 ? (
         <div className="bg-surface-2 px-5 py-2 border-t border-line flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
-          <span className="text-[10px] font-black uppercase tracking-wider text-content-3">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
             In flight now
           </span>
           {(Object.keys(inFlight) as ProcessKey[]).map((k) => (

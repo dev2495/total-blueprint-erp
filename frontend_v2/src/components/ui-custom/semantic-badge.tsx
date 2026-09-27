@@ -43,7 +43,7 @@ export function SemanticBadge({
     <Badge
       variant="outline"
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] shadow-none",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] shadow-none",
         meta.badgeClassName,
         className,
       )}

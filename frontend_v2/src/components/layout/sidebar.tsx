@@ -23,10 +23,10 @@ export function Sidebar() {
         onMouseEnter={() => setHovering(true)}
         onMouseLeave={() => setHovering(false)}
         className={cn(
-          "erp-glass-chrome pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-3xl border border-surface-1 bg-surface-1/92 shadow-[0_26px_80px_-48px_rgba(15,23,42,0.6)] ring-1 ring-line-strong/[0.04] backdrop-blur-2xl transition-[width,box-shadow,transform] duration-200",
+          "erp-glass-chrome pointer-events-auto group/sidebar my-3 ml-3 flex h-[calc(100vh-1.5rem)] flex-col rounded-[20px] border border-line bg-surface-1/90 backdrop-blur-2xl backdrop-saturate-150 transition-[width,box-shadow] duration-200 ease-out",
           isExpanded
-            ? "w-[284px] overflow-hidden shadow-[0_34px_96px_-54px_rgba(15,23,42,0.46)]"
-            : "w-[64px] overflow-visible shadow-[0_22px_64px_-46px_rgba(15,23,42,0.52)]",
+            ? "w-[284px] overflow-hidden shadow-[var(--shadow-lg)]"
+            : "w-[64px] overflow-visible shadow-[var(--shadow-sm)]",
         )}
       >
         <div

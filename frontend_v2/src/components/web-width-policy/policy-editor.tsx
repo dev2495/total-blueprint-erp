@@ -500,7 +500,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                 </div>
               </Field>
               <label className="flex flex-col gap-1 self-end">
-                <div className="text-[10px] font-black uppercase tracking-widest text-content-3">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   Allocation preference
                 </div>
                 <label className="mt-1 flex items-center gap-2 text-[12px]">
@@ -576,10 +576,10 @@ export function PolicyEditor({ id, initialMode }: Props) {
                 </Field>
               </div>
               <div className="rounded-xl bg-order-fg p-3 text-white">
-                <div className="text-[10px] font-black uppercase tracking-widest text-order-border">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-order-border">
                   planned parent
                 </div>
-                <div className="mt-1 font-display text-2xl font-extrabold">
+                <div className="mt-1 font-display text-2xl font-semibold">
                   {Math.round(previewPlan.planned_parent_width_mm)} mm
                 </div>
                 <div className="mt-1 text-[10px] text-order-border">
@@ -733,7 +733,7 @@ function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-content-3">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-content-3">
         {label}
       </div>
       {children}

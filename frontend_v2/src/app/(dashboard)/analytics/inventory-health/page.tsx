@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { RadialBarChart, RadialBar, ResponsiveContainer } from "recharts";
 import { useInView } from "react-intersection-observer";
 import { formatDisplayDate } from "@/lib/date-format";
+import { PageHero, heroButtonClass } from "@/components/premium";
 
 function ScrollTriggeredChart({
   children,
@@ -189,55 +190,30 @@ export default function InventoryHealthPage() {
   ];
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* Header section with white/slate aesthetics */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-            <span className="text-xs font-bold uppercase tracking-widest text-content-3">
-              Diagnostic Core
-            </span>
-          </div>
-          <h1 className="text-3xl font-black tracking-tight text-content-1">
-            Inventory Health Matrix
-          </h1>
-          <p className="text-content-3 font-medium">
-            Real-time systemic coherence engine and active structural warnings.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={loadData}
-            disabled={refreshing}
-            className="shadow-sm border-line text-content-3 bg-surface-1 hover:bg-surface-2"
-          >
-            <RefreshCw
-              className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`}
-              strokeWidth={2}
-            />
-            Sync Layer
-          </Button>
-          <Button
-            onClick={handleRunAudit}
-            disabled={auditRunning}
-            className="bg-surface-3 hover:bg-line text-white shadow-lg transition-all active:scale-95"
-          >
-            <ShieldCheck
-              className={`h-4 w-4 mr-2 ${auditRunning ? "animate-pulse" : ""}`}
-              strokeWidth={2}
-            />
-            Run Smart Audit
-          </Button>
-        </div>
-      </div>
+    <div className="mx-auto max-w-[1600px] space-y-4 pb-10">
+      <PageHero
+        compact
+        eyebrow="Analytics · Diagnostics"
+        icon={<ShieldCheck />}
+        title="Inventory Health Matrix"
+        description="Live stock coherence checks and open structural warnings across every plant."
+        actions={
+          <>
+            <button type="button" onClick={loadData} disabled={refreshing} className={heroButtonClass("ghost")}>
+              <RefreshCw className={refreshing ? "animate-spin" : ""} /> Sync layer
+            </button>
+            <button type="button" onClick={handleRunAudit} disabled={auditRunning} className={heroButtonClass("primary")}>
+              <ShieldCheck className={auditRunning ? "animate-pulse" : ""} /> Run smart audit
+            </button>
+          </>
+        }
+      />
 
       {error && (
         <Card className="border border-warning-border bg-warning-bg shadow-sm rounded-2xl">
           <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-sm font-black text-warning-fg">
+              <div className="text-sm font-semibold text-warning-fg">
                 Inventory health feed unavailable
               </div>
               <div className="mt-1 text-xs font-semibold text-warning-fg">
@@ -273,7 +249,7 @@ export default function InventoryHealthPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-black text-content-1 tracking-tight">
+          <div className="text-3xl font-semibold text-content-1 tracking-tight">
               {metricNumber(safeHealth.bulk.total_kg)}{" "}
               <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
@@ -294,7 +270,7 @@ export default function InventoryHealthPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-black text-content-1 tracking-tight">
+          <div className="text-3xl font-semibold text-content-1 tracking-tight">
               {metricNumber(safeHealth.rolls.available_kg)}{" "}
               <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
@@ -315,7 +291,7 @@ export default function InventoryHealthPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-content-1 tracking-tight flex items-baseline gap-2">
+            <div className="text-3xl font-semibold text-content-1 tracking-tight flex items-baseline gap-2">
               {metricNumber(safeHealth.rolls.fg_kg)}{" "}
               <span className="text-sm text-content-4">kg</span>
               <span className="flex h-1.5 w-1.5 rounded-full bg-success-fg"></span>
@@ -334,7 +310,7 @@ export default function InventoryHealthPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-content-1 tracking-tight">
+            <div className="text-3xl font-semibold text-content-1 tracking-tight">
               {metricNumber(safeHealth.rolls.reserved_kg)}{" "}
               <span className="text-sm text-content-4 ml-1">kg</span>
             </div>
@@ -373,7 +349,7 @@ export default function InventoryHealthPage() {
             </ScrollTriggeredChart>
             {/* Center Text absolute positioning over the generic HTML wrapper instead of SVG */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pb-4 pointer-events-none">
-              <div className="text-5xl font-black tracking-tighter text-content-1">
+              <div className="text-5xl font-semibold tracking-tighter text-content-1">
                 {integrityScore === null ? "—" : `${integrityScore}%`}
               </div>
               <div className="text-[11px] font-bold uppercase tracking-widest text-content-3 mt-1">
@@ -394,7 +370,7 @@ export default function InventoryHealthPage() {
               <p className="text-[11px] font-bold uppercase tracking-widest text-content-3 mb-1">
                 Critical Anomalies
               </p>
-              <p className="text-4xl font-black tracking-tight text-content-1">
+              <p className="text-4xl font-semibold tracking-tight text-content-1">
                 {alertNumber(safeHealth.alerts.critical)}
               </p>
             </div>
@@ -414,12 +390,12 @@ export default function InventoryHealthPage() {
               <p className="text-[11px] font-bold uppercase tracking-widest text-content-3 mb-1">
                 High Priority
               </p>
-              <p className="text-4xl font-black tracking-tight text-content-1">
+              <p className="text-4xl font-semibold tracking-tight text-content-1">
                 {alertNumber(safeHealth.alerts.high)}
               </p>
             </div>
             <div className="mt-4 border-t border-line pt-3">
-              <p className="text-xs font-semibold text-warm bg-warm inline-block px-2 py-0.5 rounded-sm">
+              <p className="text-xs font-semibold text-warning-fg bg-warning-bg inline-block px-2 py-0.5 rounded-sm">
                 Queue Escalation
               </p>
             </div>
@@ -438,7 +414,7 @@ export default function InventoryHealthPage() {
               <p className="text-[11px] font-bold uppercase tracking-widest text-content-3 mb-1">
                 Total Outstanding
               </p>
-              <p className="text-4xl font-black tracking-tight text-content-1">
+              <p className="text-4xl font-semibold tracking-tight text-content-1">
                 {alertNumber(safeHealth.alerts.total_open)}
               </p>
             </div>
@@ -454,7 +430,7 @@ export default function InventoryHealthPage() {
       {/* Alert List Rework */}
       <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden">
         <CardHeader className="border-b border-line bg-surface-1 pb-6 pt-6 px-6">
-          <CardTitle className="text-xl font-black text-content-1 flex items-center gap-2">
+          <CardTitle className="text-xl font-semibold text-content-1 flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" strokeWidth={2.5} />
             Active Diagnostic Log
           </CardTitle>
@@ -472,7 +448,7 @@ export default function InventoryHealthPage() {
                   strokeWidth={1.5}
                 />
               </div>
-              <p className="font-black text-lg text-warning-fg">
+              <p className="font-semibold text-lg text-warning-fg">
                 Health feed unavailable
               </p>
               <p className="text-content-3 text-sm font-medium mt-1">
@@ -487,7 +463,7 @@ export default function InventoryHealthPage() {
                   strokeWidth={1.5}
                 />
               </div>
-              <p className="font-black text-lg text-content-1">
+              <p className="font-semibold text-lg text-content-1">
                 Network 100% Validated
               </p>
               <p className="text-content-3 text-sm font-medium mt-1">
@@ -507,7 +483,7 @@ export default function InventoryHealthPage() {
                     <div className="flex items-start gap-4">
                       <Badge
                         variant="outline"
-                        className={`mt-1 border-0 shadow-sm text-[10px] font-black uppercase tracking-widest ${isAccel ? "text-danger-fg bg-danger-bg" : "text-warning-fg bg-warning-bg"}`}
+                        className={`mt-1 border-0 shadow-sm text-[10px] font-semibold uppercase tracking-widest ${isAccel ? "text-danger-fg bg-danger-bg" : "text-warning-fg bg-warning-bg"}`}
                       >
                         {alert.severity}
                       </Badge>
@@ -551,7 +527,7 @@ export default function InventoryHealthPage() {
       >
         <DialogContent className="rounded-2xl border-0 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black">
+            <DialogTitle className="text-xl font-semibold">
               Resolve Anomaly Trace
             </DialogTitle>
             <DialogDescription className="font-medium text-content-3 pt-1">

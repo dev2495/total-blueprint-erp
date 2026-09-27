@@ -168,13 +168,13 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
       <div className="border-b border-line bg-gradient-to-r from-brand-navy to-order-fg px-5 py-4 text-white">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-order-border"><Calculator className="h-4 w-4" /> Quote-level Cost Build</div>
-            <h3 className="mt-1 text-lg font-extrabold">Every cost has a source, owner and validity</h3>
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-order-border"><Calculator className="h-4 w-4" /> Quote-level Cost Build</div>
+            <h3 className="mt-1 text-lg font-semibold">Every cost has a source, owner and validity</h3>
             <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-order-border">RM baselines remain intact. Quote assumptions are separate, reasoned and approved. Conversion Cost is one transparent block, and approval freezes this exact checksum.</p>
           </div>
           <div className="rounded-lg bg-white/10 px-3 py-2 text-right ring-1 ring-white/15">
-            <div className="text-[9px] font-extrabold uppercase tracking-widest text-order-border">Snapshot</div>
-            <div className="font-mono text-xs font-extrabold">{result?.checksum?.slice(0, 14) || "NOT SAVED"}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-order-border">Snapshot</div>
+            <div className="font-mono text-xs font-semibold">{result?.checksum?.slice(0, 14) || "NOT SAVED"}</div>
           </div>
         </div>
       </div>
@@ -182,7 +182,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
       <div className="space-y-5 p-5">
         {result?.readiness ? (
           <div className={`rounded-xl border p-3 ${result.readiness.ready ? "border-success-border bg-success-bg" : "border-warning-border bg-warning-bg"}`}>
-            <div className="flex items-center gap-2 text-sm font-extrabold">
+            <div className="flex items-center gap-2 text-sm font-semibold">
               {result.readiness.ready ? <BadgeCheck className="h-4 w-4 text-success-fg" /> : <AlertTriangle className="h-4 w-4 text-warning-fg" />}
               {result.readiness.ready ? "Commercially ready" : `${result.readiness.errors.length} blocking prerequisite(s)`}
             </div>
@@ -191,7 +191,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
         ) : null}
 
         <div>
-          <div className="mb-2 flex items-center gap-2"><Database className="h-4 w-4 text-order-fg" /><h4 className="text-sm font-extrabold">Raw materials · master/FIFO baseline versus quote assumption</h4></div>
+          <div className="mb-2 flex items-center gap-2"><Database className="h-4 w-4 text-order-fg" /><h4 className="text-sm font-semibold">Raw materials · master/FIFO baseline versus quote assumption</h4></div>
           {materials.length === 0 ? (
             <div className="rounded-xl border border-dashed border-line p-4 text-xs font-semibold text-content-3">Save quotation lines, then save Cost Build to resolve layer, ink, adhesive, solvent, additive and packing sources. No value is assumed.</div>
           ) : (
@@ -201,16 +201,16 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
                 const overrideKey = row.component_key || `${row.quotation_item_id}-${row.role}-${row.material_id}`;
                 const override = overrides[overrideKey];
                 return <tr key={`${row.quotation_item_id}-${row.material_id}-${row.role}`} className="align-top">
-                  <td className="px-3 py-3"><div className="font-extrabold text-content-1">{row.material_code || row.label}</div><div className="text-[10px] font-bold text-content-3">{lineName(row.quotation_item_id)}</div><div className="text-[9px] font-bold uppercase tracking-wider text-content-4">{row.role}</div></td>
+                  <td className="px-3 py-3"><div className="font-semibold text-content-1">{row.material_code || row.label}</div><div className="text-[10px] font-bold text-content-3">{lineName(row.quotation_item_id)}</div><div className="text-[10px] font-bold uppercase tracking-wider text-content-4">{row.role}</div></td>
                   <td className="px-3 py-3"><div className="font-mono font-bold">{row.source_type}</div><div className="text-content-3">{row.source_lot_ref || row.source_ref || "Source required"}</div><div className="text-content-4">{row.source_effective_at ? new Date(row.source_effective_at).toLocaleDateString("en-IN") : "No effective date"}</div></td>
-                  <td className="px-3 py-3 text-right font-mono font-extrabold">₹ {money(row.baseline_rate)} / {row.baseline_uom || "—"}</td>
+                  <td className="px-3 py-3 text-right font-mono font-semibold">₹ {money(row.baseline_rate)} / {row.baseline_uom || "—"}</td>
                   <td className="px-3 py-3 text-right font-mono"><b>{money(row.quote_quantity)} {row.quote_uom}</b><div className="text-content-4">avail {money(row.baseline_available_qty)} {row.baseline_uom}</div></td>
                   <td className="px-3 py-3">{editable ? <div className="grid grid-cols-3 gap-1.5">
                     <input aria-label={`${row.label} override rate`} type="number" placeholder="Rate" value={override?.rate ?? ""} onChange={(event) => setOverrides((all) => ({ ...all, [overrideKey]: { rate: Number(event.target.value), reason: all[overrideKey]?.reason || "", expires_at: all[overrideKey]?.expires_at || "" } }))} className="h-8 rounded-md border border-line px-2 font-mono" />
                     <input aria-label={`${row.label} override reason`} placeholder="Reason" value={override?.reason || ""} onChange={(event) => setOverrides((all) => ({ ...all, [overrideKey]: { rate: all[overrideKey]?.rate || 0, reason: event.target.value, expires_at: all[overrideKey]?.expires_at || "" } }))} className="h-8 rounded-md border border-line px-2" />
                     <input aria-label={`${row.label} override expiry`} type="datetime-local" value={override?.expires_at || ""} onChange={(event) => setOverrides((all) => ({ ...all, [overrideKey]: { rate: all[overrideKey]?.rate || 0, reason: all[overrideKey]?.reason || "", expires_at: event.target.value } }))} className="h-8 rounded-md border border-line px-2" />
                   </div> : <span className="font-mono">{row.override_rate ? `₹ ${money(row.override_rate)}` : "No override"}</span>}</td>
-                  <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider ${row.readiness_status === "READY" ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg"}`}>{row.override_status !== "NOT_REQUIRED" ? row.override_status : row.readiness_status}</span></td>
+                  <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${row.readiness_status === "READY" ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg"}`}>{row.override_status !== "NOT_REQUIRED" ? row.override_status : row.readiness_status}</span></td>
                 </tr>;
               })}</tbody>
             </table></div>
@@ -221,7 +221,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
         <div>
           <div className="mb-3">
             <div>
-              <h4 className="text-sm font-extrabold">Conversion Cost</h4>
+              <h4 className="text-sm font-semibold">Conversion Cost</h4>
               <p className="text-[11px] font-semibold text-content-4">Choose one calculation path. Direct conversion is the default; every quote-only value remains editable, reasoned and approval-controlled.</p>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-3" aria-label="Cost calculation method">
@@ -250,12 +250,12 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
               </div>
             ))}
           </div>
-          {editable && costEntryMode === "STEPWISE" ? <button type="button" onClick={() => setConversion((rows) => [...rows, { localId: uid(), category: "PROCESS", label: "", source_type: "PROCESS_RATE", quantity: 0, uom: "HOUR", rate: 0, basis: "PER_HOUR" }])} className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-lg bg-order-fg px-3 text-xs font-extrabold text-white"><Plus className="h-4 w-4" /> Add component</button> : null}
+          {editable && costEntryMode === "STEPWISE" ? <button type="button" onClick={() => setConversion((rows) => [...rows, { localId: uid(), category: "PROCESS", label: "", source_type: "PROCESS_RATE", quantity: 0, uom: "HOUR", rate: 0, basis: "PER_HOUR" }])} className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-lg bg-order-fg px-3 text-xs font-semibold text-white"><Plus className="h-4 w-4" /> Add component</button> : null}
         </div>
 
         <div className="grid gap-3 rounded-xl border border-line bg-surface-2 p-4 md:grid-cols-4">
-          <label className="text-[10px] font-extrabold uppercase tracking-wider text-content-3">Pricing method<select disabled={!editable} value={definition} onChange={(event) => setDefinition(event.target.value as typeof definition)} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-2 text-xs font-bold"><option value="GROSS_MARGIN_ON_SALES">Gross margin on net sales</option><option value="MARKUP_ON_COST">Markup on cost</option></select></label>
-          <label className="text-[10px] font-extrabold uppercase tracking-wider text-content-3">Target %<input disabled={!editable} type="number" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-3 text-right font-mono text-sm" /></label>
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">Pricing method<select disabled={!editable} value={definition} onChange={(event) => setDefinition(event.target.value as typeof definition)} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-2 text-xs font-bold"><option value="GROSS_MARGIN_ON_SALES">Gross margin on net sales</option><option value="MARKUP_ON_COST">Markup on cost</option></select></label>
+          <label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">Target %<input disabled={!editable} type="number" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-3 text-right font-mono text-sm" /></label>
           <Metric label="Target price" value={`₹ ${money(result?.target_price)}`} />
           <Metric label="Actual line price" value={`₹ ${money(result?.list_price)}`} />
         </div>
@@ -285,7 +285,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <div className="flex items-center gap-2 text-xs font-semibold text-content-3"><LockKeyhole className="h-4 w-4" /> Approval freezes component sources, quantities, rates, overrides, calculation method and checksum.</div>
-          {editable ? <button type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-success-fg px-4 text-xs font-extrabold uppercase tracking-wider text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saveMutation.isPending ? "Resolving sources…" : "Save Cost Build"}</button> : null}
+          {editable ? <button type="button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()} className="inline-flex h-10 items-center gap-2 rounded-xl bg-success-fg px-4 text-xs font-semibold uppercase tracking-wider text-white disabled:opacity-50"><Save className="h-4 w-4" /> {saveMutation.isPending ? "Resolving sources…" : "Save Cost Build"}</button> : null}
         </div>
       </div>
     </section>
@@ -293,9 +293,9 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg border border-line bg-surface-1 p-3"><div className="text-[9px] font-extrabold uppercase tracking-widest text-content-4">{label}</div><div className="mt-1 font-mono text-sm font-extrabold text-content-1">{value}</div></div>;
+  return <div className="rounded-lg border border-line bg-surface-1 p-3"><div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">{label}</div><div className="mt-1 font-mono text-sm font-semibold text-content-1">{value}</div></div>;
 }
 
 function CostModeButton({ active, disabled, icon, title, caption, onClick }: { active: boolean; disabled: boolean; icon: ReactNode; title: string; caption: string; onClick: () => void }) {
-  return <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} className={`min-h-16 rounded-xl px-3 py-2.5 text-left transition-[background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-order-fg disabled:opacity-60 ${active ? "bg-order-fg text-white shadow-sm" : "bg-surface-2 text-content-2 ring-1 ring-line hover:bg-surface-3"}`}><span className="flex items-center gap-2 text-xs font-extrabold">{icon}{title}</span><span className={`mt-1 block text-[10px] font-semibold ${active ? "text-order-border" : "text-content-4"}`}>{caption}</span></button>;
+  return <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} className={`min-h-16 rounded-xl px-3 py-2.5 text-left transition-[background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-order-fg disabled:opacity-60 ${active ? "bg-order-fg text-white shadow-sm" : "bg-surface-2 text-content-2 ring-1 ring-line hover:bg-surface-3"}`}><span className="flex items-center gap-2 text-xs font-semibold">{icon}{title}</span><span className={`mt-1 block text-[10px] font-semibold ${active ? "text-order-border" : "text-content-4"}`}>{caption}</span></button>;
 }

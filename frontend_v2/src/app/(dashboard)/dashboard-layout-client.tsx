@@ -6,6 +6,7 @@ import {
 } from "@/components/layout/dashboard-chrome";
 import { Header } from "@/components/layout/header";
 import { Sidebar } from "@/components/layout/sidebar";
+import { RouteProgress } from "@/components/layout/route-progress";
 import { HelpPageBanner } from "@/components/help/help-page-banner";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden erp-canvas">
+      <RouteProgress />
       <Sidebar />
       <div
         className={cn(

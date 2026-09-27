@@ -1,1045 +1,351 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
-  AlertTriangle,
-  BarChart3,
-  DollarSign,
+  ArrowUpRight,
+  Boxes,
+  Clock3,
+  Coins,
   Droplets,
   Factory,
-  Filter,
+  FileText,
   Gauge,
+  GitBranch,
   Layers,
-  Package,
-  RefreshCw,
-  Scale,
+  PackageSearch,
   Send,
   ShoppingCart,
+  Sparkles,
   Timer,
+  Trash2,
   Truck,
+  UserCheck,
+  Warehouse,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { getApiErrorStatus } from "@/lib/api";
 import {
   analyticsApi,
   type ReportDispatchRun,
   type ReportDistributionProfile,
-  type ReportTabResponse,
 } from "@/services/analytics";
-import { factoryService } from "@/services/factory";
-import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  PremiumHero,
-  PremiumMetricCard,
-  PremiumMetricStrip,
-  PremiumPageShell,
-  PremiumSection,
-} from "@/components/ui-custom/premium-page-shell";
-import { getApiErrorStatus } from "@/lib/api";
-import { formatDisplayDateTime } from "@/lib/date-format";
+  HeroStat,
+  HeroStats,
+  PageHero,
+  Panel,
+  PanelEmpty,
+  heroButtonClass,
+} from "@/components/premium";
+import { Pill } from "@/components/logistics/yard-ui";
 
-type ReportTabId =
-  | "production"
-  | "oee"
-  | "scrap"
-  | "dispatch"
-  | "downtime"
-  | "operator"
-  | "costing"
-  | "inventory"
-  | "interplant"
-  | "material-variance"
-  | "ink-intelligence"
-  | "sales"
-  | "inventory-lineage"
-  | "mrp"
-  | "shift-performance";
+type ReportCard = {
+  href: string;
+  title: string;
+  copy: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
 
-const REPORT_TABS: Array<{ id: ReportTabId; label: string; icon: any }> = [
-  { id: "production", label: "Production", icon: Factory },
-  { id: "oee", label: "OEE", icon: Gauge },
-  { id: "scrap", label: "Scrap", icon: AlertTriangle },
-  { id: "dispatch", label: "Dispatch", icon: Truck },
-  { id: "downtime", label: "Downtime", icon: Activity },
-  { id: "operator", label: "Operator", icon: Factory },
-  { id: "costing", label: "Costing", icon: DollarSign },
-  { id: "inventory", label: "Inventory", icon: Package },
-  { id: "interplant", label: "Inter-Plant", icon: Truck },
-  { id: "material-variance", label: "Material Variance", icon: Scale },
-  { id: "ink-intelligence", label: "Ink Intelligence", icon: Droplets },
-  { id: "sales", label: "Sales Fulfillment", icon: ShoppingCart },
-  { id: "inventory-lineage", label: "Inventory Lineage", icon: Package },
-  { id: "mrp", label: "MRP", icon: Layers },
-  { id: "shift-performance", label: "Shift Performance", icon: Timer },
+const LIBRARY: { domain: string; description: string; reports: ReportCard[] }[] = [
+  {
+    domain: "Production",
+    description: "Output, efficiency and lost time on the floor",
+    reports: [
+      { href: "/analytics/reports/production", title: "Production Performance", copy: "Output, yield and job completion by process, machine and shift", icon: Factory },
+      { href: "/analytics/reports/oee", title: "OEE Deep Dive", copy: "Availability × performance × quality for every running machine", icon: Gauge },
+      { href: "/analytics/reports/downtime", title: "Downtime Analysis", copy: "Pareto of stoppage reasons, MTTR and worst machines", icon: Timer },
+      { href: "/analytics/reports/shift-performance", title: "Shift Performance", copy: "Output, scrap and downtime compared shift by shift", icon: Clock3 },
+      { href: "/analytics/reports/operator", title: "Operator Performance", copy: "Leaderboard of output, efficiency and scrap by operator", icon: UserCheck },
+    ],
+  },
+  {
+    domain: "Quality & materials",
+    description: "Where material and ink go, and what is wasted",
+    reports: [
+      { href: "/analytics/reports/scrap", title: "Scrap & Yield", copy: "Scrap cost, reasons, jobs and processes driving waste", icon: Trash2 },
+      { href: "/analytics/reports/material-variance", title: "Material Variance", copy: "Theoretical vs issued vs consumed, by material and job", icon: Layers },
+      { href: "/analytics/reports/mrp", title: "MRP & Consumption Variance", copy: "Planning accuracy, waste factor and material flow", icon: GitBranch },
+      { href: "/analytics/reports/ink-intelligence", title: "Ink Intelligence", copy: "Ink issue discipline and returns by colour family", icon: Droplets },
+    ],
+  },
+  {
+    domain: "Sales & logistics",
+    description: "From order book to proof of delivery",
+    reports: [
+      { href: "/analytics/reports/sales", title: "Sales Fulfillment", copy: "Order value, OTIF, pipeline, top customers and overdue orders", icon: ShoppingCart },
+      { href: "/analytics/reports/dispatch", title: "Dispatch & Logistics", copy: "Challans, shipped weight and customer mix", icon: Truck },
+      { href: "/analytics/reports/interplant", title: "Inter-Plant Logistics", copy: "Transfers dispatched, received and in transit between plants", icon: Activity },
+      { href: "/analytics/reports/trading", title: "Trading Pulse", copy: "Trading goods revenue, margin and slow movers", icon: Sparkles },
+    ],
+  },
+  {
+    domain: "Inventory & finance",
+    description: "Stock health, lineage and profitability",
+    reports: [
+      { href: "/analytics/reports/inventory", title: "Inventory Health", copy: "Stock by stage, family and location with aging bands", icon: Warehouse },
+      { href: "/analytics/reports/inventory-lineage", title: "Inventory Lineage", copy: "Trace stock families back through stages and plants", icon: PackageSearch },
+      { href: "/analytics/reports/costing", title: "Costing & Profitability", copy: "Cost split, margin by customer and cost per kg", icon: Coins },
+    ],
+  },
 ];
 
-function toLabel(key: string) {
-  return String(key || "")
-    .replaceAll("_", " ")
-    .replaceAll("-", " ")
-    .replace(/\b\w/g, (match) => match.toUpperCase());
-}
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "—";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+};
 
-function toValue(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) return "—";
-    return value.toLocaleString(undefined, { maximumFractionDigits: 3 });
-  }
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
-}
+const runTone = (status?: string) => {
+  const s = String(status || "").toUpperCase();
+  if (s === "SUCCEEDED" || s === "SENT") return "good" as const;
+  if (s === "FAILED") return "bad" as const;
+  return "info" as const;
+};
 
-function toSummaryValue(key: string, value: unknown, summary: Record<string, any>) {
-  const normalized = key.toLowerCase();
-  const hasPositive = (field: string) => {
-    const count = Number(summary[field]);
-    return Number.isFinite(count) && count > 0;
-  };
-  const hasCohort =
-    normalized === "scrap_rate" || normalized === "yield_pct"
-      ? hasPositive("total_processed_kg") || hasPositive("total_output_kg")
-      : normalized === "planning_accuracy_pct" ||
-          normalized === "issue_accuracy_pct"
-        ? hasPositive("total_materials")
-        : normalized.includes("coverage")
-          ? hasPositive("total_jobs") || hasPositive("total_materials")
-        : true;
-  if (!hasCohort) return "N/A";
-  if (/(_pct|rate|yield|accuracy|coverage)$/.test(normalized)) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric)
-      ? `${numeric.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
-      : "—";
-  }
-  return toValue(value);
-}
-
-function toCoverageValue(
-  key: string,
-  value: unknown,
-  summary: Record<string, any>,
-) {
-  const hasCohort =
-    Number(summary.total_jobs) > 0 ||
-    (key === "material_actual_coverage" && Number(summary.total_materials) > 0);
-  if (!hasCohort) return "N/A";
-  const numeric = Number(value);
-  return Number.isFinite(numeric)
-    ? `${numeric.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
-    : "—";
-}
+const LEGACY_TABS = new Set([
+  "production", "oee", "downtime", "scrap", "inventory", "interplant", "mrp", "sales", "dispatch", "operator",
+  "costing", "material-variance", "ink-intelligence", "inventory-lineage", "shift-performance", "trading",
+]);
 
 function ReportsHubContent() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const initialTab = REPORT_TABS.some((item) => item.id === searchParams?.get("tab"))
-    ? (searchParams?.get("tab") as ReportTabId)
-    : "production";
-  const [tab, setTab] = useState<ReportTabId>(initialTab);
-  const [plant, setPlant] = useState(searchParams?.get("plant") || "ALL");
-  const [processId, setProcessId] = useState(searchParams?.get("process") || "ALL");
-  const [shift, setShift] = useState(searchParams?.get("shift") || "ALL");
-  const [dateFrom, setDateFrom] = useState(searchParams?.get("date_from") || "");
-  const [dateTo, setDateTo] = useState(searchParams?.get("date_to") || "");
+  // Older links used /analytics/reports?tab=<report>; send them to the report page.
+  useEffect(() => {
+    const tab = searchParams?.get("tab");
+    if (tab && LEGACY_TABS.has(tab)) {
+      const params = new URLSearchParams(searchParams?.toString());
+      params.delete("tab");
+      const query = params.toString();
+      router.replace(`/analytics/reports/${tab}${query ? `?${query}` : ""}`);
+    }
+  }, [router, searchParams]);
 
-  const { data: plants = [] } = useQuery({
-    queryKey: ["analytics-reports-plants"],
-    queryFn: factoryService.getPlants,
-    staleTime: 300_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
-  const { data: processes = [] } = useQuery({
-    queryKey: ["analytics-reports-processes"],
-    queryFn: factoryService.getProcesses,
-    staleTime: 300_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
-  const { data: shifts = [] } = useQuery({
-    queryKey: ["analytics-reports-shifts", plant],
-    queryFn: () =>
-      factoryService.getShifts(plant !== "ALL" ? plant : undefined),
-    staleTime: 120_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
-
-  const reportProfilesQuery = useQuery<ReportDistributionProfile[]>({
+  const profilesQuery = useQuery<ReportDistributionProfile[]>({
     queryKey: ["analytics-report-distributions"],
     queryFn: analyticsApi.getReportDistributions,
-    retry: (failureCount, error) =>
-      getApiErrorStatus(error) !== 403 && failureCount < 3,
+    retry: (count, error) => getApiErrorStatus(error) !== 403 && count < 2,
     staleTime: 600_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    placeholderData: (previous) => previous,
   });
-
-  const reportRunsQuery = useQuery<ReportDispatchRun[]>({
+  const runsQuery = useQuery<ReportDispatchRun[]>({
     queryKey: ["analytics-report-runs", 8],
     queryFn: () => analyticsApi.getReportRuns(8),
-    retry: (failureCount, error) =>
-      getApiErrorStatus(error) !== 403 && failureCount < 3,
-    staleTime: 300_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    placeholderData: (previous) => previous,
+    retry: (count, error) => getApiErrorStatus(error) !== 403 && count < 2,
+    staleTime: 120_000,
   });
 
-  const filters = useMemo(
-    () => ({
-      plant: plant !== "ALL" ? plant : undefined,
-      process: processId !== "ALL" ? processId : undefined,
-      shift: shift !== "ALL" ? shift : undefined,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-    }),
-    [plant, processId, shift, dateFrom, dateTo],
-  );
+  const profiles = profilesQuery.data ?? [];
+  const runs = runsQuery.data ?? [];
+  const latestRun = runs[0] ?? null;
+  const archiveRestricted =
+    getApiErrorStatus(profilesQuery.error) === 403 || getApiErrorStatus(runsQuery.error) === 403;
+  const reportCount = useMemo(() => LIBRARY.reduce((sum, group) => sum + group.reports.length, 0), []);
 
-  useEffect(() => {
-    const params = new URLSearchParams({ tab });
-    if (plant !== "ALL") params.set("plant", plant);
-    if (processId !== "ALL") params.set("process", processId);
-    if (shift !== "ALL") params.set("shift", shift);
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo) params.set("date_to", dateTo);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [dateFrom, dateTo, pathname, plant, processId, router, shift, tab]);
-
-  const reportQuery = useQuery<ReportTabResponse>({
-    queryKey: ["analytics-report-tab", tab, filters],
-    queryFn: () => analyticsApi.getReportTab(tab, filters),
-    staleTime: 300_000,
-    refetchInterval: 120_000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
-
-  const payload: ReportTabResponse = reportQuery.data ?? {
-    tab,
-    summary: {},
-    series: [],
-    rows: [],
-    warnings: [],
-    coverage: {},
-  };
-
-  const summary = payload.summary ?? payload.kpis ?? {};
-  const summaryEntries = Object.entries(summary).slice(0, 6);
-  const meaningfulSummaryEntries = summaryEntries.filter(
-    ([, value]) => value !== null && value !== undefined && value !== "",
-  );
-  const series = Array.isArray(payload.series) ? payload.series : [];
-  const rows = Array.isArray(payload.rows) ? payload.rows : [];
-  const coverage = payload.coverage || {};
-  const warnings = payload.warnings || [];
-  const reportProfiles = reportProfilesQuery.data ?? [];
-  const reportRuns = reportRunsQuery.data ?? [];
-  const selectedTab =
-    REPORT_TABS.find((item) => item.id === tab) || REPORT_TABS[0];
-  const SelectedTabIcon = selectedTab.icon;
-  const latestRun = reportRuns[0] ?? null;
-  const reportDeliveryAccessDenied =
-    getApiErrorStatus(reportProfilesQuery.error) === 403 ||
-    getApiErrorStatus(reportRunsQuery.error) === 403;
-  const reportSeriesRows = useMemo(
-    () =>
-      series
-        .map((row): Record<string, any> => ({
-          ...row,
-          value: row.value ?? row.output_kg ?? row.scrap_kg ?? row.weight_kg ?? null,
-        }))
-        .filter((row) => {
-          if (row.value === null || row.value === "") return false;
-          const value = Number(row.value);
-          return Number.isFinite(value);
-        }),
-    [series],
-  );
-  const seriesLeaders = useMemo(() => {
-    return reportSeriesRows
-      .map((row, index) => ({
-        key: `${row.name || row.date || row.shift_code || index}`,
-        label: toValue(
-          row.name ?? row.date ?? row.shift_code ?? `Series ${index + 1}`,
-        ),
-        sublabel: toValue(
-          row.process_name ??
-            row.machine_name ??
-            row.category ??
-            selectedTab.label,
-        ),
-        value: Number(row.value),
-      }))
-      .sort((left, right) => Math.abs(right.value) - Math.abs(left.value))
-      .slice(0, 6);
-  }, [reportSeriesRows, selectedTab.label]);
-  const leaderMax = useMemo(
-    () => Math.max(...seriesLeaders.map((row) => Math.abs(row.value)), 1),
-    [seriesLeaders],
-  );
-  const headlineMetrics = useMemo(
-    () =>
-      meaningfulSummaryEntries.length
-        ? meaningfulSummaryEntries
-            .slice(0, 4)
-            .map(([key, value]) => ({
-              key,
-              label: toLabel(key),
-              value: toSummaryValue(key, value, summary),
-            }))
-        : [
-            {
-              key: "profiles",
-              label: "Report Packs",
-              value: getApiErrorStatus(reportProfilesQuery.error) === 403
-                ? "Restricted"
-                : reportProfilesQuery.isPending
-                  ? "Loading"
-                  : reportProfilesQuery.isError
-                    ? "Unavailable"
-                    : reportProfiles.length,
-            },
-            {
-              key: "runs",
-              label: "Recent Runs",
-              value: reportRunsQuery.isPending
-                ? "Loading"
-                : reportRunsQuery.isError
-                  ? getApiErrorStatus(reportRunsQuery.error) === 403
-                    ? "Restricted"
-                    : "Unavailable"
-                  : reportRuns.length,
-            },
-            {
-              key: "rows",
-              label: "Active Rows",
-              value: reportQuery.isPending
-                ? "Loading"
-                : reportQuery.isError
-                  ? "Unavailable"
-                  : rows.length,
-            },
-            {
-              key: "signals",
-              label: "Signal Lines",
-              value: reportQuery.isPending
-                ? "Loading"
-                : reportQuery.isError
-                  ? "Unavailable"
-                  : series.length,
-            },
-          ],
-    [
-      rows.length,
-      series.length,
-      meaningfulSummaryEntries,
-      reportProfiles.length,
-      reportRuns.length,
-      reportProfilesQuery.isPending,
-      reportProfilesQuery.isError,
-      reportProfilesQuery.error,
-      reportRunsQuery.isPending,
-      reportRunsQuery.isError,
-      reportRunsQuery.error,
-      reportQuery.isPending,
-      reportQuery.isError,
-      reportDeliveryAccessDenied,
-    ],
-  );
-
-  const manualSendMutation = useMutation({
-    mutationFn: async (reportCode: string) =>
-      analyticsApi.sendReportDistribution(reportCode),
+  const sendMutation = useMutation({
+    mutationFn: (reportCode: string) => analyticsApi.sendReportDistribution(reportCode),
     onSuccess: () => {
-      toast({
-        title: "Report generated",
-        description:
-          "Daily pack was archived and owner/admin were notified in-app.",
-      });
+      toast({ title: "Report generated", description: "The daily pack was archived and owner/admin were notified in-app." });
       queryClient.invalidateQueries({ queryKey: ["analytics-report-runs"] });
     },
-    onError: (error: any) => {
+    onError: (error: any) =>
       toast({
         variant: "destructive",
-        title: "Manual report send failed",
-        description:
-          error?.response?.data?.detail || error?.message || "Send failed.",
-      });
-    },
+        title: "Report generation failed",
+        description: error?.response?.data?.detail || error?.message || "Send failed.",
+      }),
   });
 
   return (
-    <PremiumPageShell dataTestId="reports-hub-page">
-      <PremiumHero
+    <div className="mx-auto max-w-[1600px] space-y-4" data-testid="reports-hub-page">
+      <PageHero
         eyebrow="Analytics"
+        icon={<FileText />}
         title="Reports Hub"
-        description="Fast summary first, active report detail second, and direct jumps into archive or PDF proof without a heavy full-page wait."
-        className="border-line bg-[linear-gradient(135deg,#0f172a_0%,#1e3a8a_54%,#3b82f6_100%)]"
+        description="Every operational report in one place. Open a report for KPIs against targets, trends, insights and exportable detail."
         actions={
-          <>
-            <Button
-              variant="outline"
-              className="border-surface-1/20 bg-surface-1/10 text-white hover:bg-surface-1/15 hover:text-white"
-              onClick={() => reportQuery.refetch()}
-            >
-              <RefreshCw
-                className={`mr-2 h-4 w-4 ${reportQuery.isFetching ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="border-surface-1/20 bg-surface-1/10 text-white hover:bg-surface-1/15 hover:text-white"
-            >
-              <Link href="/analytics/capability-matrix">Capability Matrix</Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="border-surface-1/20 bg-surface-1/10 text-white hover:bg-surface-1/15 hover:text-white"
-            >
-              <Link href="/system/report-center">Open Report Center</Link>
-            </Button>
-          </>
+          latestRun ? (
+            <a href={analyticsApi.getReportRunPreviewUrl(latestRun.id)} target="_blank" rel="noreferrer" className={heroButtonClass("primary")}>
+              <FileText /> Latest daily pack
+            </a>
+          ) : null
         }
-        metrics={
-          <PremiumMetricStrip className="xl:grid-cols-4">
-            <PremiumMetricCard
-              label="Active tab"
-              value={selectedTab.label}
-              tone="dark"
-              valueClassName="text-lg sm:text-xl xl:text-[1.35rem]"
-            />
-            <PremiumMetricCard
-              label="Report packs"
-              value={reportDeliveryAccessDenied
-                ? "Restricted"
-                : reportProfilesQuery.isPending
-                  ? "Loading"
-                  : reportProfilesQuery.isError
-                    ? "Unavailable"
-                    : reportProfiles.length}
-              tone="dark"
-            />
-            <PremiumMetricCard
-              label="Recent report runs"
-              value={reportRunsQuery.isPending
-                ? "Loading"
-                : reportRunsQuery.isError
-                  ? getApiErrorStatus(reportRunsQuery.error) === 403
-                    ? "Restricted"
-                    : "Unavailable"
-                  : reportRuns.length}
-              tone="dark"
-            />
-            <PremiumMetricCard
-              label="Execution log coverage"
-              value={`${toValue(coverage.execution_log_coverage)}%`}
-              tone="dark"
-              hint={
-                rows.length
-                  ? `${rows.length} active rows`
-                  : "Awaiting current-tab rows"
-              }
-            />
-          </PremiumMetricStrip>
-        }
-      />
+      >
+        <HeroStats columns={4}>
+          <HeroStat label="Reports" value={reportCount} hint="across four domains" />
+          <HeroStat
+            label="Daily packs"
+            value={archiveRestricted ? "Restricted" : profilesQuery.isPending ? "—" : profiles.length}
+            hint="scheduled distributions"
+          />
+          <HeroStat
+            label="Recent runs"
+            value={archiveRestricted ? "Restricted" : runsQuery.isPending ? "—" : runs.length}
+            hint="archived report packs"
+          />
+          <HeroStat
+            label="Last generated"
+            tone={latestRun ? (runTone(latestRun.status) === "good" ? "good" : "warn") : undefined}
+            value={latestRun ? formatDateTime(latestRun.sent_at || latestRun.report_date) : "—"}
+            hint={latestRun ? String(latestRun.report_code || "").replaceAll("_", " ").toLowerCase() : "no runs yet"}
+          />
+        </HeroStats>
+      </PageHero>
 
-      <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)_360px]">
-        <PremiumSection
-          title="Filter Rail"
-          description="Keep one active lens without turning the analytics surface into a spreadsheet."
-          actions={<Filter className="h-4 w-4 text-content-4" />}
-          className="xl:sticky xl:top-6 xl:self-start"
-        >
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-content-3">Plant</Label>
-              <Select value={plant} onValueChange={setPlant}>
-                <SelectTrigger className="bg-surface-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Plants</SelectItem>
-                  {plants.map((plantRow: any) => (
-                    <SelectItem key={plantRow.id} value={plantRow.id}>
-                      {plantRow.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-content-3">
-                Process
-              </Label>
-              <Select value={processId} onValueChange={setProcessId}>
-                <SelectTrigger className="bg-surface-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Processes</SelectItem>
-                  {processes.map((processRow: any) => (
-                    <SelectItem key={processRow.id} value={processRow.id}>
-                      {processRow.code} • {processRow.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-content-3">Shift</Label>
-              <Select value={shift} onValueChange={setShift}>
-                <SelectTrigger className="bg-surface-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Shifts</SelectItem>
-                  {shifts.map((shiftRow: any) => (
-                    <SelectItem
-                      key={shiftRow.id}
-                      value={String(shiftRow.code || "").toUpperCase()}
-                    >
-                      {String(shiftRow.code || "").toUpperCase()} •{" "}
-                      {shiftRow.name || "Shift"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-content-3">
-                  Date From
-                </Label>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(event) => setDateFrom(event.target.value)}
-                />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          {LIBRARY.map((group) => (
+            <section key={group.domain} className="space-y-2.5">
+              <div className="flex items-baseline justify-between px-1">
+                <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-content-1">{group.domain}</h2>
+                <span className="text-[12px] text-content-3">{group.description}</span>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-content-3">
-                  Date To
-                </Label>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(event) => setDateTo(event.target.value)}
-                />
-              </div>
-            </div>
-            <div className="rounded-[1.4rem] border border-line bg-surface-2 p-4">
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
-                Coverage
-              </div>
-              <div className="mt-3 space-y-2 text-sm">
-                <div className="flex items-center justify-between text-content-3">
-                  <span>Execution Logs</span>
-                  <span className="font-black text-content-1">
-                    {toCoverageValue("execution_log_coverage", coverage.execution_log_coverage, summary)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-content-3">
-                  <span>Material Actuals</span>
-                  <span className="font-black text-content-1">
-                    {toCoverageValue("material_actual_coverage", coverage.material_actual_coverage, summary)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-content-3">
-                  <span>Shift Tags</span>
-                  <span className="font-black text-content-1">
-                    {toCoverageValue("shift_coverage", coverage.shift_coverage, summary)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </PremiumSection>
-
-        <div className="min-w-0 space-y-6">
-          <PremiumSection
-            title="Reporting overview"
-            description="Keep the summary stable, make the active report tab do the heavy lifting, and jump into the exact report route from here."
-            actions={
-              <div className="flex items-center gap-2 text-xs text-content-3">
-                <SelectedTabIcon className="h-4 w-4 text-primary" />
-                <span>
-                  {payload.generated_at
-                    ? `Generated ${formatDisplayDateTime(payload.generated_at)}`
-                    : "Awaiting first run"}
-                </span>
-                <Badge variant="outline" aria-live="polite">
-                  {reportQuery.isFetching
-                    ? "Refreshing"
-                    : reportQuery.isError
-                      ? "Unavailable"
-                      : payload.generated_at
-                        ? "Snapshot"
-                        : "Awaiting data"}
-                </Badge>
-              </div>
-            }
-          >
-            <div className="space-y-5">
-              {reportQuery.isPending ? (
-                <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-content-3" role="status">
-                  Loading this report for the selected filters…
-                </div>
-              ) : null}
-              {reportQuery.isError ? (
-                <div className="rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-fg" role="alert">
-                  This report could not be loaded. Refresh to try again.
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="ml-3 border-danger-border bg-surface-1"
-                    onClick={() => reportQuery.refetch()}
-                  >
-                    Retry
-                  </Button>
-                </div>
-              ) : null}
-              <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-9">
-                {REPORT_TABS.map((item) => {
-                  const Icon = item.icon;
-                  const active = tab === item.id;
+              <div className="erp-stagger grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                {group.reports.map((report) => {
+                  const Icon = report.icon;
                   return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={tab === item.id}
-                      onClick={() => setTab(item.id)}
-                      className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-xs font-black uppercase tracking-[0.14em] transition ${
-                        active
-                          ? "border-info-border bg-info-bg text-primary"
-                          : "border-line bg-surface-1 text-content-3 hover:border-line-strong"
-                      }`}
+                    <Link
+                      key={report.href}
+                      href={report.href}
+                      className="group relative flex min-h-[112px] flex-col rounded-2xl border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)] transition-[transform,box-shadow,border-color] duration-150 hover:-translate-y-px hover:border-line-strong hover:shadow-[var(--shadow-md)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <Icon className="h-3.5 w-3.5" />
-                      {item.label}
-                    </button>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-2 text-content-1 ring-1 ring-line transition group-hover:bg-content-1 group-hover:text-surface-1">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <ArrowUpRight className="h-4 w-4 text-content-4 transition group-hover:text-content-1" />
+                      </div>
+                      <div className="mt-3 text-[13.5px] font-semibold text-content-1">{report.title}</div>
+                      <div className="mt-0.5 text-[12px] leading-relaxed text-content-3">{report.copy}</div>
+                    </Link>
                   );
                 })}
               </div>
-
-              {warnings.length > 0 ? (
-                <div className="rounded-[1.5rem] border border-warning-border bg-warning-bg p-4">
-                  <div className="space-y-2">
-                    {warnings.map((message, index) => (
-                      <div
-                        key={`${message}-${index}`}
-                        className="flex items-start gap-2 text-sm text-warning-fg"
-                      >
-                        <AlertTriangle className="mt-0.5 h-4 w-4" />
-                        <span>{message}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              <PremiumMetricStrip className="xl:grid-cols-4">
-                {headlineMetrics.map((metric) => (
-                  <PremiumMetricCard
-                    key={metric.key}
-                    label={metric.label}
-                    value={metric.value}
-                    valueClassName="text-base sm:text-lg xl:text-[1.2rem]"
-                  />
-                ))}
-              </PremiumMetricStrip>
-
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.95fr)]">
-                <div className="space-y-4">
-                  <div className="rounded-[1.6rem] border border-line bg-surface-2 p-4">
-                    <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
-                      <Activity className="h-4 w-4 text-primary" />
-                      Report signals
-                    </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {meaningfulSummaryEntries
-                        .slice(0, 4)
-                        .map(([key, value]) => (
-                          <div
-                            key={`signal-${key}`}
-                            className="rounded-2xl border border-line bg-surface-1 p-3"
-                          >
-                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
-                              {toLabel(key)}
-                            </div>
-                            <div className="mt-2 text-xl font-black text-content-1">
-                              {toSummaryValue(key, value, summary)}
-                            </div>
-                          </div>
-                        ))}
-                      {!meaningfulSummaryEntries.length ? (
-                        <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-content-3 sm:col-span-2">
-                          Current tab has no summary metrics yet, so the hub is
-                          falling back to recent-run and coverage proof instead.
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.6rem] border border-line bg-surface-2 p-4">
-                    <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
-                      <BarChart3 className="h-4 w-4 text-content-2" />
-                      Signal bars
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      {seriesLeaders.length ? (
-                        seriesLeaders.map((row) => (
-                          <div
-                            key={row.key}
-                            className="rounded-2xl border border-line bg-surface-1 p-3"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="break-words text-sm font-black text-content-1">
-                                  {row.label}
-                                </div>
-                                <div className="mt-1 break-words text-xs text-content-3">
-                                  {row.sublabel}
-                                </div>
-                              </div>
-                              <div className="text-sm font-black text-content-1">
-                                {toValue(row.value)}
-                              </div>
-                            </div>
-                            <div className="mt-3 h-2 rounded-full bg-surface-2">
-                              <div
-                                className={`h-full rounded-full ${row.value < 0 ? "bg-danger-solid" : "bg-[linear-gradient(90deg,#2563eb_0%,#60a5fa_55%,#22c55e_100%)]"}`}
-                                style={{
-                                  width: `${Math.min((Math.abs(row.value) / leaderMax) * 100, 100)}%`,
-                                }}
-                                aria-hidden="true"
-                              />
-                            </div>
-                          </div>
-                        ))
-                        ) : !reportQuery.isPending && !reportQuery.isError ? (
-                          <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-content-3">
-                            No nonzero report series values are available for these filters.
-                          </div>
-                        ) : null}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[1.6rem] border border-line bg-surface-2 p-4">
-                    <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
-                      <Factory className="h-4 w-4 text-content-2" />
-                      Report rows
-                    </div>
-                    <ScrollArea className="mt-4 h-[300px] pr-3">
-                      <div className="space-y-3">
-                        {reportSeriesRows.length ? (
-                          reportSeriesRows.map((row, index) => (
-                            <div
-                              key={`${row.name || row.date || index}-${index}`}
-                              className="rounded-2xl border border-line bg-surface-1 p-3"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="break-words text-sm font-black text-content-1">
-                                    {toValue(
-                                      row.name ??
-                                        row.date ??
-                                        row.shift_code ??
-                                        `Series ${index + 1}`,
-                                    )}
-                                  </div>
-                                  <div className="mt-1 text-xs text-content-3">
-                                    {toValue(
-                                      row.process_name ??
-                                        row.machine_name ??
-                                        row.category ??
-                                        selectedTab.label,
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="text-sm font-black text-content-1">
-                                  {toValue(
-                                    row.value ?? row.output_kg ?? row.scrap_kg ?? row.weight_kg,
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        ) : !reportQuery.isPending && !reportQuery.isError ? (
-                          <div className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-content-3">
-                            No nonzero report series values are available for these filters.
-                          </div>
-                        ) : null}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                </div>
-
-                <div className="rounded-[1.6rem] border border-line bg-surface-2 p-4">
-                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-content-3">
-                    <Activity className="h-4 w-4 text-primary" />
-                    Active report workspace
-                  </div>
-                  <ScrollArea className="mt-4 h-[520px] pr-3">
-                    <div className="space-y-3">
-                      {rows.length ? (
-                        rows.map((row, index) => (
-                          <div
-                            key={`row-${index}`}
-                            className="rounded-2xl border border-line bg-surface-1 p-4"
-                          >
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              {Object.entries(row).map(([key, value]) => (
-                                  <div key={`${index}-${key}`}>
-                                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
-                                      {toLabel(key)}
-                                    </div>
-                                    <div className="mt-1 break-words text-sm font-semibold text-content-1">
-                                      {toValue(value)}
-                                    </div>
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                        ))
-                      ) : !reportQuery.isPending && !reportQuery.isError ? (
-                        <div className="rounded-2xl border border-dashed border-line px-4 py-12 text-center text-sm text-content-3">
-                          No rows in this period for the current filters.
-                        </div>
-                      ) : null}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </div>
-            </div>
-          </PremiumSection>
+            </section>
+          ))}
         </div>
 
-        <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
-          <PremiumSection
-            title="Quick report access"
-            description="Jump straight into the latest proof path without scanning the whole hub."
-            actions={<SelectedTabIcon className="h-4 w-4 text-content-4" />}
-          >
-            <div className="space-y-3">
-              <Link
-                href="/system/report-center"
-                className="flex items-center justify-between rounded-[1.35rem] border border-line bg-surface-2 px-4 py-3 text-sm font-semibold text-content-2 transition hover:border-line-strong hover:bg-surface-1"
-              >
-                <span>Open report archive</span>
-                <RefreshCw className="h-4 w-4 text-content-4" />
-              </Link>
-              <Link
-                href={{
-                  pathname: `/analytics/reports/${tab}`,
-                  query: {
-                    ...(plant !== "ALL" ? { plant } : {}),
-                    ...(processId !== "ALL" ? { process: processId } : {}),
-                    ...(shift !== "ALL" ? { shift } : {}),
-                    ...(dateFrom ? { date_from: dateFrom } : {}),
-                    ...(dateTo ? { date_to: dateTo } : {}),
-                  },
-                }}
-                className="flex items-center justify-between rounded-[1.35rem] border border-line bg-surface-2 px-4 py-3 text-sm font-semibold text-content-2 transition hover:border-line-strong hover:bg-surface-1"
-              >
-                <span>Open current report route</span>
-                <BarChart3 className="h-4 w-4 text-content-4" />
-              </Link>
-              {latestRun ? (
-                <a
-                  href={analyticsApi.getReportRunPreviewUrl(latestRun.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-between rounded-[1.35rem] border border-line bg-surface-2 px-4 py-3 text-sm font-semibold text-content-2 transition hover:border-line-strong hover:bg-surface-1"
-                >
-                  <span>Preview latest PDF</span>
-                  <Send className="h-4 w-4 text-content-4" />
-                </a>
-              ) : null}
-            </div>
-          </PremiumSection>
-          {reportDeliveryAccessDenied ? (
-            <PremiumSection
-              title="Report Archive Restricted"
-              description="Report generation history and PDF previews are only available to report admins."
-            >
-              <div className="text-sm text-content-3">
-                Analytics tabs remain available, but the archive rail is hidden
-                for this role.
-              </div>
-            </PremiumSection>
+        <aside className="space-y-4">
+          {archiveRestricted ? (
+            <Panel title="Report archive" description="Generation history and PDF previews are limited to report admins.">
+              <PanelEmpty icon={<Boxes />} title="Archive restricted for this role">
+                Every report above is still available to open and export.
+              </PanelEmpty>
+            </Panel>
           ) : (
             <>
-              <PremiumSection
-                title="Report generation"
-                description="Owner/admin archive generation controls and latest run proof without leaving the hub."
-                actions={<Send className="h-4 w-4 text-content-4" />}
-              >
-                <ScrollArea className="h-[320px] pr-3">
-                  <div className="space-y-3">
-                    {reportProfiles.map((profile) => {
-                      const latestRun = reportRuns.find(
-                        (run) => run.report_code === profile.report_code,
-                      );
+              <Panel icon={<Send />} title="Report generation" description="Archive a daily pack now and notify owner/admin in-app.">
+                {profilesQuery.isPending ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <div key={i} className="erp-skeleton h-24 rounded-xl" />
+                    ))}
+                  </div>
+                ) : profiles.length ? (
+                  <ul className="space-y-2.5">
+                    {profiles.map((profile) => {
+                      const run = runs.find((r) => r.report_code === profile.report_code);
                       return (
-                        <div
-                          key={profile.report_code}
-                          className="rounded-[1.35rem] border border-line bg-surface-2 p-4"
-                        >
+                        <li key={profile.report_code} className="rounded-xl border border-line bg-surface-2/60 p-3.5">
                           <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-sm font-black text-content-1">
-                                {profile.label}
-                              </div>
-                              <div className="mt-1 text-xs text-content-3">
-                                Owner/Admin inbox notice ·{" "}
-                                {(profile.target_roles || []).join(" · ") ||
-                                  "OWNER · ADMIN"}
+                            <div className="min-w-0">
+                              <div className="text-[13px] font-semibold text-content-1">{profile.label}</div>
+                              <div className="mt-0.5 text-[11.5px] text-content-3">
+                                To {(profile.target_roles || []).map((r: string) => r.toLowerCase().replaceAll("_", " ")).join(", ") || "owner, admin"}
                               </div>
                             </div>
                             <Button
-                              variant="outline"
                               size="sm"
-                              onClick={() =>
-                                manualSendMutation.mutate(profile.report_code)
-                              }
-                              disabled={manualSendMutation.isPending}
+                              variant="outline"
+                              onClick={() => sendMutation.mutate(profile.report_code)}
+                              disabled={sendMutation.isPending}
                             >
-                              <Send className="mr-2 h-3.5 w-3.5" />
+                              <Send className="mr-1.5 h-3.5 w-3.5" />
                               Generate daily pack
                             </Button>
                           </div>
-                          <div className="mt-3 rounded-xl border border-line bg-surface-1 px-3 py-3 text-xs text-content-3">
-                            <div className="font-black uppercase tracking-wide text-content-3">
-                              Latest run
-                            </div>
-                            {reportRunsQuery.isPending ? (
-                              <div className="mt-2" role="status">Loading latest run…</div>
-                            ) : reportRunsQuery.isError ? (
-                              <div className="mt-2" role="alert">Could not load the latest run.
-                                <Button variant="ghost" size="sm" onClick={() => reportRunsQuery.refetch()}>Retry</Button>
-                              </div>
-                            ) : latestRun ? (
-                              <div className="mt-2 space-y-1">
-                                <div>
-                                  Status:{" "}
-                                  <span className="font-semibold text-content-1">
-                                    {latestRun.status}
-                                  </span>
-                                </div>
-                                <div>Report date: {latestRun.report_date}</div>
-                              </div>
+                          <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-line pt-2.5 text-[11.5px] text-content-3">
+                            <span className="font-medium text-content-2">Latest run</span>
+                            {run ? (
+                              <span className="flex items-center gap-2">
+                                <Pill tone={runTone(run.status)} dot>
+                                  {String(run.status || "").toLowerCase()}
+                                </Pill>
+                                {run.report_date}
+                              </span>
                             ) : (
-                              <div className="mt-2">No run available yet.</div>
+                              <span>No run yet</span>
                             )}
                           </div>
-                        </div>
+                        </li>
                       );
                     })}
-                  </div>
-                </ScrollArea>
-              </PremiumSection>
+                  </ul>
+                ) : (
+                  <PanelEmpty title="No daily packs configured" />
+                )}
+              </Panel>
 
-              <PremiumSection
-                title="Recent report runs"
-                description="Archive history and direct preview links."
-                actions={<Send className="h-4 w-4 text-content-4" />}
-              >
-                <ScrollArea className="h-[320px] pr-3">
-                  <div className="space-y-3">
-                    {reportRuns.slice(0, 8).map((run) => (
-                      <div
-                        key={run.id}
-                        className="rounded-[1.35rem] border border-line bg-surface-2 p-4 text-xs text-content-3"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="font-black text-content-1">
-                            {run.report_code.replaceAll("_", " ")}
-                          </div>
-                          <Badge variant="outline">{run.status}</Badge>
+              <Panel icon={<FileText />} title="Recent report runs" description="Archived packs with PDF preview and detail workbook.">
+                {runsQuery.isPending ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <div key={i} className="erp-skeleton h-16 rounded-xl" />
+                    ))}
+                  </div>
+                ) : runs.length ? (
+                  <ul className="divide-y divide-line">
+                    {runs.slice(0, 8).map((run) => (
+                      <li key={run.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[13px] font-medium capitalize text-content-1">
+                            {String(run.report_code || "").replaceAll("_", " ").toLowerCase()}
+                          </span>
+                          <Pill tone={runTone(run.status)} dot>
+                            {String(run.status || "").toLowerCase()}
+                          </Pill>
                         </div>
-                        <div className="mt-2">
-                          Report date: {run.report_date}
+                        <div className="mt-0.5 text-[11.5px] text-content-3">
+                          For {run.report_date} · generated {formatDateTime(run.sent_at)}
                         </div>
-                        <div>
-                          Audience:{" "}
-                          {(run.recipients || []).join(" · ") ||
-                            "OWNER · ADMIN"}
-                        </div>
-                        <div>
-                          Generated:{" "}
-                          {run.sent_at
-                            ? formatDisplayDateTime(run.sent_at)
-                            : "—"}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-3">
-                          <a
-                            href={analyticsApi.getReportRunPreviewUrl(run.id)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex font-semibold text-primary hover:text-primary"
-                          >
+                        <div className="mt-1.5 flex gap-3 text-[12px] font-medium">
+                          <a href={analyticsApi.getReportRunPreviewUrl(run.id)} target="_blank" rel="noreferrer" className="text-primary hover:underline">
                             Preview PDF
                           </a>
                           {run.detail_file_name ? (
-                            <a
-                              href={analyticsApi.getReportRunDetailUrl(run.id)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex font-semibold text-content-2 hover:text-content-1"
-                            >
-                              Download detail workbook
+                            <a href={analyticsApi.getReportRunDetailUrl(run.id)} target="_blank" rel="noreferrer" className="text-content-2 hover:underline">
+                              Detail workbook
                             </a>
                           ) : null}
                         </div>
-                      </div>
+                      </li>
                     ))}
-                  </div>
-                </ScrollArea>
-              </PremiumSection>
+                  </ul>
+                ) : (
+                  <PanelEmpty title="No report runs yet">Generate a daily pack to start the archive.</PanelEmpty>
+                )}
+              </Panel>
             </>
           )}
-        </div>
+        </aside>
       </div>
-    </PremiumPageShell>
+    </div>
   );
 }
 
 export default function ReportsHubPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="rounded-2xl border border-line bg-surface-1 p-6 text-sm text-content-3" role="status">
-          Loading report workspace…
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="erp-skeleton h-[420px] rounded-[22px]" />}>
       <ReportsHubContent />
     </Suspense>
   );

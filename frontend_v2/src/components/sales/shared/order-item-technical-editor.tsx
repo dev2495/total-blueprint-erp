@@ -69,7 +69,7 @@ function Section({
     >
       <CollapsibleTrigger className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-surface-2 sm:px-6 sm:py-5">
         <div>
-          <div className="text-sm font-black uppercase tracking-[0.22em] text-content-2">
+          <div className="text-sm font-semibold uppercase tracking-[0.12em] text-content-2">
             {title}
           </div>
           <div className="mt-1 max-w-3xl text-xs leading-5 text-content-3 sm:text-[13px]">
@@ -256,7 +256,7 @@ export default function OrderItemTechnicalEditor({
     <div className="grid gap-4 2xl:grid-cols-2">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-line bg-surface-1 px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5 2xl:col-span-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
             Builder Flow
           </div>
           <div className="mt-1 text-sm font-bold text-content-1">
@@ -406,7 +406,7 @@ export default function OrderItemTechnicalEditor({
               <div
                 className={`rounded-2xl border px-4 py-3 text-sm ${showGussetField && (item.geometry.gusset_mm || 0) <= 0 ? "border-warning-border bg-warning-bg text-warning-fg" : "border-line bg-surface-2 text-content-3"}`}
               >
-                <div className="text-[10px] font-black uppercase tracking-[0.18em]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em]">
                   Rule
                 </div>
                 <div className="mt-1 font-semibold">
@@ -418,7 +418,7 @@ export default function OrderItemTechnicalEditor({
               <div
                 className={`rounded-2xl border px-4 py-3 text-sm ${spoutStyle && !hasSpoutAddon ? "border-warning-border bg-warning-bg text-warning-fg" : "border-line bg-surface-2 text-content-3"}`}
               >
-                <div className="text-[10px] font-black uppercase tracking-[0.18em]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em]">
                   Add-on Rule
                 </div>
                 <div className="mt-1 font-semibold">
@@ -430,7 +430,7 @@ export default function OrderItemTechnicalEditor({
                 </div>
               </div>
               <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-content-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em]">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em]">
                   Geometry Note
                 </div>
                 <div className="mt-1 font-semibold">
@@ -478,7 +478,7 @@ export default function OrderItemTechnicalEditor({
                 />
               </div>
               <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-content-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                   Effective Contract
                 </div>
                 <div className="mt-2 font-semibold">
@@ -662,7 +662,7 @@ export default function OrderItemTechnicalEditor({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                         Layer {index + 1}
                       </div>
                       <div className="mt-1 text-sm font-semibold text-content-2">
@@ -855,7 +855,7 @@ export default function OrderItemTechnicalEditor({
         <div className="overflow-hidden rounded-[1.55rem] border border-warning-border bg-warning-bg shadow-[0_18px_45px_-40px_rgba(146,64,14,0.35)] 2xl:col-span-2">
           <div className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
             <div>
-              <div className="text-sm font-black uppercase tracking-[0.22em] text-warning-fg">
+              <div className="text-sm font-semibold uppercase tracking-[0.12em] text-warning-fg">
                 Contract Checks
               </div>
               <div className="mt-1 text-sm font-semibold text-warning-fg">
@@ -1549,7 +1549,7 @@ export default function OrderItemTechnicalEditor({
                     {addonMeta ? (
                       <div className="grid gap-2 sm:grid-cols-3">
                         <div className="rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs text-content-3">
-                          <span className="font-black uppercase tracking-[0.14em] text-content-4">
+                          <span className="font-semibold uppercase tracking-[0.08em] text-content-4">
                             Code
                           </span>
                           <div className="mt-1 font-semibold text-content-2">
@@ -1557,7 +1557,7 @@ export default function OrderItemTechnicalEditor({
                           </div>
                         </div>
                         <div className="rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs text-content-3">
-                          <span className="font-black uppercase tracking-[0.14em] text-content-4">
+                          <span className="font-semibold uppercase tracking-[0.08em] text-content-4">
                             Weight Rule
                           </span>
                           <div className="mt-1 font-semibold text-content-2">
@@ -1567,7 +1567,7 @@ export default function OrderItemTechnicalEditor({
                           </div>
                         </div>
                         <div className="rounded-xl border border-line bg-surface-1 px-3 py-2 text-xs text-content-3">
-                          <span className="font-black uppercase tracking-[0.14em] text-content-4">
+                          <span className="font-semibold uppercase tracking-[0.08em] text-content-4">
                             Weight Value
                           </span>
                           <div className="mt-1 font-semibold text-content-2">
@@ -1704,13 +1704,13 @@ export default function OrderItemTechnicalEditor({
                       savedPreview: null,
                     }))
                   }
-                  className="h-12 rounded-2xl border-line-strong bg-surface-1 font-black"
+                  className="h-12 rounded-2xl border-line-strong bg-surface-1 font-semibold"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Preview UOM</Label>
                 {item.finished_good_type === "ROLL" ? (
-                  <div className="flex h-12 items-center rounded-2xl border border-line-strong bg-surface-1 px-3 text-sm font-black text-content-2">
+                  <div className="flex h-12 items-center rounded-2xl border border-line-strong bg-surface-1 px-3 text-sm font-semibold text-content-2">
                     KG
                   </div>
                 ) : (
@@ -1725,7 +1725,7 @@ export default function OrderItemTechnicalEditor({
                       }))
                     }
                   >
-                    <SelectTrigger className="h-12 rounded-2xl border-line-strong bg-surface-1 font-black">
+                    <SelectTrigger className="h-12 rounded-2xl border-line-strong bg-surface-1 font-semibold">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1737,10 +1737,10 @@ export default function OrderItemTechnicalEditor({
               </div>
               <div className="flex items-end">
                 <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                     Previewing for
                   </div>
-                  <div className="mt-1 text-sm font-black text-content-1">
+                  <div className="mt-1 text-sm font-semibold text-content-1">
                     {asNumber(item.qty_value, 0).toLocaleString("en-IN", {
                       maximumFractionDigits: item.qty_uom === "KG" ? 3 : 0,
                     })}{" "}
@@ -1751,7 +1751,7 @@ export default function OrderItemTechnicalEditor({
             </div>
             <div className="flex flex-col gap-3 rounded-[1.45rem] border border-line bg-surface-2 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="space-y-2">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                   Preview context
                 </div>
                 <div className="text-sm font-semibold text-content-2">
@@ -1796,12 +1796,12 @@ export default function OrderItemTechnicalEditor({
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <Card className="border-line bg-surface-1/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-content-3">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                         Unit Weight
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-black text-content-1">
+                      <div className="text-2xl font-semibold text-content-1">
                         {item.finished_good_type === "ROLL"
                           ? `${asNumber(item.savedPreview.roll_preview?.weight_kg, item.savedPreview.total_weight_kg).toFixed(2)} KG`
                           : `${asNumber(item.savedPreview.unit_weight_g, 0).toFixed(3)} g`}
@@ -1810,12 +1810,12 @@ export default function OrderItemTechnicalEditor({
                   </Card>
                   <Card className="border-line bg-surface-1/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-content-3">
+                      <CardTitle className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                         Total Weight
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-black text-content-1">
+                      <div className="text-2xl font-semibold text-content-1">
                         {asNumber(item.savedPreview.total_weight_kg, 0).toFixed(
                           3,
                         )}{" "}
@@ -1826,12 +1826,12 @@ export default function OrderItemTechnicalEditor({
                   {item.finished_good_type === "POUCH" ? (
                     <Card className="border-line bg-surface-1/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-content-3">
+                        <CardTitle className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                           Effective Geometry
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-2">
-                        <div className="text-sm font-black text-content-1">
+                        <div className="text-sm font-semibold text-content-1">
                           {asNumber(
                             previewGeometry?.effective_width_mm,
                             0,
@@ -1857,20 +1857,20 @@ export default function OrderItemTechnicalEditor({
                   {item.finished_good_type === "POUCH" ? (
                     <Card className="border-line bg-surface-1/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-black uppercase tracking-[0.16em] text-content-3">
+                        <CardTitle className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                           Add-on / POD Mass
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-1 text-sm text-content-2">
                         <div className="flex items-center justify-between">
                           <span>Add-ons</span>
-                          <span className="font-black text-content-1">
+                          <span className="font-semibold text-content-1">
                             {previewAddonKg.toFixed(4)} KG
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span>POD</span>
-                          <span className="font-black text-content-1">
+                          <span className="font-semibold text-content-1">
                             {previewPodKg.toFixed(4)} KG
                           </span>
                         </div>
@@ -1880,7 +1880,7 @@ export default function OrderItemTechnicalEditor({
                 </div>
                 <Card className="border-line bg-surface-1/95 shadow-[0_12px_30px_-28px_rgba(15,23,42,0.32)]">
                   <CardHeader>
-                    <CardTitle className="text-sm font-black">
+                    <CardTitle className="text-sm font-semibold">
                       BOM Snapshot
                     </CardTitle>
                     <CardDescription>

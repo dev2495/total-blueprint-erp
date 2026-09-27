@@ -857,7 +857,7 @@ export default function QuotationWorkspace({
           </div>
           <Link
             href="/sales/quotations"
-            className="mt-4 inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-order-fg text-white font-extrabold text-sm hover:bg-order-fg"
+            className="mt-4 inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-order-fg text-white font-semibold text-sm hover:bg-order-fg"
           >
             <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />
             Back to list
@@ -1029,12 +1029,12 @@ export default function QuotationWorkspace({
   return (
     <main className="mx-auto max-w-[1480px] px-5 py-7 lg:px-8 lg:py-8 pb-32 space-y-5">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-order-fg via-order-fg to-order-fg p-6 text-white shadow-[0_24px_60px_-36px_rgba(79,70,229,0.6)]">
+      <section className="erp-hero relative overflow-hidden rounded-[28px] p-6 text-white">
         <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-surface-1/10 blur-3xl" />
         <div className="absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-order-fg blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[.22em] text-order-border">
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-order-border">
               <Link
                 href="/sales/quotations"
                 className="inline-flex items-center gap-1 hover:underline"
@@ -1045,7 +1045,7 @@ export default function QuotationWorkspace({
               <span>·</span>
               <span>Workspace</span>
             </div>
-            <h1 className="text-3xl font-extrabold tracking-tight mt-1.5">
+            <h1 className="text-3xl font-semibold tracking-tight mt-1.5">
               <span className="font-mono">{headerNumber}</span>
               <span className="ml-2 text-base font-bold text-order-border">
                 {headerStatus.toLowerCase()}
@@ -1056,18 +1056,18 @@ export default function QuotationWorkspace({
               under an existing Base Product. Only an explicitly confirmed technical Product Variant can be saved for reuse; quote costs and all other masters stay unchanged.
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-extrabold bg-surface-1/15 backdrop-blur text-white ring-1 ring-surface-1/20">
+              <span className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-semibold bg-surface-1/15 backdrop-blur text-white ring-1 ring-surface-1/20">
                 CUSTOMER · {customerLabel}
               </span>
               {showValidChip ? (
-                <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-extrabold bg-success-fg text-success-border ring-1 ring-success-border">
+                <span className="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-semibold bg-success-fg text-success-border ring-1 ring-success-border">
                   VALID {validDays} DAYS
                 </span>
               ) : null}
               {/* Production readiness chip */}
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-extrabold ring-1",
+                  "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-semibold ring-1",
                   readiness.level === "GREEN" &&
                     "bg-success-fg text-success-border ring-success-border",
                   readiness.level === "AMBER" &&
@@ -1116,7 +1116,7 @@ export default function QuotationWorkspace({
               <button
                 onClick={() => setConvertDialog("open")}
                 disabled={convertMut.isPending}
-                className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-surface-1 text-order-fg font-extrabold text-sm hover:bg-order-bg shadow-md disabled:opacity-60"
+                className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-surface-1 text-order-fg font-semibold text-sm hover:bg-order-bg shadow-md disabled:opacity-60"
               >
                 {convertMut.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1144,19 +1144,19 @@ export default function QuotationWorkspace({
       {/* Live summary chip */}
       {quote ? (
         <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-3 flex flex-wrap items-center gap-3 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
-          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-extrabold bg-order-bg text-order-fg ring-1 ring-order-border">
+          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-semibold bg-order-bg text-order-fg ring-1 ring-order-border">
             <FileText className="h-3 w-3" /> {counts.total} lines
           </span>
-          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-extrabold bg-info-bg text-info-fg ring-1 ring-info-border font-mono">
+          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-semibold bg-info-bg text-info-fg ring-1 ring-info-border font-mono">
             {inrFmt(totalKg)} KG
           </span>
-          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-extrabold bg-success-bg text-success-fg ring-1 ring-success-border font-mono">
+          <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-semibold bg-success-bg text-success-fg ring-1 ring-success-border font-mono">
             ₹ {inrFmt(grand)}
           </span>
           {subtotal > 0 ? (
             <span
               className={cn(
-                "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-extrabold ring-1 font-mono",
+                "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-semibold ring-1 font-mono",
                 marginColor,
               )}
             >
@@ -1164,12 +1164,12 @@ export default function QuotationWorkspace({
             </span>
           ) : null}
           {dirty ? (
-            <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-extrabold bg-warning-bg text-warning-fg ring-1 ring-warning-border">
+            <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-semibold bg-warning-bg text-warning-fg ring-1 ring-warning-border">
               <span className="h-1.5 w-1.5 rounded-full bg-warning-fg animate-pulse" />
               Unsaved changes
             </span>
           ) : lastSavedAt ? (
-            <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-extrabold bg-surface-2 text-content-3 ring-1 ring-line">
+            <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full text-[11px] font-semibold bg-surface-2 text-content-3 ring-1 ring-line">
               <span className="h-1.5 w-1.5 rounded-full bg-success-fg" />
               Saved {savedAgo(lastSavedAt, savedTick)}
             </span>
@@ -1181,7 +1181,7 @@ export default function QuotationWorkspace({
         <div className="space-y-5 min-w-0">
           {/* Meta strip */}
           <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-[11px] font-extrabold uppercase tracking-widest text-content-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-[11px] font-semibold uppercase tracking-widest text-content-3">
               <div>
                 <div>Customer</div>
                 <div className="mt-1 text-sm font-bold text-content-1 normal-case tracking-normal truncate">
@@ -1224,10 +1224,10 @@ export default function QuotationWorkspace({
           <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-base font-extrabold text-content-1">Client and enquiry context</h3>
+                <h3 className="text-base font-semibold text-content-1">Client and enquiry context</h3>
                 <p className="mt-1 text-[11px] font-semibold text-content-4">These values are snapshotted on this revision. Missing Customer Master details remain visible blockers; nothing is invented.</p>
               </div>
-              {status !== "DRAFT" ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-content-3 ring-1 ring-line">Frozen revision</span> : null}
+              {status !== "DRAFT" ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-content-3 ring-1 ring-line">Frozen revision</span> : null}
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <QuoteField label="Enquiry / RFQ reference" value={enquiryReference} onChange={setEnquiryReference} disabled={status !== "DRAFT"} />
@@ -1333,7 +1333,7 @@ export default function QuotationWorkspace({
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-3">
                 <FileText className="h-5 w-5 text-order-fg" />
-                <h3 className="text-base font-extrabold text-content-1">
+                <h3 className="text-base font-semibold text-content-1">
                   Quote Lines
                 </h3>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-content-3">
@@ -1344,7 +1344,7 @@ export default function QuotationWorkspace({
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleAddCatalog}
-                  className="h-9 px-3 inline-flex items-center gap-2 rounded-lg bg-success-bg text-success-fg ring-1 ring-success-border font-extrabold text-xs uppercase tracking-widest hover:bg-success-bg"
+                  className="h-9 px-3 inline-flex items-center gap-2 rounded-lg bg-success-bg text-success-fg ring-1 ring-success-border font-semibold text-xs uppercase tracking-widest hover:bg-success-bg"
                 >
                   <Package className="h-3.5 w-3.5" />
                   <Plus className="h-3.5 w-3.5 -ml-1" />
@@ -1352,7 +1352,7 @@ export default function QuotationWorkspace({
                 </button>
                 <button
                   onClick={handleAddAdhoc}
-                  className="h-9 px-3 inline-flex items-center gap-2 rounded-lg bg-order-bg text-order-fg ring-1 ring-order-border font-extrabold text-xs uppercase tracking-widest hover:bg-order-bg"
+                  className="h-9 px-3 inline-flex items-center gap-2 rounded-lg bg-order-bg text-order-fg ring-1 ring-order-border font-semibold text-xs uppercase tracking-widest hover:bg-order-bg"
                 >
                   <Wand2 className="h-3.5 w-3.5" />
                   <Plus className="h-3.5 w-3.5 -ml-1" />
@@ -1363,7 +1363,7 @@ export default function QuotationWorkspace({
 
             {drafts.length === 0 ? (
               <div className="rounded-2xl bg-surface-1 ring-1 ring-line p-10 text-center">
-                <div className="text-sm font-extrabold text-content-2">
+                <div className="text-sm font-semibold text-content-2">
                   No lines yet.
                 </div>
                 <p className="mt-1 text-[12px] font-semibold text-content-3">
@@ -1410,12 +1410,12 @@ export default function QuotationWorkspace({
             <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-extrabold text-content-1">Quote vs actual cost</h3>
+                  <h3 className="text-base font-semibold text-content-1">Quote vs actual cost</h3>
                   <p className="mt-1 text-xs font-semibold text-content-3">
                     Source-backed downstream actuals; partial coverage is labelled and never presented as final.
                   </p>
                 </div>
-                <span className="rounded-full bg-info-bg px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-info-fg ring-1 ring-info-border">
+                <span className="rounded-full bg-info-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-info-fg ring-1 ring-info-border">
                   Converted workflow
                 </span>
               </div>
@@ -1444,13 +1444,13 @@ export default function QuotationWorkspace({
           <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-5 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)] space-y-4">
             <div className="flex items-center gap-2">
               <BadgeIndianRupee className="h-5 w-5 text-success-fg" />
-              <h3 className="text-base font-extrabold text-content-1">
+              <h3 className="text-base font-semibold text-content-1">
                 Commercials
               </h3>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <label className="block">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   Discount %
                 </span>
                 <input
@@ -1464,7 +1464,7 @@ export default function QuotationWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   Discount ₹
                 </span>
                 <input
@@ -1478,7 +1478,7 @@ export default function QuotationWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   Freight ₹
                 </span>
                 <input
@@ -1489,7 +1489,7 @@ export default function QuotationWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   GST %
                 </span>
                 <input
@@ -1500,7 +1500,7 @@ export default function QuotationWorkspace({
                 />
               </label>
             </div>
-            <label className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-content-3">
+            <label className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-content-3">
               <input
                 type="checkbox"
                 checked={freightIncluded}
@@ -1512,7 +1512,7 @@ export default function QuotationWorkspace({
             {/* Other charges */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   Other charges (tooling, samples, dies)
                 </div>
                 <button
@@ -1522,7 +1522,7 @@ export default function QuotationWorkspace({
                       { label: "Charge", amount: 0 },
                     ])
                   }
-                  className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-surface-2 text-content-2 text-[11px] font-extrabold uppercase tracking-wider hover:bg-line"
+                  className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-surface-2 text-content-2 text-[11px] font-semibold uppercase tracking-wider hover:bg-line"
                 >
                   <Plus className="h-3 w-3" strokeWidth={2.5} />
                   Add
@@ -1613,7 +1613,7 @@ export default function QuotationWorkspace({
 
             {/* Terms */}
             <div className="space-y-2 pt-2">
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                 Terms preset
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -1622,7 +1622,7 @@ export default function QuotationWorkspace({
                     key={t.id}
                     onClick={() => handleApplyTermsTemplate(t.id)}
                     className={cn(
-                      "h-8 px-3 rounded-full text-[11px] font-extrabold uppercase tracking-wider ring-1 transition",
+                      "h-8 px-3 rounded-full text-[11px] font-semibold uppercase tracking-wider ring-1 transition",
                       termsTemplate === t.id
                         ? "bg-surface-3 text-white ring-line-strong"
                         : "bg-surface-2 text-content-3 ring-line hover:bg-surface-2",
@@ -1651,20 +1651,20 @@ export default function QuotationWorkspace({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-brand-navy" />
-                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                     Customer
                   </div>
                 </div>
                 {customerId ? (
                   <Link
                     href="/sales/customers"
-                    className="text-[11px] font-extrabold uppercase tracking-wider text-order-fg hover:underline inline-flex items-center gap-1"
+                    className="text-[11px] font-semibold uppercase tracking-wider text-order-fg hover:underline inline-flex items-center gap-1"
                   >
                     Open master <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
                   </Link>
                 ) : null}
               </div>
-              <div className="mt-2 text-sm font-extrabold text-content-1 truncate">
+              <div className="mt-2 text-sm font-semibold text-content-1 truncate">
                 {customerQuery.data?.name || quote.customer_name}
               </div>
               <div className="text-[11px] font-bold text-content-3 font-mono">
@@ -1672,7 +1672,7 @@ export default function QuotationWorkspace({
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-bold text-content-3">
                 <div>
-                  <div className="text-[9px] uppercase tracking-widest text-content-4">
+                  <div className="text-[10px] uppercase tracking-widest text-content-4">
                     Credit limit
                   </div>
                   <div className="font-mono text-content-1">
@@ -1680,7 +1680,7 @@ export default function QuotationWorkspace({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[9px] uppercase tracking-widest text-content-4">
+                  <div className="text-[10px] uppercase tracking-widest text-content-4">
                     Credit days
                   </div>
                   <div className="font-mono text-content-1">
@@ -1688,15 +1688,15 @@ export default function QuotationWorkspace({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[9px] uppercase tracking-widest text-content-4">
+                  <div className="text-[10px] uppercase tracking-widest text-content-4">
                     Outstanding
                   </div>
                   <div className="font-mono text-content-3 italic">
-                    — <span className="text-[9px]">AR not yet wired</span>
+                    — <span className="text-[10px]">AR not yet wired</span>
                   </div>
                 </div>
                 <div>
-                  <div className="text-[9px] uppercase tracking-widest text-content-4">
+                  <div className="text-[10px] uppercase tracking-widest text-content-4">
                     Last order
                   </div>
                   <div className="font-mono text-content-1">
@@ -1709,7 +1709,7 @@ export default function QuotationWorkspace({
               {creditWarning ? (
                 <div
                   className={cn(
-                    "mt-3 rounded-lg px-3 py-2 text-[11px] font-extrabold flex items-start gap-2",
+                    "mt-3 rounded-lg px-3 py-2 text-[11px] font-semibold flex items-start gap-2",
                     creditWarning.level === "RED"
                       ? "bg-danger-bg text-danger-fg ring-1 ring-danger-border"
                       : "bg-warning-bg text-warning-fg ring-1 ring-warning-border",
@@ -1730,7 +1730,7 @@ export default function QuotationWorkspace({
             <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
               <div className="flex items-center gap-2 mb-3">
                 <Clock className="h-4 w-4 text-brand-blue" />
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   Lifecycle
                 </div>
               </div>
@@ -1785,7 +1785,7 @@ export default function QuotationWorkspace({
       {/* Sticky bottom action bar */}
       <div className="fixed bottom-0 inset-x-0 z-30 border-t border-line bg-surface-1/95 backdrop-blur shadow-[0_-12px_28px_-12px_rgba(15,23,42,0.16)]">
         <div className="mx-auto max-w-[1480px] px-5 lg:px-8 py-3 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-content-3">
             {saveMut.isPending ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-order-fg" />
@@ -1831,7 +1831,7 @@ export default function QuotationWorkspace({
               <button
                 onClick={() => saveMut.mutate()}
                 disabled={saveMut.isPending}
-                className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-order-fg text-white font-extrabold text-sm hover:bg-order-fg disabled:opacity-60"
+                className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-order-fg text-white font-semibold text-sm hover:bg-order-fg disabled:opacity-60"
               >
                 {saveMut.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1846,7 +1846,7 @@ export default function QuotationWorkspace({
                 onClick={() => setSendDialog("open")}
                 disabled={!contactEmail.trim() || sendMut.isPending}
                 title={contactEmail.trim() ? "Send frozen PDF to customer" : "Client email is required"}
-                className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-extrabold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-semibold text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Send className="h-4 w-4" />
                 Send
@@ -1861,20 +1861,20 @@ export default function QuotationWorkspace({
         <Dialog onClose={() => setVariantSaveItem(null)}>
           <div className="flex items-center gap-2 mb-3">
             <Package className="h-5 w-5 text-order-fg" />
-            <h3 className="text-base font-extrabold text-content-1">Save this as a reusable Product Variant?</h3>
+            <h3 className="text-base font-semibold text-content-1">Save this as a reusable Product Variant?</h3>
           </div>
           <p className="text-[12px] font-semibold leading-5 text-content-3">
             This is optional. It creates only a governed Product Variant under the existing Base Product Master. It does not create Product, Size, Layer, Pouch Style or RM masters, and quote-only costs are never promoted.
           </p>
-          <label className="mt-4 block text-[10px] font-extrabold uppercase tracking-wider text-content-3">Variant code
+          <label className="mt-4 block text-[10px] font-semibold uppercase tracking-wider text-content-3">Variant code
             <input autoFocus value={variantCode} onChange={(event) => setVariantCode(event.target.value.toUpperCase())} className="mt-1 h-10 w-full rounded-lg border border-line px-3 font-mono text-sm font-bold" placeholder="Unique variant code" />
           </label>
-          <label className="mt-3 block text-[10px] font-extrabold uppercase tracking-wider text-content-3">Business reason
+          <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-content-3">Business reason
             <textarea value={variantReason} onChange={(event) => setVariantReason(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm font-semibold" placeholder="Why should this quote configuration become reusable?" />
           </label>
           <div className="mt-4 flex justify-end gap-2">
             <button type="button" onClick={() => setVariantSaveItem(null)} className="h-10 px-4 rounded-xl text-content-3 hover:bg-surface-2 font-bold">Keep quote-only</button>
-            <button type="button" onClick={() => saveVariantMut.mutate()} disabled={!variantCode.trim() || !variantReason.trim() || saveVariantMut.isPending} className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-order-fg text-white font-extrabold disabled:opacity-50">
+            <button type="button" onClick={() => saveVariantMut.mutate()} disabled={!variantCode.trim() || !variantReason.trim() || saveVariantMut.isPending} className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-order-fg text-white font-semibold disabled:opacity-50">
               {saveVariantMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               Save variant
             </button>
@@ -1886,7 +1886,7 @@ export default function QuotationWorkspace({
         <Dialog onClose={() => setSendDialog(null)}>
           <div className="flex items-center gap-2 mb-3">
             <Send className="h-5 w-5 text-brand-blue" />
-            <h3 className="text-base font-extrabold text-content-1">
+            <h3 className="text-base font-semibold text-content-1">
               Send to customer
             </h3>
           </div>
@@ -1904,7 +1904,7 @@ export default function QuotationWorkspace({
             <button
               onClick={() => sendMut.mutate({ id: quote.id, via: "email" })}
               disabled={sendMut.isPending || !contactEmail.trim()}
-              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-extrabold hover:opacity-90 disabled:opacity-60"
+              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-blue text-white font-semibold hover:opacity-90 disabled:opacity-60"
             >
               {sendMut.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1922,7 +1922,7 @@ export default function QuotationWorkspace({
         <Dialog onClose={() => setRejectDialog(null)}>
           <div className="flex items-center gap-2 mb-3">
             <XCircle className="h-5 w-5 text-danger-fg" />
-            <h3 className="text-base font-extrabold text-content-1">
+            <h3 className="text-base font-semibold text-content-1">
               Reject quotation
             </h3>
           </div>
@@ -1948,7 +1948,7 @@ export default function QuotationWorkspace({
                 rejectMut.mutate({ id: quote.id, reason: rejectReason })
               }
               disabled={rejectMut.isPending}
-              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-danger-solid text-white font-extrabold hover:bg-danger-solid disabled:opacity-60"
+              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-danger-solid text-white font-semibold hover:bg-danger-solid disabled:opacity-60"
             >
               {rejectMut.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1966,21 +1966,21 @@ export default function QuotationWorkspace({
         <Dialog onClose={() => setConvertDialog(null)}>
           <div className="flex items-center gap-2 mb-3">
             <Truck className="h-5 w-5 text-brand-navy" />
-            <h3 className="text-base font-extrabold text-content-1">
+            <h3 className="text-base font-semibold text-content-1">
               Convert to Sales Order
             </h3>
           </div>
           <p className="text-[13px] font-semibold text-content-3 mb-4">
             Convert{" "}
-            <span className="font-mono font-extrabold text-content-1">
+            <span className="font-mono font-semibold text-content-1">
               {quote.quote_number}
             </span>{" "}
             to a Sales Order? This locks the quotation as{" "}
-            <span className="font-extrabold">CONVERTED</span> and creates a new
+            <span className="font-semibold">CONVERTED</span> and creates a new
             SO ready for production planning.
           </p>
           <div className="rounded-lg bg-surface-2 ring-1 ring-line p-3 mb-4 text-[12px] text-content-2">
-            <div className="font-extrabold text-content-1">
+            <div className="font-semibold text-content-1">
               {counts.total} lines · ₹ {inrFmt(grand)}
             </div>
             <div className="text-[11px] text-content-3 mt-0.5">
@@ -2000,7 +2000,7 @@ export default function QuotationWorkspace({
                 convertMut.mutate(quote.id);
               }}
               disabled={convertMut.isPending}
-              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-navy text-white font-extrabold hover:bg-brand-navy-600 disabled:opacity-60"
+              className="h-10 px-4 inline-flex items-center gap-2 rounded-xl bg-brand-navy text-white font-semibold hover:bg-brand-navy-600 disabled:opacity-60"
             >
               {convertMut.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -2015,7 +2015,7 @@ export default function QuotationWorkspace({
 
       {clientOutcome && quote ? (
         <Dialog onClose={() => setClientOutcome(null)}>
-          <h3 className="text-base font-extrabold text-content-1">Record client {clientOutcome.toLowerCase()}</h3>
+          <h3 className="text-base font-semibold text-content-1">Record client {clientOutcome.toLowerCase()}</h3>
           <p className="mt-1 text-xs font-semibold text-content-3">Record the evidence received against this exact sent revision.</p>
           {clientOutcome === "ACCEPTED" ? (
             <input autoFocus value={clientReference} onChange={(event) => setClientReference(event.target.value)} placeholder="PO / email / acceptance reference" className="mt-4 h-11 w-full rounded-lg border border-line px-3 text-sm font-semibold" />
@@ -2027,7 +2027,7 @@ export default function QuotationWorkspace({
             <button
               onClick={() => outcomeMut.mutate({ id: quote.id, outcome: clientOutcome })}
               disabled={outcomeMut.isPending || (clientOutcome === "ACCEPTED" ? !clientReference.trim() : !clientOutcomeReason.trim())}
-              className="h-10 px-4 rounded-xl bg-success-fg font-extrabold text-white disabled:opacity-50"
+              className="h-10 px-4 rounded-xl bg-success-fg font-semibold text-white disabled:opacity-50"
             >Record outcome</button>
           </div>
         </Dialog>
@@ -2035,7 +2035,7 @@ export default function QuotationWorkspace({
 
       {terminalAction && quote ? (
         <Dialog onClose={() => setTerminalAction(null)}>
-          <h3 className="text-base font-extrabold text-content-1">{terminalAction === "CANCEL" ? "Cancel" : "Void"} quotation</h3>
+          <h3 className="text-base font-semibold text-content-1">{terminalAction === "CANCEL" ? "Cancel" : "Void"} quotation</h3>
           <p className="mt-1 text-xs font-semibold text-content-3">The record remains immutable and searchable. A reason is required.</p>
           <textarea autoFocus rows={4} value={terminalReason} onChange={(event) => setTerminalReason(event.target.value)} placeholder="Reason" className="mt-4 w-full rounded-lg border border-line px-3 py-2 text-sm font-semibold" />
           <div className="mt-4 flex justify-end gap-2">
@@ -2043,7 +2043,7 @@ export default function QuotationWorkspace({
             <button
               onClick={() => terminalMut.mutate({ id: quote.id, action: terminalAction })}
               disabled={terminalMut.isPending || !terminalReason.trim()}
-              className="h-10 px-4 rounded-xl bg-danger-solid font-extrabold text-white disabled:opacity-50"
+              className="h-10 px-4 rounded-xl bg-danger-solid font-semibold text-white disabled:opacity-50"
             >Confirm {terminalAction.toLowerCase()}</button>
           </div>
         </Dialog>
@@ -2073,7 +2073,7 @@ function QuoteField({
   const controlClass = "mt-1 w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm font-semibold text-content-1 outline-none focus:border-order-border focus:ring-2 focus:ring-order-border disabled:bg-surface-2 disabled:text-content-3";
   return (
     <label className={multiline ? "md:col-span-3" : ""}>
-      <span className="text-[10px] font-extrabold uppercase tracking-wider text-content-3">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}{required ? " *" : ""}
       </span>
       {multiline ? (
@@ -2112,9 +2112,9 @@ function Row({
         className={cn(
           "font-mono",
           huge
-            ? "text-lg font-extrabold text-content-1"
+            ? "text-lg font-semibold text-content-1"
             : bold
-              ? "text-sm font-extrabold text-content-1"
+              ? "text-sm font-semibold text-content-1"
               : "text-sm font-bold text-content-2",
           color,
         )}
@@ -2128,7 +2128,7 @@ function Row({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[9px] font-extrabold uppercase tracking-wider text-content-4">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">{label}</div>
       <div className="mt-1 font-mono text-content-1">{value}</div>
     </div>
   );
@@ -2157,7 +2157,7 @@ function TimelineRow({
     <li className="flex items-start gap-2">
       <span className={cn("mt-1.5 h-2 w-2 rounded-full shrink-0", dot)} />
       <div className="min-w-0 flex-1">
-        <div className="text-[12px] font-extrabold text-content-2">{label}</div>
+        <div className="text-[12px] font-semibold text-content-2">{label}</div>
         <div className="text-[10px] font-mono text-content-3">{display}</div>
         {actor ? (
           <div className="text-[10px] font-bold text-content-3">{actor}</div>
@@ -2259,7 +2259,7 @@ function StatusBanner({
       action: (
         <button
           onClick={onSend}
-          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-success-fg text-white text-[12px] font-extrabold hover:bg-success-fg"
+          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-success-fg text-white text-[12px] font-semibold hover:bg-success-fg"
         >
           Send <Send className="h-3.5 w-3.5" />
         </button>
@@ -2272,7 +2272,7 @@ function StatusBanner({
       title: `Client acceptance recorded on ${fmt(quote.accepted_at)}`,
       subtitle: `Reference: ${quote.acceptance_reference || "—"}. Ready for controlled conversion.`,
       action: (
-        <button onClick={onConvert} className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-success-fg text-white text-[12px] font-extrabold">
+        <button onClick={onConvert} className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-success-fg text-white text-[12px] font-semibold">
           Convert <ArrowRight className="h-3.5 w-3.5" />
         </button>
       ),
@@ -2288,7 +2288,7 @@ function StatusBanner({
       action: (
         <button
           onClick={onClone}
-          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-danger-solid text-white text-[12px] font-extrabold hover:bg-danger-solid"
+          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-danger-solid text-white text-[12px] font-semibold hover:bg-danger-solid"
         >
           <Copy className="h-3.5 w-3.5" /> Clone
         </button>
@@ -2303,7 +2303,7 @@ function StatusBanner({
       action: (
         <button
           onClick={onClone}
-          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-warning-fg text-white text-[12px] font-extrabold hover:bg-warning-fg"
+          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-warning-fg text-white text-[12px] font-semibold hover:bg-warning-fg"
         >
           <Copy className="h-3.5 w-3.5" /> Clone
         </button>
@@ -2318,7 +2318,7 @@ function StatusBanner({
       action: quote.converted_sales_order ? (
         <Link
           href={`/sales/orders/${quote.converted_sales_order}`}
-          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-order-fg text-white text-[12px] font-extrabold hover:bg-order-fg"
+          className="h-9 px-3 inline-flex items-center gap-1.5 rounded-lg bg-order-fg text-white text-[12px] font-semibold hover:bg-order-fg"
         >
           Open SO <ArrowUpRight className="h-3.5 w-3.5" />
         </Link>
@@ -2355,7 +2355,7 @@ function StatusBanner({
         {body.icon}
       </span>
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-extrabold">{body.title}</div>
+        <div className="text-sm font-semibold">{body.title}</div>
         {body.subtitle ? (
           <div className="text-[12px] font-semibold opacity-90 mt-0.5">
             {body.subtitle}
@@ -2445,11 +2445,11 @@ function NewQuotationOnboarding({
         <div className="rounded-[26px] bg-surface-1 px-6 py-8 lg:px-10 lg:py-12">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="text-[11px] font-extrabold uppercase tracking-[.22em] text-order-fg inline-flex items-center gap-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-order-fg inline-flex items-center gap-2">
                 <Sparkles className="h-3.5 w-3.5" />
                 New quotation
               </div>
-              <h1 className="mt-2 text-2xl lg:text-3xl font-extrabold tracking-tight text-content-1">
+              <h1 className="mt-2 text-2xl lg:text-3xl font-semibold tracking-tight text-content-1">
                 Start a new quotation
               </h1>
               <p className="mt-1 text-sm font-semibold text-content-3">
@@ -2467,7 +2467,7 @@ function NewQuotationOnboarding({
 
           {/* Customer combobox */}
           <div className="mt-6">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
               Customer
             </label>
             <div className="mt-1 flex items-center gap-2 h-12 rounded-xl border-2 border-order-border focus-within:border-order-border px-3 bg-surface-1">
@@ -2492,7 +2492,7 @@ function NewQuotationOnboarding({
                 Couldn&apos;t load customers.
                 <button
                   onClick={() => customersQuery.refetch()}
-                  className="text-danger-fg underline font-extrabold"
+                  className="text-danger-fg underline font-semibold"
                 >
                   Retry
                 </button>
@@ -2526,7 +2526,7 @@ function NewQuotationOnboarding({
                     >
                       <Users className="h-4 w-4 text-order-fg shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-extrabold text-content-1 truncate">
+                        <div className="text-sm font-semibold text-content-1 truncate">
                           {c.name}
                         </div>
                         <div className="text-[11px] font-mono text-content-3">
@@ -2545,7 +2545,7 @@ function NewQuotationOnboarding({
             {/* Recent customers chips */}
             {recents.length > 0 && !selected ? (
               <div className="mt-4">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-content-3">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                   Or pick from recent customers
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -2561,7 +2561,7 @@ function NewQuotationOnboarding({
                           setSearch(match.name);
                         }
                       }}
-                      className="h-8 px-3 rounded-full text-[11px] font-extrabold uppercase tracking-wider bg-order-bg text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+                      className="h-8 px-3 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-order-bg text-order-fg ring-1 ring-order-border hover:bg-order-bg"
                     >
                       {r.name}
                     </button>
@@ -2575,7 +2575,7 @@ function NewQuotationOnboarding({
               <div className="mt-4 rounded-xl bg-success-bg ring-1 ring-success-border p-3 flex items-center justify-between gap-2 flex-wrap">
                 <div className="text-[12px] text-success-fg font-bold">
                   Repeat last quote:{" "}
-                  <span className="font-mono font-extrabold">
+                  <span className="font-mono font-semibold">
                     {lastQuote.quote_number}
                   </span>
                   {lastQuote.items ? ` · ${lastQuote.items.length} lines` : ""}
@@ -2583,7 +2583,7 @@ function NewQuotationOnboarding({
                 <button
                   onClick={() => onPick(selected, lastQuote.id)}
                   disabled={creating}
-                  className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-success-fg text-white text-[11px] font-extrabold uppercase tracking-wider hover:bg-success-fg disabled:opacity-60"
+                  className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-success-fg text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-success-fg disabled:opacity-60"
                 >
                   <Copy className="h-3 w-3" /> Clone
                 </button>
@@ -2602,7 +2602,7 @@ function NewQuotationOnboarding({
             <button
               onClick={() => selected && onPick(selected)}
               disabled={!selected || creating}
-              className="h-11 px-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-order-fg via-order-fg to-order-fg text-white font-extrabold text-sm shadow-md hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="h-11 px-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-order-fg via-order-fg to-order-fg text-white font-semibold text-sm shadow-md hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {creating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

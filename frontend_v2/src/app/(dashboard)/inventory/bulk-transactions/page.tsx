@@ -18,16 +18,17 @@ import {
   ArrowUpRight,
   Repeat,
   Settings2,
-  ExternalLink,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDisplayDateTime } from "@/lib/date-format";
+import { PaginationBar, usePagination } from "@/components/premium";
 
 export default function BulkTransactionsPage() {
   const { data: transactions, isLoading } = useQuery({
     queryKey: ["bulk-transactions"],
     queryFn: () => inventoryService.getBulkTransactions(),
   });
+  const pagination = usePagination(transactions, 50);
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
@@ -146,7 +147,7 @@ export default function BulkTransactionsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                transactions?.map((tx) => (
+                pagination.paged.map((tx) => (
                   <TableRow
                     key={tx.id}
                     className="hover:bg-surface-2 transition-colors"
@@ -181,14 +182,11 @@ export default function BulkTransactionsPage() {
                     <TableCell>
                       <div className="flex items-center gap-1.5 text-content-3 text-sm max-w-[200px] truncate">
                         {tx.job_no ? (
-                          <div className="flex items-center gap-1 text-primary font-medium">
-                            <span className="hover:underline cursor-pointer">
-                              Job: {tx.job_no}
-                            </span>
-                            <ExternalLink className="w-3 h-3" />
-                          </div>
+                          <span className="font-mono text-[12px] font-medium text-content-2">
+                            Job {tx.job_no}
+                          </span>
                         ) : (
-                          <span className="italic uppercase text-content-4 text-xs">
+                          <span className="uppercase text-content-4 text-xs">
                             {tx.reference || "System Auto"}
                           </span>
                         )}
@@ -199,6 +197,7 @@ export default function BulkTransactionsPage() {
               )}
             </TableBody>
           </Table>
+          <PaginationBar pagination={pagination} label="transactions" testId="bulk-transactions-page" />
         </CardContent>
       </Card>
     </div>

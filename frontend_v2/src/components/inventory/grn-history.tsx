@@ -747,7 +747,7 @@ export function GrnHistoryV36() {
               />
 
               <div>
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
                   Vendor
                 </div>
                 <select
@@ -766,7 +766,7 @@ export function GrnHistoryV36() {
               </div>
 
               <div className="rounded-xl border border-order-border bg-order-bg p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-order-fg">
+                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-order-fg">
                   <ShieldCheck className="h-3 w-3" /> Correction policy
                 </div>
                 <p className="mt-1 text-[10px] leading-snug text-order-fg">
@@ -868,13 +868,13 @@ export function GrnHistoryV36() {
                                   {row.reference || row.batch_no || "—"}
                                 </div>
                                 {row.has_correction ? (
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-success-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-success-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
                                     <ShieldCheck className="h-3 w-3" />
                                     corrected effective
                                   </div>
                                 ) : null}
                                 {row.manual_po_ref ? (
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
+                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
                                     Manual-PO · {row.manual_po_ref}
                                   </div>
                                 ) : null}
@@ -1087,7 +1087,7 @@ function CorrectionDrawer({
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Correct GRN row
               </div>
               <div className="font-display text-base font-bold text-content-1">
@@ -1132,7 +1132,7 @@ function CorrectionDrawer({
 
           <div className="grid grid-cols-3 gap-2 text-[11px] rounded-xl bg-surface-2 p-3 ring-1 ring-line">
             <div>
-              <div className="text-[9px] font-black uppercase text-content-3">
+              <div className="text-[10px] font-semibold uppercase text-content-3">
                 Effective qty
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">
@@ -1145,7 +1145,7 @@ function CorrectionDrawer({
               ) : null}
             </div>
             <div>
-              <div className="text-[9px] font-black uppercase text-content-3">
+              <div className="text-[10px] font-semibold uppercase text-content-3">
                 Effective unit rate
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">
@@ -1158,7 +1158,7 @@ function CorrectionDrawer({
               ) : null}
             </div>
             <div>
-              <div className="text-[9px] font-black uppercase text-content-3">
+              <div className="text-[10px] font-semibold uppercase text-content-3">
                 Line value
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">

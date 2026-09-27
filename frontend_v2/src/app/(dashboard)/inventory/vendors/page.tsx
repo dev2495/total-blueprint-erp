@@ -99,7 +99,7 @@ function VendorForm({
             name="code"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
                   Code
                 </FormLabel>
                 <FormControl>
@@ -118,7 +118,7 @@ function VendorForm({
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
                   Name
                 </FormLabel>
                 <FormControl>
@@ -140,7 +140,7 @@ function VendorForm({
             name="type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
                   Type
                 </FormLabel>
                 <Select
@@ -168,7 +168,7 @@ function VendorForm({
             name="gst_no"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
                   GST No
                 </FormLabel>
                 <FormControl>
@@ -186,7 +186,7 @@ function VendorForm({
             name="payment_terms"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
                   Payment Terms
                 </FormLabel>
                 <FormControl>
@@ -205,7 +205,7 @@ function VendorForm({
             name="lead_time_days"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-black uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
                   Lead Time (Days)
                 </FormLabel>
                 <FormControl>
@@ -227,7 +227,7 @@ function VendorForm({
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-[10px] font-black uppercase text-content-3 tracking-widest">
+              <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
                 Address
               </FormLabel>
               <FormControl>
@@ -242,7 +242,7 @@ function VendorForm({
           <Button
             type="submit"
             disabled={isLoading}
-            className="bg-primary hover:bg-surface-3 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale"
+            className="bg-primary hover:bg-surface-3 text-white font-semibold uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale"
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Entity
@@ -323,10 +323,10 @@ export default function VendorsPage() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-line text-content-3 text-[10px] font-black uppercase tracking-widest shadow-sm translate-y-[-4px]">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-line text-content-3 text-[10px] font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
             <Factory className="h-3 w-3" /> Supply Chain
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-content-1 flex items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight text-content-1 flex items-center gap-3">
             Vendor
             <span className="text-content-4 font-light translate-y-[2px]">
               /
@@ -340,13 +340,13 @@ export default function VendorsPage() {
         <div className="flex items-center gap-3">
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
-              <Button className="h-11 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-black uppercase text-[10px] tracking-widest shadow-xl transition-all active-scale">
+              <Button className="h-11 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-[10px] tracking-widest shadow-xl transition-all active-scale">
                 <Plus className="h-4 w-4 mr-2" /> Onboard Entity
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl p-8 bg-surface-1/95 backdrop-blur-md">
               <DialogHeader>
-                <DialogTitle className="text-xl font-black uppercase tracking-tight text-content-1">
+                <DialogTitle className="text-xl font-semibold uppercase tracking-tight text-content-1">
                   New Supply Partner
                 </DialogTitle>
               </DialogHeader>
@@ -401,10 +401,10 @@ export default function VendorsPage() {
               </div>
             </CardHeader>
             <CardContent className="p-5 pt-1">
-              <div className="text-2xl font-black text-content-1 tracking-tighter">
+              <div className="text-2xl font-semibold text-content-1 tracking-tighter">
                 {stat.value}
               </div>
-              <p className="text-[10px] font-bold text-content-4 mt-1 uppercase italic tracking-widest">
+              <p className="text-[10px] font-bold text-content-4 mt-1 uppercase tracking-widest">
                 {stat.label}
               </p>
             </CardContent>
@@ -414,7 +414,7 @@ export default function VendorsPage() {
 
       <Card className="border-none shadow-premium rounded-[2rem] bg-surface-1 overflow-hidden">
         <CardHeader className="p-6 pb-2 border-b border-line bg-surface-2">
-          <CardTitle className="text-lg font-black tracking-tight text-content-1 uppercase italic">
+          <CardTitle className="text-lg font-semibold tracking-tight text-content-1 uppercase">
             Registered Entities
           </CardTitle>
         </CardHeader>
@@ -438,7 +438,7 @@ export default function VendorsPage() {
       >
         <DialogContent className="max-w-2xl rounded-[2rem] border-none shadow-2xl p-8 bg-surface-1/95 backdrop-blur-md">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black uppercase tracking-tight text-content-1">
+            <DialogTitle className="text-xl font-semibold uppercase tracking-tight text-content-1">
               Edit Vendor Profile
             </DialogTitle>
           </DialogHeader>
@@ -460,7 +460,7 @@ export default function VendorsPage() {
       >
         <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-black uppercase tracking-tight">
+            <AlertDialogTitle className="font-semibold uppercase tracking-tight">
               Revoke Partnership?
             </AlertDialogTitle>
             <AlertDialogDescription>

@@ -349,7 +349,7 @@ export function VariantsMatrixV37({
 
       {/* ─── Saved views + filters row ─── */}
       <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
           Views
         </span>
         <button
@@ -386,7 +386,7 @@ export function VariantsMatrixV37({
         </button>
         {filters.length ? (
           <>
-            <span className="ml-3 text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <span className="ml-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Filters
             </span>
             {filters.map((f) => (
@@ -618,7 +618,7 @@ function PivotMatrix({
         <table className="min-w-full text-[12px] border-separate border-spacing-y-0">
           <thead>
             <tr className="text-content-3">
-              <th className="sticky left-0 bg-surface-1 text-left px-2 py-1 font-bold uppercase tracking-wider text-[9px]">
+              <th className="sticky left-0 bg-surface-1 text-left px-2 py-1 font-bold uppercase tracking-wider text-[10px]">
                 {labelOf(axes, yAxis)} \\ {labelOf(axes, xAxis)}
               </th>
               {xs.map((x) => (
@@ -629,10 +629,10 @@ function PivotMatrix({
                   {x}
                 </th>
               ))}
-              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[9px]">
+              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[10px]">
                 total
               </th>
-              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[9px]">
+              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[10px]">
                 avg unit
               </th>
             </tr>
@@ -690,7 +690,7 @@ function PivotMatrix({
                             {v0.code}
                           </span>
                           {w != null ? (
-                            <span className="mt-0.5 text-[9px] opacity-80">
+                            <span className="mt-0.5 text-[10px] opacity-80">
                               {w.toFixed(0)} g
                             </span>
                           ) : null}
@@ -715,7 +715,7 @@ function PivotMatrix({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-2 py-2 text-right text-[9px] font-black uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
                 per-thickness count
               </td>
               {xs.map((x) => {
@@ -788,7 +788,7 @@ function CompareBar({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-success-border bg-success-bg px-4 py-2.5">
       <div className="text-[11px] text-content-2">
-        <span className="font-black uppercase tracking-[0.18em] text-success-fg">
+        <span className="font-semibold uppercase tracking-[0.1em] text-success-fg">
           Selected{" "}
         </span>
         <span className="font-mono font-bold">
@@ -1026,7 +1026,7 @@ function FallbackCards({
             </span>
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1",
+                "rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1",
                 r.active
                   ? "bg-success-bg text-success-fg ring-success-border"
                   : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -1072,21 +1072,21 @@ function TableView({
         <table className="min-w-full text-[12px]">
           <thead className="bg-surface-2 border-b border-line text-content-3">
             <tr>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-[9px]">
+              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-[10px]">
                 Code
               </th>
               {axes.slice(0, 6).map((a) => (
                 <th
                   key={String(a.axis)}
-                  className="px-3 py-2 text-left font-bold uppercase tracking-wider text-[9px]"
+                  className="px-3 py-2 text-left font-bold uppercase tracking-wider text-[10px]"
                 >
                   {fmtAxisLabel(a)}
                 </th>
               ))}
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[9px]">
+              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">
                 Unit g
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[9px]">
+              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">
                 Status
               </th>
             </tr>
@@ -1115,7 +1115,7 @@ function TableView({
                 <td className="px-3 py-2 text-right">
                   <span
                     className={cn(
-                      "rounded-full px-1.5 py-0.5 text-[9px] font-bold ring-1",
+                      "rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1",
                       r.active
                         ? "bg-success-bg text-success-fg ring-success-border"
                         : "bg-danger-bg text-danger-fg ring-danger-border",

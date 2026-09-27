@@ -387,7 +387,7 @@ export function LayerAllowedGradePicker({
   }
   return (
     <div className="space-y-1.5">
-      <Label className="text-[9px] font-black uppercase tracking-[0.18em] text-content-3">
+      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
         Allowed grades
       </Label>
       <div className="flex flex-wrap gap-1.5">
@@ -408,7 +408,7 @@ export function LayerAllowedGradePicker({
                 });
               }}
               className={cn(
-                "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition",
+                "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset transition",
                 active
                   ? "bg-order-fg text-white ring-order-border"
                   : "bg-surface-1 text-content-3 ring-line hover:ring-order-border",

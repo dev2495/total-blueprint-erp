@@ -169,7 +169,7 @@ export function ReportAdminCenter() {
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.16),_transparent_24%),linear-gradient(180deg,#f8fbff_0%,#f7f5ef_100%)] p-6">
         <Card className="mx-auto max-w-3xl rounded-[2rem] border-surface-1/10 bg-surface-1/95 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.6)]">
           <CardHeader>
-            <CardTitle className="flex items-center gap-3 text-2xl font-black text-content-1">
+            <CardTitle className="flex items-center gap-3 text-2xl font-semibold text-content-1">
               <ShieldCheck className="h-6 w-6 text-primary" />
               Report Center Restricted
             </CardTitle>
@@ -189,10 +189,10 @@ export function ReportAdminCenter() {
         <section className="rounded-[2.2rem] border border-line bg-[linear-gradient(135deg,#ffffff_0%,#eef5ff_48%,#ecfeff_100%)] p-6 shadow-[0_35px_90px_-52px_rgba(15,23,42,0.22)]">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.34em] text-info-fg">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-info-fg">
                 Administration
               </div>
-              <h1 className="mt-3 text-4xl font-black tracking-[-0.05em] text-content-1">
+              <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-content-1">
                 Report Center
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-content-3">
@@ -215,7 +215,7 @@ export function ReportAdminCenter() {
                 Refresh archive
               </Button>
               <Button
-                className="rounded-full bg-surface-3 text-white hover:bg-line"
+                className="rounded-full bg-surface-3 text-white hover:bg-primary"
                 disabled={saveMutation.isPending}
                 onClick={() => saveMutation.mutate()}
               >
@@ -255,10 +255,10 @@ export function ReportAdminCenter() {
           <section className="rounded-[2rem] border border-line bg-surface-1/95 p-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)]">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-content-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
                   Daily packs
                 </div>
-                <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-content-1">
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-content-1">
                   Generation controls
                 </h2>
               </div>
@@ -284,7 +284,7 @@ export function ReportAdminCenter() {
                               <Sparkles className="h-4 w-4" />
                             </div>
                             <div>
-                              <div className="text-lg font-black tracking-[-0.03em] text-content-1">
+                              <div className="text-lg font-semibold tracking-[-0.03em] text-content-1">
                                 {profile.label}
                               </div>
                               <div className="text-sm text-content-3">
@@ -320,10 +320,10 @@ export function ReportAdminCenter() {
                         <div className="w-full shrink-0 rounded-[1.5rem] border border-line bg-surface-1 p-4 xl:w-[280px]">
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-content-3">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
                                 Archive state
                               </div>
-                              <div className="mt-2 text-lg font-black text-content-1">
+                              <div className="mt-2 text-lg font-semibold text-content-1">
                                 {draft.active ? "Active" : "Paused"}
                               </div>
                             </div>
@@ -342,7 +342,7 @@ export function ReportAdminCenter() {
                             of sending email.
                           </div>
                           <Button
-                            className="mt-4 w-full rounded-full bg-surface-3 text-white hover:bg-line"
+                            className="mt-4 w-full rounded-full bg-surface-3 text-white hover:bg-primary"
                             disabled={generateMutation.isPending}
                             onClick={() =>
                               generateMutation.mutate(profile.report_code)
@@ -364,10 +364,10 @@ export function ReportAdminCenter() {
             <section className="rounded-[2rem] border border-line bg-surface-1/95 p-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-content-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
                     Archive shelf
                   </div>
-                  <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-content-1">
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-content-1">
                     Recent generated packs
                   </h2>
                 </div>
@@ -383,7 +383,7 @@ export function ReportAdminCenter() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-black capitalize text-content-1">
+                        <div className="text-sm font-semibold capitalize text-content-1">
                           {run.report_code.replaceAll("_", " ")}
                         </div>
                         <div className="mt-1 text-xs text-content-3">
@@ -484,7 +484,7 @@ export function ReportAdminCenter() {
 
             <Card className="rounded-[2rem] border-line bg-surface-1/95 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)]">
               <CardHeader>
-                <CardTitle className="text-lg font-black text-content-1">
+                <CardTitle className="text-lg font-semibold text-content-1">
                   Related admin surfaces
                 </CardTitle>
                 <CardDescription>
@@ -522,10 +522,10 @@ function MetricTile({
 }) {
   return (
     <div className="rounded-[1.6rem] border border-line bg-surface-1/88 p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-content-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
       </div>
-      <div className="mt-3 text-3xl font-black tracking-[-0.05em] text-content-1">
+      <div className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-content-1">
         {value}
       </div>
       <div className="mt-2 text-xs text-content-3">{sublabel}</div>
@@ -536,7 +536,7 @@ function MetricTile({
 function InfoPill({ title, value }: { title: string; value: string }) {
   return (
     <div className="rounded-[1rem] border border-line bg-surface-1 px-4 py-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
         {title}
       </div>
       <div className="mt-2 text-sm font-semibold text-content-1">{value}</div>

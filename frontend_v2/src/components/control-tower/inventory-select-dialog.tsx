@@ -652,7 +652,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                 background: widthFitFilter === id ? "rgba(37,99,235,.10)" : "transparent",
                                                 color: widthFitFilter === id ? "var(--br-700)" : "var(--text-3)",
                                                 fontSize: 10,
-                                                fontWeight: 800,
+                                                fontWeight: 650,
                                                 textTransform: "uppercase",
                                                 cursor: "pointer",
                                                 whiteSpace: "nowrap",
@@ -681,7 +681,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                         color: "var(--text-2)",
                                     }}
                                 >
-                                    <div style={{ fontWeight: 800, color: remainingAfterSelectedRun > 0 ? "var(--warning)" : "var(--success)" }}>
+                                    <div style={{ fontWeight: 650, color: remainingAfterSelectedRun > 0 ? "var(--warning)" : "var(--success)" }}>
                                         Execute {fmt(totalAllocated)} KG from selected WIP
                                     </div>
                                     <div style={{ marginTop: 3 }}>
@@ -705,7 +705,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                         color: "var(--text-2)",
                                     }}
                                 >
-                                    <div style={{ fontWeight: 800, color: "var(--warning)" }}>
+                                    <div style={{ fontWeight: 650, color: "var(--warning)" }}>
                                         Input stock pre-selected for WCM
                                     </div>
                                     <div style={{ marginTop: 3 }}>
@@ -789,12 +789,12 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                         )}
                                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                                                             {opt.source_bucket && (
-                                                                <span style={{ fontSize: 9, fontWeight: 800, color: "var(--i-700)", background: "rgba(99,102,241,.10)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
+                                                                <span style={{ fontSize: 9, fontWeight: 650, color: "var(--i-700)", background: "rgba(99,102,241,.10)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
                                                                     {String(opt.source_bucket).replace(/_/g, " ")}
                                                                 </span>
                                                             )}
                                                             {Number.isFinite(Number(opt.completed_step_index)) && (
-                                                                <span style={{ fontSize: 9, fontWeight: 800, color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
+                                                                <span style={{ fontSize: 9, fontWeight: 650, color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
                                                                     Completed step {Number(opt.completed_step_index) + 1}
                                                                 </span>
                                                             )}
@@ -883,7 +883,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                             <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12 }}>
                                 <MapPin size={15} color={missingRouteDispatchSteps.length > 0 ? "var(--warning)" : "var(--br-700)"} style={{ marginTop: 1 }} />
                                 <div style={{ minWidth: 0, flex: 1 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-1)" }}>
+                                    <div style={{ fontSize: 12, fontWeight: 650, color: "var(--text-1)" }}>
                                         Route dispatch
                                     </div>
                                     <div style={{ marginTop: 2, fontSize: 11, color: "var(--text-3)" }}>
@@ -897,7 +897,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                         background: missingRouteDispatchSteps.length > 0 ? "rgba(245,158,11,.12)" : "rgba(16,185,129,.12)",
                                         color: missingRouteDispatchSteps.length > 0 ? "var(--warning)" : "var(--success)",
                                         fontSize: 10,
-                                        fontWeight: 800,
+                                        fontWeight: 650,
                                         textTransform: "uppercase",
                                         letterSpacing: ".04em",
                                     }}
@@ -985,7 +985,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                             <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12 }}>
                                 <SkipForward size={15} color="var(--br-700)" style={{ marginTop: 1 }} />
                                 <div style={{ minWidth: 0, flex: 1 }}>
-                                    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-1)" }}>
+                                    <div style={{ fontSize: 12, fontWeight: 650, color: "var(--text-1)" }}>
                                         Optional route steps
                                     </div>
                                     <div style={{ marginTop: 2, fontSize: 11, color: "var(--text-3)" }}>
@@ -1018,10 +1018,10 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                             }}
                                         >
                                             <span style={{ minWidth: 0 }}>
-                                                <span style={{ display: "block", fontSize: 12, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                <span style={{ display: "block", fontSize: 12, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                     {routeDispatchStepLabel(step)}
                                                 </span>
-                                                <span style={{ display: "block", marginTop: 2, fontSize: 10, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".05em" }}>
+                                                <span style={{ display: "block", marginTop: 2, fontSize: 10, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".05em" }}>
                                                     {step.skippable_after_previous_output ? "Planner optional + WCM skippable" : "Planner optional"}
                                                 </span>
                                             </span>
@@ -1033,7 +1033,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                     background: skipped ? "rgba(245,158,11,.18)" : "rgba(16,185,129,.12)",
                                                     color: skipped ? "var(--warning)" : "var(--success)",
                                                     fontSize: 10,
-                                                    fontWeight: 900,
+                                                    fontWeight: 700,
                                                     textTransform: "uppercase",
                                                     letterSpacing: ".05em",
                                                 }}
@@ -1281,10 +1281,10 @@ function RouteSpanPreview({
         >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
                 <div>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".06em" }}>
+                    <div style={{ fontSize: 11, fontWeight: 650, color: "var(--text-3)", textTransform: "uppercase", letterSpacing: ".06em" }}>
                         Route span
                     </div>
-                    <div style={{ marginTop: 2, fontSize: 13, fontWeight: 800, color: "var(--text-1)" }}>
+                    <div style={{ marginTop: 2, fontSize: 13, fontWeight: 650, color: "var(--text-1)" }}>
                         {modeLabel}
                     </div>
                 </div>
@@ -1314,11 +1314,11 @@ function RouteSpanPreview({
                                     }}
                                 >
                                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 800, color: "var(--text-4)", textTransform: "uppercase" }}>
+                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase" }}>
                                             Stage {stage.index + 1}
                                         </span>
                                         {isParallel && (
-                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "var(--i-700)", textTransform: "uppercase" }}>
+                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 650, color: "var(--i-700)", textTransform: "uppercase" }}>
                                                 <GitBranch size={11} /> + parallel
                                             </span>
                                         )}
@@ -1337,16 +1337,16 @@ function RouteSpanPreview({
                                                     }}
                                                 >
                                                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 900, color: "var(--br-700)" }}>
+                                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 700, color: "var(--br-700)" }}>
                                                             {branch}
                                                         </span>
                                                         {(step.is_join || step.join_key) && (
-                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 900, color: "var(--success)" }}>
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 700, color: "var(--success)" }}>
                                                                 <GitMerge size={9} /> {step.join_key || "JOIN"}
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    <div style={{ fontSize: 11, fontWeight: 650, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                         {step.process_name || step.step_name || step.process_code || "Route step"}
                                                     </div>
                                                 </div>

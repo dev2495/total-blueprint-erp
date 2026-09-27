@@ -502,14 +502,14 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
   return (
     <div className="space-y-6 pb-10">
-      <section className="rounded-[2rem] border border-line bg-gradient-to-br from-surface-3 via-surface-3 to-primary p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.16)]">
+      <section className="erp-hero rounded-[2rem] border p-6 text-white">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
-            <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-[11px] font-black uppercase tracking-[0.28em] text-white">
+            <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
               Inventory Audit
             </Badge>
             <div>
-              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
                 {copy.title}
               </h1>
               <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-info-border">
@@ -528,10 +528,10 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                 key={label}
                 className="rounded-2xl border border-surface-1/10 bg-surface-1/10 p-3"
               >
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-info-border">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
                   {label}
                 </div>
-                <div className="mt-2 text-xl font-black">
+                <div className="mt-2 text-xl font-semibold">
                   {Number(value).toLocaleString("en-IN", {
                     maximumFractionDigits: 2,
                   })}
@@ -548,7 +548,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
             key={step}
             className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-info-bg text-sm font-black text-primary">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-info-bg text-sm font-semibold text-primary">
               {index + 1}
             </div>
             <div className="mt-3 text-sm font-bold leading-5 text-content-2">
@@ -561,7 +561,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
       <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
         <Card className="rounded-[1.5rem] border-line bg-surface-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg font-black">
+            <CardTitle className="flex items-center gap-2 text-lg font-semibold">
               <PackageCheck className="h-5 w-5 text-primary" />
               {copy.sheetLabel} Control
             </CardTitle>
@@ -631,7 +631,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
             </Button>
             {currentBatch ? (
               <div className="rounded-2xl border border-line bg-surface-2 p-4 text-sm">
-                <div className="font-black text-content-1">
+                <div className="font-semibold text-content-1">
                   {currentBatch.batch_no}
                 </div>
                 <div className="mt-1 text-content-3">
@@ -667,7 +667,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
         <Card className="rounded-[1.5rem] border-line bg-surface-1">
           <CardHeader>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <CardTitle className="flex items-center gap-2 text-lg font-black">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <FileSpreadsheet className="h-5 w-5 text-success-fg" />
                 {copy.entryLabel}
               </CardTitle>
@@ -937,14 +937,14 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                   placeholder="Search sheet lines..."
                 />
               </div>
-              <div className="text-xs font-bold uppercase tracking-[0.14em] text-content-4">
+              <div className="text-xs font-bold uppercase tracking-[0.08em] text-content-4">
                 {visibleLines.length} visible line(s)
               </div>
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-line">
               <table className="min-w-[940px] w-full text-left text-sm">
-                <thead className="bg-surface-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+                <thead className="bg-surface-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                   <tr>
                     <LineSortHeader id="class">Class</LineSortHeader>
                     <LineSortHeader id="material">Material</LineSortHeader>
@@ -1029,14 +1029,14 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 text-warning-fg" />
                 <div>
-                  <div className="font-black text-warning-fg">
+                  <div className="font-semibold text-warning-fg">
                     {copy.postNoteTitle}
                   </div>
                   <div className="text-sm text-warning-fg">{copy.postNote}</div>
                 </div>
               </div>
               <Button
-                className="rounded-2xl bg-success-fg py-6 font-black text-white hover:bg-success-fg"
+                className="rounded-2xl bg-success-fg py-6 font-semibold text-white hover:bg-success-fg"
                 disabled={
                   !currentBatch ||
                   currentBatch.status !== "DRAFT" ||
@@ -1111,10 +1111,10 @@ export function InventoryYearCloseWorkspace() {
   return (
     <div className="space-y-6 pb-10">
       <section className="rounded-[2rem] border border-line bg-gradient-to-br from-warm via-surface-3 to-surface-3 p-6 text-white">
-        <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-[11px] font-black uppercase tracking-[0.28em] text-white">
+        <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
           Year-End Lock
         </Badge>
-        <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
           Financial Year Close
         </h1>
         <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-warm">
@@ -1157,10 +1157,10 @@ export function InventoryYearCloseWorkspace() {
             Export Preview
           </Button>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
               Period status
             </div>
-            <div className="mt-2 text-xl font-black">
+            <div className="mt-2 text-xl font-semibold">
               {period?.status || "Not started"}
             </div>
           </div>
@@ -1189,10 +1189,10 @@ export function InventoryYearCloseWorkspace() {
         ].map(([label, value]) => (
           <Card key={label} className="rounded-[1.25rem]">
             <CardContent className="p-5">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                 {label}
               </div>
-              <div className="mt-2 text-2xl font-black">
+              <div className="mt-2 text-2xl font-semibold">
                 {Number(value).toLocaleString()}
               </div>
             </CardContent>
@@ -1209,7 +1209,7 @@ export function InventoryYearCloseWorkspace() {
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-sm">
-              <thead className="text-left text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+              <thead className="text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Class</th>
                   <th>Material</th>
@@ -1250,7 +1250,7 @@ export function InventoryYearCloseWorkspace() {
                   key={blocker.code}
                   className="rounded-2xl border border-danger-border bg-danger-bg p-4"
                 >
-                  <div className="font-black text-danger-fg">
+                  <div className="font-semibold text-danger-fg">
                     {blocker.label}
                   </div>
                   <div className="text-sm text-danger-fg">
@@ -1259,7 +1259,7 @@ export function InventoryYearCloseWorkspace() {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-success-border bg-success-bg p-4 font-black text-success-fg">
+              <div className="rounded-2xl border border-success-border bg-success-bg p-4 font-semibold text-success-fg">
                 No close blockers for selected plant.
               </div>
             )}
@@ -1307,7 +1307,7 @@ export function InventoryStockCardWorkspace() {
         <Badge className="rounded-full bg-info-bg text-primary">
           Audit Ledger
         </Badge>
-        <h1 className="mt-4 text-3xl font-black tracking-tight text-content-1">
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight text-content-1">
           Material Stock Card
         </h1>
         <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-content-3">
@@ -1402,10 +1402,10 @@ export function InventoryStockCardWorkspace() {
         ].map(([label, value]) => (
           <Card key={label} className="rounded-[1.25rem]">
             <CardContent className="p-5">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                 {label}
               </div>
-              <div className="mt-2 text-2xl font-black">
+              <div className="mt-2 text-2xl font-semibold">
                 {Number(value).toLocaleString()}
               </div>
             </CardContent>
@@ -1421,7 +1421,7 @@ export function InventoryStockCardWorkspace() {
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="min-w-[980px] w-full text-sm">
-            <thead className="text-left text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+            <thead className="text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
               <tr>
                 <th className="px-3 py-2">Date</th>
                 <th>Source</th>

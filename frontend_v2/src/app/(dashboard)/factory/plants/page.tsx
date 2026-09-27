@@ -57,6 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/components/auth-provider";
+import { PaginationBar, usePagination } from "@/components/premium";
 
 function userCanManageFactory(user: any): boolean {
   if (!user) return false;
@@ -416,6 +417,7 @@ export default function PlantsPage() {
         plant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         plant.code.toLowerCase().includes(searchQuery.toLowerCase()),
     ) || [];
+  const plantPages = usePagination(filteredPlants, 48, [searchQuery]);
 
   return (
     <FactoryPageLayout
@@ -452,7 +454,7 @@ export default function PlantsPage() {
       }
     >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredPlants.map((plant) => (
+        {plantPages.paged.map((plant) => (
           <Card
             key={plant.id}
             className="rounded-2xl border-none shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group"
@@ -461,7 +463,7 @@ export default function PlantsPage() {
               <CardTitle className="text-sm font-medium text-content-3">
                 {plant.code}
               </CardTitle>
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -562,6 +564,7 @@ export default function PlantsPage() {
           </Card>
         ))}
       </div>
+      <PaginationBar className="mt-4 rounded-xl border bg-surface-1" pagination={plantPages} label="plants" testId="plants-page" />
 
       <Dialog
         open={!!editingItem}

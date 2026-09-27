@@ -69,7 +69,7 @@ export default function ScrapAnalyticsPage() {
     <div className="p-6 space-y-6 min-h-screen bg-surface-2">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-black tracking-tight flex items-center gap-2">
+          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
             <Trash2 className="h-7 w-7 text-danger-fg" />
             Scrap Center
           </h1>
@@ -255,7 +255,7 @@ function KpiCard({
             {label}
           </div>
         </div>
-        <div className="text-xl font-black mt-2">{value}</div>
+        <div className="text-xl font-semibold mt-2">{value}</div>
       </CardContent>
     </Card>
   );

@@ -793,18 +793,18 @@ function LineLayerBomCard({ line, index }: { line: SalesOrderLine; index: number
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <LineColorIcon index={index} />
-            <div className="truncate font-mono text-sm font-black text-content-1">L{index + 1} · {lineLabel(line, index)}</div>
+            <div className="truncate font-mono text-sm font-semibold text-content-1">L{index + 1} · {lineLabel(line, index)}</div>
           </div>
           <LineSpecChips line={line} />
         </div>
-        <Badge variant="outline" className={cn("rounded-full text-[9px] font-black uppercase", tone.bg, tone.text, tone.border)}>
+        <Badge variant="outline" className={cn("rounded-full text-[10px] font-semibold uppercase", tone.bg, tone.text, tone.border)}>
           {recipeRows.length ? "Recipe route" : filmRows.length ? "Purchase film" : "Snapshot"}
         </Badge>
       </div>
 
       {spec.layers.length ? (
         <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-content-4">
+          <div className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-content-4">
             <span>Layer stack</span>
             <span>{totalThickness ? `${fmtKg(totalThickness, 1)}u total` : `${spec.layers.length} layer${spec.layers.length === 1 ? "" : "s"}`}</span>
           </div>
@@ -814,7 +814,7 @@ function LineLayerBomCard({ line, index }: { line: SalesOrderLine; index: number
               const layerTone = LINE_PROGRESS_TONES[layerIndex % LINE_PROGRESS_TONES.length];
               const widthPct = totalThickness > 0 ? Math.max(10, (layerT / totalThickness) * 100) : 100 / spec.layers.length;
               return (
-                <div key={`${layer.index}-${layerIndex}`} className="grid place-items-center text-[9px] font-black text-white" style={{ width: `${widthPct}%`, background: layerTone.fill }}>
+                <div key={`${layer.index}-${layerIndex}`} className="grid place-items-center text-[10px] font-semibold text-white" style={{ width: `${widthPct}%`, background: layerTone.fill }}>
                   {layerT ? `${fmtQty(layerT)}u` : `L${layer.index}`}
                 </div>
               );
@@ -826,21 +826,21 @@ function LineLayerBomCard({ line, index }: { line: SalesOrderLine; index: number
       <div className="mt-3 grid gap-2 lg:grid-cols-2">
         {outputs.length ? (
           <div className="rounded-xl border border-success-border bg-success-bg p-3">
-            <div className="text-[9px] font-black uppercase tracking-wider text-success-fg">Created roll output</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">Created roll output</div>
             {outputs.map((output) => (
               <div key={output.key} className="mt-2 flex items-center justify-between gap-3 text-xs">
-                <span className="min-w-0 truncate font-mono font-black text-content-1">{output.code}</span>
-                <span className="font-mono font-black text-success-fg">{fmtKg(output.qtyKg)} kg</span>
+                <span className="min-w-0 truncate font-mono font-semibold text-content-1">{output.code}</span>
+                <span className="font-mono font-semibold text-success-fg">{fmtKg(output.qtyKg)} kg</span>
               </div>
             ))}
           </div>
         ) : null}
         <div className="rounded-xl border border-line bg-surface-1 p-3">
-          <div className="text-[9px] font-black uppercase tracking-wider text-content-4">{recipeRows.length ? "Recipe inputs" : "BOM inputs"}</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">{recipeRows.length ? "Recipe inputs" : "BOM inputs"}</div>
           {(recipeRows.length ? recipeRows : filmRows).slice(0, 8).map((row) => (
             <div key={row.key} className="mt-2 flex items-center justify-between gap-3 text-xs">
-              <span className="min-w-0 truncate font-mono font-black text-content-1">{row.label}</span>
-              <span className="font-mono font-black text-content-2">{row.qty}</span>
+              <span className="min-w-0 truncate font-mono font-semibold text-content-1">{row.label}</span>
+              <span className="font-mono font-semibold text-content-2">{row.qty}</span>
             </div>
           ))}
           {!recipeRows.length && !filmRows.length ? <div className="mt-2 text-xs font-semibold text-content-3">No material rows on this line snapshot.</div> : null}
@@ -986,17 +986,17 @@ function LineSpecChips({ line }: { line: any }) {
       {chips.map((chip, index) => (
         <span
           key={`${chip.label}-${index}`}
-          className={cn("inline-flex max-w-full items-center truncate rounded-lg border px-3 py-1.5 text-[12px] font-black uppercase shadow-sm ring-1 ring-inset ring-white/10", chipClass(chip.tone))}
+          className={cn("inline-flex max-w-full items-center truncate rounded-lg border px-3 py-1.5 text-[12px] font-semibold uppercase shadow-sm ring-1 ring-inset ring-white/10", chipClass(chip.tone))}
         >
           {chip.kind === "layer" ? (
             <span className="flex min-w-0 items-center gap-1.5 truncate">
-              {chip.variantLabel ? <span className="truncate font-mono font-black">{chip.variantLabel}</span> : null}
+              {chip.variantLabel ? <span className="truncate font-mono font-semibold">{chip.variantLabel}</span> : null}
               {chip.gradeLabel ? (
-                <span className="rounded-md border border-info-border/70 bg-surface-1/80 px-1.5 py-0.5 font-sans text-[0.84em] font-black uppercase tracking-wide text-primary">
+                <span className="rounded-md border border-info-border/70 bg-surface-1/80 px-1.5 py-0.5 font-sans text-[0.84em] font-semibold uppercase tracking-wide text-primary">
                   {chip.gradeLabel}
                 </span>
               ) : null}
-              {chip.thicknessLabel ? <span className="font-mono font-black text-info-fg">{chip.thicknessLabel}</span> : null}
+              {chip.thicknessLabel ? <span className="font-mono font-semibold text-info-fg">{chip.thicknessLabel}</span> : null}
               {!chip.variantLabel && !chip.gradeLabel && !chip.thicknessLabel ? <span className="truncate">{chip.label}</span> : null}
             </span>
           ) : (
@@ -1039,8 +1039,8 @@ function ArtworkThumb({ preview, compact = false }: { preview: ReturnType<typeof
         )}
       </div>
       <div className="min-w-0">
-        <div className="text-[9px] font-black uppercase tracking-[0.16em] text-content-4">Artwork</div>
-        <div className="truncate font-mono text-[11px] font-black text-order-fg">{label}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">Artwork</div>
+        <div className="truncate font-mono text-[11px] font-semibold text-order-fg">{label}</div>
         {preview.colorCount ? <div className="text-[10px] font-bold text-content-3">{preview.colorCount} colors</div> : null}
       </div>
     </div>
@@ -1051,7 +1051,7 @@ function LineColorIcon({ index, className }: { index: number; className?: string
   const tone = LINE_PROGRESS_TONES[index % LINE_PROGRESS_TONES.length];
   return (
     <span
-      className={cn("inline-flex h-5 w-5 flex-none items-center justify-center rounded-full text-[9px] font-black text-white shadow-sm ring-2 ring-surface-1", className)}
+      className={cn("inline-flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-semibold text-white shadow-sm ring-2 ring-surface-1", className)}
       style={{ background: tone.fill }}
       title={`Line ${index + 1}`}
     >
@@ -1080,10 +1080,10 @@ function OrderFlowBar({ lines }: { lines: SalesOrderLine[] }) {
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Order fulfillment</div>
-          <div className="mt-1 font-mono text-lg font-black text-content-1">{fmtKg(totalKg)} kg</div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">Order fulfillment</div>
+          <div className="mt-1 font-mono text-lg font-semibold text-content-1">{fmtKg(totalKg)} kg</div>
         </div>
-        <div className="text-right font-mono text-sm font-black text-content-1">{Math.round(completePct)}%</div>
+        <div className="text-right font-mono text-sm font-semibold text-content-1">{Math.round(completePct)}%</div>
       </div>
       <div className="flex h-7 w-full overflow-hidden rounded-lg border border-line bg-surface-2 shadow-inner">
         {rows.map((row) => {
@@ -1127,7 +1127,7 @@ function OrderFlowBar({ lines }: { lines: SalesOrderLine[] }) {
           return (
             <span
               key={row.line.id || row.index}
-              className={cn("inline-flex items-center gap-1.5 rounded-lg border bg-surface-1 px-2.5 py-1 text-[10px] font-black uppercase", tone.text, tone.border)}
+              className={cn("inline-flex items-center gap-1.5 rounded-lg border bg-surface-1 px-2.5 py-1 text-[10px] font-semibold uppercase", tone.text, tone.border)}
             >
               <LineColorIcon index={row.index} className="h-4 w-4 text-[8px]" />
               L{row.index + 1}: {fmtKg(row.metrics.orderedKg)} kg
@@ -1162,12 +1162,12 @@ function LineHeaderChip({ line, index }: { line: SalesOrderLine; index: number }
       <div className="flex min-w-0 items-center gap-2">
         <LineColorIcon index={index} />
         <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-xs font-black text-content-1">
+          <div className="truncate font-mono text-xs font-semibold text-content-1">
             L{index + 1} · {lineLabel(line, index)} · {fmtKg(metrics.orderedKg)} kg
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap gap-1">
             {lineSpecChips(line).slice(0, 4).map((chip, chipIndex) => (
-              <span key={`${chip.label}-${chipIndex}`} className={cn("max-w-full truncate rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase", chipClass(chip.tone))}>
+              <span key={`${chip.label}-${chipIndex}`} className={cn("max-w-full truncate rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase", chipClass(chip.tone))}>
                 {chip.label}
               </span>
             ))}
@@ -1194,8 +1194,8 @@ function MetricTile({ label, value, sub, tone = "slate", icon }: { label: string
   return (
     <div className="min-w-0 rounded-xl border border-line bg-surface-1 p-4 shadow-sm">
       <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg ring-1", toneClass)}>{icon}</div>
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">{label}</div>
-      <div className="mt-1 font-mono text-xl font-black text-content-1">{value}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
+      <div className="mt-1 font-mono text-xl font-semibold text-content-1">{value}</div>
       {sub ? <div className="mt-1 text-[11px] font-semibold text-content-3">{sub}</div> : null}
     </div>
   );
@@ -1212,7 +1212,7 @@ function ProgressBar({ metrics, tone }: { metrics: ReturnType<typeof lineMetrics
   });
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+      <div className="mb-1 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
         <span>Ready · dispatched · WIP · open</span>
         <span>{Math.round(bands.completePct)}%</span>
       </div>
@@ -1247,10 +1247,10 @@ function RouteGraph({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-4">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
           <Route className="h-4 w-4 text-primary" /> Route graph
         </div>
-        <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase">
+        <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase">
           <span className="rounded-full bg-success-bg px-2 py-1 text-success-fg ring-1 ring-success-border">Done {doneCount}</span>
           <span className="rounded-full bg-order-bg px-2 py-1 text-order-fg ring-1 ring-order-border">Live {liveCount}</span>
           <span className="rounded-full bg-warning-bg px-2 py-1 text-warning-fg ring-1 ring-warning-border">Next {nextCount}</span>
@@ -1321,7 +1321,7 @@ function JobBreakdown({ jobs }: { jobs: any[] }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-black text-content-1">Job-wise breakdown</div>
+        <div className="text-sm font-semibold text-content-1">Job-wise breakdown</div>
         <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{jobs.filter((job) => !["COMPLETED", "CANCELLED"].includes(String(job.state || "").toUpperCase())).length} active</Badge>
       </div>
       {jobs.slice(0, 10).map((job, index) => {
@@ -1330,11 +1330,11 @@ function JobBreakdown({ jobs }: { jobs: any[] }) {
         const done = state === "COMPLETED";
         return (
           <div key={job.job_id || index} className={cn("grid gap-3 rounded-xl border bg-surface-1 px-4 py-3 text-sm shadow-sm md:grid-cols-[48px_minmax(0,1fr)_auto_auto]", active ? "border-info-border" : done ? "border-success-border" : "border-line")}>
-            <div className="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface-2 font-mono text-[11px] font-black text-content-3">{index + 1}/{jobs.length}</div>
+            <div className="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface-2 font-mono text-[11px] font-semibold text-content-3">{index + 1}/{jobs.length}</div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono font-black text-content-1">{job.job_number || job.job_id}</span>
-                <Badge variant="outline" className={cn("rounded-full text-[9px] font-black uppercase", active ? "border-info-border bg-info-bg text-primary" : done ? "border-success-border bg-success-bg text-success-fg" : "border-line bg-surface-2 text-content-3")}>
+                <span className="font-mono font-semibold text-content-1">{job.job_number || job.job_id}</span>
+                <Badge variant="outline" className={cn("rounded-full text-[10px] font-semibold uppercase", active ? "border-info-border bg-info-bg text-primary" : done ? "border-success-border bg-success-bg text-success-fg" : "border-line bg-surface-2 text-content-3")}>
                   {statusLabel(job.state)}
                 </Badge>
               </div>
@@ -1342,12 +1342,12 @@ function JobBreakdown({ jobs }: { jobs: any[] }) {
                 {job.step_name || job.process_code || "Step"} · {job.production_batch_number || "batch pending"} · {job.operator || job.operator_username || "operator pending"}
               </div>
             </div>
-            <div className="font-mono text-xs font-black text-content-2">{job.work_center || job.work_center_code || "WC pending"}</div>
+            <div className="font-mono text-xs font-semibold text-content-2">{job.work_center || job.work_center_code || "WC pending"}</div>
             <div className="min-w-[110px]">
               <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
                 <div className={cn("h-full rounded-full", done ? "bg-success-fg" : active ? "bg-primary" : "bg-warning-fg")} style={{ width: `${done ? 100 : active ? 56 : 12}%` }} />
               </div>
-              <div className="mt-1 text-right font-mono text-xs font-black text-content-1">{fmtKg(job.produced_kg)} kg</div>
+              <div className="mt-1 text-right font-mono text-xs font-semibold text-content-1">{fmtKg(job.produced_kg)} kg</div>
             </div>
           </div>
         );
@@ -1361,8 +1361,8 @@ function MiniStat({ label, value, tone = "slate" }: { label: string; value: stri
     tone === "blue" ? "text-primary" : tone === "green" ? "text-success-fg" : tone === "amber" ? "text-warning-fg" : tone === "rose" ? "text-danger-fg" : tone === "violet" ? "text-order-fg" : "text-content-1";
   return (
     <div className="rounded-lg border border-line bg-surface-1 px-3 py-2">
-      <div className="text-[9px] font-black uppercase tracking-wide text-content-4">{label}</div>
-      <div className={cn("mt-1 font-mono text-sm font-black", text)}>{value}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-content-4">{label}</div>
+      <div className={cn("mt-1 font-mono text-sm font-semibold", text)}>{value}</div>
     </div>
   );
 }
@@ -1387,18 +1387,18 @@ function BatchInspector({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
         <MiniStat label="Scrap" value={`${fmtKg(jobs.reduce((sum, job) => sum + safeNumber(job.scrap_kg), 0))} kg`} tone="amber" />
       </div>
       <div>
-        <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-4">Batches</div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">Batches</div>
         <div className="space-y-2">
           {batches.length ? batches.slice(0, 6).map((batch) => (
             <div key={batch.id || batch.batch_number} className="rounded-lg border border-line bg-surface-1 px-3 py-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="truncate font-mono text-[11px] font-black text-content-1">{batch.batch_number}</div>
+                  <div className="truncate font-mono text-[11px] font-semibold text-content-1">{batch.batch_number}</div>
                   <div className="mt-1 text-[10px] font-semibold text-content-3">{batch.current_route_node_label || batch.current_route_process_code || "Route pending"}</div>
                 </div>
-                <Badge variant="outline" className="rounded-full text-[8px] font-black uppercase">{statusLabel(batch.status)}</Badge>
+                <Badge variant="outline" className="rounded-full text-[8px] font-semibold uppercase">{statusLabel(batch.status)}</Badge>
               </div>
-              <div className="mt-2 grid grid-cols-3 gap-1 text-[9px] font-semibold text-content-3">
+              <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] font-semibold text-content-3">
                 <span className="rounded bg-surface-2 px-1.5 py-1">Out <b className="text-content-1">{fmtKg(batch.produced_qty_kg)}</b></span>
                 <span className="rounded bg-surface-2 px-1.5 py-1">Pack <b className="text-content-1">{fmtKg(batch.packed_qty_kg)}</b></span>
                 <span className="rounded bg-surface-2 px-1.5 py-1">Send <b className="text-content-1">{fmtKg(batch.dispatched_qty_kg)}</b></span>
@@ -1410,24 +1410,24 @@ function BatchInspector({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
         </div>
       </div>
       <div>
-        <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-4">Layer stack / BOM</div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">Layer stack / BOM</div>
         <div className="space-y-2">
           {spec.layers.length ? spec.layers.slice(0, 5).map((layer, layerIndex) => (
             <div key={`layer-${layer.index}-${layerIndex}`} className="flex items-center justify-between gap-3 rounded-lg border border-info-border bg-info-bg px-3 py-2 text-xs">
               <span className="min-w-0 truncate font-bold text-primary">L{layer.index} · {textValue(layer.variantCode, layer.variantName, "Layer")}</span>
-              <span className="font-mono font-black text-primary">{layer.thicknessMicron ? `${fmtQty(layer.thicknessMicron)}u` : "layer"}{layer.widthMm ? ` · ${fmtQty(layer.widthMm)}mm` : ""}</span>
+              <span className="font-mono font-semibold text-primary">{layer.thicknessMicron ? `${fmtQty(layer.thicknessMicron)}u` : "layer"}{layer.widthMm ? ` · ${fmtQty(layer.widthMm)}mm` : ""}</span>
             </div>
           )) : null}
           {outputs.length ? outputs.slice(0, 3).map((output) => (
             <div key={output.key} className="flex items-center justify-between gap-3 rounded-lg border border-success-border bg-success-bg px-3 py-2 text-xs">
               <span className="min-w-0 truncate font-bold text-success-fg">Created output · {output.code}</span>
-              <span className="font-mono font-black text-success-fg">{fmtKg(output.qtyKg)} kg</span>
+              <span className="font-mono font-semibold text-success-fg">{fmtKg(output.qtyKg)} kg</span>
             </div>
           )) : null}
           {inspectorRows.length ? inspectorRows.slice(0, 6).map((row) => (
             <div key={row.key} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-1 px-3 py-2 text-xs">
               <span className="min-w-0 truncate font-bold text-content-2">{row.label}</span>
-              <span className="font-mono font-black text-content-1">{row.qty}</span>
+              <span className="font-mono font-semibold text-content-1">{row.qty}</span>
             </div>
           )) : (
             !spec.layers.length && !outputs.length ? <div className="rounded-lg border border-dashed border-line bg-surface-1 px-3 py-5 text-center text-xs font-semibold text-content-3">No layer/BOM snapshot on this line.</div> : null
@@ -1449,10 +1449,10 @@ function LineTrackerSection({ line, index, tracking }: { line: SalesOrderLine; i
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <LineColorIcon index={index} />
-            <h2 className="min-w-0 truncate font-mono text-base font-black text-content-1">
+            <h2 className="min-w-0 truncate font-mono text-base font-semibold text-content-1">
               L{index + 1} · {lineLabel(line, index)} · {fmtKg(metrics.orderedKg)} kg
             </h2>
-            <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">{line.line_status_display || statusLabel(line.line_status)}</Badge>
+            <Badge variant="outline" className="rounded-full text-[10px] font-semibold uppercase">{line.line_status_display || statusLabel(line.line_status)}</Badge>
             {metrics.batches.length ? <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{metrics.batches.length} batch{metrics.batches.length === 1 ? "" : "es"}</Badge> : null}
           </div>
           <div className="mt-1 text-xs font-semibold text-content-3">
@@ -1462,8 +1462,8 @@ function LineTrackerSection({ line, index, tracking }: { line: SalesOrderLine; i
         </div>
         <ArtworkThumb preview={artwork} compact />
         <div className="text-right">
-          <div className="font-mono text-2xl font-black text-content-1">{Math.round(metrics.completionPct)}%</div>
-          <div className="text-[10px] font-black uppercase tracking-wide text-content-4">complete</div>
+          <div className="font-mono text-2xl font-semibold text-content-1">{Math.round(metrics.completionPct)}%</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-content-4">complete</div>
         </div>
       </div>
       <div className="grid min-w-0 grid-cols-1 items-start gap-0 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -1495,8 +1495,8 @@ function FactBox({ label, value, tone = "slate" }: { label: string; value: strin
               : "bg-surface-1 text-content-1 ring-line";
   return (
     <div className={cn("rounded-xl px-3 py-2.5 ring-1", toneClass)}>
-      <div className="text-[9px] font-black uppercase tracking-[0.16em] opacity-70">{label}</div>
-      <div className="mt-1 break-words font-mono text-sm font-black">{value || "--"}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] opacity-70">{label}</div>
+      <div className="mt-1 break-words font-mono text-sm font-semibold">{value || "--"}</div>
     </div>
   );
 }
@@ -1506,7 +1506,7 @@ function SectionTitle({ icon, label, sub }: { icon: ReactNode; label: string; su
     <div className="mb-3 flex items-start gap-2">
       <div className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-info-bg text-primary ring-1 ring-info-border">{icon}</div>
       <div>
-        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-content-4">{label}</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
         {sub ? <div className="mt-0.5 text-xs font-semibold text-content-3">{sub}</div> : null}
       </div>
     </div>
@@ -1558,10 +1558,10 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <LineColorIcon index={index} />
-              <h2 className="min-w-0 truncate font-mono text-base font-black text-content-1">
+              <h2 className="min-w-0 truncate font-mono text-base font-semibold text-content-1">
                 L{index + 1} · {lineLabel(line, index)} · {fmtKg(metrics.orderedKg)} kg
               </h2>
-              <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase">{line.line_status_display || statusLabel(line.line_status)}</Badge>
+              <Badge variant="outline" className="rounded-full text-[10px] font-semibold uppercase">{line.line_status_display || statusLabel(line.line_status)}</Badge>
               {metrics.batches.length ? <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{metrics.batches.length} batch{metrics.batches.length === 1 ? "" : "es"}</Badge> : null}
             </div>
             <LineSpecChips line={line} />
@@ -1632,7 +1632,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
             {axis.length ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {axis.map((entry) => (
-                  <span key={`${entry.label}-${entry.value}`} className="rounded-lg border border-line bg-surface-1 px-2.5 py-1 text-[10px] font-black uppercase text-content-2">
+                  <span key={`${entry.label}-${entry.value}`} className="rounded-lg border border-line bg-surface-1 px-2.5 py-1 text-[10px] font-semibold uppercase text-content-2">
                     {entry.label}: <span className="text-primary">{entry.value}</span>
                   </span>
                 ))}
@@ -1681,7 +1681,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                     return (
                       <div
                         key={`bar-${layer.index}-${layerIndex}`}
-                        className="grid place-items-center text-[10px] font-black text-white"
+                        className="grid place-items-center text-[10px] font-semibold text-white"
                         style={{ background: layerTone.fill, width: `${layerWidthPct}%` }}
                         title={`L${layer.index} · ${layerT}u`}
                       >
@@ -1696,9 +1696,9 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                   const layerTone = LINE_PROGRESS_TONES[layerIndex % LINE_PROGRESS_TONES.length];
                   return (
                     <div key={`${layer.label}-${layerIndex}`} className="grid gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 sm:grid-cols-[70px_minmax(0,1fr)_auto] sm:items-center">
-                      <span className={cn("w-fit rounded-md px-2 py-1 text-[10px] font-black uppercase", layerTone.bg, layerTone.text)}>{`L${layer.index}`}</span>
+                      <span className={cn("w-fit rounded-md px-2 py-1 text-[10px] font-semibold uppercase", layerTone.bg, layerTone.text)}>{`L${layer.index}`}</span>
                       <div className="h-2 overflow-hidden rounded-full bg-surface-2 ring-1 ring-line"><span className="block h-full rounded-full" style={{ width: `${pct || 10}%`, background: layerTone.fill }} /></div>
-                      <div className="min-w-0 font-mono text-[11px] font-black text-content-1">
+                      <div className="min-w-0 font-mono text-[11px] font-semibold text-content-1">
                         {textValue(layer.variantCode, layer.variantName)}{layerT ? ` · ${fmtQty(layerT)}u` : ""}{layer.widthMm ? ` · ${fmtQty(layer.widthMm)}mm` : ""}
                       </div>
                     </div>
@@ -1721,11 +1721,11 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                   return (
                     <div key={group.group}>
                       <div className="mb-1.5 flex items-center justify-between">
-                        <div className={cn("text-[9px] font-black uppercase tracking-wider", meta.text)}>{meta.title} · {group.totalKg > 0 ? `${fmtKg(group.totalKg, 3)} kg` : `${group.rows.length} row${group.rows.length === 1 ? "" : "s"}`}</div>
-                        <span className="text-[9px] font-bold text-content-3">{group.rows.length} row{group.rows.length === 1 ? "" : "s"}</span>
+                        <div className={cn("text-[10px] font-semibold uppercase tracking-wider", meta.text)}>{meta.title} · {group.totalKg > 0 ? `${fmtKg(group.totalKg, 3)} kg` : `${group.rows.length} row${group.rows.length === 1 ? "" : "s"}`}</div>
+                        <span className="text-[10px] font-bold text-content-3">{group.rows.length} row{group.rows.length === 1 ? "" : "s"}</span>
                       </div>
                       <div className="overflow-hidden rounded-xl border border-line bg-surface-1">
-                        <div className="grid grid-cols-[minmax(0,1fr)_72px_90px_92px] gap-2 border-b border-line bg-surface-2 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-wider text-content-3">
+                        <div className="grid grid-cols-[minmax(0,1fr)_72px_90px_92px] gap-2 border-b border-line bg-surface-2 px-2.5 py-1.5 text-[8px] font-semibold uppercase tracking-wider text-content-3">
                           <div>Material</div>
                           <div className="text-right">g/pc</div>
                           <div className="text-right">Order qty</div>
@@ -1734,12 +1734,12 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                         {group.rows.map((bRow, ri) => (
                           <div key={`${bRow.label}-${ri}`} className="grid grid-cols-[minmax(0,1fr)_72px_90px_92px] gap-2 border-b border-line px-2.5 py-2 text-[11px] last:border-b-0">
                             <div className="min-w-0">
-                              <div className="truncate font-mono font-black text-content-1">{bRow.label}</div>
-                              {bRow.name || bRow.detail ? <div className="truncate text-[9px] font-semibold text-content-3">{textValue(bRow.name, bRow.detail)}</div> : null}
+                              <div className="truncate font-mono font-semibold text-content-1">{bRow.label}</div>
+                              {bRow.name || bRow.detail ? <div className="truncate text-[10px] font-semibold text-content-3">{textValue(bRow.name, bRow.detail)}</div> : null}
                             </div>
                             <div className="text-right font-mono font-bold text-content-2">{bRow.perUnit || "—"}</div>
-                            <div className="text-right font-mono font-black text-content-1">{bRow.qty}</div>
-                            <div className="text-right"><span className={cn("rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase ring-1", meta.bg, meta.text, meta.border)}>{bRow.source}</span></div>
+                            <div className="text-right font-mono font-semibold text-content-1">{bRow.qty}</div>
+                            <div className="text-right"><span className={cn("rounded-md px-1.5 py-0.5 text-[8px] font-semibold uppercase ring-1", meta.bg, meta.text, meta.border)}>{bRow.source}</span></div>
                           </div>
                         ))}
                       </div>
@@ -1748,7 +1748,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                 })}
                 {stepSummary.length ? (
                   <div className="pt-1">
-                    <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-content-4">BOM by route step</div>
+                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">BOM by route step</div>
                     <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
                       {stepSummary.map((step, stepIndex) => {
                         const stepTone = LINE_PROGRESS_TONES[stepIndex % LINE_PROGRESS_TONES.length];
@@ -1820,12 +1820,12 @@ function EvidenceRow({
     <div className="grid gap-3 rounded-xl border border-line bg-surface-1 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate font-mono font-black text-content-1">{title}</span>
-          {meta ? <Badge variant="outline" className={cn("rounded-full text-[9px] font-black uppercase", toneClass)}>{meta}</Badge> : null}
+          <span className="truncate font-mono font-semibold text-content-1">{title}</span>
+          {meta ? <Badge variant="outline" className={cn("rounded-full text-[10px] font-semibold uppercase", toneClass)}>{meta}</Badge> : null}
         </div>
         {subtitle ? <div className="mt-1 text-xs font-semibold text-content-3">{subtitle}</div> : null}
       </div>
-      {qty ? <div className="font-mono text-sm font-black text-content-1">{qty}</div> : null}
+      {qty ? <div className="font-mono text-sm font-semibold text-content-1">{qty}</div> : null}
     </div>
   );
 }
@@ -1854,7 +1854,7 @@ function DocumentsTab({
       <section className="rounded-2xl border border-line bg-gradient-to-br from-info-bg via-surface-1 to-success-bg/70 p-5 shadow-sm dark:from-info-bg/30 dark:to-success-bg/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-lg font-black text-content-1">
+            <div className="flex items-center gap-2 text-lg font-semibold text-content-1">
               <ClipboardList className="h-5 w-5 text-primary" /> Order document center
             </div>
             <p className="mt-1 max-w-3xl text-sm font-semibold text-content-3">
@@ -1875,7 +1875,7 @@ function DocumentsTab({
             <div className="rounded-xl border border-line bg-surface-2 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-mono text-sm font-black text-content-1">{order.order_number}</div>
+                  <div className="font-mono text-sm font-semibold text-content-1">{order.order_number}</div>
                   <div className="mt-1 text-xs font-semibold text-content-3">Sales protocol · {order.customer_name} · {fmtDate(order.created_at)}</div>
                 </div>
                 <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{statusLabel(order.status)}</Badge>
@@ -1888,14 +1888,14 @@ function DocumentsTab({
             <div className="rounded-xl border border-line bg-surface-2 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-black text-content-1">Line technical sheets</div>
+                  <div className="font-semibold text-content-1">Line technical sheets</div>
                   <div className="mt-1 text-xs font-semibold text-content-3">Geometry, product master, route/BOM snapshot by line.</div>
                 </div>
                 <Badge className="rounded-full bg-order-bg text-order-fg ring-1 ring-order-border">{order.items?.length || 0} sheets</Badge>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {(order.items || []).slice(0, 8).map((line, index) => (
-                  <span key={line.id || index} className="rounded-lg border border-line bg-surface-1 px-2 py-1 text-[10px] font-black uppercase text-content-2">
+                  <span key={line.id || index} className="rounded-lg border border-line bg-surface-1 px-2 py-1 text-[10px] font-semibold uppercase text-content-2">
                     L{index + 1} · {fmtKg(lineMetrics(line).orderedKg)} kg
                   </span>
                 ))}
@@ -1908,12 +1908,12 @@ function DocumentsTab({
           <SectionTitle icon={<FileCheck2 className="h-4 w-4" />} label="System records" sub="Useful links to the canonical records behind this tracker." />
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-line bg-surface-2 p-4">
-              <div className="font-black text-content-1">Order tracker</div>
+              <div className="font-semibold text-content-1">Order tracker</div>
               <div className="mt-1 text-xs font-semibold text-content-3">Single page with route, batch, BOM, docs, and material audit.</div>
               <div className="mt-3"><DocAction href={`/sales/orders/${orderId}`} /></div>
             </div>
             <div className="rounded-xl border border-line bg-surface-2 p-4">
-              <div className="font-black text-content-1">System audit center</div>
+              <div className="font-semibold text-content-1">System audit center</div>
               <div className="mt-1 text-xs font-semibold text-content-3">Search by order number for low-level system events.</div>
               <div className="mt-3"><DocAction href={`/system/audit?search=${encodeURIComponent(order.order_number)}`} /></div>
             </div>
@@ -2063,14 +2063,14 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
       <section className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg via-surface-1 to-warning-bg/70 p-5 shadow-sm dark:from-success-bg/20 dark:to-warning-bg/20">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-lg font-black text-content-1">
+            <div className="flex items-center gap-2 text-lg font-semibold text-content-1">
               <ShieldCheck className="h-5 w-5 text-success-fg" /> Material audit and production truth
             </div>
             <p className="mt-1 max-w-3xl text-sm font-semibold text-content-3">
               Full mass-balance across ordered target, final output, live WIP, material requirements, consumption, scrap, and system events.
             </p>
           </div>
-          <Badge className="w-fit rounded-full bg-surface-1 px-3 py-1 font-mono text-[10px] font-black uppercase text-content-2 ring-1 ring-line">
+          <Badge className="w-fit rounded-full bg-surface-1 px-3 py-1 font-mono text-[10px] font-semibold uppercase text-content-2 ring-1 ring-line">
             {tracking?.data_freshness?.generated_at ? `Refreshed ${fmtDate(tracking.data_freshness.generated_at)}` : "Live snapshot"}
           </Badge>
         </div>
@@ -2102,8 +2102,8 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-xl border border-line bg-surface-2 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-black uppercase tracking-wider text-content-4">Yield efficiency</div>
-              <span className="font-mono text-sm font-black text-success-fg">{Math.round(yieldPct)}%</span>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">Yield efficiency</div>
+              <span className="font-mono text-sm font-semibold text-success-fg">{Math.round(yieldPct)}%</span>
             </div>
             <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
               <div className="bg-success-fg" style={{ width: `${yieldPct}%` }} />
@@ -2115,8 +2115,8 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
           </div>
           <div className="rounded-xl border border-line bg-surface-2 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-black uppercase tracking-wider text-content-4">Material consumption</div>
-              <span className="font-mono text-sm font-black text-warning-fg">{fmtKg(materialConsumed)} / {fmtKg(materialRequired)} kg</span>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">Material consumption</div>
+              <span className="font-mono text-sm font-semibold text-warning-fg">{fmtKg(materialConsumed)} / {fmtKg(materialRequired)} kg</span>
             </div>
             <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
               <div className="bg-warning-fg" style={{ width: `${consumedPct}%` }} />
@@ -2157,11 +2157,11 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <LineColorIcon index={index} />
-                          <div className="truncate font-mono text-sm font-black text-content-1">L{index + 1} · {row.template_name}</div>
+                          <div className="truncate font-mono text-sm font-semibold text-content-1">L{index + 1} · {row.template_name}</div>
                         </div>
                         <div className="mt-1 text-xs font-semibold text-content-3">Target source · {row.step_target_source || "Sales snapshot"}</div>
                       </div>
-                      <div className="font-mono text-sm font-black text-content-1">{Math.round(pct)}%</div>
+                      <div className="font-mono text-sm font-semibold text-content-1">{Math.round(pct)}%</div>
                     </div>
                     <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
                       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: tone.fill }} />
@@ -2199,16 +2199,16 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
                     <div key={`${row.material_code}-${index}`} className="rounded-xl border border-line bg-surface-2 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate font-mono text-xs font-black text-content-1">{row.material_code}</div>
+                          <div className="truncate font-mono text-xs font-semibold text-content-1">{row.material_code}</div>
                           <div className="mt-0.5 truncate text-[11px] font-semibold text-content-3">{row.material_name} · {row.category || "Material"}</div>
                           {asArray(row.line_labels).length ? <div className="mt-1 truncate text-[10px] font-bold text-content-4">{asArray(row.line_labels).join(" · ")}</div> : null}
                         </div>
-                        <Badge variant="outline" className={cn("rounded-full text-[9px] font-black uppercase", meta.bg, meta.text, meta.border)}>{row.steps && row.steps !== "—" ? `Steps ${row.steps}` : row.source || "BOM"}</Badge>
+                        <Badge variant="outline" className={cn("rounded-full text-[10px] font-semibold uppercase", meta.bg, meta.text, meta.border)}>{row.steps && row.steps !== "—" ? `Steps ${row.steps}` : row.source || "BOM"}</Badge>
                       </div>
                       <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
                         <div className="h-full bg-warning-fg" style={{ width: `${percent(consumed, required)}%` }} />
                       </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] font-black uppercase text-content-3">
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] font-semibold uppercase text-content-3">
                         <span>Req <b className="text-content-1">{fmtKg(required)}</b></span>
                         <span>Used <b className="text-content-1">{fmtKg(consumed)}</b></span>
                         <span>Left <b className={safeNumber(row.remaining_kg) > 0 ? "text-danger-fg" : "text-success-fg"}>{fmtKg(row.remaining_kg)}</b></span>
@@ -2295,15 +2295,15 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
 function FlowBlock({ label, value, pct, className }: { label: string; value: number; pct: number; className: string }) {
   return (
     <div className={cn("min-w-[132px] flex-1 rounded-xl p-3 shadow-sm", className)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-80">{label}</div>
-      <div className="mt-1 font-mono text-xl font-black">{fmtKg(value)}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">{label}</div>
+      <div className="mt-1 font-mono text-xl font-semibold">{fmtKg(value)}</div>
       <div className="text-[10px] font-bold opacity-80">kg · {Math.round(pct)}%</div>
     </div>
   );
 }
 
 function FlowArrow({ label = "->" }: { label?: string }) {
-  return <div className="grid min-w-5 place-items-center text-sm font-black text-content-4">{label}</div>;
+  return <div className="grid min-w-5 place-items-center text-sm font-semibold text-content-4">{label}</div>;
 }
 
 function TimelineEvent({ title, subtitle, meta, qty, tone }: { title: string; subtitle?: string; meta?: string; qty?: string; tone: "slate" | "blue" | "green" | "amber" | "violet" | "rose" }) {
@@ -2325,12 +2325,12 @@ function TimelineEvent({ title, subtitle, meta, qty, tone }: { title: string; su
       <div className="flex h-9 w-9 flex-none items-center justify-center rounded-lg bg-surface-1/80 ring-1 ring-line">{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm font-black text-content-1">{title}</span>
-          {meta ? <span className="rounded-full bg-surface-1/80 px-1.5 py-0.5 text-[9px] font-black uppercase ring-1 ring-line">{meta}</span> : null}
+          <span className="font-mono text-sm font-semibold text-content-1">{title}</span>
+          {meta ? <span className="rounded-full bg-surface-1/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase ring-1 ring-line">{meta}</span> : null}
         </div>
         {subtitle ? <div className="mt-1 text-xs font-semibold text-content-3">{subtitle}</div> : null}
       </div>
-      {qty ? <div className="font-mono text-sm font-black text-content-1">{qty}</div> : null}
+      {qty ? <div className="font-mono text-sm font-semibold text-content-1">{qty}</div> : null}
     </div>
   );
 }
@@ -2373,7 +2373,7 @@ export default function SalesOrderDetailPage() {
       <div className="flex h-[70vh] items-center justify-center">
         <div className="text-center">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
-          <div className="mt-3 text-[11px] font-black uppercase tracking-[0.22em] text-content-4">Loading sales order tracker</div>
+          <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Loading sales order tracker</div>
         </div>
       </div>
     );
@@ -2384,7 +2384,7 @@ export default function SalesOrderDetailPage() {
     return (
       <div className="flex h-[70vh] flex-col items-center justify-center text-center">
         <FileText className="mb-4 h-12 w-12 text-danger-fg" />
-        <h1 className="text-2xl font-black text-content-1">Sales order not found</h1>
+        <h1 className="text-2xl font-semibold text-content-1">Sales order not found</h1>
         <Button className="mt-6 rounded-xl" onClick={() => router.back()}>Go back</Button>
       </div>
     );
@@ -2406,13 +2406,13 @@ export default function SalesOrderDetailPage() {
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to sales orders
               </Button>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <Badge className="rounded-full bg-info-bg px-3 py-1 font-mono text-[10px] font-black uppercase text-primary ring-1 ring-info-border">{order.order_number}</Badge>
-                <Badge variant="outline" className="rounded-full border-warning-border bg-warning-bg px-3 py-1 font-mono text-[10px] font-black uppercase text-content-1">{statusLabel(order.status)}</Badge>
-                {trackingQuery.isFetching ? <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> refreshing</Badge> : null}
+                <Badge className="rounded-full bg-info-bg px-3 py-1 font-mono text-[10px] font-semibold uppercase text-primary ring-1 ring-info-border">{order.order_number}</Badge>
+                <Badge variant="outline" className="rounded-full border-warning-border bg-warning-bg px-3 py-1 font-mono text-[10px] font-semibold uppercase text-content-1">{statusLabel(order.status)}</Badge>
+                {trackingQuery.isFetching ? <Badge variant="outline" className="rounded-full text-[10px] font-semibold uppercase"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> refreshing</Badge> : null}
               </div>
               <div className="mt-3 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
-                  <h1 className="max-w-full truncate text-2xl font-black tracking-tight text-content-1 sm:text-3xl lg:text-4xl">{order.customer_name}</h1>
+                  <h1 className="max-w-full truncate text-2xl font-semibold tracking-tight text-content-1 sm:text-3xl lg:text-4xl">{order.customer_name}</h1>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-sm font-semibold text-content-3">
                     <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4 text-primary" /> Placed {fmtDate(order.created_at)}</span>
                     <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Due {fmtDate(order.delivery_date)}</span>
@@ -2431,12 +2431,12 @@ export default function SalesOrderDetailPage() {
             <div className="min-w-0 border-t border-line bg-surface-2 p-4 sm:p-5 xl:border-l xl:border-t-0">
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">Fulfillment truth</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">Fulfillment truth</div>
                   <div className="mt-1 text-xs font-semibold text-content-3">Ready output, customer dispatch, live route WIP, and open demand.</div>
                 </div>
                 <div className="flex-none text-right">
-                  <div className="font-mono text-3xl font-black text-primary">{Math.round(completePct)}%</div>
-                  <div className="text-[9px] font-black uppercase tracking-wide text-content-4">complete</div>
+                  <div className="font-mono text-3xl font-semibold text-primary">{Math.round(completePct)}%</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-content-4">complete</div>
                 </div>
               </div>
               <div className="mt-4">
@@ -2468,10 +2468,10 @@ export default function SalesOrderDetailPage() {
 
         <Tabs defaultValue="lines" className="space-y-4">
           <TabsList className="sticky top-[72px] z-20 h-auto w-full justify-start overflow-x-auto rounded-xl border border-line bg-surface-1/95 p-1 shadow-sm backdrop-blur">
-            <TabsTrigger value="lines" className="rounded-lg text-[11px] font-black uppercase">Line items + live route <span className="ml-1 rounded-full bg-info-bg px-1.5 text-primary">{items.length}</span></TabsTrigger>
-            <TabsTrigger value="technical" className="rounded-lg text-[11px] font-black uppercase">Technical + BOM</TabsTrigger>
-            <TabsTrigger value="documents" className="rounded-lg text-[11px] font-black uppercase">Documents</TabsTrigger>
-            <TabsTrigger value="audit" className="rounded-lg text-[11px] font-black uppercase">Material audit + timeline</TabsTrigger>
+            <TabsTrigger value="lines" className="rounded-lg text-[11px] font-semibold uppercase">Line items + live route <span className="ml-1 rounded-full bg-info-bg px-1.5 text-primary">{items.length}</span></TabsTrigger>
+            <TabsTrigger value="technical" className="rounded-lg text-[11px] font-semibold uppercase">Technical + BOM</TabsTrigger>
+            <TabsTrigger value="documents" className="rounded-lg text-[11px] font-semibold uppercase">Documents</TabsTrigger>
+            <TabsTrigger value="audit" className="rounded-lg text-[11px] font-semibold uppercase">Material audit + timeline</TabsTrigger>
           </TabsList>
 
           <TabsContent value="lines" className="space-y-4">

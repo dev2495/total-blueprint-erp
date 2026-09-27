@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Pager } from "@/components/logistics/yard-ui";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -28,6 +29,8 @@ import { analyticsApi } from "@/services/analytics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const BOARD_PAGE_SIZE = 10;
 
 type Priority = "HIGH" | "MEDIUM" | "LOW";
 
@@ -169,10 +172,10 @@ function KpiTile({
   return (
     <div className="min-h-[132px] rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-4 shadow-[0_1px_0_rgba(15,23,42,0.04),0_10px_28px_rgba(15,23,42,0.05)]">
       <div className="flex items-start justify-between gap-3">
-        <div className="text-[10px] font-black uppercase tracking-[0.12em] text-[color:var(--text-3)]">{label}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-3)]">{label}</div>
         <div className={cn("grid h-9 w-9 place-items-center rounded-lg ring-1", toneClasses)}>{icon}</div>
       </div>
-      <div className="mt-4 font-display text-3xl font-black leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{value}</div>
+      <div className="mt-4 font-display text-3xl font-semibold leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{value}</div>
       <div className="mt-2 text-xs font-bold leading-5 text-[color:var(--text-3)]">{hint}</div>
     </div>
   );
@@ -190,7 +193,7 @@ function SectionHeader({
   return (
     <div className="flex min-h-[72px] flex-wrap items-center justify-between gap-3 border-b border-[color:var(--border-soft)] px-5 py-4">
       <div className="min-w-0">
-        <h2 className="font-display text-lg font-black tracking-[-0.03em] text-[color:var(--text-1)]">{title}</h2>
+        <h2 className="font-display text-lg font-semibold tracking-[-0.03em] text-[color:var(--text-1)]">{title}</h2>
         <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{subtitle}</p>
       </div>
       {action}
@@ -221,7 +224,7 @@ function MiniBar({ value, tone = "green" }: { value: number; tone?: "green" | "a
       <div className="h-2 overflow-hidden rounded-full bg-[color:hsl(var(--secondary))]">
         <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       </div>
-      <div className="text-right text-xs font-black tabular-nums text-[color:var(--text-2)]">{pct(value, 1)}</div>
+      <div className="text-right text-xs font-semibold tabular-nums text-[color:var(--text-2)]">{pct(value, 1)}</div>
     </div>
   );
 }
@@ -266,7 +269,7 @@ function CircleBreakdown({
   return (
     <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-4 shadow-sm">
       <div>
-        <h3 className="text-sm font-black tracking-[-0.02em] text-[color:var(--text-1)]">{title}</h3>
+        <h3 className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--text-1)]">{title}</h3>
         <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{subtitle}</p>
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
@@ -278,15 +281,15 @@ function CircleBreakdown({
           {variant === "donut" ? (
             <div className="absolute inset-[28px] grid place-items-center rounded-full border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] text-center shadow-sm">
               <div>
-                <div className="font-display text-3xl font-black leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{centerValue}</div>
-                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-[color:var(--text-3)]">{centerLabel}</div>
+                <div className="font-display text-3xl font-semibold leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{centerValue}</div>
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--text-3)]">{centerLabel}</div>
               </div>
             </div>
           ) : (
             <div className="absolute inset-0 grid place-items-center rounded-full">
               <div className="rounded-lg border border-[color:rgba(255,255,255,0.3)] bg-[color:rgba(255,255,255,0.78)] px-3 py-1 text-center shadow-sm backdrop-blur dark:border-[color:rgba(255,255,255,0.14)] dark:bg-[color:rgba(36,44,55,0.78)]">
-                <div className="font-display text-xl font-black leading-none text-[color:var(--text-1)]">{centerValue}</div>
-                <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-[color:var(--text-3)]">{centerLabel}</div>
+                <div className="font-display text-xl font-semibold leading-none text-[color:var(--text-1)]">{centerValue}</div>
+                <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-3)]">{centerLabel}</div>
               </div>
             </div>
           )}
@@ -297,7 +300,7 @@ function CircleBreakdown({
               <>
                 <span className="h-2.5 w-2.5 flex-none rounded-full" style={{ background: slice.color }} />
                 <span className="min-w-0 flex-1 truncate">{slice.label}</span>
-                <span className="font-mono font-black tabular-nums text-[color:var(--text-1)]">{fmt(slice.value)}</span>
+                <span className="font-mono font-semibold tabular-nums text-[color:var(--text-1)]">{fmt(slice.value)}</span>
               </>
             );
             return slice.href ? (
@@ -328,6 +331,7 @@ function CircleBreakdown({
 export default function WorkCenterDashboard() {
   const [filter, setFilter] = useState<(typeof actionFilters)[number]["key"]>("all");
   const [search, setSearch] = useState("");
+  const [boardPage, setBoardPage] = useState(1);
 
   const { data, isLoading, isFetching, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["wcm-dashboard"],
@@ -434,7 +438,7 @@ export default function WorkCenterDashboard() {
         <div className="flex items-start gap-3">
           <Clock3 className="mt-1 h-5 w-5 animate-spin text-[color:var(--br-700)]" />
           <div>
-            <h1 className="font-display text-xl font-black text-[color:var(--br-900)]">Loading WCM telemetry</h1>
+            <h1 className="font-display text-xl font-semibold text-[color:var(--br-900)]">Loading WCM telemetry</h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[color:var(--br-700)]">
               Machine, job, scrap, downtime, and costing signals are syncing.
             </p>
@@ -450,7 +454,7 @@ export default function WorkCenterDashboard() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-1 h-5 w-5 text-[color:var(--r-700)]" />
           <div>
-            <h1 className="font-display text-xl font-black text-[color:#4c0519]">Execution Command Deck failed to load</h1>
+            <h1 className="font-display text-xl font-semibold text-[color:#4c0519]">Execution Command Deck failed to load</h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-[color:var(--r-700)]">
               WCM telemetry is unavailable or returned an unstamped fallback payload. KPI cards are paused instead of showing fallback zeros.
             </p>
@@ -469,8 +473,8 @@ export default function WorkCenterDashboard() {
       <section className="overflow-hidden rounded-lg border border-[color:rgba(15,23,42,0.1)] bg-[radial-gradient(circle_at_75%_-20%,rgba(37,99,235,0.42),transparent_32%),linear-gradient(135deg,#07111f,#102a50_58%,#17428b)] p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[color:var(--br-200)]">Execution Command Deck</div>
-            <h1 className="mt-2 font-display text-[clamp(2rem,3.5vw,3.4rem)] font-black leading-none tracking-[-0.05em]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--br-200)]">Execution Command Deck</div>
+            <h1 className="mt-2 font-display text-[clamp(2rem,3.5vw,3.4rem)] font-semibold leading-none tracking-[-0.05em]">
               Work Center Command Deck
             </h1>
             <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-[color:rgba(219,234,254,0.9)]">
@@ -494,18 +498,18 @@ export default function WorkCenterDashboard() {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
-          <Badge className={cn("gap-2 rounded-lg border px-3 py-1.5 text-xs font-black", syncTone)}>
+          <Badge className={cn("gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold", syncTone)}>
             {isFetching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {isFetching ? "Syncing live floor" : generatedLabel}
           </Badge>
-          <Badge className="gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-[color:var(--text-on-dark)]">
+          <Badge className="gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--text-on-dark)]">
             <span className="h-2 w-2 rounded-full bg-[color:var(--e-500)] shadow-[0_0_0_4px_rgba(52,211,153,0.16)]" />
             Shift {hero.current_shift || "A"}
           </Badge>
-          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-[color:var(--text-on-dark)]">
+          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--text-on-dark)]">
             {fmt(activeWorkCenterCount)} assigned work centers
           </Badge>
-          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-[color:var(--text-on-dark)]">
+          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--text-on-dark)]">
             {fmt(needsAction.length)} open WCM actions
           </Badge>
         </div>
@@ -548,7 +552,7 @@ export default function WorkCenterDashboard() {
           <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-black tracking-[-0.02em] text-[color:var(--text-1)]">OEE by Work Center</h3>
+                <h3 className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--text-1)]">OEE by Work Center</h3>
                 <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">Top active centers with output and scrap context.</p>
               </div>
               <Badge className="rounded-lg border border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] text-[color:var(--e-700)]">
@@ -561,7 +565,7 @@ export default function WorkCenterDashboard() {
                 const tone = oee >= 70 ? "green" : oee >= 55 ? "amber" : oee > 0 ? "rose" : "slate";
                 return (
                   <Link key={wc.id} href={`/production/work-center/${wc.id}`} className="block rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] px-3 py-2 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
-                    <div className="mb-1 flex items-center justify-between gap-3 text-xs font-black text-[color:var(--text-2)]">
+                    <div className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-[color:var(--text-2)]">
                       <span className="truncate">{wc.name}</span>
                       <span className="font-mono">{kg(wc.output_kg, 0)} out</span>
                     </div>
@@ -585,7 +589,7 @@ export default function WorkCenterDashboard() {
                 type="button"
                 onClick={() => setFilter(item.key)}
                 className={cn(
-                  "h-9 rounded-lg border px-3 text-xs font-black transition",
+                  "h-9 rounded-lg border px-3 text-xs font-semibold transition",
                   filter === item.key
                     ? "border-[color:rgba(37,99,235,0.32)] bg-[color:var(--br-50)] text-[color:var(--br-700)]"
                     : "border-[color:var(--border-soft)] bg-[color:var(--surface-1)] text-[color:var(--text-3)] hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-2)] hover:text-[color:var(--br-700)]",
@@ -640,10 +644,10 @@ export default function WorkCenterDashboard() {
                             {kind === "assignment" ? "Machine assignment" : kind === "operator" ? "Operator coverage" : kind === "blocked" ? "Blocker" : "WCM"}
                           </Badge>
                         </div>
-                        <div className="mt-3 truncate text-base font-black tracking-[-0.02em] text-[color:var(--text-1)]">{item.title}</div>
+                        <div className="mt-3 truncate text-base font-semibold tracking-[-0.02em] text-[color:var(--text-1)]">{item.title}</div>
                         <div className="mt-1 text-sm font-semibold leading-6 text-[color:var(--text-3)]">{item.subtitle}</div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm font-black text-[color:var(--br-700)]">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--br-700)]">
                         {item.action_label || "Open action"}
                         <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
                       </div>
@@ -669,31 +673,39 @@ export default function WorkCenterDashboard() {
           />
           <div className="divide-y divide-[color:var(--divider)]">
             {workCenters.length ? (
-              workCenters.map((wc) => {
+              [...workCenters]
+                // Busiest first: blocked, then pending, then running work.
+                .sort(
+                  (a: any, b: any) =>
+                    Number(b.blocked_jobs || 0) * 1000 + Number(b.pending_jobs || 0) * 10 + Number(b.running_machines || 0) -
+                    (Number(a.blocked_jobs || 0) * 1000 + Number(a.pending_jobs || 0) * 10 + Number(a.running_machines || 0)),
+                )
+                .slice((boardPage - 1) * BOARD_PAGE_SIZE, boardPage * BOARD_PAGE_SIZE)
+                .map((wc: any) => {
                 const oee = Number(wc.oee_avg || 0);
                 const oeeTone = oee >= 70 ? "green" : oee >= 55 ? "amber" : oee > 0 ? "rose" : "slate";
                 return (
                   <div key={wc.id} className="grid gap-4 p-4 transition hover:bg-[color:var(--surface-2)] lg:grid-cols-[minmax(180px,1.05fr)_minmax(220px,1fr)_minmax(190px,0.9fr)_auto] lg:items-center">
                     <div className="min-w-0">
-                      <div className="truncate font-black text-[color:var(--text-1)]">{wc.name}</div>
+                      <div className="truncate font-semibold text-[color:var(--text-1)]">{wc.name}</div>
                       <div className="mt-1 text-xs font-bold text-[color:var(--text-3)]">{wc.plant || "Plant not tagged"}</div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
-                        <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Run</div>
-                        <div className="mt-1 text-sm font-black text-[color:var(--text-1)]">{fmt(wc.running_machines)}/{fmt(wc.machine_count)}</div>
+                        <div className="text-[10px] font-semibold uppercase text-[color:var(--text-4)]">Run</div>
+                        <div className="mt-1 text-sm font-semibold text-[color:var(--text-1)]">{fmt(wc.running_machines)}/{fmt(wc.machine_count)}</div>
                       </div>
                       <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
-                        <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Pend</div>
-                        <div className="mt-1 text-sm font-black text-[color:var(--text-1)]">{fmt(wc.pending_jobs)}</div>
+                        <div className="text-[10px] font-semibold uppercase text-[color:var(--text-4)]">Pend</div>
+                        <div className="mt-1 text-sm font-semibold text-[color:var(--text-1)]">{fmt(wc.pending_jobs)}</div>
                       </div>
                       <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
-                        <div className="text-[10px] font-black uppercase text-[color:var(--text-4)]">Block</div>
-                        <div className={cn("mt-1 text-sm font-black", Number(wc.blocked_jobs || 0) > 0 ? "text-[color:var(--r-700)]" : "text-[color:var(--text-1)]")}>{fmt(wc.blocked_jobs)}</div>
+                        <div className="text-[10px] font-semibold uppercase text-[color:var(--text-4)]">Block</div>
+                        <div className={cn("mt-1 text-sm font-semibold", Number(wc.blocked_jobs || 0) > 0 ? "text-[color:var(--r-700)]" : "text-[color:var(--text-1)]")}>{fmt(wc.blocked_jobs)}</div>
                       </div>
                     </div>
                     <div className="min-w-0 space-y-2">
-                      <div className="flex items-center justify-between gap-3 text-xs font-black text-[color:var(--text-3)]">
+                      <div className="flex items-center justify-between gap-3 text-xs font-semibold text-[color:var(--text-3)]">
                         <span>OEE avg</span>
                         <span>{kg(wc.output_kg, 1)} output · {kg(wc.scrap_kg, 1)} scrap</span>
                       </div>
@@ -714,6 +726,14 @@ export default function WorkCenterDashboard() {
               </div>
             )}
           </div>
+          {workCenters.length > BOARD_PAGE_SIZE ? (
+            <div className="flex items-center justify-between border-t border-[color:var(--border-soft)] px-4 py-2.5 text-[11.5px] text-[color:var(--text-3)]">
+              <span>
+                Showing {(boardPage - 1) * BOARD_PAGE_SIZE + 1}-{Math.min(workCenters.length, boardPage * BOARD_PAGE_SIZE)} of {workCenters.length} work centers
+              </span>
+              <Pager page={boardPage} pageCount={Math.ceil(workCenters.length / BOARD_PAGE_SIZE)} onPageChange={setBoardPage} testId="wc-board-page" />
+            </div>
+          ) : null}
         </article>
       </section>
 
@@ -731,13 +751,13 @@ export default function WorkCenterDashboard() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-xs font-black uppercase tracking-[0.1em] text-[color:var(--text-3)]">{cluster.label}</div>
-                      <div className="mt-2 font-display text-3xl font-black tracking-[-0.05em] text-[color:var(--text-1)]">{fmt(cluster.count)}</div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--text-3)]">{cluster.label}</div>
+                      <div className="mt-2 font-display text-3xl font-semibold tracking-[-0.05em] text-[color:var(--text-1)]">{fmt(cluster.count)}</div>
                     </div>
                     <Badge className={cn("rounded-lg border", tone.badge)}>Open</Badge>
                   </div>
                   <p className="mt-3 min-h-[38px] text-xs font-semibold leading-5 text-[color:var(--text-3)]">{cluster.hint || "Machine status cluster"}</p>
-                  <div className={cn("mt-3 inline-flex items-center gap-1 text-xs font-black", tone.icon)}>
+                  <div className={cn("mt-3 inline-flex items-center gap-1 text-xs font-semibold", tone.icon)}>
                     Review route <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-1" />
                   </div>
                 </Link>
@@ -785,7 +805,7 @@ export default function WorkCenterDashboard() {
                     <Badge variant="outline" className="rounded-md bg-[color:var(--surface-1)]">{family}</Badge>
                   </div>
                   <div className="min-w-0">
-                    <div className="truncate font-black text-[color:var(--text-1)]">{row.title || row.message || "Floor activity"}</div>
+                    <div className="truncate font-semibold text-[color:var(--text-1)]">{row.title || row.message || "Floor activity"}</div>
                     <div className="mt-1 text-sm font-semibold leading-6 text-[color:var(--text-3)]">{row.subtitle || row.description || row.detail || "Recent WCM event."}</div>
                   </div>
                   <div className="text-xs font-bold text-[color:var(--text-3)]">{row.date || row.logged_at || "Live"}</div>
@@ -804,22 +824,22 @@ export default function WorkCenterDashboard() {
           <div className="grid gap-3 p-4 sm:grid-cols-2">
             <Link href="/production/machine-selector" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <Cpu className="h-5 w-5 text-[color:var(--br-600)]" />
-              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Machine assignment</div>
+              <div className="mt-3 text-sm font-semibold text-[color:var(--text-1)]">Machine assignment</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.jobs_without_machine)} released jobs need machine mapping.</p>
             </Link>
             <Link href="/production/work-center" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <ShieldCheck className="h-5 w-5 text-[color:var(--e-700)]" />
-              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Operator coverage</div>
+              <div className="mt-3 text-sm font-semibold text-[color:var(--text-1)]">Operator coverage</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.jobs_without_operator)} jobs and {fmt(summary.machines_without_operator)} machines need coverage.</p>
             </Link>
             <Link href="/inventory/rolls" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <PackageCheck className="h-5 w-5 text-[color:var(--info)]" />
-              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Roll and material issue</div>
+              <div className="mt-3 text-sm font-semibold text-[color:var(--text-1)]">Roll and material issue</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">Verify reserved rolls, bulk, ink, returns, and scrap before takeover.</p>
             </Link>
             <Link href="/factory/machines" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <ListChecks className="h-5 w-5 text-[color:var(--a-700)]" />
-              <div className="mt-3 text-sm font-black text-[color:var(--text-1)]">Maintenance risk</div>
+              <div className="mt-3 text-sm font-semibold text-[color:var(--text-1)]">Maintenance risk</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.machines_down)} machines down or in maintenance.</p>
             </Link>
           </div>

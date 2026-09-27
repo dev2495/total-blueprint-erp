@@ -1101,10 +1101,10 @@ export default function QuotationWorkspace() {
         <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
           <div className="overflow-hidden rounded-[2rem] border border-line bg-[linear-gradient(180deg,#f7fbff_0%,#eef6ff_30%,#f8f5ed_62%,#fffdf7_100%)] shadow-[0_28px_70px_-46px_rgba(15,23,42,0.22)]">
             <div className="px-5 py-5 text-content-1">
-              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-info-fg">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-info-fg">
                 Quote rail
               </div>
-              <div className="mt-3 text-2xl font-black tracking-tight">
+              <div className="mt-3 text-2xl font-semibold tracking-tight">
                 Keep one commercial thread visible.
               </div>
               <div className="mt-2 text-sm leading-6 text-content-3">
@@ -1117,10 +1117,10 @@ export default function QuotationWorkspace() {
               <div className="rounded-[1.6rem] border border-info-border bg-surface-1/88 px-4 py-4 text-content-1 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                       Open quotes
                     </div>
-                    <div className="mt-2 text-2xl font-black">
+                    <div className="mt-2 text-2xl font-semibold">
                       {metrics.open}
                     </div>
                   </div>
@@ -1137,10 +1137,10 @@ export default function QuotationWorkspace() {
               <div className="rounded-[1.8rem] border border-line bg-surface-1 p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                       Saved quotations
                     </div>
-                    <div className="mt-1 text-base font-black text-content-1">
+                    <div className="mt-1 text-base font-semibold text-content-1">
                       Recent commercial drafts
                     </div>
                   </div>
@@ -1164,10 +1164,10 @@ export default function QuotationWorkspace() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-70">
                               {quotation.quote_number}
                             </div>
-                            <div className="mt-2 truncate text-sm font-black">
+                            <div className="mt-2 truncate text-sm font-semibold">
                               {quotation.customer_name}
                             </div>
                           </div>
@@ -1181,7 +1181,7 @@ export default function QuotationWorkspace() {
                           <span className="opacity-70">
                             {quotation.items.length} lines
                           </span>
-                          <span className="font-black">
+                          <span className="font-semibold">
                             {formatMoney(
                               quotation.totals_snapshot?.grand_total,
                               quotation.currency,
@@ -1197,10 +1197,10 @@ export default function QuotationWorkspace() {
               <div className="rounded-[1.8rem] border border-line bg-surface-1 p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                       Active lines
                     </div>
-                    <div className="mt-1 text-base font-black text-content-1">
+                    <div className="mt-1 text-base font-semibold text-content-1">
                       One line at a time
                     </div>
                   </div>
@@ -1222,10 +1222,10 @@ export default function QuotationWorkspace() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-70">
                             Line {index + 1}
                           </div>
-                          <div className="mt-2 truncate text-base font-black">
+                          <div className="mt-2 truncate text-base font-semibold">
                             {line.line_name}
                           </div>
                           <div className="mt-1 text-xs opacity-70">
@@ -1247,10 +1247,10 @@ export default function QuotationWorkspace() {
             <div className="grid gap-5 border-b border-line px-6 py-6 xl:grid-cols-[minmax(0,1.2fr)_300px]">
               <div className="space-y-4">
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.24em] text-content-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                     Commercial header
                   </div>
-                  <div className="mt-2 text-3xl font-black tracking-tight text-content-1">
+                  <div className="mt-2 text-3xl font-semibold tracking-tight text-content-1">
                     Build the quote from one calm surface, then move.
                   </div>
                   <div className="mt-2 max-w-3xl text-sm leading-6 text-content-3">
@@ -1315,11 +1315,11 @@ export default function QuotationWorkspace() {
               </div>
 
               <div className="rounded-[1.7rem] border border-line-strong bg-surface-3 px-5 py-5 text-white shadow-[0_22px_56px_-42px_rgba(15,23,42,0.8)]">
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                   Quote identity
                 </div>
                 <div
-                  className="mt-3 text-2xl font-black tracking-tight"
+                  className="mt-3 text-2xl font-semibold tracking-tight"
                   data-testid="quotation-number"
                 >
                   {draft.quote_number || "Unsaved draft"}
@@ -1543,10 +1543,10 @@ function QuoteWorkbench({
       <div className="border-b border-line-strong bg-[linear-gradient(135deg,#0f172a_0%,#172554_62%,#1d4ed8_100%)] px-6 py-6 text-white">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <div className="text-[11px] font-black uppercase tracking-[0.28em] text-info-border">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-info-border">
               Midnight commercial studio
             </div>
-            <div className="mt-3 text-3xl font-black tracking-tight">
+            <div className="mt-3 text-3xl font-semibold tracking-tight">
               Launch from the right mode, then keep the line on one commercial
               plane.
             </div>
@@ -1576,8 +1576,8 @@ function QuoteWorkbench({
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-black text-white">SKU Quote</div>
-                <div className="mt-2 text-2xl font-black tracking-tight text-white">
+                <div className="text-sm font-semibold text-white">SKU Quote</div>
+                <div className="mt-2 text-2xl font-semibold tracking-tight text-white">
                   Pick a live variant, check the size, quote the price, and
                   move.
                 </div>
@@ -1599,10 +1599,10 @@ function QuoteWorkbench({
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-black text-white">
+                <div className="text-sm font-semibold text-white">
                   Custom Quote
                 </div>
-                <div className="mt-2 text-lg font-black tracking-tight text-white">
+                <div className="mt-2 text-lg font-semibold tracking-tight text-white">
                   Use only when the job is not ready for SKU-led selling.
                 </div>
                 <div className="mt-2 text-xs leading-5 text-content-4">
@@ -1655,10 +1655,10 @@ function QuoteWorkbench({
         <div className="min-w-0 space-y-6">
           <div className="grid gap-4 rounded-[1.8rem] border border-line bg-surface-1/90 px-5 py-5 shadow-[0_22px_44px_-40px_rgba(15,23,42,0.3)] lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-content-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 Launch deck
               </div>
-              <div className="mt-2 text-2xl font-black tracking-tight text-content-1">
+              <div className="mt-2 text-2xl font-semibold tracking-tight text-content-1">
                 {productLabel}
               </div>
               <div className="mt-2 max-w-3xl text-sm leading-6 text-content-3">
@@ -1671,10 +1671,10 @@ function QuoteWorkbench({
               <div
                 className={`rounded-[1.45rem] border px-4 py-4 text-left transition ${isSkuMode ? "border-line-strong bg-surface-3 text-white shadow-[0_18px_40px_-32px_rgba(15,23,42,0.65)]" : "border-line bg-surface-2 text-content-2"}`}
               >
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] opacity-70">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-70">
                   Default mode
                 </div>
-                <div className="mt-2 text-lg font-black">SKU Quote</div>
+                <div className="mt-2 text-lg font-semibold">SKU Quote</div>
                 <div className="mt-1 text-sm leading-6 opacity-80">
                   Choose a live variant, confirm size, quote the price, and
                   move.
@@ -1683,10 +1683,10 @@ function QuoteWorkbench({
               <div
                 className={`rounded-[1.45rem] border px-4 py-4 text-left transition ${!isSkuMode ? "border-warning-border bg-warning-bg text-warning-fg" : "border-line bg-surface-2 text-content-2"}`}
               >
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] opacity-70">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-70">
                   Expert path
                 </div>
-                <div className="mt-2 text-lg font-black">Custom Quote</div>
+                <div className="mt-2 text-lg font-semibold">Custom Quote</div>
                 <div className="mt-1 text-sm leading-6 opacity-80">
                   Only for jobs that need template-led or technical overrides.
                 </div>
@@ -1747,10 +1747,10 @@ function QuoteWorkbench({
           <div className="rounded-[1.7rem] border border-line bg-surface-3 px-5 py-5 text-white shadow-[0_26px_60px_-48px_rgba(15,23,42,0.78)]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                   Commercial inspector
                 </div>
-                <div className="mt-2 text-xl font-black text-white">
+                <div className="mt-2 text-xl font-semibold text-white">
                   {activeLine.line_name}
                 </div>
                 <div className="mt-1 text-sm text-content-4">
@@ -1808,7 +1808,7 @@ function QuoteWorkbench({
           </div>
 
           <div className="rounded-[1.6rem] border border-line bg-surface-2 px-4 py-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-content-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Preview summary
             </div>
             {previewError ? (
@@ -1855,7 +1855,7 @@ function QuoteWorkbench({
           </div>
 
           <div className="rounded-[1.7rem] border border-line bg-surface-1 px-5 py-5 shadow-[0_22px_48px_-44px_rgba(15,23,42,0.35)]">
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Quotation summary
             </div>
             <div className="mt-4 space-y-2">
@@ -1880,7 +1880,7 @@ function QuoteWorkbench({
             {draft.converted_sales_order_number ? (
               <Link
                 href={`/sales/orders/${draft.converted_sales_order}`}
-                className="mt-4 inline-flex items-center gap-2 text-sm font-black text-primary hover:text-primary"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary"
               >
                 Open Converted Order <ArrowUpRight className="h-4 w-4" />
               </Link>
@@ -1949,10 +1949,10 @@ function SkuQuoteLane({
         <div className="border-b border-line bg-[linear-gradient(135deg,#f9f4ea_0%,#ffffff_40%,#f3f6fb_100%)] px-6 py-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-content-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 SKU fast lane
               </div>
-              <div className="mt-2 text-3xl font-black tracking-tight text-content-1">
+              <div className="mt-2 text-3xl font-semibold tracking-tight text-content-1">
                 Pick the live variant, change only what sales owns, and finish
                 the quote in one screen.
               </div>
@@ -2064,7 +2064,7 @@ function SkuQuoteLane({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-12 rounded-2xl border-line px-4 text-[11px] font-black uppercase tracking-[0.18em] text-content-3"
+                      className="h-12 rounded-2xl border-line px-4 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3"
                     >
                       Pricing
                     </Button>
@@ -2125,10 +2125,10 @@ function SkuQuoteLane({
                             : "border-line bg-surface-2 hover:border-line-strong hover:bg-surface-1"
                         }`}
                       >
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] opacity-60">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-60">
                           {index === 0 ? "Recommended" : "Quick pick"}
                         </div>
-                        <div className="mt-2 text-sm font-black leading-5">
+                        <div className="mt-2 text-sm font-semibold leading-5">
                           {variant.label}
                         </div>
                         <div className="mt-2 text-xs opacity-70">
@@ -2144,7 +2144,7 @@ function SkuQuoteLane({
             <div className="grid gap-5 px-6 py-6">
               {compatibilityTab === "materials" ? (
                 <div className="rounded-[1.5rem] border border-line bg-surface-2 px-5 py-5">
-                  <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                     Material compatibility
                   </div>
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -2204,7 +2204,7 @@ function SkuQuoteLane({
               ) : null}
 
               <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
                   Commercial edits
                 </div>
                 <div className="mt-2 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -2298,10 +2298,10 @@ function SkuQuoteLane({
           </div>
 
           <aside className="relative z-0 border-t border-line bg-surface-3 px-5 py-5 text-white xl:border-l xl:border-t-0 xl:border-line-strong">
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
               Seeded from SKU
             </div>
-            <div className="mt-3 text-2xl font-black tracking-tight">
+            <div className="mt-3 text-2xl font-semibold tracking-tight">
               {activeSkuVariant?.name || "No variant selected yet"}
             </div>
             <div className="mt-2 text-sm leading-6 text-content-4">
@@ -2340,7 +2340,7 @@ function SkuQuoteLane({
             <div className="mt-6 rounded-[1.35rem] border border-surface-1/10 bg-surface-1/5 px-4 py-4 text-sm leading-6 text-content-4">
               Deep material, print, or route edits do not belong in this lane.
               If the line needs that much shaping, switch it to{" "}
-              <span className="font-black text-white">Custom Quote</span>.
+              <span className="font-semibold text-white">Custom Quote</span>.
             </div>
           </aside>
         </div>
@@ -2514,7 +2514,7 @@ function CustomQuoteLane({
           </div>
         </div>
         <div className="rounded-[1.6rem] border border-line bg-surface-1 px-5 py-5">
-          <div className="text-[11px] font-black uppercase tracking-[0.22em] text-content-4">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
             Commercial response
           </div>
           <div className="mt-3 space-y-2">
@@ -2608,21 +2608,21 @@ function CustomQuoteLane({
             <TabsList className="grid h-12 grid-cols-3 rounded-2xl bg-surface-2 p-1">
               <TabsTrigger
                 value="spec"
-                className="rounded-2xl font-black"
+                className="rounded-2xl font-semibold"
                 data-testid={`quotation-line-${activeLineIndex}-tab-spec`}
               >
                 Specification
               </TabsTrigger>
               <TabsTrigger
                 value="materials"
-                className="rounded-2xl font-black"
+                className="rounded-2xl font-semibold"
                 data-testid={`quotation-line-${activeLineIndex}-tab-materials`}
               >
                 Materials
               </TabsTrigger>
               <TabsTrigger
                 value="pricing"
-                className="rounded-2xl font-black"
+                className="rounded-2xl font-semibold"
                 data-testid={`quotation-line-${activeLineIndex}-tab-pricing`}
               >
                 Pricing
@@ -2662,7 +2662,7 @@ function CustomQuoteLane({
                         }
                         className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${activeLine.finished_good_type === type ? "border-line-strong bg-surface-3 text-white" : "border-line bg-surface-1"}`}
                       >
-                        <div className="font-black">{type}</div>
+                        <div className="font-semibold">{type}</div>
                       </button>
                     ))}
                   </div>
@@ -2707,7 +2707,7 @@ function CustomQuoteLane({
               <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-black text-content-2">
+                    <div className="text-sm font-semibold text-content-2">
                       Layer stack
                     </div>
                     <div className="text-sm text-content-3">
@@ -2821,7 +2821,7 @@ function CustomQuoteLane({
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-black text-content-2">
+                    <div className="text-sm font-semibold text-content-2">
                       Printing
                     </div>
                     <div className="flex items-center gap-2 text-sm text-content-3">
@@ -2920,7 +2920,7 @@ function CustomQuoteLane({
                   </div>
                 </div>
                 <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4">
-                  <div className="text-sm font-black text-content-2">
+                  <div className="text-sm font-semibold text-content-2">
                     POD and additives
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -2991,7 +2991,7 @@ function CustomQuoteLane({
               <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-black text-content-2">
+                    <div className="text-sm font-semibold text-content-2">
                       Approved add-ons
                     </div>
                     <div className="text-sm text-content-3">
@@ -3146,7 +3146,7 @@ function CustomQuoteLane({
               <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-black text-content-2">
+                    <div className="text-sm font-semibold text-content-2">
                       Commercial route
                     </div>
                     <div className="text-sm text-content-3">
@@ -3301,7 +3301,7 @@ function CustomQuoteLane({
                 </div>
               </div>
               <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4">
-                <div className="text-sm font-black text-content-2">
+                <div className="text-sm font-semibold text-content-2">
                   Commercial overrides
                 </div>
                 <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -3596,7 +3596,7 @@ function FieldShell({
   return (
     <div className="space-y-2">
       {label ? (
-        <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-content-3">
+        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
           {label}
         </Label>
       ) : null}
@@ -3693,10 +3693,10 @@ function StatPill({
     <div
       className={`rounded-2xl border px-3 py-3 ${subtle ? "border-line bg-surface-1" : "border-line bg-surface-2"}`}
     >
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
         {label}
       </div>
-      <div className="mt-2 text-sm font-black text-content-1">{value}</div>
+      <div className="mt-2 text-sm font-semibold text-content-1">{value}</div>
     </div>
   );
 }
@@ -3720,7 +3720,7 @@ function InspectorRow({
         {label}
       </span>
       <span
-        className={`font-black ${inverted ? "text-white" : "text-content-1"}`}
+        className={`font-semibold ${inverted ? "text-white" : "text-content-1"}`}
       >
         {value}
       </span>

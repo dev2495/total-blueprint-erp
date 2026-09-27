@@ -103,7 +103,7 @@ export function PurchaseOrderDetailWorkspace({ poId }: { poId: string }) {
         </Link>
 
         {/* Hero */}
-        <div className="rounded-2xl border border-line bg-gradient-to-r from-brand-navy-500 to-brand-blue-500 p-5 text-white">
+        <div className="erp-hero rounded-2xl border p-5 text-white">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-xs uppercase tracking-wider text-white/70">

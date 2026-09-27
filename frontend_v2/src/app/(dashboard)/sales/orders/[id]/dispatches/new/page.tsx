@@ -237,11 +237,11 @@ export default function NewCustomerDispatchPage() {
           <div>
             <Link
               href={`/sales/orders/${orderId}/dispatches`}
-              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90 hover:bg-surface-1/20"
+              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/90 hover:bg-surface-1/20"
             >
               <ArrowLeft className="h-3 w-3" /> Back to dispatches
             </Link>
-            <h1 className="mt-3 text-3xl font-black tracking-tight">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight">
               New dispatch
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-success-border">
@@ -254,7 +254,7 @@ export default function NewCustomerDispatchPage() {
             <div className="text-[10px] font-bold uppercase tracking-wider text-success-border">
               Total qty
             </div>
-            <div className="font-mono text-3xl font-black">
+            <div className="font-mono text-3xl font-semibold">
               {totalQty.toFixed(2)}
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function NewCustomerDispatchPage() {
 
       <Card className="border-line">
         <CardHeader>
-          <CardTitle className="text-lg font-black text-content-1">
+          <CardTitle className="text-lg font-semibold text-content-1">
             Header
           </CardTitle>
           <CardDescription>
@@ -319,7 +319,7 @@ export default function NewCustomerDispatchPage() {
 
       <Card className="border-line">
         <CardHeader>
-          <CardTitle className="text-lg font-black text-content-1">
+          <CardTitle className="text-lg font-semibold text-content-1">
             Lines
           </CardTitle>
           <CardDescription>

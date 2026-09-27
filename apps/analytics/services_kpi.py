@@ -36,6 +36,33 @@ class KPIService:
         return round((runtime_seconds / total_seconds) * 100, 1)
 
     @staticmethod
+    def calculate_average_utilization(machine_ids, days=1):
+        """Average of calculate_utilization over many machines in one query."""
+        machine_ids = list(machine_ids or [])
+        if not machine_ids:
+            return 0.0
+        now = timezone.now()
+        start_time = now - timedelta(days=max(1, int(days)))
+        total_seconds = max(1, int(days)) * 24 * 3600
+        downtime_by_machine = {}
+        rows = (
+            DowntimeLog.objects.filter(
+                production_job__machine_id__in=machine_ids,
+                start_time__gte=start_time,
+            )
+            .exclude(end_time__isnull=True)
+            .values_list("production_job__machine_id", "start_time", "end_time")
+        )
+        for machine_id, started, ended in rows:
+            if started and ended and ended > started:
+                downtime_by_machine[machine_id] = downtime_by_machine.get(machine_id, 0.0) + (ended - started).total_seconds()
+        total_util = 0.0
+        for machine_id in machine_ids:
+            runtime_seconds = max(0.0, total_seconds - downtime_by_machine.get(machine_id, 0.0))
+            total_util += round((runtime_seconds / total_seconds) * 100, 1)
+        return round(total_util / len(machine_ids), 1)
+
+    @staticmethod
     @safe_service(
         default_value={
             "data_available": False,
@@ -123,10 +150,7 @@ class KPIService:
         if work_center_ids:
             machines = machines.filter(work_center_id__in=work_center_ids)
         machine_ids = list(machines.values_list("id", flat=True))
-        total_util = 0.0
-        for machine_id in machine_ids:
-            total_util += KPIService.calculate_utilization(machine_id, days=7)
-        avg_utilization = round(total_util / max(len(machine_ids), 1), 1) if machine_ids else 0.0
+        avg_utilization = KPIService.calculate_average_utilization(machine_ids, days=7)
 
         # OEE proxy from utilization (availability) and quality.
         quality = max(0.0, 100.0 - scrap_rate)
@@ -203,10 +227,18 @@ class KPIService:
 
         efficiency_score = round((oee_proxy * 0.6) + (quality * 0.4), 1)
 
+        # With nothing produced or scrapped in the window there is no quality
+        # or output evidence, so an OEE/efficiency "proxy" of 100% would be a
+        # fabricated figure. Report these as unavailable instead.
+        production_evidence = (produced + scrap) > 0
+        if not production_evidence:
+            oee_proxy = None
+            efficiency_score = None
+
         return {
             "data_available": True,
             "oee": oee_proxy,
-            "scrap_rate": round(scrap_rate, 2),
+            "scrap_rate": round(scrap_rate, 2) if production_evidence else None,
             "utilization": avg_utilization,
             "on_time_delivery": on_time_delivery,
             "sales_velocity": {

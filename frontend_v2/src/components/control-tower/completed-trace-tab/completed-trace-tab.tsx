@@ -551,7 +551,7 @@ export default function CompletedTraceTab() {
             >
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, .75fr) minmax(260px, 1fr) minmax(260px, 1fr)", gap: 12, alignItems: "start" }}>
                     <div>
-                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Closed window</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Closed window</div>
                         <ChipRow>
                             {PERIODS.map((p) => (
                                 <FilterChip
@@ -587,7 +587,7 @@ export default function CompletedTraceTab() {
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(260px, 1.35fr)", gap: 12 }}>
                     <div>
-                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Source path</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Source path</div>
                         <ChipRow>
                             {(["all", "FG", "WIP", "FRESH", "CLAIM"] as const).map((source) => {
                                 const label = source === "all" ? "All sources" : source === "CLAIM" ? "Claims" : source;
@@ -609,7 +609,7 @@ export default function CompletedTraceTab() {
                         </ChipRow>
                     </div>
                     <div>
-                        <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Audit state</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Audit state</div>
                         <ChipRow>
                             {([
                                 ["all", "All audit", "brand"],
@@ -814,12 +814,12 @@ function CompletedPaginationBar({
     const end = Math.min(total, page * pageSize);
     return (
         <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "var(--surface-1)" }}>
-            <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 800, color: "var(--text-3)" }}>
+            <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 650, color: "var(--text-3)" }}>
                 {start}-{end} of {fmt(total)} closed order lines
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Button variant="secondary" size="sm" disabled={page <= 1} onClick={onPrev}>Prev</Button>
-                <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 900, color: "var(--text-2)" }}>
+                <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-2)" }}>
                     Page {page} / {pageCount}
                 </span>
                 <Button variant="secondary" size="sm" disabled={page >= pageCount} onClick={onNext}>Next</Button>
@@ -863,7 +863,7 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                         {fmt(order.required_qty_kg, 1)} KG{order.required_qty_pcs != null ? ` · ${fmt(order.required_qty_pcs)} pcs` : ""}
                     </span>
                     <span title={audit.message || "Completion audit state"} style={{
-                        padding: "2px 8px", fontSize: 10, fontWeight: 800,
+                        padding: "2px 8px", fontSize: 10, fontWeight: 650,
                         borderRadius: "var(--r-pill)",
                         background: audit.claimedNoWcm ? "rgba(15,118,110,.12)" : audit.postedWithVariance ? "rgba(245,158,11,.14)" : "rgba(16,185,129,.12)",
                         color: audit.claimedNoWcm ? "#0f766e" : audit.postedWithVariance ? "var(--warning)" : "var(--success)",
@@ -970,7 +970,7 @@ function TraceAuditBanner({ order }: { order: PlannerControlOrder }) {
     return (
         <div style={{ padding: "10px 12px", border: `1px solid ${tone.border}`, borderRadius: "var(--r-3)", background: tone.bg, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center" }}>
             <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 900, color: tone.fg }}>{tone.title}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: tone.fg }}>{tone.title}</div>
                 <div style={{ marginTop: 2, fontSize: 10, color: "var(--text-3)", lineHeight: 1.35 }}>{tone.body}</div>
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -985,8 +985,8 @@ function TraceAuditBanner({ order }: { order: PlannerControlOrder }) {
 function MiniAuditStat({ label, value }: { label: string; value: string }) {
     return (
         <span style={{ minWidth: 76, padding: "5px 7px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-1)" }}>
-            <span style={{ display: "block", fontSize: 8, fontWeight: 900, letterSpacing: ".06em", color: "var(--text-4)", textTransform: "uppercase" }}>{label}</span>
-            <span style={{ display: "block", marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 900, color: "var(--text-1)" }}>{value}</span>
+            <span style={{ display: "block", fontSize: 8, fontWeight: 700, letterSpacing: ".06em", color: "var(--text-4)", textTransform: "uppercase" }}>{label}</span>
+            <span style={{ display: "block", marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 700, color: "var(--text-1)" }}>{value}</span>
         </span>
     );
 }
@@ -1010,7 +1010,7 @@ function SectionHeader({ eyebrow, title, icon, rightBadge }: { eyebrow: string; 
             <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {icon}
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-3)" }}>
+                    <span style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-3)" }}>
                         {eyebrow}
                     </span>
                 </div>

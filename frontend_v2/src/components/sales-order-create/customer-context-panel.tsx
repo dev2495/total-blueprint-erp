@@ -98,7 +98,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
       <div className="grid gap-2">
         {/* Previous orders */}
         <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-content-3">
             <History className="h-3 w-3" /> Recent orders
           </div>
           {ordersQuery.isLoading ? (
@@ -129,7 +129,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-line text-[9px] text-content-3"
+                    className="border-line text-[10px] text-content-3"
                   >
                     {o.status}
                   </Badge>
@@ -141,7 +141,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
 
         {/* Overlays */}
         <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-content-3">
             <Layers className="h-3 w-3" /> Customer overlays
           </div>
           {overlaysQuery.isLoading ? (
@@ -180,7 +180,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
               : "border-line bg-surface-2 ring-line",
           )}
         >
-          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-order-fg">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-order-fg">
             <Sparkles className="h-3 w-3" /> Repeat-lane hint
           </div>
           {lastLaneCount ? (

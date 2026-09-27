@@ -46,7 +46,7 @@ export const HeroStrip = React.forwardRef<HTMLElement, HeroStripProps>(
           {eyebrow && (
             <div
               className={cn(
-                "text-[11px] font-semibold uppercase tracking-[0.14em]",
+                "text-[11px] font-semibold uppercase tracking-[0.08em]",
                 variant === "admin" ? "text-info-border" : "text-primary",
               )}
             >

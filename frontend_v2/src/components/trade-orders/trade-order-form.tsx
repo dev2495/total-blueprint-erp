@@ -417,7 +417,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
 
         <section className="rounded-3xl bg-gradient-to-br from-danger-solid via-warm to-warning-fg p-6 text-white shadow-[0_20px_60px_-30px_rgba(244,63,94,0.45)]">
           <header className="mb-4">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
               Totals
             </div>
             <div className="text-sm font-bold">Live summary</div>
@@ -713,7 +713,7 @@ function Row({
       </dt>
       <dd
         className={
-          big ? "font-mono text-xl font-black" : "font-mono text-sm font-bold"
+          big ? "font-mono text-xl font-semibold" : "font-mono text-sm font-bold"
         }
       >
         {value}
@@ -820,7 +820,7 @@ function ItemPicker({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-[12px] font-black text-content-1">
+                          <span className="font-mono text-[12px] font-semibold text-content-1">
                             {option.code}
                           </span>
                           <span className="text-[12px] font-bold text-content-2">
@@ -844,7 +844,7 @@ function ItemPicker({
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-mono text-sm font-black text-success-fg">
+                        <div className="font-mono text-sm font-semibold text-success-fg">
                           {formatQty(option.available_qty)}
                         </div>
                         <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">
@@ -885,10 +885,10 @@ function SelectedStockPanel({
   return (
     <div className="mt-2 rounded-xl border border-success-border bg-success-bg px-3 py-2">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-success-fg">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg">
           <Boxes className="h-3.5 w-3.5" /> Stock truth
         </div>
-        <div className="font-mono text-[11px] font-black text-success-fg">
+        <div className="font-mono text-[11px] font-semibold text-success-fg">
           {formatQty(option.available_qty)} {option.base_uom} at{" "}
           {option.plant_code || "plant"}
         </div>

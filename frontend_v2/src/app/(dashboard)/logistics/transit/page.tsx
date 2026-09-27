@@ -46,12 +46,12 @@ export default function TransitPage() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-info-fg via-primary to-success-fg" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-info-fg">
+            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-info-fg">
               <Truck className="h-3.5 w-3.5" />
               Transit Command Surface
             </div>
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-content-1">
+              <h1 className="text-3xl font-semibold tracking-tight text-content-1">
                 Transit Tracking
               </h1>
               <p className="mt-2 max-w-3xl text-sm font-medium text-content-3">
@@ -117,7 +117,7 @@ export default function TransitPage() {
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           <CardHeader className="border-b border-line bg-surface-1/70">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Outbound lane board
             </CardTitle>
             <p className="text-sm text-content-3">
@@ -133,7 +133,7 @@ export default function TransitPage() {
               >
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <div className="text-base font-black tracking-tight text-content-1">
+                    <div className="text-base font-semibold tracking-tight text-content-1">
                       {lane.customer}
                     </div>
                     <div className="mt-1 flex items-center gap-2 text-sm font-medium text-content-3">
@@ -149,7 +149,7 @@ export default function TransitPage() {
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <div className="rounded-2xl bg-surface-1 px-4 py-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       ETA / queue
                     </div>
                     <div className="mt-1 text-sm font-bold text-content-1">
@@ -157,7 +157,7 @@ export default function TransitPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-surface-1 px-4 py-3">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       Packed units
                     </div>
                     <div className="mt-1 text-sm font-bold text-content-1">
@@ -172,7 +172,7 @@ export default function TransitPage() {
 
         <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           <CardHeader className="border-b border-line bg-surface-1/70">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Telemetry rollout note
             </CardTitle>
             <p className="text-sm text-content-3">
@@ -182,7 +182,7 @@ export default function TransitPage() {
           </CardHeader>
           <CardContent className="space-y-4 p-6 text-sm text-content-3">
             <div className="rounded-[1.5rem] border border-warning-border bg-warning-bg p-4">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-warning-fg">
+              <div className="text-xs font-semibold uppercase tracking-[0.1em] text-warning-fg">
                 Current source of truth
               </div>
               <div className="mt-2 font-semibold text-warning-fg">
@@ -191,7 +191,7 @@ export default function TransitPage() {
               </div>
             </div>
             <div className="rounded-[1.5rem] border border-line bg-surface-2 p-4">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-content-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                 What this page does well now
               </div>
               <ul className="mt-3 space-y-2 text-sm">

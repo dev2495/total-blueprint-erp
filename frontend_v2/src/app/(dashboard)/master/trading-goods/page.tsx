@@ -253,14 +253,14 @@ function Stat({
 }) {
   return (
     <div className="rounded-2xl bg-surface-2 px-2 py-2">
-      <div className="text-[9px] font-bold uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center justify-center gap-1 font-mono text-sm font-bold text-content-1">
         {icon}
         {value}
       </div>
-      {hint ? <div className="text-[9px] text-content-4">{hint}</div> : null}
+      {hint ? <div className="text-[10px] text-content-4">{hint}</div> : null}
     </div>
   );
 }

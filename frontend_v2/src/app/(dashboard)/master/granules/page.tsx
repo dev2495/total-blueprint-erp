@@ -120,7 +120,7 @@ function GranuleForm({
 
         {/* Sales / Trade Order section */}
         <div className="rounded-2xl border border-success-border bg-success-bg p-4 space-y-3">
-          <div className="text-[11px] font-black uppercase tracking-wider text-success-fg">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-success-fg">
             Sales · Trade Orders
           </div>
           <FormField
@@ -684,7 +684,7 @@ export default function GranulesPage() {
                 </details>
               ) : null}
               <div className="max-h-[360px] overflow-y-auto rounded-2xl border border-line bg-surface-1">
-                <div className="grid grid-cols-[1.4fr_120px_1.6fr_120px] gap-3 border-b border-line px-4 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-content-3">
+                <div className="grid grid-cols-[1.4fr_120px_1.6fr_120px] gap-3 border-b border-line px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                   <span>Code</span>
                   <span>Status</span>
                   <span>Notes</span>

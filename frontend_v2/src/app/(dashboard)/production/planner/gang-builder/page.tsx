@@ -276,7 +276,7 @@ function FlowSteps() {
           key={s.n}
           className="flex items-center gap-3 rounded-2xl border border-line bg-surface-1 px-3 py-2.5 shadow-sm"
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-order-bg text-[11px] font-black text-order-fg">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-order-bg text-[11px] font-semibold text-order-fg">
             {s.n}
           </span>
           <div className="min-w-0 flex-1">
@@ -400,14 +400,14 @@ function GroupListCard({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     {eligible ? (
-                      <Badge className="bg-success-bg text-[9px] text-success-fg hover:bg-success-bg">
+                      <Badge className="bg-success-bg text-[10px] text-success-fg hover:bg-success-bg">
                         <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
                         {g.job_count} orders · combinable
                       </Badge>
                     ) : (
                       <Badge
                         variant="outline"
-                        className="border-line text-[9px] text-content-3"
+                        className="border-line text-[10px] text-content-3"
                       >
                         {g.job_count} order{g.job_count === 1 ? "" : "s"} ·
                         setup needed
@@ -415,7 +415,7 @@ function GroupListCard({
                     )}
                   </div>
                   <span
-                    className="font-mono text-[9px] text-content-4"
+                    className="font-mono text-[10px] text-content-4"
                     title="Recipe fingerprint (internal)"
                   >
                     #{g.layer_signature_hash.slice(0, 6)}
@@ -832,7 +832,7 @@ function SlitLayoutPreview({
                   {jobKg(j).toFixed(0)} kg
                 </div>
                 {j.customer_name ? (
-                  <div className="mt-0.5 truncate text-[9px] opacity-70">
+                  <div className="mt-0.5 truncate text-[10px] opacity-70">
                     {j.customer_name.slice(0, 14)}
                   </div>
                 ) : null}

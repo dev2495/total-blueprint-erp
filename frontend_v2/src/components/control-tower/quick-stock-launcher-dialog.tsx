@@ -135,7 +135,7 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
                         <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                 <Zap size={12} color="var(--br-700)" />
-                                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--br-700)" }}>
+                                <span style={{ fontSize: 11, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--br-700)" }}>
                                     Quick stock launcher
                                 </span>
                             </div>
@@ -182,7 +182,7 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
 
                     {/* Quantity */}
                     <div>
-                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginBottom: 6 }}>
+                        <div style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginBottom: 6 }}>
                             Quantity to build
                         </div>
                         <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>

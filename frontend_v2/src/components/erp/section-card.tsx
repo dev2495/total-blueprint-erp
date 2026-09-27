@@ -89,7 +89,7 @@ export function SectionCardV3({
           {typeof index === "number" ? (
             <span
               className={cn(
-                "flex h-7 w-7 flex-none items-center justify-center rounded-lg ring-1 text-xs font-black",
+                "flex h-7 w-7 flex-none items-center justify-center rounded-lg ring-1 text-xs font-semibold",
                 ACCENT_INDEX[accent],
               )}
             >
@@ -100,7 +100,7 @@ export function SectionCardV3({
             {eyebrow ? (
               <div
                 className={cn(
-                  "text-[10px] font-black uppercase tracking-[0.22em]",
+                  "text-[10px] font-semibold uppercase tracking-[0.12em]",
                   ACCENT_EYEBROW[accent],
                 )}
               >

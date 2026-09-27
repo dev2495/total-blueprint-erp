@@ -64,7 +64,7 @@ export function AlertStream({ alerts = [] }: { alerts: AlertItem[] }) {
    alert.severity === "CRITICAL"
      ? "bg-danger-bg text-danger-fg"
      : alert.severity === "HIGH"
-       ? "bg-warm text-warm"
+       ? "bg-warning-bg text-warning-fg"
        : "bg-surface-2 text-content-3"
  }`}
                     >

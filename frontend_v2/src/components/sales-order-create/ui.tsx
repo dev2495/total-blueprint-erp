@@ -9,7 +9,7 @@ export const INP =
   "h-[38px] w-full rounded-[11px] border border-line bg-surface-1 px-[11px] text-[13px] font-bold text-content-1 outline-none transition placeholder:font-semibold placeholder:text-content-4 focus:border-order-border focus:ring-[3px] focus:ring-order-border disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-content-4";
 
 export const LABEL =
-  "text-[9.5px] font-extrabold uppercase tracking-[0.13em] text-content-3";
+  "text-[9.5px] font-semibold uppercase tracking-[0.08em] text-content-3";
 
 export const MONO = "font-mono tabular-nums";
 

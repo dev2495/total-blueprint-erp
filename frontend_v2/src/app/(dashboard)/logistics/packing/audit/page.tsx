@@ -172,10 +172,10 @@ export default function PackingAuditPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Link>
               <div className="min-w-0">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-2">
                   Logistics › Packing › Audit
                 </div>
-                <h1 className="font-display text-2xl font-black text-content-1 tracking-tight">
+                <h1 className="font-display text-2xl font-semibold text-content-1 tracking-tight">
                   Per-order packing audit
                 </h1>
                 <p className="mt-1 text-xs text-content-3 max-w-2xl">
@@ -222,7 +222,7 @@ export default function PackingAuditPage() {
         <section className="rounded-2xl border border-line bg-surface-1 shadow-sm p-3 sm:p-4 ring-1 ring-surface-1/40">
           <div className="flex items-center gap-2 mb-3">
             <Filter className="h-3.5 w-3.5 text-content-3" />
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Filter
             </div>
           </div>
@@ -314,7 +314,7 @@ export default function PackingAuditPage() {
           <header className="flex items-center justify-between border-b border-line bg-gradient-to-r from-surface-2 via-white to-order-bg px-5 py-2.5">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-content-3" />
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Audit records · {data?.count ?? 0}
               </div>
             </div>
@@ -365,7 +365,7 @@ export default function PackingAuditPage() {
                           {formatDisplayDateTime(r.created_at)}
                         </span>
                       </td>
-                      <td className="px-3 py-2 font-mono font-black text-content-1">
+                      <td className="px-3 py-2 font-mono font-semibold text-content-1">
                         {r.sales_order_no || "—"}
                       </td>
                       <td className="px-3 py-2 text-content-2 truncate max-w-[180px]">
@@ -385,7 +385,7 @@ export default function PackingAuditPage() {
                           {r.packaging_kind || "—"}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-right font-mono font-black text-content-1">
+                      <td className="px-3 py-2 text-right font-mono font-semibold text-content-1">
                         {Math.abs(r.qty).toLocaleString()}
                       </td>
                       <td className="px-3 py-2 font-mono text-[10px] text-content-3">
@@ -422,7 +422,7 @@ function Th({
   return (
     <th
       className={cn(
-        "px-3 py-2 font-black uppercase tracking-wider text-[9px]",
+        "px-3 py-2 font-semibold uppercase tracking-wider text-[10px]",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -483,7 +483,7 @@ function KpiTile({
       <div className={cn("absolute inset-x-0 top-0 h-1", t.stripe)} />
       <div
         className={cn(
-          "text-[10px] font-black uppercase tracking-[0.16em]",
+          "text-[10px] font-semibold uppercase tracking-[0.1em]",
           t.label,
         )}
       >
@@ -491,7 +491,7 @@ function KpiTile({
       </div>
       <div
         className={cn(
-          "mt-1 font-display text-2xl font-black tabular-nums tracking-tight",
+          "mt-1 font-display text-2xl font-semibold tabular-nums tracking-tight",
           t.value,
         )}
       >

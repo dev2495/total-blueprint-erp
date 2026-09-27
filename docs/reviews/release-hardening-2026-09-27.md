@@ -17,3 +17,13 @@ User authorized commit and AWS release. The documented host is 3.6.77.159 / erp.
 ## Separate review
 
 A separate review-only task is preparing a visual HTML report on premium ERP UI/analytics/user journeys and official ERP comparisons. No proposed redesign or business logic change is authorized in that task.
+
+## AWS reconciliation before deployment
+
+AWS access was recovered using the existing Lightsail key. The server release marker is `95725fadf4a2e32015fc3f4e84d5952a7066f350`; that commit is unavailable from this GitHub remote, so the read-only live source snapshot is the reconciliation authority. Comparison found 252 files different from both base and candidate, plus 31 server-only files (including evidence). Current premium UI, print-colour revision workflow, dispatch PDF fixes and stricter physical roll matching were preserved. Fourteen overlapping files were reconciled; rewritten report and logistics screens retain the live implementation, with empty-cohort safeguards ported to the new report renderer. The existing print-colour migration and concurrent board-index migration join through a no-operation merge migration.
+
+Additional WCM safeguards: explicit variants take precedence over family matches, different layer width/basis/slit-policy contracts remain distinct, and filtering cannot silently omit selected rolls from submission. A legacy payload test now supplies its required physical layer contract. No customer database fixtures are used for live verification.
+
+Predeployment backup: `/opt/tpp-erp/backups/daily/tpp-erp-db-20260927-143336+0530.sql.gz` passed gzip and SHA-256 checks. Source archive `/opt/tpp-erp/releases/pre-hardening-20260927.tgz` passed tar validation. Previous backend/frontend images are retained with `rollback-20260927` tags. These verify archive integrity; they do not constitute a new full production restore drill.
+
+Reconciliation checks: optimized frontend build and lint pass. Focused backend allocation/physical-contract tests: 17 pass. Browser: filtered-selection payload passes; real lineage/manual fallback and three-slot allocation flow passes (13.2 seconds). The first combined 1,037-test run had only the legacy missing-contract fixture failure; the corrected complete rerun is recorded in deployment evidence.

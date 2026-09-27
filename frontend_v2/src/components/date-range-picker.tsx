@@ -24,7 +24,7 @@ export function CalendarDateRangePicker({
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
         <CalendarIcon className="h-4 w-4 text-primary" />
-        <span className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
           Window
         </span>
       </div>
@@ -34,7 +34,7 @@ export function CalendarDateRangePicker({
         onChange={(event) => setFrom(event.target.value)}
         className="h-10 w-[148px] rounded-xl border-line bg-surface-1"
       />
-      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.16em] text-content-4">
+      <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.1em] text-content-4">
         <ChevronRight className="h-3.5 w-3.5" />
         To
       </div>

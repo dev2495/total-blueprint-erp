@@ -720,7 +720,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
             {extraFieldsAvailable.length > 0 ? (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-order-border bg-order-bg p-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-order-fg">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
                   Add a field
                 </span>
                 {extraFieldsAvailable.map((p) => (
@@ -1316,7 +1316,7 @@ function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <div className="mb-1 text-[10px] font-black uppercase tracking-widest text-content-3">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-content-3">
         {label}
       </div>
       {children}
@@ -1354,7 +1354,7 @@ function Card({
       <header className="mb-3 flex items-center gap-2">
         <span
           className={cn(
-            "grid h-5 w-5 place-items-center rounded text-[10px] font-black",
+            "grid h-5 w-5 place-items-center rounded text-[10px] font-semibold",
             TONE[tone],
           )}
         >
@@ -1401,7 +1401,7 @@ function FieldChip({
       </span>
       <div className="flex items-center gap-2">
         {pinned ? (
-          <Badge variant="outline" className="border-line-strong text-[9px]">
+          <Badge variant="outline" className="border-line-strong text-[10px]">
             always shown
           </Badge>
         ) : null}
@@ -1739,7 +1739,7 @@ function VisualLinearBuilder({
       {/* Preset bar */}
       <div className="mb-3 rounded-xl border border-success-border bg-surface-1 px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between">
-          <div className="text-[10px] font-black uppercase tracking-widest text-success-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-success-fg">
             Quick presets
           </div>
           <div className="text-[10px] text-content-3">
@@ -1757,7 +1757,7 @@ function VisualLinearBuilder({
             >
               <span>{p.emoji}</span>
               <span>{p.label}</span>
-              <span className="hidden font-mono text-[9px] text-success-fg opacity-70 group-hover:inline">
+              <span className="hidden font-mono text-[10px] text-success-fg opacity-70 group-hover:inline">
                 {p.formula}
               </span>
             </button>
@@ -1765,7 +1765,7 @@ function VisualLinearBuilder({
         </div>
       </div>
 
-      <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-success-fg">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-success-fg">
         Child stock width =
       </div>
 
@@ -1798,7 +1798,7 @@ function VisualLinearBuilder({
 
         {/* Trim row */}
         <div className="flex items-center gap-2 rounded-2xl bg-surface-2 px-3 py-2 ring-1 ring-line-strong">
-          <span className="text-[10px] font-black uppercase tracking-widest text-content-3">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
             trim constant
           </span>
           <input
@@ -1815,7 +1815,7 @@ function VisualLinearBuilder({
       {/* Add-term tray */}
       {allFieldKeys.length > 0 ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-success-border bg-surface-1 px-3 py-2">
-          <span className="text-[10px] font-black uppercase tracking-widest text-success-fg">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-success-fg">
             + Add term
           </span>
           {allFieldKeys.map((k) => (
@@ -1867,7 +1867,7 @@ function FormulaPolicyPanel({
   return (
     <div className="mt-3 grid gap-3 rounded-2xl border border-info-border bg-gradient-to-br from-info-bg via-white to-info-bg p-3 lg:grid-cols-[1.2fr_1fr]">
       <div>
-        <div className="text-[10px] font-black uppercase tracking-widest text-info-fg">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-info-fg">
           Roll axis policy
         </div>
         <div className="mt-2 grid grid-cols-3 gap-1.5">
@@ -1877,7 +1877,7 @@ function FormulaPolicyPanel({
               type="button"
               onClick={() => onPatch({ default_roll_axis: axis })}
               className={cn(
-                "rounded-lg px-2 py-2 text-[11px] font-black ring-1 transition",
+                "rounded-lg px-2 py-2 text-[11px] font-semibold ring-1 transition",
                 rollAxis === axis
                   ? "bg-info-fg text-white ring-info-border"
                   : "bg-surface-1 text-info-fg ring-info-border hover:bg-info-bg",
@@ -1895,7 +1895,7 @@ function FormulaPolicyPanel({
         </div>
       </div>
       <div>
-        <div className="text-[10px] font-black uppercase tracking-widest text-info-fg">
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-info-fg">
           Trim rule
         </div>
         <Select
@@ -1940,7 +1940,7 @@ function StockAreaPolicyPanel({
     <div className="mt-3 rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
             Area formula builder
           </div>
           <p className="mt-1 max-w-[620px] text-[10.5px] text-order-fg">
@@ -1951,7 +1951,7 @@ function StockAreaPolicyPanel({
         </div>
         <Badge
           variant="outline"
-          className="border-order-border bg-surface-1 text-[10px] font-black text-order-fg"
+          className="border-order-border bg-surface-1 text-[10px] font-semibold text-order-fg"
         >
           film area = child × {formatNumber(filmAreaFactor)} × pitch
         </Badge>
@@ -2058,7 +2058,7 @@ function AreaPreviewCard({
     <div className="mt-3 rounded-2xl border-2 border-order-border bg-surface-1 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
             Width + film area preview
           </div>
           <div className="mt-1 font-mono text-[11px] font-bold text-order-fg">
@@ -2067,7 +2067,7 @@ function AreaPreviewCard({
         </div>
         <Badge
           variant="outline"
-          className="border-order-border bg-order-bg text-[10px] font-black text-order-fg"
+          className="border-order-border bg-order-bg text-[10px] font-semibold text-order-fg"
         >
           {stockFormLabel(stockForm)}
         </Badge>
@@ -2131,10 +2131,10 @@ function PreviewMetric({
             : "bg-surface-2 text-content-1 ring-line",
       )}
     >
-      <div className="text-[9px] font-black uppercase tracking-widest opacity-60">
+      <div className="text-[10px] font-semibold uppercase tracking-widest opacity-60">
         {label}
       </div>
-      <div className="mt-0.5 font-mono text-[14px] font-black">{value}</div>
+      <div className="mt-0.5 font-mono text-[14px] font-semibold">{value}</div>
     </div>
   );
 }
@@ -2157,7 +2157,7 @@ function FormulaEquation({
           : "bg-order-fg text-order-border ring-order-border",
       )}
     >
-      <div className="mb-1 font-sans text-[9px] font-black uppercase tracking-widest opacity-70">
+      <div className="mb-1 font-sans text-[10px] font-semibold uppercase tracking-widest opacity-70">
         {label}
       </div>
       {value}
@@ -2293,7 +2293,7 @@ function FactorChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-lg px-2 py-1 font-mono text-sm font-extrabold ring-1",
+        "inline-flex items-center gap-1 rounded-lg px-2 py-1 font-mono text-sm font-semibold ring-1",
         tone,
       )}
     >
@@ -2360,7 +2360,7 @@ function FactorAdder({
           {/* MULTIPLY (in this term) */}
           <div className="rounded-lg border-2 border-success-border bg-success-bg p-2">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-success-fg">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-success-fg">
                 × multiply this term by…
               </span>
             </div>
@@ -2399,7 +2399,7 @@ function FactorAdder({
           {/* ADD (new term) */}
           <div className="mt-2 rounded-lg border-2 border-warning-border bg-warning-bg p-2">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-warning-fg">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-warning-fg">
                 + add a NEW term with…
               </span>
             </div>

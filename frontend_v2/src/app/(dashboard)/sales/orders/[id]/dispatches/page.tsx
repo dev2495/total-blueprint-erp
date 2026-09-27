@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ export default function SalesOrderDispatchesPage() {
   const orderId = params?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const listQuery = useQuery({
     queryKey: ["customer-dispatches", orderId],
@@ -102,16 +103,16 @@ export default function SalesOrderDispatchesPage() {
 
   return (
     <div className="min-h-screen space-y-6 bg-surface-2 p-6">
-      <section className="rounded-[2rem] border border-line bg-gradient-to-br from-primary via-primary to-surface-3 px-8 py-7 text-white shadow-lg">
+      <section className="erp-hero rounded-[2rem] border px-8 py-7 text-white shadow-lg">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <Link
               href={`/sales/orders/${orderId}`}
-              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-white/90 hover:bg-surface-1/20"
+              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/90 hover:bg-surface-1/20"
             >
               <ArrowLeft className="h-3 w-3" /> Back to order
             </Link>
-            <h1 className="mt-3 text-3xl font-black tracking-tight">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight">
               Customer dispatches
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-info-border">
@@ -153,7 +154,7 @@ export default function SalesOrderDispatchesPage() {
 
       <Card className="border-line">
         <CardHeader>
-          <CardTitle className="text-lg font-black text-content-1">
+          <CardTitle className="text-lg font-semibold text-content-1">
             Dispatch ledger
           </CardTitle>
           <CardDescription>
@@ -224,14 +225,47 @@ export default function SalesOrderDispatchesPage() {
                           </Button>
                         </>
                       ) : null}
-                      <Link
-                        href={`/sales/orders/${orderId}/dispatches/${row.id}`}
+                      <button
+                        type="button"
+                        aria-expanded={expandedId === row.id}
+                        onClick={() => setExpandedId((current) => (current === row.id ? null : row.id))}
                         className="inline-flex h-8 items-center gap-1 rounded-full border border-line px-3 text-xs font-semibold text-content-2 hover:bg-surface-2"
                       >
-                        View <ChevronRight className="h-3.5 w-3.5" />
-                      </Link>
+                        {expandedId === row.id ? "Hide" : "Details"}
+                        <ChevronRight className={`h-3.5 w-3.5 transition-transform ${expandedId === row.id ? "rotate-90" : ""}`} />
+                      </button>
                     </div>
                   </div>
+                  {expandedId === row.id ? (
+                    <div className="erp-enter mt-3 rounded-xl border border-line bg-surface-2/60 p-3">
+                      <div className="grid gap-x-6 gap-y-1 text-[12px] text-content-3 sm:grid-cols-3">
+                        <span>Plant · <span className="text-content-1">{row.plant_name || "—"}</span></span>
+                        <span>Driver · <span className="text-content-1">{row.driver_name || "—"}</span></span>
+                        <span>Invoice · <span className="text-content-1">{row.invoice_no || "—"}</span></span>
+                      </div>
+                      <table className="mt-3 w-full text-[12.5px]">
+                        <thead>
+                          <tr className="text-left text-content-3">
+                            <th className="py-1.5 font-medium">Order line</th>
+                            <th className="py-1.5 text-right font-medium">Quantity</th>
+                            <th className="py-1.5 pl-4 font-medium">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {row.lines.map((line, index) => (
+                            <tr key={line.id || index} className="border-t border-line">
+                              <td className="py-1.5 text-content-1">{line.sales_order_item_label || line.sales_order_item}</td>
+                              <td className="py-1.5 text-right tabular-nums">
+                                {Number(line.qty_dispatched || 0).toLocaleString("en-IN", { maximumFractionDigits: 3 })} {line.uom || ""}
+                              </td>
+                              <td className="py-1.5 pl-4 text-content-3">{line.notes || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {row.notes ? <p className="mt-2 text-[12px] text-content-3">{row.notes}</p> : null}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -262,11 +296,11 @@ function StatPill({
   return (
     <Card className={`rounded-2xl ${cls}`}>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-content-3">
+        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-content-3">
           {icon}
           {label}
         </div>
-        <div className="mt-2 font-mono text-3xl font-black tracking-tight text-content-1">
+        <div className="mt-2 font-mono text-3xl font-semibold tracking-tight text-content-1">
           {value}
         </div>
       </CardContent>

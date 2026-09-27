@@ -989,7 +989,7 @@ export function StockLauncherV3Workspace() {
                   type="button"
                   onClick={() => setKindFilter(filter.id)}
                   className={cn(
-                    "inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-black transition",
+                    "inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition",
                     kindFilter === filter.id
                       ? "border-line-strong bg-surface-3 text-white shadow-sm"
                       : "border-line bg-surface-1 text-content-3 hover:border-info-border hover:bg-info-bg",
@@ -1046,7 +1046,7 @@ export function StockLauncherV3Workspace() {
                       )}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-black text-content-1">
+                      <div className="truncate text-sm font-semibold text-content-1">
                         {candidate.name}
                       </div>
                       <div className="font-mono text-[11px] font-bold text-primary">
@@ -1055,7 +1055,7 @@ export function StockLauncherV3Workspace() {
                     </div>
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-black ring-1",
+                        "rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
                         KIND_TONE[candidate.product_kind] || KIND_TONE.OTHER,
                       )}
                     >
@@ -1097,7 +1097,7 @@ export function StockLauncherV3Workspace() {
               <Field label="Live route template">
                 <div className="flex min-h-10 items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2 shadow-sm">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-content-2">
+                    <div className="truncate text-sm font-semibold text-content-2">
                       {master?.template_name ||
                         routeInfo?.template?.name ||
                         "No live route bound"}
@@ -1165,7 +1165,7 @@ export function StockLauncherV3Workspace() {
           >
             {isInHouseCatalogMaster ? (
               <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3 text-sm font-semibold text-success-fg">
-                <div className="flex items-center gap-2 font-black">
+                <div className="flex items-center gap-2 font-semibold">
                   <Factory className="h-4 w-4" /> In-house production master
                 </div>
                 <p className="mt-1 text-xs leading-5">
@@ -1214,7 +1214,7 @@ export function StockLauncherV3Workspace() {
                           : "border-line bg-surface-1 text-content-2 hover:border-info-border",
                       )}
                     >
-                      <div className="flex items-center justify-between text-xs font-black">
+                      <div className="flex items-center justify-between text-xs font-semibold">
                         {item.label}
                         {item.icon}
                       </div>
@@ -1316,7 +1316,7 @@ export function StockLauncherV3Workspace() {
                   fullRouteBlocked ? "cursor-not-allowed opacity-55" : "",
                 )}
               >
-                <div className="flex items-center justify-between text-sm font-black text-content-1">
+                <div className="flex items-center justify-between text-sm font-semibold text-content-1">
                   Finished stock
                   <PackageCheck className="h-4 w-4 text-success-fg" />
                 </div>
@@ -1349,7 +1349,7 @@ export function StockLauncherV3Workspace() {
                     : "border-line bg-surface-1 hover:border-info-border",
                 )}
               >
-                <div className="flex items-center justify-between text-sm font-black text-content-1">
+                <div className="flex items-center justify-between text-sm font-semibold text-content-1">
                   WIP pool
                   <Zap className="h-4 w-4 text-primary" />
                 </div>
@@ -1412,7 +1412,7 @@ export function StockLauncherV3Workspace() {
             >
               <div className="space-y-4">
                 <div>
-                  <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+                  <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                     Size / roll math
                   </Label>
                   <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4">
@@ -1431,7 +1431,7 @@ export function StockLauncherV3Workspace() {
                           )}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="text-[10px] font-black uppercase tracking-wider text-content-4">
+                            <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">
                               {s.code}
                             </div>
                             <span
@@ -1517,15 +1517,15 @@ export function StockLauncherV3Workspace() {
                                   : Number(event.target.value),
                               )
                             }
-                            className="h-11 rounded-xl border-info-border bg-surface-1 pr-12 font-mono text-sm font-black shadow-sm"
+                            className="h-11 rounded-xl border-info-border bg-surface-1 pr-12 font-mono text-sm font-semibold shadow-sm"
                           />
-                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-content-4">
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-content-4">
                             mm
                           </span>
                         </div>
                       </Field>
                       <div>
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
                           Product Master roll options
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -1535,7 +1535,7 @@ export function StockLauncherV3Workspace() {
                               type="button"
                               onClick={() => setWipRollWidthMm(option)}
                               className={cn(
-                                "rounded-full px-3 py-1 text-[11px] font-black ring-1 transition",
+                                "rounded-full px-3 py-1 text-[11px] font-semibold ring-1 transition",
                                 Number(wipRollWidthMm || 0) === option
                                   ? "bg-primary text-white ring-primary"
                                   : "bg-surface-1 text-primary ring-info-border hover:bg-info-bg",
@@ -1557,7 +1557,7 @@ export function StockLauncherV3Workspace() {
                 ) : null}
 
                 <div>
-                  <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+                  <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                     Per-layer axes
                   </Label>
                   <div className="mt-2">
@@ -1583,7 +1583,7 @@ export function StockLauncherV3Workspace() {
                 </div>
 
                 <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-xs text-success-fg ring-1 ring-success-border">
-                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
                     <SlidersHorizontal className="h-3.5 w-3.5" />
                     Stock form proof
                   </div>
@@ -1641,7 +1641,7 @@ export function StockLauncherV3Workspace() {
             <button
               type="button"
               onClick={() => setShowDerived((value) => !value)}
-              className="mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-surface-1 px-3 py-1.5 text-xs font-black text-content-2 shadow-sm hover:bg-surface-2"
+              className="mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-surface-1 px-3 py-1.5 text-xs font-semibold text-content-2 shadow-sm hover:bg-surface-2"
             >
               <FileText className="h-3.5 w-3.5" />
               {showDerived ? "Hide derived behavior" : "Show derived behavior"}
@@ -1742,7 +1742,7 @@ export function StockLauncherV3Workspace() {
                   <span className="font-bold uppercase tracking-wider text-success-fg">
                     Target qty
                   </span>
-                  <span className="font-mono font-black text-success-fg">
+                  <span className="font-mono font-semibold text-success-fg">
                     {requiredMaterial.target_qty} {requiredMaterial.uom}
                   </span>
                 </div>
@@ -1897,10 +1897,10 @@ export function StockLauncherV3Workspace() {
 function HeroDecision({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-3 py-2 text-white shadow-sm ring-1 ring-surface-1/10">
-      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/65">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65">
         {label}
       </div>
-      <div className="mt-0.5 truncate text-sm font-black">{value}</div>
+      <div className="mt-0.5 truncate text-sm font-semibold">{value}</div>
     </div>
   );
 }
@@ -1990,7 +1990,7 @@ function LinkedSkuPanel({
 
   return (
     <div className="rounded-2xl border border-line bg-surface-2 px-3 py-2 shadow-sm">
-      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
         Catalog SKU link
       </div>
       <div className="mt-1 text-sm font-bold text-content-2">
@@ -2014,7 +2014,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
       </Label>
       <div className="mt-1">{children}</div>
@@ -2053,7 +2053,7 @@ function IssueList({ title, issues }: { title: string; issues: string[] }) {
   if (!issues.length) return null;
   return (
     <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-fg ring-1 ring-warning-border">
-      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-warning-fg">
+      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
         <AlertTriangle className="h-3.5 w-3.5" />
         {title}
       </div>

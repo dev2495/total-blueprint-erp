@@ -218,7 +218,7 @@ function PreviewRows({
         </div>
       ) : null}
       <div className="overflow-hidden rounded-2xl border border-line bg-surface-1">
-        <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+        <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
           <div>Output</div>
           <div>Stock form</div>
           <div>Width</div>
@@ -394,13 +394,13 @@ export default function StockConversionsPage() {
   return (
     <div className="erp-production-surface min-h-screen px-4 py-4 sm:px-6">
       <div className="mx-auto flex max-w-[1800px] flex-col gap-5">
-        <section className="rounded-[2rem] bg-gradient-to-r from-surface-3 via-primary to-order-fg px-8 py-8 text-white shadow-xl">
+        <section className="erp-hero rounded-[2rem] px-8 py-8 text-white shadow-xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="mb-3 text-xs font-black uppercase tracking-[0.32em] text-info-border">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-info-border">
                 Inventory · Stock Forms
               </div>
-              <h1 className="font-serif text-4xl font-black leading-tight">
+              <h1 className="font-serif text-4xl font-semibold leading-tight">
                 Stock conversion workspace
               </h1>
               <p className="mt-3 max-w-3xl text-sm text-info-border">
@@ -412,24 +412,24 @@ export default function StockConversionsPage() {
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
               <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-border">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-border">
                   Available
                 </div>
-                <div className="mt-1 text-2xl font-black">{rolls.length}</div>
+                <div className="mt-1 text-2xl font-semibold">{rolls.length}</div>
               </div>
               <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-border">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-border">
                   Compatible
                 </div>
-                <div className="mt-1 text-2xl font-black">
+                <div className="mt-1 text-2xl font-semibold">
                   {compatibleRolls.length}
                 </div>
               </div>
               <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-4 py-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-info-border">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-border">
                   Mode
                 </div>
-                <div className="mt-1 text-sm font-black">
+                <div className="mt-1 text-sm font-semibold">
                   {stockFormLabel(activeOperation?.from_stock_form)}
                 </div>
               </div>
@@ -464,7 +464,7 @@ export default function StockConversionsPage() {
                         {operationIcon(operation.code)}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-black text-content-1">
+                        <div className="font-semibold text-content-1">
                           {operation.label}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-content-3">
@@ -503,7 +503,7 @@ export default function StockConversionsPage() {
                   />
                 </div>
                 <div className="max-h-[540px] overflow-auto rounded-2xl border border-line">
-                  <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+                  <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                     <div>Roll</div>
                     <div>Form</div>
                     <div>Width</div>
@@ -520,7 +520,7 @@ export default function StockConversionsPage() {
                         className={`grid w-full grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr] gap-3 border-b border-line px-4 py-3 text-left text-sm last:border-b-0 ${active ? "bg-success-bg" : "bg-surface-1 hover:bg-surface-2"}`}
                       >
                         <div>
-                          <div className="font-black text-content-1">
+                          <div className="font-semibold text-content-1">
                             {roll.label_id}
                           </div>
                           <div className="text-xs text-content-3">
@@ -537,10 +537,10 @@ export default function StockConversionsPage() {
                             {stockFormLabel(roll.stock_form)}
                           </Badge>
                         </div>
-                        <div className="font-mono font-black">
+                        <div className="font-mono font-semibold">
                           {fmt(numberOrZero(roll.width_mm))} mm
                         </div>
-                        <div className="font-mono font-black">
+                        <div className="font-mono font-semibold">
                           {fmt(numberOrZero(roll.weight_kg), 3)} kg
                         </div>
                         <div className="text-xs font-semibold text-content-3">
@@ -571,7 +571,7 @@ export default function StockConversionsPage() {
                 {activeOperation?.requires_child_widths ? (
                   <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
                     <div>
-                      <Label className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+                      <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                         Child widths (mm)
                       </Label>
                       <Input
@@ -584,7 +584,7 @@ export default function StockConversionsPage() {
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+                      <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                         Trim per child
                       </Label>
                       <Input
@@ -596,7 +596,7 @@ export default function StockConversionsPage() {
                   </div>
                 ) : null}
                 <div>
-                  <Label className="text-[11px] font-black uppercase tracking-[0.16em] text-content-3">
+                  <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
                     Reason / operator note
                   </Label>
                   <Textarea
@@ -615,7 +615,7 @@ export default function StockConversionsPage() {
                 <Button
                   disabled={!canSubmit}
                   onClick={() => convertMutation.mutate()}
-                  className="h-12 w-full rounded-2xl bg-success-fg font-black hover:bg-success-fg"
+                  className="h-12 w-full rounded-2xl bg-success-fg font-semibold hover:bg-success-fg"
                 >
                   {convertMutation.isPending ? "Posting…" : "Post conversion"}
                 </Button>

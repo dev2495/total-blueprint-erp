@@ -580,19 +580,19 @@ export default function RoleMatrixPage() {
                 <Card className="border-line">
                   <CardContent className="py-3">
                     <div className="text-content-3">Base</div>
-                    <div className="text-xl font-black">{baselineCount}</div>
+                    <div className="text-xl font-semibold">{baselineCount}</div>
                   </CardContent>
                 </Card>
                 <Card className="border-line">
                   <CardContent className="py-3">
                     <div className="text-content-3">Selected</div>
-                    <div className="text-xl font-black">{selectedCount}</div>
+                    <div className="text-xl font-semibold">{selectedCount}</div>
                   </CardContent>
                 </Card>
                 <Card className="border-line">
                   <CardContent className="py-3">
                     <div className="text-content-3">Extra</div>
-                    <div className="text-xl font-black">{extraCount}</div>
+                    <div className="text-xl font-semibold">{extraCount}</div>
                   </CardContent>
                 </Card>
               </div>

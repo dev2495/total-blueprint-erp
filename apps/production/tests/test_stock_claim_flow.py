@@ -8,16 +8,32 @@ from django.test import SimpleTestCase
 from apps.production.views_planner import PlannerViewSet
 
 
+def _mock_route_processes(process_filter):
+    """Route processes are resolved one code at a time (filter(code=...).only(...).first())."""
+    processes = {
+        "EXTRUDE": SimpleNamespace(code="EXTRUDE", name="Extrude", input_form="BULK"),
+        "LAMINATION": SimpleNamespace(code="LAMINATION", name="Lamination", input_form="ROLL"),
+        "POUCH": SimpleNamespace(code="POUCH", name="Pouch", input_form="ROLL"),
+    }
+
+    def _filter(*args, **kwargs):
+        query = MagicMock()
+        matched = processes.get(kwargs.get("code"))
+        query.only.return_value.first.return_value = matched
+        query.only.return_value.__iter__.return_value = iter(
+            [processes[c] for c in kwargs.get("code__in", []) if c in processes]
+        )
+        return query
+
+    process_filter.side_effect = _filter
+
+
 class StockClaimFlowTests(SimpleTestCase):
     @patch("apps.production.views_planner.Process.objects.filter")
     @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
     def test_sales_required_start_step_uses_first_roll_input_for_purchased_layers(self, material_filter, process_filter):
         template = SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["EXTRUDE", "LAMINATION", "POUCH"]))
-        process_filter.return_value.only.return_value = [
-            SimpleNamespace(code="EXTRUDE", input_form="BULK"),
-            SimpleNamespace(code="LAMINATION", input_form="ROLL"),
-            SimpleNamespace(code="POUCH", input_form="ROLL"),
-        ]
+        _mock_route_processes(process_filter)
         material_filter.return_value.values.return_value = [
             {"id": "film-1", "is_extrudable": False},
             {"id": "film-2", "is_extrudable": False},
@@ -37,11 +53,7 @@ class StockClaimFlowTests(SimpleTestCase):
     @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
     def test_sales_required_start_step_stays_raw_for_extrudable_layers(self, material_filter, process_filter):
         template = SimpleNamespace(routing_rule=SimpleNamespace(ordered_processes=["EXTRUDE", "LAMINATION", "POUCH"]))
-        process_filter.return_value.only.return_value = [
-            SimpleNamespace(code="EXTRUDE", input_form="BULK"),
-            SimpleNamespace(code="LAMINATION", input_form="ROLL"),
-            SimpleNamespace(code="POUCH", input_form="ROLL"),
-        ]
+        _mock_route_processes(process_filter)
         material_filter.return_value.values.return_value = [
             {"id": "film-1", "is_extrudable": True},
         ]

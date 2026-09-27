@@ -546,7 +546,7 @@ export function WcmRollPickerDialog({
 
         <div className="-mt-1 mb-2 grid grid-cols-2 gap-1.5 text-[10px] sm:grid-cols-5">
           <div className="rounded-lg bg-success-bg px-2 py-1 ring-1 ring-success-border">
-            <div className="font-black uppercase tracking-widest text-success-fg">
+            <div className="font-semibold uppercase tracking-widest text-success-fg">
               child target
             </div>
             <div className="font-mono font-bold text-success-fg">
@@ -554,7 +554,7 @@ export function WcmRollPickerDialog({
             </div>
           </div>
           <div className="rounded-lg bg-order-bg px-2 py-1 ring-1 ring-order-border">
-            <div className="font-black uppercase tracking-widest text-order-fg">
+            <div className="font-semibold uppercase tracking-widest text-order-fg">
               lane (job)
             </div>
             <div className="font-mono font-bold text-order-fg">
@@ -562,7 +562,7 @@ export function WcmRollPickerDialog({
             </div>
           </div>
           <div className="rounded-lg bg-order-bg px-2 py-1 ring-1 ring-order-border">
-            <div className="font-black uppercase tracking-widest text-order-fg">
+            <div className="font-semibold uppercase tracking-widest text-order-fg">
               planned parent
             </div>
             <div className="font-mono font-bold text-order-fg">
@@ -570,7 +570,7 @@ export function WcmRollPickerDialog({
             </div>
           </div>
           <div className="rounded-lg bg-warning-bg px-2 py-1 ring-1 ring-warning-border">
-            <div className="font-black uppercase tracking-widest text-warning-fg">
+            <div className="font-semibold uppercase tracking-widest text-warning-fg">
               policy
             </div>
             <div className="font-mono font-bold text-warning-fg">
@@ -578,13 +578,13 @@ export function WcmRollPickerDialog({
             </div>
           </div>
           <div className="rounded-lg bg-info-bg px-2 py-1 ring-1 ring-info-border">
-            <div className="font-black uppercase tracking-widest text-info-fg">
+            <div className="font-semibold uppercase tracking-widest text-info-fg">
               stock form
             </div>
             <div className="truncate font-mono font-bold text-info-fg">
               {stockFormLabel(targetContract.stock_form)}
             </div>
-            <div className="truncate text-[9px] font-bold text-info-fg">
+            <div className="truncate text-[10px] font-bold text-info-fg">
               {slitPolicyLabel(targetContract.slit_policy)}
             </div>
           </div>
@@ -687,7 +687,7 @@ export function WcmRollPickerDialog({
                       ) : null}
                       <span
                         className={cn(
-                          "rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.12em]",
+                          "rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]",
                           String(c.stock_form || "OPEN_WEB").toUpperCase() ===
                             "OPEN_WEB"
                             ? "border-info-border bg-info-bg text-info-fg"
@@ -934,7 +934,7 @@ function SlitModeButton({
         disabled && "cursor-not-allowed opacity-50 hover:border-line",
       )}
     >
-      <div className="text-[11px] font-black">{label}</div>
+      <div className="text-[11px] font-semibold">{label}</div>
       <div className="mt-0.5 text-[10px] text-content-3">{detail}</div>
     </button>
   );
@@ -977,7 +977,7 @@ function SlitLayoutMini({
               key={idx}
               style={{ flexBasis: `${(w / parentWidthMm) * 100}%` }}
               className={cn(
-                "flex items-center justify-center text-[9px] font-bold",
+                "flex items-center justify-center text-[10px] font-bold",
                 tones[idx % tones.length],
               )}
               title={`Child ${idx + 1} · ${Math.round(w)} mm`}
@@ -989,7 +989,7 @@ function SlitLayoutMini({
         {remainderMm > 0 ? (
           <div
             style={{ flexBasis: `${(remainderMm / parentWidthMm) * 100}%` }}
-            className="flex items-center justify-center bg-warning-bg text-[9px] font-bold text-warning-fg"
+            className="flex items-center justify-center bg-warning-bg text-[10px] font-bold text-warning-fg"
             title={`Remainder · ${Math.round(remainderMm)} mm`}
           >
             rem
@@ -998,7 +998,7 @@ function SlitLayoutMini({
         {trimMm > 0 ? (
           <div
             style={{ flexBasis: `${(trimMm / parentWidthMm) * 100}%` }}
-            className="flex items-center justify-center bg-line text-[9px] font-bold text-content-2"
+            className="flex items-center justify-center bg-line text-[10px] font-bold text-content-2"
             title={`Trim · ${Math.round(trimMm)} mm`}
           >
             trim
@@ -1099,7 +1099,7 @@ function CoverageCard({
   const pctLabel = `${Math.round(coverageRatio * 100)}%`;
   return (
     <div className={cn("mb-2 rounded-xl px-3 py-2 ring-1", ringTone)}>
-      <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-content-2">
+      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-widest text-content-2">
         <span>Coverage</span>
         <span className="font-mono">{pctLabel}</span>
       </div>

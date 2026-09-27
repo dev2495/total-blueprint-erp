@@ -440,7 +440,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-primary" />
             <div>
-              <p className="text-sm font-black text-content-1">
+              <p className="text-sm font-semibold text-content-1">
                 Primary Mailing Address
               </p>
               <p className="text-xs font-semibold text-content-3">
@@ -551,7 +551,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
         <div className="rounded-2xl border border-line bg-surface-1 p-4 space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-black text-content-1">
+              <p className="text-sm font-semibold text-content-1">
                 Additional Mailing Details
               </p>
               <p className="text-xs font-semibold text-content-3">
@@ -578,7 +578,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                 className="rounded-2xl border border-line bg-surface-2 p-4 space-y-4"
               >
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-black uppercase tracking-[0.18em] text-content-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3">
                     Address {index + 1}
                   </div>
                   <Button
@@ -772,7 +772,7 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
         {isJobworkVendor && (
           <div className="rounded-2xl border border-info-border bg-info-bg p-4 space-y-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">
                 Jobwork controls
               </p>
               <p className="text-xs font-semibold text-content-3">

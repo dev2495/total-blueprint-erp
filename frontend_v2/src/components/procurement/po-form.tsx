@@ -164,7 +164,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
       <div className="mx-auto max-w-6xl space-y-5">
-        <div className="rounded-2xl border border-line bg-gradient-to-r from-brand-navy-500 to-brand-blue-500 p-5 text-white">
+        <div className="erp-hero rounded-2xl border p-5 text-white">
           <h1 className="text-xl font-semibold">
             {mode === "create"
               ? "New Purchase Order"

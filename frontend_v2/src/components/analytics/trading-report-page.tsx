@@ -182,7 +182,7 @@ export function TradingReportPage() {
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-white/80">
               <Repeat className="h-4 w-4" /> Trading Surface
             </div>
-            <h1 className="mt-2 font-display text-3xl font-extrabold tracking-tight md:text-4xl">
+            <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight md:text-4xl">
               Trading Pulse
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-white/80">
@@ -801,7 +801,7 @@ function KPI({
           </div>
           <div
             className={cn(
-              "mt-2 font-display text-3xl font-extrabold tracking-tight text-content-1",
+              "mt-2 font-display text-3xl font-semibold tracking-tight text-content-1",
               valueClassName,
             )}
           >
@@ -829,7 +829,7 @@ function RankBadge({ rank }: { rank: number }) {
       : rank === 2
         ? "bg-line text-content-2 ring-line-strong"
         : rank === 3
-          ? "bg-warm text-warm ring-warning-border"
+          ? "bg-warning-bg text-warning-fg ring-warning-border"
           : "bg-surface-2 text-content-3 ring-line";
   return (
     <span

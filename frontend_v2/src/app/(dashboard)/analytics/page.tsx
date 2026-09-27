@@ -269,15 +269,15 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-8 pb-8">
-      <section className="rounded-[2rem] border border-line bg-[linear-gradient(140deg,#0f172a,#172554_42%,#1d4ed8_100%)] px-6 py-7 text-white shadow-[0_32px_100px_rgba(15,23,42,0.18)]">
+      <section className="erp-hero rounded-[2rem] border px-6 py-7 text-white">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-info-border">
+            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
               <ShieldCheck className="h-3.5 w-3.5" />
               Reports Hub
             </div>
             <div>
-              <h1 className="text-4xl font-black tracking-tight">
+              <h1 className="text-4xl font-semibold tracking-tight">
                 Analytics and Reports Hub
               </h1>
               <p className="mt-2 max-w-3xl text-sm font-medium text-content-4">
@@ -361,7 +361,7 @@ export default function AnalyticsPage() {
       <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Live Reporting Signals
             </CardTitle>
           </CardHeader>
@@ -401,7 +401,7 @@ export default function AnalyticsPage() {
 
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Throughput Leaders
             </CardTitle>
           </CardHeader>
@@ -415,14 +415,14 @@ export default function AnalyticsPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black text-content-1">
+                      <div className="text-sm font-semibold text-content-1">
                         {row.username}
                       </div>
                       <div className="text-xs font-semibold text-content-3">
                         {fmt(row.events, 0)} execution event(s)
                       </div>
                     </div>
-                    <div className="text-sm font-black text-primary">
+                    <div className="text-sm font-semibold text-primary">
                       {fmt(row.output_kg, 0)} KG
                     </div>
                   </div>
@@ -441,14 +441,14 @@ export default function AnalyticsPage() {
       <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Live Trendboard
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-5 lg:grid-cols-2">
             <div className="space-y-3 rounded-[1.35rem] border border-line bg-surface-2 p-4">
               <div>
-                <div className="text-sm font-black text-content-1">
+                <div className="text-sm font-semibold text-content-1">
                   Production Output
                 </div>
                 <div className="text-xs font-semibold text-content-3">
@@ -482,7 +482,7 @@ export default function AnalyticsPage() {
 
             <div className="space-y-3 rounded-[1.35rem] border border-line bg-surface-2 p-4">
               <div>
-                <div className="text-sm font-black text-content-1">
+                <div className="text-sm font-semibold text-content-1">
                   Sales Weight Mix
                 </div>
                 <div className="text-xs font-semibold text-content-3">
@@ -519,13 +519,13 @@ export default function AnalyticsPage() {
 
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Reuse and Exception Signals
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-[1.35rem] border border-line bg-surface-2 p-4">
-              <div className="text-sm font-black text-content-1">
+              <div className="text-sm font-semibold text-content-1">
                 Planner Source Mix
               </div>
               <div className="mt-1 text-xs font-semibold text-content-3">
@@ -558,7 +558,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="rounded-[1.35rem] border border-line bg-surface-2 p-4">
-              <div className="text-sm font-black text-content-1">
+              <div className="text-sm font-semibold text-content-1">
                 Audit-Backed Exceptions
               </div>
               <div className="mt-1 text-xs font-semibold text-content-3">
@@ -573,12 +573,12 @@ export default function AnalyticsPage() {
                       className="rounded-2xl border border-line bg-surface-1 px-3 py-3"
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-black text-content-1">
+                        <div className="text-sm font-semibold text-content-1">
                           {signal.message || signal.code || "Audit signal"}
                         </div>
                         <Badge
                           variant="outline"
-                          className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
+                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
                         >
                           {signal.severity || "INFO"}
                         </Badge>
@@ -597,13 +597,13 @@ export default function AnalyticsPage() {
       <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               SKU and Customer Leaders
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="space-y-3">
-              <div className="text-sm font-black text-content-1">
+              <div className="text-sm font-semibold text-content-1">
                 Top SKU performers
               </div>
               {topSkus.length ? (
@@ -614,7 +614,7 @@ export default function AnalyticsPage() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-sm font-black text-content-1">
+                        <div className="text-sm font-semibold text-content-1">
                           {row.sku_name}
                         </div>
                         <div className="text-xs font-semibold text-content-3">
@@ -622,7 +622,7 @@ export default function AnalyticsPage() {
                           {fmt(row.repeat_orders, 0)} repeat
                         </div>
                       </div>
-                      <div className="text-sm font-black text-primary">
+                      <div className="text-sm font-semibold text-primary">
                         {fmt(row.weight_kg, 1)} KG
                       </div>
                     </div>
@@ -634,7 +634,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="space-y-3">
-              <div className="text-sm font-black text-content-1">
+              <div className="text-sm font-semibold text-content-1">
                 Top customers
               </div>
               {topCustomers.length ? (
@@ -645,14 +645,14 @@ export default function AnalyticsPage() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-sm font-black text-content-1">
+                        <div className="text-sm font-semibold text-content-1">
                           {row.customer_name}
                         </div>
                         <div className="text-xs font-semibold text-content-3">
                           {fmt(row.order_count, 0)} orders
                         </div>
                       </div>
-                      <div className="text-sm font-black text-success-fg">
+                      <div className="text-sm font-semibold text-success-fg">
                         {fmt(row.total_weight, 1)} KG
                       </div>
                     </div>
@@ -667,7 +667,7 @@ export default function AnalyticsPage() {
 
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Operational KPI Pulse
             </CardTitle>
           </CardHeader>
@@ -700,7 +700,7 @@ export default function AnalyticsPage() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black text-content-1">
+                      <div className="text-sm font-semibold text-content-1">
                         {metric.label}
                       </div>
                       <div className="text-xs font-semibold text-content-3">
@@ -709,7 +709,7 @@ export default function AnalyticsPage() {
                           : `Target ${metric.target}%`}
                       </div>
                     </div>
-                    <div className="text-lg font-black text-content-1">
+                    <div className="text-lg font-semibold text-content-1">
                       {metricValue !== null
                         ? `${metricValue.toLocaleString("en-IN", {
                             maximumFractionDigits: 1,
@@ -732,7 +732,7 @@ export default function AnalyticsPage() {
             })}
             {scrapReasons.length ? (
               <div className="rounded-[1.2rem] border border-line bg-surface-1 p-4">
-                <div className="mb-3 text-sm font-black text-content-1">
+                <div className="mb-3 text-sm font-semibold text-content-1">
                   Quality-loss mix
                 </div>
                 <div className="h-44">
@@ -763,7 +763,7 @@ export default function AnalyticsPage() {
       <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Available Reports
             </CardTitle>
           </CardHeader>
@@ -783,7 +783,7 @@ export default function AnalyticsPage() {
                           <div className="rounded-2xl bg-surface-3 p-2 text-white">
                             <Icon className="h-4 w-4" />
                           </div>
-                          <div className="text-sm font-black text-content-1">
+                          <div className="text-sm font-semibold text-content-1">
                             {report.title}
                           </div>
                         </div>
@@ -792,7 +792,7 @@ export default function AnalyticsPage() {
                         </div>
                         <Badge
                           variant="outline"
-                          className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
+                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
                         >
                           {report.category}
                         </Badge>
@@ -812,7 +812,7 @@ export default function AnalyticsPage() {
 
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Recent Report Activity
             </CardTitle>
           </CardHeader>
@@ -830,7 +830,7 @@ export default function AnalyticsPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black text-content-1">
+                      <div className="text-sm font-semibold text-content-1">
                         {run.report_code}
                       </div>
                       <div className="text-xs font-semibold text-content-3">
@@ -840,7 +840,7 @@ export default function AnalyticsPage() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
+                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
                     >
                       {run.status}
                     </Badge>
@@ -860,7 +860,7 @@ export default function AnalyticsPage() {
       <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Report Generation Control
             </CardTitle>
           </CardHeader>
@@ -877,7 +877,7 @@ export default function AnalyticsPage() {
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                      <div className="text-sm font-black text-content-1">
+                      <div className="text-sm font-semibold text-content-1">
                         {profile.label}
                       </div>
                       <div className="text-xs font-semibold text-content-3">
@@ -908,7 +908,7 @@ export default function AnalyticsPage() {
 
         <Card className="rounded-[1.85rem] border border-line bg-surface-1/95 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xl font-black tracking-tight text-content-1">
+            <CardTitle className="text-xl font-semibold tracking-tight text-content-1">
               Run History Snapshot
             </CardTitle>
           </CardHeader>
@@ -921,7 +921,7 @@ export default function AnalyticsPage() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black text-content-1">
+                      <div className="text-sm font-semibold text-content-1">
                         {run.report_code}
                       </div>
                       <div className="text-xs font-semibold text-content-3">
@@ -937,7 +937,7 @@ export default function AnalyticsPage() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]"
+                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
                     >
                       {run.status}
                     </Badge>
@@ -974,10 +974,10 @@ function SummaryCard({
   return (
     <Card className="rounded-[1.7rem] border border-line bg-surface-1/90 shadow-sm">
       <CardContent className="min-w-0 p-4 md:p-5">
-        <div className="truncate text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+        <div className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
           {label}
         </div>
-        <div className="mt-2 break-words text-[1.7rem] font-black leading-none text-content-1 md:text-[1.95rem]">
+        <div className="mt-2 break-words text-[1.7rem] font-semibold leading-none text-content-1 md:text-[1.95rem]">
           {value}
         </div>
         <div className="mt-2 text-xs font-semibold leading-5 text-content-3">
@@ -999,8 +999,8 @@ function SignalRow({
 }) {
   return (
     <div className="rounded-[1.2rem] border border-line bg-surface-2 p-4">
-      <div className="text-sm font-black text-content-1">{title}</div>
-      <div className="mt-2 break-words text-[1.7rem] font-black leading-none text-primary">
+      <div className="text-sm font-semibold text-content-1">{title}</div>
+      <div className="mt-2 break-words text-[1.7rem] font-semibold leading-none text-primary">
         {value}
       </div>
       <div className="mt-2 text-xs font-semibold leading-5 text-content-3">

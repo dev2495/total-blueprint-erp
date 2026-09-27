@@ -117,7 +117,7 @@ function NodeCard({
               </div>
             )}
             <div>
-              <div className="font-black text-content-1 text-[15px] truncate flex items-center gap-2">
+              <div className="font-semibold text-content-1 text-[15px] truncate flex items-center gap-2">
                 {node.label_id}
                 {node.job_number && (
                   <span className="text-[10px] bg-info-bg text-primary px-1.5 py-0.5 rounded-md uppercase font-bold tracking-wider">
@@ -130,7 +130,7 @@ function NodeCard({
                 <span className="text-content-4">•</span>
                 <span
                   className={cn(
-                    "px-1.5 py-0.5 rounded text-[10px] uppercase font-black tracking-widest",
+                    "px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold tracking-widest",
                     node.stage_index === 0
                       ? "bg-warning-bg text-warning-fg"
                       : "bg-success-bg text-success-fg",
@@ -145,7 +145,7 @@ function NodeCard({
             <Badge
               variant="outline"
               className={cn(
-                "text-[10px] font-black tracking-wider uppercase",
+                "text-[10px] font-semibold tracking-wider uppercase",
                 roleTone((node as any).roll_role),
               )}
             >
@@ -153,7 +153,7 @@ function NodeCard({
             </Badge>
             <Badge
               variant={statusTone(node.status)}
-              className="text-[10px] font-black tracking-wider uppercase"
+              className="text-[10px] font-semibold tracking-wider uppercase"
             >
               {node.status || "—"}
             </Badge>
@@ -162,23 +162,23 @@ function NodeCard({
 
         <div className="bg-surface-2 rounded-xl p-3 grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs mt-3 border border-line">
           <div>
-            <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
               Orig Weight
             </div>
-            <div className="font-black text-content-2 text-sm flex items-center gap-1.5">
+            <div className="font-semibold text-content-2 text-sm flex items-center gap-1.5">
               {fmtKg(node.original_weight_kg)}
               {node.weight_kg !== node.original_weight_kg && (
-                <span className="text-[9px] text-content-4 font-semibold bg-surface-1 border px-1 rounded">
+                <span className="text-[10px] text-content-4 font-semibold bg-surface-1 border px-1 rounded">
                   now {fmtKg(node.weight_kg)}
                 </span>
               )}
             </div>
           </div>
           <div>
-            <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
               Dimensions
             </div>
-            <div className="font-black text-content-2 text-sm">
+            <div className="font-semibold text-content-2 text-sm">
               {Number(node.width_mm || 0) > 0
                 ? `${Number(node.width_mm).toFixed(0)} mm`
                 : "—"}{" "}
@@ -189,7 +189,7 @@ function NodeCard({
             </div>
           </div>
           <div>
-            <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
               Location
             </div>
             <div className="font-semibold text-content-2 truncate">
@@ -197,7 +197,7 @@ function NodeCard({
             </div>
           </div>
           <div>
-            <div className="text-content-4 uppercase tracking-[0.15em] text-[9px] font-black mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
               Created
             </div>
             <div className="font-semibold text-content-2 truncate">
@@ -286,7 +286,7 @@ export default function RollTraceabilityPage() {
           <CardContent className="p-6 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h1 className="text-3xl font-black tracking-tight text-content-1 flex items-center gap-2">
+                <h1 className="text-3xl font-semibold tracking-tight text-content-1 flex items-center gap-2">
                   <GitBranch className="h-7 w-7 text-primary" />
                   Roll Genealogy
                 </h1>
@@ -355,7 +355,7 @@ export default function RollTraceabilityPage() {
                 />
               </div>
               <Button
-                className="h-12 rounded-2xl px-6 font-black tracking-wider"
+                className="h-12 rounded-2xl px-6 font-semibold tracking-wider"
                 disabled={traceMutation.isPending || !query.trim()}
                 onClick={() => traceMutation.mutate(query.trim())}
               >
@@ -375,50 +375,50 @@ export default function RollTraceabilityPage() {
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">
+                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
                     Current Weight
                   </div>
-                  <div className="text-2xl font-black text-content-1 mt-1">
+                  <div className="text-2xl font-semibold text-content-1 mt-1">
                     {fmtKg(currentRoll.weight_kg)}
                   </div>
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">
+                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
                     Original Weight
                   </div>
-                  <div className="text-2xl font-black text-content-1 mt-1">
+                  <div className="text-2xl font-semibold text-content-1 mt-1">
                     {fmtKg(currentRoll.original_weight_kg)}
                   </div>
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">
+                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
                     Lineage Children
                   </div>
-                  <div className="text-2xl font-black text-content-1 mt-1">
+                  <div className="text-2xl font-semibold text-content-1 mt-1">
                     {childrenCount}
                   </div>
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">
+                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
                     Timeline Events
                   </div>
-                  <div className="text-2xl font-black text-content-1 mt-1">
+                  <div className="text-2xl font-semibold text-content-1 mt-1">
                     {timeline.length}
                   </div>
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.18em] font-black text-content-4">
+                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
                     Current Stage
                   </div>
-                  <div className="text-lg font-black text-content-1 mt-2">
+                  <div className="text-lg font-semibold text-content-1 mt-2">
                     {currentRoll.stage_name || "—"}
                   </div>
                 </CardContent>
@@ -429,18 +429,18 @@ export default function RollTraceabilityPage() {
               <CardContent className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">
+                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
                       Roll
                     </div>
-                    <div className="text-sm font-black text-content-1 mt-1">
+                    <div className="text-sm font-semibold text-content-1 mt-1">
                       {currentRoll.label_id}
                     </div>
                   </div>
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">
+                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
                       Material / Grade
                     </div>
-                    <div className="text-sm font-black text-content-1 mt-1">
+                    <div className="text-sm font-semibold text-content-1 mt-1">
                       {currentRoll.material_name || "—"}
                     </div>
                     <div className="text-xs text-content-3 font-semibold">
@@ -448,10 +448,10 @@ export default function RollTraceabilityPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">
+                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
                       Location
                     </div>
-                    <div className="text-sm font-black text-content-1 mt-1 flex items-center gap-1">
+                    <div className="text-sm font-semibold text-content-1 mt-1 flex items-center gap-1">
                       <Factory className="h-3.5 w-3.5 text-primary" />
                       {currentRoll.plant_name || "—"}
                     </div>
@@ -460,7 +460,7 @@ export default function RollTraceabilityPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-black uppercase tracking-widest">
+                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
                       Role / Status
                     </div>
                     <div className="mt-1 flex items-center gap-2">
@@ -488,7 +488,7 @@ export default function RollTraceabilityPage() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               <Card className="rounded-[2rem] border border-surface-1/60 bg-surface-1/80">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-black tracking-wider uppercase text-content-2 flex items-center gap-2">
+                  <CardTitle className="text-sm font-semibold tracking-wider uppercase text-content-2 flex items-center gap-2">
                     <Layers className="h-4 w-4 text-primary" />
                     Genealogy Tree
                   </CardTitle>
@@ -507,7 +507,7 @@ export default function RollTraceabilityPage() {
 
               <Card className="rounded-[2rem] border border-surface-1/60 bg-surface-1/80">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-black tracking-wider uppercase text-content-2 flex items-center gap-2">
+                  <CardTitle className="text-sm font-semibold tracking-wider uppercase text-content-2 flex items-center gap-2">
                     <History className="h-4 w-4 text-primary" />
                     Movement & Consumption Timeline
                   </CardTitle>
@@ -563,7 +563,7 @@ export default function RollTraceabilityPage() {
 
             <Card className="rounded-[2rem] border border-surface-1/60 bg-surface-1/80">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-black tracking-wider uppercase text-content-2 flex items-center gap-2">
+                <CardTitle className="text-sm font-semibold tracking-wider uppercase text-content-2 flex items-center gap-2">
                   <Activity className="h-4 w-4 text-success-fg" />
                   Recent Physical Movements
                 </CardTitle>

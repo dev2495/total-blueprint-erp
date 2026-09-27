@@ -128,12 +128,12 @@ export default function RollMovementsPage() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-primary via-info-fg to-success-fg" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
               <History className="h-3.5 w-3.5" />
               Movement Ledger
             </div>
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-content-1">
+              <h1 className="text-3xl font-semibold tracking-tight text-content-1">
                 Roll Movements
               </h1>
               <p className="mt-2 max-w-3xl text-sm font-medium text-content-3">
@@ -203,7 +203,7 @@ export default function RollMovementsPage() {
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           <CardHeader className="border-b border-line bg-surface-1/70">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Movement mix
             </CardTitle>
             <p className="text-sm text-content-3">
@@ -250,7 +250,7 @@ export default function RollMovementsPage() {
 
         <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
           <CardHeader className="border-b border-line bg-surface-1/70">
-            <CardTitle className="text-lg font-black tracking-tight text-content-1">
+            <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
               Recent movement cards
             </CardTitle>
             <p className="text-sm text-content-3">
@@ -302,7 +302,7 @@ export default function RollMovementsPage() {
 
       <Card className="overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] backdrop-blur-xl">
         <CardHeader className="border-b border-line bg-surface-1/70">
-          <CardTitle className="text-lg font-black tracking-tight text-content-1">
+          <CardTitle className="text-lg font-semibold tracking-tight text-content-1">
             Movement ledger
           </CardTitle>
           <p className="text-sm text-content-3">
@@ -327,7 +327,7 @@ export default function RollMovementsPage() {
                       <Package className="h-5 w-5" />
                     </div>
                     <div>
-                      <div className="text-base font-black tracking-tight text-content-1">
+                      <div className="text-base font-semibold tracking-tight text-content-1">
                         {movement.roll_label}
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-medium text-content-3">

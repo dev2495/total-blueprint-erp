@@ -11,23 +11,8 @@
   overflow: hidden;
   border-radius: 28px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background:
-    radial-gradient(
-      circle at 16% 18%,
-      rgba(96, 165, 250, 0.52),
-      transparent 28%
-    ),
-    radial-gradient(
-      circle at 78% 4%,
-      rgba(16, 185, 129, 0.24),
-      transparent 22%
-    ),
-    linear-gradient(
-      135deg,
-      var(--content-1) 0%,
-      var(--brand-900) 48%,
-      var(--brand-950) 100%
-    );
+  background: var(--hero-surface);
+  border: 1px solid var(--hero-edge);
   color: var(--text-on-dark);
   padding: 30px 34px;
   box-shadow: 0 32px 92px -58px rgba(15, 23, 42, 0.75);
@@ -69,8 +54,8 @@
 .metricLabel,
 .eyebrow {
   font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.2em;
+  font-weight: 650;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
@@ -81,7 +66,7 @@
 .metricValue {
   margin-top: 9px;
   font-size: 27px;
-  font-weight: 950;
+  font-weight: 650;
   letter-spacing: -0.04em;
   color: var(--text-on-dark);
 }
@@ -107,7 +92,7 @@
   border: 1px solid transparent;
   padding: 4px 8px;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 650;
   line-height: 1;
   white-space: nowrap;
 }
@@ -215,7 +200,7 @@
   border-radius: 999px !important;
   padding: 8px 13px !important;
   font-size: 12px !important;
-  font-weight: 850 !important;
+  font-weight: 650 !important;
   line-height: 1 !important;
   box-shadow: none !important;
 }
@@ -244,23 +229,8 @@
 }
 
 :global(.dark) .heroCard {
-  background:
-    radial-gradient(
-      circle at 82% 2%,
-      rgba(94, 226, 173, 0.14),
-      transparent 28%
-    ),
-    radial-gradient(
-      circle at 12% 18%,
-      rgba(143, 184, 255, 0.22),
-      transparent 30%
-    ),
-    linear-gradient(
-      135deg,
-      var(--surface-3) 0%,
-      var(--brand-950) 48%,
-      var(--surface-3) 100%
-    );
+  background: var(--hero-surface);
+  border: 1px solid var(--hero-edge);
 }
 
 .commandBar {
@@ -334,7 +304,7 @@
   background: var(--surface-2);
   padding: 5px 8px;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 650;
   color: var(--content-3);
 }
 
@@ -355,7 +325,7 @@
   padding: 0 14px;
   color: var(--content-2);
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 650;
   cursor: pointer;
   transition: 0.16s ease;
 }
@@ -519,7 +489,7 @@
   border-radius: 12px;
   color: var(--text-on-dark);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .avatar1 {
@@ -556,7 +526,7 @@
   border: 0;
   color: var(--text-on-dark);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .barLOW {
@@ -613,7 +583,7 @@
   padding: 9px 13px;
   color: var(--content-3);
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 650;
   transition: 0.14s ease;
   white-space: nowrap;
 }
@@ -631,7 +601,7 @@
   gap: 10px;
   color: var(--content-1);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .groupHeader span:last-child {
@@ -691,7 +661,7 @@
   padding: 11px 12px;
   text-align: left;
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--content-3);
@@ -735,7 +705,7 @@
   padding: 12px;
   color: var(--brand-700);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 .traceStatusCard span {
@@ -777,7 +747,7 @@
   padding: 7px 10px;
   color: var(--brand-700);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 650;
 }
 
 @media (max-width: 1280px) {

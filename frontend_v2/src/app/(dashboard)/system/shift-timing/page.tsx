@@ -173,11 +173,11 @@ export default function ShiftTimingPage() {
       <section className="rounded-[22px] border border-line bg-surface-1 p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-content-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               <Clock3 className="h-3.5 w-3.5" />
               Admin · Shift Timing
             </div>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-content-1">
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-content-1">
               Fixed shift windows
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-content-3">
@@ -205,7 +205,7 @@ export default function ShiftTimingPage() {
         <section className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black text-content-1">
+              <h2 className="text-lg font-semibold text-content-1">
                 {editingId ? "Edit shift" : "Add shift"}
               </h2>
               <p className="text-xs font-semibold text-content-3">
@@ -235,7 +235,7 @@ export default function ShiftTimingPage() {
                   value={draft.code}
                   onChange={(event) => setDraft((current) => ({ ...current, code: event.target.value }))}
                   placeholder="A"
-                  className="font-black uppercase"
+                  className="font-semibold uppercase"
                 />
               </div>
               <div className="grid gap-1.5">
@@ -284,7 +284,7 @@ export default function ShiftTimingPage() {
             <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
               <label className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2">
                 <span>
-                  <span className="block text-sm font-black text-content-1">Crosses midnight</span>
+                  <span className="block text-sm font-semibold text-content-1">Crosses midnight</span>
                   <span className="block text-xs font-semibold text-content-3">
                     {durationLabel(draft.start_time, draft.end_time, draft.crosses_midnight)}
                   </span>
@@ -308,7 +308,7 @@ export default function ShiftTimingPage() {
 
             <label className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2">
               <span>
-                <span className="block text-sm font-black text-content-1">Active</span>
+                <span className="block text-sm font-semibold text-content-1">Active</span>
                 <span className="block text-xs font-semibold text-content-3">
                   Inactive shifts stay stored but are not used for new timestamp inference.
                 </span>
@@ -336,7 +336,7 @@ export default function ShiftTimingPage() {
         <section className="rounded-[18px] border border-line bg-surface-1 shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
-              <h2 className="text-lg font-black text-content-1">Plant shift definitions</h2>
+              <h2 className="text-lg font-semibold text-content-1">Plant shift definitions</h2>
               <p className="text-xs font-semibold text-content-3">
                 {shifts.length} configured window{shifts.length === 1 ? "" : "s"}
               </p>
@@ -354,7 +354,7 @@ export default function ShiftTimingPage() {
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-surface-2 text-[11px] font-black uppercase tracking-[0.16em] text-content-4">
+              <thead className="bg-surface-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
                 <tr>
                   <th className="px-5 py-3">Shift</th>
                   <th className="px-5 py-3">Window</th>
@@ -368,7 +368,7 @@ export default function ShiftTimingPage() {
                   shifts.map((shift) => (
                     <tr key={shift.id} className={editingId === shift.id ? "bg-order-bg/40" : ""}>
                       <td className="px-5 py-4">
-                        <div className="font-black text-content-1">{shift.code}</div>
+                        <div className="font-semibold text-content-1">{shift.code}</div>
                         <div className="text-xs font-semibold text-content-3">{shift.name || "Shift"}</div>
                       </td>
                       <td className="px-5 py-4">
@@ -383,7 +383,7 @@ export default function ShiftTimingPage() {
                       <td className="px-5 py-4 font-bold text-content-2">{shift.priority}</td>
                       <td className="px-5 py-4">
                         <span
-                          className={`rounded-full border px-2.5 py-1 text-xs font-black ${
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${
                             shift.is_active
                               ? "border-success-border bg-success-bg text-success-fg"
                               : "border-line bg-surface-2 text-content-3"

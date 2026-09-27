@@ -666,7 +666,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                 type="button"
                 onClick={() => setScope(option.value)}
                 className={cn(
-                  "h-8 rounded-xl px-3 text-xs font-extrabold transition",
+                  "h-8 rounded-xl px-3 text-xs font-semibold transition",
                   scope === option.value
                     ? "bg-surface-3 text-white"
                     : "text-content-3 hover:bg-surface-2",
@@ -739,33 +739,33 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
 
         <div className="grid gap-2 md:grid-cols-4">
           <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
               Posting label
             </div>
-            <div className="mt-1 text-sm font-extrabold text-content-1">
+            <div className="mt-1 text-sm font-semibold text-content-1">
               {countMode.mode}
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
               Count boundary
             </div>
-            <div className="mt-1 text-sm font-extrabold text-content-1">
+            <div className="mt-1 text-sm font-semibold text-content-1">
               {locationFilter === ALL_LOCATIONS ? "Plant" : "Location"} +
               selected rows{countMode.rollFormLabel ? " + roll form" : ""}
               {countMode.granuleLabel ? " + granule code" : ""}
             </div>
           </div>
           <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3">
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-success-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-success-fg">
               Posting rule
             </div>
-            <div className="mt-1 text-sm font-extrabold text-success-fg">
+            <div className="mt-1 text-sm font-semibold text-success-fg">
               Only entered quantities post
             </div>
           </div>
           <div className="rounded-2xl border border-order-border bg-order-bg px-4 py-3">
-            <div className="text-[10px] font-extrabold uppercase tracking-[0.13em] text-order-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-order-fg">
               Count effective
             </div>
             <Input
@@ -1043,7 +1043,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
 
       <aside className="space-y-4">
         <div className="rounded-2xl border border-line bg-gradient-to-br from-white to-surface-2 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-content-3">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-content-3">
             <Layers3 className="h-4 w-4" />
             Count mode
           </div>
@@ -1060,7 +1060,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                     : "border-line bg-surface-1 text-content-3 hover:border-line-strong",
                 )}
               >
-                <span className="block text-xs font-extrabold">
+                <span className="block text-xs font-semibold">
                   {option.label}
                 </span>
                 <span className="mt-0.5 block text-[10px] font-semibold opacity-75">

@@ -128,7 +128,7 @@ export function MachinePerformanceReport({ machineId }: { machineId: string }) {
               OEE Score
             </p>
             <p
-              className={`text-3xl font-black ${kpis.oee >= 85 ? "text-success-fg" : kpis.oee >= 60 ? "text-warning-fg" : "text-danger-fg"}`}
+              className={`text-3xl font-semibold ${kpis.oee >= 85 ? "text-success-fg" : kpis.oee >= 60 ? "text-warning-fg" : "text-danger-fg"}`}
             >
               {kpis.oee}%
             </p>

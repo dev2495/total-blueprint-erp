@@ -74,8 +74,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // No View Transitions API: fall back to a short, scoped colour transition.
+    root.classList.add("theme-transitioning-fallback");
     setThemeState(nextTheme);
-    window.setTimeout(finishTransition, 720);
+    window.setTimeout(() => {
+      root.classList.remove("theme-transitioning-fallback");
+      finishTransition();
+    }, 420);
   }, []);
 
   const toggleTheme = useCallback((origin?: ThemeOrigin) => {

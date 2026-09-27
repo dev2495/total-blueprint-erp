@@ -86,10 +86,10 @@ export function InterPlantPrintClient({ challanId }: { challanId: string }) {
       <div className="w-full max-w-5xl rounded-3xl border border-line bg-surface-1 shadow-xl">
         <div className="flex flex-col gap-4 border-b border-line px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-content-3">
+            <div className="text-xs font-semibold uppercase tracking-[0.12em] text-content-3">
               Inter-Plant Challan PDF
             </div>
-            <h1 className="mt-1 text-2xl font-black text-content-1">
+            <h1 className="mt-1 text-2xl font-semibold text-content-1">
               Preview and Print
             </h1>
             <p className="mt-1 text-sm text-content-3">

@@ -309,9 +309,10 @@ class FGDispatchService:
 
     @staticmethod
     def _sales_order_item_layer_stack_label(layers) -> str:
+        from apps.production.services.dispatch_pdf import _compact_grade_label
+
         rows = layers if isinstance(layers, list) else []
         labels = []
-        seen = set()
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -326,7 +327,9 @@ class FGDispatchService:
                 or row.get("name")
                 or ""
             ).strip()
-            grade = str(row.get("grade_code") or row.get("grade_name") or row.get("grade") or "").strip()
+            grade = _compact_grade_label(
+                row.get("grade_code") or row.get("grade_name") or row.get("grade") or ""
+            )
             thickness = FGDispatchService._compact_decimal_label(
                 row.get("thickness_micron")
                 or row.get("thickness_um")
@@ -339,9 +342,7 @@ class FGDispatchService:
             if thickness:
                 parts.append(f"{thickness}µ")
             label = " · ".join(part for part in parts if part)
-            key = label.lower()
-            if label and key not in seen:
-                seen.add(key)
+            if label:
                 labels.append(label)
         return " + ".join(labels)
 
@@ -380,7 +381,10 @@ class FGDispatchService:
 
     @staticmethod
     def _roll_dispatch_unit_no(roll: InventoryRoll) -> str:
-        raw = str(getattr(roll, "batch_no", None) or getattr(roll, "label_id", "") or "").strip()
+        # Each roll is its own dispatch unit, so derive the number from the
+        # roll's unique label. batch_no is shared by every roll of a
+        # production batch and made all of them print as the same unit.
+        raw = str(getattr(roll, "label_id", None) or getattr(roll, "batch_no", "") or "").strip()
         if len(raw) <= 14:
             return f"RDU-{raw or 'ROLL'}"
         import re
@@ -928,6 +932,9 @@ class FGDispatchService:
             "ready_gonnies": 0,
             "ready_gonnies_pcs": 0,
             "ready_gonnies_gross_kg": 0.0,
+            "ready_gonnies_net_kg": 0.0,
+            "ready_rolls_net_kg": 0.0,
+            "pending_rolls": 0,
         }
         if not order_rows:
             return {"totals": totals, "orders": []}
@@ -951,6 +958,7 @@ class FGDispatchService:
                     "gonnies_count": 0,
                     "gonnies_pcs": 0,
                     "gonnies_gross_kg": 0.0,
+                    "gonnies_net_kg": 0.0,
                 },
             }
             for row in order_rows
@@ -1019,6 +1027,7 @@ class FGDispatchService:
             "qty_pcs",
             "weight_kg",
             "gross_weight_kg",
+            "net_product_weight_kg",
             "meta_json",
         )
         for gonny in gonnies:
@@ -1038,6 +1047,7 @@ class FGDispatchService:
                     ready["gonnies_gross_kg"] += float(
                         gonny.get("gross_weight_kg") or gonny.get("weight_kg") or 0
                     )
+                    ready["gonnies_net_kg"] += float(gonny.get("net_product_weight_kg") or 0)
                 else:
                     pending["sealed_gonnies_count"] += 1
 
@@ -1062,6 +1072,9 @@ class FGDispatchService:
             totals["pending_pcs"] += int(pending.get("batches_pcs") or 0)
             totals["open_gonnies"] += int(pending.get("open_gonnies_count") or 0)
             totals["sealed_waiting_release"] += int(pending.get("sealed_gonnies_count") or 0)
+            totals["pending_rolls"] += int(pending.get("rolls_count") or 0)
+            totals["ready_rolls_net_kg"] += float(ready.get("rolls_net_kg") or ready.get("rolls_kg") or 0)
+            totals["ready_gonnies_net_kg"] += float(ready.get("gonnies_net_kg") or 0)
             totals["ready_rolls"] += int(ready.get("rolls_count") or 0)
             totals["ready_rolls_kg"] += float(ready.get("rolls_kg") or 0)
             totals["ready_rolls_gross_kg"] += float(ready.get("rolls_gross_kg") or ready.get("rolls_kg") or 0)
@@ -1348,6 +1361,7 @@ class FGDispatchService:
                 "gonnies_count": len(ready_gonnies),
                 "gonnies_pcs": sum(int(row["qty_pcs"] or 0) for row in ready_gonnies),
                 "gonnies_gross_kg": float(sum(float(row["gross_weight_kg"] or 0) for row in ready_gonnies)),
+                "gonnies_net_kg": float(sum(float(row.get("net_product_weight_kg") or 0) for row in ready_gonnies)),
             },
             "rolls": roll_rows,
             "batches": batch_rows,

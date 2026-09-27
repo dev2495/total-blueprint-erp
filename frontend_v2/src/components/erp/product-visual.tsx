@@ -87,7 +87,7 @@ export function ProductVisual({
             <div className="absolute left-3 top-3 right-3 flex items-start justify-between">
               <div>
                 {title ? (
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-content-3">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-3">
                     {title}
                   </div>
                 ) : null}
@@ -108,7 +108,7 @@ export function ProductVisual({
           <div
             className={cn("flex flex-col gap-1.5", compact ? "w-32" : "w-40")}
           >
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-content-4">
+            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-content-4">
               Layer stack
             </div>
             <div className="flex flex-1 flex-col gap-0.5 rounded-xl bg-surface-1 p-2 ring-1 ring-line">

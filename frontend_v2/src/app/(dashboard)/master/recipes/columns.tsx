@@ -21,7 +21,7 @@ export const getColumns = ({
       const recipe = row.original;
       return (
         <div className="min-w-[220px]">
-          <div className="font-black text-content-1">{recipe.film_variant_name}</div>
+          <div className="font-semibold text-content-1">{recipe.film_variant_name}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-content-3">
             <span className="rounded-md bg-info-bg px-1.5 py-0.5 text-primary">{recipe.grade_name}</span>
             <span>{recipe.thickness_min_micron}–{recipe.thickness_max_micron} μ</span>
@@ -53,8 +53,8 @@ export const getColumns = ({
       const recipe = row.original;
       return (
         <div className="min-w-[130px]">
-          <div className="flex items-center gap-1.5 text-sm font-black text-content-1"><History className="h-3.5 w-3.5 text-primary" />v{recipe.revision_no || 1}</div>
-          <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${recipe.is_active ? "bg-success-bg text-success-fg" : "bg-surface-3 text-content-3"}`}>
+          <div className="flex items-center gap-1.5 text-sm font-semibold text-content-1"><History className="h-3.5 w-3.5 text-primary" />v{recipe.revision_no || 1}</div>
+          <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${recipe.is_active ? "bg-success-bg text-success-fg" : "bg-surface-3 text-content-3"}`}>
             {recipe.is_active ? "Active" : "Disabled"}
           </div>
           <div className="mt-1 text-[10px] font-semibold text-content-4">

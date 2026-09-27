@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
+import { assertLocalUiE2ETestDatabase } from "./test-db-safety"
 
 import { readRuntimeJson } from "./test-helpers"
 
@@ -13,6 +14,8 @@ export interface MutationSeedMetadata {
     job_id: string
     job_number: string
     assignment_id: string
+    granule_code_id?: string
+    granule_code_code?: string
   }
   wcm: {
     work_center_id: string
@@ -106,6 +109,7 @@ function resolvePython(repoRoot: string) {
 export function refreshMutationSeed() {
   const repoRoot = resolveRepoRoot()
   const pythonBin = resolvePython(repoRoot)
+  assertLocalUiE2ETestDatabase("Mutation seed")
   execFileSync(pythonBin, [path.join(repoRoot, "scripts/seed_ui_e2e_mutations.py")], {
     cwd: repoRoot,
     stdio: "inherit",

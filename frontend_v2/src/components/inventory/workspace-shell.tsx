@@ -152,7 +152,7 @@ export function SavedViewsBar<T>({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
-      <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mr-1">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
         Views
       </span>
       {views.map((v) => (
@@ -342,7 +342,7 @@ export function FilterBar({
 
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mr-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
             <Filter className="inline-block h-3 w-3 mr-1 -mt-0.5" />
             Active
           </span>
@@ -393,7 +393,7 @@ export function FilterGroup({
 }: FilterGroupProps) {
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div
@@ -418,7 +418,7 @@ export function FilterGroup({
             {typeof opt.count === "number" && (
               <span
                 className={cn(
-                  "ml-2 rounded px-1.5 py-0.5 text-[10px] font-black",
+                  "ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold",
                   value === opt.id ? "bg-surface-1/20" : "bg-surface-2",
                 )}
               >
@@ -467,7 +467,7 @@ export function MultiSelectPills({
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-2.5">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-wider text-content-3">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
           {label}
         </span>
         {selected.length > 0 && (
@@ -538,7 +538,7 @@ export function MultiSelectPills({
               {typeof o.count === "number" && (
                 <span
                   className={cn(
-                    "rounded px-1 text-[9px] font-black",
+                    "rounded px-1 text-[10px] font-semibold",
                     active ? "bg-surface-1/20" : "bg-order-bg",
                   )}
                 >
@@ -580,7 +580,7 @@ export function RangeFilter({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-wider text-content-3">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
           {label}
         </span>
         <span className="font-mono text-[10px] text-content-2">
@@ -624,7 +624,7 @@ export function FilterRail({
   return (
     <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-line bg-surface-1 p-4 shadow-sm space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
           <Sparkles className="inline-block h-3 w-3 mr-1 -mt-0.5" />
           Smart filters
         </span>
@@ -708,7 +708,7 @@ export function WorkspaceSection({
           )}
           <div>
             {eyebrow && (
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
                 {eyebrow}
               </div>
             )}
@@ -761,13 +761,13 @@ export function KpiTileV36({
       )}
     >
       <div className="flex items-start justify-between">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/80">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
           {label}
         </div>
         <span className="text-xl">{icon}</span>
       </div>
       <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="font-display text-3xl font-black">{value}</span>
+        <span className="font-display text-3xl font-semibold">{value}</span>
         {unit && (
           <span className="text-xs font-bold text-white/80">{unit}</span>
         )}

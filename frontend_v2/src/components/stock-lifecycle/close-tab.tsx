@@ -226,7 +226,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
     <div data-testid="close-stock-tab" className="flex flex-col gap-5">
       {/* Top KPI */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-3xl bg-gradient-to-br from-order-fg via-order-fg to-danger-solid p-6 text-white shadow-[0_30px_60px_-30px_rgba(168,85,247,0.55)]">
+        <div className="erp-hero rounded-3xl p-6 text-white">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/85">
             <ShieldCheck className="h-4 w-4" />
             Closing snapshot
@@ -319,7 +319,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <div className="min-w-0">
-                        <div className="font-extrabold text-danger-fg">
+                        <div className="font-semibold text-danger-fg">
                           {blocker.label}
                           {blocker.count ? ` · ${blocker.count}` : ""}
                         </div>
@@ -334,7 +334,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                         size="sm"
                         variant="outline"
                         onClick={onOpenHistory}
-                        className="mt-3 h-8 rounded-xl border-danger-border bg-surface-1 text-xs font-extrabold text-danger-fg hover:bg-danger-bg"
+                        className="mt-3 h-8 rounded-xl border-danger-border bg-surface-1 text-xs font-semibold text-danger-fg hover:bg-danger-bg"
                       >
                         <History className="mr-1.5 h-3.5 w-3.5" />
                         Open draft sheets

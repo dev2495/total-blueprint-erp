@@ -367,7 +367,7 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
                                 padding: 14,
                             }}>
                                 <Sparkles size={22} color="var(--br-700)" />
-                                <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: "var(--text-1)" }}>No source pools</div>
+                                <div style={{ marginTop: 8, fontSize: 11, fontWeight: 650, color: "var(--text-1)" }}>No source pools</div>
                                 <div style={{ marginTop: 3, fontSize: 10, color: "var(--text-3)", lineHeight: 1.35 }}>Showing release readiness instead.</div>
                             </div>
                         )}

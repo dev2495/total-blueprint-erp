@@ -249,7 +249,7 @@ export function PouchStyleBinding({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-content-3">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
             Pouch style master
           </div>
           <Select
@@ -378,7 +378,7 @@ export function PouchStyleBinding({
               {selected.locked ? (
                 <Badge
                   variant="outline"
-                  className="border-success-border bg-success-bg text-[9px] text-success-fg"
+                  className="border-success-border bg-success-bg text-[10px] text-success-fg"
                 >
                   <Lock className="mr-0.5 h-2.5 w-2.5" /> locked
                 </Badge>
@@ -386,7 +386,7 @@ export function PouchStyleBinding({
               {selected.deprecated ? (
                 <Badge
                   variant="outline"
-                  className="border-warning-border bg-warning-bg text-[9px] text-warning-fg"
+                  className="border-warning-border bg-warning-bg text-[10px] text-warning-fg"
                 >
                   disabled style
                 </Badge>
@@ -394,14 +394,14 @@ export function PouchStyleBinding({
               {!selected.locked ? (
                 <Badge
                   variant="outline"
-                  className="border-warning-border bg-warning-bg text-[9px] text-warning-fg"
+                  className="border-warning-border bg-warning-bg text-[10px] text-warning-fg"
                 >
                   draft · approve first
                 </Badge>
               ) : null}
               <Badge
                 variant="outline"
-                className="border-info-border bg-info-bg text-[9px] text-primary"
+                className="border-info-border bg-info-bg text-[10px] text-primary"
               >
                 {stockFormLabel(selected.default_stock_form)} stock
               </Badge>
@@ -409,7 +409,7 @@ export function PouchStyleBinding({
           ) : null}
           {selected ? (
             <div className="mt-2 rounded-lg bg-surface-1 p-2 ring-1 ring-order-border text-[11px]">
-              <div className="text-[10px] font-black uppercase tracking-widest text-order-fg">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
                 Allowed inputs
               </div>
               <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
@@ -461,7 +461,7 @@ export function PouchStyleBinding({
         <div className="space-y-2">
           {/* AUTO computed (always shown) */}
           <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-content-3">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
               {selected
                 ? "Auto child width (from formula)"
                 : "Current child width (legacy/manual)"}
@@ -472,7 +472,7 @@ export function PouchStyleBinding({
                 row.child_target_override ? "bg-line" : "bg-success-fg",
               )}
             >
-              <div className="font-display text-3xl font-extrabold">
+              <div className="font-display text-3xl font-semibold">
                 {displayedAutoTarget != null
                   ? displayedAutoTarget.toFixed(2)
                   : "—"}
@@ -493,7 +493,7 @@ export function PouchStyleBinding({
           {/* OVERRIDE input (always visible) */}
           <div>
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-black uppercase tracking-widest text-content-3">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
                 Override (optional)
               </div>
               {row.child_target_override ? (
@@ -551,10 +551,10 @@ export function PouchStyleBinding({
 
           {/* Final value used downstream */}
           <div className="rounded-xl border-2 border-order-border bg-order-bg p-2.5">
-            <div className="text-[10px] font-black uppercase tracking-widest text-order-fg">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
               Final width used downstream
             </div>
-            <div className="mt-1 font-mono text-lg font-extrabold text-order-fg">
+            <div className="mt-1 font-mono text-lg font-semibold text-order-fg">
               {(finalTarget ?? 0).toFixed(2)} mm
             </div>
             <div className="mt-0.5 text-[10px] text-order-fg">
@@ -588,10 +588,10 @@ export function PouchStyleBinding({
 function StockMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-line bg-surface-1 px-2.5 py-2">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
-      <div className="mt-0.5 font-mono text-[11px] font-black text-content-1">
+      <div className="mt-0.5 font-mono text-[11px] font-semibold text-content-1">
         {value}
       </div>
     </div>
@@ -749,7 +749,7 @@ function FormulaInputGrid({
 
   return (
     <div className="mt-2 rounded-lg border border-dashed border-order-border bg-order-bg p-2">
-      <div className="text-[10px] font-black uppercase tracking-widest text-order-fg">
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
         Allowed size inputs
       </div>
       <div className="mt-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -760,11 +760,11 @@ function FormulaInputGrid({
           return (
             <label key={key} className="block">
               <div className="mb-0.5 flex items-center justify-between gap-2">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-content-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
                   {def.label || key}
                   {required ? " *" : ""}
                 </span>
-                <span className="font-mono text-[9px] text-content-4">
+                <span className="font-mono text-[10px] text-content-4">
                   {key}
                 </span>
               </div>
@@ -801,7 +801,7 @@ function ManualFallbackInputs({
   return (
     <div className="mt-2 grid gap-2 sm:grid-cols-2">
       <label className="block">
-        <span className="text-[9px] font-bold uppercase tracking-wider text-content-3">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
           Final width *
         </span>
         <Input
@@ -820,7 +820,7 @@ function ManualFallbackInputs({
         />
       </label>
       <label className="block">
-        <span className="text-[9px] font-bold uppercase tracking-wider text-content-3">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
           Final height *
         </span>
         <Input

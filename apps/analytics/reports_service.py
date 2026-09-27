@@ -526,6 +526,13 @@ class ReportService:
     # ═══════════════════════════════════════════════════════════
     @staticmethod
     def get_oee_deep_dive(filters=None):
+        """OEE per machine and for the plant, from grouped aggregates.
+
+        Only machines with production, scrap or downtime in the window are
+        scored. Plant availability is the mean of active machines; plant
+        performance and quality are weighted by output so an idle or tiny
+        machine cannot distort the headline figures.
+        """
         filters = ReportService._default_date_range(filters or {})
         start_date = filters.get("start_date")
         end_date = filters.get("end_date")
@@ -535,71 +542,81 @@ class ReportService:
             machines = machines.filter(work_center__plant_id=filters["plant_id"])
         if filters.get("machine_id"):
             machines = machines.filter(id=filters["machine_id"])
+        machines_by_id = {machine.id: machine for machine in machines}
+        machine_ids = list(machines_by_id.keys())
 
-        machine_list = list(machines)
         days_in_window = max((end_date - start_date).days + 1, 1)
         total_window_hours = float(days_in_window * 24)
-        rows = []
-        global_availability = []
-        global_performance = []
-        global_quality = []
+        duration = ExpressionWrapper(F("end_time") - F("start_time"), output_field=DurationField())
 
-        for machine in machine_list:
-            downtime = DowntimeLog.objects.filter(
-                production_job__machine=machine,
-                start_time__date__gte=start_date,
-                start_time__date__lte=end_date,
-            ).aggregate(
-                total=Sum(ExpressionWrapper(F("end_time") - F("start_time"), output_field=DurationField()))
-            )["total"]
+        downtime_logs = DowntimeLog.objects.filter(
+            production_job__machine_id__in=machine_ids,
+            start_time__date__gte=start_date,
+            start_time__date__lte=end_date,
+        )
+        exec_logs = JobExecutionLog.objects.filter(
+            production_job__machine_id__in=machine_ids,
+            logged_at__date__gte=start_date,
+            logged_at__date__lte=end_date,
+        )
+        scrap_logs = ScrapLog.objects.filter(
+            production_job__machine_id__in=machine_ids,
+            logged_at__date__gte=start_date,
+            logged_at__date__lte=end_date,
+        )
+
+        downtime_by_machine = {
+            row["production_job__machine_id"]: row["total"]
+            for row in downtime_logs.values("production_job__machine_id").annotate(total=Sum(duration))
+        }
+        produced_by_machine = {
+            row["production_job__machine_id"]: float(row["total"] or 0)
+            for row in exec_logs.values("production_job__machine_id").annotate(total=Sum("quantity"))
+        }
+        scrap_by_machine = {
+            row["production_job__machine_id"]: float(row["total"] or 0)
+            for row in scrap_logs.values("production_job__machine_id").annotate(total=Sum("quantity"))
+        }
+        active_ids = [
+            machine_id
+            for machine_id in machine_ids
+            if produced_by_machine.get(machine_id) or scrap_by_machine.get(machine_id) or downtime_by_machine.get(machine_id)
+        ]
+
+        rows = []
+        for machine_id in active_ids:
+            machine = machines_by_id[machine_id]
+            downtime = downtime_by_machine.get(machine_id)
             downtime_hours = float(downtime.total_seconds() / 3600) if downtime else 0.0
             available_hours = max(total_window_hours - downtime_hours, 0.0)
             availability = (available_hours / total_window_hours) if total_window_hours > 0 else 0.0
-
-            produced = float(
-                JobExecutionLog.objects.filter(
-                    production_job__machine=machine,
-                    logged_at__date__gte=start_date,
-                    logged_at__date__lte=end_date,
-                ).aggregate(total=Sum("quantity"))["total"]
-                or 0
-            )
-            scrap = float(
-                ScrapLog.objects.filter(
-                    production_job__machine=machine,
-                    logged_at__date__gte=start_date,
-                    logged_at__date__lte=end_date,
-                ).aggregate(total=Sum("quantity"))["total"]
-                or 0
-            )
-
+            produced = produced_by_machine.get(machine_id, 0.0)
+            scrap = scrap_by_machine.get(machine_id, 0.0)
             standard_rate = float(machine.standard_rate_kg_per_hour or 0)
             theoretical_output = standard_rate * available_hours if standard_rate > 0 else 0.0
-            performance = (produced / theoretical_output) if theoretical_output > 0 else 0.0
+            performance = min(produced / theoretical_output, 1.0) if theoretical_output > 0 else 0.0
             total_processed = produced + scrap
             quality = (produced / total_processed) if total_processed > 0 else 0.0
             oee = availability * performance * quality
+            rows.append(
+                {
+                    "machine_id": str(machine.id),
+                    "machine_name": machine.name,
+                    "machine_code": machine.code,
+                    "work_center": machine.work_center.name if machine.work_center else "Unassigned",
+                    "availability": round(availability * 100, 1),
+                    "performance": round(performance * 100, 1),
+                    "quality": round(quality * 100, 1),
+                    "oee": round(oee * 100, 1),
+                    "downtime_hours": round(downtime_hours, 2),
+                    "produced_kg": round(produced, 3),
+                    "scrap_kg": round(scrap, 3),
+                    "theoretical_output_kg": round(theoretical_output, 3),
+                    "rate_configured": standard_rate > 0,
+                }
+            )
 
-            row = {
-                "machine_id": str(machine.id),
-                "machine_name": machine.name,
-                "machine_code": machine.code,
-                "work_center": machine.work_center.name if machine.work_center else "Unassigned",
-                "availability": round(availability * 100, 1),
-                "performance": round(performance * 100, 1),
-                "quality": round(quality * 100, 1),
-                "oee": round(oee * 100, 1),
-                "downtime_hours": round(downtime_hours, 2),
-                "produced_kg": round(produced, 3),
-                "scrap_kg": round(scrap, 3),
-                "theoretical_output_kg": round(theoretical_output, 3),
-            }
-            rows.append(row)
-            global_availability.append(availability)
-            global_performance.append(performance)
-            global_quality.append(quality)
-
-        rows.sort(key=lambda row: float(row["oee"] or 0), reverse=True)
+        rows.sort(key=lambda row: (float(row["oee"] or 0), float(row["produced_kg"] or 0)), reverse=True)
         top_machine = rows[0] if rows else None
         bottom_machine = rows[-1] if rows else None
 
@@ -607,110 +624,90 @@ class ReportService:
         for row in rows:
             bucket = work_center_rollup.setdefault(
                 row["work_center"],
-                {
-                    "work_center": row["work_center"],
-                    "machine_count": 0,
-                    "oee_total": 0.0,
-                    "availability_total": 0.0,
-                    "performance_total": 0.0,
-                    "quality_total": 0.0,
-                    "output_total": 0.0,
-                    "scrap_total": 0.0,
-                },
+                {"work_center": row["work_center"], "machines": 0, "oee": 0.0, "availability": 0.0, "performance": 0.0, "quality": 0.0, "output": 0.0, "scrap": 0.0},
             )
-            bucket["machine_count"] += 1
-            bucket["oee_total"] += float(row["oee"] or 0)
-            bucket["availability_total"] += float(row["availability"] or 0)
-            bucket["performance_total"] += float(row["performance"] or 0)
-            bucket["quality_total"] += float(row["quality"] or 0)
-            bucket["output_total"] += float(row["produced_kg"] or 0)
-            bucket["scrap_total"] += float(row["scrap_kg"] or 0)
-
+            bucket["machines"] += 1
+            for key in ("oee", "availability", "performance", "quality"):
+                bucket[key] += float(row[key] or 0)
+            bucket["output"] += float(row["produced_kg"] or 0)
+            bucket["scrap"] += float(row["scrap_kg"] or 0)
         work_center_rows = sorted(
             [
                 {
                     "work_center": value["work_center"],
-                    "machines": value["machine_count"],
-                    "avg_oee": round(value["oee_total"] / value["machine_count"], 1),
-                    "avg_availability": round(value["availability_total"] / value["machine_count"], 1),
-                    "avg_performance": round(value["performance_total"] / value["machine_count"], 1),
-                    "avg_quality": round(value["quality_total"] / value["machine_count"], 1),
-                    "output_kg": round(value["output_total"], 3),
-                    "scrap_kg": round(value["scrap_total"], 3),
+                    "machines": value["machines"],
+                    "avg_oee": round(value["oee"] / value["machines"], 1),
+                    "avg_availability": round(value["availability"] / value["machines"], 1),
+                    "avg_performance": round(value["performance"] / value["machines"], 1),
+                    "avg_quality": round(value["quality"] / value["machines"], 1),
+                    "output_kg": round(value["output"], 3),
+                    "scrap_kg": round(value["scrap"], 3),
                 }
                 for value in work_center_rollup.values()
             ],
-            key=lambda row: row["avg_oee"],
+            key=lambda row: (row["avg_oee"], row["output_kg"]),
             reverse=True,
         )
 
         oee_band_rows = [
-            {"band": "World Class", "machines": len([row for row in rows if float(row["oee"] or 0) >= 85]), "threshold": ">= 85%"},
-            {"band": "Stable", "machines": len([row for row in rows if 60 <= float(row["oee"] or 0) < 85]), "threshold": "60-84.9%"},
-            {"band": "Attention", "machines": len([row for row in rows if float(row["oee"] or 0) < 60]), "threshold": "< 60%"},
+            {"band": "World class (85%+)", "machines": len([row for row in rows if float(row["oee"] or 0) >= 85]), "threshold": ">= 85%"},
+            {"band": "Stable (60–85%)", "machines": len([row for row in rows if 60 <= float(row["oee"] or 0) < 85]), "threshold": "60-84.9%"},
+            {"band": "Needs attention (<60%)", "machines": len([row for row in rows if float(row["oee"] or 0) < 60]), "threshold": "< 60%"},
         ]
         oee_band_rows = [row for row in oee_band_rows if row["machines"] > 0]
 
+        # Daily trend from three grouped queries instead of three per day.
+        day_output = {row["day"]: Decimal(str(row["total"] or 0)) for row in exec_logs.annotate(day=TruncDate("logged_at")).values("day").annotate(total=Sum("quantity"))}
+        day_scrap = {row["day"]: Decimal(str(row["total"] or 0)) for row in scrap_logs.annotate(day=TruncDate("logged_at")).values("day").annotate(total=Sum("quantity"))}
+        day_downtime = {row["day"]: row["total"] for row in downtime_logs.annotate(day=TruncDate("start_time")).values("day").annotate(total=Sum(duration))}
+        active_machines = [machines_by_id[machine_id] for machine_id in active_ids]
+        std_rate_total = Decimal(str(sum(float(machine.standard_rate_kg_per_hour or 0) for machine in active_machines)))
+        total_machine_hours = Decimal(str(max(len(active_machines), 1) * 24))
         trend_data = []
-        machine_ids = [machine.id for machine in machine_list]
         cursor = start_date
         while cursor <= end_date:
-            day_output = Decimal(
-                str(
-                    JobExecutionLog.objects.filter(
-                        production_job__machine_id__in=machine_ids,
-                        logged_at__date=cursor,
-                    ).aggregate(total=Sum("quantity"))["total"]
-                    or 0
-                )
-            )
-            day_scrap = Decimal(
-                str(
-                    ScrapLog.objects.filter(
-                        production_job__machine_id__in=machine_ids,
-                        logged_at__date=cursor,
-                    ).aggregate(total=Sum("quantity"))["total"]
-                    or 0
-                )
-            )
-            day_downtime = DowntimeLog.objects.filter(
-                production_job__machine_id__in=machine_ids,
-                start_time__date=cursor,
-            ).aggregate(
-                total=Sum(ExpressionWrapper(F("end_time") - F("start_time"), output_field=DurationField()))
-            )["total"]
-            day_downtime_hours = Decimal(str(day_downtime.total_seconds() / 3600.0 if day_downtime else 0))
-            total_machine_hours = Decimal(str(max(len(machine_ids), 1) * 24))
-            available_hours = max(Decimal("0"), total_machine_hours - day_downtime_hours)
-            std_rate_total = Decimal(str(sum(Decimal(str(machine.standard_rate_kg_per_hour or 0)) for machine in machine_list)))
-            earned_hours = (day_output / std_rate_total) if std_rate_total > 0 else Decimal("0")
+            output = day_output.get(cursor, Decimal("0"))
+            scrap = day_scrap.get(cursor, Decimal("0"))
+            downtime = day_downtime.get(cursor)
+            downtime_hours = Decimal(str(downtime.total_seconds() / 3600.0 if downtime else 0))
+            available_hours = max(Decimal("0"), total_machine_hours - downtime_hours)
+            earned_hours = (output / std_rate_total) if std_rate_total > 0 else Decimal("0")
             availability = (available_hours / total_machine_hours) if total_machine_hours > 0 else Decimal("0")
-            performance = (earned_hours / available_hours) if available_hours > 0 else Decimal("0")
-            total_processed = day_output + day_scrap
-            quality = (day_output / total_processed) if total_processed > 0 else Decimal("0")
-            day_oee = availability * performance * quality * Decimal("100")
+            performance = min(Decimal("1"), earned_hours / available_hours) if available_hours > 0 else Decimal("0")
+            processed = output + scrap
+            quality = (output / processed) if processed > 0 else Decimal("0")
             trend_data.append(
                 {
                     "date": cursor.strftime("%Y-%m-%d"),
-                    "value": float(round(day_oee, 2)),
-                    "output_kg": float(round(day_output, 3)),
-                    "scrap_kg": float(round(day_scrap, 3)),
-                    "downtime_hours": float(round(day_downtime_hours, 3)),
+                    "value": float(round(availability * performance * quality * Decimal("100"), 2)),
+                    "output_kg": float(round(output, 3)),
+                    "scrap_kg": float(round(scrap, 3)),
+                    "downtime_hours": float(round(downtime_hours, 3)),
                 }
             )
             cursor += timedelta(days=1)
 
-        avg_availability = (sum(global_availability) / len(global_availability)) if global_availability else 0.0
-        avg_performance = (sum(global_performance) / len(global_performance)) if global_performance else 0.0
-        avg_quality = (sum(global_quality) / len(global_quality)) if global_quality else 0.0
-        avg_oee = avg_availability * avg_performance * avg_quality * 100
         total_output = sum(float(row["produced_kg"] or 0) for row in rows)
         total_scrap = sum(float(row["scrap_kg"] or 0) for row in rows)
+        total_theoretical = sum(float(row["theoretical_output_kg"] or 0) for row in rows)
+        avg_availability = (sum(float(row["availability"]) for row in rows) / len(rows) / 100) if rows else 0.0
+        avg_performance = min(total_output / total_theoretical, 1.0) if total_theoretical > 0 else 0.0
+        avg_quality = (total_output / (total_output + total_scrap)) if (total_output + total_scrap) > 0 else 0.0
+        avg_oee = avg_availability * avg_performance * avg_quality * 100
+
+        warnings = [] if rows else ["No machine telemetry found in the selected window."]
+        unrated = [row["machine_name"] for row in rows if not row["rate_configured"]]
+        if unrated:
+            warnings.append(
+                f"{len(unrated)} active machine(s) have no standard rate (kg/h), so their performance and OEE read as 0%. "
+                "Set the rate on the machine master to score them."
+            )
 
         return {
             "summary": {
                 "avg_oee": round(avg_oee, 1),
                 "machines_tracked": len(rows),
+                "machines_idle": max(len(machine_ids) - len(rows), 0),
                 "global_availability": round(avg_availability * 100, 1),
                 "global_performance": round(avg_performance * 100, 1),
                 "global_quality": round(avg_quality * 100, 1),
@@ -747,7 +744,7 @@ class ReportService:
                 "target_performance": 95.0,
                 "target_quality": 99.0,
             },
-            "warnings": [] if rows else ["No machine telemetry found in the selected window."],
+            "warnings": warnings,
         }
 
     # ═══════════════════════════════════════════════════════════
@@ -1887,7 +1884,7 @@ class ReportService:
 
         # Top customers
         top_customers = orders.values('customer_name').annotate(
-            total_orders=Count('id'),
+            total_orders=Count('id', distinct=True),
             total_weight=Sum('items__total_weight_kg'),
         ).order_by('-total_weight')[:8]
         customer_data = [{

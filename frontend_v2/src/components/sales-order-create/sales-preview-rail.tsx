@@ -602,7 +602,7 @@ function BomLineRow({ row }: { row: BomRow }) {
           <span className="truncate font-mono text-content-1">{row.code}</span>
           <span
             className={cn(
-              "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black ring-1",
+              "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1",
               CAT_CHIP[row.cat],
             )}
           >
@@ -673,10 +673,10 @@ function KpiTile({
           : "border-line bg-surface-2 text-content-1";
   return (
     <div className={cn("rounded-xl border p-2.5", cls)}>
-      <div className="text-[9.5px] font-black uppercase tracking-[0.13em] opacity-65">
+      <div className="text-[9.5px] font-semibold uppercase tracking-[0.08em] opacity-65">
         {label}
       </div>
-      <div className="mt-1 font-mono text-base font-black tracking-normal">
+      <div className="mt-1 font-mono text-base font-semibold tracking-normal">
         {value}
       </div>
       <div className="mt-0.5 truncate text-[10.5px] font-bold opacity-70">
@@ -956,7 +956,7 @@ export function SalesPreviewRail({
 }: SalesPreviewRailProps) {
   const card = "rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm";
   const label =
-    "text-[9.5px] font-black uppercase tracking-[0.13em] text-content-3";
+    "text-[9.5px] font-semibold uppercase tracking-[0.08em] text-content-3";
 
   if (!preview) {
     return (
@@ -969,7 +969,7 @@ export function SalesPreviewRail({
         >
           <div>
             <div className="text-2xl">📦</div>
-            <div className="mt-2 text-sm font-black text-content-2">
+            <div className="mt-2 text-sm font-semibold text-content-2">
               {loading
                 ? "Computing live preview…"
                 : "Pick a master, size & axes"}
@@ -1083,25 +1083,25 @@ export function SalesPreviewRail({
           <div className="grid flex-1 grid-cols-2 gap-1.5 text-xs">
             <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
               <div className={label}>W x H</div>
-              <div className="font-mono font-black text-content-1">
+              <div className="font-mono font-semibold text-content-1">
                 {width > 0 ? `${width} x ${height || 0}` : "—"}
               </div>
             </div>
             <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
               <div className={label}>Thickness</div>
-              <div className="font-mono font-black text-content-1">
+              <div className="font-mono font-semibold text-content-1">
                 {totalUm > 0 ? `${totalUm} micron` : "—"}
               </div>
             </div>
             <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
               <div className={label}>Child web</div>
-              <div className="font-mono font-black text-content-1">
+              <div className="font-mono font-semibold text-content-1">
                 {childWeb > 0 ? `${Math.round(childWeb)} mm` : "—"}
               </div>
             </div>
             <div className="rounded-lg bg-info-bg p-2 ring-1 ring-info-border">
               <div className={cn(label, "text-primary")}>FG material total</div>
-              <div className="font-mono font-black text-primary">
+              <div className="font-mono font-semibold text-primary">
                 {totalKg > 0
                   ? fmtWeightSmart(totalKg, "KG")
                   : unitG > 0
@@ -1111,21 +1111,21 @@ export function SalesPreviewRail({
             </div>
             <div className="rounded-lg bg-success-bg p-2 ring-1 ring-success-border">
               <div className={cn(label, "text-success-fg")}>FG wt / pouch</div>
-              <div className="font-mono font-black text-success-fg">
+              <div className="font-mono font-semibold text-success-fg">
                 {unitG > 0 ? `${fmtNum(unitG, 4)} g` : "—"}
               </div>
             </div>
             <div className="rounded-lg bg-order-bg p-2 ring-1 ring-order-border">
               <div className={cn(label, "text-order-fg")}>Roll form</div>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono font-black text-order-fg">
+                <span className="font-mono font-semibold text-order-fg">
                   {rollType || "—"}
                 </span>
               </div>
             </div>
             <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
               <div className={label}>Film requirement</div>
-              <div className="font-mono font-black text-content-1">
+              <div className="font-mono font-semibold text-content-1">
                 {substrateSubtotal > 0
                   ? fmtWeightSmart(substrateSubtotal, "KG")
                   : "—"}
@@ -1134,7 +1134,7 @@ export function SalesPreviewRail({
             <div className="col-span-2 rounded-lg bg-order-bg p-2 ring-1 ring-order-border">
               <div className={cn(label, "text-order-fg")}>BOM geometry</div>
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono font-black text-order-fg">
+                <span className="font-mono font-semibold text-order-fg">
                   {calcAxis}
                 </span>
                 {pouches ? (
@@ -1232,7 +1232,7 @@ export function SalesPreviewRail({
           <div className="space-y-2">
             {stepGroups.length ? (
               <div className="rounded-xl bg-order-bg px-3 py-2 ring-1 ring-order-border">
-                <div className="mb-1.5 grid grid-cols-[1fr_auto] gap-2 text-[9px] font-black uppercase tracking-wider text-order-fg">
+                <div className="mb-1.5 grid grid-cols-[1fr_auto] gap-2 text-[10px] font-semibold uppercase tracking-wider text-order-fg">
                   <div>Issue route summary</div>
                   <div className="text-right">{stepGroups.length} steps</div>
                 </div>
@@ -1256,7 +1256,7 @@ export function SalesPreviewRail({
                   className="group overflow-hidden rounded-xl ring-1 ring-line"
                   open
                 >
-                  <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-content-3">
+                  <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
                     <div>
                       {CAT_TITLE[group.category]}
                       <span className="ml-1 text-content-4 group-open:hidden">
@@ -1277,7 +1277,7 @@ export function SalesPreviewRail({
               );
             })}
             {substrateSubtotal > 0 ? (
-              <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-black ring-1 ring-line">
+              <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-semibold ring-1 ring-line">
                 <div className="text-content-1">Substrate subtotal</div>
                 <div className="text-right font-mono tabular-nums text-order-fg">
                   {fmtWeightSmart(substrateSubtotal, "KG")}
@@ -1302,7 +1302,7 @@ export function SalesPreviewRail({
           {Array.from({ length: Math.max(1, lane.laneCount) }).map((_, i) => (
             <div
               key={i}
-              className="grid place-items-center bg-order-fg text-[10px] font-black text-white"
+              className="grid place-items-center bg-order-fg text-[10px] font-semibold text-white"
               style={{ flex: childWeb > 0 ? childWeb : 1 }}
             >
               {lane.laneCount <= 3 ? `${Math.round(childWeb)}mm` : ""}
@@ -1310,7 +1310,7 @@ export function SalesPreviewRail({
           ))}
           {lane.plannedParentMm > childWeb * lane.laneCount + 1 ? (
             <div
-              className="grid flex-1 place-items-center bg-line text-[9px] font-bold text-content-3"
+              className="grid flex-1 place-items-center bg-line text-[10px] font-bold text-content-3"
               style={{
                 flex: Math.max(
                   0.001,

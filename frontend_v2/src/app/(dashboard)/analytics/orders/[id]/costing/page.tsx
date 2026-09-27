@@ -65,7 +65,7 @@ export default function OrderProfitabilityPage() {
       <div className="flex h-[80vh] flex-col items-center justify-center bg-[#f8fafc] text-center space-y-6">
         <ShieldCheck className="h-16 w-16 text-content-4" />
         <div className="space-y-2">
-          <h2 className="text-xl font-black text-content-1 uppercase italic">
+          <h2 className="text-xl font-semibold text-content-1 uppercase">
             Cost Data Not Found
           </h2>
           <p className="text-sm text-content-3 font-bold uppercase tracking-widest">
@@ -75,7 +75,7 @@ export default function OrderProfitabilityPage() {
         <Button
           onClick={() => calculateMutation.mutate()}
           disabled={calculateMutation.isPending}
-          className="h-12 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-black uppercase text-xs tracking-[0.2em] shadow-xl"
+          className="h-12 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-xs tracking-[0.12em] shadow-xl"
         >
           {calculateMutation.isPending ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -95,15 +95,15 @@ export default function OrderProfitabilityPage() {
         <div className="space-y-1">
           <Link
             href="/analytics/costing"
-            className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-content-4 hover:text-primary transition-colors mb-4 group"
+            className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4 hover:text-primary transition-colors mb-4 group"
           >
             <ArrowLeft className="h-3 w-3 group-hover:-translate-x-1 transition-transform" />{" "}
             Back to Center
           </Link>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-black uppercase tracking-widest shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-semibold uppercase tracking-widest shadow-sm">
             <ShoppingCart className="h-3 w-3 fill-info-fg" /> Order Intelligence
           </div>
-          <h1 className="text-4xl font-black tracking-tight text-content-1 flex items-center gap-3 italic">
+          <h1 className="text-4xl font-semibold tracking-tight text-content-1 flex items-center gap-3 italic">
             {cost.order_number}{" "}
             <span className="text-primary">Profitability</span>
           </h1>
@@ -116,7 +116,7 @@ export default function OrderProfitabilityPage() {
           onClick={() => calculateMutation.mutate()}
           disabled={calculateMutation.isPending}
           variant="outline"
-          className="h-12 px-6 rounded-xl border-line font-black uppercase text-xs tracking-widest active:scale-95 transition-all bg-surface-1"
+          className="h-12 px-6 rounded-xl border-line font-semibold uppercase text-xs tracking-widest active:scale-95 transition-all bg-surface-1"
         >
           {calculateMutation.isPending ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -134,13 +134,13 @@ export default function OrderProfitabilityPage() {
             <Target className="h-32 w-32" />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-content-3 mb-2 italic">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Net Profit Margin
             </p>
-            <h2 className="text-6xl font-black tracking-tighter italic">
+            <h2 className="text-6xl font-semibold tracking-tighter italic">
               {Number(cost.margin_percent).toFixed(1)}%
             </h2>
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-1/10 text-[10px] font-black uppercase tracking-widest">
+            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-1/10 text-[10px] font-semibold uppercase tracking-widest">
               {Number(cost.margin_percent) > 15
                 ? "Healthy Profit"
                 : "Low Margin Alert"}
@@ -148,10 +148,10 @@ export default function OrderProfitabilityPage() {
           </div>
           <div className="mt-12 pt-8 border-t border-surface-1/10">
             <div className="flex justify-between items-end">
-              <span className="text-[10px] font-black uppercase text-content-3 italic">
+              <span className="text-[10px] font-semibold uppercase text-content-3">
                 Margin Value
               </span>
-              <span className="text-2xl font-black tabular-nums">
+              <span className="text-2xl font-semibold tabular-nums">
                 ₹{Math.round(Number(cost.margin_value)).toLocaleString()}
               </span>
             </div>
@@ -194,13 +194,13 @@ export default function OrderProfitabilityPage() {
               >
                 <kpi.icon className="h-6 w-6" />
               </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-content-4 mb-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4 mb-1">
                 {kpi.label}
               </p>
-              <h3 className="text-2xl font-black text-content-1 uppercase tracking-tighter tabular-nums">
+              <h3 className="text-2xl font-semibold text-content-1 uppercase tracking-tighter tabular-nums">
                 {kpi.value}
               </h3>
-              <p className="text-[10px] font-bold text-content-3 uppercase tracking-tight mt-4 italic opacity-0 group-hover:opacity-100 transition-opacity">
+              <p className="text-[10px] font-bold text-content-3 uppercase tracking-tight mt-4 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 {kpi.desc}
               </p>
             </Card>
@@ -210,7 +210,7 @@ export default function OrderProfitabilityPage() {
           <Card className="md:col-span-3 border-none shadow-soft rounded-[2.5rem] p-10 bg-surface-1">
             <div className="flex items-center justify-between mb-8">
               <div className="flex flex-col">
-                <span className="text-xs font-black uppercase tracking-[0.2em] text-content-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-content-1">
                   Total Lifecycle Cost Impact
                 </span>
                 <span className="text-[10px] font-bold text-content-4 uppercase tracking-widest mt-1">
@@ -221,7 +221,7 @@ export default function OrderProfitabilityPage() {
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-primary" />
-                  <span className="text-[10px] font-black uppercase text-content-3">
+                  <span className="text-[10px] font-semibold uppercase text-content-3">
                     Materials (
                     {(
                       (Number(cost.material_cost) / Number(cost.total_cost)) *
@@ -232,7 +232,7 @@ export default function OrderProfitabilityPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-warning-fg" />
-                  <span className="text-[10px] font-black uppercase text-content-3">
+                  <span className="text-[10px] font-semibold uppercase text-content-3">
                     Conversion (
                     {(
                       (Number(cost.conversion_cost) / Number(cost.total_cost)) *
@@ -265,7 +265,7 @@ export default function OrderProfitabilityPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="border-none shadow-premium rounded-[2.5rem] overflow-hidden bg-surface-1">
           <CardHeader className="bg-surface-2 p-8 border-b border-line">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-content-1 flex items-center gap-3">
+            <CardTitle className="text-xs font-semibold uppercase tracking-[0.12em] text-content-1 flex items-center gap-3">
               <Layers className="h-4 w-4 text-primary" />
               Material Components
             </CardTitle>
@@ -273,10 +273,10 @@ export default function OrderProfitabilityPage() {
           <CardContent className="p-0 h-[400px] overflow-auto scrollbar-hide">
             <div className="p-8 flex flex-col items-center justify-center h-full text-center opacity-30 select-none">
               <Layers className="h-12 w-12 mb-4" />
-              <p className="font-black text-[10px] uppercase tracking-widest">
+              <p className="font-semibold text-[10px] uppercase tracking-widest">
                 Physics-Integrated BOM Breakdown
               </p>
-              <p className="text-[9px] font-bold mt-2 leading-relaxed">
+              <p className="text-[10px] font-bold mt-2 leading-relaxed">
                 Detailed material cost tracing is active.
                 <br />
                 Rates snapshot used from run date.
@@ -287,7 +287,7 @@ export default function OrderProfitabilityPage() {
 
         <Card className="border-none shadow-premium rounded-[2.5rem] overflow-hidden bg-surface-1">
           <CardHeader className="bg-surface-2 p-8 border-b border-line">
-            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-content-1 flex items-center gap-3">
+            <CardTitle className="text-xs font-semibold uppercase tracking-[0.12em] text-content-1 flex items-center gap-3">
               <Activity className="h-4 w-4 text-warning-fg" />
               Process Routing Costs
             </CardTitle>
@@ -295,10 +295,10 @@ export default function OrderProfitabilityPage() {
           <CardContent className="p-0 h-[400px] overflow-auto scrollbar-hide">
             <div className="p-8 flex flex-col items-center justify-center h-full text-center opacity-30 select-none">
               <Activity className="h-12 w-12 mb-4" />
-              <p className="font-black text-[10px] uppercase tracking-widest">
+              <p className="font-semibold text-[10px] uppercase tracking-widest">
                 Routing Rule Execution Impact
               </p>
-              <p className="text-[9px] font-bold mt-2 leading-relaxed">
+              <p className="text-[10px] font-bold mt-2 leading-relaxed">
                 Stage-wise conversion cost tracing.
                 <br />
                 Power, labor, and overhead allocation logic.

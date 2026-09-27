@@ -419,6 +419,20 @@ class WcmAuditEventTests(TestCase):
         self.assertEqual(response.status_code, 200)
         reconcile.assert_not_called()
 
+    def test_wc_queue_search_runs_before_limit(self):
+        view = WCQueueViewSet.as_view({"get": "queue"})
+        request = self.factory.get(
+            f"/api/production/wc/{self.work_center.id}/queue/",
+            {"summary": "1", "limit": "1", "q": self.job.job_number},
+        )
+        force_authenticate(request, user=self.user)
+
+        response = view(request, wc_id=str(self.work_center.id))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["job_details"]["job_number"], self.job.job_number)
+
     def test_wc_stats_poll_is_read_only(self):
         before_assignment = WorkCenterAssignment.objects.get(pk=self.assignment.pk)
         before_job = ProductionJob.objects.get(pk=self.job.pk)

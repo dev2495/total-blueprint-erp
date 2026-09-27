@@ -32,6 +32,10 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/analytics/reports/sales",
   "/analytics/reports/scrap",
   "/analytics/reports/trading",
+  "/analytics/reports/ink-intelligence",
+  "/analytics/reports/inventory-lineage",
+  "/analytics/reports/material-variance",
+  "/analytics/reports/shift-performance",
   "/analytics/scrap",
   "/dashboard",
   "/dashboard/admin",
@@ -157,6 +161,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
 ]);
 
 const DYNAMIC_ROUTE_PATTERNS: RegExp[] = [
+  /^\/production\/jobs\/[^/]+$/,
   /^\/analytics\/orders\/[^/]+\/costing$/,
   /^\/engineering\/approvals\/[^/]+$/,
   /^\/engineering\/templates\/[^/]+$/,

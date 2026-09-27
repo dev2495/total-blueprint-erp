@@ -601,7 +601,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
               <Zap className="h-4 w-4" />
             </div>
             <div>
-              <CardTitle className="text-base font-black text-content-1">
+              <CardTitle className="text-base font-semibold text-content-1">
                 Step material rules
               </CardTitle>
               <p className="mt-1 text-xs font-semibold text-content-3">
@@ -621,7 +621,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             ) : (
               <Button
                 size="sm"
-                className="h-9 rounded-xl bg-surface-3 px-4 text-[11px] font-black text-white hover:bg-primary"
+                className="h-9 rounded-xl bg-surface-3 px-4 text-[11px] font-semibold text-white hover:bg-primary"
                 onClick={handleSync}
                 disabled={isReadOnly || isSyncing || !hasRoute}
               >
@@ -647,19 +647,19 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
           <div className="mt-4 grid gap-2 md:grid-cols-3">
             <div className="rounded-2xl border border-line bg-surface-1 px-3 py-2 text-xs font-semibold text-content-3">
               Keep / reorder{" "}
-              <span className="font-black text-content-1">
+              <span className="font-semibold text-content-1">
                 {syncPreview.steps_to_keep?.length || 0}
               </span>
             </div>
             <div className="rounded-2xl border border-success-border bg-success-bg px-3 py-2 text-xs font-semibold text-success-fg">
               Create{" "}
-              <span className="font-black">
+              <span className="font-semibold">
                 {syncPreview.steps_to_create?.length || 0}
               </span>
             </div>
             <div className="rounded-2xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
               Remove from route{" "}
-              <span className="font-black">
+              <span className="font-semibold">
                 {syncPreview.steps_to_mark_removed?.length || 0}
               </span>
             </div>
@@ -701,7 +701,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             <section>
               <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-black text-content-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-content-1">
                     <GitBranch className="h-4 w-4 text-primary" />
                     Stage controls
                   </div>
@@ -712,7 +712,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                 </div>
                 <Badge
                   variant="outline"
-                  className="rounded-full border-line bg-surface-1 text-[10px] font-black uppercase tracking-[0.16em] text-content-3"
+                  className="rounded-full border-line bg-surface-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3"
                 >
                   {stepsList.length} stages · {mappedByCategoryList.size}{" "}
                   categories mapped
@@ -754,7 +754,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                           >
                             <div
                               className={cn(
-                                "grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-sm font-black",
+                                "grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-sm font-semibold",
                                 isExpanded
                                   ? "bg-primary text-white"
                                   : "bg-surface-2 text-content-3",
@@ -764,12 +764,12 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                <p className="truncate text-sm font-black text-content-1">
+                                <p className="truncate text-sm font-semibold text-content-1">
                                   {step.process_name}
                                 </p>
                                 <Badge
                                   variant="outline"
-                                  className="border-line text-[9px]"
+                                  className="border-line text-[10px]"
                                 >
                                   {step.process_input_form} to{" "}
                                   {step.process_output_form}
@@ -777,7 +777,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 {behavior !== "NONE" ? (
                                   <Badge
                                     variant="outline"
-                                    className="border-info-border text-[9px] text-primary"
+                                    className="border-info-border text-[10px] text-primary"
                                   >
                                     {behavior.replaceAll("_", " ")}
                                   </Badge>
@@ -799,7 +799,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                               {stepMaterials.length > 0 ? (
-                                <Badge className="bg-success-bg text-[9px] text-success-fg">
+                                <Badge className="bg-success-bg text-[10px] text-success-fg">
                                   mapped
                                 </Badge>
                               ) : null}
@@ -817,7 +817,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                               <div className="rounded-2xl border border-info-border bg-surface-1 p-4">
                                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                                   <div>
-                                    <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                                    <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
                                       Output handling
                                     </Label>
                                     <p className="mt-1 text-[11px] font-semibold text-content-3">
@@ -828,7 +828,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                   </div>
                                   <Button
                                     size="sm"
-                                    className="h-8 rounded-xl bg-primary px-4 text-[11px] font-black hover:bg-surface-3"
+                                    className="h-8 rounded-xl bg-primary px-4 text-[11px] font-semibold hover:bg-surface-3"
                                     disabled={isReadOnly || isSaving}
                                     onClick={() =>
                                       saveStepPolicy(step.id, draft)
@@ -963,7 +963,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 {isLamination ? (
                                   <div className="mt-3 rounded-2xl border border-info-border bg-info-bg p-3">
                                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                      <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                                      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
                                         Lamination lanes
                                       </Label>
                                       <Badge className="border border-info-border bg-surface-1 text-[10px] text-primary">
@@ -1080,7 +1080,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     </div>
                                     <div className="mt-2 grid gap-2 md:grid-cols-2">
                                       <div className="rounded-xl border border-info-border bg-surface-1 px-3 py-2">
-                                        <div className="text-[10px] font-black uppercase tracking-widest text-content-4">
+                                        <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
                                           Lane A
                                         </div>
                                         <div className="mt-1 text-xs font-bold text-content-2">
@@ -1092,7 +1092,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         </div>
                                       </div>
                                       <div className="rounded-xl border border-info-border bg-surface-1 px-3 py-2">
-                                        <div className="text-[10px] font-black uppercase tracking-widest text-content-4">
+                                        <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
                                           Lane B
                                         </div>
                                         <div className="mt-1 text-xs font-bold text-content-2">
@@ -1112,7 +1112,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                               </div>
 
                               <div className="rounded-2xl border border-line bg-surface-1 p-4">
-                                <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+                                <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                                   Mapped inputs
                                 </Label>
                                 {stepMaterials.length === 0 ? (
@@ -1130,7 +1130,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                           key={material.id}
                                           className="rounded-2xl border border-line bg-surface-2 px-3 py-2"
                                         >
-                                          <div className="text-sm font-black text-content-1">
+                                          <div className="text-sm font-semibold text-content-1">
                                             {String(
                                               (material as any).category_code ||
                                                 "",
@@ -1173,7 +1173,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             <section className="rounded-3xl border border-line bg-surface-2 p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <Label className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+                  <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                     Material mapping
                   </Label>
                   <p className="mt-1 text-xs font-semibold text-content-3">
@@ -1183,7 +1183,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                 </div>
                 <Badge
                   variant="outline"
-                  className="rounded-full border-line bg-surface-1 text-[10px] font-black uppercase tracking-[0.16em] text-content-3"
+                  className="rounded-full border-line bg-surface-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3"
                 >
                   {categoryOptions.length} categories
                 </Badge>
@@ -1290,7 +1290,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                           ) : !hasSteps ? (
                             <Badge
                               variant="outline"
-                              className="border-line text-[9px]"
+                              className="border-line text-[10px]"
                             >
                               Sync route first
                             </Badge>

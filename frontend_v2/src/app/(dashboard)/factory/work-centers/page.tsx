@@ -480,7 +480,7 @@ export default function WorkCentersPage() {
                       >
                         {wc.code}
                       </Badge>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -546,7 +546,7 @@ export default function WorkCentersPage() {
                         </div>
                       </div>
                       <div className="mt-4 rounded-2xl border border-line bg-surface-2 px-3 py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-content-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                           Default cost group
                         </div>
                         <div className="mt-1 text-sm font-semibold text-content-2">

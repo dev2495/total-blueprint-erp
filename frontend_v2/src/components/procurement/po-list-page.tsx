@@ -85,7 +85,7 @@ export function PurchaseOrderListWorkspace() {
     <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Hero */}
-        <div className="rounded-2xl border border-line bg-gradient-to-r from-brand-navy-500 via-brand-blue-500 to-order-fg p-6 text-white shadow-sm">
+        <div className="erp-hero rounded-2xl border p-6 text-white shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 text-white/80 text-xs uppercase tracking-wider">

@@ -1,11 +1,10 @@
 "use client";
 
 import { ReactNode } from "react";
-import { PageHeader } from "@/components/ui-custom/page-header";
-import { Button } from "@/components/ui/button";
-import { CalendarDateRangePicker } from "@/components/date-range-picker";
-import { RefreshCw, Download, Filter, BarChart3 } from "lucide-react";
+import { BarChart3, Download, RefreshCw } from "lucide-react";
 import type { LocalizedText } from "@/help/types";
+import { PageHero, heroButtonClass } from "@/components/premium/page-hero";
+import { PageHelpInline } from "@/components/help/page-help-inline";
 
 interface ReportLayoutProps {
   title: string;
@@ -33,73 +32,36 @@ export function ReportLayout({
   helpSummary,
 }: ReportLayoutProps) {
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <section className="relative overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/80 p-6 shadow-[0_30px_80px_-40px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-primary via-info-fg to-success-fg" />
-        <div className="pointer-events-none absolute -right-12 -top-10 h-40 w-40 rounded-full bg-primary blur-3xl" />
-        <div className="pointer-events-none absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-info-fg blur-3xl" />
-        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-primary">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Analytics Story
-            </div>
-            <PageHeader
-              title={title}
-              description={description}
-              helpRoute={helpRoute}
-              helpSummary={helpSummary}
-              showHelpInline={Boolean(helpRoute || helpSummary)}
-              className="pb-0"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+    <div className="mx-auto max-w-[1600px] space-y-4">
+      <PageHero
+        compact
+        eyebrow="Analytics"
+        icon={<BarChart3 />}
+        title={title}
+        description={description}
+        actions={
+          <>
             {actions}
-            {onRefresh && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onRefresh}
-                disabled={isLoading}
-                className="rounded-xl border-line bg-surface-1/90 shadow-sm"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
-                />
-                Refresh
-              </Button>
-            )}
-            {onExport && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onExport}
-                className="rounded-xl border-line bg-surface-1/90 shadow-sm"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download PDF
-              </Button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[1.75rem] border border-surface-1/70 bg-surface-1/75 p-4 shadow-[0_20px_50px_-35px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="mr-auto flex items-center gap-2 rounded-full bg-surface-2 px-3 py-2 text-sm font-semibold text-content-3 ring-1 ring-line">
-            <Filter className="h-4 w-4 text-primary" />
-            <span>Report Filters</span>
-          </div>
-
-          <div className="rounded-2xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
-            <CalendarDateRangePicker />
-          </div>
-
+            {onRefresh ? (
+              <button type="button" onClick={onRefresh} disabled={isLoading} className={heroButtonClass("ghost")}>
+                <RefreshCw className={isLoading ? "animate-spin" : ""} /> Refresh
+              </button>
+            ) : null}
+            {onExport ? (
+              <button type="button" onClick={onExport} className={heroButtonClass("primary")}>
+                <Download /> Download PDF
+              </button>
+            ) : null}
+          </>
+        }
+      />
+      {helpRoute || helpSummary ? <PageHelpInline routePattern={helpRoute} helpSummary={helpSummary} compact /> : null}
+      {filters ? (
+        <section className="flex flex-wrap items-center gap-2 rounded-[18px] border border-line bg-surface-1 p-2.5 shadow-[var(--shadow-sm)]">
           {filters}
-        </div>
-      </section>
-
-      <div className="min-h-[500px] rounded-[2rem]">{children}</div>
+        </section>
+      ) : null}
+      <div>{children}</div>
     </div>
   );
 }

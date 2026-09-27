@@ -138,6 +138,6 @@ export const ORDER_AGE_TONE_CLASSES: Record<OrderAgeTone, string> = {
   fresh: "bg-success-bg text-success-fg ring-success-border",
   normal: "bg-info-bg text-primary ring-info-border",
   warn: "bg-warning-bg text-warning-fg ring-warning-border",
-  stale: "bg-warm text-warm ring-warning-border",
+  stale: "bg-warning-bg text-warning-fg ring-warning-border",
   ancient: "bg-danger-bg text-danger-fg ring-danger-border",
 };

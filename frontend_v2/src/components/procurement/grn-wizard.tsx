@@ -144,7 +144,7 @@ export function GrnWizard({ poId }: { poId: string }) {
           <ArrowLeft className="h-3 w-3" /> Back to PO {po.code}
         </Link>
 
-        <div className="rounded-2xl border border-line bg-gradient-to-r from-brand-navy-500 to-brand-blue-500 p-5 text-white">
+        <div className="erp-hero rounded-2xl border p-5 text-white">
           <div className="flex items-center gap-3">
             <Truck className="h-5 w-5" />
             <div>

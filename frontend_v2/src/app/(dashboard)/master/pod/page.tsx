@@ -518,21 +518,21 @@ export default function PODPage() {
               <CardContent className="space-y-4 p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-black tracking-tight text-content-1">
+                    <div className="text-sm font-semibold tracking-tight text-content-1">
                       {row.name}
                     </div>
-                    <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-content-4">
+                    <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-content-4">
                       {row.code}
                     </div>
                   </div>
-                  <span className="inline-flex rounded-full bg-order-bg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-order-fg ring-1 ring-order-border">
+                  <span className="inline-flex rounded-full bg-order-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border">
                     POD roll
                   </span>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ${
                       row.pod_is_inhouse_produced
                         ? "bg-success-bg text-success-fg ring-success-border"
                         : "bg-surface-2 text-content-3 ring-line"
@@ -543,7 +543,7 @@ export default function PODPage() {
                       : "Catalog only"}
                   </span>
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ${
                       link
                         ? "bg-success-bg text-success-fg ring-success-border"
                         : unlinkedInHouse
@@ -558,7 +558,7 @@ export default function PODPage() {
                         : "Unlinked"}
                   </span>
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ${
+                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ${
                       row.status === "ACTIVE"
                         ? "bg-info-bg text-primary ring-info-border"
                         : "bg-danger-bg text-danger-fg ring-danger-border"
@@ -570,7 +570,7 @@ export default function PODPage() {
 
                 <div className="grid grid-cols-2 gap-3 rounded-2xl bg-surface-2 p-4 text-sm">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       Base UOM
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -578,7 +578,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       Roll profile
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -587,7 +587,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       Fixed height
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -598,7 +598,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       Thickness
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -609,7 +609,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       Product Master Link
                     </div>
                     <div
@@ -623,7 +623,7 @@ export default function PODPage() {
                     >
                       {link ? (
                         <>
-                          <div className="font-black">
+                          <div className="font-semibold">
                             {link.master_code} · {link.master_name}
                           </div>
                           <div className="mt-0.5 font-mono text-[11px] font-bold">
@@ -641,7 +641,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-content-4">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
                       POD SKU Variants
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1.5">

@@ -44,7 +44,7 @@ export function AxisLayerMatrix({
       className={cn("overflow-hidden rounded-xl border border-line", className)}
     >
       <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-[10px] font-bold uppercase tracking-[0.18em] text-content-3">
+        <thead className="bg-surface-2 text-[10px] font-bold uppercase tracking-[0.1em] text-content-3">
           <tr>
             <th className="px-4 py-3 text-left">Layer</th>
             <th className="px-4 py-3 text-left">Film / material</th>

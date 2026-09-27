@@ -5,7 +5,7 @@ assert.equal(matchesRollMaterial(roll, { variant_id: "PE50" }), false, "variant-
 assert.equal(matchesRollMaterial(roll, { family_id: "PE" }), false, "family-only filter must reject unrelated family");
 assert.equal(matchesRollMaterial(roll, { variant_id: "PET12" }), true);
 assert.equal(matchesRollMaterial(roll, { family_id: "PET" }), true);
-assert.equal(matchesRollMaterial(roll, { variant_id: "PET20", family_id: "PET" }), true, "preserve explicit family fallback");
+assert.equal(matchesRollMaterial(roll, { variant_id: "PET20", family_id: "PET" }), false, "an explicit variant must not broaden to every roll in its family");
 assert.equal(matchesRollMaterial(roll, { variant_id: "PE50", family_id: "PE" }), false);
 assert.equal(matchesRollMaterial(roll, {}), true);
 assert.equal(matchesRollMaterial({ variant_id: "PET12" }, { variant_id: "PET12" }), true);

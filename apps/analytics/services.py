@@ -752,7 +752,7 @@ class AnalyticsService:
         ).annotate(
             date=TruncDate('created_at')
         ).values('date').annotate(
-            count=Count('id'),
+            count=Count('id', distinct=True),
             weight=Sum('items__total_weight_kg')
         ).order_by('date')
 
@@ -760,7 +760,7 @@ class AnalyticsService:
         top_customers = SalesOrder.objects.values(
             'customer_name'
         ).annotate(
-            order_count=Count('id'),
+            order_count=Count('id', distinct=True),
             total_weight=Sum('items__total_weight_kg')
         ).order_by('-total_weight')[:5]
         
@@ -4368,7 +4368,25 @@ class FactoryOverviewService:
             'work_centers__center_processes__process',
             'locations'
         ).all()
-        
+
+        # One query each for executing jobs and 24h downtime instead of two per machine.
+        executing = {}
+        for machine_id, job_number in (
+            ProductionJob.objects.filter(job_state='EXECUTING', machine_id__isnull=False)
+            .order_by('machine_id', 'id')
+            .values_list('machine_id', 'job_number')
+        ):
+            executing.setdefault(machine_id, job_number)
+        util_start = timezone.now() - timedelta(days=1)
+        downtime_seconds = {}
+        for machine_id, started, ended in (
+            DowntimeLog.objects.filter(production_job__machine_id__isnull=False, start_time__gte=util_start)
+            .exclude(end_time__isnull=True)
+            .values_list('production_job__machine_id', 'start_time', 'end_time')
+        ):
+            if started and ended and ended > started:
+                downtime_seconds[machine_id] = downtime_seconds.get(machine_id, 0.0) + (ended - started).total_seconds()
+
         for p in plants:
             plant_node = {
                 "id": str(p.id),
@@ -4407,17 +4425,15 @@ class FactoryOverviewService:
 
                 # Machines under WC
                 for m in wc.machines.all():
-                    active_job = ProductionJob.objects.filter(
-                        machine=m, job_state='EXECUTING'
-                    ).first()
-                    m_util = KPIService.calculate_utilization(m.id, days=1)
-                    
+                    active_job_number = executing.get(m.id)
+                    m_util = round((max(0.0, 86400 - downtime_seconds.get(m.id, 0.0)) / 86400) * 100, 1)
+
                     m_node = {
                         "id": str(m.id),
                         "type": "MACHINE",
                         "label": m.name,
                         "status": m.status, 
-                        "active_job": active_job.job_number if active_job else "IDLE",
+                        "active_job": active_job_number or "IDLE",
                         "utilization": f"{m_util}%"
                     }
                     wc_node["children"].append(m_node)

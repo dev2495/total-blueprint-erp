@@ -746,7 +746,7 @@ export function AddonsWorkspaceV36() {
                 }))}
               />
               <div>
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
                   Location
                 </div>
                 <select
@@ -1042,7 +1042,7 @@ function AddonsGrid({
                 )}
                 <span
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                    "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase",
                     h.bucket === "HEALTHY"
                       ? "bg-success-bg text-success-fg"
                       : h.bucket === "LOW"
@@ -1061,7 +1061,7 @@ function AddonsGrid({
               </div>
               <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg bg-surface-2 p-2 text-center">
                 <div>
-                  <div className="text-[8px] font-black uppercase text-content-3">
+                  <div className="text-[8px] font-semibold uppercase text-content-3">
                     On hand
                   </div>
                   <div className="font-mono text-sm font-bold text-content-1">
@@ -1069,7 +1069,7 @@ function AddonsGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[8px] font-black uppercase text-content-3">
+                  <div className="text-[8px] font-semibold uppercase text-content-3">
                     Free
                   </div>
                   <div className="font-mono text-sm font-bold text-success-fg">
@@ -1145,7 +1145,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 <span className="text-3xl">{FAMILY_ICON[f]}</span>
               )}
               <div className="min-w-0">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
                   {FAMILY_ICON[f]} {f}
                 </div>
                 <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
@@ -1179,7 +1179,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3 mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Lot details
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -1200,7 +1200,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               Allocations
             </div>
             {rsvQuery.isLoading && (
@@ -1252,7 +1252,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>
@@ -1271,7 +1271,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[9px] font-black uppercase tracking-wider text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

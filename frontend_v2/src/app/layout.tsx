@@ -26,17 +26,13 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        {/* Fonts are self-hosted (see @font-face in globals.css); preload the primary face so text paints once. */}
         <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
+          rel="preload"
+          href="/fonts/inter-latin.woff2"
+          as="font"
+          type="font/woff2"
           crossOrigin="anonymous"
-        />
-        {/* App Router has no pages/_document; the root layout applies this font stylesheet globally. */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
-          rel="stylesheet"
         />
         <Script src="/theme-bootstrap.js" nonce={nonce} strategy="beforeInteractive" />
       </head>

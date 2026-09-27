@@ -142,7 +142,7 @@ export default function ProcessRatesPage() {
       <div className="flex h-[80vh] items-center justify-center bg-[#f8fafc]">
         <div className="text-center space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-content-4 italic">
+          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-content-4">
             Syncing Process Economics...
           </p>
         </div>
@@ -155,10 +155,10 @@ export default function ProcessRatesPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-black uppercase tracking-widest shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-semibold uppercase tracking-widest shadow-sm">
             <Activity className="h-3 w-3 fill-info-fg" /> Operational Finance
           </div>
-          <h1 className="text-4xl font-black tracking-tight text-content-1 flex items-center gap-3 italic">
+          <h1 className="text-4xl font-semibold tracking-tight text-content-1 flex items-center gap-3 italic">
             Process <span className="text-primary">Rates</span>
           </h1>
           <p className="text-content-3 font-medium text-sm flex items-center gap-2">
@@ -169,13 +169,13 @@ export default function ProcessRatesPage() {
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="h-12 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-black uppercase text-xs tracking-[0.2em] shadow-xl active:scale-95 transition-all group">
+            <Button className="h-12 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-xs tracking-[0.12em] shadow-xl active:scale-95 transition-all group">
               <Plus className="h-4 w-4 mr-2" /> New Override
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md bg-surface-1 rounded-[2rem] border-none shadow-2xl p-0 overflow-hidden">
             <DialogHeader className="bg-surface-3 p-8 text-white">
-              <DialogTitle className="text-sm font-black uppercase tracking-[0.2em] italic">
+              <DialogTitle className="text-sm font-semibold uppercase tracking-[0.12em]">
                 Add Operational Override
               </DialogTitle>
               <p className="text-[10px] text-content-4 font-bold uppercase tracking-widest mt-1">
@@ -185,7 +185,7 @@ export default function ProcessRatesPage() {
             <div className="p-8 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">
+                  <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
                     Target Process
                   </Label>
                   <Select
@@ -206,7 +206,7 @@ export default function ProcessRatesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">
+                  <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
                     Specific Machine (Optional)
                   </Label>
                   <Select
@@ -229,7 +229,7 @@ export default function ProcessRatesPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">
+                    <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
                       Power/hr
                     </Label>
                     <Input
@@ -241,11 +241,11 @@ export default function ProcessRatesPage() {
                           power_cost_per_hour: e.target.value,
                         })
                       }
-                      className="h-11 rounded-xl border-line bg-surface-2 font-black tabular-nums"
+                      className="h-11 rounded-xl border-line bg-surface-2 font-semibold tabular-nums"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">
+                    <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
                       Labor/hr
                     </Label>
                     <Input
@@ -257,11 +257,11 @@ export default function ProcessRatesPage() {
                           labor_cost_per_hour: e.target.value,
                         })
                       }
-                      className="h-11 rounded-xl border-line bg-surface-2 font-black tabular-nums"
+                      className="h-11 rounded-xl border-line bg-surface-2 font-semibold tabular-nums"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-content-4">
+                    <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
                       Overhead/hr
                     </Label>
                     <Input
@@ -273,7 +273,7 @@ export default function ProcessRatesPage() {
                           overhead_cost_per_hour: e.target.value,
                         })
                       }
-                      className="h-11 rounded-xl border-line bg-surface-2 font-black tabular-nums"
+                      className="h-11 rounded-xl border-line bg-surface-2 font-semibold tabular-nums"
                     />
                   </div>
                 </div>
@@ -287,7 +287,7 @@ export default function ProcessRatesPage() {
                   createMutation.mutate(payload);
                 }}
                 disabled={createMutation.isPending || !newRate.process}
-                className="w-full h-12 rounded-xl bg-surface-3 hover:bg-primary text-white font-black uppercase text-[11px] tracking-[0.2em] shadow-lg"
+                className="w-full h-12 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-[11px] tracking-[0.12em] shadow-lg"
               >
                 {createMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -304,11 +304,11 @@ export default function ProcessRatesPage() {
       <Card className="border-none shadow-xl rounded-[2.5rem] overflow-hidden bg-surface-1">
         <CardHeader className="bg-surface-3 text-white p-8 flex flex-row items-center justify-between">
           <div className="space-y-1">
-            <CardTitle className="text-sm font-black uppercase tracking-[0.2em] flex items-center gap-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-[0.12em] flex items-center gap-3">
               <Building className="h-4 w-4 text-info-fg" />
               Master Process Rate Matrix
             </CardTitle>
-            <p className="text-[10px] font-bold text-content-3 uppercase italic tracking-widest">
+            <p className="text-[10px] font-bold text-content-3 uppercase tracking-widest">
               These rates drive the deterministic costing engine
             </p>
           </div>
@@ -317,19 +317,19 @@ export default function ProcessRatesPage() {
           <Table>
             <TableHeader className="bg-surface-2">
               <TableRow className="border-none hover:bg-transparent">
-                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 px-8 italic">
+                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 px-8">
                   Process / Machine
                 </TableHead>
-                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">
+                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
                   <Zap className="h-3 w-3 inline mr-1" /> Power /hr
                 </TableHead>
-                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">
+                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
                   <Users className="h-3 w-3 inline mr-1" /> Labor /hr
                 </TableHead>
-                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-center">
+                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
                   <Building className="h-3 w-3 inline mr-1" /> Overhead /hr
                 </TableHead>
-                <TableHead className="text-[10px] font-black uppercase text-content-4 py-6 italic text-right">
+                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-right">
                   Total ₹/HR
                 </TableHead>
                 <TableHead className="text-right px-8"></TableHead>
@@ -341,7 +341,7 @@ export default function ProcessRatesPage() {
                   <TableCell colSpan={6} className="h-60 text-center">
                     <div className="flex flex-col items-center justify-center space-y-3 opacity-30 select-none">
                       <Info className="h-12 w-12 text-content-4" />
-                      <p className="font-black uppercase tracking-[0.2em] text-xs">
+                      <p className="font-semibold uppercase tracking-[0.12em] text-xs">
                         No process rates configured. The engine will use system
                         defaults.
                       </p>
@@ -356,10 +356,10 @@ export default function ProcessRatesPage() {
                 >
                   <TableCell className="py-8 px-8">
                     <div className="flex flex-col">
-                      <span className="font-black text-content-1 uppercase tracking-tight text-sm italic">
+                      <span className="font-semibold text-content-1 uppercase tracking-tight text-sm">
                         {rate.process_name}
                       </span>
-                      <span className="text-[9px] font-bold text-content-4 uppercase tracking-widest mt-1">
+                      <span className="text-[10px] font-bold text-content-4 uppercase tracking-widest mt-1">
                         {rate.machine_name
                           ? `Machine: ${rate.machine_name} `
                           : "Generic Process Override"}
@@ -371,7 +371,7 @@ export default function ProcessRatesPage() {
                       <Input
                         type="number"
                         value={rate.power_cost_per_hour}
-                        className="w-20 h-9 rounded-lg border-line bg-surface-1 font-black text-center text-xs tabular-nums"
+                        className="w-20 h-9 rounded-lg border-line bg-surface-1 font-semibold text-center text-xs tabular-nums"
                         onChange={(e) => {
                           const updatedRates =
                             queryClient.getQueryData<ProcessCostRate[]>([
@@ -394,7 +394,7 @@ export default function ProcessRatesPage() {
                       <Input
                         type="number"
                         value={rate.labor_cost_per_hour}
-                        className="w-20 h-9 rounded-lg border-line bg-surface-1 font-black text-center text-xs tabular-nums"
+                        className="w-20 h-9 rounded-lg border-line bg-surface-1 font-semibold text-center text-xs tabular-nums"
                         onChange={(e) => {
                           const updatedRates =
                             queryClient.getQueryData<ProcessCostRate[]>([
@@ -417,7 +417,7 @@ export default function ProcessRatesPage() {
                       <Input
                         type="number"
                         value={rate.overhead_cost_per_hour}
-                        className="w-20 h-9 rounded-lg border-line bg-surface-1 font-black text-center text-xs tabular-nums"
+                        className="w-20 h-9 rounded-lg border-line bg-surface-1 font-semibold text-center text-xs tabular-nums"
                         onChange={(e) => {
                           const updatedRates =
                             queryClient.getQueryData<ProcessCostRate[]>([
@@ -438,7 +438,7 @@ export default function ProcessRatesPage() {
                       />
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-black text-content-1 tabular-nums italic">
+                  <TableCell className="text-right font-semibold text-content-1 tabular-nums italic">
                     ₹{Math.round(Number(rate.cost_per_hour)).toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right px-8">
@@ -496,7 +496,7 @@ export default function ProcessRatesPage() {
             )}
           >
             <item.icon className={cn("h-6 w-6 mb-4", item.color)} />
-            <h4 className="font-black text-content-1 text-xs uppercase tracking-widest mb-2">
+            <h4 className="font-semibold text-content-1 text-xs uppercase tracking-widest mb-2">
               {item.title}
             </h4>
             <p className="text-[10px] font-medium text-content-3 leading-relaxed italic opacity-80">

@@ -3,6 +3,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { test, expect } from "../support/base"
 import { annotate, assertHealthyPage } from "../support/test-helpers"
+import { assertLocalUiE2ETestDatabase } from "../support/test-db-safety"
 
 function readPlannerGateSeed() {
   const repoRoot = resolveRepoRoot()
@@ -31,6 +32,7 @@ function resolveRepoRoot() {
 
 function reseedPlannerGate() {
   const repoRoot = resolveRepoRoot()
+  assertLocalUiE2ETestDatabase("Planner artwork gate seed")
   const pythonCandidates = [
     process.env.UI_E2E_PYTHON,
     process.env.BACKEND_PYTHON,

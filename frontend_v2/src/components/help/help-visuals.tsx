@@ -56,10 +56,10 @@ export function HelpFlowDiagram({
     <div className="rounded-2xl border border-line bg-gradient-to-br from-white to-surface-2 p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
             {locale === "hi" ? "Visual Flow" : "Visual Flow"}
           </div>
-          <div className="text-base font-black text-content-1">
+          <div className="text-base font-semibold text-content-1">
             {flow ? localize(flow.title, locale) : "Workflow"}
           </div>
         </div>
@@ -75,14 +75,14 @@ export function HelpFlowDiagram({
             className="relative rounded-xl border border-line bg-surface-1 p-3 shadow-sm"
           >
             <div className="mb-3 flex items-start gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-black text-white">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
                 {index + 1}
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-black leading-5 text-content-1">
+                <div className="text-sm font-semibold leading-5 text-content-1">
                   {localize(node.title, locale)}
                 </div>
-                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-content-4">
+                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-content-4">
                   {node.id}
                 </div>
               </div>

@@ -806,7 +806,7 @@ export function ArtworkDialog({
         <DialogHeader className="border-b pb-2">
           <div className="flex items-center justify-between pr-4">
             <div>
-              <DialogTitle className="text-xl font-black uppercase text-content-2">
+              <DialogTitle className="text-xl font-semibold uppercase text-content-2">
                 {artwork
                   ? `Revise Artwork: ${artwork.design_code}`
                   : "New Artwork"}
@@ -1187,7 +1187,7 @@ export function ArtworkDialog({
               <div className="rounded-xl border border-danger-border bg-danger-bg p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
                       Ink GSM
                     </p>
                     <p className="mt-1 text-[10px] text-primary">
@@ -1238,7 +1238,7 @@ export function ArtworkDialog({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-content-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                         Cylinder specs
                       </p>
                       <p className="mt-1 text-[10px] text-content-3">
@@ -1364,7 +1364,7 @@ export function ArtworkDialog({
                               className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-line bg-surface-1 px-3 py-2"
                             >
                               <div className="min-w-0">
-                                <div className="truncate text-xs font-black text-content-1">
+                                <div className="truncate text-xs font-semibold text-content-1">
                                   {slot.side} {slot.slot} ·{" "}
                                   {slot.color || "Color pending"}
                                 </div>
@@ -1424,7 +1424,7 @@ export function ArtworkDialog({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-primary">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
                               Finish generated drafts in Cylinder Catalog
                             </p>
                             <p className="mt-1 text-[10px] text-primary">

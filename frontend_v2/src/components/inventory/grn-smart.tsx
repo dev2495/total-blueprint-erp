@@ -1033,7 +1033,7 @@ export function GrnSmartV36() {
         >
           ← Stock workspace
         </Link>
-        <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+        <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
           UNIFIED FORM
         </span>
       </div>
@@ -1076,7 +1076,7 @@ export function GrnSmartV36() {
           </div>
           <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-3">
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
-              <div className="font-black uppercase tracking-wider text-success-fg">
+              <div className="font-semibold uppercase tracking-wider text-success-fg">
                 PO linkage
               </div>
               <div className="font-mono text-content-2">
@@ -1088,7 +1088,7 @@ export function GrnSmartV36() {
               </div>
             </div>
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
-              <div className="font-black uppercase tracking-wider text-success-fg">
+              <div className="font-semibold uppercase tracking-wider text-success-fg">
                 Goods received
               </div>
               <div className="font-mono text-content-2">
@@ -1096,7 +1096,7 @@ export function GrnSmartV36() {
               </div>
             </div>
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
-              <div className="font-black uppercase tracking-wider text-success-fg">
+              <div className="font-semibold uppercase tracking-wider text-success-fg">
                 Invoice (dedup OK)
               </div>
               <div className="font-mono text-content-2">
@@ -1105,7 +1105,7 @@ export function GrnSmartV36() {
               </div>
             </div>
           </div>
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success-fg px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success-fg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
             {sourceType === "PO"
               ? "FULLY MATCHED"
               : sourceType === "MANUAL_PO"
@@ -1116,10 +1116,10 @@ export function GrnSmartV36() {
       )}
 
       {/* Hero */}
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-success-fg via-info-fg to-info-fg px-5 py-4 text-white shadow-2xl ">
+      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-success-fg via-info-fg to-info-fg px-5 py-4 text-white shadow-2xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
               GRN · goods receipt note
             </div>
             <h2 className="font-display mt-1 text-2xl font-bold leading-tight">
@@ -1498,7 +1498,7 @@ export function GrnSmartV36() {
                 <div className="m-3 rounded-2xl border border-success-border bg-success-bg p-4 text-sm text-success-fg shadow-sm sm:m-4">
                   <div className="flex flex-col gap-3 border-b border-success-border pb-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
                         Excel validated · review before posting
                       </div>
                       <div className="mt-1 font-bold">
@@ -1547,7 +1547,7 @@ export function GrnSmartV36() {
                   </div>
                   <div className="mt-3 overflow-x-auto rounded-xl border border-success-border bg-surface-1">
                     <table className="min-w-[1360px] text-left text-[11px]">
-                      <thead className="bg-surface-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
+                      <thead className="bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
                         <tr>
                           {[
                             "Row",
@@ -1950,7 +1950,7 @@ export function GrnSmartV36() {
       >
         <div className="mx-auto grid max-w-none gap-2 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-            <span className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
               Live totals
             </span>
             <span className="rounded-full bg-surface-2 px-2.5 py-0.5 font-bold uppercase text-content-2 ring-1 ring-line">
@@ -2003,7 +2003,7 @@ export function GrnSmartV36() {
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 font-black uppercase ring-1 ring-inset",
+                  "rounded-full px-2.5 py-0.5 font-semibold uppercase ring-1 ring-inset",
                   footerReady
                     ? "bg-success-bg text-success-fg ring-success-border"
                     : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -2015,7 +2015,7 @@ export function GrnSmartV36() {
                 <span
                   key={check.label}
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-black ring-1",
+                    "rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
                     check.ok
                       ? "bg-success-bg text-success-fg ring-success-border"
                       : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -2135,7 +2135,7 @@ function Section({
             {idx}
           </span>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
               {eyebrow}
             </div>
             <h2 className="text-[15px] font-bold text-content-1">{title}</h2>
@@ -2203,7 +2203,7 @@ function Field({
 }) {
   return (
     <div className={col2 ? "sm:col-span-2" : ""}>
-      <Label className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
         {required && <span className="text-danger-fg"> *</span>}
       </Label>
@@ -2266,7 +2266,7 @@ function BulkMaterialFilterChips({
 
   return (
     <div className="rounded-xl border border-order-border bg-order-bg px-3 py-2">
-      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
         Material type filter
       </div>
       <div className="flex flex-wrap gap-2">
@@ -2277,7 +2277,7 @@ function BulkMaterialFilterChips({
             data-testid={`smart-grn-filter-${filter.id.toLowerCase()}`}
             onClick={() => onChange(filter.id)}
             className={cn(
-              "rounded-full border px-3 py-1 text-[11px] font-black transition",
+              "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
               value === filter.id
                 ? "border-order-border bg-order-fg text-white shadow-sm"
                 : "border-order-border bg-surface-1 text-order-fg hover:border-order-border",
@@ -2677,7 +2677,7 @@ function RollFastEntryGrid({
     >
       <div className="flex flex-col gap-3 border-b border-success-border bg-success-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
             Fast roll entry
           </div>
           <div className="mt-1 text-sm font-semibold text-content-2">
@@ -2711,7 +2711,7 @@ function RollFastEntryGrid({
       </div>
       <div className="max-h-[64vh] overflow-auto">
         <table className="min-w-[1780px] text-left text-[11px]">
-          <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-3 shadow-sm">
+          <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[260px] px-2 py-2">Film variant</th>
@@ -2746,7 +2746,7 @@ function RollFastEntryGrid({
                     complete ? "bg-success-bg" : "bg-surface-1",
                   )}
                 >
-                  <td className="px-2 py-2 font-mono font-black text-content-3">
+                  <td className="px-2 py-2 font-mono font-semibold text-content-3">
                     {index + 1}
                   </td>
                   <td className="px-2 py-2">
@@ -2873,7 +2873,7 @@ function RollFastEntryGrid({
                       onKeyDown={(e) =>
                         handleCellKeyDown(e, index, "net_weight_kg")
                       }
-                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-black"
+                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-semibold"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -2984,7 +2984,7 @@ function RollFastEntryGrid({
                   <td className="px-2 py-2">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                         complete
                           ? "bg-success-bg text-success-fg"
                           : "bg-warning-bg text-warning-fg",
@@ -3017,7 +3017,7 @@ function RollFastEntryGrid({
           width. Tube/folded rolls are exact-width allocation only. Gross - tare
           writes net kg automatically.
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
           <span className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-content-3">
             {items.length} rolls
           </span>
@@ -3070,10 +3070,10 @@ function FastStat({
         : "border-line bg-surface-1 text-content-2";
   return (
     <div className={cn("rounded-lg border px-3 py-1.5", toneClass)}>
-      <div className="text-[9px] font-black uppercase tracking-wider opacity-70">
+      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
-      <div className="font-mono text-sm font-black">{value}</div>
+      <div className="font-mono text-sm font-semibold">{value}</div>
     </div>
   );
 }
@@ -3426,7 +3426,7 @@ function ReceiptFastEntryGrid({
     >
       <div className="flex flex-col gap-3 border-b border-order-border bg-order-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
             {gridTitle}
           </div>
           <div className="mt-1 text-sm font-semibold text-content-2">
@@ -3462,7 +3462,7 @@ function ReceiptFastEntryGrid({
       </div>
       <div className="max-h-[64vh] overflow-auto">
         <table className="min-w-[1520px] text-left text-[11px]">
-          <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-3 shadow-sm">
+          <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[340px] px-2 py-2">Material</th>
@@ -3525,7 +3525,7 @@ function ReceiptFastEntryGrid({
                     complete ? "bg-order-bg" : "bg-surface-1",
                   )}
                 >
-                  <td className="px-2 py-2 font-mono font-black text-content-3">
+                  <td className="px-2 py-2 font-mono font-semibold text-content-3">
                     {index + 1}
                   </td>
                   <td className="px-2 py-2">
@@ -3646,7 +3646,7 @@ function ReceiptFastEntryGrid({
                       onChange={(e) => handleQtyChange(index, e.target.value)}
                       onKeyDown={(e) => handleCellKeyDown(e, index, "qty")}
                       placeholder={usesGrossTare ? "auto / net" : "qty"}
-                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-black"
+                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-semibold"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3666,7 +3666,7 @@ function ReceiptFastEntryGrid({
                       }
                       disabled={supportedUoms.length <= 1}
                     >
-                      <SelectTrigger className="h-8 rounded-lg border-line bg-surface-2 font-mono text-[11px] font-black text-content-3">
+                      <SelectTrigger className="h-8 rounded-lg border-line bg-surface-2 font-mono text-[11px] font-semibold text-content-3">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -3734,7 +3734,7 @@ function ReceiptFastEntryGrid({
                       className="h-8 rounded-lg border-line font-mono text-[11px]"
                     />
                   </td>
-                  <td className="px-2 py-2 font-mono font-black text-success-fg">
+                  <td className="px-2 py-2 font-mono font-semibold text-success-fg">
                     ₹
                     {value.toLocaleString(undefined, {
                       maximumFractionDigits: 0,
@@ -3743,7 +3743,7 @@ function ReceiptFastEntryGrid({
                   <td className="px-2 py-2">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                         complete
                           ? "bg-success-bg text-success-fg"
                           : "bg-warning-bg text-warning-fg",
@@ -3776,7 +3776,7 @@ function ReceiptFastEntryGrid({
           master item; KG rows can use gross/tare/net, and METER/PCS rows use
           direct received quantity.
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
           <span className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-content-3">
             {items.length} rows
           </span>
@@ -3899,7 +3899,7 @@ function ItemEditor({
   return (
     <div className="rounded-xl border border-line bg-surface-1 p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <span className="rounded-md bg-order-bg px-2 py-0.5 text-[10px] font-black tracking-wider text-order-fg">
+        <span className="rounded-md bg-order-bg px-2 py-0.5 text-[10px] font-semibold tracking-wider text-order-fg">
           Line {index + 1}
         </span>
         <button
@@ -4082,7 +4082,7 @@ function ItemEditor({
 
       {klass === "ROLL" && (
         <div className="mt-3 rounded-xl border border-line bg-surface-2 p-3">
-          <div className="text-[10px] font-black uppercase tracking-wider text-content-3 mb-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3 mb-2">
             Roll-specific fields
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -4146,7 +4146,7 @@ function ItemEditor({
         <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-[11px] font-semibold text-content-3">
           Packaging kind, supply mode, and pack defaults are taken from
           Packaging Master for{" "}
-          <span className="font-mono font-black text-content-1">
+          <span className="font-mono font-semibold text-content-1">
             {selectedMaterial.code}
           </span>
           . GRN only records received quantity, UOM, cost, location, and vendor
@@ -4332,7 +4332,7 @@ function TradingReceiptPanel({
     <div className="overflow-hidden bg-surface-1 shadow-sm">
       <div className="flex flex-col gap-3 border-b border-order-border bg-order-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-order-fg">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
             Fast trading entry
           </div>
           <div className="mt-1 text-sm font-semibold text-content-2">
@@ -4345,7 +4345,7 @@ function TradingReceiptPanel({
             and average cost stay separate from raw materials.
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
           <span className="rounded-lg border border-line bg-surface-1 px-2.5 py-1 text-content-3">
             1 row
           </span>
@@ -4369,7 +4369,7 @@ function TradingReceiptPanel({
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[1660px] text-left text-[11px]">
-          <thead className="bg-surface-2 text-[10px] font-black uppercase tracking-[0.16em] text-content-3">
+          <thead className="bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[360px] px-2 py-2">Trading good</th>
@@ -4392,7 +4392,7 @@ function TradingReceiptPanel({
                 valid ? "bg-order-bg" : "bg-surface-1",
               )}
             >
-              <td className="px-2 py-2 font-mono font-black text-content-3">
+              <td className="px-2 py-2 font-mono font-semibold text-content-3">
                 1
               </td>
               <td className="px-2 py-2">
@@ -4453,14 +4453,14 @@ function TradingReceiptPanel({
                   onChange={(e) => setQty(e.target.value)}
                   type="number"
                   placeholder={usesGrossTare ? "auto / net" : "qty"}
-                  className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-black"
+                  className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-semibold"
                 />
               </td>
               <td className="px-2 py-2">
                 <Input
                   value={baseUom}
                   readOnly
-                  className="h-8 rounded-lg border-line bg-surface-2 font-mono text-[11px] font-black text-content-3"
+                  className="h-8 rounded-lg border-line bg-surface-2 font-mono text-[11px] font-semibold text-content-3"
                 />
               </td>
               <td className="px-2 py-2">
@@ -4486,7 +4486,7 @@ function TradingReceiptPanel({
                   className="h-8 rounded-lg border-warning-border bg-warning-bg/40 font-mono text-[11px]"
                 />
               </td>
-              <td className="px-2 py-2 font-mono font-black text-success-fg">
+              <td className="px-2 py-2 font-mono font-semibold text-success-fg">
                 ₹{value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </td>
               <td className="px-2 py-2">
@@ -4499,7 +4499,7 @@ function TradingReceiptPanel({
               <td className="px-2 py-2">
                 <span
                   className={cn(
-                    "inline-flex rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                     valid
                       ? "bg-success-bg text-success-fg"
                       : "bg-warning-bg text-warning-fg",
@@ -4516,10 +4516,10 @@ function TradingReceiptPanel({
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
                 Cost details
               </div>
-              <div className="mt-1 text-lg font-black text-content-1">
+              <div className="mt-1 text-lg font-semibold text-content-1">
                 ₹
                 {receiptTotal.toLocaleString(undefined, {
                   maximumFractionDigits: 2,
@@ -4558,7 +4558,7 @@ function TradingReceiptPanel({
                   : "border-warning-border bg-warning-bg text-warning-fg",
               )}
             >
-              <div className="font-black uppercase tracking-[0.18em]">
+              <div className="font-semibold uppercase tracking-[0.1em]">
                 {valid ? "Ready to post" : "Needs info"}
               </div>
               <div className="mt-0.5 font-semibold">{rateHint}</div>
@@ -4606,7 +4606,7 @@ function TradingReceiptPanel({
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-content-3">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
             Receipt guards
           </div>
           <div className="mt-3 grid gap-2">
@@ -4620,7 +4620,7 @@ function TradingReceiptPanel({
           <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-[11px] text-content-3">
             {selected ? (
               <>
-                <span className="font-black text-content-2">
+                <span className="font-semibold text-content-2">
                   {selected.code}
                 </span>{" "}
                 · {selected.name} · {selected.trade_type || "Trading"} · base{" "}
@@ -4643,7 +4643,7 @@ function TradingReceiptPanel({
           section. Plant is inferred from the receiving warehouse.
         </div>
         <div className="flex items-center gap-2">
-          <div className="rounded-lg border border-success-border bg-success-bg px-3 py-1 text-right text-[11px] font-black text-success-fg">
+          <div className="rounded-lg border border-success-border bg-success-bg px-3 py-1 text-right text-[11px] font-semibold text-success-fg">
             ₹
             {receiptTotal.toLocaleString(undefined, {
               maximumFractionDigits: 0,
@@ -4687,12 +4687,12 @@ function TradingCostMetric({
           : "border-line bg-surface-2",
       )}
     >
-      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-content-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
         {label}
       </div>
       <div
         className={cn(
-          "mt-1 font-mono text-sm font-black",
+          "mt-1 font-mono text-sm font-semibold",
           tone === "success" ? "text-success-fg" : "text-content-1",
         )}
       >
@@ -4708,7 +4708,7 @@ function TradingGuardRow({ label, ok }: { label: string; ok: boolean }) {
       <span className="font-semibold text-content-2">{label}</span>
       <span
         className={cn(
-          "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider",
+          "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
           ok ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg",
         )}
       >
