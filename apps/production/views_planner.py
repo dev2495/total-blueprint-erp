@@ -5,6 +5,7 @@ import logging
 import uuid
 
 from django.db import transaction
+from django.core import signing
 from django.db.models import Count, Max, Prefetch, Q, Sum
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
@@ -53,6 +54,7 @@ from apps.templates.models import TemplateBlueprint
 from apps.templates.services import TemplateDispatchService, TemplateGovernanceService
 from apps.bom.readiness import bom_readiness_errors
 from apps.production.services.stock_validator import first_artwork_step_index, validate_planner_stop_step
+from apps.production.services.planner_operations import entity_revision, planner_operation
 
 from apps.physics.services_physics import PhysicsEngine
 from apps.inventory.services.roll_naming import build_roll_naming_payload
@@ -2415,10 +2417,14 @@ class PlannerViewSet(viewsets.ViewSet):
         if not variant_ids:
             return 0
         unique_ids = list(dict.fromkeys(variant_ids))
-        material_rows = {
+        cache = getattr(self, '_control_hub_material_flags', {})
+        missing_ids = [value for value in unique_ids if value not in cache]
+        cache.update({
             str(row["id"]): bool(row["is_extrudable"])
-            for row in InventoryMaterial.objects.filter(id__in=unique_ids).values("id", "is_extrudable")
-        }
+            for row in InventoryMaterial.objects.filter(id__in=missing_ids).values("id", "is_extrudable")
+        })
+        self._control_hub_material_flags = cache
+        material_rows = {value: cache[value] for value in unique_ids if value in cache}
         if len(material_rows) != len(unique_ids):
             return 0
         all_purchased = all(not bool(material_rows.get(variant_id, False)) for variant_id in unique_ids)
@@ -2531,9 +2537,43 @@ class PlannerViewSet(viewsets.ViewSet):
             return Decimal(str(order_obj.total_weight_kg or 0))
         return Decimal(str(order_obj.target_qty or 0))
 
+    def _batch_sales_line_read_metrics(self, items):
+        """Request-local totals with the same dispatch/route/UOM rules as sales."""
+        from apps.sales.models_dispatch import CustomerDispatchLine
+
+        by_id = {str(item.id): item for item in items}
+        if not by_id:
+            return
+        for item in items:
+            item._read_qty_dispatched = Decimal('0')
+            item._read_final_output_kg = Decimal('0')
+            item._read_completed_step_output = {}
+        for row in CustomerDispatchLine.objects.filter(
+            sales_order_item_id__in=by_id, dispatch__status__in=['CONFIRMED', 'DISPATCHED'],
+        ).values('sales_order_item_id').annotate(total=Sum('qty_dispatched')):
+            by_id[str(row['sales_order_item_id'])]._read_qty_dispatched = row['total'] or Decimal('0')
+        jobs = {
+            str(job.id): job for job in ProductionJob.objects.filter(
+                sales_order_item_id__in=by_id, job_state='COMPLETED',
+            ).select_related('routing_rule').only('id', 'sales_order_item_id', 'current_step_index', 'routing_rule__ordered_processes')
+        }
+        for row in JobExecutionLog.objects.filter(production_job_id__in=jobs).values('production_job_id', 'uom').annotate(total=Sum('quantity')):
+            job = jobs[str(row['production_job_id'])]
+            item = by_id[str(job.sales_order_item_id)]
+            qty = Decimal(str(row['total'] or 0))
+            index = int(job.current_step_index or 0)
+            item._read_completed_step_output[index] = item._read_completed_step_output.get(index, Decimal('0')) + qty
+            last = max(0, len(getattr(job.routing_rule, 'ordered_processes', None) or []) - 1)
+            if index >= last:
+                if str(row['uom'] or 'KG').upper() == 'KG':
+                    item._read_final_output_kg += qty
+                elif str(row['uom']).upper() == 'PCS' and Decimal(str(item.unit_weight_g or 0)) > 0:
+                    item._read_final_output_kg += qty * Decimal(str(item.unit_weight_g)) / Decimal('1000')
+
     def _sales_item_partial_metrics(self, so_item, route_last_index: int):
         target_kg = Decimal(str(getattr(so_item, "total_weight_kg", 0) or 0))
-        produced_kg = Decimal(
+        produced_kg = (getattr(so_item, '_read_completed_step_output', {}).get(route_last_index, Decimal('0'))
+            if hasattr(so_item, '_read_completed_step_output') else Decimal(
             str(
                 JobExecutionLog.objects.filter(
                     production_job__sales_order_item=so_item,
@@ -2542,7 +2582,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 ).aggregate(total=Sum("quantity")).get("total")
                 or 0
             )
-        )
+        ))
         has_started_final_output = produced_kg > 0
         shortfall_kg = Decimal("0")
         shortfall_pct = Decimal("0")
@@ -4891,6 +4931,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "source_availability": workspace.get("source_availability"),
         }
         keep_keys = {
+            "revision",
             "order_kind",
             "order_id",
             "sales_order_item_id",
@@ -5784,11 +5825,28 @@ class PlannerViewSet(viewsets.ViewSet):
 
         rolls = (
             InventoryRoll.objects.filter(filter_q)
-            .select_related("template", "material", "sales_order_item", "location", "location__plant")
+            .select_related(
+                "template__routing_rule", "material", "sales_order_item", "location__plant",
+                "created_by_job__sales_order_item", "created_by_job__mts_order__template__routing_rule",
+                "production_job__sales_order_item", "production_job__mts_order__template__routing_rule",
+                "parent_roll",
+            )
+            .only('id', 'label_id', 'status', 'material', 'location__plant', 'parent_roll',
+                  'template__name', 'template__fg_type', 'template__pouch_style', 'template__routing_rule__ordered_processes',
+                  'sales_order_item__sales_order_id', 'sales_order_item__spec_signature', 'sales_order_item__invariant_signature',
+                  'width_mm', 'thickness_micron', 'weight_kg', 'completed_step_index', 'meta_json', 'is_fg', 'geometry_override',
+                  *[f'{origin}__{field}' for origin in ('created_by_job', 'production_job') for field in
+                    ('source_type', 'sales_order_item__sales_order_id', 'mts_order__template__fg_type',
+                     'mts_order__template__routing_rule__ordered_processes', 'mts_order__planner_stock_class', 'mts_order__stock_purpose',
+                     'mts_order__stop_step_index', 'mts_order__stock_strategy', 'mts_order__spec_signature', 'mts_order__invariant_signature',
+                     'mts_order__layer_snapshot', 'mts_order__commitment_scope', 'mts_order__product_master_id',
+                     'mts_order__committed_customer_id', 'mts_order__committed_artwork_id')])
             .order_by("-created_at", "completed_step_index")
         )
 
-        for roll in rolls:
+        # Stream all candidates: an option limit must not hide compatible stock
+        # after many rejected rolls, or materialize the entire inventory at once.
+        for roll in rolls.iterator(chunk_size=128):
             roll_route_id = getattr(getattr(roll, "template", None), "routing_rule_id", None)
             if order_routing_rule_id and roll.template_id and roll_route_id != order_routing_rule_id:
                 continue
@@ -5813,8 +5871,6 @@ class PlannerViewSet(viewsets.ViewSet):
             if stage0_bulk_roll and not stage0_continuation_allowed:
                 continue
 
-            stage_name = self._route_step_label(roll.template, completed_step_index) if getattr(roll, "template", None) else None
-            naming = build_roll_naming_payload(roll, role=resolve_roll_role(roll), stage_name=stage_name or "Raw Material")
             matches_sig = False
             signature_match_mode = None
             stock_strategy = "FINAL_STOCK" if is_final_step else "INTERMEDIATE_POOL"
@@ -5851,6 +5907,8 @@ class PlannerViewSet(viewsets.ViewSet):
             
             if not matches_sig:
                 continue
+            stage_name = self._route_step_label(roll.template, completed_step_index) if getattr(roll, "template", None) else None
+            naming = build_roll_naming_payload(roll, role=resolve_roll_role(roll), stage_name=stage_name or "Raw Material")
             if order_kind == "sales":
                 if source_stock_order and not self._stock_commitment_matches_sales_item(source_stock_order, sales_item or order_obj):
                     continue
@@ -5922,7 +5980,8 @@ class PlannerViewSet(viewsets.ViewSet):
                 template=template,
                 completed_step_index=route_last_index,
             )
-            .select_related("template", "sales_order_item", "location", "location__plant")
+            .select_related("template__routing_rule", "template__commercial_family", "sales_order_item", "location__plant",
+                            "production_job__mts_order__template__routing_rule")
             .order_by("-created_at", "completed_step_index")
         )
 
@@ -6010,6 +6069,10 @@ class PlannerViewSet(viewsets.ViewSet):
         return current or product_master
 
     def _maybe_sync_sales_item_product_master(self, so_item):
+        # Display reads use the stored order snapshot. Master rebase is already
+        # governed by master edits and planning mutations, never a detail GET.
+        if getattr(getattr(self, 'request', None), 'method', 'GET') in {'GET', 'HEAD', 'OPTIONS'}:
+            return so_item
         if not so_item:
             return so_item
         current_master = self._current_product_master_for_sales_item(so_item)
@@ -6193,7 +6256,8 @@ class PlannerViewSet(viewsets.ViewSet):
             if not refreshed or refreshed == snapshot:
                 return snapshot
             refreshed_errors = bom_readiness_errors(refreshed)
-            if not any("no recipe for" in str(error or "").lower() for error in refreshed_errors):
+            if (getattr(getattr(self, 'request', None), 'method', 'GET') not in {'GET', 'HEAD', 'OPTIONS'}
+                    and not any("no recipe for" in str(error or "").lower() for error in refreshed_errors)):
                 so_item.save(update_fields=["bom_snapshot", "unit_weight_g", "total_weight_kg"])
             return refreshed
         except Exception:
@@ -6218,6 +6282,8 @@ class PlannerViewSet(viewsets.ViewSet):
         queue_filters: dict | None = None,
         active_filters: dict | None = None,
         scan_limit_override: int | None = None,
+        queue_cursor: str = '',
+        compact_queue: bool = False,
         v2: bool = False,
     ):
         planning_queue = []
@@ -6227,6 +6293,18 @@ class PlannerViewSet(viewsets.ViewSet):
         detail_order_id = str(detail_order_id or "").strip()
         detail_sales_order_item_id = str(detail_sales_order_item_id or "").strip()
         detail_requested = bool(detail_order_id or detail_sales_order_item_id)
+        paged_queue = bool(summary and planning_limit > 0 and active_limit == 0 and history_limit == 0 and not detail_requested)
+        page_limit = planning_limit
+        cursor_state = {}
+        if queue_cursor and paged_queue:
+            try:
+                cursor_state = signing.loads(queue_cursor, salt='planner-queue-page', max_age=3600)
+            except signing.BadSignature:
+                return Response({'error': 'This queue page expired. Reload the first page.'}, status=400)
+        if paged_queue:
+            planning_limit += 1
+        page_positions = {}
+        last_position = None
         history_offset = max(0, int(history_offset or 0))
         history_job_limit = max(1, min(int(history_job_limit or 8), 12))
         history_collect_limit = history_limit + history_offset + (1 if history_limit > 0 else 0)
@@ -6262,7 +6340,16 @@ class PlannerViewSet(viewsets.ViewSet):
                 lightweight=lightweight and is_summary_row,
                 resolve_materials=not is_summary_row,
             )
-            return decorated if force_detail or not summary else self._summary_control_hub_row(decorated)
+            if force_detail or not summary:
+                return decorated
+            slim = self._summary_control_hub_row(decorated)
+            if paged_queue and compact_queue:
+                for key in ('production_trace', 'analytics', 'workspace', 'summary', 'release_checklist', 'artwork_gate'):
+                    slim.pop(key, None)
+                facts = slim.get('order_fact_sheet') or {}
+                slim['order_fact_sheet'] = {key: value for key, value in facts.items() if not isinstance(value, (list, dict))}
+                slim['template_steps'] = []
+            return slim
 
         def should_stop_scanning() -> bool:
             if not (
@@ -6322,6 +6409,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "assigned_artwork",
             ).only(
                 "id",
+                "created_at",
                 "sales_order_id",
                 "template_id",
                 "product_master_id",
@@ -6373,7 +6461,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "assigned_artwork__colors_count",
                 "assigned_artwork__front_colors_count",
                 "assigned_artwork__back_colors_count",
-            ),
+            ).order_by('created_at', 'id'),
         )
 
         queue_search = str(queue_filters.get("search") or "").strip()
@@ -6381,8 +6469,24 @@ class PlannerViewSet(viewsets.ViewSet):
             SalesOrder.objects.exclude(status__in=["DRAFT", "CANCELLED"])
             .only("id", "order_number", "customer_name", "delivery_date", "status", "geometry_override", "created_at")
             .prefetch_related(item_prefetch)
-            .order_by("-created_at")
+            .order_by("-created_at", '-id')
         )
+        if paged_queue:
+            sales_qs = sales_qs.filter(Q(items__line_status__in=['OPEN', 'PLANNING_REQUIRED']) | Q(status='CONFIRMED')).distinct()
+            if cursor_state.get('phase') == 'stock':
+                sales_qs = sales_qs.none()
+            elif cursor_state.get('sales'):
+                anchor = cursor_state['sales']
+                sales_qs = sales_qs.filter(Q(created_at__lt=anchor['date']) | Q(created_at=anchor['date'], id__lte=anchor['id']))
+            customer_filter = str(queue_filters.get('customer') or '')
+            template_filter = str(queue_filters.get('template') or '')
+            fg_filter = str(queue_filters.get('fg_type') or '')
+            if customer_filter and customer_filter.upper() != 'ALL':
+                sales_qs = sales_qs.filter(customer_name=customer_filter)
+            if template_filter and template_filter.upper() != 'ALL':
+                sales_qs = sales_qs.filter(items__template__name=template_filter)
+            if fg_filter and fg_filter.upper() != 'ALL':
+                sales_qs = sales_qs.filter(items__template__fg_type__icontains=fg_filter)
         if queue_search:
             sales_qs = sales_qs.filter(
                 Q(order_number__icontains=queue_search)
@@ -6415,14 +6519,21 @@ class PlannerViewSet(viewsets.ViewSet):
             and not str(history_query or "").strip()
         )
         detail_sales = fetch_detail_sales_order()
-        all_sales = [detail_sales] if detail_only_request and detail_sales is not None else ([] if detail_only_request else list(sales_qs[:scan_limit]))
+        sales_page = [] if detail_only_request else list(sales_qs[:scan_limit + (1 if paged_queue else 0)])
+        sales_overflow = paged_queue and len(sales_page) > scan_limit
+        all_sales = [detail_sales] if detail_only_request and detail_sales is not None else ([] if detail_only_request else sales_page[:scan_limit])
         if detail_sales is not None and not any(str(order.id) == str(detail_sales.id) for order in all_sales):
             all_sales.insert(0, detail_sales)
         stock_qs = (
             PlannedStockOrder.objects.exclude(status__in=["CANCELLED"])
             .select_related("template", "template__routing_rule")
-            .order_by("-created_at")
+            .order_by("-created_at", '-id')
         )
+        if paged_queue:
+            stock_qs = stock_qs.filter(status='PLANNING_REQUIRED')
+            if cursor_state.get('stock'):
+                anchor = cursor_state['stock']
+                stock_qs = stock_qs.filter(Q(created_at__lt=anchor['date']) | Q(created_at=anchor['date'], id__lt=anchor['id']))
         if queue_search:
             stock_qs = stock_qs.filter(
                 Q(order_number__icontains=queue_search)
@@ -6438,7 +6549,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 )
             except Exception:
                 detail_stock = None
-        all_mts = [detail_stock] if detail_only_request and detail_stock is not None else ([] if detail_only_request else list(stock_qs[:scan_limit]))
+        stock_page = [] if detail_only_request or sales_overflow else list(stock_qs[:scan_limit + (1 if paged_queue else 0)])
+        stock_overflow = paged_queue and len(stock_page) > scan_limit
+        all_mts = [detail_stock] if detail_only_request and detail_stock is not None else ([] if detail_only_request else stock_page[:scan_limit])
         if detail_stock is not None and not any(str(order.id) == str(detail_stock.id) for order in all_mts):
             all_mts.insert(0, detail_stock)
 
@@ -6464,21 +6577,40 @@ class PlannerViewSet(viewsets.ViewSet):
             history_query=history_query,
             sales_item_ids=sales_item_ids,
         )
+        self._batch_sales_line_read_metrics([item for order in all_sales for item in order.items.all()])
+        layer_material_ids = {str(layer.get('variant_id') or layer.get('material_id')) for order in all_sales
+                              for item in order.items.all() for layer in (item.layer_snapshot or []) if isinstance(layer, dict)
+                              and (layer.get('variant_id') or layer.get('material_id'))}
+        self._control_hub_material_flags = {str(row['id']): bool(row['is_extrudable'])
+                                          for row in InventoryMaterial.objects.filter(id__in=layer_material_ids).values('id', 'is_extrudable')}
 
         limits_reached = False
         for order in all_sales:
             sales_items = list(order.items.all())
             for line_index, raw_item in enumerate(sales_items, start=1):
+                if paged_queue:
+                    anchor = cursor_state.get('sales') or {}
+                    if str(order.id) == anchor.get('id') and str(raw_item.created_at.isoformat()) <= str(anchor.get('item_date', '')):
+                        if raw_item.created_at.isoformat() < anchor.get('item_date', '') or str(raw_item.id) <= anchor.get('item_id', ''):
+                            continue
+                    last_position = {'phase': 'sales', 'sales': {'date': order.created_at.isoformat(), 'id': str(order.id),
+                                                              'item_date': raw_item.created_at.isoformat(), 'item_id': str(raw_item.id)}}
+                    page_positions[('sales', str(order.id), str(raw_item.id))] = last_position
                 raw_item_is_detail = (
                     (detail_sales_order_item_id and str(getattr(raw_item, "id", "") or "") == detail_sales_order_item_id)
                     or (
+                        not detail_sales_order_item_id
+                        and
                         detail_order_kind == "sales"
                         and detail_order_id
                         and str(getattr(order, "id", "") or "") == detail_order_id
                     )
                 )
+                if detail_only_request and not raw_item_is_detail:
+                    continue
                 prefer_current_master = (not summary) or raw_item_is_detail
                 so_item = self._maybe_sync_sales_item_product_master(raw_item) if prefer_current_master else raw_item
+                revision = entity_revision('sales', so_item)
                 template = getattr(so_item, "template", None)
                 if not template:
                     continue
@@ -6575,10 +6707,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     required_qty_pcs = float((line_total_kg * Decimal("1000")) / unit_weight)
                 bom_snapshot = getattr(so_item, "bom_snapshot", {}) or {}
                 # Queue summaries are a read path over the order's immutable BOM
-                # snapshot. Repairing legacy snapshots here caused hundreds of
-                # material/recipe queries and could mutate orders while simply
-                # opening Planner. Keep repair limited to an explicit detail
-                # load (or the non-summary compatibility response).
+                # snapshot. Detail may preview a repaired BOM in memory;
+                # only an explicit planner mutation persists the repair.
                 if raw_item_is_detail or not summary:
                     bom_snapshot = self._maybe_refresh_stale_recipe_bom_for_sales_item(so_item, bom_snapshot)
                 material_plan_lines, material_plan_summary = self._material_plan_payload(bom_snapshot)
@@ -6687,6 +6817,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "qty_cancelled": float(Decimal(str(getattr(so_item, "qty_cancelled", 0) or 0))),
                     "qty_short_closed": float(Decimal(str(getattr(so_item, "qty_short_closed", 0) or 0))),
                     "qty_dispatched": float(qty_dispatched),
+                    "revision": revision,
                     "parent_status": order.status,
                     "order_number": order.order_number,
                     "customer_name": str(order.customer_name or "").strip(),
@@ -6819,6 +6950,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 break
 
         for order in all_mts:
+            if paged_queue:
+                last_position = {'phase': 'stock', 'stock': {'date': order.created_at.isoformat(), 'id': str(order.id)}}
+                page_positions[('stock', str(order.id), '')] = last_position
             template = getattr(order, "template", None)
             if not template:
                 continue
@@ -6844,6 +6978,7 @@ class PlannerViewSet(viewsets.ViewSet):
             row = {
                 "order_kind": "stock",
                 "order_id": str(order.id),
+                "revision": entity_revision('stock', order),
                 "order_number": order.order_number,
                 "customer_name": "",
                 "display_name": str(getattr(order, "internal_name", "") or template.name or "").strip(),
@@ -6964,6 +7099,13 @@ class PlannerViewSet(viewsets.ViewSet):
             detail_order["production_trace"] = self._row_production_trace(detail_order)
             detail_order["analytics"] = self._row_v2_analytics(detail_order)
 
+        if paged_queue:
+            has_more = len(planning_queue) > page_limit or sales_overflow or stock_overflow
+            position = last_position
+            if len(planning_queue) > page_limit:
+                last_row = planning_queue[page_limit - 1]
+                position = page_positions[(last_row['order_kind'], last_row['order_id'], last_row.get('sales_order_item_id') or '')]
+            planning_limit = page_limit
         payload = {
             "orders": planning_queue[:planning_limit],
             "active_orders": active_orders[:active_limit],
@@ -6982,6 +7124,10 @@ class PlannerViewSet(viewsets.ViewSet):
             "detail_order": detail_order,
             "summary": bool(summary),
         }
+        if paged_queue:
+            payload['planning_page'] = {'returned_count': len(payload['orders']), 'count_scope': 'page',
+                'has_more': bool(has_more and position), 'next_cursor': signing.dumps(position, salt='planner-queue-page', compress=True) if has_more and position else None,
+                'scanned_orders': len(all_sales) + len(all_mts), 'generated_at': timezone.now().isoformat()}
         if v2:
             payload["v2"] = True
             payload["analytics"] = self._control_hub_v2_analytics(
@@ -7062,6 +7208,8 @@ class PlannerViewSet(viewsets.ViewSet):
             queue_filters=queue_filters,
             active_filters=active_filters,
             scan_limit_override=scan_limit or None,
+            queue_cursor=str(request_params.get('queue_cursor') or ''),
+            compact_queue=str(request_params.get('compact_queue') or '').lower() in {'1', 'true'},
             v2=v2,
         )
         scan_limit = max(48, planning_limit * 4 + active_limit * 3 + history_limit * 3)
@@ -9118,6 +9266,7 @@ class PlannerViewSet(viewsets.ViewSet):
         methods=["post"],
         url_path=r"control-hub/(?P<order_kind>sales|stock)/(?P<order_id>[^/.]+)/plan",
     )
+    @planner_operation('plan')
     def control_hub_plan(self, request, order_kind=None, order_id=None):
         option = str(request.data.get("option") or "").upper()
         valid_options = {"FG", "WIP_CONTINUE", "SHARED_INVARIANT", "UPSTREAM_STOCK", "POD_BULK", "PACKAGING_STOCK", "FRESH"}
@@ -9134,6 +9283,7 @@ class PlannerViewSet(viewsets.ViewSet):
         if order_kind == "sales":
             try:
                 target_sales_item = self._resolve_sales_control_item(order_obj, sales_item_id, required=True)
+                target_sales_item = self._maybe_sync_sales_item_product_master(target_sales_item)
                 template = target_sales_item.template
                 route_last = self._route_last_index(template)
             except Exception as exc:
@@ -9758,6 +9908,7 @@ class PlannerViewSet(viewsets.ViewSet):
         methods=["post"],
         url_path=r"control-hub/(?P<order_kind>sales|stock)/(?P<order_id>[^/.]+)/release",
     )
+    @planner_operation('release')
     def control_hub_release(self, request, order_kind=None, order_id=None):
         try:
             order_kind, order_obj, _template, _route_last = self._get_order_for_kind(order_kind, order_id)

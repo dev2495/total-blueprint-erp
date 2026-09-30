@@ -4860,16 +4860,16 @@
     ],
     "recoverySteps": [
       {
-        "en": "Refresh the page and re-open the record from the current workspace.",
-        "hi": "Refresh the page and re-open the record from the current workspace."
+        "en": "If a save response is lost, keep the pending operation and use Resume or Confirm saved plan. It reuses the saved operation identity.",
+        "hi": "सेव का उत्तर खो जाए तो लंबित कार्रवाई रखें और Resume या Confirm saved plan चुनें। यह वही कार्रवाई पहचान दोबारा उपयोग करता है।"
       },
       {
-        "en": "Correct the missing context or field-level validation error.",
-        "hi": "Correct the missing context or field-level validation error."
+        "en": "Saved; queue refresh pending means the order was saved. Use Refresh and do not submit it again.",
+        "hi": "Saved; queue refresh pending का मतलब ऑर्डर सेव हो गया है। Refresh चुनें; दोबारा सबमिट न करें।"
       },
       {
-        "en": "If the issue persists, raise a governance note with route, payload, and timestamp.",
-        "hi": "If the issue persists, raise a governance note with route, payload, and timestamp."
+        "en": "Actions stay paused while the selected line detail loads or changes. Confirm the line name before releasing.",
+        "hi": "चयनित लाइन का विवरण लोड या बदलने तक कार्रवाई रुकी रहती है। रिलीज से पहले लाइन का नाम जांचें।"
       }
     ],
     "relatedRoutes": [
@@ -23032,6 +23032,87 @@
     "relatedRoutes": [
       "/production/ink-control",
       "/analytics/reports"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
+    "routePattern": "/production/jobs/[id]",
+    "title": {
+      "en": "Production job",
+      "hi": "उत्पादन जॉब"
+    },
+    "module": "Production",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANNER",
+      "PLANT_MANAGER",
+      "WORK_CENTER_MANAGER",
+      "OPERATOR"
+    ],
+    "summary": {
+      "en": "View the saved job, quantities, current process and assigned equipment.",
+      "hi": "सहेजे गए जॉब, मात्रा, वर्तमान प्रक्रिया और असाइन किए गए उपकरण देखें।"
+    },
+    "purpose": {
+      "en": "Inspect production progress and open its machine terminal or trace. This summary does not post production.",
+      "hi": "उत्पादन प्रगति जांचें और मशीन टर्मिनल या ट्रेस खोलें। यह सारांश उत्पादन पोस्ट नहीं करता।"
+    },
+    "prerequisites": [
+      {
+        "en": "Open the correct job from the queue, trace or activity feed.",
+        "hi": "क्यू, ट्रेस या गतिविधि से सही जॉब खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Check the job number, order, state and quantity unit.",
+        "hi": "जॉब नंबर, ऑर्डर, स्थिति और मात्रा की इकाई जांचें।"
+      },
+      {
+        "en": "Use Machine terminal when a machine is assigned; use Trace for the linked production history.",
+        "hi": "मशीन असाइन हो तो मशीन टर्मिनल खोलें; संबंधित उत्पादन इतिहास के लिए ट्रेस खोलें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Progress",
+          "hi": "प्रगति"
+        },
+        "help": {
+          "en": "Produced quantity compared with the planned quantity in the job unit.",
+          "hi": "जॉब की इकाई में उत्पादित मात्रा की तुलना नियोजित मात्रा से की जाती है।"
+        }
+      }
+    ],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Job not found",
+          "hi": "जॉब नहीं मिला"
+        },
+        "reason": {
+          "en": "The job may be unavailable or your role may not have access.",
+          "hi": "जॉब उपलब्ध नहीं हो सकता या आपकी भूमिका को एक्सेस नहीं है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Reopen the job from the current queue or trace and confirm role access.",
+        "hi": "वर्तमान क्यू या ट्रेस से जॉब फिर खोलें और भूमिका का एक्सेस जांचें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/production/work-center",
+      "/dashboard/planner/control-tower/completed-trace"
     ],
     "screenshotKeys": [],
     "faqRefs": [

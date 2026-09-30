@@ -124,7 +124,7 @@ export default function CommandTab() {
     });
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-ct-v3"],
-        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 18, active_limit: 24, history_limit: 16, timeout_ms: 12000 }),
+        queryFn: ({ signal }) => plannerService.getControlHub({ summary: true, planning_limit: 18, active_limit: 24, history_limit: 16, timeout_ms: 12000 }, signal),
         refetchInterval: 60_000,
         staleTime: 30_000,
         meta: { suppressGlobalError: true },

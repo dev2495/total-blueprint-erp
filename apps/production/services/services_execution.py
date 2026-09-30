@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from django.db import transaction
 from django.core.exceptions import ValidationError
@@ -196,7 +197,7 @@ class ExecutionService:
         material = getattr(requirement, "material", None)
         if not step or not material:
             return None
-        rows = list(step.materials.select_related("material").all())
+        rows = list(step.materials.all())
         exact_rows = [row for row in rows if row.material_id and str(row.material_id) == str(material.id)]
         if exact_rows:
             return exact_rows[0]
@@ -207,14 +208,18 @@ class ExecutionService:
         return None
 
     @classmethod
-    def current_step_requirement_policy_items(cls, job, sync_requirements=False):
+    def current_step_requirement_policy_items(cls, job, sync_requirements=False, *, requirements=None):
         current_step_sequence = int(getattr(job, "current_step_index", 0) or 0) + 1
         override_map = cls._current_step_issue_policy_override_map(job)
-        requirements = (
-            job.material_requirements
-            .select_related("material", "process_step")
-            .filter(process_step__sequence_number=current_step_sequence)
-            .order_by("process_step__sequence_number", "material__name", "id")
+        if requirements is None:
+            requirements = (
+                job.material_requirements.select_related("material", "process_step__process")
+                .prefetch_related("process_step__materials")
+                if sync_requirements else cls._display_requirements(job)
+            )
+        requirements = sorted(
+            (row for row in requirements if row.process_step and row.process_step.sequence_number == current_step_sequence),
+            key=lambda row: (row.material.name, str(row.id)),
         )
         items = []
         sync_updates = []
@@ -1264,7 +1269,7 @@ class ExecutionService:
             return set()
 
     @classmethod
-    def _resolve_step_execution_profile_v2(cls, job):
+    def _resolve_step_execution_profile_v2(cls, job, *, requirements=None):
         process = job.current_process or job.process
         input_form = str(getattr(process, "input_form", "") or "").upper()
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
@@ -1273,10 +1278,10 @@ class ExecutionService:
         is_roll_mass_job = cls._is_roll_mass_job(job)
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
 
-        # Keep requirements in sync with category mapping + SO BOM material identity.
-        # An execution profile based on stale requirements can release the wrong
-        # materials, so calculation failures must block the profile.
-        cls.calculate_requirements(job.id)
+        # Display the current BOM projection without taking write locks. Never
+        # substitute stale persisted quantities when the projection fails.
+        if requirements is None:
+            requirements = cls._display_requirements(job)
 
         qty_uom = str(job.uom or "KG").upper()
         qty_value = Decimal(str(job.quantity or 0))
@@ -1404,10 +1409,7 @@ class ExecutionService:
             if step_roll_target_kg <= 0:
                 target_source = "V2_TARGET_UNRESOLVED"
 
-        reqs = JobMaterialRequirement.objects.select_related("material", "process_step").filter(
-            production_job=job,
-            process_step__sequence_number=step_seq,
-        )
+        reqs = [row for row in requirements if row.process_step and row.process_step.sequence_number == step_seq]
         step_bulk_target_kg = Decimal("0")
         for req in reqs:
             cat = str(getattr(req.material, "category", "") or "").upper()
@@ -1566,7 +1568,7 @@ class ExecutionService:
         }
 
     @classmethod
-    def _resolve_step_execution_profile(cls, job):
+    def _resolve_step_execution_profile(cls, job, *, requirements=None):
         """
         Step-aware execution profile for machine terminal:
         step target = current-step consumables only.
@@ -1574,7 +1576,7 @@ class ExecutionService:
         - For bulk-input steps: current-step bulk target only (upstream WIP is context, not target).
         """
         if cls._is_v2(job):
-            return cls._resolve_step_execution_profile_v2(job)
+            return cls._resolve_step_execution_profile_v2(job, requirements=requirements)
 
         process = job.current_process or job.process
         input_form = str(getattr(process, "input_form", "") or "").upper()
@@ -4078,7 +4080,7 @@ class ExecutionService:
         Compares Template/BOM requirements vs WIP Pool.
         Returns missing quantities per material variant.
         """
-        requirements = cls.calculate_requirements(job.id) # Ensure reqs exist
+        requirements = cls._display_requirements(job)
         
         # Aggregate Pool Content
         pool_inventory = {} # material_id -> qty
@@ -4106,24 +4108,55 @@ class ExecutionService:
         return missing_report
 
     @staticmethod
-    def _requirement_record(*, persist, defaults, **lookup):
+    def _requirement_record(*, persist, defaults, existing=None, **lookup):
+        projected_id = uuid.uuid5(uuid.NAMESPACE_URL, 'tpp:requirement:' + ':'.join(
+            str(lookup[key].pk) for key in ('production_job', 'process_step', 'material')))
         if persist:
-            return JobMaterialRequirement.objects.update_or_create(defaults=defaults, **lookup)
-        row = JobMaterialRequirement.objects.filter(**lookup).first()
+            return JobMaterialRequirement.objects.update_or_create(
+                defaults=defaults, create_defaults={**defaults, 'id': projected_id}, **lookup)
+        row = (existing.get((str(lookup['process_step'].id), str(lookup['material'].id)))
+               if existing is not None else JobMaterialRequirement.objects.filter(**lookup).first())
         created = row is None
-        row = row or JobMaterialRequirement(**lookup)
+        row = row or JobMaterialRequirement(id=projected_id, **lookup)
+        for key, value in lookup.items():
+            setattr(row, key, value)
         for key, value in defaults.items():
             setattr(row, key, value)
         return row, created
 
     @classmethod
-    def calculate_requirements(cls, job_id, *, persist=True):
+    def _display_requirements(cls, job):
+        if getattr(job, '_cache_display_projection', False) and hasattr(job, '_display_requirement_projection'):
+            return job._display_requirement_projection
+        bom = cls._job_bom_snapshot(job)
+        rows = cls.calculate_requirements(job.id, persist=False, job=job)
+        if not bom:
+            # Governed legacy jobs can have requirements but no sales/stock BOM.
+            # Keep those persisted facts visible; an explicit empty BOM is different.
+            rows = list(job.material_requirements.select_related('material', 'process_step__process').prefetch_related('process_step__materials'))
+        if getattr(job, '_cache_display_projection', False):
+            job._display_requirement_projection = rows
+        return rows
+
+    @classmethod
+    def calculate_requirements(cls, job_id, *, persist=True, job=None):
+        """Writes lock the parent job before requirement rows; GETs only project."""
+        related = ('template', 'sales_order_item', 'current_process', 'process', 'mts_order')
+        if persist:
+            with transaction.atomic():
+                locked = ProductionJob.objects.select_related(*related).select_for_update(of=('self',)).get(id=job_id)
+                if job is not None and hasattr(job, '_display_requirement_projection'):
+                    del job._display_requirement_projection
+                return cls._calculate_requirements_for_job(locked, persist=True)
+        job = job or ProductionJob.objects.select_related(*related).get(id=job_id)
+        return cls._calculate_requirements_for_job(job, persist=False)
+
+    @classmethod
+    def _calculate_requirements_for_job(cls, job, *, persist):
         """
         Explodes the BOM for a job and creates/updates JobMaterialRequirement records.
         Phase 71 Refinement: Uses TemplateProcessStepMaterial.
         """
-        job = ProductionJob.objects.select_related('template', 'sales_order_item').get(id=job_id)
-
         if cls._is_v2(job):
             return cls.calculate_requirements_v2(job, persist=persist)
         
@@ -4292,7 +4325,8 @@ class ExecutionService:
             return []
 
         steps = list(
-            TemplateProcessStep.objects.filter(template=job.template).order_by("sequence_number")
+            TemplateProcessStep.objects.filter(template_id=job.template_id)
+            .select_related('process').prefetch_related('materials').order_by("sequence_number")
         )
         if not steps:
             return []
@@ -4347,6 +4381,21 @@ class ExecutionService:
         if not isinstance(bom, dict):
             bom = {}
 
+        # Resolve every BOM material once, including legacy code-based identities.
+        material_ids, material_codes = set(), set()
+        for section in ('planning_lines', 'films', 'granules', 'inks', 'chemicals', 'addons', 'pod'):
+            for row in (bom.get(section) or []) if isinstance(bom.get(section), list) else []:
+                if not isinstance(row, dict):
+                    continue
+                for key in ('material_id', 'variant_id', 'granule_id', 'addon_id', 'ink_id', 'chemical_id'):
+                    if row.get(key):
+                        material_ids.add(str(row[key]))
+                if row.get('code'):
+                    material_codes.add(str(row['code']).strip())
+        materials = list(InventoryMaterial.objects.filter(Q(id__in=material_ids) | Q(code__in=material_codes)))
+        materials_by_id = {str(row.id): row for row in materials}
+        materials_by_code = {row.code: row for row in materials}
+
         unit_weight_g = cls._job_unit_weight_g(job)
         qty_value = Decimal(str(getattr(job, "quantity", 0) or 0))
         qty_uom = str(getattr(job, "uom", "KG") or "KG").upper()
@@ -4366,14 +4415,14 @@ class ExecutionService:
             for key in ("material_id", "variant_id", "granule_id", "addon_id", "ink_id", "chemical_id"):
                 raw = row.get(key) if isinstance(row, dict) else None
                 if raw:
-                    mat = InventoryMaterial.objects.filter(id=str(raw)).first()
+                    mat = materials_by_id.get(str(raw))
                     if mat:
                         return mat
             if not isinstance(row, dict):
                 return None
             code = str(row.get("code") or "").strip()
             if code:
-                mat = InventoryMaterial.objects.filter(code=code).first()
+                mat = materials_by_code.get(code)
                 if mat:
                     return mat
             if str(section_name or "").upper() == "INKS":
@@ -4452,7 +4501,7 @@ class ExecutionService:
                 step = step_by_id.get(str(step_id))
                 if not step:
                     continue
-                material = InventoryMaterial.objects.filter(id=str(material_id)).first()
+                material = materials_by_id.get(str(material_id))
                 if not material:
                     continue
                 if str(getattr(material, "category", "") or "").upper() == "INK":
@@ -4515,10 +4564,14 @@ class ExecutionService:
                     required_matrix[key] = bucket
 
         requirements = []
+        existing = {
+            (str(row.process_step_id), str(row.material_id)): row
+            for row in JobMaterialRequirement.objects.filter(production_job=job)
+        } if not persist else None
         with transaction.atomic():
-            for (step_id, material_id), qtys in required_matrix.items():
+            for (step_id, material_id), qtys in sorted(required_matrix.items()):
                 step = step_by_id.get(step_id)
-                material = InventoryMaterial.objects.filter(id=material_id).first()
+                material = materials_by_id.get(material_id)
                 if not step or not material:
                     continue
                 required_qty = _to_decimal(qtys.get("required_qty"))
@@ -4527,6 +4580,7 @@ class ExecutionService:
                 if uom not in {"KG", "PCS", "METER"}:
                     uom = "KG"
                 req, _created = cls._requirement_record(persist=persist,
+                    existing=existing,
                     production_job=job,
                     material=material,
                     process_step=step,
@@ -4543,14 +4597,18 @@ class ExecutionService:
 
 
     @classmethod
-    def get_job_context(cls, job_id, reconcile_assignment=True):
+    def get_job_context(cls, job_id, reconcile_assignment=False):
         """
         Loads full execution context for the WCM Terminal.
         """
         import logging
         logger = logging.getLogger(__name__)
         
-        job = ProductionJob.objects.get(id=job_id)
+        job = ProductionJob.objects.select_related(
+            'template', 'sales_order_item', 'mts_order', 'current_process', 'process',
+            'work_center__default_wip_location', 'from_location',
+        ).get(id=job_id)
+        job._cache_display_projection = not reconcile_assignment
         process = job.current_process or job.process
         
         try:
@@ -5067,10 +5125,10 @@ class ExecutionService:
         # Read paths project current requirements without updating quantities or
         # creating legacy reservations. Mutation callers may explicitly reconcile.
         try:
-            projected_requirements = cls.calculate_requirements(job.id, persist=reconcile_assignment) or []
+            projected_requirements = cls.calculate_requirements(job.id, persist=True) if reconcile_assignment else cls._display_requirements(job)
         except Exception:
-            logger.warning("Requirement projection failed for job=%s", job_id, exc_info=True)
-            projected_requirements = list(job.material_requirements.select_related('material', 'process_step'))
+            logger.exception("Requirement projection failed for job=%s", job_id)
+            raise
         reqs = [r for r in projected_requirements
                 if r.process_step and r.process_step.sequence_number == job.current_step_index + 1]
         req_data = []
@@ -5409,7 +5467,7 @@ class ExecutionService:
 
         # 5. Material Requirements (grouped by step)
         step_requirements = {}
-        for r in job.material_requirements.select_related('material', 'process_step').order_by('process_step__sequence_number'):
+        for r in sorted(projected_requirements, key=lambda row: row.process_step.sequence_number if row.process_step else 0):
             if not r.process_step:
                 continue
             step_seq = r.process_step.sequence_number
@@ -5577,9 +5635,7 @@ class ExecutionService:
         other_requirements = []
         all_other_requirements = []
         seen_current_other = set()
-        for req in job.material_requirements.select_related('material', 'process_step').filter(
-            process_step__sequence_number=current_step_seq
-        ):
+        for req in reqs:
             cat = req.material.category if req.material else ''
             # Only include non-film materials (inks, solvents, adhesives, chemicals, addons)
             if cat in ('FILM', 'FILM_VARIANT', 'FILM_FAMILY', 'GRANULE'):
@@ -5607,7 +5663,7 @@ class ExecutionService:
                 'uom': req.uom,
             })
         seen_all_other = set()
-        for req in job.material_requirements.select_related('material', 'process_step').order_by('process_step__sequence_number'):
+        for req in sorted(projected_requirements, key=lambda row: row.process_step.sequence_number if row.process_step else 0):
             cat = req.material.category if req.material else ''
             if cat in ('FILM', 'FILM_VARIANT', 'FILM_FAMILY', 'GRANULE'):
                 continue
@@ -6103,6 +6159,7 @@ class ExecutionService:
             'bom_snapshot': bom_snapshot,
             'bom_layers': refined_bom_layers,
             'other_requirements': other_requirements,
+            'requirements': req_data,
             'all_other_requirements': all_other_requirements,
             'allocated_rolls': allocated_rolls,
             'reservations': [
@@ -6605,15 +6662,14 @@ class ExecutionService:
         Phase 68: Returns input satisfaction status for UI.
         Shows required/available/missing rolls & bulk consumption preview.
         """
-        job = ProductionJob.objects.select_related('current_process', 'process', 'sales_order_item', 'template').get(id=job_id)
+        job = ProductionJob.objects.select_related('current_process', 'process', 'sales_order_item', 'template__routing_rule',
+                                                   'mts_order', 'routing_rule', 'work_center__default_wip_location', 'from_location').get(id=job_id)
+        job._cache_display_projection = True
         process = job.current_process or job.process
 
-        # Reconcile old assignment links into reservation source-of-truth.
-        cls.reconcile_assignment_reservations(job)
-
-        # Ensure step requirements are up-to-date for bulk preview. Readiness is
-        # a release gate, so stale requirements must never be treated as ready.
-        cls.calculate_requirements(job.id)
+        # Reservation repair belongs to explicit mutations. Display quantities
+        # are projected from the current BOM while preserving issued/consumed facts.
+        requirements = cls._display_requirements(job)
 
         # WIP pool = strict lineage/spec eligible rolls for this job/step.
         # Keep satisfaction counters aligned with this strict pool to prevent
@@ -6660,7 +6716,7 @@ class ExecutionService:
         roll_satisfied = (rolls_missing == 0)
 
         # Bulk consumption preview (step-aware)
-        bulk_preview = cls.get_bulk_consumption_preview(job)
+        bulk_preview = cls.get_bulk_consumption_preview(job, requirements=requirements)
         bulk_satisfied = True
         for item in bulk_preview:
             required = Decimal(str(item.get('required_qty_kg') or 0))
@@ -6710,12 +6766,15 @@ class ExecutionService:
         }
 
     @classmethod
+    @transaction.atomic
     def auto_satisfy_inputs(cls, job_id, user=None):
         """
         Attempts to auto-assign rolls using behavior-aware rules.
         Manual intervention is required only when auto-pick cannot satisfy demand.
         """
-        job = ProductionJob.objects.select_related('current_process', 'process').get(id=job_id)
+        job = ProductionJob.objects.select_related('current_process', 'process').select_for_update(of=('self',)).get(id=job_id)
+        cls.reconcile_assignment_reservations(job)
+        cls.calculate_requirements(job.id)
         process = job.current_process or job.process
 
         if not process or process.input_form != 'ROLL':
@@ -6744,12 +6803,13 @@ class ExecutionService:
         }
 
     @classmethod
-    def get_step_execution_profile(cls, job_id):
-        job = ProductionJob.objects.select_related(
+    def get_step_execution_profile(cls, job_id, *, job=None):
+        job = job or ProductionJob.objects.select_related(
             'current_process',
             'process',
-            'template',
+            'template__routing_rule',
             'sales_order_item',
+            'mts_order', 'routing_rule',
         ).filter(id=job_id).first()
         if job is None:
             return {
@@ -6760,6 +6820,7 @@ class ExecutionService:
                 'step_produced_kg': 0,
                 'step_remaining_kg': 0,
             }
+        job._cache_display_projection = True
         return cls._resolve_step_execution_profile(job)
 
     @classmethod
@@ -6768,7 +6829,8 @@ class ExecutionService:
         step = getattr(req, "process_step", None)
         if step is not None:
             try:
-                direct = step.materials.filter(material_id=req.material_id).first()
+                mappings = list(step.materials.all())
+                direct = next((row for row in mappings if str(row.material_id) == str(req.material_id)), None)
                 if direct and getattr(direct, "capture_mode", None):
                     return str(direct.capture_mode).upper()
             except Exception:
@@ -6779,10 +6841,7 @@ class ExecutionService:
                 )
             try:
                 if category:
-                    mapped = step.materials.filter(
-                        source_kind="CATEGORY",
-                        category_code=category,
-                    ).first()
+                    mapped = next((row for row in mappings if row.source_kind == "CATEGORY" and row.category_code == category), None)
                     if mapped and getattr(mapped, "capture_mode", None):
                         return str(mapped.capture_mode).upper()
             except Exception:
@@ -7227,7 +7286,7 @@ class ExecutionService:
                 req.save(update_fields=list(dict.fromkeys(update_fields)))
 
     @classmethod
-    def get_bulk_consumption_preview(cls, job):
+    def get_bulk_consumption_preview(cls, job, *, requirements=None):
         """
         Phase 68: Previews bulk materials that will be auto-consumed.
         Returns list of materials and quantities for UI display.
@@ -7245,14 +7304,13 @@ class ExecutionService:
 
         # Step-aware requirements only (Bulk mapping from template)
         current_step = job.current_step_index + 1
-        reqs = job.material_requirements.select_related('material', 'process_step').filter(
-            process_step__sequence_number=current_step
-        )
-        if not reqs.exists():
+        requirements = cls._display_requirements(job) if requirements is None else requirements
+        reqs = [row for row in requirements if row.process_step and row.process_step.sequence_number == current_step]
+        if not reqs:
             # No bulk mapped for this step (valid). Do NOT fallback to other steps.
             return []
 
-        step_profile = cls._resolve_step_execution_profile(job)
+        step_profile = cls._resolve_step_execution_profile(job, requirements=requirements)
         step_target_total_kg = Decimal(str(step_profile.get("step_target_total_kg") or 0))
         produced_kg = Decimal(str(step_profile.get("step_produced_kg") or 0))
         if step_target_total_kg > 0:
@@ -7277,16 +7335,44 @@ class ExecutionService:
 
         policy_by_requirement_id = {
             str(row.get("requirement_id")): row
-            for row in cls.current_step_requirement_policy_items(job)
+            for row in cls.current_step_requirement_policy_items(job, requirements=requirements)
             if row.get("requirement_id")
         }
+        reqs = [req for req in reqs if not cls._is_floor_count_theory_requirement(req)
+                and str(req.material_id) not in excluded_m_ids]
+        if not reqs:
+            return []
+        plant_id = job.work_center.plant_id if job.work_center else None
+        availability = {
+            str(row['material_id']): row for row in InventoryBulk.objects
+            .filter(material_id__in={req.material_id for req in reqs}, qty_kg__gt=0, location__is_active=True)
+            .exclude(location__code="IN_TRANSIT").values('material_id')
+            .annotate(total=Sum('qty_kg'), source=Sum('qty_kg', filter=Q(location_id=location_id)),
+                      plant=Sum('qty_kg', filter=Q(plant_id=plant_id)))
+        }
+        granules = {str(req.material_id): req.material for req in reqs
+                    if str(req.material.category or '').upper() == 'GRANULE'}
+        granule_options = GranuleAvailabilityService.options_many(
+            granules.values(), issue_location_id=location_id, issue_plant_id=plant_id)
+        transfers_by_material = {}
+        if granules:
+            transfer_items = (InterPlantChallanItem.objects
+                .select_related("challan", "granule_code", "from_location", "to_location")
+                .filter(challan__target_job=job, material_id__in=granules, line_type="BULK",
+                        challan__status__in=["DRAFT", "APPROVED", "IN_TRANSIT"])
+                .order_by("created_at"))
+            for item in transfer_items:
+                transfers_by_material.setdefault(str(item.material_id), []).append({
+                    "challan_id": str(item.challan_id), "dc_no": item.challan.dc_no or "",
+                    "status": item.challan.status,
+                    "granule_code_id": str(item.granule_code_id) if item.granule_code_id else None,
+                    "code": item.granule_code.code if item.granule_code else "",
+                    "qty_kg": float(item.dispatched_qty_kg or 0),
+                    "from_location_name": item.from_location.name if item.from_location else "",
+                    "to_location_name": item.to_location.name if item.to_location else "",
+                })
         preview = []
         for req in reqs:
-            if cls._is_floor_count_theory_requirement(req):
-                continue
-
-            if str(req.material_id) in excluded_m_ids:
-                continue
             capture_mode = cls._resolve_requirement_capture_mode(req)
             theoretical_qty = Decimal(str(req.theoretical_qty or 0)).quantize(Decimal("0.0001"))
             planned_issue_qty = Decimal(str(req.planned_issue_qty or req.required_qty or 0)).quantize(Decimal("0.0001"))
@@ -7301,29 +7387,10 @@ class ExecutionService:
             estimated_actual_qty = (Decimal(str(req.required_qty or 0)) * ratio).quantize(Decimal("0.0001"))
             required = max(Decimal(str(req.required_qty)) - Decimal(str(req.consumed_qty)), Decimal('0'))
             
-            allocatable_stock = (
-                InventoryBulk.objects
-                .filter(material=req.material, qty_kg__gt=0, location__is_active=True)
-                .exclude(location__code="IN_TRANSIT")
-            )
-
-            # Source-location availability (exact consuming location)
-            available = 0
-            if location_id:
-                available = allocatable_stock.filter(location_id=location_id).aggregate(
-                    total=Sum('qty_kg')
-                ).get('total') or 0
-
-            # Current-plant availability (all active locations in same plant)
-            plant_id = job.work_center.plant_id if job.work_center else None
-            plant_available = 0
-            if plant_id:
-                plant_available = allocatable_stock.filter(plant_id=plant_id).aggregate(
-                    total=Sum('qty_kg')
-                ).get('total') or 0
-
-            # Global availability (all plants)
-            global_available = allocatable_stock.aggregate(total=Sum('qty_kg')).get('total') or 0
+            stock = availability.get(str(req.material_id), {})
+            available = (stock.get('source') or 0) if location_id else 0
+            plant_available = (stock.get('plant') or 0) if plant_id else 0
+            global_available = stock.get('total') or 0
 
             other_plants_available = Decimal(str(global_available)) - Decimal(str(plant_available))
             if other_plants_available < 0:
@@ -7332,35 +7399,8 @@ class ExecutionService:
             if req_uom not in {"KG", "PCS", "METER"}:
                 req_uom = "KG"
 
-            granule_code_options = []
-            interplant_transfers = []
-            if str(getattr(req.material, "category", "") or "").upper() == "GRANULE":
-                granule_code_options = GranuleAvailabilityService.options(
-                    req.material,
-                    issue_location_id=location_id,
-                    issue_plant_id=plant_id,
-                )
-                transfer_items = (
-                    InterPlantChallanItem.objects
-                    .select_related("challan", "granule_code", "from_location", "to_location")
-                    .filter(
-                        challan__target_job=job,
-                        material=req.material,
-                        line_type="BULK",
-                        challan__status__in=["DRAFT", "APPROVED", "IN_TRANSIT"],
-                    )
-                    .order_by("created_at")
-                )
-                interplant_transfers = [{
-                    "challan_id": str(item.challan_id),
-                    "dc_no": item.challan.dc_no or "",
-                    "status": item.challan.status,
-                    "granule_code_id": str(item.granule_code_id) if item.granule_code_id else None,
-                    "code": item.granule_code.code if item.granule_code else "",
-                    "qty_kg": float(item.dispatched_qty_kg or 0),
-                    "from_location_name": item.from_location.name if item.from_location else "",
-                    "to_location_name": item.to_location.name if item.to_location else "",
-                } for item in transfer_items]
+            granule_code_options = granule_options.get(str(req.material_id), [])
+            interplant_transfers = transfers_by_material.get(str(req.material_id), [])
 
             preview.append({
                 'material_id': str(req.material_id),

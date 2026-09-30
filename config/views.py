@@ -1,7 +1,7 @@
 import logging
 
 from django.conf import settings
-from django.db import connection
+from django.db import connection, DatabaseError
 from django.http import JsonResponse
 from django.utils import timezone
 from rest_framework import status
@@ -9,7 +9,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework.views import exception_handler
+from rest_framework.views import exception_handler, set_rollback
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,15 @@ def custom_exception_handler(exc, context):
     """
     response = exception_handler(exc, context)
     request = context.get("request")
+
+    db_code = getattr(getattr(exc, '__cause__', None), 'sqlstate', None) or getattr(getattr(exc, '__cause__', None), 'pgcode', None)
+    if isinstance(exc, DatabaseError) and getattr(request, 'method', '') in {'GET', 'HEAD'} and db_code in {'57014', '55P03'}:
+        set_rollback()
+        code = 'READ_TIMEOUT' if db_code == '57014' else 'READ_BUSY'
+        message = 'This view took too long to load. Retry to refresh it.' if code == 'READ_TIMEOUT' else 'This view is busy. Retry in a moment.'
+        logger.warning('Bounded display request ended: code=%s path=%s', code, getattr(request, 'path', ''))
+        return Response({'status': 'error', 'code': code, 'message': message, 'detail': message,
+                         'request_id': str(getattr(request, 'request_id', '') or '')}, status=503)
 
     if isinstance(exc, (NotAuthenticated, AuthenticationFailed, PermissionDenied)):
         logger.info("Auth/permission exception intercepted: %s", str(exc))

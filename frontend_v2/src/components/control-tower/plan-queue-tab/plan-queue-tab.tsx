@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { PlannerDialogLayer } from "../planner-dialog-layer";
+
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     AlertTriangle,
@@ -26,12 +28,14 @@ import { SavedViewBar } from "@/components/ds";
 import { useToast } from "@/hooks/use-toast";
 import { HealthBar, type HealthSegment } from "../HealthBar";
 import { InventorySelectDialog } from "../inventory-select-dialog";
+import { PendingPlannerRecovery } from "../pending-planner-recovery";
 import { ArtworkPickerDialog } from "../artwork-picker-dialog";
 import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
 import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
 import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
 import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
 import { formatDisplayDate } from "@/lib/date-format";
+import { matchingPlannerDetail, samePlannerEntity, type PlannerIdentity } from "@/lib/query-contract";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -331,15 +335,23 @@ function activePillFor(filters: Filters): QuickPill {
 
 export default function PlanQueueTab() {
     const queryClient = useQueryClient();
+    const { toast } = useToast();
     const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [releaseDialogOrder, setReleaseDialogOrder] = useState<PlannerControlOrder | null>(null);
     const [artworkDialogOrder, setArtworkDialogOrder] = useState<PlannerControlOrder | null>(null);
     const [colorRevisionOrder, setColorRevisionOrder] = useState<PlannerControlOrder | null>(null);
     const savedViewQuery = useMemo(() => filtersToQuery(filters), [filters]);
+    const [debouncedInput, setDebouncedInput] = useState({ search: "", minWidth: "", maxWidth: "" });
+    const [refreshPending, setRefreshPending] = useState(false);
+    const [savedRefreshPending, setSavedRefreshPending] = useState(false);
+    useEffect(() => {
+        const timer = window.setTimeout(() => setDebouncedInput({ search: filters.search, minWidth: filters.minWidth, maxWidth: filters.maxWidth }), 250);
+        return () => window.clearTimeout(timer);
+    }, [filters.search, filters.minWidth, filters.maxWidth]);
 
     const serverFilters = useMemo(() => ({
-        queue_search: filters.search,
+        queue_search: debouncedInput.search,
         queue_customer: filters.customer === "all" ? "" : filters.customer,
         queue_template: filters.template === "all" ? "" : filters.template,
         queue_fg_type: filters.fgType === "all" ? "" : filters.fgType,
@@ -349,11 +361,11 @@ export default function PlanQueueTab() {
         queue_lifecycle: filters.lifecycle === "all" ? "" : filters.lifecycle,
         queue_age: filters.age === "all" ? "" : filters.age,
         queue_print: filters.print === "all" ? "" : filters.print,
-        queue_min_width: filters.minWidth,
-        queue_max_width: filters.maxWidth,
+        queue_min_width: debouncedInput.minWidth,
+        queue_max_width: debouncedInput.maxWidth,
         queue_overdue_only: filters.overdueOnly,
     }), [
-        filters.search,
+        debouncedInput,
         filters.customer,
         filters.template,
         filters.fgType,
@@ -367,18 +379,24 @@ export default function PlanQueueTab() {
         filters.maxWidth,
         filters.overdueOnly,
     ]);
+    const filterScope = JSON.stringify(serverFilters);
+    const [queuePage, setQueuePage] = useState({ scope: "", cursor: "", previous: [] as string[] });
+    const pageCursor = queuePage.scope === filterScope ? queuePage.cursor : "";
 
     const hubQ = useQuery({
-        queryKey: ["planner-control-hub-pq-v3", serverFilters],
-        queryFn: () => plannerService.getControlHub({
+        meta: { suppressGlobalError: true },
+        queryKey: ["planner-control-hub-pq-v3", serverFilters, pageCursor],
+        queryFn: ({ signal }) => plannerService.getControlHub({
             summary: true,
             planning_limit: 100,
             active_limit: 0,
             history_limit: 0,
             scan_limit: 600,
+            queue_cursor: pageCursor || undefined,
+            compact_queue: true,
             timeout_ms: 12000,
             ...serverFilters,
-        }),
+        }, signal),
         refetchInterval: 60_000,
         staleTime: 30_000,
     });
@@ -403,8 +421,8 @@ export default function PlanQueueTab() {
     }, [filtered, selectedKey]);
 
     const selectedDetailQ = useQuery({
-        queryKey: ["planner-control-hub-pq-detail-v1", selected?.order_kind, selected?.order_id, selected?.sales_order_item_id || ""],
-        queryFn: () => plannerService.getControlHub({
+        queryKey: ["planner-control-hub-pq-detail-v1", selected?.order_kind, selected?.order_id, selected?.sales_order_item_id || "", selected?.revision || ""],
+        queryFn: ({ signal }) => plannerService.getControlHub({
             planning_limit: 0,
             active_limit: 0,
             history_limit: 0,
@@ -412,12 +430,16 @@ export default function PlanQueueTab() {
             detail_order_id: selected!.order_id,
             detail_sales_order_item_id: selected!.sales_order_item_id || undefined,
             timeout_ms: 12000,
-        }),
+        }, signal),
         enabled: Boolean(selected?.order_kind && selected?.order_id),
         staleTime: 20_000,
+        placeholderData: () => undefined,
+        meta: { suppressGlobalError: true },
     });
 
-    const selectedDetail = selectedDetailQ.data?.detail_order || selected;
+    const verifiedDetail = matchingPlannerDetail(selected, selectedDetailQ.data?.detail_order);
+    const selectedDetail = verifiedDetail || selected;
+    const detailReady = Boolean(verifiedDetail && !selectedDetailQ.isFetching && !selectedDetailQ.isError);
 
     const kpis = useMemo(() => {
         const total = filtered.length;
@@ -435,7 +457,7 @@ export default function PlanQueueTab() {
             totalKg += Number(o.required_qty_kg || 0);
         }
         return [
-            { eyebrow: "Filtered queue", value: fmt(total), sub: `${fmt(orders.length)} total`, accent: "default" as const },
+            { eyebrow: "Filtered queue", value: fmt(total), sub: `${fmt(orders.length)} loaded`, accent: "default" as const },
             { eyebrow: "Ready", value: fmt(ready), sub: "release-eligible", accent: "success" as const },
             { eyebrow: "Blocked", value: fmt(blocked), sub: "with blockers", accent: blocked > 0 ? ("danger" as const) : ("default" as const) },
             { eyebrow: "Artwork pending", value: fmt(artwork), sub: "awaiting assignment", accent: artwork > 0 ? ("warn" as const) : ("default" as const) },
@@ -473,15 +495,33 @@ export default function PlanQueueTab() {
     }, 0);
     const activePill = activePillFor(filters);
 
-    function invalidateAll() {
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-detail-v1"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-lp-v3"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-si-v4"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-trace-v4"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-jobs-lp-v2"] });
-        queryClient.invalidateQueries({ queryKey: ["planner-jobs-si-v3"] });
+    async function invalidateAll(committed?: PlannerIdentity) {
+        setRefreshPending(true);
+        await queryClient.cancelQueries({ queryKey: ["planner-control-hub-pq-v3"] });
+        if (committed) {
+            const detailKey = ["planner-control-hub-pq-detail-v1", committed.order_kind, committed.order_id, committed.sales_order_item_id || ""];
+            await queryClient.cancelQueries({ queryKey: detailKey });
+            const index = filtered.findIndex((row) => samePlannerEntity(row, committed));
+            const next = filtered[index + 1] || filtered[index - 1];
+            setSelectedKey(next ? plannerRowKey(next) : "");
+            queryClient.setQueriesData<Awaited<ReturnType<typeof plannerService.getControlHub>>>(
+                { queryKey: ["planner-control-hub-pq-v3"] },
+                (data) => data ? { ...data, orders: data.orders.filter((row) => !samePlannerEntity(row, committed)) } : data,
+            );
+            queryClient.removeQueries({ queryKey: detailKey });
+        }
+        await queryClient.invalidateQueries({ predicate: (query) => {
+            const key = String(query.queryKey[0] || "");
+            return key.startsWith("planner-") && !key.startsWith("planner-control-hub-pq");
+        }, refetchType: "none" });
+        const refreshed = await hubQ.refetch();
+        if (!committed && selected) await selectedDetailQ.refetch();
+        setRefreshPending(Boolean(refreshed.error));
+        const savedPending = Boolean(refreshed.error) && (Boolean(committed) || savedRefreshPending);
+        setSavedRefreshPending(savedPending);
+        if (refreshed.error) toast(savedPending
+            ? { title: "Saved; queue refresh pending", description: "Use Refresh to reload the queue. Do not submit the order again." }
+            : { title: "Queue could not refresh", description: "Retry loading the current queue." });
     }
 
     return (
@@ -491,7 +531,7 @@ export default function PlanQueueTab() {
                 title="Plan Queue"
                 subtitle="Filter, inspect, and release the rows that are ready to move forward."
                 actions={
-                    <Button variant="ghost" onClick={() => hubQ.refetch()}>
+                    <Button variant="ghost" onClick={() => void invalidateAll()}>
                         <RefreshCw size={14} className={hubQ.isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
                         Refresh
                     </Button>
@@ -499,13 +539,21 @@ export default function PlanQueueTab() {
                 kpis={kpis as any}
             />
 
+            {!releaseDialogOrder && <PendingPlannerRecovery onCommitted={invalidateAll} />}
+
+            {savedRefreshPending && <Card role="status">
+                <strong>Saved; queue refresh pending</strong>
+                <p>The order was saved. Retry loading the queue; do not submit the order again.</p>
+                <Button onClick={() => void invalidateAll()}>Retry saved queue</Button>
+            </Card>}
+
             <PlannerFilterDock
                 title="Release filter dock"
                 subtitle="Cut the queue by business state first, then tighten by spec, source, age, and customer."
                 icon={<ClipboardList size={17} />}
                 activeCount={activeFilterCount}
                 resultText={`${fmt(filtered.length)} / ${fmt(orders.length)} rows`}
-                statusText={hubQ.isFetching ? "Refreshing" : "Live data"}
+                statusText={hubQ.isFetching ? "Refreshing" : refreshPending ? "Refresh pending" : hubQ.isError ? "Load failed" : "Live data"}
                 onClear={clearFilters}
                 savedViews={
                     <SavedViewBar
@@ -519,7 +567,7 @@ export default function PlanQueueTab() {
                     />
                 }
             >
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(260px, 420px)", gap: 12, alignItems: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12, alignItems: "center" }}>
                     <ChipRow>
                         <FilterChip label="All" count={orders.length} active={activePill === "all"} onClick={() => setFilters(applyQuickPill(filters, "all"))} tone="brand" />
                         <FilterChip label="Hot overdue" count={pillCounts.hot} active={activePill === "hot"} onClick={() => setFilters(applyQuickPill(filters, "hot"))} tone="danger" />
@@ -674,6 +722,8 @@ export default function PlanQueueTab() {
                     </div>
                     {hubQ.isLoading ? (
                         <div style={{ padding: 32, textAlign: "center", color: "var(--text-4)" }}>Loading…</div>
+                    ) : hubQ.isError ? (
+                        <EmptyState title="Queue could not load" body="Retry loading the queue. Saved orders remain committed." cta={<Button onClick={() => void invalidateAll()}>Retry queue</Button>} />
                     ) : filtered.length === 0 ? (
                         <EmptyState title="No orders match these filters" body="Clear filters or widen the date range to see more results." />
                     ) : (
@@ -688,18 +738,39 @@ export default function PlanQueueTab() {
                             ))}
                         </div>
                     )}
+                    {(pageCursor || hubQ.data?.planning_page?.has_more) && (
+                        <div style={{ display: "flex", justifyContent: "space-between", padding: 14 }}>
+                            <Button disabled={!pageCursor || hubQ.isFetching} onClick={() => {
+                                const previous = [...queuePage.previous];
+                                const cursor = previous.pop() || "";
+                                setSelectedKey("");
+                                setQueuePage({ scope: filterScope, cursor, previous });
+                            }}>Previous page</Button>
+                            <Button disabled={!hubQ.data?.planning_page?.next_cursor || hubQ.isFetching} onClick={() => {
+                                setSelectedKey("");
+                                setQueuePage({ scope: filterScope, cursor: hubQ.data!.planning_page!.next_cursor!, previous: [...(queuePage.scope === filterScope ? queuePage.previous : []), pageCursor] });
+                            }}>Next queue page</Button>
+                        </div>
+                    )}
                 </Card>
 
                 <div>
                     {selectedDetail ? (
+                        <>
+                        {(selectedDetailQ.isError || (!verifiedDetail && !selectedDetailQ.isFetching)) && (
+                            <Card role="alert"><p>Could not load the current line detail. Actions are paused.</p><Button onClick={() => void invalidateAll()}>Retry detail</Button></Card>
+                        )}
                         <OrderDetailPanel
+                            key={plannerRowKey(selectedDetail)}
                             order={selectedDetail}
-                            loadingDetail={selectedDetailQ.isFetching && !selectedDetailQ.data?.detail_order}
-                            onOpenRelease={() => setReleaseDialogOrder(selectedDetail)}
-                            onOpenArtwork={() => setArtworkDialogOrder(selectedDetail)}
-                            onOpenColorRevision={() => setColorRevisionOrder(selectedDetail)}
-                            onInvalidate={invalidateAll}
+                            loadingDetail={!detailReady && !selectedDetailQ.isError}
+                            actionsReady={detailReady}
+                            onOpenRelease={() => { if (detailReady && verifiedDetail) setReleaseDialogOrder(verifiedDetail); }}
+                            onOpenArtwork={() => { if (detailReady && verifiedDetail) setArtworkDialogOrder(verifiedDetail); }}
+                            onOpenColorRevision={() => { if (detailReady && verifiedDetail) setColorRevisionOrder(verifiedDetail); }}
+                            onInvalidate={() => invalidateAll(selectedDetail)}
                         />
+                        </>
                     ) : (
                         <Card>
                             <EmptyState title="Select an order" body="Pick a row from the queue to view its spec, route, sourcing, and release controls." />
@@ -711,13 +782,13 @@ export default function PlanQueueTab() {
             <InventorySelectDialog
                 order={releaseDialogOrder}
                 onClose={() => setReleaseDialogOrder(null)}
-                onCommitted={invalidateAll}
+                onCommitted={(committed) => invalidateAll(committed)}
             />
             <ArtworkPickerDialog order={artworkDialogOrder} onClose={() => setArtworkDialogOrder(null)} />
             <PrintColorRevisionDialog
                 order={colorRevisionOrder}
                 onClose={() => setColorRevisionOrder(null)}
-                onCommitted={invalidateAll}
+                onCommitted={() => invalidateAll()}
             />
         </div>
     );
@@ -869,13 +940,14 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
 
 // ----------------- Order detail panel -----------------
 
-function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenArtwork, onOpenColorRevision, onInvalidate }: {
+function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, onOpenRelease, onOpenArtwork, onOpenColorRevision, onInvalidate }: {
     order: PlannerControlOrder;
     loadingDetail?: boolean;
+    actionsReady?: boolean;
     onOpenRelease: () => void;
     onOpenArtwork: () => void;
     onOpenColorRevision: () => void;
-    onInvalidate: () => void;
+    onInvalidate: () => Promise<void>;
 }) {
     const { toast } = useToast();
     const segments = deriveSegments(order);
@@ -887,7 +959,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const mathOk = order.math_valid !== false;
     const fgAvail = !!order.source_availability?.has_fg;
     const wipAvail = !!order.source_availability?.has_wip;
-    const releaseReady = mathOk && (!artworkRequired || artworkAssigned) && blockers.length === 0;
+    const releaseReady = actionsReady && mathOk && (!artworkRequired || artworkAssigned) && blockers.length === 0;
 
     const factSheet: any = order.order_fact_sheet || {};
     const printingSnap = order.printing_snapshot || {};
@@ -908,8 +980,8 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     const isSalesLine = order.order_kind === "sales" && !!order.sales_order_item_id;
     const lineClosed = ["CANCELLED", "SHORT_CLOSED", "COMPLETED"].includes(lineStatus);
     const hasPartialShortfall = Number(order.partial_shortfall_kg || 0) > 0 || lineStatus === "PARTIAL";
-    const canCancelLine = isSalesLine && !lineClosed;
-    const canShortCloseLine = isSalesLine && !lineClosed && (hasPartialShortfall || Number(order.qty_open || 0) > 0);
+    const canCancelLine = actionsReady && isSalesLine && !lineClosed;
+    const canShortCloseLine = actionsReady && isSalesLine && !lineClosed && (hasPartialShortfall || Number(order.qty_open || 0) > 0);
     const printingOn = printingIsOn(order, factSheet, printingSnap);
     const printColors = printingColorSummary(order, factSheet, printingSnap);
     const artworkCopy = artworkGateCopy(order, factSheet, printingSnap, artworkRequired, artworkAssigned);
@@ -928,11 +1000,12 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                 reason: resolutionReason.trim(),
             });
         },
-        onSuccess: () => {
+        meta: { suppressGlobalError: true },
+        onSuccess: async () => {
             toast({ title: "Line cancelled", description: order.line_label || order.display_name || order.order_number });
             setResolutionMode(null);
             setResolutionReason("");
-            onInvalidate();
+            await onInvalidate();
         },
         onError: (err: any) => {
             toast({
@@ -951,11 +1024,12 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                 reason: resolutionReason.trim(),
             });
         },
-        onSuccess: () => {
+        meta: { suppressGlobalError: true },
+        onSuccess: async () => {
             toast({ title: "Line short-closed", description: order.line_label || order.display_name || order.order_number });
             setResolutionMode(null);
             setResolutionReason("");
-            onInvalidate();
+            await onInvalidate();
         },
         onError: (err: any) => {
             toast({
@@ -967,6 +1041,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
     });
 
     const submitResolution = () => {
+        if (!actionsReady) return;
         if (resolutionReason.trim().length < 5) {
             toast({ title: "Reason required", description: "Enter at least 5 characters.", variant: "destructive" });
             return;
@@ -1015,7 +1090,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                 lineHeight: 1.15,
                                 overflowWrap: "anywhere",
                             }}>
-                                {factSheet.display_name || order.order_number}
+                                {factSheet.display_name || order.line_label || order.display_name || order.order_number}
                             </div>
                             <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
                                 {order.order_number}{(order as any).customer_name ? ` · ${(order as any).customer_name}` : ""}
@@ -1294,7 +1369,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
 
                 {/* Sourcing — actionable matching pool */}
                 <Card>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                         <div className="t-eyebrow">Sourcing</div>
                         <div style={{ display: "flex", gap: 4 }}>
                             <SourceTinyTile label="FG" count={fgOptions.length} active={fgAvail} tone="success" />
@@ -1446,6 +1521,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                     variant="primary"
                                     data-testid={`planner-open-artwork-picker-${order.order_kind}:${order.order_id}`}
                                     onClick={onOpenArtwork}
+                                    disabled={!actionsReady}
                                 >
                                     <ImageIcon size={14} style={{ marginRight: 6 }} />
                                     Assign artwork
@@ -1477,7 +1553,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                                     : "Released contract · Planner may revise color names only; all other production specs stay locked."}
                             </div>
                         </div>
-                        <Button variant="primary" onClick={onOpenColorRevision}>
+                        <Button variant="primary" onClick={onOpenColorRevision} disabled={!actionsReady}>
                             <Printer size={14} style={{ marginRight: 6 }} />
                             Revise colors only
                         </Button>
@@ -1552,6 +1628,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                 )}
             </Card>
             {resolutionMode && (
+                <PlannerDialogLayer>
                 <div
                     role="dialog"
                     aria-modal="true"
@@ -1618,6 +1695,7 @@ function OrderDetailPanel({ order, loadingDetail = false, onOpenRelease, onOpenA
                         </div>
                     </div>
                 </div>
+                </PlannerDialogLayer>
             )}
         </div>
     );

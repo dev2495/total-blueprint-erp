@@ -123,10 +123,12 @@ class InkStepTargetTests(SimpleTestCase):
         mock_execution_logs,
     ):
         ink_req = SimpleNamespace(
+            process_step=SimpleNamespace(sequence_number=1),
             required_qty=Decimal("4.0000"),
             material=SimpleNamespace(category="INK"),
         )
         adhesive_req = SimpleNamespace(
+            process_step=SimpleNamespace(sequence_number=1),
             required_qty=Decimal("1.5000"),
             material=SimpleNamespace(category="ADHESIVE"),
         )
@@ -145,6 +147,6 @@ class InkStepTargetTests(SimpleTestCase):
             uom="KG",
         )
 
-        profile = ExecutionService._resolve_step_execution_profile_v2(job)
+        profile = ExecutionService._resolve_step_execution_profile_v2(job, requirements=[ink_req, adhesive_req])
 
         self.assertAlmostEqual(profile["step_bulk_target_kg"], 1.5, places=6)

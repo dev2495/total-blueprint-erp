@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { PlannerDialogLayer } from "./planner-dialog-layer";
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2, GitBranch, GitMerge, MapPin, Package, Rocket, Search, SkipForward, X } from "lucide-react";
 
@@ -14,12 +16,15 @@ import {
     type PlannerRouteDispatchWorkCenter,
 } from "@/services/planner";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth-provider";
+import { describeApiError } from "@/lib/api";
+import { needsPlannerRelease, savePendingPlannerOperation, removePendingPlannerOperation, type PendingPlannerOperation } from "@/lib/planner-recovery";
 import { Button, Chip } from "@/components/_planner-ui";
 
 interface InventorySelectDialogProps {
     order: PlannerControlOrder | null;
     onClose: () => void;
-    onCommitted?: () => void;
+    onCommitted?: (order: PlannerControlOrder) => void | Promise<void>;
 }
 
 type Mode = Extract<PlannerSourceOption, "FG" | "WIP_CONTINUE" | "SHARED_INVARIANT" | "UPSTREAM_STOCK" | "FRESH">;
@@ -179,10 +184,28 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const [release, setRelease] = useState(true);
     const [candidateSearch, setCandidateSearch] = useState("");
     const [widthFitFilter, setWidthFitFilter] = useState<"ALL" | "EXACT" | "SLITTABLE" | "BLOCKED">("ALL");
+    const { user } = useAuth();
+    const dialogContent = useRef<HTMLDivElement>(null);
+    const operation = useRef<{ plan: string; release: string; pending?: PendingPlannerOperation }>({ plan: "", release: "" });
+    const [phase, setPhase] = useState<"editing" | "planning" | "plan-pending" | "releasing" | "release-pending" | "refreshing">("editing");
+
+    useEffect(() => {
+        if (!order) return;
+        const opener = document.activeElement as HTMLElement | null;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        dialogContent.current?.focus();
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            if (opener?.isConnected) opener.focus();
+        };
+    }, [order?.order_id, order?.sales_order_item_id]);
 
     // Reset state when order changes
     useEffect(() => {
         if (!order) return;
+        operation.current = { plan: crypto.randomUUID(), release: crypto.randomUUID() };
+        setPhase("editing");
         const fgAvail = !!order.source_availability?.has_fg;
         const source = order.source_availability;
         const recommended = String(order.source_summary?.recommended_option || "").toUpperCase();
@@ -301,8 +324,11 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
     const missingRouteDispatchSteps = routeDispatchSteps.filter((step) => !routeDispatchChoiceFor(step));
 
     const planMutation = useMutation({
+        meta: { suppressGlobalError: true },
         mutationFn: async () => {
             if (!order) throw new Error("No order");
+            const submittedOrder = order;
+            if (!operation.current.pending) {
             const allocList: PlannerAllocationPayload[] = requiresAlloc
                 ? Object.entries(allocations)
                       .map<PlannerAllocationPayload | null>(([key, value]) => {
@@ -339,51 +365,63 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                 );
             }
 
-            const planRes = await plannerService.planOrder(
-                order.order_kind as PlannerOrderKind,
-                order.order_id,
-                {
-                    option: mode,
-                    allocations: allocList,
-                    item_id: order.sales_order_item_id || undefined,
-                    start_step_index: routeRange.start,
-                    stop_step_index: routeRange.stop,
-                    work_center_overrides: workCenterOverrideList,
-                    plan_remaining_fresh_now: planRemainingFreshNow,
-                }
-            );
-            if (release) {
-                const routeStepDecisions = optionalPlanningSteps
-                    .filter((step) => skippedRouteSteps[routeStepDecisionKey(step)])
-                    .map((step) => ({
-                        route_node_id: step.route_node_id,
-                        step_index: stepIndex(step),
-                        decision: "SKIP" as const,
-                        reason: "Planner skipped optional route step for this release.",
-                    }));
-                await plannerService.releasePlannedOrder(
-                    order.order_kind as PlannerOrderKind,
-                    order.order_id,
-                    {
-                        item_id: order.sales_order_item_id || undefined,
-                        route_step_decisions: routeStepDecisions,
-                    }
-                );
+            operation.current.pending = {
+                order_kind: order.order_kind as PlannerOrderKind, order_id: order.order_id,
+                sales_order_item_id: order.sales_order_item_id, order_number: order.order_number,
+                line_label: order.display_name || order.line_label || order.template_name,
+                releaseImmediately: release,
+                plan: { operation_id: operation.current.plan, expected_revision: order.revision || undefined,
+                    option: mode, allocations: allocList, item_id: order.sales_order_item_id || undefined,
+                    start_step_index: routeRange.start, stop_step_index: routeRange.stop,
+                    work_center_overrides: workCenterOverrideList, plan_remaining_fresh_now: planRemainingFreshNow },
+                release: { operation_id: operation.current.release, item_id: order.sales_order_item_id || undefined,
+                    route_step_decisions: optionalPlanningSteps.filter((step) => skippedRouteSteps[routeStepDecisionKey(step)])
+                        .map((step) => ({ route_node_id: step.route_node_id, step_index: stepIndex(step),
+                            decision: "SKIP" as const, reason: "Planner skipped optional route step for this release." })) },
+            };
             }
-            return planRes;
+            const pending = operation.current.pending;
+            if (user) savePendingPlannerOperation(user.id, pending);
+            setPhase(pending.planResult ? "releasing" : "planning");
+            const planRes = pending.planResult || await plannerService.planOrder(pending.order_kind, pending.order_id, pending.plan);
+            pending.planResult = planRes;
+            pending.release.expected_revision = planRes.revision;
+            if (user) savePendingPlannerOperation(user.id, pending);
+            const shouldRelease = needsPlannerRelease(pending);
+            if (shouldRelease) {
+                setPhase("releasing");
+                await plannerService.releasePlannedOrder(pending.order_kind, pending.order_id, pending.release);
+            }
+            if (user) removePendingPlannerOperation(user.id, pending.plan.operation_id!);
+            return { planRes, order: submittedOrder, released: shouldRelease };
         },
-        onSuccess: () => {
+        onSuccess: async (result) => {
+            setPhase("refreshing");
             toast({
-                title: release ? "Order planned & released" : "Order planned",
-                description: order?.order_number,
+                title: result.released ? "Order planned & released" : "Order planned",
+                description: result.order.order_number,
             });
-            onCommitted?.();
+            try {
+                await onCommitted?.(result.order);
+            } catch {
+                toast({ title: "Saved; queue refresh pending", description: "Use Refresh to reload the queue. Do not submit the order again." });
+            }
             onClose();
         },
         onError: (err: any) => {
+            const planSaved = Boolean(operation.current.pending?.planResult);
+            const status = err?.response?.status;
+            const rejected = typeof status === "number" && status >= 400 && status < 500 && status !== 408 && status !== 429;
+            if (!planSaved && rejected) {
+                if (user) removePendingPlannerOperation(user.id, operation.current.plan);
+                operation.current = { plan: crypto.randomUUID(), release: crypto.randomUUID() };
+            }
+            setPhase(planSaved ? "release-pending" : rejected ? "editing" : "plan-pending");
             toast({
-                title: "Plan failed",
-                description: err?.message || "An error occurred",
+                title: planSaved ? "Plan saved; release pending" : "Plan not confirmed",
+                description: planSaved
+                    ? `${describeApiError(err)} Retry release to continue the saved plan.`
+                    : rejected ? describeApiError(err) : "The connection ended before confirmation. Retry the same plan to recover its saved result.",
                 variant: "destructive",
             });
         },
@@ -404,14 +442,26 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                   : "inventory";
     const canSubmit =
         !planMutation.isPending &&
-        missingRouteDispatchSteps.length === 0 &&
-        (!requiresAlloc || (hasOptions && totalAllocated > 0));
+        (Boolean(operation.current.pending) || (missingRouteDispatchSteps.length === 0 &&
+        (!requiresAlloc || (hasOptions && totalAllocated > 0))));
 
     return (
+        <PlannerDialogLayer>
         <div
             role="dialog"
             aria-modal="true"
-            onClick={onClose}
+            aria-label={`Release planning ${order.order_number} ${order.display_name || order.line_label || ""}`}
+            onKeyDown={(event) => {
+                if (event.key === 'Escape' && !planMutation.isPending) { event.preventDefault(); onClose(); }
+                if (event.key !== 'Tab') return;
+                const focusable = Array.from(dialogContent.current?.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex="0"]') || [])
+                    .filter((element) => !element.matches(':disabled') && element.getClientRects().length > 0);
+                const first = focusable[0], last = focusable[focusable.length - 1];
+                if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogContent.current)) {
+                    event.preventDefault(); last?.focus();
+                } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+            }}
+            onClick={() => { if (!planMutation.isPending) onClose(); }}
             style={{
                 position: "fixed",
                 inset: 0,
@@ -425,6 +475,8 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
             }}
         >
             <div
+                ref={dialogContent}
+                tabIndex={-1}
                 onClick={(e) => e.stopPropagation()}
                 style={{
                     background: "var(--surface-1)",
@@ -471,13 +523,13 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                 {order.order_number}
                             </div>
                             <div style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
-                                {order.template_name} · {fmt(requiredKg)} {order.qty_uom || "KG"} required
+                                {order.display_name || order.line_label || order.template_name} · {fmt(requiredKg)} {order.qty_uom || "KG"} required
                                 {(order as any).customer_name && ` · ${(order as any).customer_name}`}
                             </div>
                         </div>
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={() => { if (!planMutation.isPending) onClose(); }}
                             aria-label="Close"
                             style={{
                                 background: "rgba(255,255,255,.7)",
@@ -493,7 +545,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                     </div>
                 </div>
 
-                <div style={{ padding: 24, overflowY: "auto", flex: 1 }}>
+                <fieldset disabled={phase !== "editing" || planMutation.isPending} style={{ padding: 24, overflowY: "auto", flex: 1, border: 0, margin: 0, minWidth: 0 }}>
                     {/* Mode picker */}
                     <div style={{ marginBottom: 18 }}>
                         <div
@@ -1101,7 +1153,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                             </div>
                         </div>
                     </label>
-                </div>
+                </fieldset>
 
                 {/* Footer */}
                 <div
@@ -1153,12 +1205,13 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                             disabled={!canSubmit}
                         >
                             <Rocket size={14} style={{ marginRight: 6 }} />
-                            {release ? "Plan & Release" : "Plan only"}
+                            {phase === "refreshing" ? "Refreshing queue…" : phase === "planning" ? "Saving plan…" : phase === "releasing" ? "Releasing…" : phase === "release-pending" ? "Retry release" : phase === "plan-pending" ? "Confirm saved plan" : release ? "Plan & Release" : "Plan only"}
                         </Button>
                     </div>
                 </div>
             </div>
         </div>
+        </PlannerDialogLayer>
     );
 }
 

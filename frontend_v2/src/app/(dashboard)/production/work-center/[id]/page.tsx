@@ -811,7 +811,7 @@ export default function WCMTerminal() {
     dataUpdatedAt: queueUpdatedAt,
   } = useQuery({
     queryKey: ["wcm-queue", wcId, deferredQueueSearch],
-    queryFn: () => wcmService.getQueue(wcId, 300, deferredQueueSearch),
+    queryFn: ({ signal }) => wcmService.getQueue(wcId, 300, deferredQueueSearch, signal),
     refetchInterval:
       materialIssueDirty || materialIssuePickerOpen ? false : 15000,
     placeholderData: keepPreviousData,
@@ -1128,9 +1128,9 @@ export default function WCMTerminal() {
     : null;
   const { data: activeAssignmentDetail } = useQuery({
     queryKey: ["wcm-assignment-detail", wcId, activeAssignmentId],
-    queryFn: () => wcmService.getAssignment(wcId, activeAssignmentId!),
+    queryFn: ({ signal }) => wcmService.getAssignment(wcId, activeAssignmentId!, signal),
     enabled: Boolean(wcId && activeAssignmentId),
-    placeholderData: keepPreviousData,
+    placeholderData: () => undefined,
     staleTime: 3000,
   });
   const activeAssignment =
@@ -1239,7 +1239,7 @@ export default function WCMTerminal() {
     refetch: refetchContext,
   } = useQuery({
     queryKey: ["execution-context", selectedJobId],
-    queryFn: () => wcmService.getJobContext(selectedJobId),
+    queryFn: ({ signal }) => wcmService.getJobContext(selectedJobId, signal),
     enabled: !!selectedJobId,
     // The app-wide query default keeps previous data during key changes. That
     // is useful for lists, but unsafe for a job execution contract: it can show
@@ -1262,7 +1262,7 @@ export default function WCMTerminal() {
   // Phase 68: Satisfaction Status (Universal Flow Engine)
   const { data: satisfactionStatus, refetch: refetchSatisfaction } = useQuery({
     queryKey: ["satisfaction-status", selectedJobId],
-    queryFn: () => wcmService.getSatisfactionStatus(selectedJobId),
+    queryFn: ({ signal }) => wcmService.getSatisfactionStatus(selectedJobId, signal),
     enabled: !!selectedJobId,
     placeholderData: () => undefined,
     refetchInterval:
@@ -1273,7 +1273,7 @@ export default function WCMTerminal() {
   const { data: currentStepPolicy, refetch: refetchCurrentStepPolicy } =
     useQuery({
       queryKey: ["current-step-material-policy", selectedJobId],
-      queryFn: () => wcmService.getCurrentStepMaterialPolicy(selectedJobId),
+      queryFn: ({ signal }) => wcmService.getCurrentStepMaterialPolicy(selectedJobId, signal),
       enabled: !!selectedJobId,
       placeholderData: () => undefined,
       refetchInterval:
@@ -1307,7 +1307,7 @@ export default function WCMTerminal() {
   // Phase 68: WIP Pool Grouped
   const { data: wipPoolGrouped } = useQuery({
     queryKey: ["wip-pool-grouped", selectedJobId],
-    queryFn: () => wcmService.getWipPoolGrouped(selectedJobId),
+    queryFn: ({ signal }) => wcmService.getWipPoolGrouped(selectedJobId, signal),
     enabled: !!selectedJobId,
     placeholderData: () => undefined,
     refetchInterval:
@@ -1321,7 +1321,7 @@ export default function WCMTerminal() {
   // exact roll cannot disappear merely because it fell outside that context cap.
   const { data: eligibleRollsFallback } = useQuery({
     queryKey: ["eligible-rolls", selectedJobId],
-    queryFn: () => wcmService.getEligibleRolls(selectedJobId),
+    queryFn: ({ signal }) => wcmService.getEligibleRolls(selectedJobId, signal),
     enabled: !!selectedJobId,
     placeholderData: () => undefined,
   });

@@ -1,4 +1,5 @@
 from django.test import SimpleTestCase
+from django.db import DatabaseError
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory
 
@@ -31,3 +32,13 @@ class ErrorContractTests(SimpleTestCase):
         self.assertEqual(response.data.get("code"), "BAD_REQUEST")
         self.assertIn("detail", response.data)
         self.assertEqual(response.data.get("request_id"), "req-test-2")
+
+    def test_database_read_deadline_has_a_truthful_retryable_contract(self):
+        class DriverError(Exception):
+            sqlstate = '57014'
+        error = DatabaseError('sensitive SQL')
+        error.__cause__ = DriverError()
+        response = custom_exception_handler(error, {'request': self.factory.get('/api/production/wc/')})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data['code'], 'READ_TIMEOUT')
+        self.assertNotIn('sensitive SQL', str(response.data))

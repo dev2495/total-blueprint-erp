@@ -13,6 +13,8 @@ import { SentryInit } from "@/components/sentry-init";
 import { ThemeProvider } from "@/components/theme-provider";
 import { describeApiError, getApiErrorStatus } from "@/lib/api";
 import { toast, Toaster } from "sonner";
+import { Toaster as ActionToaster } from "@/components/ui/toaster";
+import { isCancelledRead, shouldRetryRead } from "@/lib/query-contract";
 
 const ERROR_DEDUPE_MS = 8000;
 const recentErrors = new Map<string, number>();
@@ -49,6 +51,7 @@ function reportClientDataError({
   operation: string;
   retry?: () => void;
 }) {
+  if (isCancelledRead(error)) return;
   const status = getApiErrorStatus(error);
   const message = describeApiError(error, "Request failed.");
   const route = routeLabel();
@@ -80,14 +83,10 @@ function reportClientDataError({
   if (now - last < ERROR_DEDUPE_MS) return;
   recentErrors.set(dedupeKey, now);
 
-  const description = [
-    message,
-    status ? `Status ${status}` : null,
-    operation ? `Operation: ${operation}` : null,
-    `Route: ${route}`,
-  ]
-    .filter(Boolean)
-    .join(" • ");
+  const code = (error as { code?: string })?.code;
+  const description = code === "ECONNABORTED" || code === "ETIMEDOUT"
+    ? "This request took too long. Your saved work is safe; retry loading the data."
+    : message;
 
   toast.error(title, {
     description,
@@ -201,7 +200,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         queryCache: new QueryCache({
           onError: (error, query) => {
-            if (shouldSkipGlobalError(query.meta)) return;
+            if (shouldSkipGlobalError(query.meta) || query.getObserversCount() === 0 || isCancelledRead(error)) return;
             reportClientDataError({
               title: "Data load failed",
               error,
@@ -229,13 +228,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 60 * 1000, // 1 minute
-            placeholderData: (previousData: unknown) => previousData,
             refetchOnWindowFocus: false,
-            retry: (failureCount, error) => {
-              const status = getApiErrorStatus(error);
-              if (status && status < 500) return false;
-              return failureCount < 2;
-            },
+            retry: shouldRetryRead,
             throwOnError: false,
           },
           mutations: {
@@ -252,7 +246,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           <SentryInit />
           <GlobalClientErrorListeners />
           {children}
-          <Toaster />
+          <Toaster position="top-right" />
+          <ActionToaster />
         </AuthProvider>
       </ThemeProvider>
       {showReactQueryDevtools ? (

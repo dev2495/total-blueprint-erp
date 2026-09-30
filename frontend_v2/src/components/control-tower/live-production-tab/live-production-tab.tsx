@@ -1,5 +1,7 @@
 "use client";
 
+import { PlannerDialogLayer } from "../planner-dialog-layer";
+
 import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, PauseCircle, RefreshCw, X } from "lucide-react";
@@ -105,7 +107,7 @@ export default function LiveProductionTab() {
     });
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-lp-current", deferredSearch, stateFilter, pathFilter],
-        queryFn: () => plannerService.getControlHub({
+        queryFn: ({ signal }) => plannerService.getControlHub({
             v2: true,
             summary: true,
             planning_limit: 0,
@@ -116,7 +118,7 @@ export default function LiveProductionTab() {
             active_state: stateFilter,
             active_path: pathFilter,
             timeout_ms: 12000,
-        }),
+        }, signal),
         refetchInterval: 45_000,
         staleTime: 20_000,
         meta: { suppressGlobalError: true },
@@ -666,6 +668,7 @@ function LiveOrderCard({ order, jobs, onOpenColorRevision }: {
             </div>
 
             {resolutionMode && (
+                <PlannerDialogLayer>
                 <div role="dialog" aria-modal="true" onClick={() => setResolutionMode(null)} style={{ position: "fixed", inset: 0, zIndex: "var(--z-modal)" as any, background: "rgba(15,23,42,.42)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
                     <div onClick={(event) => event.stopPropagation()} style={{ width: "min(520px, 100%)", borderRadius: "var(--r-5)", border: "1px solid var(--border-soft)", background: "var(--surface-1)", boxShadow: "var(--sh-lg)", padding: 20 }}>
                         <div className="t-eyebrow">{resolutionMode === "cancel" ? "Cancel live sales line" : "Short-close live sales line"}</div>
@@ -689,6 +692,7 @@ function LiveOrderCard({ order, jobs, onOpenColorRevision }: {
                         </div>
                     </div>
                 </div>
+                </PlannerDialogLayer>
             )}
         </Card>
     );

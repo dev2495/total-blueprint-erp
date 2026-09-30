@@ -299,6 +299,7 @@ export interface PlannerRowAnalytics {
 }
 
 export interface PlannerControlOrder {
+    revision?: string | null;
     order_kind: PlannerOrderKind;
     order_id: string;
     sales_order_item_id?: string | null;
@@ -636,6 +637,7 @@ export interface PlannerControlHubAnalytics {
 }
 
 export interface ControlHubResponse {
+    planning_page?: { returned_count: number; count_scope: "page"; has_more: boolean; next_cursor?: string | null; scanned_orders: number; generated_at: string };
     orders: PlannerControlOrder[];
     active_orders: PlannerControlOrder[];
     order_history: PlannerControlOrder[];
@@ -682,6 +684,8 @@ export interface PlannerLiveSummary {
 }
 
 export interface PlannerControlHubParams {
+    queue_cursor?: string;
+    compact_queue?: boolean;
     v2?: boolean;
     summary?: boolean;
     planning_limit?: number;
@@ -736,6 +740,8 @@ export interface PlannerAllocationPayload {
 }
 
 export interface PlanOrderPayload {
+    operation_id?: string;
+    expected_revision?: string;
     option: PlannerSourceOption;
     item_id?: string;
     start_step_index?: number;
@@ -743,6 +749,18 @@ export interface PlanOrderPayload {
     allocations?: PlannerAllocationPayload[];
     work_center_overrides?: Array<{ step_index: number; work_center_id: string }>;
     plan_remaining_fresh_now?: boolean;
+}
+
+export interface ReleaseOrderPayload {
+    operation_id?: string;
+    expected_revision?: string;
+    item_id?: string;
+    route_step_decisions?: Array<{
+        route_node_id?: string;
+        step_index?: number;
+        decision: "EXECUTE" | "SKIP";
+        reason?: string;
+    }>;
 }
 
 export interface AssignArtworkPayload {
@@ -1117,9 +1135,11 @@ export const plannerService = {
         return data;
     },
 
-    getControlHub: async (params?: PlannerControlHubParams): Promise<ControlHubResponse> => {
+    getControlHub: async (params?: PlannerControlHubParams, signal?: AbortSignal): Promise<ControlHubResponse> => {
         const { data } = await api.get<ControlHubResponse>('/api/production/planner/control-hub/', {
             params: {
+                queue_cursor: params?.queue_cursor || undefined,
+                compact_queue: params?.compact_queue ? 1 : undefined,
                 v2: params?.v2 ? 1 : undefined,
                 summary: params?.summary ? 1 : undefined,
                 planning_limit: params?.planning_limit ?? 18,
@@ -1154,6 +1174,7 @@ export const plannerService = {
                 queue_overdue_only: params?.queue_overdue_only ? 1 : undefined,
             },
             timeout: params?.timeout_ms ?? 30000,
+            signal,
         });
         if (!data || typeof data !== "object" || Array.isArray(data)) {
             throw new Error("Invalid planner control-hub response payload")
@@ -1182,15 +1203,7 @@ export const plannerService = {
     releasePlannedOrder: async (
         orderKind: PlannerOrderKind,
         orderId: string,
-        payload?: {
-            item_id?: string;
-            route_step_decisions?: Array<{
-                route_node_id?: string;
-                step_index?: number;
-                decision: "EXECUTE" | "SKIP";
-                reason?: string;
-            }>;
-        },
+        payload?: ReleaseOrderPayload,
     ) => {
         const { data } = await api.post(`/api/production/planner/control-hub/${orderKind}/${orderId}/release/`, payload || {});
         return data;

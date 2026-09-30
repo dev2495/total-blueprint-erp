@@ -454,6 +454,8 @@ class SalesOrderItem(models.Model):
         CONFIRMED or DISPATCHED. Returns Decimal so callers can compare safely.
         """
         from decimal import Decimal
+        if hasattr(self, '_read_qty_dispatched'):
+            return self._read_qty_dispatched
         total = Decimal("0")
         # Lazy access: dispatch_lines reverse relation appears once
         # apps/sales/models_dispatch.py is registered.

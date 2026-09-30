@@ -14,6 +14,7 @@
     "help:screenshots": "node scripts/capture_help_screenshots.mjs",
     "help:validate": "node scripts/validate_help_coverage.mjs",
     "nav:validate": "node scripts/validate_nav_routes.mjs",
+    "test:query-contract": "./scripts/with-supported-node.sh node --experimental-strip-types scripts/test-query-contract.mjs",
     "test:qty-formula": "node scripts/test-qty-formula.mjs",
     "test:ui-version-privacy": "node scripts/check-user-facing-version-labels.mjs",
     "e2e:ui:green": "./scripts/with-supported-node.sh node scripts/run_release_green.mjs",

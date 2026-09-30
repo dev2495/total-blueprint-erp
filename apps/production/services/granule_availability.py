@@ -39,14 +39,23 @@ class GranuleAvailabilityService:
 
     @classmethod
     def options(cls, material, *, issue_location_id=None, issue_plant_id=None):
+        return cls.options_many([material], issue_location_id=issue_location_id,
+                                issue_plant_id=issue_plant_id).get(str(material.pk), [])
+
+    @classmethod
+    def options_many(cls, materials, *, issue_location_id=None, issue_plant_id=None):
+        """Load exact code/source availability in two queries for the whole step."""
+        material_ids = {str(material.pk) for material in materials}
+        if not material_ids:
+            return {}
         codes = list(
-            GranuleQualityCode.objects.filter(granule=material)
+            GranuleQualityCode.objects.filter(granule_id__in=material_ids)
             .select_related("merged_into")
             .order_by("status", "code", "created_at")
         )
         stocks = list(
             InventoryBulk.objects.filter(
-                material=material,
+                material_id__in=material_ids,
                 granule_code__isnull=False,
                 qty_kg__gt=0,
             )
@@ -57,8 +66,9 @@ class GranuleAvailabilityService:
         for stock in stocks:
             stocks_by_code[str(stock.granule_code_id)].append(stock)
 
-        options = []
+        by_material = {material_id: [] for material_id in material_ids}
         for code in codes:
+            options = by_material[str(code.granule_id)]
             code_stocks = stocks_by_code.get(str(code.id), [])
             if not code_stocks:
                 inactive = str(code.status or "").upper() != "ACTIVE" or bool(code.merged_into_id)
@@ -117,7 +127,7 @@ class GranuleAvailabilityService:
                     "can_allocate": can_allocate,
                     "transfer_required": transfer_required,
                 })
-        return options
+        return by_material
 
     @classmethod
     def validate_allocations(

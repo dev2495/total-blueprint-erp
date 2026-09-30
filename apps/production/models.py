@@ -1530,6 +1530,20 @@ class SalesOrderItemInHouseDemand(models.Model):
         return f"{self.sales_order_item_id} {self.demand_kind} -> {target}"
 
 
+class PlannerOperation(models.Model):
+    """A committed planner response, saved atomically with its business changes."""
+    id = models.UUIDField(primary_key=True, editable=False)
+    scope = models.CharField(max_length=250)
+    payload_hash = models.CharField(max_length=64)
+    response_json = models.JSONField(default=dict)
+    response_status = models.PositiveSmallIntegerField(default=200)
+    created_by = models.ForeignKey('users.User', null=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'production_planner_operations'
+
+
 class RollAllocationBatchRequest(models.Model):
     """DB-backed idempotency for WCM multi-roll allocation requests."""
 

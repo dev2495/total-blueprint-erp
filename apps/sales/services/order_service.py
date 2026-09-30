@@ -2880,6 +2880,8 @@ class SalesOrderService:
 
         if not item:
             return Decimal("0")
+        if hasattr(item, '_read_final_output_kg'):
+            return item._read_final_output_kg
         jobs = (
             ProductionJob.objects.filter(sales_order_item=item, job_state="COMPLETED")
             .select_related("routing_rule")

@@ -13,6 +13,10 @@ RUN npm ci
 COPY --chown=node:node frontend_v2 ./
 RUN npm run build
 
+ARG APP_BUILD_SHA=unknown
+ENV APP_BUILD_SHA=$APP_BUILD_SHA
+LABEL org.opencontainers.image.revision=$APP_BUILD_SHA
+
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \

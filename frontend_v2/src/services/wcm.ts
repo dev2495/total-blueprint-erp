@@ -154,16 +154,18 @@ export interface CurrentStepMaterialPolicyResponse {
 }
 
 export const wcmService = {
-    getQueue: async (wcId: string, limit = 300, search = "") => {
+    getQueue: async (wcId: string, limit = 300, search = "", signal?: AbortSignal) => {
         const { data } = await api.get<WorkCenterAssignment[]>(`/api/production/wc/${wcId}/queue/`, {
             params: { limit, summary: 1, ...(search.trim() ? { q: search.trim() } : {}) },
             timeout: 30000,
+            signal,
         });
         return data;
     },
-    getAssignment: async (wcId: string, assignmentId: string) => {
+    getAssignment: async (wcId: string, assignmentId: string, signal?: AbortSignal) => {
         const { data } = await api.get<WorkCenterAssignment>(`/api/production/wc/${wcId}/${assignmentId}/`, {
             timeout: 30000,
+            signal,
         });
         return data;
     },
@@ -196,8 +198,8 @@ export const wcmService = {
         return Array.isArray(data) ? data : ((data as { results?: StalledJob[] })?.results ?? []);
     },
 
-    getEligibleRolls: async (jobId: string) => {
-        const { data } = await api.get<any[]>(`/api/production/wc-allocation/${jobId}/eligible-rolls/`);
+    getEligibleRolls: async (jobId: string, signal?: AbortSignal) => {
+        const { data } = await api.get<any[]>(`/api/production/wc-allocation/${jobId}/eligible-rolls/`, { signal });
         return data;
     },
 
@@ -408,8 +410,8 @@ export const wcmService = {
      * Get satisfaction status for a job.
      * Returns required/available/missing roll counts & bulk consumption preview.
      */
-    getSatisfactionStatus: async (jobId: string) => {
-        const { data } = await api.get<SatisfactionStatus>(`/api/production/flow-engine/${jobId}/satisfaction/`);
+    getSatisfactionStatus: async (jobId: string, signal?: AbortSignal) => {
+        const { data } = await api.get<SatisfactionStatus>(`/api/production/flow-engine/${jobId}/satisfaction/`, { signal });
         return data;
     },
 
@@ -424,8 +426,8 @@ export const wcmService = {
     /**
      * Get WIP pool grouped by material family.
      */
-    getWipPoolGrouped: async (jobId: string) => {
-        const { data } = await api.get<Record<string, WipRoll[]>>(`/api/production/flow-engine/${jobId}/wip-pool-grouped/`);
+    getWipPoolGrouped: async (jobId: string, signal?: AbortSignal) => {
+        const { data } = await api.get<Record<string, WipRoll[]>>(`/api/production/flow-engine/${jobId}/wip-pool-grouped/`, { signal });
         return data;
     },
 
@@ -440,12 +442,12 @@ export const wcmService = {
     /**
      * Get full job execution context.
      */
-    getJobContext: async (jobId: string) => {
-        const { data } = await api.get(`/api/production/flow-engine/${jobId}/context/`);
+    getJobContext: async (jobId: string, signal?: AbortSignal) => {
+        const { data } = await api.get(`/api/production/flow-engine/${jobId}/context/`, { signal });
         return data;
     },
-    getCurrentStepMaterialPolicy: async (jobId: string) => {
-        const { data } = await api.get<CurrentStepMaterialPolicyResponse>(`/api/production/flow-engine/${jobId}/current-step-material-policy/`);
+    getCurrentStepMaterialPolicy: async (jobId: string, signal?: AbortSignal) => {
+        const { data } = await api.get<CurrentStepMaterialPolicyResponse>(`/api/production/flow-engine/${jobId}/current-step-material-policy/`, { signal });
         return data;
     },
     updateCurrentStepMaterialPolicy: async (

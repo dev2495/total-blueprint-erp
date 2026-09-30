@@ -245,7 +245,7 @@ class PlannerAssignArtworkGateTests(SimpleTestCase):
 
 
 class PlannerProductMasterSyncTests(TestCase):
-    def test_planner_read_syncs_clean_sales_line_to_current_product_master(self):
+    def test_planner_read_preserves_master_and_explicit_planning_syncs_current_master(self):
         film = InventoryMaterial.objects.create(
             code="PM-PLAN-SYNC-FILM",
             name="Planner sync film",
@@ -385,6 +385,12 @@ class PlannerProductMasterSyncTests(TestCase):
         )
 
         view = PlannerViewSet()
+        with self.assertNumQueries(0):
+            unchanged = view._maybe_sync_sales_item_product_master(item)
+        self.assertEqual(unchanged.product_master_id, source.id)
+        item.refresh_from_db()
+        self.assertEqual(item.product_master_id, source.id)
+        view.request = SimpleNamespace(method='POST')
         synced = view._maybe_sync_sales_item_product_master(item)
 
         self.assertEqual(synced.product_master_id, current.id)

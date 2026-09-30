@@ -98,7 +98,7 @@ export default function StockIntelligenceTab() {
 
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-si-v4"],
-        queryFn: () => plannerService.getControlHub({ summary: true, planning_limit: 40, history_days: 30, history_limit: 10, active_limit: 20, timeout_ms: 12000 }),
+        queryFn: ({ signal }) => plannerService.getControlHub({ summary: true, planning_limit: 40, history_days: 30, history_limit: 10, active_limit: 20, timeout_ms: 12000 }, signal),
         refetchInterval: 240_000,
         staleTime: 180_000,
         meta: { suppressGlobalError: true },

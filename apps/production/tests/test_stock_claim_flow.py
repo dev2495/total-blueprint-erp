@@ -290,7 +290,9 @@ class StockClaimFlowTests(SimpleTestCase):
 
         roll_qs = MagicMock()
         roll_qs.select_related.return_value = roll_qs
-        roll_qs.order_by.return_value = [wrong_spec_roll, exact_roll]
+        roll_qs.only.return_value = roll_qs
+        roll_qs.order_by.return_value = roll_qs
+        roll_qs.iterator.return_value = iter([wrong_spec_roll, exact_roll])
         batch_qs = MagicMock()
         batch_qs.select_related.return_value = batch_qs
         batch_qs.order_by.return_value = []
@@ -353,7 +355,9 @@ class StockClaimFlowTests(SimpleTestCase):
         )
         roll_qs = MagicMock()
         roll_qs.select_related.return_value = roll_qs
-        roll_qs.order_by.return_value = [raw_roll]
+        roll_qs.only.return_value = roll_qs
+        roll_qs.order_by.return_value = roll_qs
+        roll_qs.iterator.return_value = iter([raw_roll])
         batch_qs = MagicMock()
         batch_qs.select_related.return_value = batch_qs
         batch_qs.order_by.return_value = []
@@ -400,7 +404,9 @@ class StockClaimFlowTests(SimpleTestCase):
         )
         roll_qs = MagicMock()
         roll_qs.select_related.return_value = roll_qs
-        roll_qs.order_by.return_value = [wip_roll]
+        roll_qs.only.return_value = roll_qs
+        roll_qs.order_by.return_value = roll_qs
+        roll_qs.iterator.return_value = iter([wip_roll])
         batch_qs = MagicMock()
         batch_qs.select_related.return_value = batch_qs
         batch_qs.order_by.return_value = []
@@ -462,7 +468,9 @@ class StockClaimFlowTests(SimpleTestCase):
         )
         roll_qs = MagicMock()
         roll_qs.select_related.return_value = roll_qs
-        roll_qs.order_by.return_value = [wip_roll]
+        roll_qs.only.return_value = roll_qs
+        roll_qs.order_by.return_value = roll_qs
+        roll_qs.iterator.return_value = iter([wip_roll])
         batch_qs = MagicMock()
         batch_qs.select_related.return_value = batch_qs
         batch_qs.order_by.return_value = []
@@ -588,7 +596,9 @@ class StockClaimFlowTests(SimpleTestCase):
         )
         roll_qs = MagicMock()
         roll_qs.select_related.return_value = roll_qs
-        roll_qs.order_by.return_value = [raw_roll]
+        roll_qs.only.return_value = roll_qs
+        roll_qs.order_by.return_value = roll_qs
+        roll_qs.iterator.return_value = iter([raw_roll])
         batch_qs = MagicMock()
         batch_qs.select_related.return_value = batch_qs
         batch_qs.order_by.return_value = []
@@ -663,7 +673,9 @@ class StockClaimFlowTests(SimpleTestCase):
         )
         roll_qs = MagicMock()
         roll_qs.select_related.return_value = roll_qs
-        roll_qs.order_by.return_value = [good_roll, bad_roll]
+        roll_qs.only.return_value = roll_qs
+        roll_qs.order_by.return_value = roll_qs
+        roll_qs.iterator.return_value = iter([good_roll, bad_roll])
         batch_qs = MagicMock()
         batch_qs.select_related.return_value = batch_qs
         batch_qs.order_by.return_value = []
@@ -1262,7 +1274,10 @@ class StockClaimFlowTests(SimpleTestCase):
             material=None,
         )
         roll_qs = MagicMock()
-        roll_qs.select_related.return_value.order_by.return_value = [exact_roll, wrong_roll]
+        roll_qs.select_related.return_value = roll_qs
+        roll_qs.only.return_value = roll_qs
+        roll_qs.order_by.return_value = roll_qs
+        roll_qs.iterator.return_value = iter([exact_roll, wrong_roll])
         fg_qs = MagicMock()
         fg_qs.select_related.return_value.order_by.return_value = []
 

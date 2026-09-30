@@ -327,7 +327,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
 
     def get_execution_profile(self, obj):
         from apps.production.services.services_execution import ExecutionService
-        return ExecutionService.get_step_execution_profile(obj.id)
+        return ExecutionService.get_step_execution_profile(obj.id, job=obj)
 
     def get_unit_weight_g(self, obj):
         if obj.sales_order_item:

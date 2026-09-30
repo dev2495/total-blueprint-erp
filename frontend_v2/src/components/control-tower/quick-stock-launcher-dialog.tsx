@@ -1,5 +1,7 @@
 "use client";
 
+import { PlannerDialogLayer } from "./planner-dialog-layer";
+
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ExternalLink, Plus, Rocket, X, Zap } from "lucide-react";
@@ -106,11 +108,12 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
     const purposeLabel = (seed.stock_purpose || "PRODUCT") === "PACKAGING" ? "Packaging stock" : "Product stock";
 
     return (
+        <PlannerDialogLayer>
         <div
             role="dialog" aria-modal="true"
             onClick={onClose}
             style={{
-                position: "fixed", inset: 0, padding: 24, zIndex: 50,
+                position: "fixed", inset: 0, padding: 24, zIndex: "var(--z-modal)",
                 background: "rgba(11, 31, 85, .42)", backdropFilter: "blur(4px)",
                 display: "flex", alignItems: "center", justifyContent: "center",
             }}
@@ -318,6 +321,7 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
                 </div>
             </div>
         </div>
+        </PlannerDialogLayer>
     );
 }
 

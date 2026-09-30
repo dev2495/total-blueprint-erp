@@ -42,6 +42,10 @@ RUN mkdir -p /var/data/media /var/log/tpp-erp /var/backups/tpp-erp /app/staticfi
 
 USER tpp
 
+ARG APP_BUILD_SHA=unknown
+ENV APP_BUILD_SHA=$APP_BUILD_SHA
+LABEL org.opencontainers.image.revision=$APP_BUILD_SHA
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \

@@ -1,5 +1,7 @@
 "use client";
 
+import { PlannerDialogLayer } from "./planner-dialog-layer";
+
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Image as ImageIcon, Search, X } from "lucide-react";
@@ -141,12 +143,13 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
     if (!order) return null;
 
     return (
+        <PlannerDialogLayer>
         <div
             role="dialog" aria-modal="true"
             data-testid="planner-artwork-picker-dialog"
             onClick={onClose}
             style={{
-                position: "fixed", inset: 0, padding: 24, zIndex: 50,
+                position: "fixed", inset: 0, padding: 24, zIndex: "var(--z-modal)",
                 background: "rgba(11, 31, 85, .42)", backdropFilter: "blur(4px)",
                 display: "flex", alignItems: "center", justifyContent: "center",
             }}
@@ -322,6 +325,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                 </div>
             </div>
         </div>
+        </PlannerDialogLayer>
     );
 }
 

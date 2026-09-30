@@ -113,6 +113,8 @@ jobs:
         run: npm run test:qty-formula
       - name: Roll allocation filter regressions
         run: npm run test:roll-allocation
+      - name: Query identity and planner recovery regressions
+        run: npm run test:query-contract
       - name: Navigation registry coverage
         run: npm run nav:validate
       - name: User-facing version privacy

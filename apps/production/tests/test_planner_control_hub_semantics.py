@@ -172,7 +172,7 @@ class PlannerControlHubSemanticTests(SimpleTestCase):
         refreshed = PlannerViewSet()._maybe_refresh_stale_recipe_bom_for_sales_item(item, item.bom_snapshot)
 
         self.assertEqual(refreshed["planning_lines"][0]["material_name"], "PP resin")
-        self.assertEqual(item.saved_fields, ["bom_snapshot", "unit_weight_g", "total_weight_kg"])
+        self.assertIsNone(item.saved_fields)
 
     def test_partial_replan_trace_is_live_replan_required(self):
         trace = PlannerViewSet()._row_production_trace(

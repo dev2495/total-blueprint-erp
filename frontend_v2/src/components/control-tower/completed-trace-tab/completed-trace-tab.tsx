@@ -244,7 +244,7 @@ export default function CompletedTraceTab() {
 
     const hubQ = useQuery({
         queryKey: ["planner-control-hub-ct-trace-v4", period, deferredSearch, customerFilter, sourceFilter === "CLAIM" ? "all" : sourceFilter],
-        queryFn: () => plannerService.getControlHub({
+        queryFn: ({ signal }) => plannerService.getControlHub({
             summary: true,
             history_days: periodCfg.days,
             history_limit: 120,
@@ -254,7 +254,7 @@ export default function CompletedTraceTab() {
             planning_limit: 0,
             active_limit: 0,
             timeout_ms: 12000,
-        }),
+        }, signal),
         staleTime: 30_000,
         refetchInterval: 90_000,
     });

@@ -102,6 +102,8 @@
     --r-6: 24px;
     --r-pill: 999px;
 
+    --z-modal: 60;
+
     --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     --dur-fast: 120ms;
     --dur-surface: 160ms;
