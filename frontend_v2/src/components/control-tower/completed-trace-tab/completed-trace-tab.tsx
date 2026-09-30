@@ -34,6 +34,7 @@ import { ageInfo, ageToneColor } from "../_shared/age";
 import { ChipRow, FilterChip, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
 import { getOrderPassport, OrderPassportStrip, PassportDetailGrid, ProductionTracePanel } from "../order-passport";
 import { formatDisplayDateTime } from "@/lib/date-format";
+import { PlannerReadFeedStatus } from "../read-feed-status";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -257,6 +258,7 @@ export default function CompletedTraceTab() {
         }, signal),
         staleTime: 30_000,
         refetchInterval: 90_000,
+        meta: { suppressGlobalError: true },
     });
 
     const history = hubQ.data?.order_history ?? [];
@@ -519,7 +521,7 @@ export default function CompletedTraceTab() {
                 subtitle="Cycle time · on-time delivery · throughput · expandable per-order detail with full route trace and BOM."
                 actions={
                     <div style={{ display: "flex", gap: 6 }}>
-                        <Button variant="secondary" onClick={() => exportCsv(filtered)}>
+                        <Button variant="secondary" onClick={() => exportCsv(filtered)} disabled={!hubQ.data || hubQ.isError}>
                             <Download size={14} style={{ marginRight: 6 }} />
                             Export CSV
                         </Button>
@@ -529,8 +531,10 @@ export default function CompletedTraceTab() {
                         </Button>
                     </div>
                 }
-                kpis={kpis as any}
+                kpis={hubQ.data ? kpis as any : undefined}
             />
+
+            <PlannerReadFeedStatus feeds={[{ ...hubQ, label: "Completed trace" }]} onRetry={() => { void hubQ.refetch(); }} />
 
             <PlannerFilterDock
                 title="Trace audit filter dock"
@@ -538,7 +542,7 @@ export default function CompletedTraceTab() {
                 icon={<History size={17} />}
                 activeCount={activeFilterCount}
                 resultText={`${fmt(filtered.length)} / ${fmt(inPeriod.length)} closed`}
-                statusText={hubQ.isFetching ? "Loading trace" : `${periodCfg.label} window`}
+                statusText={hubQ.isError ? "Refresh needed" : hubQ.isFetching ? "Loading trace" : `${periodCfg.label} window`}
                 onClear={clearFilters}
                 savedViews={
                     <SavedViewBar
@@ -549,7 +553,7 @@ export default function CompletedTraceTab() {
                     />
                 }
             >
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(250px, .75fr) minmax(260px, 1fr) minmax(260px, 1fr)", gap: 12, alignItems: "start" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 250px), 1fr))", gap: 12, alignItems: "start" }}>
                     <div>
                         <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Closed window</div>
                         <ChipRow>
@@ -585,7 +589,7 @@ export default function CompletedTraceTab() {
                         }}
                     />
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(260px, 1.35fr)", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12 }}>
                     <div>
                         <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Source path</div>
                         <ChipRow>
@@ -707,7 +711,9 @@ export default function CompletedTraceTab() {
                         </div>
                         <History size={16} color="var(--text-3)" />
                     </div>
-                    {filtered.length === 0 ? (
+                    {hubQ.isPending ? (
+                        <div role="status" style={{ padding: 28, color: "var(--text-3)" }}>Loading completed trace…</div>
+                    ) : hubQ.isError && !hubQ.data ? null : filtered.length === 0 ? (
                         <EmptyState title="No closed orders" body="Try a longer lookback window or clear the search/filters." />
                     ) : (
                         <>

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import logging
 import uuid
 
-from django.db import transaction
+from django.db import DatabaseError, transaction
 from django.core import signing
 from django.db.models import Count, Max, Prefetch, Q, Sum
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -68,7 +68,7 @@ from .models import (
     JobExecutionLog,
     PlannerSkuVariant,
 )
-from .serializers import ProductionJobSerializer, ProductionJobSummarySerializer, PlannedBulkStockOrderSerializer
+from .serializers import ProductionJobSerializer, ProductionJobSummarySerializer, ProductionJobBoardSerializer, PlannedBulkStockOrderSerializer
 from .services.job_services import JobService
 
 logger = logging.getLogger(__name__)
@@ -136,6 +136,8 @@ def _sales_item_display_label(item, order=None, product_master=None, template=No
         label = str(spec.get("display_label") or spec.get("line_label") or "").strip()
         if label:
             return label
+    except DatabaseError:
+        raise
     except Exception:
         logger.warning("Unable to build planner line label for item=%s", getattr(item, "id", None), exc_info=True)
     return str(
@@ -525,6 +527,7 @@ class PlannerViewSet(viewsets.ViewSet):
         backlog_states = requested_states or ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED", "COMPLETED"]
         limit = _bounded_int(request.query_params.get("limit"), default=160, minimum=1, maximum=300)
         summary = str(request.query_params.get("summary", "0")).lower() in {"1", "true", "yes", "summary"}
+        board = summary and str(request.query_params.get('board', '')).lower() in {'1', 'true', 'yes'}
         jobs = (
             ProductionJob.objects.filter(job_state__in=backlog_states)
             .select_related(
@@ -537,11 +540,15 @@ class PlannerViewSet(viewsets.ViewSet):
                 "sales_order_item__sales_order",
                 "sales_order_item__template",
                 "sales_order_item__product_master",
+                "sales_order_item__product_variant",
+                "sales_order_item__sku_variant",
+                "sales_order_item__customer_product_overlay",
+                "production_batch",
                 "mts_order",
             )
             .order_by("-updated_at")[:limit]
         )
-        serializer_class = ProductionJobSummarySerializer if summary else ProductionJobSerializer
+        serializer_class = ProductionJobBoardSerializer if board else (ProductionJobSummarySerializer if summary else ProductionJobSerializer)
         serializer = serializer_class(jobs, many=True)
         return Response(serializer.data)
 
@@ -6293,6 +6300,7 @@ class PlannerViewSet(viewsets.ViewSet):
         detail_order_id = str(detail_order_id or "").strip()
         detail_sales_order_item_id = str(detail_sales_order_item_id or "").strip()
         detail_requested = bool(detail_order_id or detail_sales_order_item_id)
+        active_only = bool(summary and active_limit > 0 and planning_limit == 0 and history_limit == 0 and not detail_requested)
         paged_queue = bool(summary and planning_limit > 0 and active_limit == 0 and history_limit == 0 and not detail_requested)
         page_limit = planning_limit
         cursor_state = {}
@@ -6487,6 +6495,9 @@ class PlannerViewSet(viewsets.ViewSet):
                 sales_qs = sales_qs.filter(items__template__name=template_filter)
             if fg_filter and fg_filter.upper() != 'ALL':
                 sales_qs = sales_qs.filter(items__template__fg_type__icontains=fg_filter)
+        elif active_only:
+            sales_qs = sales_qs.filter(Q(items__line_status__in=['PLANNED', 'RELEASED', 'IN_PRODUCTION', 'PARTIAL'])
+                                       | Q(status__in=['PLANNED', 'RELEASED'])).distinct()
         if queue_search:
             sales_qs = sales_qs.filter(
                 Q(order_number__icontains=queue_search)
@@ -6534,6 +6545,8 @@ class PlannerViewSet(viewsets.ViewSet):
             if cursor_state.get('stock'):
                 anchor = cursor_state['stock']
                 stock_qs = stock_qs.filter(Q(created_at__lt=anchor['date']) | Q(created_at=anchor['date'], id__lt=anchor['id']))
+        elif active_only:
+            stock_qs = stock_qs.filter(status__in=['PLANNED', 'RELEASED'])
         if queue_search:
             stock_qs = stock_qs.filter(
                 Q(order_number__icontains=queue_search)
@@ -6577,7 +6590,9 @@ class PlannerViewSet(viewsets.ViewSet):
             history_query=history_query,
             sales_item_ids=sales_item_ids,
         )
-        self._batch_sales_line_read_metrics([item for order in all_sales for item in order.items.all()])
+        self._batch_sales_line_read_metrics([item for order in all_sales for item in order.items.all()
+            if not summary or item.line_status == 'PARTIAL' or str(item.id) == detail_sales_order_item_id
+            or (detail_order_kind == 'sales' and str(order.id) == detail_order_id)])
         layer_material_ids = {str(layer.get('variant_id') or layer.get('material_id')) for order in all_sales
                               for item in order.items.all() for layer in (item.layer_snapshot or []) if isinstance(layer, dict)
                               and (layer.get('variant_id') or layer.get('material_id'))}

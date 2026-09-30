@@ -47,9 +47,10 @@ export function usePlannerStock() {
 export function usePlannerJobs() {
     return useQuery({
         queryKey: KEYS.jobs(),
-        queryFn: () => plannerService.getJobs(),
+        queryFn: ({ signal }) => plannerService.getJobs({ board: true }, signal),
         refetchInterval: POLL_MS,
         refetchIntervalInBackground: false,
+        meta: { suppressGlobalError: true },
     })
 }
 

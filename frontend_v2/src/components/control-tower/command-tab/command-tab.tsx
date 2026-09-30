@@ -42,6 +42,7 @@ import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { HealthBar, type HealthSegment } from "../HealthBar";
 import { OrderPassportStrip } from "../order-passport";
 import { formatDisplayDate } from "@/lib/date-format";
+import { PlannerReadFeedStatus } from "../read-feed-status";
 
 function fmt(value: unknown, decimals = 0): string {
     if (value === null || value === undefined) return "—";
@@ -190,32 +191,37 @@ export default function CommandTab() {
                         Refresh
                     </Button>
                 }
-                kpis={kpis as any}
+                kpis={dashboardQ.data && hubQ.data ? kpis as any : undefined}
             />
 
+            <PlannerReadFeedStatus feeds={[{ ...dashboardQ, label: "Command metrics" }, { ...hubQ, label: "Order queues" }]} onRetry={refreshAll} />
+
+            {dashboardQ.data && hubQ.data && <>
+
             {/* Row 1: Priority Runway + Source Mix */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18 }}>
                 <PriorityRunwayCard orders={orders} />
                 <SourceMixCard sourceMix={sourceMix} replenishmentMix={replenishmentMix} queueKpis={queueKpis} alerts={alerts} />
             </div>
 
             {/* Row 2: Demand Pipeline + Job Distribution */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18 }}>
                 <DemandPipelineCard demand={demandPipeline} />
                 <JobDistributionCard distribution={jobDistribution} statusStrip={statusStrip} />
             </div>
 
             {/* Row 3: Work Center Load + Action Desk */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18 }}>
                 <WorkCenterLoadCard wcCapacity={wcCapacity} />
                 <ActionDeskCard alerts={alerts} statusStrip={statusStrip} queueKpis={queueKpis} activeCount={activeOrders.length} />
             </div>
 
             {/* Row 4: Production Output Trend (full width if data exists) + Recent Activity */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 18 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 18 }}>
                 <OutputTrendCard trend={productionTrend} />
                 <RecentActivityCard activity={recentActivity} />
             </div>
+            </>}
         </div>
     );
 }

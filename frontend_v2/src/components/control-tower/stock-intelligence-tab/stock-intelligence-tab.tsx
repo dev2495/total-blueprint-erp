@@ -118,11 +118,12 @@ export default function StockIntelligenceTab() {
     });
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-si-v3"],
-        queryFn: () => plannerService.getJobs({
+        queryFn: ({ signal }) => plannerService.getJobs({
+            board: true,
             limit: 40,
             states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "PAUSED"],
             timeout_ms: 15000,
-        }),
+        }, signal),
         staleTime: 180_000,
         meta: { suppressGlobalError: true },
     });

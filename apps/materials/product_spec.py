@@ -4,6 +4,7 @@ import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
+from django.db import DatabaseError
 
 
 def _as_dict(value: Any) -> dict:
@@ -69,7 +70,8 @@ def _code_token(value: Any) -> str:
     return text
 
 
-def _material_maps(layers: list[dict]) -> tuple[dict[str, Any], dict[str, Any]]:
+def resolve_layer_materials(layers: list[dict]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve one batch of snapshot references; callers may reuse it for a read."""
     variant_ids = []
     grade_ids = []
     for layer in layers:
@@ -90,6 +92,8 @@ def _material_maps(layers: list[dict]) -> tuple[dict[str, Any], dict[str, Any]]:
             str(row.id): row
             for row in InventoryMaterial.objects.filter(id__in=sorted(set(variant_ids)))
         }
+    except DatabaseError:
+        raise
     except Exception:
         materials = {}
 
@@ -100,6 +104,8 @@ def _material_maps(layers: list[dict]) -> tuple[dict[str, Any], dict[str, Any]]:
             str(row.id): row
             for row in RecipeGrade.objects.filter(id__in=sorted(set(grade_ids)))
         }
+    except DatabaseError:
+        raise
     except Exception:
         grades = {}
 
@@ -170,9 +176,9 @@ def compact_size_label(geometry: dict | None = None, axis_values: dict | None = 
     return label
 
 
-def layer_spec_rows(layers: list[dict], geometry: dict | None = None) -> list[dict]:
+def layer_spec_rows(layers: list[dict], geometry: dict | None = None, *, material_maps=None) -> list[dict]:
     source_layers = [_as_dict(layer).copy() for layer in _as_list(layers)]
-    material_by_id, grade_by_id = _material_maps(source_layers)
+    material_by_id, grade_by_id = material_maps if material_maps is not None else resolve_layer_materials(source_layers)
     size = geometry_summary(geometry or {})
     fallback_width = size.get("width_mm")
     rows = []
@@ -246,8 +252,8 @@ def _strip_thickness_suffix(code: str, thickness: Any) -> str:
     return token
 
 
-def layer_stack_summary(layers: list[dict], geometry: dict | None = None) -> dict:
-    rows = layer_spec_rows(_as_list(layers), geometry or {})
+def layer_stack_summary(layers: list[dict], geometry: dict | None = None, *, resolved_rows=None) -> dict:
+    rows = resolved_rows if resolved_rows is not None else layer_spec_rows(_as_list(layers), geometry or {})
     thickness_values: list[str] = []
     material_values: list[str] = []
     for row in rows:
@@ -346,10 +352,11 @@ def build_product_label(
     axis_values: dict | None = None,
     qty_value: Any = None,
     qty_uom: str = "",
+    resolved_stack: dict | None = None,
 ) -> str:
     lead = _text(customer_display_name, customer_item_code, product_name, product_variant_name, product_master_name, "Sales product")
     size_label = compact_size_label(geometry, axis_values)
-    stack = layer_stack_summary(_as_list(layers), geometry)
+    stack = resolved_stack if resolved_stack is not None else layer_stack_summary(_as_list(layers), geometry)
     chem = print_and_chemistry_summary(printing)
     qty = _number(qty_value)
     qty_label = ""
@@ -416,10 +423,11 @@ def build_product_spec(
     axis_values: dict | None = None,
     qty_value: Any = None,
     qty_uom: str = "",
+    material_maps=None,
 ) -> dict:
     size = geometry_summary(geometry or {})
-    layer_rows = layer_spec_rows(_as_list(layers), geometry or {})
-    layer_stack = layer_stack_summary(_as_list(layers), geometry or {})
+    layer_rows = layer_spec_rows(_as_list(layers), geometry or {}, material_maps=material_maps)
+    layer_stack = layer_stack_summary(_as_list(layers), geometry or {}, resolved_rows=layer_rows)
     chemistry = print_and_chemistry_summary(printing)
     pods = pod_labels(printing, packaging, geometry)
     add_ons = addon_labels(addons, packaging)
@@ -438,6 +446,7 @@ def build_product_spec(
         axis_values=axis_values,
         qty_value=qty_value,
         qty_uom=qty_uom,
+        resolved_stack=layer_stack,
     )
     search_text = " ".join(
         [

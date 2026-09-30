@@ -38,6 +38,7 @@ class RequestContextMiddleware:
         queue_read = request.method in {'GET', 'HEAD'} and any(
             path == prefix or path.startswith(prefix + '/') for prefix in (
                 '/api/production/planner/control-hub', '/api/production/wc',
+                '/api/production/planner/jobs', '/api/production/jobs',
                 '/api/production/flow-engine', '/api/production/wc-allocation',
             ))
 

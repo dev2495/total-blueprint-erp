@@ -1,15 +1,16 @@
 from rest_framework import serializers
 import logging
+from django.db import DatabaseError
 from .models import ProductionBatch, ProductionJob, WorkCenterAssignment, ScrapReason, DowntimeReason
 from apps.factory.models import Machine
 from apps.materials.models import PodSkuVariant
-from apps.materials.product_spec import build_product_spec
+from apps.materials.product_spec import build_product_spec, resolve_layer_materials
 from apps.users.models import User
 
 logger = logging.getLogger(__name__)
 
 
-def _sales_item_display_label(item):
+def _sales_item_display_label(item, material_maps=None):
     if not item:
         return ""
     order = getattr(item, "sales_order", None)
@@ -20,6 +21,7 @@ def _sales_item_display_label(item):
     overlay = getattr(item, "customer_product_overlay", None)
     try:
         spec = build_product_spec(
+            material_maps=material_maps,
             geometry=getattr(item, "geometry_snapshot", None) if isinstance(getattr(item, "geometry_snapshot", None), dict) else {},
             layers=getattr(item, "layer_snapshot", None) if isinstance(getattr(item, "layer_snapshot", None), list) else [],
             printing=getattr(item, "printing_snapshot", None) if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
@@ -44,6 +46,8 @@ def _sales_item_display_label(item):
         label = str(spec.get("display_label") or spec.get("line_label") or "").strip()
         if label:
             return label
+    except DatabaseError:
+        raise
     except Exception:
         logger.warning("Unable to build production line display label for item=%s", getattr(item, "id", None), exc_info=True)
     return (
@@ -438,6 +442,16 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['job_number', 'status']
 
+class ProductionJobSummaryListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        jobs = list(data.all() if hasattr(data, 'all') else data)
+        layers = [layer for job in jobs for layer in (getattr(job.sales_order_item, 'layer_snapshot', None) or [])
+                  if isinstance(layer, dict)]
+        # Serializer context is scoped to this response, never a cross-user cache.
+        self.context['job_label_material_maps'] = resolve_layer_materials(layers)
+        return super().to_representation(jobs)
+
+
 class ProductionJobSummarySerializer(serializers.ModelSerializer):
     order_number = serializers.ReadOnlyField(source='sales_order_no')
     sales_order_item_id = serializers.SerializerMethodField()
@@ -486,7 +500,7 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
 
     def get_sales_order_line_label(self, obj):
         item = getattr(obj, "sales_order_item", None)
-        return _sales_item_display_label(item)
+        return _sales_item_display_label(item, self.context.get('job_label_material_maps'))
 
     def get_route_node(self, obj):
         from apps.production.services.batch_route_service import RouteGraphService
@@ -505,6 +519,7 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProductionJob
+        list_serializer_class = ProductionJobSummaryListSerializer
         fields = [
             'id', 'job_number', 'status', 'job_state', 'origin', 'source_type',
             'priority', 'planned_date', 'created_at', 'updated_at', 'closed_at',

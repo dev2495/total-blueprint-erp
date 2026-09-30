@@ -16,6 +16,7 @@ import { formatDisplayDateTime } from "@/lib/date-format";
 import { usePlannerJobs } from "@/hooks/use-planner";
 import type { ProductionJob } from "@/services/production";
 import type { TowerTabContext } from "./types";
+import { PlannerReadFeedStatus } from "../control-tower/read-feed-status";
 
 type Band = "planned" | "released" | "running" | "done";
 
@@ -98,7 +99,8 @@ function jobLineLabel(job: ProductionJob): string {
 
 export function QueueTab({ context }: { context: TowerTabContext }) {
   const [selectedJob, setSelectedJob] = useState<ProductionJob | null>(null);
-  const { data, isLoading } = usePlannerJobs();
+  const jobsQ = usePlannerJobs();
+  const { data, isLoading } = jobsQ;
   const jobs = data ?? [];
 
   const grouped = useMemo(() => {
@@ -135,6 +137,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
 
   return (
     <div className="flex flex-col">
+      <PlannerReadFeedStatus feeds={[{ ...jobsQ, label: "Job queue" }]} onRetry={() => { void jobsQ.refetch(); }} />
       <div className="flex flex-wrap gap-2 border-b border-line px-5 py-3 text-[11px] text-content-3">
         <span className="font-semibold uppercase tracking-wide">Queue</span>
         {BANDS.map((band) => (
@@ -169,7 +172,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                 <div className="rounded-lg border border-dashed border-line bg-surface-1 p-3 text-[11px] italic text-content-3">
                   Loading…
                 </div>
-              ) : list.length === 0 ? (
+              ) : jobsQ.isError && !data ? null : list.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-line bg-surface-1 p-3 text-[11px] italic text-content-4">
                   Nothing in this band.
                 </div>

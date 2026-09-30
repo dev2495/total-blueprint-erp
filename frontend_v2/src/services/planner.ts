@@ -728,6 +728,7 @@ export interface PlannerLiveSummaryParams {
 
 export interface PlannerJobsParams {
     summary?: boolean;
+    board?: boolean;
     limit?: number;
     states?: string[] | string;
     timeout_ms?: number;
@@ -1007,15 +1008,17 @@ export const plannerService = {
         return unwrapList<WCCapacity>(data);
     },
 
-    getJobs: async (params?: PlannerJobsParams): Promise<ProductionJob[]> => {
+    getJobs: async (params?: PlannerJobsParams, signal?: AbortSignal): Promise<ProductionJob[]> => {
         const states = Array.isArray(params?.states) ? params.states.join(",") : params?.states;
         const { data } = await api.get<MaybePaginated<ProductionJob>>('/api/production/planner/jobs/', {
             params: {
                 summary: (params?.summary ?? true) ? 1 : 0,
+                board: params?.board ? 1 : undefined,
                 limit: params?.limit ?? 160,
                 states: states || undefined,
             },
             timeout: params?.timeout_ms ?? 15000,
+            signal,
         });
         return unwrapList<ProductionJob>(data);
     },

@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ChipRow, FilterChip, FilterSearch, PlannerFilterDock } from "../filter-dock";
 import { getOrderTraceQuantitySummary, OrderPassportStrip, ProductionTracePanel } from "../order-passport";
 import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
+import { PlannerReadFeedStatus } from "../read-feed-status";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -89,11 +90,12 @@ export default function LiveProductionTab() {
 
     const jobsQ = useQuery({
         queryKey: ["planner-jobs-lp-current"],
-        queryFn: () => plannerService.getJobs({
+        queryFn: ({ signal }) => plannerService.getJobs({
+            board: true,
             limit: 180,
             states: ["PLANNED", "RELEASED", "WAITING", "EXECUTING", "RUNNING", "PAUSED", "COMPLETED"],
             timeout_ms: 15000,
-        }),
+        }, signal),
         refetchInterval: 30_000,
         staleTime: 15_000,
         meta: { suppressGlobalError: true },
@@ -318,8 +320,10 @@ export default function LiveProductionTab() {
                         Refresh
                     </Button>
                 }
-                kpis={kpis as any}
+                kpis={hubQ.data ? kpis as any : undefined}
             />
+
+            <PlannerReadFeedStatus feeds={[{ ...hubQ, label: "Live orders" }, { ...jobsQ, label: "Job cards" }, { ...dashboardQ, label: "Production trend" }]} onRetry={refreshAll} />
 
             <PlannerFilterDock
                 title="Live line filter dock"
@@ -327,7 +331,7 @@ export default function LiveProductionTab() {
                 icon={<Activity size={17} />}
                 activeCount={activeFilterCount}
                 resultText={`${fmt(visibleOrders.length)} / ${fmt(activeOrders.length)} live`}
-                statusText={hubQ.isFetching || jobsQ.isFetching ? "Refreshing" : "WCM current"}
+                statusText={hubQ.isError || jobsQ.isError ? "Refresh needed" : hubQ.isFetching || jobsQ.isFetching ? "Refreshing" : "WCM current"}
                 onClear={clearFilters}
                 savedViews={
                     <SavedViewBar
@@ -338,7 +342,7 @@ export default function LiveProductionTab() {
                     />
                 }
             >
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) minmax(280px, 1fr) minmax(260px, .8fr)", gap: 12, alignItems: "start" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12, alignItems: "start" }}>
                     <FilterSearch
                         value={search}
                         onChange={(value) => {
@@ -400,7 +404,7 @@ export default function LiveProductionTab() {
                 <div className="ct-live-list">
                     {hubQ.isLoading ? (
                         <Card><div style={{ padding: 36, color: "var(--text-4)", textAlign: "center" }}>Loading live production...</div></Card>
-                    ) : visibleOrders.length === 0 ? (
+                    ) : hubQ.isError && !hubQ.data ? null : visibleOrders.length === 0 ? (
                         <Card><EmptyState title="No live orders match" body="Released, WCM handoff, running, waiting, and replan-required orders appear here." /></Card>
                     ) : (
                         <>

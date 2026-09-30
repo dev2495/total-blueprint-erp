@@ -27,6 +27,10 @@ class QueueRequestBudgetTests(TransactionTestCase):
             self.assertEqual(response['X-App-Build'], 'test-build')
             self.assertIn('1 queries', response['Server-Timing'])
             self.assertEqual(self.budgets(), previous)
+            for path in ('/api/production/planner/jobs/', '/api/production/jobs/board/'):
+                middleware(RequestFactory().get(path))
+                self.assertEqual(observed[-1], ('1234ms', '123ms'))
+                self.assertEqual(self.budgets(), previous)
             middleware(RequestFactory().post('/api/production/planner/control-hub/sales/order/plan/'))
             self.assertEqual(observed[-1], previous)
             middleware(RequestFactory().get('/api/production/planner/control-hub'))
