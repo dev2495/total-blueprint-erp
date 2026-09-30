@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -71,10 +71,17 @@ export default function ControlTowerLayout({
 }) {
   const pathname = usePathname() || "";
   const router = useRouter();
+  const tabNavRef = useRef<HTMLElement>(null);
   const activeKey =
     TABS.find((t) => pathname.includes(t.key))?.key ?? "command";
 
-  // Keyboard shortcuts 1-5
+  useEffect(() => {
+    tabNavRef.current
+      ?.querySelector<HTMLElement>('a[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeKey]);
+
+  // Keyboard shortcuts 1-6
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -101,10 +108,11 @@ export default function ControlTowerLayout({
     >
       {/* Tab navigator */}
       <nav
+        ref={tabNavRef}
         aria-label="Control Tower tabs"
         style={{
           display: "inline-flex",
-          flexWrap: "wrap",
+          flexWrap: "nowrap",
           gap: 4,
           padding: 6,
           borderRadius: "var(--r-pill)",
@@ -114,7 +122,8 @@ export default function ControlTowerLayout({
           boxShadow: "var(--sh-md)",
           marginBottom: "var(--sp-6)",
           maxWidth: "100%",
-          overflow: "auto",
+          overflowX: "auto",
+          scrollPaddingInline: 6,
         }}
       >
         {TABS.map((tab) => {
@@ -125,8 +134,15 @@ export default function ControlTowerLayout({
               key={tab.key}
               href={tab.href}
               aria-current={isActive ? "page" : undefined}
+              onFocus={(event) => {
+                event.currentTarget.scrollIntoView({
+                  block: "nearest",
+                  inline: "nearest",
+                });
+              }}
               style={{
                 display: "inline-flex",
+                flexShrink: 0,
                 alignItems: "center",
                 gap: 8,
                 padding: "8px 16px",
@@ -136,6 +152,7 @@ export default function ControlTowerLayout({
                 fontSize: 13,
                 fontWeight: 600,
                 textDecoration: "none",
+                whiteSpace: "nowrap",
                 transition: "all var(--df) var(--eo)",
                 boxShadow: isActive ? "var(--glow-brand)" : "none",
               }}
