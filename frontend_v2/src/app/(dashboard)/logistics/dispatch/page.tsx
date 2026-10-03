@@ -205,7 +205,7 @@ export default function DispatchBayPage() {
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       toast({
         title: "Epson job downloaded",
-        description: "The Windows helper prints one 15 × 5.5-inch form in NLQ mode with no browser scaling.",
+        description: "The Windows helper prints one 10 × 6-inch form in NLQ mode with no browser scaling.",
       });
     } catch (error) {
       toast({ title: "Epson print failed", description: err(error), variant: "destructive" });

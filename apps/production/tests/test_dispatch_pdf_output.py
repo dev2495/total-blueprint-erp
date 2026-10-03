@@ -134,11 +134,31 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertNotIn(b"\x1bx\x00", prefix)  # no Draft fallback
         self.assertTrue(DispatchListPDFService.ESC_P_SUFFIX.encode("ascii").startswith(b"\x1bU\x00"))
 
+    def test_escp_job_sets_six_inch_form_after_helper_prefix(self):
+        text = DispatchListPDFService.render_text(_snapshot_challan([_ready_row(1)]))
+        payload = DispatchListPDFService._render_rows_escp(text).getvalue()
+        prefix = DispatchListPDFService.ESC_P_PREFIX.encode("ascii")
+
+        # The installed helper validates the prefix byte-for-byte; the 6-inch
+        # form length (ESC C 36 at 6 LPI) must follow it and override ESC C 33.
+        self.assertTrue(payload.startswith(prefix + b"\x1bC\x24\x1bM"))  # 6-inch form, 12 CPI
+        self.assertEqual(DispatchListPDFService.DOT_MATRIX_FORM_LINES, 36)
+        self.assertLess(
+            DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE,
+            DispatchListPDFService.DOT_MATRIX_FORM_LINES,
+        )
+
     def test_pdf_and_raw_have_separate_native_page_contracts(self):
-        self.assertEqual(DispatchListPDFService.DOT_MATRIX_PAGE_SIZE, (15 * 72, 5.5 * 72))
+        self.assertEqual(DispatchListPDFService.DOT_MATRIX_PAGE_SIZE, (10 * 72, 6 * 72))
         self.assertAlmostEqual(DispatchListPDFService.PDF_PAGE_SIZE[0], 841.89, places=1)
         self.assertAlmostEqual(DispatchListPDFService.PDF_PAGE_SIZE[1], 595.28, places=1)
-        self.assertEqual(DispatchListPDFService.DOT_MATRIX_COLUMNS, 110)
+        # 96 columns at 12 CPI = 8 inches: inside the ~9-inch printable band
+        # between the perforations of the 10-inch continuous form.
+        self.assertEqual(DispatchListPDFService.DOT_MATRIX_COLUMNS, 96)
+        self.assertEqual(DispatchListPDFService.DOT_MATRIX_CPI, 12)
+        self.assertLessEqual(
+            DispatchListPDFService.DOT_MATRIX_COLUMNS / DispatchListPDFService.DOT_MATRIX_CPI, 8.0
+        )
         self.assertEqual(DispatchListPDFService.PDF_FONT_NAME, "Courier")
         self.assertEqual(DispatchListPDFService.PDF_FONT_SIZE, 12.0)
         self.assertGreaterEqual(DispatchListPDFService.PDF_MARGIN_LEFT, 24.0)
@@ -146,7 +166,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         # Courier uses a 0.6-em advance. The canonical text form fits A4
         # landscape without a PDF viewer shrinking it.
         self.assertLess(
-            (110 * 12.0 * 0.6) + DispatchListPDFService.PDF_MARGIN_LEFT,
+            (DispatchListPDFService.DOT_MATRIX_COLUMNS * 12.0 * 0.6) + DispatchListPDFService.PDF_MARGIN_LEFT,
             DispatchListPDFService.PDF_PAGE_SIZE[0],
         )
 
@@ -499,7 +519,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertEqual(b"".join(response.streaming_content), payload)
         renderer.assert_called_once_with("so-1", roll_ids=None, gonny_ids=None)
 
-    def test_text_pages_fit_five_and_half_inch_form_at_six_lines_per_inch(self):
+    def test_text_pages_fit_six_inch_form_at_six_lines_per_inch(self):
         sales_order = SimpleNamespace(
             id="so-1",
             order_number="SO-READY-1",
@@ -514,9 +534,13 @@ class DispatchPDFOutputTests(SimpleTestCase):
             text = DispatchListPDFService.render_ready_slip_text("so-1")
 
         pages = text.rstrip("\r\n").split("\f")
-        self.assertEqual(len(pages), 2)
+        self.assertGreater(len(pages), 1)
+        self.assertEqual(text.count("UNIT-"), 28)
         self.assertTrue(
             all(len(page.splitlines()) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages)
+        )
+        self.assertTrue(
+            all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for line in text.splitlines())
         )
 
     def test_ready_slip_accepts_selected_unit_filters(self):
@@ -616,13 +640,13 @@ class DispatchPDFOutputTests(SimpleTestCase):
         text = DispatchListPDFService.render_text(_snapshot_challan([row], version=3))
 
         self.assertNotIn("METALLOCENE", text)
-        for expected in ("PET / NYLON / ALUMINIUM /", "LDNAT-ML", "GP+20% MTL+", "35% MTL+PLAIN", "12+15+", "9+80"):
+        for expected in ("PET / NYLON /", "ALUMINIUM /", "LDNAT-ML", "GP+", "20% MTL+", "35% MTL+", "PLAIN", "12+15+9", "+80"):
             self.assertIn(expected, text)
         pages = text.rstrip("\r\n").split("\f")
         self.assertTrue(
             all(len(page.split("\r\n")) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages)
         )
-        self.assertTrue(all(len(line) <= 110 for page in pages for line in page.split("\r\n")))
+        self.assertTrue(all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for page in pages for line in page.split("\r\n")))
 
     def test_wrapped_multilayer_rows_paginate_by_physical_printed_height(self):
         rows = []
@@ -645,7 +669,7 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertTrue(
             all(len(page.split("\r\n")) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages)
         )
-        self.assertTrue(all(len(line) <= 110 for page in pages for line in page.split("\r\n")))
+        self.assertTrue(all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for page in pages for line in page.split("\r\n")))
 
     def test_packing_slip_does_not_ask_for_or_print_dispatch_transport(self):
         sales_order = SimpleNamespace(id="so-1", order_number="SO-READY-1", customer_name="Ready Customer")
@@ -664,9 +688,23 @@ class DispatchPDFOutputTests(SimpleTestCase):
     def test_photographed_eight_unit_challan_fits_one_form_and_shows_one_order(self):
         rows = []
         for index in range(1, 9):
-            line_no = "9" if index <= 2 else "1"
+            line_no = "9" if index <= 4 else "1"
             row = _ready_row(index, line_key=f"line-{line_no}")
-            row["so_line_no"] = line_no
+            row.update(
+                {
+                    "so_line_no": line_no,
+                    "unit_type": "ROLL",
+                    "unit_id": f"RDU-{(index - 1) % 4 + 1}",
+                    "description": "LDNAT-ML",
+                    "grade": "GP",
+                    "size": "560MM" if line_no == "9" else "535MM",
+                    "thickness": "30" if line_no == "9" else "40",
+                    "pcs": 0,
+                    "gross_kg": "32.6" if line_no == "9" else "44.4",
+                    "tare_kg": "1.625",
+                    "net_kg": "30.975" if line_no == "9" else "42.775",
+                }
+            )
             rows.append(row)
         balances = [
             {"line": "9", "ordered": "500", "previous": "100", "current": "80", "balance": "320", "uom": "KG"},
@@ -683,7 +721,25 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertIn("SO ITEM 1 BALANCE", text)
         self.assertNotIn("LINE TOTAL", text)
         self.assertNotIn("BAL L", text)
-        self.assertTrue(all(len(line) <= 110 for line in pages[0].split("\r\n")))
+        # Every weight column and the totals are on the printable form.
+        header = next(line for line in pages[0].split("\r\n") if line.startswith("NO. "))
+        for label in ("GROSS", "PCS", "TARE", "NET"):
+            self.assertIn(label, header)
+        detail = next(line for line in pages[0].split("\r\n") if "RDU-1" in line)
+        self.assertTrue(detail.rstrip().endswith("30.975"))
+        self.assertIn("1.625", detail)
+        totals = next(line for line in pages[0].split("\r\n") if line.startswith("BAGS:"))
+        # 4 x 32.6 + 4 x 44.4 gross, 8 x 1.625 tare, 4 x 30.975 + 4 x 42.775 net.
+        self.assertEqual(totals.split()[-3:], ["308.0", "13.000", "295.000"])
+        # Decimal points line up from the unit rows into the totals row.
+        for label, places in (("GROSS", 1), ("TARE", 3), ("NET", 3)):
+            point = header.index(label) + len(label) - places - 1
+            self.assertEqual(detail[point], ".")
+            self.assertEqual(totals[point], ".")
+        self.assertEqual(header.index("NET") + 3, len(header))
+        self.assertEqual(len(detail), len(header))
+        self.assertEqual(len(totals), len(header))
+        self.assertTrue(all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for line in pages[0].split("\r\n")))
 
     def test_photographed_sixteen_unit_three_item_challan_fits_one_form(self):
         rows = []

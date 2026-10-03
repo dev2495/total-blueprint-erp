@@ -242,7 +242,10 @@ class DispatchListPDFService:
     decorative assets so it prints predictably on shop-floor printers.
     """
 
-    DOT_MATRIX_PAGE_SIZE = (15 * inch, 5.5 * inch) if inch is not None else A4
+    # Physical stationery measured from the client's printed slip: 10-inch
+    # continuous form (about 9 inches between the sprocket perforations) with
+    # a 6-inch form length (12 sprocket holes at 0.5-inch pitch).
+    DOT_MATRIX_PAGE_SIZE = (10 * inch, 6 * inch) if inch is not None else A4
     PDF_PAGE_SIZE = landscape(A4) if landscape is not None and A4 is not None else A4
     # Vector PDF text must remain native fill-only text. The former 0.82 pt
     # outline expanded every Courier glyph by several printer pixels when the
@@ -250,18 +253,24 @@ class DispatchListPDFService:
     # over-struck output seen on the physical form.
     TEXT_RENDER_MODE_FILL = 0
     TEXT_DARKEN_OFFSETS = ((0.0, 0.0),)
-    # The legacy slip is an intentionally compact 110-column business form.
-    # 132 columns made descriptions, group headings, and balances visually
-    # merge even though the printer was correctly operating at 10 CPI.
-    DOT_MATRIX_COLUMNS = 110
+    # 96 columns at 12 CPI (Elite NLQ) = 8.0 inches, which stays inside the
+    # ~9-inch printable band of the 10-inch form even with the printer's
+    # ~0.5-inch left start. The former 110-column 10-CPI (11-inch) form printed
+    # PCS, TARE, NET and the totals beyond the right perforation.
+    DOT_MATRIX_CPI = 12
+    DOT_MATRIX_COLUMNS = 96
     DOT_MATRIX_ENTRIES_PER_PAGE = 18
+    # 6 LPI x 6-inch form = 36 lines per form. Printing starts about 0.5 inch
+    # below the perforation, so at most 31 lines are used, leaving a margin
+    # above the next perforation.
+    DOT_MATRIX_FORM_LINES = 36
     DOT_MATRIX_LINES_PER_PAGE = 31
     PDF_FONT_NAME = "Courier"
     PDF_BOLD_FONT_NAME = "Courier-Bold"
     PDF_FONT_SIZE = 12.0
     PDF_LINE_LEADING = 14.0
     # Keep office-printer content outside typical hardware non-printable
-    # edges.  The 110-column form still fits A4 landscape at 10 CPI.
+    # edges.  The 96-column form fits A4 landscape at 10 CPI.
     PDF_MARGIN_LEFT = 24.0
     PDF_MARGIN_TOP = 30.0
     ESC = "\x1b"
@@ -281,9 +290,19 @@ class DispatchListPDFService:
     # impacts to visually merge on the photographed continuous stationery.
     ESC_P_CLARITY_PROFILE = "\x1bF\x1bH"
     ESC_P_PREFIX = ESC_P_LEGACY_COMPAT_PREFIX + ESC_P_QUALITY_PROFILE + ESC_P_CLARITY_PROFILE
+    # The installed helper validates ESC_P_PREFIX byte-for-byte, and that
+    # prefix carries ESC C 33 (a 5.5-inch form). The real stationery is
+    # 6 inches long, so ESC C 36 is sent immediately afterwards; the later
+    # command wins and every form feed then advances exactly one 6-inch slip
+    # instead of creeping 0.5 inch per slip. ESC M then selects 12 CPI Elite
+    # (the prefix's ESC P selected 10 CPI) so the 96-column form is 8 inches.
+    ESC_P_FORM_PROFILE = ESC + "C" + chr(DOT_MATRIX_FORM_LINES) + ESC + "M"
     # Restore direction/enhancement state after form feed without resetting or
     # moving the continuous paper again.
-    ESC_P_SUFFIX = "\x1bU\x00\x1bH\x1bF\x12"
+    ESC_P_SUFFIX = "\x1bU\x00\x1bH\x1bF\x12\x1bP"
+    # "paper=15x5.5" is the contract identifier the installed Windows helper
+    # matches exactly; the physical geometry is set by ESC_P_FORM_PROFILE and
+    # DOT_MATRIX_COLUMNS, not by this label.
     TPP_PRINT_PACKAGE_HEADER = (
         b"TPPPRINT/1\n"
         b"printer=EPSON-FX-2175II\n"
@@ -869,7 +888,7 @@ class DispatchListPDFService:
             if page_number:
                 pdf.showPage()
             # Twelve-point Courier is exactly 10 CPI and keeps the canonical
-            # 110-column form inside A4 landscape without viewer scaling.
+            # 96-column form inside A4 landscape without viewer scaling.
             y = height - cls.PDF_MARGIN_TOP
             for line in page.replace("\r\n", "\n").split("\n"):
                 pdf.setFont(
@@ -944,6 +963,8 @@ class DispatchListPDFService:
             text = clean(value)
             if len(text) > width:
                 text = text[: max(0, width - 1)] + "."
+            if align == "center":
+                return text.center(width)
             return text.rjust(width) if align == "right" else text.ljust(width)
 
         def row_line(values: list[tuple[Any, int, str]]) -> str:
@@ -951,6 +972,45 @@ class DispatchListPDFService:
 
         def divider(char: str = "-") -> str:
             return char * cls.DOT_MATRIX_COLUMNS
+
+        def decimals(value: Any) -> int:
+            exponent = _dec(_compact(value)).as_tuple().exponent
+            return min(3, -exponent) if isinstance(exponent, int) and exponent < 0 else 0
+
+        # One decimal count per weight column so decimal points line up down
+        # the column and into the totals row.
+        places = {
+            key: max([decimals(row.get(f"{key}_kg")) for row in normalized_rows] or [0])
+            for key in ("gross", "tare", "net")
+        }
+
+        def weight(value: Any, key: str) -> str:
+            """Fit a weight into its column by dropping decimals, never by truncating digits."""
+            number = _dec(value)
+            for digits in range(places[key], -1, -1):
+                text = f"{number.quantize(Decimal(1).scaleb(-digits)):f}"
+                if len(text) <= col[key]:
+                    return text
+            return text
+
+        # 96-column table: every width below plus one separator per column
+        # must equal DOT_MATRIX_COLUMNS. Weight columns hold 3-decimal totals.
+        col = {
+            "no": 3,
+            "item": 4,
+            "unit": 10,
+            "layers": 14,
+            "grade": 9,
+            "size": 11,
+            "mic": 7,
+            "gross": 8,
+            "pcs": 6,
+            "tare": 6,
+            "net": 8,
+        }
+        if sum(col.values()) + len(col) - 1 != cls.DOT_MATRIX_COLUMNS:
+            raise RuntimeError("Dispatch slip column widths do not match the form width.")
+        spec_width = sum(col[key] for key in ("no", "item", "unit", "layers", "grade", "size", "mic")) + 6
 
         entries: list[dict[str, Any]] = []
         for row_no, row in enumerate(normalized_rows, start=1):
@@ -960,10 +1020,11 @@ class DispatchListPDFService:
             row["so_line_no"] = str(row.get("so_line_no") or fallback_line_numbers[line_key])
             row["grade"] = _compact_grade_label(row.get("grade")) or "-"
             wrapped = {
-                "description": wrapped_cell(row.get("description"), 25, (" / ", "/", "+")),
-                "grade": wrapped_cell(row.get("grade"), 16, ("+", " / ", "/")),
-                "size": wrapped_cell(row.get("size"), 10, ("X", "x", "+")),
-                "thickness": wrapped_cell(row.get("thickness"), 6, ("+",)),
+                "unit": wrapped_cell(_display_unit_id(row.get("unit_id"), row.get("unit_type")), col["unit"], ("-",)),
+                "description": wrapped_cell(row.get("description"), col["layers"], (" / ", "/", "+", "-")),
+                "grade": wrapped_cell(row.get("grade"), col["grade"], ("+", " / ", "/")),
+                "size": wrapped_cell(row.get("size"), col["size"], ("X", "x", "+")),
+                "thickness": wrapped_cell(row.get("thickness"), col["mic"], ("+",)),
             }
             entries.append(
                 {
@@ -976,29 +1037,38 @@ class DispatchListPDFService:
 
         table_header = row_line(
             [
-                ("NO.", 3, "left"),
-                ("ITEM", 4, "left"),
-                ("UNIT NO.", 10, "left"),
-                ("LAYERS", 25, "left"),
-                ("GRADE", 16, "left"),
-                ("SIZE", 10, "left"),
-                ("MIC", 6, "right"),
-                ("GROSS", 7, "right"),
-                ("PCS", 6, "right"),
-                ("TARE", 6, "right"),
-                ("NET", 7, "right"),
+                ("NO.", col["no"], "left"),
+                ("ITEM", col["item"], "left"),
+                ("UNIT NO.", col["unit"], "left"),
+                ("LAYERS", col["layers"], "left"),
+                ("GRADE", col["grade"], "left"),
+                ("SIZE", col["size"], "left"),
+                ("MIC", col["mic"], "right"),
+                ("GROSS", col["gross"], "right"),
+                ("PCS", col["pcs"], "right"),
+                ("TARE", col["tare"], "right"),
+                ("NET", col["net"], "right"),
             ]
         )
 
         balance_lines = []
         for balance in balance_rows or []:
-            balance_lines.append(
-                clean(
-                    f"SO ITEM {balance.get('line') or '-'} BALANCE: "
-                    f"ORDER {_compact(balance.get('ordered'))} | PREVIOUS {_compact(balance.get('previous'))} | "
-                    f"THIS {_compact(balance.get('current'))} | BALANCE {_compact(balance.get('balance'))} {balance.get('uom') or ''}"
-                )
+            line_no = balance.get("line") or "-"
+            ordered = _compact(balance.get("ordered"))
+            previous = _compact(balance.get("previous"))
+            current = _compact(balance.get("current"))
+            remaining_qty = _compact(balance.get("balance"))
+            uom = balance.get("uom") or ""
+            text = clean(
+                f"SO ITEM {line_no} BALANCE: ORDER {ordered} | PREVIOUS {previous} | "
+                f"THIS {current} | BALANCE {remaining_qty} {uom}"
             )
+            if len(text) > cls.DOT_MATRIX_COLUMNS:
+                text = clean(
+                    f"SO ITEM {line_no} BAL: ORDER {ordered} | PREV {previous} | "
+                    f"THIS {current} | BAL {remaining_qty} {uom}"
+                )
+            balance_lines.append(cell(text, cls.DOT_MATRIX_COLUMNS).rstrip())
 
         normalized_detail_lines = [clean(line) for line in (detail_lines or []) if clean(line)]
         fixed_header_lines = 6 + len(transport_lines or [])
@@ -1041,51 +1111,63 @@ class DispatchListPDFService:
         rendered_pages: list[str] = []
         for page_number, page_entries in enumerate(pages, start=1):
             lines: list[str] = []
-            lines.append(row_line([("TOTAL POLY PRINT PVT LTD", 54, "left"), (title, 55, "right")]))
+            lines.append(
+                row_line(
+                    [
+                        ("TOTAL POLY PRINT PVT LTD", 30, "left"),
+                        (title, 33, "center"),
+                        (f"PRINT : {printed_at}", 31, "right"),
+                    ]
+                )
+            )
             lines.append(divider("="))
             lines.append(
                 row_line(
                     [
-                        (f"REF : {doc_ref}", 32, "left"),
-                        (f"ONE SO : {sales_order_no}", 30, "left"),
-                        (f"DATE : {slip_date}", 20, "left"),
-                        (f"PAGE : {page_number}/{page_count}", 25, "right"),
+                        (f"REF : {doc_ref}", 28, "left"),
+                        (f"ONE SO : {sales_order_no}", 27, "left"),
+                        (f"DATE : {slip_date}", 18, "left"),
+                        (f"PAGE : {page_number}/{page_count}", 20, "right"),
                     ]
                 )
             )
             lines.append(
                 row_line(
                     [
-                        (f"CUSTOMER : {customer_name}", 46, "left"),
-                        (f"PLANT : {plant_name}", 25, "left"),
-                        (f"PRINT : {printed_at}", 37, "right"),
+                        (f"CUSTOMER : {customer_name}", 64, "left"),
+                        (f"PLANT : {plant_name}", 31, "right"),
                     ]
                 )
             )
             for line in transport_lines or []:
-                lines.append(cell(line, cls.DOT_MATRIX_COLUMNS))
+                lines.append(cell(line, cls.DOT_MATRIX_COLUMNS).rstrip())
             lines.append(table_header)
             lines.append(divider("-"))
 
             for entry in page_entries:
                 row = entry["row"]
                 wrapped = entry["wrapped"]
+
+                def part(key: str, index: int) -> str:
+                    values = wrapped[key]
+                    return values[index] if index < len(values) else ""
+
                 for continuation in range(entry["height"]):
                     first_line = continuation == 0
                     lines.append(
                         row_line(
                             [
-                                (entry["row_no"] if first_line else "", 3, "left"),
-                                (f"L{row.get('so_line_no') or '-'}" if first_line else "", 4, "left"),
-                                (_display_unit_id(row.get("unit_id"), row.get("unit_type")) if first_line else "", 10, "left"),
-                                (wrapped["description"][continuation] if continuation < len(wrapped["description"]) else "", 25, "left"),
-                                (wrapped["grade"][continuation] if continuation < len(wrapped["grade"]) else "", 16, "left"),
-                                (wrapped["size"][continuation] if continuation < len(wrapped["size"]) else "", 10, "left"),
-                                (wrapped["thickness"][continuation] if continuation < len(wrapped["thickness"]) else "", 6, "right"),
-                                (_compact(row.get("gross_kg")) if first_line else "", 7, "right"),
-                                (("N/A" if row.get("unit_type") == "ROLL" else str(_int(row.get("pcs")) or "-")) if first_line else "", 6, "right"),
-                                (_compact(row.get("tare_kg")) if first_line else "", 6, "right"),
-                                (_compact(row.get("net_kg")) if first_line else "", 7, "right"),
+                                (entry["row_no"] if first_line else "", col["no"], "left"),
+                                (f"L{row.get('so_line_no') or '-'}" if first_line else "", col["item"], "left"),
+                                (part("unit", continuation), col["unit"], "left"),
+                                (part("description", continuation), col["layers"], "left"),
+                                (part("grade", continuation), col["grade"], "left"),
+                                (part("size", continuation), col["size"], "left"),
+                                (part("thickness", continuation), col["mic"], "right"),
+                                (weight(row.get("gross_kg"), "gross") if first_line else "", col["gross"], "right"),
+                                (("N/A" if row.get("unit_type") == "ROLL" else str(_int(row.get("pcs")) or "-")) if first_line else "", col["pcs"], "right"),
+                                (weight(row.get("tare_kg"), "tare") if first_line else "", col["tare"], "right"),
+                                (weight(row.get("net_kg"), "net") if first_line else "", col["net"], "right"),
                             ]
                         )
                     )
@@ -1096,32 +1178,41 @@ class DispatchListPDFService:
                 rendered_pages.append("\r\n".join(lines))
                 continue
 
+            # Totals sit directly under the GROSS / TARE / NET columns so the
+            # summed weights align with the per-unit weights above them.
+            counts = f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}"
+            total_label = "TOTAL KG"
+            if len(counts) + 1 + len(total_label) > spec_width:
+                total_label = "TOTAL"
             lines.append(divider("-"))
             lines.append(
                 row_line(
                     [
-                        (f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}", 54, "left"),
-                        (f"GROSS: {_compact(totals['gross'])} KG  TARE: {_compact(totals['tare'])} KG  NET: {_compact(totals['net'])} KG", 55, "right"),
+                        (counts, spec_width - len(total_label) - 1, "left"),
+                        (total_label, len(total_label), "right"),
+                        (weight(totals["gross"], "gross"), col["gross"], "right"),
+                        ("", col["pcs"], "right"),
+                        (weight(totals["tare"], "tare"), col["tare"], "right"),
+                        (weight(totals["net"], "net"), col["net"], "right"),
                     ]
                 )
             )
             lines.extend(balance_lines)
             if normalized_detail_lines:
-                lines.extend(cell(line, cls.DOT_MATRIX_COLUMNS) for line in normalized_detail_lines)
+                lines.extend(cell(line, cls.DOT_MATRIX_COLUMNS).rstrip() for line in normalized_detail_lines)
             else:
                 lines.append("")
                 signatures = signature_labels or ("Dispatch Incharge", "Security", "Receiver")
                 lines.append(
                     row_line(
                         [
-                            (f"{signatures[0]}: ____________", 36, "left"),
-                            (f"{signatures[1]}: ____________", 36, "left"),
-                            (f"{signatures[2]}: ____________", 36, "left"),
+                            (f"{label}: ".ljust(31, "_"), 31, "left")
+                            for label in signatures[:3]
                         ]
                     )
                 )
                 if footer_note:
-                    lines.append(clean(footer_note))
+                    lines.append(cell(footer_note, cls.DOT_MATRIX_COLUMNS).rstrip())
             if len(lines) > cls.DOT_MATRIX_LINES_PER_PAGE:
                 raise RuntimeError(f"Dispatch slip page {page_number} exceeds the configured form length.")
             rendered_pages.append("\r\n".join(lines))
@@ -1213,7 +1304,9 @@ class DispatchListPDFService:
                     styled_lines.append(line)
             styled_pages.append("\r\n".join(styled_lines))
         styled_text = "\f".join(styled_pages)
-        payload = (cls.ESC_P_PREFIX + styled_text + "\f" + cls.ESC_P_SUFFIX).encode("ascii", "replace")
+        payload = (
+            cls.ESC_P_PREFIX + cls.ESC_P_FORM_PROFILE + styled_text + "\f" + cls.ESC_P_SUFFIX
+        ).encode("ascii", "replace")
         return BytesIO(payload)
 
     @classmethod
@@ -1295,7 +1388,7 @@ class DispatchListPDFService:
             rows=rows,
             document_date=timezone.localdate(),
             signature_labels=("Packed By", "Checked By", "Dispatch Incharge"),
-            footer_note="Packing verification slip. Create the dispatch slip only after physical loading.",
+            footer_note="Packing verification slip. Create dispatch slip only after physical loading.",
         )
 
     @classmethod
@@ -1320,7 +1413,7 @@ class DispatchListPDFService:
             rows=rows,
             document_date=timezone.localdate(),
             signature_labels=("Packed By", "Checked By", "Dispatch Incharge"),
-            footer_note="Packing verification slip. Create the dispatch slip only after physical loading.",
+            footer_note="Packing verification slip. Create dispatch slip only after physical loading.",
         )
 
     @classmethod
