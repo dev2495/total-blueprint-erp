@@ -173,7 +173,7 @@ export function toastText(value: unknown): React.ReactNode {
 
 function toast({ ...props }: Toast) {
   const id = genId()
-  if ("title" in props) props.title = toastText(props.title)
+  if (props.title !== undefined && typeof props.title !== "string") props.title = String(toastText(props.title))
   if ("description" in props) props.description = toastText(props.description)
 
   const update = (props: ToasterToast) =>
