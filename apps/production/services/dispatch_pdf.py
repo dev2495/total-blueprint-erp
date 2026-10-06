@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from html import escape
 from io import BytesIO
 from typing import Any
@@ -973,22 +973,18 @@ class DispatchListPDFService:
         def divider(char: str = "-") -> str:
             return char * cls.DOT_MATRIX_COLUMNS
 
-        def decimals(value: Any) -> int:
-            exponent = _dec(_compact(value)).as_tuple().exponent
-            return min(3, -exponent) if isinstance(exponent, int) and exponent < 0 else 0
+        # Every printed weight uses exactly two decimals (client standard), so
+        # decimal points line up down each column and into the totals row.
+        places = {key: 2 for key in ("gross", "tare", "net")}
 
-        # One decimal count per weight column so decimal points line up down
-        # the column and into the totals row.
-        places = {
-            key: max([decimals(row.get(f"{key}_kg")) for row in normalized_rows] or [0])
-            for key in ("gross", "tare", "net")
-        }
+        def qty(value: Any) -> str:
+            return f"{_dec(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):f}"
 
         def weight(value: Any, key: str) -> str:
             """Fit a weight into its column by dropping decimals, never by truncating digits."""
             number = _dec(value)
             for digits in range(places[key], -1, -1):
-                text = f"{number.quantize(Decimal(1).scaleb(-digits)):f}"
+                text = f"{number.quantize(Decimal(1).scaleb(-digits), rounding=ROUND_HALF_UP):f}"
                 if len(text) <= col[key]:
                     return text
             return text
@@ -1054,10 +1050,10 @@ class DispatchListPDFService:
         balance_lines = []
         for balance in balance_rows or []:
             line_no = balance.get("line") or "-"
-            ordered = _compact(balance.get("ordered"))
-            previous = _compact(balance.get("previous"))
-            current = _compact(balance.get("current"))
-            remaining_qty = _compact(balance.get("balance"))
+            ordered = qty(balance.get("ordered"))
+            previous = qty(balance.get("previous"))
+            current = qty(balance.get("current"))
+            remaining_qty = qty(balance.get("balance"))
             uom = balance.get("uom") or ""
             text = clean(
                 f"SO ITEM {line_no} BALANCE: ORDER {ordered} | PREVIOUS {previous} | "

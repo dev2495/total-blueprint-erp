@@ -143,8 +143,38 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
+// API validation errors arrive as objects such as {"password": ["..."]}.
+// Many callers pass `err.response.data.detail` straight through; rendering a
+// plain object as a React child crashes the whole page, so flatten it to text.
+export function toastText(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || typeof value === "boolean") return value as React.ReactNode
+  if (typeof value === "string" || typeof value === "number") return value
+  if (React.isValidElement(value)) return value
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => toastText(item))
+      .filter((item) => item !== null && item !== undefined && item !== "")
+      .join(" ")
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>
+    for (const key of ["detail", "message", "error"]) {
+      if (key in record && record[key] !== value) return toastText(record[key])
+    }
+    return Object.entries(record)
+      .map(([key, item]) => {
+        const text = toastText(item)
+        return key === "non_field_errors" ? String(text) : `${key.replace(/_/g, " ")}: ${String(text)}`
+      })
+      .join("; ")
+  }
+  return String(value)
+}
+
 function toast({ ...props }: Toast) {
   const id = genId()
+  if ("title" in props) props.title = toastText(props.title)
+  if ("description" in props) props.description = toastText(props.description)
 
   const update = (props: ToasterToast) =>
     dispatch({

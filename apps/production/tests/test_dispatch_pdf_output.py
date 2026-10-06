@@ -726,13 +726,14 @@ class DispatchPDFOutputTests(SimpleTestCase):
         for label in ("GROSS", "PCS", "TARE", "NET"):
             self.assertIn(label, header)
         detail = next(line for line in pages[0].split("\r\n") if "RDU-1" in line)
-        self.assertTrue(detail.rstrip().endswith("30.975"))
-        self.assertIn("1.625", detail)
+        # Weights always print with exactly two decimals.
+        self.assertEqual(detail.split()[-4:], ["32.60", "N/A", "1.63", "30.98"])
         totals = next(line for line in pages[0].split("\r\n") if line.startswith("BAGS:"))
         # 4 x 32.6 + 4 x 44.4 gross, 8 x 1.625 tare, 4 x 30.975 + 4 x 42.775 net.
-        self.assertEqual(totals.split()[-3:], ["308.0", "13.000", "295.000"])
+        self.assertEqual(totals.split()[-3:], ["308.00", "13.00", "295.00"])
+        self.assertIn("SO ITEM 9 BALANCE: ORDER 500.00 | PREVIOUS 100.00 | THIS 80.00 | BALANCE 320.00 KG", text)
         # Decimal points line up from the unit rows into the totals row.
-        for label, places in (("GROSS", 1), ("TARE", 3), ("NET", 3)):
+        for label, places in (("GROSS", 2), ("TARE", 2), ("NET", 2)):
             point = header.index(label) + len(label) - places - 1
             self.assertEqual(detail[point], ".")
             self.assertEqual(totals[point], ".")

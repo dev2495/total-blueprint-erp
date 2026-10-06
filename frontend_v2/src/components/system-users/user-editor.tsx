@@ -376,8 +376,20 @@ export function UserEditor({
       });
       return;
     }
-    if (mode === "new") createMut.mutate();
-    else updateMut.mutate();
+    if (mode === "new") {
+      const passwordProblem = !form.password
+        ? "Enter an initial password for the new user."
+        : form.password.length < 8
+          ? "The initial password must be at least 8 characters."
+          : /^\d+$/.test(form.password)
+            ? "The initial password cannot be only numbers."
+            : "";
+      if (passwordProblem) {
+        toast({ title: "Password required", description: passwordProblem, variant: "destructive" });
+        return;
+      }
+      createMut.mutate();
+    } else updateMut.mutate();
   };
 
   const isPending = createMut.isPending || updateMut.isPending;
@@ -470,11 +482,12 @@ export function UserEditor({
                 />
               </Field>
               {mode === "new" ? (
-                <Field label="Initial password">
+                <Field label="Initial password *">
                   <PasswordInput
                     value={form.password}
                     onChange={(e) => update({ password: e.target.value })}
-                    placeholder="At least 8 characters"
+                    placeholder="At least 8 characters, not only numbers"
+                    autoComplete="new-password"
                     disabled={!canManage}
                   />
                 </Field>
