@@ -180,7 +180,7 @@ def main(expected_sha, local):
                 roles.append(super_admin_role.id)
             restricted_role = Role.objects.create(code=f"GATE_ACCEPT_{nonce}", name="Temporary rollback-only acceptance", default_permissions=[])
             roles.append(restricted_role.id)
-            owner_user = new_user("owner", owner_role, owner=True)
+            owner_user = new_user("owner", owner_role)
             admin_user = new_user("admin", admin_role)
             super_admin_user = new_user("super_admin", super_admin_role)
             owner_flag_user = new_user("owner_flag", restricted_role, owner=True)
@@ -236,7 +236,7 @@ def main(expected_sha, local):
                 for preview in ("OWNER", "SALES"):
                     api(admin.get("/api/gate/visitors/", HTTP_X_ROLE_OVERRIDE=preview), 200, "Actual administrator retains master rights in non-watchman preview")
                     require(api(admin.get("/api/users/me/", HTTP_X_ROLE_OVERRIDE=preview), 200, "Administrator preview entitlements").json()["entitlements"]["gate_master"], "Administrator preview lost actual master rights")
-                for master in (admin, owner, superuser_flag):
+                for master in (admin, owner_flag, superuser_flag):
                     for route in ("/api/gate/audit/", "/api/gate/reports/", "/api/analytics/reports/gate/", "/api/inventory/materials/"):
                         api(master.get(route, HTTP_X_ROLE_OVERRIDE="WATCHMAN"), 403, "Effective watchman ceiling wins over master role or flags")
                     require(not api(master.get("/api/users/me/", HTTP_X_ROLE_OVERRIDE="WATCHMAN"), 200, "Watchman preview entitlements").json()["entitlements"]["gate_master"], "Watchman preview exposes master entitlement")
