@@ -56,11 +56,12 @@ export function GateQrPoster() {
   const shortUrl = publicUrl.replace(/^https?:\/\//, "");
 
   return (
-    <div className="space-y-4">
-      <style>{`@media print { @page { size: A4 portrait; margin: 0; } body { background: #fff !important; } }`}</style>
+    <div className="gate-print-root space-y-4">
+      {/* Rendered only on this page, so the A4/zero-margin rule never affects other ERP prints. */}
+      <style>{`@page { size: A4 portrait; margin: 0; }`}</style>
       <div className="gate-no-print flex flex-wrap items-end justify-between gap-3 px-1 pt-1">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Owner</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
           <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-content-1">Visitor QR poster</h1>
           <p className="text-[14px] text-content-3">Print and fix at the gate. Each plant has its own link; visitors land straight on that gate&apos;s form.</p>
         </div>
@@ -98,7 +99,7 @@ export function GateQrPoster() {
         </div>
       ) : (
         <article
-          className="mx-auto w-full max-w-[600px] overflow-hidden rounded-[28px] bg-white text-[#0b0f19] shadow-[var(--gate-shadow)] print:max-w-none print:rounded-none print:shadow-none"
+          className="gate-poster mx-auto w-full max-w-[600px] overflow-hidden rounded-[28px] bg-white text-[#0b0f19] shadow-[var(--gate-shadow)]"
           style={{ aspectRatio: "210 / 297" }}
         >
           <div className="flex h-full flex-col">

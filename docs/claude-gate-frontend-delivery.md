@@ -106,3 +106,41 @@ Post-restart verification (API pid started 17:10:44):
 - Browser (API reloaded with `entry_at` in safe receipts), 360px: public submit "QA Receipt Time Visitor" ⇒ receipt keys `receipt_id, status, entry_at, message, replayed`, status INSIDE, `entry_at` 2026-10-07T11:48:43Z; UI "Entry time 05:18 PM" equals the server value in Asia/Kolkata. `/visit` shows the new notice copy. (This QA visitor remains INSIDE in the QA DB.)
 - Checks: `tsc` 0 errors, `eslint src` 0 problems, help (173/173) and nav validators pass, isolated `npm run build` exit 0.
 - Frontend source frozen.
+
+## Admin/Owner full gate access, Gate Setup, discoverability, one-page print (Opus 5.5 Medium)
+
+Supersedes the earlier "owner-only" wording above. Policy implemented (mirrors backend `PermissionService.is_gate_master`, read in `apps/users/permission_service.py`; `entitlements.gate_master` is sent by `/api/users/me`):
+1. WATCHMAN ceiling first — actual or effective (role preview) WATCHMAN never gets master access.
+2. Actual role ADMIN / SUPER_ADMIN / OWNER, or `is_owner`, or `is_superuser` ⇒ full Gate (setup, terminal, visitors, register, history/corrections/audit, QR, report, daily pack). A non-watchman preview (e.g. Admin previewing Owner) keeps it. When the backend sends `gate_master`, the UI uses it.
+3. Everyone else: literal `gate.reports` only ⇒ sanitized report and read-only archive; never inferred from `*`.
+
+Files (base commit f7fbd1b):
+- `src/components/gate/gate-access.ts` — `isGateMaster` (+`GATE_MASTER_ROLES`); `isGateOwner` is now an alias; `canLogAtGate` / `canViewGateReports` use it.
+- `src/lib/sidebar-nav.ts` — `canAccessGateTarget` uses actual base role / is_owner / is_superuser / `gateMaster` (removed the `currentRole === baseRole` over-restriction; watchman ceiling first). New first-class section **"Gate & Visitors"** ordered right after Operations: Gate Setup, Gate Terminal, Visitors Inside, Today's Gate Register, Gate History, Visitor QR Poster, Gate Report, Gate Report Pack. Parent href `/analytics/reports/gate` (valid for delegates). Old "Gate" section removed.
+- `src/components/layout/sidebar-content.tsx`, `src/components/layout/command-palette.tsx` — pass `isSuperuser` and `gateMaster` to the access context (search uses the same rule).
+- `src/components/auth-provider.tsx` — `entitlements.gate_master` type.
+- `src/lib/navigation-routes.ts` — `/gate/setup`.
+- New `src/app/gate/setup/page.tsx`, `src/components/gate/gate-setup.tsx` — explains that gates/QRs come automatically with each plant (no separate registration); 1 choose factory (+ link to real plant master `/factory/plants`), 2 print that factory's QR (shows its public link, opens `/gate/qr`), 3 assign a watchman via real `/system/users` and `/system/users/new` (role Watchman + Gate assignment), 4 tools: terminal, visitors, today, history, report, daily pack (`/system/report-center`).
+- `src/components/gate/gate-shell.tsx` — Gate setup in account menu, "Admin / Owner · full gate access" label, `gate-main` class for print, admin/owner copy in blocked states, **Exit role preview** button when a non-watchman account is previewing Watchman.
+- `src/components/gate/gate-guards.tsx`, `gate-home.tsx` (Gate oversight: setup, history, QR, report), `gate-history.tsx`, `gate-qr-poster.tsx`, `visitor-queue.tsx` — "Admin · Owner" copy.
+- Print: `gate-tokens.css` print rules scoped to the poster page (`html:has(.gate-print-root)`, `.gate-main`, `.gate-canvas`, `.gate-print-root > *`, `.gate-poster` 210mm × 296.5mm, no radius/shadow, break-avoid); the A4 zero-margin `@page` stays inside the poster component so other ERP pages print unchanged. QR/logo/module artwork unchanged. Visible keyboard focus ring for `.gate-press` controls.
+- `src/app/(dashboard)/analytics/reports/page.tsx` — "Gate & Visitors" group: Gate Register report (masters + `gate.reports`) and Gate Register Daily pack card (masters only).
+- `src/app/(dashboard)/analytics/reports/gate/page.tsx` — admin/owner default access copy.
+- `src/help/content/pages/pages.json` — gate report guide roles ADMIN/OWNER/SUPER_ADMIN, admin/owner default access, Gate Setup action, related routes incl. `/system/users`, `/factory/plants`.
+- Audit Center gate stream and the executive Gate card follow automatically (they use `isGateOwner`/backend `gate` data).
+
+Browser (QA stack, API restarted 18:40:36 with master policy):
+- Actual ADMIN `gate_qa_admin` (`is_owner=false`, `gate_master=true`): `/analytics/reports/gate` renders the report (no "not assigned"); sidebar shows all Gate & Visitors links incl. setup and report pack.
+- Same admin previewing OWNER (`x_role_override=OWNER`, entitlements role OWNER, `gate_master=true`): report renders; `/gate/setup` renders 4 steps, factory QR link, links `/factory/plants`, `/gate/qr`, `/system/users`, `/system/users/new`, terminal/visitors/today/history/report/pack.
+- Same admin previewing WATCHMAN: `/api/users/me` `gate_master=false`, report API 403, ERP page redirects to `/gate`, setup locked; "Exit role preview" returned to `/dashboard/admin`.
+- Actual OWNER: reports hub Gate & Visitors shows report + daily pack; sidebar full; `/gate/setup` renders.
+- Delegate `gate.reports`: sidebar/hub only `/analytics/reports/gate`, no pack card; `/gate/setup` ⇒ "No gate access".
+- Actual WATCHMAN 360px and 390px: bottom tabs Gate / Goods / Visitors / Today (86×56 each, `aria-current`), visible keyboard focus ring, no horizontal scroll, no setup link, Visitors = "Inside now" with no entry controls.
+- Print: headless Google Chrome via playwright-core, admin login, `/gate/qr`, `page.pdf({format:"A4", preferCSSPageSize:true, margin:0, scale:1, printBackground:true})` ⇒ **1 page**, poster box 793.7 × 1120.6 CSS px (210 × 296.5 mm) at top 0; visually complete (header, QR + centre mark, URL, 3 steps).
+
+Checks: `tsc --noEmit` 0 errors, `eslint src` 0 problems, theme-token guard, help (173/173, 12 role guides), nav (86 sidebar / 154 resolver routes), user-facing version privacy — all pass. Full `npm run build` in a separate copy: exit 0 (BUILD_ID `odNSoU8daRJ0P4Tj24Qwp`).
+
+Production build copy for independent root UI QA (source = this worktree on f7fbd1b + the uncommitted frontend changes above; `node_modules` symlinked; `.next` production output present):
+`/private/tmp/claude-501/-Users-devarshthakkar-Documents-total-blueprint-erp/e86e327f-49cf-4e85-8b8b-c55401132baa/scratchpad/fe-build`
+Print check script used: `…/scratchpad/print-check.cjs` (reads the local QA fixture; writes the PDF path given as argv).
+No deployment, commit or push by Claude.

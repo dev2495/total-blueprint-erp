@@ -4,10 +4,21 @@ from django.db import transaction
 from apps.factory.models import Machine, WorkCenter
 
 from .models import User, Role, WorkCenterAssignment, MachineAssignment
-from .permission_registry import ROLE_PERMISSION_MATRIX, effective_permissions_for_role
+from .permission_registry import GATE_MASTER_PERMISSIONS, ROLE_PERMISSION_MATRIX, effective_permissions_for_role
 from .role_catalog import canonicalize_role_matrix, get_canonical_role_code
 
 class PermissionService:
+    @staticmethod
+    def is_gate_master(user) -> bool:
+        """Actual master rights, with the watchman ceiling before every flag."""
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+        effective = get_canonical_role_code(getattr(user, "effective_role_code", actual))
+        if "WATCHMAN" in {actual, effective}:
+            return False
+        return bool(actual in {"ADMIN", "OWNER"} or getattr(user, "is_owner", False) or getattr(user, "is_superuser", False))
+
     @staticmethod
     def _normalize_id_list(values: list) -> list[str]:
         cleaned = []
@@ -78,6 +89,11 @@ class PermissionService:
 
         if user.extra_permissions:
             perms.update(user.extra_permissions)
+
+        # Actual administrators/owners receive the complete gate pack by
+        # default, independently of stale role rows or a non-watchman preview.
+        if PermissionService.is_gate_master(user):
+            perms.update(GATE_MASTER_PERMISSIONS)
 
         # Self-account actions must remain available across role matrix drifts.
         perms.add("users.self_manage")
@@ -216,6 +232,7 @@ class PermissionService:
             ],
             "context": PermissionService.get_assigned_context(user),
             "is_owner": user.is_owner and get_canonical_role_code(user.role.code if user.role else "") != "WATCHMAN",
+            "gate_master": PermissionService.is_gate_master(user),
             "landing_page": PermissionService.get_landing_route(user)
         }
 

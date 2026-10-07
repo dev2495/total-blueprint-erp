@@ -1,4 +1,6 @@
 from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 import uuid
 
 from django.test import TestCase, override_settings
@@ -9,11 +11,13 @@ from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.factory.models import Plant
+from apps.analytics.models import ReportDistributionProfile
+from apps.analytics.report_delivery import ReportDistributionService
 from apps.gate.models import GateAssignment, VisitorVisit
 from apps.gate.services import gate_today
 from apps.users.authentication import CookieJWTAuthentication
 from apps.users.models import Role, User
-from apps.users.permission_registry import effective_permissions_for_role, is_assignable_permission
+from apps.users.permission_registry import GATE_MASTER_PERMISSIONS, effective_permissions_for_role, is_assignable_permission
 from apps.users.permission_service import PermissionService
 from apps.users.serializers import UserSerializer
 
@@ -59,7 +63,9 @@ class WatchmanIsolationTests(TestCase):
         response = self.client.get("/api/users/me/", HTTP_X_ROLE_OVERRIDE="OWNER")
         self.assertEqual(response.status_code, 200, response.content)
         self.assertFalse(response.data["is_owner"])
+        self.assertFalse(response.data["is_superuser"])
         self.assertFalse(response.data["entitlements"]["is_owner"])
+        self.assertFalse(response.data["entitlements"]["gate_master"])
         self.assertEqual(response.data["entitlements"]["role"], "WATCHMAN")
 
     def test_gate_assignment_changes_explicit_context_and_rejects_unknown_ids_atomically(self):
@@ -69,7 +75,7 @@ class WatchmanIsolationTests(TestCase):
             PermissionService.assign_gate_plants(self.user, ["e9bb24ed-14ac-4ec2-acb0-b1721734dcaf"])
         self.assertEqual(GateAssignment.objects.filter(user=self.user).count(), 1)
 
-    def test_owner_gate_capabilities_cannot_be_user_overrides(self):
+    def test_master_gate_capabilities_cannot_be_user_overrides(self):
         self.assertTrue(is_assignable_permission("gate.reports"))
         for permission in ("gate.view", "gate.reconcile", "gate.audit", "gate.private"):
             self.assertFalse(is_assignable_permission(permission))
@@ -164,3 +170,76 @@ class GateRolePreviewAuthenticationTests(TestCase):
                     inside.refresh_from_db()
                     self.assertEqual(inside.status, "EXITED")
                     self.assertIsNotNone(inside.exit_at)
+
+
+@override_settings(STRICT_RBAC=True, ALLOW_ROLE_OVERRIDE=True)
+class GateMasterAuthenticationTests(TestCase):
+    def setUp(self):
+        self.masters = []
+        for index, (code, flags) in enumerate((("ADMIN", {}), ("SUPER_ADMIN", {}), ("OWNER", {}), ("SALES", {"is_owner": True}), ("SALES", {"is_superuser": True}))):
+            role, _ = Role.objects.get_or_create(code=code, defaults={"name": code})
+            user = User.objects.create_user(username=f"actual_gate_master_{index}", email=f"master{index}@example.com", role=role, **flags)
+            self.masters.append(user)
+        self.plants = [Plant.objects.create(name=f"Master gate {index}", code=f"MASTER_GATE_{index}") for index in range(2)]
+
+    def _client(self, user, token_path):
+        client = APIClient(enforce_csrf_checks=True)
+        token = str(RefreshToken.for_user(user).access_token)
+        if token_path == "bearer":
+            client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        else:
+            client.cookies["access"] = token
+            csrf = client.get("/api/users/csrf/")
+            self.assertEqual(csrf.status_code, 200, csrf.content)
+            client.credentials(HTTP_X_CSRFTOKEN=csrf.data["csrfToken"])
+        return client
+
+    def test_signed_master_tokens_have_full_gate_pack_in_owner_preview_without_assignments(self):
+        for user in self.masters:
+            for token_path in ("bearer", "cookie"):
+                client = self._client(user, token_path)
+                headers = {"HTTP_X_ROLE_OVERRIDE": "OWNER"}
+                with self.subTest(actual_role=user.role.code, token_path=token_path, flags=(user.is_owner, user.is_superuser)):
+                    response = client.get("/api/users/me/", **headers)
+                    self.assertEqual(response.status_code, 200, response.content)
+                    self.assertEqual(response.data["is_owner"], user.is_owner)
+                    self.assertEqual(response.data["is_superuser"], user.is_superuser)
+                    self.assertTrue(response.data["entitlements"]["gate_master"])
+                    self.assertTrue(GATE_MASTER_PERMISSIONS <= set(response.data["entitlements"]["permissions"]))
+                    self.assertEqual(response.data["gate_plant_ids"], [])
+                    response = client.get("/api/gate/masters/", **headers)
+                    self.assertEqual(response.status_code, 200, response.content)
+                    self.assertEqual({row["id"] for row in response.data["plants"]}, {str(plant.pk) for plant in self.plants})
+                    for path in ("/api/gate/audit/", f"/api/gate/qr/?plant={self.plants[0].pk}", "/api/gate/visitors/?status=PENDING", "/api/analytics/reports/gate/", "/api/analytics/report-distributions/", "/api/analytics/audit-ledger/?stream=gate"):
+                        with self.subTest(path=path):
+                            self.assertEqual(client.get(path, **headers).status_code, 200)
+                    response = client.put("/api/analytics/report-distributions/", {"profiles": [{"report_code": "gate_register_daily", "active": False}]}, format="json", **headers)
+                    self.assertEqual(response.status_code, 200, response.content)
+                    profile = ReportDistributionProfile.objects.get(report_code="gate_register_daily")
+                    self.assertEqual(profile.target_roles, ["OWNER"])
+                    self.assertEqual(profile.extra_recipients, [])
+                    with patch.object(ReportDistributionService, "send_profile", return_value=SimpleNamespace()) as dispatch, patch.object(ReportDistributionService, "serialize_run", return_value={"id": "test"}):
+                        response = client.post("/api/analytics/report-distributions/gate_register_daily/send/", {}, format="json", **headers)
+                    self.assertEqual(response.status_code, 200, response.content)
+                    self.assertEqual(dispatch.call_args.kwargs["triggered_by"].pk, user.pk)
+
+    def test_actual_master_watchman_preview_overrides_all_gate_pack_and_flag_rights(self):
+        for user in self.masters:
+            for token_path in ("bearer", "cookie"):
+                client = self._client(user, token_path)
+                headers = {"HTTP_X_ROLE_OVERRIDE": "WATCHMAN"}
+                with self.subTest(actual_role=user.role.code, token_path=token_path, flags=(user.is_owner, user.is_superuser)):
+                    response = client.get("/api/users/me/", **headers)
+                    self.assertEqual(response.status_code, 200, response.content)
+                    self.assertFalse(response.data["entitlements"]["gate_master"])
+                    for path in ("/api/gate/audit/", "/api/gate/qr/", "/api/gate/reports/", "/api/analytics/report-distributions/", "/api/analytics/reports/gate/"):
+                        self.assertEqual(client.get(path, **headers).status_code, 403)
+                    self.assertEqual(client.get("/api/gate/masters/", **headers).status_code, 403)
+
+    def test_serializer_superuser_flag_is_read_only(self):
+        serializer = UserSerializer(data={"username": "unprivileged_flag_input", "email": "flag-input@example.com", "password": "Master-Flags-2026!", "role_id": str(self.masters[3].role_id), "is_superuser": True})
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertNotIn("is_superuser", serializer.validated_data)
+        user = serializer.save()
+        self.assertFalse(user.is_superuser)
+        self.assertFalse(PermissionService.is_gate_master(user))

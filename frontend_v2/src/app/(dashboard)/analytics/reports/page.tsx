@@ -46,7 +46,7 @@ import {
 } from "@/components/premium";
 import { Pill } from "@/components/logistics/yard-ui";
 import { useAuth } from "@/components/auth-provider";
-import { canViewGateReports } from "@/components/gate/gate-access";
+import { canViewGateReports, isGateMaster } from "@/components/gate/gate-access";
 
 type ReportCard = {
   href: string;
@@ -98,13 +98,19 @@ const LIBRARY: { domain: string; description: string; reports: ReportCard[] }[] 
   },
 ];
 
-/** Shown only to the owner or an explicit gate.reports grant (never inferred from "*"). */
-const GATE_GROUP: { domain: string; description: string; reports: ReportCard[] } = {
-  domain: "Gate & security",
-  description: "Vehicles in and out of the gate, checked against ERP documents",
-  reports: [
-    { href: "/analytics/reports/gate", title: "Gate Register", copy: "Inward/outward vehicles, ERP match status and visitor counts", icon: DoorOpen },
-  ],
+/** Gate report: Admin/Owner (full) or an explicit gate.reports grant (sanitized). Never inferred from "*". */
+const GATE_REPORT: ReportCard = {
+  href: "/analytics/reports/gate",
+  title: "Gate Register",
+  copy: "Inward/outward entries, ERP match status and visitor counts",
+  icon: DoorOpen,
+};
+/** Daily pack configuration/generation is Admin/Owner only. */
+const GATE_PACK: ReportCard = {
+  href: "/system/report-center",
+  title: "Gate Register Daily pack",
+  copy: "Turn on, generate and archive the daily gate pack",
+  icon: Send,
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -134,7 +140,18 @@ function ReportsHubContent() {
   const searchParams = useSearchParams();
   const { user, effectiveRole } = useAuth();
   const showGate = Boolean(user) && canViewGateReports(user, effectiveRole);
-  const library = useMemo(() => (showGate ? [...LIBRARY, GATE_GROUP] : LIBRARY), [showGate]);
+  const gateMaster = Boolean(user) && isGateMaster(user, effectiveRole);
+  const library = useMemo(() => {
+    if (!showGate) return LIBRARY;
+    return [
+      ...LIBRARY,
+      {
+        domain: "Gate & Visitors",
+        description: "Vehicles in and out of the gate, checked against ERP documents",
+        reports: gateMaster ? [GATE_REPORT, GATE_PACK] : [GATE_REPORT],
+      },
+    ];
+  }, [showGate, gateMaster]);
 
   // Older links used /analytics/reports?tab=<report>; send them to the report page.
   useEffect(() => {

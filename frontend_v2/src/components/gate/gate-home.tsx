@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ChevronRight, ClipboardList, DoorOpen, History, QrCode, Users } from "lucide-react";
+import { BarChart3, ChevronRight, ClipboardList, DoorOpen, History, QrCode, Settings, Users } from "lucide-react";
 
 import { gateApi, type GateDirection } from "@/services/gate";
 import { useGate } from "./gate-shell";
@@ -197,10 +197,12 @@ function QuickLink({ href, icon, label }: { href: string; icon: React.ReactNode;
 function OwnerTools() {
   return (
     <section>
-      <SectionHeading eyebrow="Owner" title="Gate oversight" />
+      <SectionHeading eyebrow="Admin · Owner" title="Gate oversight" />
       <div className="grid grid-cols-2 gap-3">
+        <QuickLink href="/gate/setup" icon={<Settings className="h-5 w-5" />} label="Gate setup" />
         <QuickLink href="/gate/history" icon={<History className="h-5 w-5" />} label="Gate history" />
         <QuickLink href="/gate/qr" icon={<QrCode className="h-5 w-5" />} label="Visitor QR" />
+        <QuickLink href="/analytics/reports/gate" icon={<BarChart3 className="h-5 w-5" />} label="Gate report" />
       </div>
     </section>
   );

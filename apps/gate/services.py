@@ -55,9 +55,8 @@ def is_watchman(user):
 
 
 def is_owner(user):
-    if is_watchman(user):
-        return False
-    return bool(getattr(user, "is_owner", False) or get_canonical_role_code(getattr(getattr(user, "role", None), "code", "")) == "OWNER")
+    """Legacy gate alias for shared owner/administrator master access."""
+    return PermissionService.is_gate_master(user)
 
 
 def has_gate_permission(user, code):
@@ -70,7 +69,7 @@ def has_gate_permission(user, code):
 
 def require_owner(user):
     if not is_owner(user):
-        raise PermissionDenied("Only the owner can inspect or correct gate history.")
+        raise PermissionDenied("Only an owner or administrator can inspect or correct gate history.")
 
 
 def scoped_plants(user):
@@ -381,7 +380,7 @@ def change_goods(user, obj, data, reconcile=False):
             current.vehicle_number = current.vehicle_number.upper()
             if "lines" in data:
                 lines = validate_lines(data["lines"])
-                # Physical observation line replacement is owner-only and its
+                # Physical observation line replacement requires master access; its
                 # complete before/after is permanently retained in audit.
                 current.lines.all().delete()
                 store_lines(current, lines)

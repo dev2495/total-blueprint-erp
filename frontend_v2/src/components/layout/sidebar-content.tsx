@@ -41,9 +41,11 @@ function useSidebarAuth() {
       currentRoleCode: userRoleCode,
       baseRoleCode,
       isOwner: user?.is_owner,
+      isSuperuser: user?.is_superuser,
+      gateMaster: user?.entitlements?.gate_master,
       grantedPermissions: extraPermissions,
     }),
-    [baseRoleCode, extraPermissions, user?.is_owner, userRoleCode],
+    [baseRoleCode, extraPermissions, user?.is_owner, user?.is_superuser, user?.entitlements?.gate_master, userRoleCode],
   );
 
   const authorizedItems = useMemo(

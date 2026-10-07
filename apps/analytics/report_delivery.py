@@ -146,9 +146,8 @@ def _to_decimal(value, default: str = "0") -> Decimal:
 
 
 def _gate_owner_actor(user):
-    actual = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
-    effective = str(getattr(user, "effective_role_code", actual) or "").upper()
-    return bool(user and user.is_authenticated and "WATCHMAN" not in {actual, effective} and (user.is_owner or actual == "OWNER"))
+    from apps.users.permission_service import PermissionService
+    return PermissionService.is_gate_master(user)
 
 
 class ReportDistributionService:
@@ -253,7 +252,7 @@ class ReportDistributionService:
                 if report_code not in DEFAULT_REPORT_PROFILES:
                     continue
                 if report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY and updated_by is not None and not _gate_owner_actor(updated_by):
-                    raise PermissionError("Only an owner can configure the gate report pack.")
+                    raise PermissionError("Only an administrator or owner can configure the gate report pack.")
                 profile = ReportDistributionProfile.objects.filter(report_code=report_code).first()
                 if not profile:
                     profile = ReportDistributionProfile(report_code=report_code)
@@ -373,7 +372,7 @@ class ReportDistributionService:
     @staticmethod
     def send_profile(profile: ReportDistributionProfile, *, report_date=None, triggered_by=None, triggered_manually=False):
         if profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY and triggered_by is not None and not _gate_owner_actor(triggered_by):
-            raise PermissionError("Only an owner can generate the gate report pack.")
+            raise PermissionError("Only an administrator or owner can generate the gate report pack.")
         ReportDistributionService.prune_old_artifacts()
         rendered = ReportDistributionService.render_report(profile.report_code, report_date=report_date)
         recipients = ReportDistributionService.recipients_for_profile(profile) or list(DEFAULT_REPORT_PROFILES[profile.report_code]["target_roles"])

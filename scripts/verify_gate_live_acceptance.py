@@ -22,6 +22,7 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
+from unittest.mock import patch
 
 BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE))
@@ -110,7 +111,7 @@ def main(expected_sha, local):
     logging.getLogger("config.views").setLevel(logging.CRITICAL)
     # No settings change escapes this process. This deliberately tests the
     # watchman ceiling even with legacy non-strict RBAC and stale owner/extras.
-    checks, users, objects, tokens, assignments = [], [], [], [], []
+    checks, users, objects, tokens, assignments, roles = [], [], [], [], [], []
     nonce = secrets.token_hex(8)
     client_defaults = {"HTTP_HOST": origin.netloc, "wsgi.url_scheme": origin.scheme, "HTTP_ORIGIN": f"{origin.scheme}://{origin.netloc}", "REMOTE_ADDR": f"2001:db8:{nonce[:4]}:{nonce[4:8]}:{nonce[8:12]}:{nonce[12:]}::1"}
 
@@ -128,8 +129,8 @@ def main(expected_sha, local):
             client.credentials(HTTP_AUTHORIZATION=f"Bearer {signed}")
         return client
 
-    def new_user(label, role, extras=None, owner=False):
-        account = User(username=f"release_gate_{label}_{nonce}", role=role, is_owner=owner, extra_permissions=extras or [])
+    def new_user(label, role, extras=None, owner=False, superuser=False):
+        account = User(username=f"release_gate_{label}_{nonce}", role=role, is_owner=owner, is_superuser=superuser, extra_permissions=extras or [])
         account.set_unusable_password()
         account.save()
         users.append(account.id)
@@ -172,8 +173,18 @@ def main(expected_sha, local):
             require(link is not None, "Existing factory public QR link is missing")
             owner_role, watch_role = Role.objects.filter(code="OWNER").first(), Role.objects.filter(code="WATCHMAN").first()
             require(owner_role is not None and watch_role is not None, "Required migrated roles are missing")
+            admin_role = Role.objects.filter(code="ADMIN").first()
+            require(admin_role is not None, "Existing administrator role is missing")
+            super_admin_role, created = Role.objects.get_or_create(code="SUPER_ADMIN", defaults={"name": "Temporary rollback-only Admin alias", "default_permissions": []})
+            if created:
+                roles.append(super_admin_role.id)
             restricted_role = Role.objects.create(code=f"GATE_ACCEPT_{nonce}", name="Temporary rollback-only acceptance", default_permissions=[])
+            roles.append(restricted_role.id)
             owner_user = new_user("owner", owner_role, owner=True)
+            admin_user = new_user("admin", admin_role)
+            super_admin_user = new_user("super_admin", super_admin_role)
+            owner_flag_user = new_user("owner_flag", restricted_role, owner=True)
+            superuser_flag_user = new_user("superuser_flag", restricted_role, superuser=True)
             watch_user = new_user("watchman", watch_role)
             delegate_user = new_user("reports", restricted_role, extras=["gate.reports"])
             unassigned_user = new_user("unassigned", watch_role)
@@ -181,6 +192,8 @@ def main(expected_sha, local):
             assignment = GateAssignment.objects.create(user=watch_user, plant=plant)
             assignments.append(assignment.id)
             owner, watch, delegate, unassigned, plain = [authenticated(user) for user in (owner_user, watch_user, delegate_user, unassigned_user, plain_user)]
+            admin, super_admin, owner_flag, superuser_flag = [authenticated(user) for user in (admin_user, super_admin_user, owner_flag_user, superuser_flag_user)]
+            master_clients = (owner, admin, authenticated(admin_user, cookie=True), super_admin, owner_flag, superuser_flag)
             cookie = authenticated(watch_user, cookie=True)
             masters = api(watch.get("/api/gate/masters/", {"plant": str(plant.id)}), 200, "Assigned watchman gate access")
             require(masters.get("X-App-Build") == expected_sha, "Authenticated response build identity differs")
@@ -188,6 +201,27 @@ def main(expected_sha, local):
             api(watch.get("/api/gate/masters/", {"plant": str(other.id)}), 403, "Other plant denied")
             api(unassigned.get("/api/gate/masters/"), 403, "Unassigned watchman denied")
             api(plain.get("/api/gate/visitors/"), 403, "Unprivileged visitor access denied")
+            require(not admin_user.is_owner and not admin_user.is_superuser, "Actual administrator fixture must not carry privileged flags")
+            for master in master_clients:
+                account = api(master.get("/api/users/me/"), 200, "Master own account entitlements").json()
+                require(account["entitlements"]["gate_master"], "Actual administrator/owner master entitlement is missing")
+                available = api(master.get("/api/gate/masters/"), 200, "Unassigned master all-factory access").json()
+                require({str(plant.id), str(other.id)} <= {item["id"] for item in available["plants"]}, "Master gate access is restricted by watchman assignments")
+                for route in ("/api/gate/visitors/", "/api/gate/audit/", "/api/gate/reports/", "/api/analytics/reports/gate/"):
+                    api(master.get(route), 200, "Default master gate/history/report access")
+                api(master.get("/api/gate/qr/", {"plant": str(other.id)}), 200, "Master cross-factory QR access")
+            # This GET normally auto-provisions unrelated report defaults.
+            # Suppress only that provisioning; JWT/view authorization and
+            # existing-profile serialization remain real, with the SQL mutation
+            # allowlist unchanged and no manual report generation or delivery.
+            with patch("apps.analytics.report_delivery.ReportDistributionService.ensure_defaults", return_value=[]):
+                for master in master_clients:
+                    profiles = api(master.get("/api/analytics/report-distributions/"), 200, "Default master report configuration read").json()["profiles"]
+                    gate_profile = next((profile for profile in profiles if profile["report_code"] == "gate_register_daily"), None)
+                    require(gate_profile is not None and gate_profile["target_roles"] == ["OWNER"], "Master configuration is missing or report recipients expanded")
+            for limited in (delegate, plain, watch, cookie):
+                api(limited.get("/api/analytics/report-distributions/"), 403, "Non-master report configuration denied")
+                api(limited.post("/api/analytics/report-distributions/gate_register_daily/send/", {}, format="json"), 403, "Non-master report generation denied")
             for client in (watch, cookie):
                 for route in ("/api/sales/orders/", "/api/inventory/materials/", "/api/procurement/purchase-orders/", "/api/analytics/dashboard/", "/api/users/users/", "/api/factory/plants/", "/api/platformops/backup-status/"):
                     api(client.get(route), 403, "Watchman ERP ceiling")
@@ -198,7 +232,16 @@ def main(expected_sha, local):
             watch_user.save(update_fields=["is_owner", "is_superuser", "extra_permissions"])
             for route in ("/api/sales/orders/", "/api/gate/audit/", "/api/gate/reports/"):
                 api(watch.get(route, HTTP_X_ROLE_OVERRIDE="OWNER"), 403, "Stale owner/superuser/extra permission escalation denied")
-            checks.append("real JWT bearer/cookie authentication; watchman ceiling and plant scope")
+            with override_settings(ALLOW_ROLE_OVERRIDE=True):
+                for preview in ("OWNER", "SALES"):
+                    api(admin.get("/api/gate/visitors/", HTTP_X_ROLE_OVERRIDE=preview), 200, "Actual administrator retains master rights in non-watchman preview")
+                    require(api(admin.get("/api/users/me/", HTTP_X_ROLE_OVERRIDE=preview), 200, "Administrator preview entitlements").json()["entitlements"]["gate_master"], "Administrator preview lost actual master rights")
+                for master in (admin, owner, superuser_flag):
+                    for route in ("/api/gate/audit/", "/api/gate/reports/", "/api/analytics/reports/gate/", "/api/inventory/materials/"):
+                        api(master.get(route, HTTP_X_ROLE_OVERRIDE="WATCHMAN"), 403, "Effective watchman ceiling wins over master role or flags")
+                    require(not api(master.get("/api/users/me/", HTTP_X_ROLE_OVERRIDE="WATCHMAN"), 200, "Watchman preview entitlements").json()["entitlements"]["gate_master"], "Watchman preview exposes master entitlement")
+                api(watch.get("/api/gate/audit/", HTTP_X_ROLE_OVERRIDE="ADMIN"), 403, "Actual watchman ceiling wins over admin preview and stale flags")
+            checks.append("real JWT bearer/cookie; ADMIN/SUPER_ADMIN/owner/privileged-flag master defaults; actual/effective watchman ceiling; sanitized delegate and configuration/send guards")
 
             public = RollbackAPIClient(enforce_csrf_checks=True, **client_defaults)
             before_visit = api(watch.get("/api/gate/summary/", {"plant": str(plant.id)}), 200, "Visitor counters before registration").json()
@@ -268,7 +311,7 @@ def main(expected_sha, local):
             exit_summary = api(watch.get("/api/gate/summary/", {"plant": str(plant.id)}), 200, "Visitor exit counters").json()
             require(exit_summary["inside_visitors"] == before_visit["inside_visitors"] and exit_summary["visitor_entries"] == before_visit["visitor_entries"] + 1 and exit_summary["visitor_exits"] == before_visit["visitor_exits"] + 1, "Exit counters or repeated entry totals are incorrect")
             legacy_payload = {"client_token": new_token(), "plant": str(plant.id), "name": f"Owner recovery {nonce}", "mobile": "6" + f"{secrets.randbelow(1_000_000_000):09d}", "purpose": "Meeting", "consent": True, "selfie": SimpleUploadedFile("recovery.jpg", photo.getvalue(), content_type="image/jpeg")}
-            legacy = api(owner.post("/api/gate/visitors/", legacy_payload, format="multipart"), 201, "Owner-only pending recovery").json()
+            legacy = api(admin.post("/api/gate/visitors/", legacy_payload, format="multipart"), 201, "Administrator pending recovery").json()
             objects.append(legacy["id"])
             require(legacy["status"] == "PENDING" and legacy["source"] == "OWNER", "Owner recovery did not retain explicit pending provenance")
             api(watch.get("/api/gate/visitors/", {"status": "PENDING"}), 403, "Legacy pending queue owner only")
@@ -278,13 +321,17 @@ def main(expected_sha, local):
             for action, data in (("check-in", {"client_token": new_token()}), ("cancel", {"client_token": new_token(), "reason": "Visit cancelled"})):
                 api(watch.post(f"/api/gate/visitors/{legacy['id']}/{action}/", data, format="json"), 403, "Watchman cannot operate legacy pending recovery")
             api(watch.post(f"/api/gate/visitors/{legacy['id']}/check-out/", {"client_token": new_token()}, format="json"), 409, "Legacy pending cannot exit before owner recovery")
-            api(owner.post(f"/api/gate/visitors/{legacy['id']}/check-in/", {"client_token": new_token()}, format="json"), 200, "Owner pending recovery admission")
+            api(admin.post(f"/api/gate/visitors/{legacy['id']}/check-in/", {"client_token": new_token()}, format="json"), 200, "Administrator pending recovery admission")
             api(watch.post(f"/api/gate/visitors/{legacy['id']}/check-out/", {"client_token": new_token()}, format="json"), 200, "Watchman exits recovered inside visit")
             api(watch.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 404, "Closed visitor selfie denied to watchman")
             api(watch.get("/api/gate/visitors/", {"status": "EXITED"}), 403, "Closed history denied to watchman")
             api(owner.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 200, "Owner closed selfie")
             closed = api(owner.get("/api/gate/visitors/", {"status": "EXITED", "search": nonce}), 200, "Owner full history").json()
             require(visitor_id in {item["id"] for item in closed["results"]}, "Owner history omits observation")
+            for master in master_clients:
+                api(master.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 200, "Master private closed visitor photo")
+                history = api(master.get("/api/gate/visitors/", {"status": "EXITED", "search": nonce}), 200, "Master complete visitor history").json()
+                require(visitor_id in {item["id"] for item in history["results"]} and government_id not in json.dumps(history), "Master history is missing or exposes raw government ID")
             other_payload = {"client_token": new_token(), "plant": str(other.id), "name": f"Other scope {nonce}", "mobile": "8" + f"{secrets.randbelow(1_000_000_000):09d}", "purpose": "Meeting", "consent": True}
             other_visitor = api(owner.post("/api/gate/visitors/", other_payload, format="json"), 201, "Owner second-factory pending visitor").json()["id"]
             objects.append(other_visitor)
@@ -323,6 +370,9 @@ def main(expected_sha, local):
             api(watch.post(f"/api/gate/goods/{goods_id}/correct/", correction, format="json"), 403, "Watchman correction denied")
             corrected = api(owner.post(f"/api/gate/goods/{goods_id}/correct/", correction, format="json"), 200, "Owner reasoned correction").json()
             require(corrected["vehicle_number"] == "QA00AA0002" and GateAuditEvent.objects.filter(object_id=goods_id, action="GOODS_CORRECTED").exists(), "Owner correction lacks retained audit")
+            api(admin.get(f"/api/gate/goods/{goods_id}/"), 200, "Administrator private goods detail")
+            admin_correction = {"client_token": new_token(), "reason": "Rollback-only administrator verification", "vehicle_number": "QA00AA0003"}
+            require(api(admin.post(f"/api/gate/goods/{goods_id}/correct/", admin_correction, format="json"), 200, "Administrator audited correction").json()["vehicle_number"] == "QA00AA0003", "Administrator correction failed")
             for route in ("/api/gate/visitors/", "/api/gate/audit/", f"/api/gate/goods/{goods_id}/"):
                 api(delegate.get(route), 403, "Report delegate personal/history ceiling")
             for route in ("/api/gate/reports/", "/api/analytics/reports/gate/"):
@@ -355,7 +405,7 @@ def main(expected_sha, local):
 
     # Assertions after the outer transaction has ended prove no synthetic rows
     # escaped through a separate connection or an early commit.
-    require(not User.objects.filter(id__in=users).exists() and not Role.objects.filter(code=f"GATE_ACCEPT_{nonce}").exists(), "Temporary authentication records persisted")
+    require(not User.objects.filter(id__in=users).exists() and not Role.objects.filter(id__in=roles).exists(), "Temporary authentication records persisted")
     require(not GateAssignment.objects.filter(id__in=assignments).exists(), "Temporary assignments persisted")
     require(not GoodsMovement.objects.filter(id__in=objects).exists() and not GoodsLine.objects.filter(movement_id__in=objects).exists() and not VisitorVisit.objects.filter(id__in=objects).exists(), "Temporary physical observations persisted")
     require(not GateAuditEvent.objects.filter(object_id__in=objects).exists() and not GateRequestReceipt.objects.filter(token__in=tokens).exists(), "Temporary gate audit/receipt rows persisted")

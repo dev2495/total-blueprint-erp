@@ -123,7 +123,7 @@ class MastersView(GateView):
         if plant_id:
             get_plant(request.user, plant_id)
         if not plants.exists():
-            raise PermissionDenied("Ask the owner to assign your factory gate before logging entries.")
+            raise PermissionDenied("Ask an owner or administrator to assign your factory gate before logging entries.")
         query = request.query_params.get("q", "").strip()[:100]
         parties, products = [], []
         for kind, model in [("VENDOR", Vendor), ("CUSTOMER", Customer)]:
@@ -161,7 +161,7 @@ class GoodsView(GateView):
             if any(key in request.query_params for key in ["date_from", "date_to"]):
                 require_today = period(request)
                 if require_today != (gate_today(), gate_today()):
-                    raise PermissionDenied("Gate history is available to the owner.")
+                    raise PermissionDenied("Gate history is available to owners and administrators.")
             start, end = date_bounds(gate_today(), gate_today())
             source = source.filter(logged_at__gte=start, logged_at__lt=end)
         elif "date_from" in request.query_params or "date_to" in request.query_params:
@@ -225,7 +225,7 @@ class VisitorsView(GateView):
             source = source.filter(status="INSIDE").order_by("entry_at", "submitted_at", "id")
         if "date_from" in request.query_params or "date_to" in request.query_params:
             if not is_owner(request.user):
-                raise PermissionDenied("Visitor date history is available to the owner.")
+                raise PermissionDenied("Visitor date history is available to owners and administrators.")
             start, end = date_bounds(*period(request))
             source = source.filter(submitted_at__gte=start, submitted_at__lt=end)
         search = request.query_params.get("search", "").strip()[:100]
@@ -245,7 +245,7 @@ class VisitorsView(GateView):
 class VisitorActionView(GateView):
     def post(self, request, pk, action):
         if action != "check-out" and not is_owner(request.user):
-            raise PermissionDenied("Only the owner can recover legacy pending registrations.")
+            raise PermissionDenied("Only an owner or administrator can recover legacy pending registrations.")
         obj = VisitorVisit.objects.select_related("plant").filter(id=pk, plant__in=scoped_plants(request.user)).first()
         if not obj:
             raise NotFound()
@@ -283,7 +283,7 @@ class SummaryView(GateView):
     def get(self, request):
         start, end = period(request)
         if not is_owner(request.user) and (start, end) != (gate_today(), gate_today()):
-            raise PermissionDenied("Historical gate summaries are available to the owner.")
+            raise PermissionDenied("Historical gate summaries are available to owners and administrators.")
         plants = scoped_plants(request.user)
         plant_id = uuid_param(request, "plant")
         if plant_id:

@@ -189,6 +189,9 @@ export interface SidebarAccessContext {
   currentRoleCode: string
   baseRoleCode?: string
   isOwner?: boolean
+  isSuperuser?: boolean
+  /** Backend entitlements.gate_master (watchman ceiling applied server-side). */
+  gateMaster?: boolean
   grantedPermissions?: Iterable<string>
   grantedPermissionMap?: Record<string, string[]>
 }
@@ -264,6 +267,31 @@ export const NAV_ITEMS: NavItem[] = [
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER"],
         permissions: ["production.view", "production.manage"],
       },
+    ],
+  },
+  {
+    // Parent target is the report so a sanitized gate.reports delegate always
+    // lands on a page they may open; masters see every child.
+    title: "Gate & Visitors",
+    href: "/analytics/reports/gate",
+    icon: DoorOpen,
+    roles: ["OWNER", "ADMIN", "SUPER_ADMIN"],
+    gateAccess: { literalPermissions: ["gate.reports"] },
+    children: [
+      { title: "Gate Setup", href: "/gate/setup", icon: Settings, roles: ["OWNER", "ADMIN", "SUPER_ADMIN"], gateAccess: { ownerOnly: true } },
+      { title: "Gate Terminal", href: "/gate", icon: DoorOpen, roles: ["OWNER", "ADMIN", "SUPER_ADMIN"], gateAccess: { ownerOnly: true } },
+      { title: "Visitors Inside", href: "/gate/visitors", icon: Users, roles: ["OWNER", "ADMIN", "SUPER_ADMIN"], gateAccess: { ownerOnly: true } },
+      { title: "Today's Gate Register", href: "/gate/register", icon: ClipboardList, roles: ["OWNER", "ADMIN", "SUPER_ADMIN"], gateAccess: { ownerOnly: true } },
+      { title: "Gate History", href: "/gate/history", icon: History, roles: ["OWNER", "ADMIN", "SUPER_ADMIN"], gateAccess: { ownerOnly: true } },
+      { title: "Visitor QR Poster", href: "/gate/qr", icon: QrCode, roles: ["OWNER", "ADMIN", "SUPER_ADMIN"], gateAccess: { ownerOnly: true } },
+      {
+        title: "Gate Report",
+        href: "/analytics/reports/gate",
+        icon: BarChart3,
+        roles: ["OWNER", "ADMIN", "SUPER_ADMIN"],
+        gateAccess: { literalPermissions: ["gate.reports"] },
+      },
+      { title: "Gate Report Pack", href: "/system/report-center", icon: FileText, roles: ["OWNER", "ADMIN", "SUPER_ADMIN"], gateAccess: { ownerOnly: true } },
     ],
   },
   {
@@ -515,26 +543,6 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    title: "Gate",
-    // Parent target must be valid for report delegates too; owner pages are children.
-    href: "/analytics/reports/gate",
-    icon: DoorOpen,
-    roles: ["OWNER"],
-    gateAccess: { literalPermissions: ["gate.reports"] },
-    children: [
-      { title: "Gate Terminal", href: "/gate", icon: DoorOpen, roles: ["OWNER"], gateAccess: { ownerOnly: true } },
-      { title: "Gate History", href: "/gate/history", icon: History, roles: ["OWNER"], gateAccess: { ownerOnly: true } },
-      { title: "Visitor QR Poster", href: "/gate/qr", icon: QrCode, roles: ["OWNER"], gateAccess: { ownerOnly: true } },
-      {
-        title: "Gate Report",
-        href: "/analytics/reports/gate",
-        icon: BarChart3,
-        roles: ["OWNER"],
-        gateAccess: { literalPermissions: ["gate.reports"] },
-      },
-    ],
-  },
-  {
     title: "Engineering",
     href: "/engineering",
     icon: Microscope,
@@ -632,11 +640,11 @@ export const NAV_ITEMS: NavItem[] = [
 export const SIDEBAR_SECTION_ORDER = [
   "Sales",
   "Operations",
+  "Gate & Visitors",
   "Inventory Workspace",
   "Logistics",
   "Procurement",
   "Analytics",
-  "Gate",
   "Engineering",
   "Administration",
   "System",
@@ -700,13 +708,23 @@ function hasGrantedPageOverride(
   return hasGrantedPermission(permission, context.grantedPermissions, context.grantedPermissionMap)
 }
 
+const GATE_MASTER_ROLE_CODES = ["ADMIN", "SUPER_ADMIN", "OWNER"]
+
+/**
+ * Gate rule (mirrors backend is_gate_master): WATCHMAN ceiling first (actual or
+ * previewed); then the ACTUAL role ADMIN/SUPER_ADMIN/OWNER, is_owner or
+ * is_superuser get every Gate item — a non-watchman preview does not remove it.
+ * Everyone else needs a literal grant (e.g. gate.reports), never "*".
+ */
 function canAccessGateTarget(gate: NonNullable<NavAccessDescriptor["gateAccess"]>, context: SidebarAccessContext) {
   const currentRole = normalizeRole(context.currentRoleCode)
   const baseRoleCode = normalizeRole(context.baseRoleCode || context.currentRoleCode)
   if (currentRole === "WATCHMAN" || baseRoleCode === "WATCHMAN") return false
-  // A role preview never grants owner gate capabilities.
-  const actualOwner = currentRole === baseRoleCode && (Boolean(context.isOwner) || baseRoleCode === "OWNER")
-  if (actualOwner) return true
+  const master =
+    typeof context.gateMaster === "boolean"
+      ? context.gateMaster
+      : GATE_MASTER_ROLE_CODES.includes(baseRoleCode) || Boolean(context.isOwner) || Boolean(context.isSuperuser)
+  if (master) return true
   if (gate.ownerOnly) return false
   const literal = new Set(Array.from(context.grantedPermissions || []).map((p) => String(p || "").trim()))
   return (gate.literalPermissions || []).some((permission) => {

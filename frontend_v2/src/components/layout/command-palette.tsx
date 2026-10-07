@@ -160,9 +160,11 @@ export function CommandPalette({
       currentRoleCode: roleCode,
       baseRoleCode,
       isOwner: user?.is_owner,
+      isSuperuser: user?.is_superuser,
+      gateMaster: user?.entitlements?.gate_master,
       grantedPermissions: extraPermissions,
     }),
-    [baseRoleCode, extraPermissions, roleCode, user?.is_owner],
+    [baseRoleCode, extraPermissions, roleCode, user?.is_owner, user?.is_superuser, user?.entitlements?.gate_master],
   );
 
   const routeIndex = React.useMemo<RouteIndexItem[]>(() => {

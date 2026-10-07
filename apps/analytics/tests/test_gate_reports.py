@@ -22,24 +22,30 @@ class GateReportsAuthorizationTests(TestCase):
         self.client = APIClient()
         self.owner = self._user("gate_owner", "OWNER")
         self.admin = self._user("gate_admin", "ADMIN")
+        self.superadmin = self._user("gate_superadmin", "SUPER_ADMIN")
+        self.flag_owner = self._user("gate_flag_owner", "SALES", is_owner=True)
+        self.superuser = self._user("gate_superuser", "SALES", is_superuser=True)
+        self.masters = (self.owner, self.admin, self.superadmin, self.flag_owner, self.superuser)
         self.sales = self._user("gate_sales", "SALES")
         self.store = self._user("gate_store", "STORE")
         self.delegate = self._user("gate_delegate", "SALES", extras=["gate.reports"])
+        self.wildcard = self._user("gate_wildcard", "SALES", extras=["*"])
+        self.watchman = self._user("gate_watchman", "WATCHMAN", extras=["*", "gate.reports"], is_owner=True, is_superuser=True)
         self.plant = Plant.objects.create(name="Gate reports plant", code="GATE_REPORT")
 
-    def _user(self, name, role_code, extras=None):
+    def _user(self, name, role_code, extras=None, **flags):
         role, _ = Role.objects.get_or_create(code=role_code, defaults={"name": role_code, "default_permissions": ["*"] if role_code in {"ADMIN", "OWNER"} else []})
-        return User.objects.create_user(username=name, email=f"{name}@example.com", password="Gate-Access-2026!", role=role, extra_permissions=extras or [])
+        return User.objects.create_user(username=name, email=f"{name}@example.com", password="Gate-Access-2026!", role=role, extra_permissions=extras or [], **flags)
 
-    def test_gate_report_denies_sales_store_and_admin_wildcard(self):
-        for user in (self.sales, self.store, self.admin):
+    def test_gate_report_denies_departments_wildcards_and_watchman_stale_master_flags(self):
+        for user in (self.sales, self.store, self.wildcard, self.watchman):
             self.client.force_authenticate(user=user)
             for path in ("/api/analytics/reports/gate/", "/api/analytics/reports/Gate/", "/api/analytics/reports/gate/export-pdf/"):
                 with self.subTest(user=user.username, path=path):
                     self.assertEqual(self.client.get(path).status_code, 403)
 
-    def test_gate_report_allows_owner_and_explicit_delegate(self):
-        for user in (self.owner, self.delegate):
+    def test_gate_report_allows_all_actual_masters_and_explicit_delegate(self):
+        for user in (*self.masters, self.delegate):
             self.client.force_authenticate(user=user)
             with patch("apps.gate.services.report_payload_for_period", return_value={"summary": {"goods_total": 2, "visitor_entries": 1}, "rows": []}) as report:
                 response = self.client.get("/api/analytics/reports/gate/?date_from=2026-10-01&date_to=2026-10-07")
@@ -47,39 +53,46 @@ class GateReportsAuthorizationTests(TestCase):
             self.assertEqual(response.data["summary"]["goods_total"], 2)
             report.assert_called_once_with(date(2026, 10, 1), date(2026, 10, 7), plant_ids=None)
 
-    def test_catalog_exposes_gate_only_to_owner_or_delegate(self):
-        for user, visible in ((self.owner, True), (self.delegate, True), (self.admin, False), (self.sales, False), (self.store, False)):
+    def test_catalog_exposes_gate_only_to_actual_masters_or_delegate(self):
+        for user, visible in (*((master, True) for master in self.masters), (self.delegate, True), (self.sales, False), (self.store, False), (self.wildcard, False), (self.watchman, False)):
             catalog = ReportingService.get_report_catalog(user)
             self.assertEqual(any(row["id"] == "gate" for row in catalog), visible, user.username)
 
-    def test_gate_daily_pack_is_owner_only_default_and_hidden_from_admin(self):
+    def test_gate_daily_pack_admin_configuration_keeps_existing_owner_recipient_policy(self):
         ReportDistributionService.ensure_defaults()
         profile = ReportDistributionProfile.objects.get(report_code="gate_register_daily")
         self.assertEqual(profile.target_roles, ["OWNER"])
-        self.client.force_authenticate(user=self.admin)
-        response = self.client.get("/api/analytics/report-distributions/")
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn("gate_register_daily", [row["report_code"] for row in response.data["profiles"]])
-        self.assertEqual(self.client.put("/api/analytics/report-distributions/", {"profiles": [{"report_code": "gate_register_daily", "active": False}]}, format="json").status_code, 403)
-        self.assertEqual(self.client.post("/api/analytics/report-distributions/gate_register_daily/send/", {}, format="json").status_code, 403)
+        for user in self.masters:
+            self.client.force_authenticate(user=user)
+            response = self.client.get("/api/analytics/report-distributions/")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("gate_register_daily", [row["report_code"] for row in response.data["profiles"]])
+            self.assertEqual(self.client.put("/api/analytics/report-distributions/", {"profiles": [{"report_code": "gate_register_daily", "active": False}]}, format="json").status_code, 200)
+            with patch.object(ReportDistributionService, "send_profile", return_value=SimpleNamespace()), patch.object(ReportDistributionService, "serialize_run", return_value={"id": "test"}):
+                self.assertEqual(self.client.post("/api/analytics/report-distributions/gate_register_daily/send/", {}, format="json").status_code, 200)
+        profile.refresh_from_db()
+        self.assertEqual(profile.target_roles, ["OWNER"])
+        self.assertEqual(profile.extra_recipients, [])
+        for user in (self.sales, self.store, self.delegate, self.wildcard, self.watchman):
+            self.client.force_authenticate(user=user)
+            self.assertEqual(self.client.put("/api/analytics/report-distributions/", {"profiles": [{"report_code": "gate_register_daily", "active": False}]}, format="json").status_code, 403)
+            self.assertEqual(self.client.post("/api/analytics/report-distributions/gate_register_daily/send/", {}, format="json").status_code, 403)
 
-    def test_gate_archived_pdf_is_private_and_admin_cannot_read(self):
+    def test_gate_archived_pdf_is_private_for_masters_and_sanitized_delegates(self):
         profile, _ = ReportDistributionProfile.objects.get_or_create(report_code="gate_register_daily")
         run = ReportDispatchRun.objects.create(profile=profile, report_code="gate_register_daily", report_date=date(2026, 10, 7), pdf_file_name="gate-private.pdf", private_pdf_data=b"%PDF-private")
-        self.client.force_authenticate(user=self.admin)
-        self.assertEqual(self.client.get(f"/api/analytics/report-runs/{run.id}/preview-pdf/").status_code, 403)
-        self.client.force_authenticate(user=self.owner)
-        response = self.client.get(f"/api/analytics/report-runs/{run.id}/preview-pdf/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(b"".join(response.streaming_content), b"%PDF-private")
-        self.assertEqual(response["Cache-Control"], "private, no-store")
+        for user in (self.sales, self.store, self.wildcard, self.watchman):
+            self.client.force_authenticate(user=user)
+            self.assertEqual(self.client.get(f"/api/analytics/report-runs/{run.id}/preview-pdf/").status_code, 403)
+        for user in (*self.masters, self.delegate):
+            self.client.force_authenticate(user=user)
+            response = self.client.get(f"/api/analytics/report-runs/{run.id}/preview-pdf/")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(b"".join(response.streaming_content), b"%PDF-private")
+            self.assertEqual(response["Cache-Control"], "private, no-store")
         self.assertIsNone(ReportDistributionService.stored_pdf_path(run))
         self.assertEqual(ReportingService.get_audit_event_detail(f"report:{run.id}", include_gate=True)["event"]["source_id"], str(run.id))
         self.assertIn("error", ReportingService.get_audit_event_detail(f"report:{run.id}", include_gate=False))
-        self.client.force_authenticate(user=self.delegate)
-        response = self.client.get(f"/api/analytics/report-runs/{run.id}/preview-pdf/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(b"".join(response.streaming_content), b"%PDF-private")
 
     def test_gate_report_filter_validation_returns_400(self):
         self.client.force_authenticate(user=self.owner)
@@ -106,14 +119,17 @@ class GateReportsAuthorizationTests(TestCase):
         profile, _ = ReportDistributionProfile.objects.get_or_create(report_code="gate_register_daily")
         payload = {"summary": {"inward": 0, "outward": 0}, "rows": []}
         with patch("apps.gate.services.report_payload_for_period", return_value=payload), patch("apps.analytics.report_delivery.ReportDistributionService.persist_rendered_artifacts") as public_storage, patch("apps.users.services.notification_service.NotificationService.emit_event") as notify:
-            run = ReportDistributionService.send_profile(profile, report_date=date(2026, 10, 7), triggered_by=self.owner, triggered_manually=True)
+            for user in self.masters:
+                run = ReportDistributionService.send_profile(profile, report_date=date(2026, 10, 7), triggered_by=user, triggered_manually=True)
+                self.assertEqual(run.recipients, ["OWNER"])
         public_storage.assert_not_called()
         run.refresh_from_db()
         self.assertTrue(bytes(run.private_pdf_data).startswith(b"%PDF"))
         self.assertTrue(run.private_detail_data)
         self.assertEqual(notify.call_args.kwargs["event_key"], "gate.daily_pack_generated")
-        with self.assertRaises(PermissionError):
-            ReportDistributionService.send_profile(profile, triggered_by=self.admin, triggered_manually=True)
+        for user in (self.sales, self.store, self.delegate, self.wildcard, self.watchman):
+            with self.assertRaises(PermissionError):
+                ReportDistributionService.send_profile(profile, triggered_by=user, triggered_manually=True)
 
     def test_filtered_gate_pdf_includes_all_rows_across_pages_and_business_columns(self):
         from apps.analytics.pdf_exports import AnalyticsPDFExportService
@@ -128,21 +144,21 @@ class GateReportsAuthorizationTests(TestCase):
             self.assertIn(token, text)
         self.assertGreater(text.count("Date / time"), 1)
 
-    def test_gate_audit_stream_is_owner_only_and_tracks_actor(self):
+    def test_gate_audit_stream_is_master_only_and_tracks_actor(self):
         event = GateAuditEvent.objects.create(plant=self.plant, object_id=self.plant.id, object_type="GOODS", action="GOODS_LOGGED", actor=self.owner, after={"invoice_number": "GATE-7", "reconciliation_status": "UNMATCHED"})
-        self.client.force_authenticate(user=self.admin)
-        self.assertEqual(self.client.get(f"/api/analytics/audit-ledger/gate:{event.id}/").status_code, 403)
-        response = self.client.get("/api/analytics/audit-ledger/?stream=gate&range=24h")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["events"], [])
-        self.client.force_authenticate(user=self.owner)
-        response = self.client.get("/api/analytics/audit-ledger/?stream=gate&range=24h")
-        self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(response.data["events"][0]["id"], f"gate:{event.id}")
-        self.assertEqual(response.data["events"][0]["actor"], self.owner.username)
+        for user in (self.sales, self.store, self.delegate, self.wildcard, self.watchman):
+            self.client.force_authenticate(user=user)
+            self.assertEqual(self.client.get(f"/api/analytics/audit-ledger/gate:{event.id}/").status_code, 403)
+        for user in self.masters:
+            self.client.force_authenticate(user=user)
+            self.assertEqual(self.client.get(f"/api/analytics/audit-ledger/gate:{event.id}/").status_code, 200)
+            response = self.client.get("/api/analytics/audit-ledger/?stream=gate&range=24h")
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual(response.data["events"][0]["id"], f"gate:{event.id}")
+            self.assertEqual(response.data["events"][0]["actor"], self.owner.username)
 
-    def test_owner_intelligence_gate_summary_hidden_from_admin(self):
-        for user, visible in ((self.owner, True), (self.admin, False)):
+    def test_gate_intelligence_summary_visible_to_actual_masters_only(self):
+        for user, visible in (*((master, True) for master in self.masters), (self.sales, False), (self.store, False), (self.delegate, False), (self.wildcard, False)):
             self.client.force_authenticate(user=user)
             with patch("apps.analytics.views.AnalyticsService.get_control_tower_stats", return_value={}), patch("apps.analytics.views._build_control_tower_trading_block", return_value={}), patch("apps.analytics.views._build_control_tower_procurement_block", return_value={}), patch("apps.gate.services.summary_for_period", return_value={"inside_visitors": 3}):
                 response = self.client.get("/api/analytics/control-tower/?timeframe=day")

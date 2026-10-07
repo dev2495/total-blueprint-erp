@@ -23,6 +23,25 @@ def run():
         raise RuntimeError("Gate fixtures are restricted to the isolated local QA database.")
     output = Path(settings.BASE_DIR) / ".runtime" / "gate-qa.json"
     if output.exists():
+        data = json.loads(output.read_text())
+        if "admin" not in data:
+            with transaction.atomic():
+                role, _ = Role.objects.get_or_create(code="ADMIN", defaults={"name": "Admin"})
+                account, created = User.objects.get_or_create(
+                    username="gate_qa_admin", defaults={"role": role, "is_owner": False, "is_superuser": False}
+                )
+                if not created:
+                    raise RuntimeError("Existing Admin fixture without private credentials; refusing a password reset.")
+                password = secrets.token_urlsafe(24)
+                account.set_password(password)
+                account.save(update_fields=["password"])
+                data["admin"] = {"username": account.username, "password": password, "id": str(account.id)}
+                temporary = output.with_suffix(".json.tmp")
+                fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "w") as stream:
+                    json.dump(data, stream)
+                os.replace(temporary, output)
+            print("Admin fixture added locally; all existing credentials retained privately.")
         print("Local gate fixtures already available; credentials retained privately.")
         return
     data = {}
@@ -30,9 +49,10 @@ def run():
         plant, _ = Plant.objects.get_or_create(code="GATE_QA_A", defaults={"name": "Gate QA Factory A"})
         other, _ = Plant.objects.get_or_create(code="GATE_QA_B", defaults={"name": "Gate QA Factory B"})
         owner_role, _ = Role.objects.get_or_create(code="OWNER", defaults={"name": "Owner"})
+        admin_role, _ = Role.objects.get_or_create(code="ADMIN", defaults={"name": "Admin"})
         watchman_role, _ = Role.objects.get_or_create(code="WATCHMAN", defaults={"name": "Watchman", "default_permissions": ["gate.log"]})
         sales_role, _ = Role.objects.get_or_create(code="SALES", defaults={"name": "Sales"})
-        for label, role, owner, extra in [("owner", owner_role, True, []), ("watchman", watchman_role, False, []), ("unassigned", watchman_role, False, []), ("delegate", sales_role, False, ["gate.reports"]), ("sales", sales_role, False, [])]:
+        for label, role, owner, extra in [("admin", admin_role, False, []), ("owner", owner_role, True, []), ("watchman", watchman_role, False, []), ("unassigned", watchman_role, False, []), ("delegate", sales_role, False, ["gate.reports"]), ("sales", sales_role, False, [])]:
             password = secrets.token_urlsafe(24)
             account, created = User.objects.get_or_create(username=f"gate_qa_{label}", defaults={"role": role, "is_owner": owner, "extra_permissions": extra})
             if not created:

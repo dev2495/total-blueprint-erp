@@ -41,7 +41,7 @@ class RoleOverrideMiddleware:
                     continue
 
         # 2. Check for Role Override
-        if request.user.is_authenticated and (request.user.is_superuser or request.user.is_owner or (request.user.role and request.user.role.code in ['ADMIN', 'SUPER_ADMIN'])):
+        if request.user.is_authenticated and (request.user.is_superuser or request.user.is_owner or (request.user.role and request.user.role.code in ['ADMIN', 'SUPER_ADMIN', 'OWNER'])):
             override_role = request.headers.get('X-Role-Override') or request.META.get('HTTP_X_ROLE_OVERRIDE')
             allow_override = bool(getattr(settings, 'ALLOW_ROLE_OVERRIDE', False))
 

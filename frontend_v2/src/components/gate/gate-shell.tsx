@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Cookies from "js-cookie";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -11,6 +12,7 @@ import {
   ClipboardList,
   History,
   Home,
+  Settings,
   LayoutGrid,
   LogOut,
   MapPin,
@@ -30,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getApiErrorStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { getCanonicalRoleCode, getLandingPage } from "@/lib/roles";
 import { gateApi, type GatePlant } from "@/services/gate";
 import { canLogAtGate, canViewGateReports, isGateOwner, isWatchmanUser } from "./gate-access";
 import { GateMark } from "./gate-ui";
@@ -85,7 +88,7 @@ export function GateShell({ children }: { children: React.ReactNode }) {
     return (
       <GateBlocked
         title="No gate access"
-        body="Your account is not set up for the gate terminal. Ask the owner to assign the Watchman role or gate access."
+        body="Your account is not set up for the gate terminal. Ask an administrator or owner to assign the Watchman role or gate access."
         showErpLink={!isWatchman}
       />
     );
@@ -156,7 +159,7 @@ function GatePlantScope({
       return (
         <GateBlocked
           title="Gate not assigned"
-          body="Your account has no gate assigned yet, so the register is locked. Ask the owner to assign your plant gate in User Management, then sign in again."
+          body="Your account has no gate assigned yet, so the register is locked. Ask an administrator or owner to assign your plant gate in User Management, then sign in again."
           showErpLink={!isWatchman}
         />
       );
@@ -177,7 +180,7 @@ function GatePlantScope({
         title="Gate not assigned"
         body={
           isWatchman
-            ? "No plant gate is assigned to your account, so the register is locked. Ask the owner to assign your gate in User Management."
+            ? "No plant gate is assigned to your account, so the register is locked. Ask an administrator or owner to assign your gate in User Management."
             : "No active plant is available for the gate register."
         }
         showErpLink={!isWatchman}
@@ -189,7 +192,7 @@ function GatePlantScope({
     <GateContext.Provider value={value}>
       <div className="gate-canvas min-h-[100dvh]">
         <GateTopBar />
-        <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-4 sm:px-6 lg:pb-12">{children}</main>
+        <main className="gate-main mx-auto w-full max-w-[1180px] px-4 pb-28 pt-4 sm:px-6 lg:pb-12">{children}</main>
         {canLog ? <GateTabBar /> : null}
       </div>
     </GateContext.Provider>
@@ -266,11 +269,14 @@ function GateTopBar() {
             <DropdownMenuContent align="end" className="min-w-[230px]">
               <DropdownMenuLabel className="font-normal">
                 <div className="text-[13px] font-semibold text-content-1">{operatorName}</div>
-                <div className="text-[12px] text-content-3">{isWatchman ? "Watchman" : isOwner ? "Owner" : "Gate access"}</div>
+                <div className="text-[12px] text-content-3">{isWatchman ? "Watchman" : isOwner ? "Admin / Owner · full gate access" : "Gate access"}</div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {isOwner ? (
                 <>
+                  <DropdownMenuItem className="min-h-[44px]" onSelect={() => router.push("/gate/setup")}>
+                    <Settings className="mr-2 h-4 w-4" /> Gate setup
+                  </DropdownMenuItem>
                   <DropdownMenuItem className="min-h-[44px]" onSelect={() => router.push("/gate/history")}>
                     <History className="mr-2 h-4 w-4" /> Gate history
                   </DropdownMenuItem>
@@ -372,7 +378,15 @@ export function GateBlocked({
   retry?: () => void;
   showErpLink?: boolean;
 }) {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  // An administrator previewing the Watchman role is held by the watchman
+  // ceiling; give them a way back without signing out.
+  const actualRole = getCanonicalRoleCode(user?.role_info?.code);
+  const previewingWatchman = actualRole !== "WATCHMAN" && Boolean(Cookies.get("x_role_override"));
+  const exitPreview = () => {
+    Cookies.remove("x_role_override");
+    window.location.href = getLandingPage(actualRole) || "/";
+  };
   return (
     <div className="gate-canvas flex min-h-[100dvh] items-center justify-center px-5">
       <div className="gate-card w-full max-w-[420px] p-6 text-center">
@@ -385,6 +399,16 @@ export function GateBlocked({
         <h1 className="mt-4 text-[22px] font-semibold tracking-[-0.02em] text-content-1">{title}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-content-3 [text-wrap:pretty]">{body}</p>
         <div className="mt-6 grid gap-2">
+          {previewingWatchman ? (
+            <button
+              type="button"
+              onClick={exitPreview}
+              className="gate-press min-h-[52px] rounded-2xl text-[15px] font-semibold text-white"
+              style={{ background: "var(--gate-ink-2)" }}
+            >
+              Exit role preview
+            </button>
+          ) : null}
           {retry ? (
             <button
               type="button"

@@ -23,6 +23,7 @@ interface User {
     extra_permissions?: string[];
     entitlements?: {
         role: string;
+        gate_master?: boolean;
         landing_page: string;
         permissions: string[];
         permission_map?: Record<string, string[]>;

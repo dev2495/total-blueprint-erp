@@ -179,6 +179,74 @@ class GateAPITests(TransactionTestCase):
         self.assertEqual(self.client.get("/api/gate/audit/").status_code, 403)
         self.assertEqual(self.client.get("/api/gate/reports/").status_code, 403)
 
+    def test_gate_masters_have_full_history_private_images_qr_and_corrections_without_assignments(self):
+        receipt, _ = self.create_grn()
+        movement = self.client.post("/api/gate/goods/", self.goods_data(), format="json")
+        self.assertEqual(movement.status_code, 201, movement.data)
+        historical = timezone.now()-timedelta(days=400)
+        GoodsMovement.objects.filter(id=movement.data["id"]).update(logged_at=historical)
+        buffer = io.BytesIO()
+        Image.new("RGB", (20, 20), "#112233").save(buffer, "JPEG")
+        closed = VisitorVisit.objects.create(plant=self.other, name="Historical visitor", mobile="9876543211", purpose="Meeting", consent_at=historical, submitted_at=historical, status="EXITED", entry_at=historical, exit_at=historical+timedelta(hours=1), selfie_data=buffer.getvalue())
+        policies = [("ADMIN", {}), ("SUPER_ADMIN", {}), ("OWNER", {}), ("SALES", {"is_owner": True}), ("SALES", {"is_superuser": True})]
+        for index, (code, flags) in enumerate(policies):
+            with self.subTest(role=code, flags=flags):
+                role, _ = Role.objects.get_or_create(code=code, defaults={"name": code})
+                master = User.objects.create_user(username=f"gate-master-{index}", role=role, **flags)
+                self.assertFalse(GateAssignment.objects.filter(user=master).exists())
+                self.client.force_authenticate(master)
+                self.assertEqual(len(self.client.get("/api/gate/masters/").data["plants"]), 2)
+                self.assertEqual(self.client.get("/api/gate/goods/").data["count"], 1)
+                self.assertEqual(self.client.get(f"/api/gate/goods/{movement.data['id']}/").status_code, 200)
+                self.assertEqual(self.client.get("/api/gate/visitors/", {"status": "EXITED"}).data["count"], 1)
+                self.assertEqual(self.client.get(f"/api/gate/visitors/{closed.id}/selfie/", HTTP_ACCEPT="image/jpeg").status_code, 200)
+                self.assertEqual(self.client.get("/api/gate/qr/", {"plant": str(self.other.id)}).status_code, 200)
+                self.assertEqual(self.client.get("/api/gate/audit/").status_code, 200)
+                self.assertEqual(self.client.get("/api/gate/reports/").status_code, 200)
+                self.assertEqual(self.client.get("/api/gate/summary/", {"date_from": str(historical.date()), "date_to": str(historical.date())}).status_code, 200)
+                changed = self.client.post(f"/api/gate/goods/{movement.data['id']}/correct/", {"client_token": str(uuid.uuid4()), "reason": "Master reviewed vehicle observation", "vehicle_number": f"DD03U98{index:02d}"}, format="json")
+                self.assertEqual(changed.status_code, 200, changed.data)
+                reconciled = self.client.post(f"/api/gate/goods/{movement.data['id']}/reconcile/", {"client_token": str(uuid.uuid4()), "reason": "Master selected original receipt", "document_kind": "GRN", "document_id": str(receipt.id)}, format="json")
+                self.assertEqual(reconciled.status_code, 200, reconciled.data)
+                self.assertEqual(reconciled.data["document_id"], str(receipt.id))
+                self.assertTrue(GateAuditEvent.objects.filter(object_id=movement.data["id"], action="GOODS_CORRECTED", actor=master).exists())
+
+    def test_watchman_ceiling_overrides_master_roles_and_flags_for_history_and_private_data(self):
+        movement = self.client.post("/api/gate/goods/", self.goods_data(), format="json")
+        legacy = VisitorVisit.objects.create(plant=self.plant, name="Pending visitor", mobile="9876543211", purpose="Meeting", consent_at=timezone.now(), selfie_data=b"private image")
+        admin_role, _ = Role.objects.get_or_create(code="ADMIN", defaults={"name": "Administrator"})
+        admin = User.objects.create_user(username="gate-admin-preview", role=admin_role, is_owner=True, is_superuser=True)
+        admin.effective_role_code = "  watchman  "
+        GateAssignment.objects.create(user=admin, plant=self.plant)
+        self.watchman.is_owner = True
+        self.watchman.is_superuser = True
+        self.watchman.effective_role_code = "OWNER"
+        for actor in [admin, self.watchman]:
+            with self.subTest(actor=actor.username):
+                self.client.force_authenticate(actor)
+                for path in [f"/api/gate/goods/{movement.data['id']}/", "/api/gate/audit/", "/api/gate/reports/", "/api/gate/qr/"]:
+                    self.assertEqual(self.client.get(path).status_code, 403)
+                self.assertEqual(self.client.get(f"/api/gate/visitors/{legacy.id}/selfie/").status_code, 404)
+                self.assertEqual(self.client.post(f"/api/gate/goods/{movement.data['id']}/correct/", {"client_token": str(uuid.uuid4()), "reason": "Attempted correction", "vehicle_number": "DD03U9802"}, format="json").status_code, 403)
+                self.assertEqual(self.client.post(f"/api/gate/visitors/{legacy.id}/check-in/", {"client_token": str(uuid.uuid4())}, format="json").status_code, 403)
+
+    def test_administrator_can_recover_legacy_pending_records(self):
+        role, _ = Role.objects.get_or_create(code="ADMIN", defaults={"name": "Administrator"})
+        administrator = User.objects.create_user(username="gate-admin-recovery", role=role)
+        self.client.force_authenticate(administrator)
+        created = self.client.post("/api/gate/visitors/", self.visitor_data(plant=str(self.other.id)), format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertEqual(created.data["status"], "PENDING")
+        entered = self.client.post(f"/api/gate/visitors/{created.data['id']}/check-in/", {"client_token": str(uuid.uuid4())}, format="json")
+        self.assertEqual(entered.status_code, 200, entered.data)
+        visitor = VisitorVisit.objects.get(id=created.data["id"])
+        self.assertEqual(visitor.entry_by, administrator)
+        pending = self.client.post("/api/gate/visitors/", self.visitor_data(plant=str(self.other.id), mobile="9876543211"), format="json")
+        cancelled = self.client.post(f"/api/gate/visitors/{pending.data['id']}/cancel/", {"client_token": str(uuid.uuid4()), "reason": "Visitor left"}, format="json")
+        self.assertEqual(cancelled.status_code, 200, cancelled.data)
+        self.assertEqual(cancelled.data["status"], "CANCELLED")
+        self.assertIsNone(cancelled.data["entry_at"])
+
     def test_trading_outward_invoice_matches_only_dispatched_read_only(self):
         customer = Customer.objects.create(code="GATE-TC", name="Trading buyer")
         product = TradingGood.objects.create(code="GATE-TG", name="Ready pouch", base_uom="PCS")

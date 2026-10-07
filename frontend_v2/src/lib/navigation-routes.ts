@@ -69,6 +69,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/gate/goods",
   "/gate/history",
   "/gate/qr",
+  "/gate/setup",
   "/gate/register",
   "/gate/visitors",
   "/gate/visitors/new",

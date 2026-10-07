@@ -60,7 +60,7 @@ export function GateHistory() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3 px-1 pt-1">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Owner</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
           <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-content-1">Gate history</h1>
           <p className="text-[14px] text-content-3">Every gate movement and visit, checked against ERP documents. Corrections are append-only.</p>
         </div>

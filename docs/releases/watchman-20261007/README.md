@@ -98,12 +98,22 @@ unmodified incoming headers would otherwise allow callers to spoof their rate
 bucket. [Caddy's header documentation](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#headers)
 describes overwrite semantics and the default pass-through behavior.
 
-`activate-caddy.sh` requires the recorded configuration hash and gateway,
-validates the candidate, preserves the old file, reloads the service, and restores
-the old configuration on failure. Application rollback also restores that file.
+`activate-caddy.sh` requires the recorded original configuration hash or an exact
+byte match to the reviewed candidate, together with the recorded gateway. It
+validates the candidate and preserves the current file for this release's
+rollback. An identical gate configuration is left unchanged without reload;
+the first gate activation replaces the original configuration and restores it
+on failure. Application rollback restores the preserved current configuration,
+including the already-enabled gate proxy when the parent is a gate release.
 If the live configuration or network changes, stop and review the exact proxy
 instead of weakening the checks. After deployment, verify spoofed `X-Real-IP`
 headers do not create caller-selected rate buckets.
+
+Administrators and owners now receive full gate/history/private/report/config
+rights by default, including actual `ADMIN` without an owner flag and canonical
+`SUPER_ADMIN`. The actual or effective `WATCHMAN` ceiling always takes precedence.
+An ordinary non-master with literal `gate.reports` remains a sanitized report
+delegate. Daily report recipients remain OWNER-only by default.
 
 Rollback also disables active WATCHMAN-role accounts before starting the older
 application, whose authenticated ERP views do not implement the watchman ceiling.

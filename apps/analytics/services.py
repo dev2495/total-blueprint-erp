@@ -5103,9 +5103,10 @@ class ReportingService:
             
         if user:
             from apps.users.permission_service import PermissionService
-            actual_role = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
-            if actual_role != "WATCHMAN" and role_code != "WATCHMAN" and (user.is_owner or actual_role == "OWNER" or "gate.reports" in PermissionService.get_user_permissions(user)):
-                catalog.append({"id": "gate", "title": "Gate Register", "description": "Goods entry and exit, visitor counts, and system reconciliation.", "icon": "DoorOpen", "category": "Operations", "permission": "gate.reports", "roles": ["OWNER"]})
+            from apps.users.role_catalog import get_canonical_role_code
+            actual_role = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+            if "WATCHMAN" not in {actual_role, get_canonical_role_code(role_code)} and (PermissionService.is_gate_master(user) or "gate.reports" in PermissionService.get_user_permissions(user)):
+                catalog.append({"id": "gate", "title": "Gate Register", "description": "Goods entry and exit, visitor counts, and system reconciliation.", "icon": "DoorOpen", "category": "Operations", "permission": "gate.reports", "roles": ["OWNER", "ADMIN", "SUPER_ADMIN"]})
         return catalog
 
     @staticmethod

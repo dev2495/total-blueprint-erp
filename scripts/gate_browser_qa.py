@@ -4,10 +4,16 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = ROOT / ".runtime" / "gate-qa.json"
 CLI = "/Users/devarshthakkar/.codex/skills/playwright/scripts/playwright_cli.sh"
+BASE_URL = os.environ.get("GATE_QA_BROWSER_BASE_URL", "http://127.0.0.1:3017")
+if urlsplit(BASE_URL).scheme != "http" or urlsplit(BASE_URL).netloc not in {
+    "127.0.0.1:3017", "127.0.0.1:3018", "127.0.0.1:3019",
+}:
+    raise RuntimeError("Browser fixture credentials are restricted to isolated loopback QA servers.")
 
 
 def run(code):
@@ -34,7 +40,7 @@ if __name__ == "__main__":
     if sys.argv[1] == "login":
         account = json.loads(PRIVATE.read_text())[sys.argv[2]]
         run("async (page) => { "
-            "if (!page.url().includes('/login')) { await page.context().clearCookies(); await page.goto('http://127.0.0.1:3017/login'); } "
+            f"await page.context().clearCookies(); await page.goto({json.dumps(BASE_URL + '/login')}); "
             f"await page.getByRole('textbox', {{name:'Work email or username'}}).fill({json.dumps(account['username'])}); "
             f"await page.locator('[data-testid=login-password]').fill({json.dumps(account['password'])}); "
             "const responsePromise = page.waitForResponse(r=>r.url().includes('/api/users/login') && r.request().method()==='POST'); "

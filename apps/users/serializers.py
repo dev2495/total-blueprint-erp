@@ -32,6 +32,7 @@ class UserSerializer(serializers.ModelSerializer):
         queryset=Role.objects.all(), source='role', write_only=True, required=False, allow_null=True
     )
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+    is_superuser = serializers.BooleanField(read_only=True)
     gate_plant_ids = serializers.ListField(child=serializers.UUIDField(), required=False, write_only=True)
     
     full_name = serializers.SerializerMethodField()
@@ -55,6 +56,7 @@ class UserSerializer(serializers.ModelSerializer):
             'full_name',
             'email_missing',
             'is_owner',
+            'is_superuser',
             'extra_permissions',
             'entitlements',
             'gate_plant_ids',
@@ -68,6 +70,7 @@ class UserSerializer(serializers.ModelSerializer):
         data["gate_plant_ids"] = [str(pk) for pk in data["entitlements"]["context"]["gate_plants"]]
         if instance.role and instance.role.code == "WATCHMAN":
             data["is_owner"] = False
+            data["is_superuser"] = False
         return data
 
     def get_email_missing(self, obj):
@@ -87,7 +90,7 @@ class UserSerializer(serializers.ModelSerializer):
             if (
                 override_role
                 and bool(getattr(settings, "ALLOW_ROLE_OVERRIDE", False))
-                and (obj.is_superuser or obj.is_owner or (obj.role and obj.role.code in ['ADMIN', 'SUPER_ADMIN']))
+                and (obj.is_superuser or obj.is_owner or (obj.role and obj.role.code in ['ADMIN', 'SUPER_ADMIN', 'OWNER']))
             ):
                 obj.effective_role_code = override_role
             elif not hasattr(obj, 'effective_role_code'):

@@ -29,18 +29,28 @@ def _effective_role_code(user) -> str:
 def _is_reports_admin(user) -> bool:
     if not user or not user.is_authenticated:
         return False
-    return bool(user.is_superuser or user.is_owner or _effective_role_code(user) in {"ADMIN", "SUPER_ADMIN", "OWNER"})
+    from apps.users.permission_service import PermissionService
+    from apps.users.role_catalog import get_canonical_role_code
+    actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+    effective = get_canonical_role_code(_effective_role_code(user))
+    if "WATCHMAN" in {actual, effective}:
+        return False
+    return PermissionService.is_gate_master(user) or effective in {"ADMIN", "OWNER"}
 
 
 def _is_gate_owner(user) -> bool:
-    actual = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
-    return bool(user and user.is_authenticated and actual != "WATCHMAN" and _effective_role_code(user) != "WATCHMAN" and (user.is_owner or actual == "OWNER"))
+    from apps.users.permission_service import PermissionService
+    return PermissionService.is_gate_master(user)
 
 
 def _can_gate_reports(user) -> bool:
     from apps.users.permission_service import PermissionService
-    actual = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
-    return bool(actual != "WATCHMAN" and _effective_role_code(user) != "WATCHMAN" and (_is_gate_owner(user) or "gate.reports" in PermissionService.get_user_permissions(user)))
+    from apps.users.role_catalog import get_canonical_role_code
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+    effective = get_canonical_role_code(_effective_role_code(user))
+    return bool("WATCHMAN" not in {actual, effective} and (_is_gate_owner(user) or "gate.reports" in PermissionService.get_user_permissions(user)))
 
 
 def _gate_report_code(report_code) -> bool:

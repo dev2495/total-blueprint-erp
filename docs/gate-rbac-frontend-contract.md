@@ -12,7 +12,7 @@ Visitor QR self-submission records entry immediately (`status: "INSIDE"` with
 `entry_at`); it is not an admission request. Watchman visitor actions are exit
 only via `POST /api/gate/visitors/{visitor_id}/check-out/`. Do not show walk-in,
 admit/check-in or cancel actions to Watchman. Those POST routes return 403 for
-actual/effective Watchman, including any legacy `PENDING` registrations. Owner
+actual/effective Watchman, including any legacy `PENDING` registrations. Admin/owner
 history and correction access remain separate. Report `visitor_entries` counts
 the QR submission's recorded entry immediately, without a second confirmation.
 
@@ -24,16 +24,26 @@ also be saved with `POST /api/users/users/{user_id}/assign-gate-plants/` and JSO
 required; watchman cannot assign themselves. Factory `/api/factory/plants/` is
 available to existing user-management actors for selecting assignments.
 
-## Owner and report permission
+## Admin/owner and report permission
 
-Only an actual owner (`is_owner` or canonical `OWNER`) can see gate history,
-visitor personal details, corrections/reconciliation, audit stream and historical
-selfies. An `ADMIN` wildcard or owner role preview does not grant this access.
-Canonical owner capabilities: `gate.view`, `gate.reconcile`, `gate.audit`,
-`gate.private`. They are not assignable as user permission overrides.
+Actual `ADMIN`, `SUPER_ADMIN`, `OWNER`, `is_owner`, or `is_superuser` accounts
+receive full Gate access by default: registration/setup, all plants, visitor
+history/details/photos, corrections/reconciliation, QR posters, intelligence,
+audit, report configuration/generation, and private archives. No per-user owner
+flag or GateAssignment is needed for an actual Admin. The shared backend policy
+is `PermissionService.is_gate_master(user)`; `entitlements.gate_master` exposes
+the same decision, and the user payload includes a read-only `is_superuser`.
+Actual/effective `WATCHMAN` always overrides every master role, flag, superuser
+status, and wildcard. Owner preview on an actual Admin retains full Gate rights;
+Watchman preview restricts that account to assigned-gate operations. A preview
+alone never upgrades a non-master department account. A non-master `*` override
+also does not grant master Gate access. Master capabilities are `gate.log`,
+`gate.reports`, `gate.view`, `gate.reconcile`, `gate.audit`,
+`gate.private`. History, reconciliation, audit and private-image capabilities
+are not assignable as user permission overrides.
 
 The separately assignable reports pack permission is **`gate.reports`**. Show the
-report tab when owner or explicit `gate.reports` exists; do not infer it from
+report tab when actual master or explicit `gate.reports` exists; do not infer it from
 `analytics.view` or `*`. The report page route is **`/analytics/reports/gate`**.
 The backend report catalog returns `id: "gate"`, `permission: "gate.reports"`.
 Delegated readers receive goods register rows and aggregate visitor counts;
@@ -50,19 +60,20 @@ formatting. Dates are grouped in the gate business timezone (Asia/Kolkata), and
 the selected plant/date scope is identical to the summary. Product quantities
 remain separate in `summary.quantity_by_uom` and are never added across KG/PCS.
 `GET /api/analytics/reports/gate/export-pdf/` downloads the same filtered report.
-Use `gate` APIs in `docs/gate-api-contract.md` for owner history/reconciliation.
+Use `gate` APIs in `docs/gate-api-contract.md` for admin/owner history/reconciliation.
 
 ## Daily report pack
 
 The exact distribution profile code is **`gate_register_daily`** and the label
 is **Gate Register Daily**. It is a new option beside existing daily packs.
-Default recipients are `OWNER` only. Owner can toggle its active status using
+Default recipients remain `OWNER` only; access rights do not rewrite the existing
+profile or notification recipients. Admin and owner can toggle its active status using
 the existing distribution form (`report_code`, `active`) and send/preview it
 using the existing archive actions. Do not add a `GATE_REGISTER` code.
 
-Existing owner endpoints remain:
+Existing master endpoints remain:
 
-- `GET /api/analytics/report-distributions/` → `profiles[]` (gate profile hidden from non-owner admin).
+- `GET /api/analytics/report-distributions/` → `profiles[]` (gate profile included for every actual master).
 - `PUT /api/analytics/report-distributions/` with `{"profiles": [{"report_code": "gate_register_daily", "active": true}]}`.
 - `POST /api/analytics/report-distributions/gate_register_daily/send/` with optional `report_date` (`YYYY-MM-DD`).
 - `GET /api/analytics/report-runs/` → `runs[]`.
@@ -75,25 +86,25 @@ Private gate archive bytes are retained as generated evidence; the run response
 uses `artifact_retention_days: null` instead of the public media pack's 30-day
 retention label.
 Delegated `gate.reports` readers can list/read gate archive runs; configuration
-and manual generation remain owner-only. The analytics `rows` are flattened
+and manual generation remain admin/owner-only. The analytics `rows` are flattened
 goods lines: `plant`, `logged_at`, `direction`, `invoice_number`, `vehicle_number`,
 `party_name`, `product_name`, `quantity`, `uom`, `amount`,
 `reconciliation_status`, `reference`, `amount_basis`.
 
 ## Intelligence and audit
 
-For actual owners, `/api/analytics/control-tower/` includes `gate` aggregates;
+For actual masters, `/api/analytics/control-tower/` includes `gate` aggregates;
 `/api/analytics/dashboard-summary/` includes `snapshots.gate`. Counters include
 goods inward/outward, unmatched/discrepancy, pending/inside/overdue visitors,
 visitor entries/exits and quantities separated by UOM.
 Gate periods and daily report windows use the configured gate business timezone
 (Asia/Kolkata), including when the server's Django timezone is UTC.
 
-Owner `/api/analytics/audit-console/` includes `modes.gate` and
+Admin/owner `/api/analytics/audit-console/` includes `modes.gate` and
 `counts.gate_audit`. Unified audit ledger `/api/analytics/audit-ledger/` supports
 `stream=gate` with date/range/actor/query filters. Events use IDs `gate:{uuid}`,
 label `Gate Register`, and link `/gate/history`.
 `GET /api/analytics/audit-ledger/gate:{uuid}/` returns the audit event detail.
 Audit before/after snapshots exclude raw government ID, image data and full
-visitor mobile; they remain append-only. Non-owner admin cannot view gate
-events or a gate report run through existing audit routes.
+visitor mobile; they remain append-only. Non-master departments and report-only
+delegates cannot view gate events through existing audit routes.

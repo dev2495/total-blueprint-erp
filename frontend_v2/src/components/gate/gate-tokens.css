@@ -208,6 +208,12 @@ textarea.gate-field { padding-top: 12px; padding-bottom: 12px; min-height: 84px;
 .gate-pass__perf::before { top: -9px; }
 .gate-pass__perf::after { bottom: -9px; }
 
+/* Keyboard focus is always visible on gate controls (links and buttons). */
+.gate-press:focus-visible,
+.gate-plate__input:focus-visible {
+  outline: 3px solid var(--gate-in);
+  outline-offset: 2px;
+}
 .gate-press { transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), filter 120ms ease; }
 .gate-press:active { transform: scale(0.97); }
 
@@ -232,7 +238,34 @@ textarea.gate-field { padding-top: 12px; padding-bottom: 12px; min-height: 84px;
   .gate-press:active { transform: none; }
 }
 
+/*
+ * Print: exactly one A4 page for the QR poster. The shell's main padding /
+ * max-width, the canvas min-height and the parent's space-y margin are
+ * neutralised; the poster is sized to the page (a hair under 297mm so
+ * sub-pixel rounding can never spill onto a blank second page). QR/logo
+ * artwork is untouched.
+ */
 @media print {
+  /* Scoped to the poster page only (this file is loaded app-wide). The A4
+     @page rule lives in the poster component so other pages keep defaults. */
+  html:has(.gate-print-root), body:has(.gate-print-root) { margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
+  .gate-canvas { min-height: 0 !important; background: #ffffff !important; }
+  .gate-main { padding: 0 !important; margin: 0 !important; max-width: none !important; width: auto !important; }
+  .gate-print-root { margin: 0 !important; padding: 0 !important; }
+  .gate-print-root > * { margin-top: 0 !important; margin-bottom: 0 !important; }
+  .gate-poster {
+    width: 210mm !important;
+    height: 296.5mm !important;
+    max-width: none !important;
+    aspect-ratio: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    break-inside: avoid;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
   .gate-no-print { display: none !important; }
   .gate-canvas { background: #ffffff; }
 }

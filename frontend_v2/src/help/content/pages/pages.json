@@ -23128,7 +23128,9 @@
     },
     "module": "Analytics",
     "roles": [
-      "OWNER"
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Gate Register Report summarises inward and outward vehicles logged by the watchman and how many match ERP documents.",
@@ -23140,8 +23142,8 @@
     },
     "prerequisites": [
       {
-        "en": "Owner access or an explicit Gate reports pack (gate.reports) grant.",
-        "hi": "Owner एक्सेस या स्पष्ट Gate reports pack (gate.reports) अनुमति।"
+        "en": "Administrators and owners have this report by default; other users need the Gate reports pack (gate.reports).",
+        "hi": "Administrator और owner को यह रिपोर्ट डिफ़ॉल्ट रूप से मिलती है; अन्य उपयोगकर्ताओं को Gate reports pack (gate.reports) चाहिए।"
       },
       {
         "en": "Pick the plant and a date range of at most 366 days.",
@@ -23156,6 +23158,10 @@
       {
         "en": "Export PDF or CSV for the selected period.",
         "hi": "चुनी गई अवधि के लिए PDF या CSV निर्यात करें।"
+      },
+      {
+        "en": "Administrators and owners: open Gate Setup (/gate/setup) to choose a factory, print its QR and assign a watchman.",
+        "hi": "Administrator और owner: Gate Setup (/gate/setup) खोलकर फ़ैक्टरी चुनें, उसका QR प्रिंट करें और चौकीदार असाइन करें।"
       }
     ],
     "fieldHelp": [
@@ -23188,8 +23194,8 @@
           "hi": "एक्सेस अस्वीकृत"
         },
         "reason": {
-          "en": "Only the owner or a user with gate.reports can open this report; analytics access alone is not enough.",
-          "hi": "केवल owner या gate.reports वाले उपयोगकर्ता यह रिपोर्ट खोल सकते हैं; केवल analytics एक्सेस पर्याप्त नहीं।"
+          "en": "Only administrators, owners or users with gate.reports can open this report; analytics access alone is not enough. Watchman accounts never can.",
+          "hi": "केवल administrator, owner या gate.reports वाले उपयोगकर्ता यह रिपोर्ट खोल सकते हैं; केवल analytics एक्सेस पर्याप्त नहीं। Watchman खाते कभी नहीं।"
         }
       },
       {
@@ -23209,14 +23215,16 @@
         "hi": "तारीख सीमा छोटी करें और फिर लोड करें।"
       },
       {
-        "en": "Ask the owner to grant the Gate reports pack in User Management.",
-        "hi": "User Management में Gate reports pack देने के लिए owner से कहें।"
+        "en": "Ask an administrator or owner to grant the Gate reports pack in User Management.",
+        "hi": "User Management में Gate reports pack देने के लिए administrator या owner से कहें।"
       }
     ],
     "relatedRoutes": [
       "/analytics/reports",
       "/system/report-center",
-      "/system/audit"
+      "/system/audit",
+      "/system/users",
+      "/factory/plants"
     ],
     "screenshotKeys": [],
     "faqRefs": [

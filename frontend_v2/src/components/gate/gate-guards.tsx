@@ -22,13 +22,13 @@ function Denied({ body }: { body: string }) {
 /** Pages that write to the register need gate.log. */
 export function GuardLog({ children }: { children: React.ReactNode }) {
   const { canLog } = useGate();
-  if (!canLog) return <Denied body="Your account can view gate history but cannot log entries." />;
+  if (!canLog) return <Denied body="Your account can open the Gate report but cannot log gate entries." />;
   return <>{children}</>;
 }
 
-/** Owner-only pages (history, corrections, audit, QR). The API enforces this too. */
+/** Admin/Owner pages (setup, history, corrections, audit, QR, walk-in). The API enforces this too. */
 export function GuardOwner({ children }: { children: React.ReactNode }) {
   const { isOwner } = useGate();
-  if (!isOwner) return <Denied body="This page is available to the owner only." />;
+  if (!isOwner) return <Denied body="This page is for administrators and owners. Watchmen use the gate terminal; report delegates use the Gate report." />;
   return <>{children}</>;
 }

@@ -18,6 +18,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE))
@@ -112,7 +113,7 @@ def race(access, path, payloads):
 
 def main():
     require(settings.DATABASES["default"]["NAME"] == "tpp_gate_dev_20261007", "Refusing to run outside the isolated local gate QA database")
-    for name in ("django.request", "config.views", "apps.users.middleware"):
+    for name in ("django.request", "config.views", "apps.users.middleware", "apps.analytics.views"):
         logging.getLogger(name).setLevel(logging.CRITICAL)
     fixtures = json.loads((BASE / ".runtime/gate-qa.json").read_text())
     nonce = secrets.token_hex(5)
@@ -131,6 +132,8 @@ def main():
     require(len(before) >= 20, "ERP invariant snapshot must cover meaningful business tables")
     with override_settings(STRICT_RBAC=False, ALLOW_ROLE_OVERRIDE=False):
         owner_cookie, owner, _ = login(fixtures["owner"])
+        require("admin" in fixtures, "Actual administrator QA fixture is required")
+        admin_cookie, admin, _ = login(fixtures["admin"])
         watch_cookie, watch, access = login(fixtures["watchman"])
         _, delegate, _ = login(fixtures["delegate"])
         _, sales, _ = login(fixtures["sales"])
@@ -147,7 +150,27 @@ def main():
         api(sales.get("/api/gate/visitors/"), 403, "Unprivileged role gate ceiling")
         api(delegate.get("/api/gate/visitors/"), 403, "Report delegation grants no personal history")
         api(delegate.get("/api/gate/audit/"), 403, "Report delegation grants no audit")
-        checks.append("real cookie/bearer auth, non-strict RBAC ceiling and plant scoping")
+        for client in (admin_cookie, admin):
+            account = api(client.get("/api/users/me/"), 200, "Actual administrator entitlements").json()
+            require(not account["is_owner"] and account["entitlements"]["gate_master"], "Actual administrator without owner flag needs full gate defaults")
+            masters = api(client.get("/api/gate/masters/"), 200, "Unassigned administrator all-factory access").json()
+            require({fixtures["plant"], fixtures["other_plant"]} <= {item["id"] for item in masters["plants"]}, "Administrator is incorrectly assignment-scoped")
+            for route in ("/api/gate/visitors/", "/api/gate/audit/", "/api/gate/reports/", "/api/analytics/reports/gate/"):
+                api(client.get(route), 200, "Default administrator master access")
+            api(client.get("/api/gate/qr/", {"plant": fixtures["other_plant"]}), 200, "Administrator other-factory QR")
+        with patch("apps.analytics.report_delivery.ReportDistributionService.ensure_defaults", return_value=[]):
+            profiles = api(admin.get("/api/analytics/report-distributions/"), 200, "Administrator report configuration read").json()["profiles"]
+            require(any(profile["report_code"] == "gate_register_daily" and profile["target_roles"] == ["OWNER"] for profile in profiles), "Administrator report configuration missing or recipients expanded")
+        for client in (delegate, sales, watch):
+            api(client.get("/api/analytics/report-distributions/"), 403, "Non-master configuration denied")
+            api(client.post("/api/analytics/report-distributions/gate_register_daily/send/", {}, format="json"), 403, "Non-master manual generation denied")
+        with override_settings(ALLOW_ROLE_OVERRIDE=True):
+            api(admin.get("/api/gate/visitors/", HTTP_X_ROLE_OVERRIDE="OWNER"), 200, "Actual administrator owner preview allowed")
+            require(api(admin.get("/api/users/me/", HTTP_X_ROLE_OVERRIDE="OWNER"), 200, "Administrator preview entitlement").json()["entitlements"]["gate_master"], "Administrator owner preview lost master rights")
+            for route in ("/api/gate/audit/", "/api/gate/reports/", "/api/analytics/reports/gate/", "/api/inventory/materials/"):
+                api(admin.get(route, HTTP_X_ROLE_OVERRIDE="WATCHMAN"), 403, "Effective watchman ceiling overrides administrator")
+            require(not api(admin.get("/api/users/me/", HTTP_X_ROLE_OVERRIDE="WATCHMAN"), 200, "Watchman preview entitlement").json()["entitlements"]["gate_master"], "Watchman preview exposes master entitlement")
+        checks.append("real cookie/bearer auth; actual administrator/owner master defaults and previews; watchman ceiling, sanitized delegate and plant scoping")
 
         public = APIClient(enforce_csrf_checks=True, REMOTE_ADDR=f"198.51.100.{secrets.randbelow(254) + 1}")
         before_visit = api(watch.get("/api/gate/summary/", {"plant": fixtures["plant"]}), 200, "Visitor counters before registration").json()
@@ -241,6 +264,10 @@ def main():
         api(watch.get("/api/gate/visitors/", {"status": "EXITED"}), 403, "Owner-only closed visitor history")
         closed = api(owner.get("/api/gate/visitors/", {"status": "EXITED", "search": nonce}), 200, "Owner full visitor history")
         require(visitor_id in {item["id"] for item in closed.json()["results"]}, "Owner history misses exited record")
+        api(admin.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 200, "Administrator full closed-visitor photo")
+        admin_history = api(admin.get("/api/gate/visitors/", {"status": "EXITED", "search": nonce}), 200, "Administrator full visitor history").json()
+        require(visitor_id in {item["id"] for item in admin_history["results"]}, "Administrator history misses exited record")
+        api(admin.get("/api/gate/audit/", {"object_id": visitor_id}), 200, "Administrator private audit")
         audit_response = api(owner.get("/api/gate/audit/", {"object_id": visitor_id}), 200, "Owner immutable audit")
         require(government_id not in body(audit_response) and mobile not in body(audit_response) and visitor_name not in body(audit_response), "Audit leaks sensitive visitor details")
         event = events.first()
@@ -267,8 +294,8 @@ def main():
         api(watch.post("/api/gate/goods/", {**goods_data, "client_token": token()}, format="json"), 409, "Duplicate goods/document conflict")
         api(watch.get(f"/api/gate/goods/{goods['id']}/"), 403, "Watchman owner detail ceiling")
         api(watch.post(f"/api/gate/goods/{goods['id']}/correct/", {"client_token": token(), "reason": "QA correction", "vehicle_number": "DD03U9999"}, format="json"), 403, "Watchman correction ceiling")
-        api(owner.post(f"/api/gate/goods/{goods['id']}/correct/", {"client_token": token(), "reason": "QA observed vehicle mismatch", "vehicle_number": "DD03U9999"}, format="json"), 200, "Owner reasoned correction")
-        corrected = api(owner.get(f"/api/gate/goods/{goods['id']}/"), 200, "Owner goods detail").json()
+        api(admin.post(f"/api/gate/goods/{goods['id']}/correct/", {"client_token": token(), "reason": "QA observed vehicle mismatch", "vehicle_number": "DD03U9999"}, format="json"), 200, "Administrator reasoned correction")
+        corrected = api(admin.get(f"/api/gate/goods/{goods['id']}/"), 200, "Administrator goods detail").json()
         require(corrected["reconciliation_status"] == "DISCREPANCY", "Physical correction must preserve discrepancy")
         mismatched = api(watch.post("/api/gate/goods/", {**goods_data, "client_token": token(), "document_id": str(mismatch_grn.id), "invoice_number": f"WRONG-{nonce}", "invoice_date": str(gate_today() - timedelta(days=1))}, format="json"), 201, "Selected-document invoice/date mismatch").json()
         require(mismatched["reconciliation_status"] == "DISCREPANCY", "Selecting a document cannot conceal differing invoice number/date")

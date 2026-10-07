@@ -106,7 +106,7 @@ export function VisitorQueue() {
   );
 }
 
-/** Owner-only recovery for registrations created before the final flow. */
+/** Admin/Owner recovery for registrations created before the final flow. */
 function LegacyPending({ now }: { now: number }) {
   const pending = useVisitorPages("PENDING", "");
   const rows = useMemo(() => (pending.data?.pages ?? []).flatMap((page) => page.results), [pending.data]);
@@ -114,7 +114,7 @@ function LegacyPending({ now }: { now: number }) {
   if (!total) return null;
   return (
     <section className="pt-4">
-      <SectionHeading eyebrow="Owner · recovery" title={`Legacy pending registrations (${total})`} action={<History className="h-5 w-5 text-content-4" />} />
+      <SectionHeading eyebrow="Admin · Owner · recovery" title={`Legacy pending registrations (${total})`} action={<History className="h-5 w-5 text-content-4" />} />
       <p className="mb-3 px-1 text-[13px] text-content-3">Created under the earlier admit flow. Record their entry if they came in, or remove them from the queue.</p>
       <div className="space-y-3">
         {rows.map((visitor) => (
