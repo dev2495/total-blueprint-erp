@@ -50,6 +50,10 @@ class AcceptanceFailure(Exception):
 
 class RollbackAPIClient(APIClient):
     def request(self, **request):
+        # APIClient.generic defaults each call to HTTP even when its client
+        # defaults specify HTTPS. Preserve the public origin's scheme so
+        # production SSL redirects and secure-cookie CSRF checks are exercised.
+        request["wsgi.url_scheme"] = self.defaults.get("wsgi.url_scheme", request.get("wsgi.url_scheme", "http"))
         # DRF marks any surrounding atomic block for rollback on expected 4xx
         # responses, even for the public non_atomic_requests views. An isolated
         # per-request savepoint protects the outer acceptance transaction.
