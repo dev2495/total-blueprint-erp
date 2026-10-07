@@ -1,0 +1,31 @@
+{
+  "observed_at_utc": "2026-10-07T11:23:03.052616+00:00",
+  "current_production_commit": "d04c2c06cac24bf6a3c35edcaec6e25ffc7db96f",
+  "attempt_key": "gate-release-final-watchman20261007-20261007112100",
+  "managed_backup": {
+    "backup_id": "9f3ab42d-f4c6-4672-825b-494bf48584cd",
+    "status": "SUCCEEDED",
+    "checksum_sha256": "9b22c5422c37ca99d8fe2ca3712b61ae1596522ac826263d69fcb6293be02c87",
+    "size_bytes": 11393168,
+    "duration_seconds": 2
+  },
+  "artifact_checksum_rehashed_and_verified": true,
+  "temporary_restore_drill": {
+    "restore_id": "1a36e3de-8d01-4200-a1c4-26d356125dac",
+    "backup_id": "9f3ab42d-f4c6-4672-825b-494bf48584cd",
+    "status": "SUCCEEDED",
+    "smoke_test_passed": true,
+    "duration_seconds": 15
+  },
+  "temporary_restore_databases_remaining": 0,
+  "after_checks": {
+    "production_commit_unchanged": true,
+    "backend": "running healthy",
+    "frontend": "running healthy",
+    "worker": "running",
+    "beat": "running",
+    "public_readiness": "ready"
+  },
+  "candidate_built_or_activated_by_this_action": false,
+  "live_business_records_restored_or_reset": false
+}

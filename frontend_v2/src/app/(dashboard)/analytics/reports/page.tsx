@@ -10,6 +10,7 @@ import {
   Boxes,
   Clock3,
   Coins,
+  DoorOpen,
   Droplets,
   Factory,
   FileText,
@@ -44,6 +45,8 @@ import {
   heroButtonClass,
 } from "@/components/premium";
 import { Pill } from "@/components/logistics/yard-ui";
+import { useAuth } from "@/components/auth-provider";
+import { canViewGateReports } from "@/components/gate/gate-access";
 
 type ReportCard = {
   href: string;
@@ -95,6 +98,15 @@ const LIBRARY: { domain: string; description: string; reports: ReportCard[] }[] 
   },
 ];
 
+/** Shown only to the owner or an explicit gate.reports grant (never inferred from "*"). */
+const GATE_GROUP: { domain: string; description: string; reports: ReportCard[] } = {
+  domain: "Gate & security",
+  description: "Vehicles in and out of the gate, checked against ERP documents",
+  reports: [
+    { href: "/analytics/reports/gate", title: "Gate Register", copy: "Inward/outward vehicles, ERP match status and visitor counts", icon: DoorOpen },
+  ],
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "—";
   const d = new Date(value);
@@ -120,6 +132,9 @@ function ReportsHubContent() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, effectiveRole } = useAuth();
+  const showGate = Boolean(user) && canViewGateReports(user, effectiveRole);
+  const library = useMemo(() => (showGate ? [...LIBRARY, GATE_GROUP] : LIBRARY), [showGate]);
 
   // Older links used /analytics/reports?tab=<report>; send them to the report page.
   useEffect(() => {
@@ -137,20 +152,26 @@ function ReportsHubContent() {
     queryFn: analyticsApi.getReportDistributions,
     retry: (count, error) => getApiErrorStatus(error) !== 403 && count < 2,
     staleTime: 600_000,
+    // 403 is an expected role outcome here and is rendered as "Restricted".
+    meta: { suppressGlobalError: true },
   });
   const runsQuery = useQuery<ReportDispatchRun[]>({
     queryKey: ["analytics-report-runs", 8],
     queryFn: () => analyticsApi.getReportRuns(8),
     retry: (count, error) => getApiErrorStatus(error) !== 403 && count < 2,
     staleTime: 120_000,
+    meta: { suppressGlobalError: true },
   });
 
   const profiles = profilesQuery.data ?? [];
   const runs = runsQuery.data ?? [];
   const latestRun = runs[0] ?? null;
-  const archiveRestricted =
-    getApiErrorStatus(profilesQuery.error) === 403 || getApiErrorStatus(runsQuery.error) === 403;
-  const reportCount = useMemo(() => LIBRARY.reduce((sum, group) => sum + group.reports.length, 0), []);
+  // Two separate permissions: pack configuration/generation (profiles) and
+  // read-only archive access (runs). A gate.reports delegate gets 403 on the
+  // first but may still read sanitized gate run PDFs/CSVs.
+  const configRestricted = getApiErrorStatus(profilesQuery.error) === 403;
+  const archiveRestricted = getApiErrorStatus(runsQuery.error) === 403;
+  const reportCount = useMemo(() => library.reduce((sum, group) => sum + group.reports.length, 0), [library]);
 
   const sendMutation = useMutation({
     mutationFn: (reportCode: string) => analyticsApi.sendReportDistribution(reportCode),
@@ -182,10 +203,10 @@ function ReportsHubContent() {
         }
       >
         <HeroStats columns={4}>
-          <HeroStat label="Reports" value={reportCount} hint="across four domains" />
+          <HeroStat label="Reports" value={reportCount} hint={`across ${library.length} domains`} />
           <HeroStat
             label="Daily packs"
-            value={archiveRestricted ? "Restricted" : profilesQuery.isPending ? "—" : profiles.length}
+            value={configRestricted ? "Restricted" : profilesQuery.isPending ? "—" : profiles.length}
             hint="scheduled distributions"
           />
           <HeroStat
@@ -204,7 +225,7 @@ function ReportsHubContent() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
-          {LIBRARY.map((group) => (
+          {library.map((group) => (
             <section key={group.domain} className="space-y-2.5">
               <div className="flex items-baseline justify-between px-1">
                 <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-content-1">{group.domain}</h2>
@@ -236,7 +257,7 @@ function ReportsHubContent() {
         </div>
 
         <aside className="space-y-4">
-          {archiveRestricted ? (
+          {configRestricted && archiveRestricted ? (
             <Panel title="Report archive" description="Generation history and PDF previews are limited to report admins.">
               <PanelEmpty icon={<Boxes />} title="Archive restricted for this role">
                 Every report above is still available to open and export.
@@ -244,6 +265,7 @@ function ReportsHubContent() {
             </Panel>
           ) : (
             <>
+              {configRestricted ? null : (
               <Panel icon={<Send />} title="Report generation" description="Archive a daily pack now and notify owner/admin in-app.">
                 {profilesQuery.isPending ? (
                   <div className="space-y-2">
@@ -295,8 +317,14 @@ function ReportsHubContent() {
                   <PanelEmpty title="No daily packs configured" />
                 )}
               </Panel>
+              )}
 
-              <Panel icon={<FileText />} title="Recent report runs" description="Archived packs with PDF preview and detail workbook.">
+              {archiveRestricted ? null : (
+              <Panel
+                icon={<FileText />}
+                title="Recent report runs"
+                description={configRestricted ? "Read-only archive of the packs you are allowed to see." : "Archived packs with PDF preview and detail workbook."}
+              >
                 {runsQuery.isPending ? (
                   <div className="space-y-2">
                     {Array.from({ length: 3 }).map((_, i) => (
@@ -332,9 +360,12 @@ function ReportsHubContent() {
                     ))}
                   </ul>
                 ) : (
-                  <PanelEmpty title="No report runs yet">Generate a daily pack to start the archive.</PanelEmpty>
+                  <PanelEmpty title="No report runs yet">
+                    {configRestricted ? "Archived packs you can read will appear here." : "Generate a daily pack to start the archive."}
+                  </PanelEmpty>
                 )}
               </Panel>
+              )}
             </>
           )}
         </aside>

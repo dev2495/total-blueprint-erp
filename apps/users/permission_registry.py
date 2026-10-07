@@ -14,10 +14,20 @@ PUBLIC_ENDPOINT_PREFIXES = (
     "/api/users/login",
     "/api/users/token/refresh",
     "/api/users/csrf",
+    "/api/gate/public/config/",
+    "/api/gate/public/visitors/",
 )
 
 # Ordered list; first match wins.
 ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
+    ("GET", "/api/gate/reports/", "gate.reports"),
+    ("GET", "/api/gate/history/", "gate.view"),
+    ("GET", "/api/gate/audit/", "gate.audit"),
+    ("POST", "/api/gate/reconcile/", "gate.reconcile"),
+    ("GET", "/api/gate/", "gate.log"),
+    ("POST", "/api/gate/", "gate.log"),
+    ("PATCH", "/api/gate/", "gate.reconcile"),
+    ("GET", "/api/analytics/reports/gate", "gate.reports"),
     ("GET", "/api/dashboard/", "dashboard.view"),
     ("GET", "/api/analytics/", "analytics.view"),
     ("POST", "/api/analytics/", "analytics.manage"),
@@ -178,6 +188,9 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
 
 
 FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
+    {"permission": "page.gate.watchman.view", "route": "/gate", "label": "Watchman gate terminal"},
+    {"permission": "page.gate.history.view", "route": "/gate/history", "label": "Owner gate history"},
+    {"permission": "page.analytics.reports_gate.view", "route": "/analytics/reports/gate", "label": "Gate register report"},
     {"permission": "page.analytics.home.view", "route": "/analytics", "label": "Analytics home"},
     {"permission": "page.analytics.kpis.view", "route": "/analytics/kpis", "label": "KPI dashboard"},
     {"permission": "page.analytics.kpi.view", "route": "/analytics/kpi", "label": "KPI report"},
@@ -288,6 +301,12 @@ FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
 
 
 PERMISSION_LABELS: Dict[str, str] = {
+    "gate.log": "Log goods and visitor entry or exit at assigned gates",
+    "gate.view": "Owner gate register history",
+    "gate.reports": "Gate reports pack (sanitized register and summaries)",
+    "gate.reconcile": "Owner gate corrections and system reconciliation",
+    "gate.audit": "Owner gate audit trail",
+    "gate.private": "Owner private visitor images",
     "logistics.view": "Logistics dispatch data",
     "logistics.manage": "Create and manage dispatch challans",
     "packing.view": "Packing yard data",
@@ -300,6 +319,7 @@ PERMISSION_LABELS: Dict[str, str] = {
 
 
 ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
+    "WATCHMAN": ["users.self_manage", "gate.log", "page.gate.watchman.view", "page.profile.view"],
     "OWNER": ["*"],
     "SUPER_ADMIN": ["*"],
     "ADMIN": ["*"],
@@ -490,6 +510,12 @@ def get_permission_catalog() -> List[Dict[str, object]]:
         page_meta_by_permission[normalized] = page
 
     catalog: List[Dict[str, object]] = []
+    # Gate history, reconciliation, audit and private images are owner-only
+    # capabilities, not a way to grant a department access through an override.
+    for permission in PERMISSION_LABELS:
+        sources_by_permission.setdefault(permission, set()).add("capability")
+
+    owner_only_permissions = {"gate.view", "gate.reconcile", "gate.audit", "gate.private", "page.gate.history.view"}
     for permission in sorted(sources_by_permission.keys()):
         if permission == "*":
             module_key = "*"
@@ -503,7 +529,7 @@ def get_permission_catalog() -> List[Dict[str, object]]:
             "action": action_key or "",
             "source": ",".join(sources),
             "sources": sources,
-            "assignable": permission != "*",
+            "assignable": permission != "*" and permission not in owner_only_permissions,
         }
         page_meta = page_meta_by_permission.get(permission)
         if page_meta:

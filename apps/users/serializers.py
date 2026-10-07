@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import serializers
 from .models import CompanyProfile, User, Role, UserProfileChangeRequest
 from .permission_registry import is_assignable_permission, normalize_permission_code
@@ -18,12 +19,20 @@ class RoleSerializer(serializers.ModelSerializer):
         model = Role
         fields = ['id', 'code', 'name', 'description', 'default_permissions']
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.code == "WATCHMAN":
+            from .permission_registry import effective_permissions_for_role
+            data["default_permissions"] = effective_permissions_for_role("WATCHMAN")
+        return data
+
 class UserSerializer(serializers.ModelSerializer):
     role_info = RoleSerializer(source='role', read_only=True)
     role_id = serializers.PrimaryKeyRelatedField(
         queryset=Role.objects.all(), source='role', write_only=True, required=False, allow_null=True
     )
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+    gate_plant_ids = serializers.ListField(child=serializers.UUIDField(), required=False, write_only=True)
     
     full_name = serializers.SerializerMethodField()
     entitlements = serializers.SerializerMethodField()
@@ -48,10 +57,18 @@ class UserSerializer(serializers.ModelSerializer):
             'is_owner',
             'extra_permissions',
             'entitlements',
+            'gate_plant_ids',
         ]
 
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip() or obj.username
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["gate_plant_ids"] = [str(pk) for pk in data["entitlements"]["context"]["gate_plants"]]
+        if instance.role and instance.role.code == "WATCHMAN":
+            data["is_owner"] = False
+        return data
 
     def get_email_missing(self, obj):
         return not bool(str(obj.email or "").strip())
@@ -129,25 +146,47 @@ class UserSerializer(serializers.ModelSerializer):
             self._validate_candidate_password(str(attrs["password"]), attrs)
         if not is_create and request and request.user == self.instance and "email" in attrs and not _is_admin_request_actor(request.user):
             raise serializers.ValidationError({"email": "Self email updates must go through profile change approval."})
+        final_role = attrs.get("role", getattr(self.instance, "role", None))
+        if final_role and final_role.code == "WATCHMAN":
+            if attrs.get("is_owner", getattr(self.instance, "is_owner", False)):
+                raise serializers.ValidationError({"is_owner": "Watchman users cannot be owners."})
+            if "extra_permissions" in attrs and attrs["extra_permissions"]:
+                raise serializers.ValidationError({"extra_permissions": "Watchman permissions are limited to the gate terminal."})
+        if "gate_plant_ids" in attrs:
+            if request and not _is_admin_request_actor(request.user):
+                raise serializers.ValidationError({"gate_plant_ids": "Only an administrator or owner can assign gates."})
+            from apps.factory.models import Plant
+            ids = {str(pk) for pk in attrs["gate_plant_ids"]}
+            existing = {str(pk) for pk in Plant.objects.filter(pk__in=ids).values_list("pk", flat=True)}
+            if ids - existing:
+                raise serializers.ValidationError({"gate_plant_ids": "One or more plants do not exist."})
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         password = validated_data.pop("password", None)
+        gate_plant_ids = validated_data.pop("gate_plant_ids", None)
         user = User(**validated_data)
         if password:
             user.set_password(password)
         else:
             user.set_unusable_password()
         user.save()
+        if gate_plant_ids is not None:
+            PermissionService.assign_gate_plants(user, gate_plant_ids)
         return user
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+        gate_plant_ids = validated_data.pop("gate_plant_ids", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         if password:
             instance.set_password(password)
         instance.save()
+        if gate_plant_ids is not None:
+            PermissionService.assign_gate_plants(instance, gate_plant_ids)
         return instance
 
 
@@ -200,7 +239,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         # Add custom claims
         token['role'] = user.role.code if user.role else 'GUEST'
-        token['is_owner'] = user.is_owner
+        token['is_owner'] = user.is_owner and (not user.role or user.role.code != "WATCHMAN")
         return token
 
     def validate(self, attrs):

@@ -1,0 +1,238 @@
+/*
+ * Gate & Visitor Register tokens.
+ * World: a factory gate post — TPP navy uniform, the blue inward lane and the
+ * orange outward lane (both from the TPP mark), white number plates with a
+ * black rim, and the cream ruled register book the watchman used on paper.
+ */
+:root {
+  --gate-ink: #1e2848;
+  --gate-ink-2: #29345d;
+  --gate-ink-muted: rgba(226, 232, 245, 0.72);
+  --gate-in: #1068a9;
+  --gate-in-strong: #0a5388;
+  --gate-in-soft: #e8f2fa;
+  --gate-in-edge: #b9d6ec;
+  --gate-out: #d9651c;
+  --gate-out-strong: #b4500f;
+  --gate-out-soft: #fdf1e7;
+  --gate-out-edge: #f4cfaf;
+  --gate-paper: #fbf9f4;
+  --gate-rule: #ece6d8;
+  --gate-rule-strong: #ddd4c0;
+  --gate-plate: #ffffff;
+  --gate-plate-rim: #111827;
+  --gate-plate-strip: #1d4ed8;
+  --gate-pending: #b45309;
+  --gate-pending-soft: #fff7e6;
+  --gate-pending-edge: #f5d9a6;
+  --gate-inside: #047857;
+  --gate-inside-soft: #e9f8f1;
+  --gate-inside-edge: #a8e3c8;
+  --gate-exited: #535c6d;
+  --gate-alert: #be123c;
+  --gate-alert-soft: #fff1f2;
+  --gate-alert-edge: #f6c2cc;
+  --gate-field: #f4f5f8;
+  --gate-field-edge: #d9dde5;
+  --gate-card: #ffffff;
+  --gate-card-ring: rgba(17, 24, 39, 0.07);
+  --gate-shadow: 0 0 0 1px rgba(17, 24, 39, 0.06), 0 1px 2px -1px rgba(17, 24, 39, 0.08), 0 4px 12px -6px rgba(17, 24, 39, 0.12);
+  --gate-canvas: #f1f2f5;
+}
+
+.dark {
+  --gate-ink: #0d1325;
+  --gate-ink-2: #172042;
+  --gate-ink-muted: rgba(205, 214, 235, 0.7);
+  --gate-in: #5aa7e3;
+  --gate-in-strong: #8cc4ef;
+  --gate-in-soft: rgba(90, 167, 227, 0.12);
+  --gate-in-edge: rgba(90, 167, 227, 0.32);
+  --gate-out: #f29a55;
+  --gate-out-strong: #f7b98a;
+  --gate-out-soft: rgba(242, 154, 85, 0.12);
+  --gate-out-edge: rgba(242, 154, 85, 0.32);
+  --gate-paper: #151a26;
+  --gate-rule: rgba(255, 255, 255, 0.07);
+  --gate-rule-strong: rgba(255, 255, 255, 0.12);
+  --gate-plate: #f3f4f6;
+  --gate-plate-rim: #020617;
+  --gate-plate-strip: #2563eb;
+  --gate-pending: #f5b453;
+  --gate-pending-soft: rgba(245, 180, 83, 0.12);
+  --gate-pending-edge: rgba(245, 180, 83, 0.32);
+  --gate-inside: #5fd8a6;
+  --gate-inside-soft: rgba(95, 216, 166, 0.11);
+  --gate-inside-edge: rgba(95, 216, 166, 0.3);
+  --gate-exited: #9aa3b5;
+  --gate-alert: #fb7f96;
+  --gate-alert-soft: rgba(251, 127, 150, 0.12);
+  --gate-alert-edge: rgba(251, 127, 150, 0.32);
+  --gate-field: #0f1420;
+  --gate-field-edge: rgba(255, 255, 255, 0.1);
+  --gate-card: #171c29;
+  --gate-card-ring: rgba(255, 255, 255, 0.08);
+  --gate-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --gate-canvas: #0b0f18;
+}
+
+.gate-canvas {
+  background: var(--gate-canvas);
+  color: var(--content-1);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:where(.gate-card) {
+  background: var(--gate-card);
+  box-shadow: var(--gate-shadow);
+  border-radius: 18px;
+}
+
+/* Inputs are inset: slightly darker than the card, receive content. */
+.gate-field {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 12px;
+  border: 1px solid var(--gate-field-edge);
+  background: var(--gate-field);
+  padding: 0 14px;
+  font-size: 16px; /* 16px stops iOS zoom-on-focus */
+  color: var(--content-1);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.gate-field::placeholder { color: var(--content-4); }
+.gate-field:focus {
+  outline: none;
+  border-color: var(--gate-in);
+  box-shadow: 0 0 0 3px var(--gate-in-soft);
+}
+.gate-field[aria-invalid="true"],
+.gate-field[data-invalid="true"] {
+  border-color: var(--gate-alert);
+  box-shadow: 0 0 0 3px var(--gate-alert-soft);
+}
+textarea.gate-field { padding-top: 12px; padding-bottom: 12px; min-height: 84px; }
+
+/* Signature: number-plate field — white plate, black rim, blue IND strip. */
+.gate-plate {
+  display: flex;
+  align-items: stretch;
+  min-height: 60px;
+  border-radius: 10px;
+  border: 2.5px solid var(--gate-plate-rim);
+  background: var(--gate-plate);
+  overflow: hidden;
+}
+.gate-plate__strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  width: 30px;
+  flex-shrink: 0;
+  background: var(--gate-plate-strip);
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding-bottom: 6px;
+}
+.gate-plate__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0 12px;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0b0f19;
+}
+.gate-plate__input::placeholder { color: rgba(11, 15, 25, 0.28); letter-spacing: 0.06em; }
+.gate-plate__input:focus { outline: none; }
+.gate-plate:focus-within { box-shadow: 0 0 0 3px var(--gate-in-soft); }
+.gate-plate[aria-invalid="true"] { border-color: var(--gate-alert); }
+
+/* Plate chip used in register rows and cards. */
+.gate-plate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1.5px solid var(--gate-plate-rim);
+  border-radius: 5px;
+  background: var(--gate-plate);
+  color: #0b0f19;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.gate-plate-chip::before {
+  content: "";
+  align-self: stretch;
+  width: 5px;
+  background: var(--gate-plate-strip);
+  margin-right: 6px;
+}
+.gate-plate-chip > span { padding: 4px 7px 4px 0; }
+
+/* Ruled register: cream ledger with faint rules, like the paper book. */
+.gate-ledger {
+  background: var(--gate-paper);
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px var(--gate-rule-strong);
+}
+.gate-ledger-row + .gate-ledger-row { border-top: 1px solid var(--gate-rule); }
+
+/* Visitor pass: perforated stub between identity and time. */
+.gate-pass__perf {
+  position: relative;
+  border-left: 2px dashed var(--gate-rule-strong);
+}
+.gate-pass__perf::before,
+.gate-pass__perf::after {
+  content: "";
+  position: absolute;
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--gate-canvas);
+}
+.gate-pass__perf::before { top: -9px; }
+.gate-pass__perf::after { bottom: -9px; }
+
+.gate-press { transition: transform 120ms cubic-bezier(0.23, 1, 0.32, 1), filter 120ms ease; }
+.gate-press:active { transform: scale(0.97); }
+
+.gate-num { font-variant-numeric: tabular-nums; }
+
+.gate-safe-bottom { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+
+@keyframes gate-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.gate-rise { animation: gate-rise 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+
+@keyframes gate-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.gate-pulse { animation: gate-pulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-rise, .gate-pulse { animation: none; }
+  .gate-press:active { transform: none; }
+}
+
+@media print {
+  .gate-no-print { display: none !important; }
+  .gate-canvas { background: #ffffff; }
+}

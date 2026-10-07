@@ -12,14 +12,15 @@ from apps.analytics.services import ReportingService
 
 try:
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
     from reportlab.graphics.shapes import Drawing, Rect, String
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 except Exception:  # pragma: no cover
     colors = None
     A4 = None
+    landscape = None
     ParagraphStyle = None
     getSampleStyleSheet = None
     mm = None
@@ -27,6 +28,7 @@ except Exception:  # pragma: no cover
     Rect = None
     String = None
     Paragraph = None
+    LongTable = None
     SimpleDocTemplate = None
     Spacer = None
     Table = None
@@ -49,8 +51,54 @@ class AnalyticsPDFExportService:
         title = cls._report_title(tab)
         return RenderedAnalyticsPDF(
             file_name=f"{tab}-report-{timezone.localdate().isoformat()}.pdf",
-            content=cls._build_pdf_bytes(title=title, subtitle="Filtered analytics export", filters=filters, payload=payload),
+            content=cls._build_gate_pdf_bytes(title=title, filters=filters, payload=payload) if str(tab).strip().lower() == "gate" else cls._build_pdf_bytes(title=title, subtitle="Filtered analytics export", filters=filters, payload=payload),
         )
+
+    @classmethod
+    def _build_gate_pdf_bytes(cls, *, title: str, filters: dict, payload: dict) -> bytes:
+        if SimpleDocTemplate is None or LongTable is None:
+            raise RuntimeError("PDF engine unavailable: reportlab is not installed.")
+        from apps.gate.services import gate_zone
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=12 * mm)
+        styles = cls._styles()
+        cell_style = ParagraphStyle("gate_cell", parent=styles["body"], fontSize=6.5, leading=8)
+        header_style = ParagraphStyle("gate_header", parent=cell_style, textColor=colors.white, fontName="Helvetica-Bold")
+        summary = payload.get("summary") or {}
+        date_from = summary.get("date_from") or filters.get("date_from") or ""
+        date_to = summary.get("date_to") or filters.get("date_to") or ""
+        story = [Paragraph(cls.COMPANY_NAME, styles["eyebrow"]), Paragraph(cls._escape(title), styles["hero"])]
+        generated = timezone.now().astimezone(gate_zone()).strftime("%d-%b-%Y %H:%M %Z")
+        story.append(Paragraph(cls._escape(f"{date_from} to {date_to} | Generated {generated}"), styles["muted"]))
+        story.append(Spacer(1, 3 * mm))
+        metrics = f"Inward {summary.get('inward', 0)} · Outward {summary.get('outward', 0)} · Unmatched {summary.get('unmatched', 0)} · Discrepancies {summary.get('discrepancies', 0)}"
+        visitors = f"Visitors entered {summary.get('visitor_entries', 0)} · Exited {summary.get('visitor_exits', 0)} · Inside now {summary.get('inside_visitors', 0)} · Pending {summary.get('pending_visitors', 0)} · Overdue {summary.get('overdue_visitors', 0)}"
+        story.extend([Paragraph(cls._escape(metrics), styles["body"]), Paragraph(cls._escape(visitors), styles["body"]), Spacer(1, 3 * mm)])
+        headers = ["Date / time", "Plant", "Direction", "Invoice", "Vehicle", "Party", "Product", "Qty / UOM", "Amount", "Match"]
+        rows = [[Paragraph(cls._escape(header), header_style) for header in headers]]
+        for row in payload.get("rows") or []:
+            timestamp = str(row.get("logged_at") or "").replace("T", " ")[:16]
+            values = [timestamp, row.get("plant") or row.get("plant_name"), row.get("direction"), row.get("invoice_number"), row.get("vehicle_number"), row.get("party_name"), row.get("product_name"), f"{row.get('quantity', '')} {row.get('uom', '')}", row.get("amount") if row.get("amount") not in (None, "") else "Unknown", row.get("reconciliation_status")]
+            rows.append([Paragraph(cls._escape(cls._as_text(value)), cell_style) for value in values])
+        if len(rows) == 1:
+            story.append(Paragraph("No goods movements in the selected period.", styles["body"]))
+        else:
+            table = LongTable(rows, repeatRows=1, colWidths=[25 * mm, 18 * mm, 16 * mm, 22 * mm, 25 * mm, 37 * mm, 47 * mm, 22 * mm, 24 * mm, 25 * mm], hAlign="LEFT")
+            table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F172A")), ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]), ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 3), ("RIGHTPADDING", (0, 0), (-1, -1), 3), ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
+            story.append(table)
+        story.append(Spacer(1, 3 * mm))
+        amount_note = summary.get("amount_note") or "Observed goods evidence only. This register does not post stock or accounting transactions."
+        story.append(Paragraph(cls._escape(str(amount_note)), styles["muted"]))
+        for warning in payload.get("warnings") or []:
+            story.append(Paragraph(cls._escape(str(warning)), styles["muted"]))
+
+        def footer(canvas, document):
+            canvas.setFont("Helvetica", 7)
+            canvas.setFillColor(colors.HexColor("#64748B"))
+            canvas.drawRightString(landscape(A4)[0] - 12 * mm, 7 * mm, f"Total Poly Print · Gate Register · Page {document.page}")
+
+        doc.build(story, onFirstPage=footer, onLaterPages=footer)
+        return buffer.getvalue()
 
     @classmethod
     def export_dashboard_summary_pdf(cls, filters: dict | None = None) -> RenderedAnalyticsPDF:

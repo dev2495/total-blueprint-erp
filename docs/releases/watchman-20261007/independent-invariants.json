@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "checked_at": "2026-10-07T10:49:29.028045+00:00",
+  "environment": "isolated synthetic local PostgreSQL",
+  "strict_rbac": false,
+  "checks": [
+    "real cookie/bearer auth, non-strict RBAC ceiling and plant scoping",
+    "opaque QR scope, no public data/photos, encrypted optional IDs, sanitized bounded selfie and replay",
+    "concurrent lifecycle, chronological events, retained owner history, safe audit and database-level UPDATE/DELETE rejection",
+    "ERP-derived goods, invoice/date discrepancy, retry/duplicate guards, owner corrections/history, sanitized report entitlement and safe CSV",
+    "full-row SQL fingerprints unchanged across 81 ERP business tables; no list-photo N+1"
+  ],
+  "business_table_count": 81,
+  "production_mutations": false
+}

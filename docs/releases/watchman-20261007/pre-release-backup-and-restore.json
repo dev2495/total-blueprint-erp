@@ -1,0 +1,24 @@
+{
+  "checked_at_utc": "2026-10-07T10:52:06.681223+00:00",
+  "current_commit": "d04c2c06cac24bf6a3c35edcaec6e25ffc7db96f",
+  "attempt_key": "gate-release-watchman20261007-20261007105025",
+  "checksum_verified_against_artifact": true,
+  "backup": {
+    "backup_id": "a7dcf970-fa5e-4aa9-a84e-7d5d698fe952",
+    "status": "SUCCEEDED",
+    "checksum_sha256": "a2133927f7160c8e97da0ff4b07b67efef289ec676d06726bd0f5b3878954c24",
+    "size_bytes": 11391200,
+    "duration_seconds": 2
+  },
+  "restore_drill": {
+    "restore_id": "e16b4d4b-35f0-456e-ac23-d835b9dca6c7",
+    "backup_id": "a7dcf970-fa5e-4aa9-a84e-7d5d698fe952",
+    "status": "SUCCEEDED",
+    "smoke_test_passed": true,
+    "duration_seconds": 16
+  },
+  "temporary_restore_database_cleanup_verified": true,
+  "post_action_health": "backend/frontend healthy; public readiness ready",
+  "business_database_restored": false,
+  "new_application_activated": false
+}

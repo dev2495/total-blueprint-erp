@@ -10,6 +10,9 @@ import { RouteProgress } from "@/components/layout/route-progress";
 import { HelpPageBanner } from "@/components/help/help-page-banner";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { isWatchmanUser } from "@/components/gate/gate-access";
 
 export function DashboardLayoutClient({
   children,
@@ -24,10 +27,16 @@ export function DashboardLayoutClient({
 }
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, effectiveRole } = useAuth();
   const { isPinned } = useDashboardChrome();
+  const router = useRouter();
+  // Watchman is a closed gate role: no ERP chrome, reports or masters.
+  const watchman = Boolean(user) && isWatchmanUser(user, effectiveRole);
+  useEffect(() => {
+    if (!loading && watchman) router.replace("/gate");
+  }, [loading, watchman, router]);
 
-  if (loading || !user) {
+  if (loading || !user || watchman) {
     return (
       <div className="min-h-screen w-full overflow-x-hidden erp-canvas">
         <div className="relative z-10 flex min-h-screen w-full flex-col px-3 pb-6 pt-4 sm:px-4 sm:pb-8 lg:px-6 lg:pb-10 xl:px-8">

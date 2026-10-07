@@ -23119,5 +23119,109 @@
       "faq-access-control",
       "faq-data-refresh"
     ]
+  },
+  {
+    "routePattern": "/analytics/reports/gate",
+    "title": {
+      "en": "Gate Register Report",
+      "hi": "गेट रजिस्टर रिपोर्ट"
+    },
+    "module": "Analytics",
+    "roles": [
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Gate Register Report summarises inward and outward vehicles logged by the watchman and how many match ERP documents.",
+      "hi": "गेट रजिस्टर रिपोर्ट चौकीदार द्वारा दर्ज आवक और जावक वाहनों और ERP दस्तावेज़ों से मिलान का सारांश देती है।"
+    },
+    "purpose": {
+      "en": "Review gate movements for a period, follow up unmatched or mismatched entries, and export the sanitized goods register. Visitor figures are counts only.",
+      "hi": "किसी अवधि के गेट मूवमेंट देखें, बिना मिलान या अंतर वाली एंट्री पर कार्रवाई करें और सैनिटाइज़्ड गुड्स रजिस्टर निर्यात करें। विज़िटर आंकड़े केवल गिनती हैं।"
+    },
+    "prerequisites": [
+      {
+        "en": "Owner access or an explicit Gate reports pack (gate.reports) grant.",
+        "hi": "Owner एक्सेस या स्पष्ट Gate reports pack (gate.reports) अनुमति।"
+      },
+      {
+        "en": "Pick the plant and a date range of at most 366 days.",
+        "hi": "प्लांट और अधिकतम 366 दिन की तारीख सीमा चुनें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Check Awaiting ERP match and ERP mismatches first; open Gate History to reconcile them.",
+        "hi": "पहले Awaiting ERP match और ERP mismatches देखें; मिलान के लिए Gate History खोलें।"
+      },
+      {
+        "en": "Export PDF or CSV for the selected period.",
+        "hi": "चुनी गई अवधि के लिए PDF या CSV निर्यात करें।"
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Amount",
+          "hi": "राशि"
+        },
+        "help": {
+          "en": "Known observed or ERP line amounts only. It may exclude tax or freight and is not an accounting total.",
+          "hi": "केवल ज्ञात दर्ज या ERP लाइन राशि। इसमें कर या भाड़ा शामिल न हो सकता है और यह लेखा कुल नहीं है।"
+        }
+      },
+      {
+        "field": {
+          "en": "ERP status",
+          "hi": "ERP स्थिति"
+        },
+        "help": {
+          "en": "Matched = ERP document agrees. Owner review = no document linked. Mismatch = gate count differs from the document.",
+          "hi": "Matched = ERP दस्तावेज़ मेल खाता है। Owner review = दस्तावेज़ नहीं जुड़ा। Mismatch = गेट गिनती दस्तावेज़ से अलग।"
+        }
+      }
+    ],
+    "decisionFlowId": "dashboard-decision-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Access denied",
+          "hi": "एक्सेस अस्वीकृत"
+        },
+        "reason": {
+          "en": "Only the owner or a user with gate.reports can open this report; analytics access alone is not enough.",
+          "hi": "केवल owner या gate.reports वाले उपयोगकर्ता यह रिपोर्ट खोल सकते हैं; केवल analytics एक्सेस पर्याप्त नहीं।"
+        }
+      },
+      {
+        "error": {
+          "en": "Range too large",
+          "hi": "सीमा बहुत बड़ी"
+        },
+        "reason": {
+          "en": "Reports allow at most 366 days.",
+          "hi": "रिपोर्ट अधिकतम 366 दिन की अनुमति देती है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Shorten the date range and reload.",
+        "hi": "तारीख सीमा छोटी करें और फिर लोड करें।"
+      },
+      {
+        "en": "Ask the owner to grant the Gate reports pack in User Management.",
+        "hi": "User Management में Gate reports pack देने के लिए owner से कहें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/analytics/reports",
+      "/system/report-center",
+      "/system/audit"
+    ],
+    "screenshotKeys": [],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
   }
 ]

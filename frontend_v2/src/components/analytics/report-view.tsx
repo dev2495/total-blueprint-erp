@@ -266,7 +266,7 @@ function buildInsights({
   summary: Record<string, any>;
   benchmarks: Record<string, any>;
   sections: { def: SectionDef; items: { label: string; value: number }[] }[];
-  trend: { measure: string; format: MetricFormat; rows: Record<string, any>[] } | null;
+  trend: { measure: string; format: MetricFormat; rows: Record<string, any>[]; dateKey?: string } | null;
 }): Insight[] {
   const out: Insight[] = [];
   for (const def of kpis) {
@@ -296,7 +296,7 @@ function buildInsights({
       }
     }
     const peak = trend.rows.reduce((best, r) => (Number(r[trend.measure]) > Number(best[trend.measure]) ? r : best), trend.rows[0]);
-    const dateKey = detectDateKey(trend.rows);
+    const dateKey = trend.dateKey || detectDateKey(trend.rows);
     if (dateKey && Number(peak[trend.measure]) > 0) {
       out.push({ tone: "info", text: `Peak ${humanize(trend.measure).toLowerCase()} was ${formatValue(peak[trend.measure], trend.format)} on ${shortDate(String(peak[dateKey]))}.` });
     }
@@ -432,7 +432,7 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
     () => (asRows(payload.series).length ? asRows(payload.series) : asRows(payload.charts?.trend)),
     [payload.series, payload.charts],
   );
-  const dateKey = detectDateKey(rawSeriesRows);
+  const dateKey = config.dateKey && rawSeriesRows.some((r) => r[config.dateKey!] != null) ? config.dateKey : detectDateKey(rawSeriesRows);
   /* Daily series only list days with activity; fill the gaps with zero so the
      chart shows quiet days honestly instead of interpolating across them. */
   const seriesRows = useMemo(() => {
@@ -515,7 +515,7 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
         summary,
         benchmarks,
         sections: sectionData,
-        trend: activeMeasure && dateKey ? { measure: activeMeasure, format: measureFormat, rows: seriesRows } : null,
+        trend: activeMeasure && dateKey ? { measure: activeMeasure, format: measureFormat, rows: seriesRows, dateKey } : null,
       }),
     [activeMeasure, benchmarks, dateKey, kpiDefs, measureFormat, sectionData, seriesRows, summary],
   );
@@ -527,8 +527,8 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
       (k) => !/(_id|^id|fill|color)$/.test(k) && rows.some((r) => r[k] !== null && r[k] !== undefined && r[k] !== "" && typeof r[k] !== "object"),
     );
     const preferred = (config.columns || []).filter((k) => keys.includes(k));
-    return [...preferred, ...keys.filter((k) => !preferred.includes(k))].slice(0, 10);
-  }, [config.columns, rows]);
+    return [...preferred, ...keys.filter((k) => !preferred.includes(k))].slice(0, config.maxColumns ?? 10);
+  }, [config.columns, config.maxColumns, rows]);
   const columnFormats = useMemo(
     () => Object.fromEntries(columns.map((c) => [c, inferFormat(c, rows.find((r) => r[c] !== null && r[c] !== undefined)?.[c])])) as Record<string, MetricFormat>,
     [columns, rows],

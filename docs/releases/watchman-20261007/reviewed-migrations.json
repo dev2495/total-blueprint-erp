@@ -1,0 +1,6 @@
+[
+  ["analytics", "0004_gate_register_report"],
+  ["gate", "0001_initial"],
+  ["gate", "0002_public_links_and_audit_guard"],
+  ["users", "0012_watchman_role"]
+]

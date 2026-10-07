@@ -53,6 +53,12 @@ class PermissionService:
         active_role_code = get_canonical_role_code(
             getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST')
         )
+
+        # Watchman is a closed operational role: stale role rows, user extras,
+        # owner flags or preview headers must never expose other ERP modules.
+        actual_role_code = get_canonical_role_code(user.role.code if user.role else "")
+        if actual_role_code == "WATCHMAN" or active_role_code == "WATCHMAN":
+            return effective_permissions_for_role("WATCHMAN")
         
         if active_role_code == 'ADMIN' or active_role_code == 'SUPER_ADMIN' or user.is_superuser:
             # Admins get everything for now, or fetch Admin role perms
@@ -83,13 +89,39 @@ class PermissionService:
         """
         Returns { work_centers: [ids], machines: [ids] }
         """
-        wc_ids = list(WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True))
-        machine_ids = list(Machine.objects.filter(work_center_id__in=wc_ids).values_list('id', flat=True))
+        actual_role = get_canonical_role_code(user.role.code if user.role else "")
+        effective_role = get_canonical_role_code(getattr(user, "effective_role_code", actual_role))
+        if "WATCHMAN" in {actual_role, effective_role}:
+            wc_ids, machine_ids = [], []
+        else:
+            wc_ids = list(WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True))
+            machine_ids = list(Machine.objects.filter(work_center_id__in=wc_ids).values_list('id', flat=True))
         
+        from apps.gate.models import GateAssignment
+        gate_plant_ids = list(GateAssignment.objects.filter(user=user).values_list("plant_id", flat=True))
         return {
             "work_centers": wc_ids,
-            "machines": machine_ids
+            "machines": machine_ids,
+            "gate_plants": gate_plant_ids,
         }
+
+    @staticmethod
+    def assign_gate_plants(user: User, plant_ids: list):
+        from apps.factory.models import Plant
+        from apps.gate.models import GateAssignment
+
+        normalized = PermissionService._normalize_id_list(plant_ids)
+        try:
+            existing = {str(pk) for pk in Plant.objects.filter(id__in=normalized).values_list("id", flat=True)}
+        except (ValidationError, ValueError, TypeError) as exc:
+            raise ValidationError({"gate_plant_ids": ["Plant identifiers must be valid UUIDs."]}) from exc
+        missing = sorted(set(normalized) - existing)
+        if missing:
+            raise ValidationError({"gate_plant_ids": [f"Unknown plant identifiers: {', '.join(missing)}"]})
+        with transaction.atomic():
+            GateAssignment.objects.filter(user=user).delete()
+            GateAssignment.objects.bulk_create([GateAssignment(user=user, plant_id=pk) for pk in normalized])
+        return {"gate_plant_ids": normalized, "count": len(normalized)}
 
     @staticmethod
     def assign_work_centers(user: User, wc_ids: list):
@@ -169,6 +201,8 @@ class PermissionService:
         Returns the full entitlement object for the frontend.
         """
         active_role_code = getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST')
+        if get_canonical_role_code(user.role.code if user.role else "") == "WATCHMAN":
+            active_role_code = "WATCHMAN"
         permissions = PermissionService.get_user_permissions(user)
         permission_map = PermissionService._to_permission_map(permissions)
         
@@ -181,7 +215,7 @@ class PermissionService:
                 for module_key, actions in sorted(permission_map.items(), key=lambda kv: kv[0])
             ],
             "context": PermissionService.get_assigned_context(user),
-            "is_owner": user.is_owner,
+            "is_owner": user.is_owner and get_canonical_role_code(user.role.code if user.role else "") != "WATCHMAN",
             "landing_page": PermissionService.get_landing_route(user)
         }
 
@@ -190,6 +224,8 @@ class PermissionService:
         # Use effective_role_code if available (set by RoleOverrideMiddleware)
         # This ensures that when emulating a role, the correct dashboard is returned
         code = get_canonical_role_code(getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST'))
+        if get_canonical_role_code(user.role.code if user.role else "") == "WATCHMAN":
+            code = "WATCHMAN"
             
         # IMPORTANT: These routes must exist in the Next.js app router.
         # Keep them aligned with:
@@ -212,6 +248,7 @@ class PermissionService:
             'STORE': '/inventory/rolls',
             'DISPATCH': '/dashboard/logistics',
             'PLANT_MANAGER': '/analytics/kpis',
+            'WATCHMAN': '/gate',
         }
         
         return ROUTING_MAP.get(code, '/dashboard/admin')

@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.utils import timezone
@@ -16,16 +17,20 @@ def dispatch_due_report_packs_task(self):
     results = []
     report_date = ReportDistributionService.report_date_for_run()
     for profile in due_profiles:
+        profile_date = report_date
+        if profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
+            from apps.gate.services import gate_today
+            profile_date = gate_today() - timedelta(days=1)
         already_sent = ReportDispatchRun.objects.filter(
             report_code=profile.report_code,
-            report_date=report_date,
+            report_date=profile_date,
             triggered_manually=False,
             status=ReportDispatchRun.Status.SUCCEEDED,
         ).exists()
         if already_sent:
             results.append({"report_code": profile.report_code, "status": "skipped", "reason": "already_sent"})
             continue
-        run = ReportDistributionService.send_profile(profile, report_date=report_date, triggered_manually=False)
+        run = ReportDistributionService.send_profile(profile, report_date=profile_date, triggered_manually=False)
         results.append({"report_code": profile.report_code, "status": run.status})
     return {"timestamp": now.isoformat(), "results": results}
 

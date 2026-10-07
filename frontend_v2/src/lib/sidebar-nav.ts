@@ -34,6 +34,8 @@ import {
   History,
   ListChecks,
   ScrollText,
+  DoorOpen,
+  QrCode,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -151,12 +153,20 @@ const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
   "/system/settings": "page.system.settings.view",
   "/system/company-profile": "page.system.company_profile.view",
   "/profile": "page.profile.view",
+  "/gate": "page.gate.watchman.view",
+  "/gate/history": "page.gate.history.view",
+  "/analytics/reports/gate": "page.analytics.reports_gate.view",
 }
 
 export interface NavAccessDescriptor {
   roles?: string[]
   permissions?: string[]
   permissionModules?: string[]
+  /**
+   * Gate rules (docs/gate-rbac-frontend-contract.md): owner = actual is_owner or
+   * canonical OWNER; listed permissions must be literal grants, never "*".
+   */
+  gateAccess?: { ownerOnly?: boolean; literalPermissions?: string[] }
 }
 
 export interface NavChildItem extends NavAccessDescriptor {
@@ -505,6 +515,25 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    title: "Gate",
+    href: "/gate/history",
+    icon: DoorOpen,
+    roles: ["OWNER"],
+    gateAccess: { literalPermissions: ["gate.reports"] },
+    children: [
+      { title: "Gate Terminal", href: "/gate", icon: DoorOpen, roles: ["OWNER"], gateAccess: { ownerOnly: true } },
+      { title: "Gate History", href: "/gate/history", icon: History, roles: ["OWNER"], gateAccess: { ownerOnly: true } },
+      { title: "Visitor QR Poster", href: "/gate/qr", icon: QrCode, roles: ["OWNER"], gateAccess: { ownerOnly: true } },
+      {
+        title: "Gate Report",
+        href: "/analytics/reports/gate",
+        icon: BarChart3,
+        roles: ["OWNER"],
+        gateAccess: { literalPermissions: ["gate.reports"] },
+      },
+    ],
+  },
+  {
     title: "Engineering",
     href: "/engineering",
     icon: Microscope,
@@ -606,6 +635,7 @@ export const SIDEBAR_SECTION_ORDER = [
   "Logistics",
   "Procurement",
   "Analytics",
+  "Gate",
   "Engineering",
   "Administration",
   "System",
@@ -669,10 +699,27 @@ function hasGrantedPageOverride(
   return hasGrantedPermission(permission, context.grantedPermissions, context.grantedPermissionMap)
 }
 
+function canAccessGateTarget(gate: NonNullable<NavAccessDescriptor["gateAccess"]>, context: SidebarAccessContext) {
+  const currentRole = normalizeRole(context.currentRoleCode)
+  const baseRoleCode = normalizeRole(context.baseRoleCode || context.currentRoleCode)
+  if (currentRole === "WATCHMAN" || baseRoleCode === "WATCHMAN") return false
+  // A role preview never grants owner gate capabilities.
+  const actualOwner = currentRole === baseRoleCode && (Boolean(context.isOwner) || baseRoleCode === "OWNER")
+  if (actualOwner) return true
+  if (gate.ownerOnly) return false
+  const literal = new Set(Array.from(context.grantedPermissions || []).map((p) => String(p || "").trim()))
+  return (gate.literalPermissions || []).some((permission) => {
+    if (literal.has(permission)) return true
+    const [moduleKey, action] = permission.split(".", 2)
+    return Boolean(action && (context.grantedPermissionMap?.[moduleKey] || []).includes(action))
+  })
+}
+
 export function canAccessNavTarget(
   target: NavAccessDescriptor,
   context: SidebarAccessContext,
 ) {
+  if (target.gateAccess) return canAccessGateTarget(target.gateAccess, context)
   const currentRole = normalizeRole(context.currentRoleCode)
   const baseRoleCode = normalizeRole(context.baseRoleCode || context.currentRoleCode)
   const masterRoles = ["ADMIN", "OWNER", "SUPER_ADMIN"]

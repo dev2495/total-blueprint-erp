@@ -25,6 +25,16 @@ class RoleBasedAccessPermission(BasePermission):
         if not user or not getattr(user, "is_authenticated", False):
             return False
 
+        from apps.users.role_catalog import get_canonical_role_code
+        actual_role = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+        effective_role = get_canonical_role_code(getattr(user, "effective_role_code", ""))
+        if "WATCHMAN" in {actual_role, effective_role}:
+            from apps.users.middleware import RoleOverrideMiddleware
+            if not RoleOverrideMiddleware._watchman_path_allowed(request):
+                self._log_denied(user, method, path, "WATCHMAN_SCOPE")
+                return False
+            return True
+
         if getattr(user, "is_superuser", False) or getattr(user, "is_owner", False):
             return True
 

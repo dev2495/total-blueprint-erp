@@ -44,6 +44,7 @@ import {
   type PermissionCatalogEntry,
 } from "@/services/system-users";
 import { factoryService, type WorkCenter } from "@/services/factory";
+import { GatePlantScopeSection } from "./gate-plant-scope";
 import { cn } from "@/lib/utils";
 import { getCanonicalRoleLabel } from "@/lib/roles";
 import { MODULE_ORDER, paletteFor } from "./role-colors";
@@ -68,6 +69,7 @@ interface FormState {
   role_id: string;
   extra_permissions: string[];
   work_center_ids: string[];
+  gate_plant_ids: string[];
   password: string;
 }
 
@@ -82,10 +84,12 @@ const DEFAULT_FORM: FormState = {
   role_id: "",
   extra_permissions: [],
   work_center_ids: [],
+  gate_plant_ids: [],
   password: "",
 };
 
 const WCM_ROLE_CODE = "WORK_CENTER_MANAGER";
+const WATCHMAN_ROLE_CODE = "WATCHMAN";
 
 export function UserEditor({
   mode,
@@ -121,6 +125,12 @@ export function UserEditor({
     staleTime: 5 * 60_000,
   });
 
+  const plantsQuery = useQuery({
+    queryKey: ["factory-plants", "user-editor"],
+    queryFn: factoryService.getPlants,
+    staleTime: 5 * 60_000,
+  });
+
   const [form, setForm] = React.useState<FormState>(DEFAULT_FORM);
   const [pendingDirty, setPendingDirty] = React.useState(0);
   const [pwDialogOpen, setPwDialogOpen] = React.useState(false);
@@ -146,6 +156,9 @@ export function UserEditor({
         work_center_ids: Array.isArray(u.entitlements?.context?.work_centers)
           ? u.entitlements.context.work_centers.map(String)
           : [],
+        gate_plant_ids: Array.isArray((u as { gate_plant_ids?: unknown }).gate_plant_ids)
+          ? ((u as { gate_plant_ids?: unknown[] }).gate_plant_ids || []).map(String)
+          : [],
         password: "",
       });
       setPendingDirty(0);
@@ -163,6 +176,21 @@ export function UserEditor({
   const selectedRole = roles.find((r) => r.id === form.role_id) || null;
   const selectedRoleCode = String(selectedRole?.code || "").toUpperCase();
   const requiresWorkCenter = selectedRoleCode === WCM_ROLE_CODE;
+  const isWatchmanRole = selectedRoleCode === WATCHMAN_ROLE_CODE;
+  const originalGatePlantCount = Array.isArray((userQuery.data as { gate_plant_ids?: unknown[] } | undefined)?.gate_plant_ids)
+    ? ((userQuery.data as { gate_plant_ids?: unknown[] }).gate_plant_ids || []).length
+    : 0;
+  // Only send gate_plant_ids when it matters: watchman role or an existing assignment to clear.
+  const gatePayload = isWatchmanRole || originalGatePlantCount > 0 || form.gate_plant_ids.length > 0
+    ? { gate_plant_ids: isWatchmanRole ? form.gate_plant_ids : [] }
+    : {};
+  const selectedGatePlantIds = React.useMemo(() => new Set(form.gate_plant_ids.map(String)), [form.gate_plant_ids]);
+  const toggleGatePlant = (plantId: string) => {
+    const next = selectedGatePlantIds.has(plantId)
+      ? form.gate_plant_ids.filter((id) => String(id) !== plantId)
+      : [...form.gate_plant_ids, plantId];
+    update({ gate_plant_ids: next });
+  };
 
   // permissions granted by the picked role (base)
   const basePermissions = React.useMemo(() => {
@@ -274,10 +302,12 @@ export function UserEditor({
         email: form.email,
         phone_number: form.phone_number,
         is_active: form.is_active,
-        is_owner: canEditOwnerToggle ? form.is_owner : undefined,
+        // A watchman can never be an owner or carry extra permissions.
+        is_owner: canEditOwnerToggle ? (isWatchmanRole ? false : form.is_owner) : undefined,
         // backend accepts role_id (write-only)
         ...(form.role_id ? { role_id: form.role_id } : {}),
-        extra_permissions: form.extra_permissions,
+        extra_permissions: isWatchmanRole ? [] : form.extra_permissions,
+        ...gatePayload,
         ...(form.password ? { password: form.password } : {}),
       } as any);
       await systemUserService.assignWorkCenters(saved.id, form.work_center_ids);
@@ -315,9 +345,10 @@ export function UserEditor({
         email: form.email,
         phone_number: form.phone_number,
         is_active: form.is_active,
-        extra_permissions: form.extra_permissions,
+        extra_permissions: isWatchmanRole ? [] : form.extra_permissions,
+        ...gatePayload,
       };
-      if (canEditOwnerToggle) payload.is_owner = form.is_owner;
+      if (canEditOwnerToggle) payload.is_owner = isWatchmanRole ? false : form.is_owner;
       if (form.role_id) payload.role_id = form.role_id;
       const saved = await systemUserService.updateUser(userId!, payload);
       await systemUserService.assignWorkCenters(userId!, form.work_center_ids);
@@ -628,7 +659,18 @@ export function UserEditor({
             ) : null}
           </section>
 
-          <WorkCenterScopeSection
+          {isWatchmanRole || form.gate_plant_ids.length > 0 ? (
+            <GatePlantScopeSection
+              canManage={canManage}
+              loading={plantsQuery.isLoading}
+              isWatchman={isWatchmanRole}
+              plants={plantsQuery.data || []}
+              selectedIds={selectedGatePlantIds}
+              onToggle={toggleGatePlant}
+            />
+          ) : null}
+
+          {isWatchmanRole ? null : <WorkCenterScopeSection
             canManage={canManage}
             loading={workCentersQuery.isLoading}
             requiresWorkCenter={requiresWorkCenter}
@@ -639,9 +681,14 @@ export function UserEditor({
             selectedWorkCenters={selectedWorkCenters}
             selectedIds={selectedWorkCenterIds}
             onToggle={toggleWorkCenter}
-          />
+          />}
 
-          {/* Overrides */}
+          {/* Overrides — not applicable to the closed WATCHMAN role */}
+          {isWatchmanRole ? (
+            <section className="rounded-3xl bg-surface-1 p-6 text-sm text-content-3 ring-1 ring-line">
+              Watchman permissions are fixed to the gate terminal. Permission overrides, owner flag and work-center scope do not apply.
+            </section>
+          ) : (
           <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
             <div className="-m-6 mb-4 h-1.5 bg-gradient-to-r from-warning-fg to-warning-fg" />
             <header className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -758,6 +805,7 @@ export function UserEditor({
               </div>
             )}
           </section>
+          )}
         </div>
 
         {/* RIGHT COLUMN (sticky) */}

@@ -9,6 +9,8 @@ from decimal import Decimal
 
 from django.db.models import Count, Q, Sum
 from io import BytesIO
+from io import StringIO
+import csv
 from pathlib import Path
 from typing import Iterable
 
@@ -76,6 +78,9 @@ DEFAULT_REPORT_PROFILES = {
     ReportDistributionProfile.ReportCode.STOCK_STANDING_DAILY: {
         "target_roles": ["OWNER", "ADMIN"],
     },
+    ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY: {
+        "target_roles": ["OWNER"],
+    },
 }
 
 
@@ -140,6 +145,12 @@ def _to_decimal(value, default: str = "0") -> Decimal:
         return Decimal(default)
 
 
+def _gate_owner_actor(user):
+    actual = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+    effective = str(getattr(user, "effective_role_code", actual) or "").upper()
+    return bool(user and user.is_authenticated and "WATCHMAN" not in {actual, effective} and (user.is_owner or actual == "OWNER"))
+
+
 class ReportDistributionService:
     ARTIFACT_RETENTION_DAYS = 30
 
@@ -159,12 +170,16 @@ class ReportDistributionService:
     def stored_pdf_path(run: ReportDispatchRun) -> Path | None:
         if not run or not run.pdf_file_name:
             return None
+        if run.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
+            return None
         path = ReportDistributionService.run_artifact_root(run) / run.pdf_file_name
         return path if path.exists() else None
 
     @staticmethod
     def stored_detail_path(run: ReportDispatchRun) -> Path | None:
         if not run or not run.detail_file_name:
+            return None
+        if run.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
             return None
         path = ReportDistributionService.run_artifact_root(run) / run.detail_file_name
         return path if path.exists() else None
@@ -194,6 +209,8 @@ class ReportDistributionService:
 
     @staticmethod
     def persist_rendered_artifacts(rendered: RenderedReport, *, folder: str | None = None) -> dict[str, Path]:
+        if rendered.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
+            raise ValueError("Gate report artifacts must use private database storage.")
         root = ReportDistributionService.artifact_root()
         if folder:
             root = root / folder
@@ -235,6 +252,8 @@ class ReportDistributionService:
                 report_code = str(row.get("report_code") or "").strip()
                 if report_code not in DEFAULT_REPORT_PROFILES:
                     continue
+                if report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY and updated_by is not None and not _gate_owner_actor(updated_by):
+                    raise PermissionError("Only an owner can configure the gate report pack.")
                 profile = ReportDistributionProfile.objects.filter(report_code=report_code).first()
                 if not profile:
                     profile = ReportDistributionProfile(report_code=report_code)
@@ -247,9 +266,11 @@ class ReportDistributionService:
         return updated
 
     @staticmethod
-    def list_runs(limit=30, days: int | None = None):
+    def list_runs(limit=30, days: int | None = None, gate_only=False):
         ReportDistributionService.prune_old_artifacts()
         queryset = ReportDispatchRun.objects.select_related("profile", "triggered_by").order_by("-created_at")
+        if gate_only:
+            queryset = queryset.filter(report_code=ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY)
         if days:
             cutoff = timezone.localdate() - timedelta(days=max(1, int(days)))
             queryset = queryset.filter(report_date__gte=cutoff)
@@ -301,13 +322,15 @@ class ReportDistributionService:
             "window_end": run.window_end.isoformat() if run.window_end else None,
             "created_at": run.created_at.isoformat() if run.created_at else None,
             "sent_at": run.sent_at.isoformat() if run.sent_at else None,
-            "stored_pdf_available": bool(stored_pdf_path),
-            "stored_detail_available": bool(stored_detail_path),
-            "artifact_retention_days": ReportDistributionService.ARTIFACT_RETENTION_DAYS,
+            "stored_pdf_available": bool(stored_pdf_path or run.private_pdf_data),
+            "stored_detail_available": bool(stored_detail_path or run.private_detail_data),
+            "artifact_retention_days": None if run.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY else ReportDistributionService.ARTIFACT_RETENTION_DAYS,
         }
 
     @staticmethod
     def recipients_for_profile(profile: ReportDistributionProfile):
+        if profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
+            return ["OWNER"]
         role_recipients = [str(role or "").strip().upper() for role in (profile.target_roles or []) if str(role or "").strip()]
         deduped = []
         seen = set()
@@ -329,6 +352,9 @@ class ReportDistributionService:
     def render_report(report_code: str, report_date=None) -> RenderedReport:
         if canvas is None:
             raise RuntimeError("PDF engine unavailable: reportlab is not installed.")
+        if report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY and report_date is None:
+            from apps.gate.services import gate_today
+            report_date = gate_today() - timedelta(days=1)
         report_date = ReportDistributionService.report_date_for_run(report_date)
         if report_code == ReportDistributionProfile.ReportCode.OWNER_EXECUTIVE_DAILY:
             return _OwnerExecutivePDFRenderer.render(report_date)
@@ -340,10 +366,14 @@ class ReportDistributionService:
             return _PackingDispatchSummaryPDFRenderer.render(report_date)
         if report_code == ReportDistributionProfile.ReportCode.STOCK_STANDING_DAILY:
             return _StockStandingPDFRenderer.render(report_date)
+        if report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
+            return _GateRegisterPDFRenderer.render(report_date)
         raise ValueError("Unsupported report_code.")
 
     @staticmethod
     def send_profile(profile: ReportDistributionProfile, *, report_date=None, triggered_by=None, triggered_manually=False):
+        if profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY and triggered_by is not None and not _gate_owner_actor(triggered_by):
+            raise PermissionError("Only an owner can generate the gate report pack.")
         ReportDistributionService.prune_old_artifacts()
         rendered = ReportDistributionService.render_report(profile.report_code, report_date=report_date)
         recipients = ReportDistributionService.recipients_for_profile(profile) or list(DEFAULT_REPORT_PROFILES[profile.report_code]["target_roles"])
@@ -366,15 +396,20 @@ class ReportDistributionService:
             detail_size_bytes=len(detail_attachment.content) if detail_attachment else 0,
             triggered_by=triggered_by,
             triggered_manually=triggered_manually,
+            private_pdf_data=rendered.pdf if profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY else None,
+            private_detail_data=detail_attachment.content if detail_attachment and profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY else None,
         )
-        ReportDistributionService.persist_rendered_artifacts(rendered, folder=f"runs/{run.id}")
+        # Gate artifacts are stored in the database and served through checked
+        # archive endpoints. Never place factory registers in public media.
+        if profile.report_code != ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
+            ReportDistributionService.persist_rendered_artifacts(rendered, folder=f"runs/{run.id}")
         run.status = ReportDispatchRun.Status.SUCCEEDED
         run.sent_at = timezone.now()
         run.save(update_fields=["status", "sent_at"])
         from apps.users.services.notification_service import NotificationService
 
         NotificationService.emit_event(
-            event_key="reports.daily_pack_generated",
+            event_key="gate.daily_pack_generated" if profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY else "reports.daily_pack_generated",
             title=f"Daily report ready: {profile.report_code}",
             message=f"{profile.report_code.replace('_', ' ')} for {rendered.report_date.isoformat()} was generated and archived for review.",
             notification_type="SYSTEM",
@@ -486,6 +521,51 @@ class _BaseDailyPDFRenderer:
             pdf.drawRightString(195 * mm, row_y, f"{value:,.1f}{suffix}")
             row_y -= 6.5 * mm
         return y - panel_height - 4 * mm
+
+
+class _GateRegisterPDFRenderer(_BaseDailyPDFRenderer):
+    report_title = "GATE REGISTER DAILY"
+    report_code = ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY
+
+    @staticmethod
+    def _cell(value):
+        text = str(value if value is not None else "")
+        # CSV is opened in spreadsheet tools: user-entered invoice and vehicle
+        # fields must never become executable spreadsheet formulas.
+        return "'" + text if text.lstrip().startswith(("=", "+", "-", "@")) or text.startswith(("\t", "\r")) else text
+
+    @classmethod
+    def render(cls, report_date):
+        from apps.gate.services import date_bounds, report_payload_for_period
+        payload = report_payload_for_period(report_date, report_date)
+        summary = payload["summary"]
+        rows = payload.get("rows", [])
+        warnings = list(payload.get("warnings") or [])
+        if summary.get("unmatched") or summary.get("discrepancies"):
+            warnings.append("Unmatched or discrepant movements require owner review; this register does not post stock or accounting transactions.")
+        from apps.analytics.pdf_exports import AnalyticsPDFExportService
+        pdf_bytes = AnalyticsPDFExportService._build_gate_pdf_bytes(
+            title="Gate Register Daily", filters={"date_from": report_date, "date_to": report_date},
+            payload={**payload, "warnings": warnings},
+        )
+        csv_buffer = StringIO()
+        writer = csv.writer(csv_buffer)
+        writer.writerow(["Date/time", "Plant", "Direction", "Invoice", "Vehicle", "Party", "Product", "Quantity", "UOM", "Amount", "Reconciliation"])
+        for row in rows:
+            lines = row.get("lines") or [row]
+            for line in lines:
+                writer.writerow([cls._cell(value) for value in (
+                    row.get("logged_at"), row.get("plant_name") or row.get("plant"), row.get("direction"), row.get("invoice_number"), row.get("vehicle_number"), row.get("party_name"), line.get("product_name"), line.get("quantity"), line.get("uom"), line.get("amount"), row.get("reconciliation_status"),
+                )])
+        csv_bytes = ("\ufeff" + csv_buffer.getvalue()).encode("utf-8")
+        window_start, next_day = date_bounds(report_date, report_date)
+        return RenderedReport(
+            report_code=cls.report_code, report_date=report_date, pdf=pdf_bytes,
+            file_name=f"gate-register-daily-{report_date.isoformat()}.pdf", checksum_sha1=_sha1(pdf_bytes),
+            summary_text=f"Inward: {summary.get('inward', 0)}\nOutward: {summary.get('outward', 0)}\nUnmatched: {summary.get('unmatched', 0)}\nDiscrepancies: {summary.get('discrepancies', 0)}",
+            warning_text="\n".join(warnings), window_start=window_start, window_end=next_day - timedelta(microseconds=1),
+            detail_attachments=[RenderedAttachment(file_name=f"gate-register-daily-{report_date.isoformat()}.csv", content=csv_bytes, content_type="text/csv", checksum_sha1=_sha1(csv_bytes))],
+        )
 
 
 class _OwnerExecutivePDFRenderer(_BaseDailyPDFRenderer):

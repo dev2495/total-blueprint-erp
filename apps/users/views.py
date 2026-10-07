@@ -707,6 +707,25 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         return Response({"status": "assigned", **result})
 
+    @action(detail=True, methods=['post'], url_path='assign-gate-plants')
+    def assign_gate_plants(self, request, pk=None):
+        denied = self._deny_if_not_admin(request)
+        if denied:
+            return denied
+        user = self.get_object()
+        ids = request.data.get("gate_plant_ids", [])
+        if not isinstance(ids, list):
+            return Response({"detail": {"gate_plant_ids": "Must be a list."}}, status=400)
+        try:
+            result = PermissionService.assign_gate_plants(user, ids)
+        except DjangoValidationError as exc:
+            return Response({"detail": exc.message_dict if hasattr(exc, "message_dict") else exc.messages}, status=400)
+        PermissionAuditLog.objects.create(
+            user=request.user, action="ROLE_CHANGED", method="POST", path=request.path,
+            details={"target_user_id": str(user.id), "status": "assigned", "gate_plant_ids": result["gate_plant_ids"]},
+        )
+        return Response({"status": "assigned", **result})
+
     @action(detail=True, methods=['post'], url_path='assign-machines')
     def assign_machines(self, request, pk=None):
         if not _is_admin_actor(request.user):

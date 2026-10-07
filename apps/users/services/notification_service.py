@@ -39,6 +39,7 @@ DEFAULT_EVENT_ROUTING = {
     "inventory.jobwork_received": {"roles": ["STORE", "PLANNER"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "reports.daily_pack_generated": {"roles": ["OWNER", "ADMIN"], "channels": ["IN_APP"], "priority": "NORMAL"},
     "reports.daily_pack_failed": {"roles": ["OWNER", "ADMIN"], "channels": ["IN_APP"], "priority": "HIGH"},
+    "gate.daily_pack_generated": {"roles": ["OWNER"], "channels": ["IN_APP"], "priority": "NORMAL"},
 }
 
 

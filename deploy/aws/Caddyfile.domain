@@ -13,7 +13,10 @@ erp.totalpolyprint.com {
 	}
 
 	handle /api/* {
-		reverse_proxy 127.0.0.1:8000
+		reverse_proxy 127.0.0.1:8000 {
+			# Overwrite client-supplied values before exact-proxy gate throttling.
+			header_up X-Real-IP {remote_host}
+		}
 	}
 
 	handle /media/* {

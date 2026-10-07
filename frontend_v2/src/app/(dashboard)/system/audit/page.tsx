@@ -39,10 +39,12 @@ import {
   Table2,
   Waypoints,
   Workflow,
+  DoorOpen,
   type LucideIcon,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
+import { isGateOwner } from "@/components/gate/gate-access";
 import { PremiumPageShell } from "@/components/ui-custom/premium-page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,7 +67,8 @@ type AuditMode =
   | "system_config"
   | "permissions"
   | "sessions"
-  | "reports";
+  | "reports"
+  | "gate";
 type ConsoleModeKey =
   | "operations"
   | "production"
@@ -74,7 +77,8 @@ type ConsoleModeKey =
   | "system_config"
   | "permissions"
   | "sessions"
-  | "reports";
+  | "reports"
+  | "gate";
 type ViewMode = "timeline" | "table" | "diff";
 type DateRange = "1h" | "today" | "24h" | "7d" | "30d" | "all";
 type Severity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -178,6 +182,16 @@ const STREAMS: StreamMeta[] = [
     color: "#ec4899",
     chipClass: styles.chipPink,
     icon: FileStack,
+  },
+  {
+    // Owner-only stream (audit-ledger?stream=gate); the backend omits it for anyone else.
+    id: "gate",
+    modeKey: "gate",
+    label: "Gate Register",
+    short: "Gate",
+    color: "#1068a9",
+    chipClass: styles.chipBlue,
+    icon: DoorOpen,
   },
   {
     id: "system_config",
@@ -489,6 +503,10 @@ function csvEscape(value: unknown) {
 
 export default function AuditCenterPage() {
   const { effectiveRole, user } = useAuth();
+  const visibleStreams = useMemo(
+    () => (isGateOwner(user, effectiveRole) ? STREAMS : STREAMS.filter((stream) => stream.id !== "gate")),
+    [user, effectiveRole],
+  );
   const roleCode = String(
     effectiveRole || user?.role_info?.code || "",
   ).toUpperCase();
@@ -807,7 +825,7 @@ export default function AuditCenterPage() {
               />
               <HeroMetric
                 label="Streams Connected"
-                value={String(STREAMS.length)}
+                value={String(visibleStreams.length)}
                 sub="All current audit endpoints"
               />
               <HeroMetric
@@ -862,7 +880,7 @@ export default function AuditCenterPage() {
               onChange={(value) => setActiveStream(value as AuditMode | "all")}
               options={[
                 { value: "all", label: "All streams" },
-                ...STREAMS.map((stream) => ({
+                ...visibleStreams.map((stream) => ({
                   value: stream.id,
                   label: stream.label,
                 })),
@@ -930,7 +948,7 @@ export default function AuditCenterPage() {
         </section>
 
         <section className={styles.lanesGrid}>
-          {STREAMS.map((stream) => {
+          {visibleStreams.map((stream) => {
             const streamRows = events.filter(
               (event) => event.stream === stream.id,
             );

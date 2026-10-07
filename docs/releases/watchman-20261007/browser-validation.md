@@ -1,0 +1,17 @@
+# Independent browser acceptance
+
+All data and accounts below are synthetic in isolated local PostgreSQL `tpp_gate_dev_20261007`. No persistent live business or visitor records were created by these checks. Frontend implementation/fixes came from Claude Desktop Opus 5.5 Medium; Codex independently exercised the browser and backend.
+
+- WATCHMAN login lands at `/gate`, with gate-only navigation. At 390px the inward form matched `GATE-QA-1001`: master party, add-on Loop Handles, 1000 PCS, invoice date and INR 2360 derived from ERP; vehicle remained typed.
+- Lost-response acceptance intercepted a committed goods response and delivered a 503. UI displayed unconfirmed/locked state. Retry used the same serialized payload and client UUID. Observed final UI was Saved; SQL found one GoodsMovement and one GOODS_LOGGED audit event. One harness initially waited for the wrong success label (`Entry saved`); the actual UI says `Saved to gate register`. The timeout was a harness label mismatch, not a failed save. Claude independently repeated the complete dropped-response test with identical payload, one row and one audit event.
+- Watchman admitted a pending visitor, then confirmed checkout. Active queue changed from waiting to inside to closed. Owner history is blocked to watchman; an unassigned watchman is blocked from gate operations.
+- Public visitor at 360px submitted name, mobile, company, purpose, synthetic optional PAN and a synthetic JPEG. HTTP 201 returned PENDING receipt without visitor personal fields. Visitor values were absent from localStorage/sessionStorage; document width matched the 360px viewport. The public route never lists visits.
+- Actual branded QR poster screenshots at 390px and 1440px, including the centre TPP mark, both decoded via macOS Vision to the exact public URL. Browser BarcodeDetector also decoded the plain and branded QR (Claude evidence). Physical print and camera quality on an actual gate handset remain an on-device check.
+- Explicit gate.reports delegate loaded the actual gate report at 360px. All 14 columns were present: logged time, direction, invoice number, party, vehicle, product, quantity, UOM, amount, reconciliation status, reference, invoice date, amount basis and plant. Unknown amounts were shown as an em dash; private visitor name was absent; viewport/document width both 360px.
+- Claude independently checked owner history filters, reasoned correction with before/after audit, ERP comparison, owner intelligence card, Audit Center stream, gate daily report pack, and gate plant assignment in user editor. See `docs/claude-gate-frontend-delivery.md` for source provenance and checks.
+
+The development server exposes the repository's existing CSP nonce hydration warning. Final production-build browser checks are recorded separately before release.
+
+## Production UI build validation
+
+A separate copy of the Claude-authored frontend was built with supported Node 24 and started in production mode on 3018. The actual delegated gate report loaded 14 columns and a populated daily trend at 360px with document width 360px, zero page errors and zero console errors. The development-only nonce hydration message did not appear. The initial harness looked for an `Inward` button; the report uses a different accessible element for its measure toggle. The corrected harness waited for the populated trend insight and passed. Final delegated archive/queue follow-ups are additionally checked by Opus and the deployment's final production build.

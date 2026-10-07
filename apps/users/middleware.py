@@ -1,4 +1,5 @@
 import logging
+from django.http import JsonResponse
 from django.conf import settings
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
@@ -60,8 +61,40 @@ class RoleOverrideMiddleware:
             else:
                 request.user.effective_role_code = 'GUEST'
 
+        # This ceiling also covers ViewSets that intentionally replace the
+        # default DRF RBAC class with IsAuthenticated. It is always active for
+        # WATCHMAN, including development and bearer/cookie authentication.
+        if request.user.is_authenticated:
+            from apps.users.role_catalog import get_canonical_role_code
+            actual_role = get_canonical_role_code(getattr(getattr(request.user, "role", None), "code", ""))
+            effective_role = get_canonical_role_code(getattr(request.user, "effective_role_code", ""))
+            if "WATCHMAN" in {actual_role, effective_role} and not self._watchman_path_allowed(request):
+                from apps.users.permissions import RoleBasedAccessPermission
+                RoleBasedAccessPermission._log_denied(request.user, request.method, request.path, "WATCHMAN_SCOPE")
+                return JsonResponse({"detail": "Watchman access is limited to the gate terminal and your own account."}, status=403)
+
         response = self.get_response(request)
         return response
+
+    @staticmethod
+    def _watchman_path_allowed(request):
+        path = str(request.path or "").rstrip("/")
+        method = str(request.method or "GET").upper()
+        if path == "/admin" or path.startswith("/admin/"):
+            return False
+        if not path.startswith("/api/"):
+            return True
+        if path.startswith("/api/gate/") or path == "/api/gate":
+            # Gate views apply action and plant checks independently.
+            return True
+        from apps.users.permission_registry import is_public_endpoint
+        if is_public_endpoint(path):
+            return True
+        allowed = {
+            "GET": {"/api/users/me", "/api/auth/me", "/api/users/users/me", "/api/auth/users/me", "/api/users/profile-change-requests", "/api/auth/profile-change-requests", "/api/users/users/entitlements/validate", "/api/auth/users/entitlements/validate"},
+            "POST": {"/api/users/logout", "/api/auth/logout", "/api/users/change-password", "/api/auth/change-password", "/api/users/profile-change-requests", "/api/auth/profile-change-requests"},
+        }
+        return path in allowed.get(method, set()) or method == "OPTIONS" and path in set().union(*allowed.values())
 
     @staticmethod
     def _audit_override(request, override_role: str, allowed: bool):

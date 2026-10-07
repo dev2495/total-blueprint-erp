@@ -933,5 +933,78 @@
     "screenshotKeys": [
       "role-plant_manager-landing"
     ]
+  },
+  {
+    "roleCode": "WATCHMAN",
+    "title": {
+      "en": "Watchman Gate Guide",
+      "hi": "चौकीदार गेट गाइड"
+    },
+    "landingPage": "/gate",
+    "overview": {
+      "en": "The watchman logs every vehicle in and out of the assigned gate and admits or checks out visitors from a phone. Watchman access is limited to the gate terminal.",
+      "hi": "चौकीदार फ़ोन से निर्धारित गेट पर आने-जाने वाले हर वाहन को दर्ज करता है और विज़िटर को अंदर/बाहर करता है। चौकीदार का एक्सेस केवल गेट टर्मिनल तक सीमित है।"
+    },
+    "responsibilities": [
+      {
+        "en": "Type the invoice number and vehicle number exactly as on the paper and plate; pick party and items from the lists.",
+        "hi": "इनवॉइस नंबर और वाहन नंबर काग़ज़ और प्लेट जैसा ही टाइप करें; पार्टी और सामान सूची से चुनें।"
+      },
+      {
+        "en": "Admit only visitors whose face matches the photo; check everyone out when they leave.",
+        "hi": "केवल फ़ोटो से मेल खाने वाले विज़िटर को अंदर आने दें; जाते समय सबको चेक आउट करें।"
+      },
+      {
+        "en": "Never guess quantities or amounts. Leave amount empty when not on the paper.",
+        "hi": "मात्रा या राशि का अनुमान न लगाएँ। काग़ज़ पर न हो तो राशि खाली छोड़ें।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Open Gate home and confirm the right plant is shown at the top.",
+        "hi": "Gate home खोलें और ऊपर सही प्लांट दिख रहा है यह जांचें।"
+      },
+      {
+        "en": "Clear the Waiting queue: Admit or mark Not admitted.",
+        "hi": "Waiting कतार साफ़ करें: Admit करें या Not admitted चिह्नित करें।"
+      },
+      {
+        "en": "Before shift end, check out everyone still inside who has left.",
+        "hi": "शिफ्ट ख़त्म होने से पहले, अंदर दिख रहे जो लोग जा चुके हैं उन्हें चेक आउट करें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Inward or Outward tile → invoice → vehicle → party → items → Save. Only the 'Saved to gate register' screen means it is saved.",
+        "hi": "Inward या Outward टाइल → इनवॉइस → वाहन → पार्टी → सामान → Save। केवल 'Saved to gate register' स्क्रीन का मतलब है कि सेव हुआ।"
+      },
+      {
+        "en": "If the screen says 'Not confirmed yet', tap 'Send same entry again' — it cannot create a duplicate.",
+        "hi": "यदि 'Not confirmed yet' दिखे तो 'Send same entry again' दबाएँ — इससे डुप्लिकेट नहीं बनेगा।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Gate not assigned → owner assigns your plant in User Management.",
+        "hi": "Gate not assigned → owner User Management में आपका प्लांट असाइन करे।"
+      },
+      {
+        "en": "Wrong entry saved → tell the owner; only the owner can correct it with a reason.",
+        "hi": "ग़लत एंट्री सेव हुई → owner को बताएँ; केवल owner कारण के साथ सुधार सकता है।"
+      }
+    ],
+    "faqs": [
+      {
+        "q": {
+          "en": "Can a visitor let themselves in by scanning the QR?",
+          "hi": "क्या विज़िटर QR स्कैन करके ख़ुद अंदर आ सकता है?"
+        },
+        "a": {
+          "en": "No. The QR form only creates a waiting request. You admit them.",
+          "hi": "नहीं। QR फ़ॉर्म केवल प्रतीक्षा अनुरोध बनाता है। अंदर आप ही करते हैं।"
+        }
+      }
+    ],
+    "screenshotKeys": []
   }
 ]

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
+import { GateIntelligencePanel } from "@/components/gate/gate-intelligence";
 import { analyticsApi } from "@/services/analytics";
 import { cn } from "@/lib/utils";
 import {
@@ -456,6 +457,13 @@ export function ExecutiveDeck({
           <div className="mt-3 text-[12px] text-content-3">{count(reuse.fg_batch_count || 0)} finished-goods batches in stock</div>
         </Panel>
       </div>
+
+      {data.gate ? (
+        <GateIntelligencePanel
+          gate={data.gate}
+          periodLabel={timeframe === "day" ? "today" : timeframe === "week" ? "last 7 days" : timeframe === "year" ? "this year" : "this month"}
+        />
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         <Panel icon={<ShoppingCart />} title="New orders · last 30 days" description="Orders created per day">

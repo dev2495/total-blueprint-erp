@@ -2828,7 +2828,48 @@ class ReportService:
     @staticmethod
     def get_report_tab(tab, filters=None):
         key = str(tab or "").strip().lower()
+        if key == "gate":
+            from rest_framework.exceptions import ValidationError
+            from apps.gate.services import gate_today
+            parsed_dates = {}
+            for name in ("date_from", "date_to", "start_date", "end_date"):
+                value = (filters or {}).get(name)
+                if isinstance(value, str) and value:
+                    try:
+                        parsed = parse_date(value)
+                    except ValueError as exc:
+                        raise ValidationError({name: "Use a valid date in YYYY-MM-DD format."}) from exc
+                    if parsed is None:
+                        raise ValidationError({name: "Use a date in YYYY-MM-DD format."})
+                    parsed_dates[name] = parsed
+            requested_start = parsed_dates.get("start_date") or parsed_dates.get("date_from")
+            requested_end = parsed_dates.get("end_date") or parsed_dates.get("date_to")
+            if requested_start and requested_end and requested_start > requested_end:
+                raise ValidationError("The start date must be on or before the end date.")
+            filters = dict(filters or {})
+            if not any(filters.get(name) for name in ("date_from", "date_to", "start_date", "end_date")):
+                today = gate_today()
+                filters.update({"date_from": today - timedelta(days=30), "date_to": today})
         normalized = ReportService._default_date_range(filters or {})
+
+        if key == "gate":
+            import uuid
+            from rest_framework.exceptions import ValidationError
+            from apps.gate.services import gate_today, report_payload_for_period
+            end = normalized["end_date"] or gate_today()
+            start = normalized["start_date"] or end - timedelta(days=30)
+            if start > end or (end - start).days > 365:
+                raise ValidationError("Choose an ordered date range of 366 days or fewer.")
+            if normalized.get("plant_id"):
+                try:
+                    uuid.UUID(normalized["plant_id"])
+                except (ValueError, TypeError) as exc:
+                    raise ValidationError({"plant": "Use a valid plant reference."}) from exc
+                if not Plant.objects.filter(id=normalized["plant_id"]).exists():
+                    raise ValidationError({"plant": "Plant does not exist."})
+            data = report_payload_for_period(start, end, plant_ids=[normalized["plant_id"]] if normalized.get("plant_id") else None)
+            series = ReportService._gate_daily_movement_series(start, end, normalized.get("plant_id"))
+            return {"tab": "gate", "summary": data["summary"], "rows": data.get("rows", []), "series": series, "breakdowns": data.get("breakdowns", {}), "coverage": {"gate_register": 100}, "warnings": data.get("warnings", []), "generated_at": timezone.now().isoformat()}
 
         tab_map = {
             "production": ReportService.get_production_performance,
@@ -2960,3 +3001,28 @@ class ReportService:
             "warnings": warnings,
         })
         return response
+
+    @staticmethod
+    def _gate_daily_movement_series(start_date, end_date, plant_id=None):
+        from apps.gate.models import GoodsMovement
+        from apps.gate.services import date_bounds, gate_zone
+
+        start, next_day = date_bounds(start_date, end_date)
+        movements = GoodsMovement.objects.filter(logged_at__gte=start, logged_at__lt=next_day)
+        if plant_id:
+            movements = movements.filter(plant_id=plant_id)
+        daily = movements.annotate(day=TruncDate("logged_at", tzinfo=gate_zone())).values("day").annotate(
+            inward=Count("id", filter=Q(direction="INWARD")),
+            outward=Count("id", filter=Q(direction="OUTWARD")),
+        ).order_by("day")
+        counts = {row["day"]: row for row in daily}
+        series = []
+        cursor = start_date
+        while cursor <= end_date:
+            row = counts.get(cursor, {})
+            inward, outward = row.get("inward", 0), row.get("outward", 0)
+            # Count physical movement records, never product lines or sums of
+            # quantities with incompatible units. Quiet days remain visible.
+            series.append({"date": cursor.isoformat(), "inward": inward, "outward": outward, "total": inward + outward})
+            cursor += timedelta(days=1)
+        return series

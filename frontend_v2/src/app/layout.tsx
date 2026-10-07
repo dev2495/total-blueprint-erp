@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Script from "next/script";
 import "./globals.css";
+import "@/components/gate/gate-tokens.css";
 import Providers from "@/components/providers";
 import { installServerConsoleFilters } from "@/lib/server-console-filters";
 

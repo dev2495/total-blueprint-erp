@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "check": "rollback watchman quarantine",
+  "canonical_case_and_all_whitespace": true,
+  "private_record_mode": "0600",
+  "idempotent": true,
+  "other_roles_and_passwords_unchanged": true,
+  "local_test_rolled_back": true
+}

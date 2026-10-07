@@ -54,6 +54,11 @@ type SessionProbe = {
 };
 let sessionProbe: Promise<SessionProbe> | null = null;
 
+/** Unauthenticated public pages (visitor QR self-registration). */
+function isPublicRoute(pathname: string) {
+    return pathname === "/visit" || pathname.startsWith("/visit/");
+}
+
 function isAuthRoute(pathname: string) {
     return pathname === "/login" || pathname.startsWith("/login/") || pathname === "/admin-login" || pathname.startsWith("/admin-login/");
 }
@@ -176,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const currentPath = String(pathname || "").toLowerCase();
         if (loading) return;
-        if (!currentPath || isAuthRoute(currentPath)) return;
+        if (!currentPath || isAuthRoute(currentPath) || isPublicRoute(currentPath)) return;
         if (user) return;
 
         let cancelled = false;
@@ -200,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (typeof window === "undefined") return;
         if (loading || !user) return;
         const currentPath = String(pathname || "").toLowerCase();
-        if (isAuthRoute(currentPath)) return;
+        if (isAuthRoute(currentPath) || isPublicRoute(currentPath)) return;
 
         let cancelled = false;
         const keepalive = async () => {

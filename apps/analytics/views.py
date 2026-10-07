@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from apps.analytics.services import AnalyticsService, KPIService, FactoryOverviewService, ReportingService
 from apps.analytics.report_delivery import ReportDistributionService
 from apps.analytics.pdf_exports import AnalyticsPDFExportService
@@ -29,6 +30,25 @@ def _is_reports_admin(user) -> bool:
     if not user or not user.is_authenticated:
         return False
     return bool(user.is_superuser or user.is_owner or _effective_role_code(user) in {"ADMIN", "SUPER_ADMIN", "OWNER"})
+
+
+def _is_gate_owner(user) -> bool:
+    actual = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+    return bool(user and user.is_authenticated and actual != "WATCHMAN" and _effective_role_code(user) != "WATCHMAN" and (user.is_owner or actual == "OWNER"))
+
+
+def _can_gate_reports(user) -> bool:
+    from apps.users.permission_service import PermissionService
+    actual = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+    return bool(actual != "WATCHMAN" and _effective_role_code(user) != "WATCHMAN" and (_is_gate_owner(user) or "gate.reports" in PermissionService.get_user_permissions(user)))
+
+
+def _gate_report_code(report_code) -> bool:
+    return report_code == "gate_register_daily"
+
+
+def _can_report_run(user, run):
+    return _can_gate_reports(user) if _gate_report_code(run.report_code) else _is_reports_admin(user)
 
 
 def _reports_admin_forbidden_response(user, action: str):
@@ -245,11 +265,13 @@ class AnalyticsViewSet(viewsets.ViewSet):
         if request.method.lower() == "get":
             if not _is_reports_admin(request.user):
                 return _reports_admin_forbidden_response(request.user, "report_distributions.read")
-            profiles = [ReportDistributionService.serialize_profile(row) for row in ReportDistributionService.list_profiles()]
+            profiles = [ReportDistributionService.serialize_profile(row) for row in ReportDistributionService.list_profiles() if not _gate_report_code(row.report_code) or _is_gate_owner(request.user)]
             return Response({"profiles": profiles})
         if not _is_reports_admin(request.user):
             return _reports_admin_forbidden_response(request.user, "report_distributions.update")
         raw_profiles = request.data if isinstance(request.data, list) else request.data.get("profiles", [])
+        if any(_gate_report_code(row.get("report_code")) for row in raw_profiles) and not _is_gate_owner(request.user):
+            return _reports_admin_forbidden_response(request.user, "gate_report_distributions.update")
         updated = ReportDistributionService.update_profiles(raw_profiles, updated_by=request.user)
         return Response({"profiles": [ReportDistributionService.serialize_profile(row) for row in updated]})
 
@@ -257,6 +279,8 @@ class AnalyticsViewSet(viewsets.ViewSet):
     def send_report_distribution(self, request, report_code=None):
         if not _is_reports_admin(request.user):
             return _reports_admin_forbidden_response(request.user, "report_distributions.send")
+        if _gate_report_code(report_code) and not _is_gate_owner(request.user):
+            return _reports_admin_forbidden_response(request.user, "gate_report_distributions.send")
         profile = next((row for row in ReportDistributionService.list_profiles() if row.report_code == report_code), None)
         if not profile:
             return Response({"error": "Unknown report distribution."}, status=status.HTTP_404_NOT_FOUND)
@@ -275,20 +299,26 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='report-runs')
     def report_runs(self, request):
-        if not _is_reports_admin(request.user):
+        if not _is_reports_admin(request.user) and not _can_gate_reports(request.user):
             return _reports_admin_forbidden_response(request.user, "report_runs.read")
         limit = _bounded_int(request.query_params.get("limit", 30), default=30, minimum=1, maximum=100)
         days = request.query_params.get("days")
-        runs = [ReportDistributionService.serialize_run(row) for row in ReportDistributionService.list_runs(limit=limit, days=int(days) if str(days or "").isdigit() else None)]
+        runs = [ReportDistributionService.serialize_run(row) for row in ReportDistributionService.list_runs(limit=limit, days=int(days) if str(days or "").isdigit() else None, gate_only=not _is_reports_admin(request.user)) if not _gate_report_code(row.report_code) or _can_gate_reports(request.user)]
         return Response({"runs": runs})
 
     @action(detail=False, methods=['get'], url_path=r'report-runs/(?P<run_id>[^/.]+)/preview-pdf')
     def report_run_preview_pdf(self, request, run_id=None):
-        if not _is_reports_admin(request.user):
+        if not _is_reports_admin(request.user) and not _can_gate_reports(request.user):
             return _reports_admin_forbidden_response(request.user, "report_runs.preview")
         run = ReportDistributionService.get_run(run_id)
         if not run:
             return Response({"error": "Report run not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not _can_report_run(request.user, run):
+            return _reports_admin_forbidden_response(request.user, "gate_report_runs.read")
+        if run.private_pdf_data:
+            response = FileResponse(BytesIO(bytes(run.private_pdf_data)), filename=run.pdf_file_name, content_type="application/pdf", as_attachment=self.action == "report_run_download_pdf")
+            response["Cache-Control"] = "private, no-store"
+            return response
         stored_pdf = ReportDistributionService.stored_pdf_path(run)
         if stored_pdf:
             return FileResponse(
@@ -309,11 +339,17 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path=r'report-runs/(?P<run_id>[^/.]+)/download-pdf')
     def report_run_download_pdf(self, request, run_id=None):
-        if not _is_reports_admin(request.user):
+        if not _is_reports_admin(request.user) and not _can_gate_reports(request.user):
             return _reports_admin_forbidden_response(request.user, "report_runs.download_pdf")
         run = ReportDistributionService.get_run(run_id)
         if not run:
             return Response({"error": "Report run not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not _can_report_run(request.user, run):
+            return _reports_admin_forbidden_response(request.user, "gate_report_runs.read")
+        if run.private_pdf_data:
+            response = FileResponse(BytesIO(bytes(run.private_pdf_data)), filename=run.pdf_file_name, content_type="application/pdf", as_attachment=self.action == "report_run_download_pdf")
+            response["Cache-Control"] = "private, no-store"
+            return response
         stored_pdf = ReportDistributionService.stored_pdf_path(run)
         if stored_pdf:
             return FileResponse(
@@ -336,11 +372,17 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path=r'report-runs/(?P<run_id>[^/.]+)/download-detail')
     def report_run_download_detail(self, request, run_id=None):
-        if not _is_reports_admin(request.user):
+        if not _is_reports_admin(request.user) and not _can_gate_reports(request.user):
             return _reports_admin_forbidden_response(request.user, "report_runs.download_detail")
         run = ReportDistributionService.get_run(run_id)
         if not run:
             return Response({"error": "Report run not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not _can_report_run(request.user, run):
+            return _reports_admin_forbidden_response(request.user, "gate_report_runs.read")
+        if run.private_detail_data:
+            response = FileResponse(BytesIO(bytes(run.private_detail_data)), filename=run.detail_file_name, content_type="text/csv", as_attachment=True)
+            response["Cache-Control"] = "private, no-store"
+            return response
         stored_detail = ReportDistributionService.stored_detail_path(run)
         if stored_detail:
             return FileResponse(
@@ -432,6 +474,12 @@ class AnalyticsViewSet(viewsets.ViewSet):
         try:
             timeframe = request.query_params.get('timeframe', 'month')
             stats = AnalyticsService.get_control_tower_stats(timeframe=timeframe)
+            if _is_gate_owner(request.user):
+                from apps.gate.services import gate_today, summary_for_period
+                from datetime import timedelta
+                today = gate_today()
+                start = today if timeframe == "day" else today - timedelta(days=6) if timeframe == "week" else today.replace(month=1, day=1) if timeframe == "year" else today.replace(day=1)
+                stats["gate"] = summary_for_period(start, today)
             try:
                 stats["trading"] = _build_control_tower_trading_block(timeframe=timeframe)
             except Exception as trading_exc:
@@ -624,7 +672,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
         try:
             if not _is_reports_admin(request.user):
                 return _reports_admin_forbidden_response(request.user, "audit_console.read")
-            return Response(ReportingService.get_audit_console())
+            return Response(ReportingService.get_audit_console(include_gate=_is_gate_owner(request.user)))
         except Exception as e:
             logger.error(f"Audit console error: {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_AUDIT_CONSOLE_FAILED")
@@ -634,7 +682,7 @@ class AnalyticsViewSet(viewsets.ViewSet):
         try:
             if not _is_reports_admin(request.user):
                 return _reports_admin_forbidden_response(request.user, "audit_ledger.read")
-            return Response(ReportingService.get_audit_ledger(request.query_params))
+            return Response(ReportingService.get_audit_ledger(request.query_params, include_gate=_is_gate_owner(request.user)))
         except Exception as e:
             logger.error(f"Audit ledger error: {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_AUDIT_LEDGER_FAILED")
@@ -644,7 +692,9 @@ class AnalyticsViewSet(viewsets.ViewSet):
         try:
             if not _is_reports_admin(request.user):
                 return _reports_admin_forbidden_response(request.user, "audit_event_detail.read")
-            data = ReportingService.get_audit_event_detail(event_id)
+            if str(event_id or "").startswith("gate:") and not _is_gate_owner(request.user):
+                return _reports_admin_forbidden_response(request.user, "gate_audit.read")
+            data = ReportingService.get_audit_event_detail(event_id, include_gate=_is_gate_owner(request.user))
             if data.get("error"):
                 return Response(data, status=status.HTTP_404_NOT_FOUND)
             return Response(data)
@@ -713,6 +763,13 @@ class AnalyticsViewSet(viewsets.ViewSet):
                 "date_to": request.query_params.get("date_to"),
             }
             stats = ReportingService.get_dashboard_summary(filters)
+            if not _can_gate_reports(request.user):
+                stats.get("snapshots", {})["recent_reports"] = [row for row in stats.get("snapshots", {}).get("recent_reports", []) if not _gate_report_code(row.get("report_code"))]
+            if _is_gate_owner(request.user):
+                from apps.gate.services import gate_today, summary_for_period
+                date_from = parse_date(str(filters.get("date_from") or "")) or gate_today()
+                date_to = parse_date(str(filters.get("date_to") or "")) or gate_today()
+                stats["snapshots"]["gate"] = summary_for_period(date_from, date_to, plant_ids=[filters["plant"]] if filters.get("plant") else None)
             return Response(stats)
         except Exception as e:
             logger.error(f"Dashboard summary error: {str(e)}", exc_info=True)
@@ -866,20 +923,28 @@ class AnalyticsViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path=r'reports/(?P<tab>[^/.]+)/export-pdf')
     def report_tab_export_pdf(self, request, tab=None):
+        if str(tab or "").strip().lower() == "gate" and not _can_gate_reports(request.user):
+            return _reports_admin_forbidden_response(request.user, "gate_reports.export")
         try:
             filters = request.query_params.dict()
             rendered = AnalyticsPDFExportService.export_report_tab_pdf(tab or "report", filters)
             return FileResponse(BytesIO(rendered.content), filename=rendered.file_name, content_type="application/pdf", as_attachment=True)
+        except DRFValidationError as exc:
+            return Response({"detail": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as exc:
             logger.error("Reports tab export failed (%s): %s", tab, str(exc), exc_info=True)
             return _error_response(code="ANALYTICS_REPORT_EXPORT_FAILED")
 
     @action(detail=False, methods=['get'], url_path=r'reports/(?P<tab>[^/.]+)')
     def report_tab(self, request, tab=None):
+        if str(tab or "").strip().lower() == "gate" and not _can_gate_reports(request.user):
+            return _reports_admin_forbidden_response(request.user, "gate_reports.read")
         try:
             payload = request.query_params.dict()
             data = ReportService.get_report_tab(tab, payload)
             return Response(data)
+        except DRFValidationError as exc:
+            return Response({"detail": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.error(f"Reports tab error ({tab}): {str(e)}", exc_info=True)
             return _error_response(code="ANALYTICS_REPORT_TAB_FAILED")

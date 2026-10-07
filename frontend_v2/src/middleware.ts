@@ -1,6 +1,14 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+/** Camera is allowed same-origin only on the two visitor forms that take a selfie. */
+const CAMERA_ROUTES = [/^\/visit(\/|$)/, /^\/gate\/visitors\/new\/?$/];
+
+function permissionsPolicyFor(pathname: string) {
+  const camera = CAMERA_ROUTES.some((pattern) => pattern.test(pathname)) ? "camera=(self)" : "camera=()";
+  return PERMISSIONS_POLICY.replace("camera=()", camera);
+}
+
 const PERMISSIONS_POLICY = [
   "accelerometer=()",
   "camera=()",
@@ -32,12 +40,12 @@ function buildContentSecurityPolicy(nonce: string) {
   ].join("; ");
 }
 
-function applySecurityHeaders(response: NextResponse, contentSecurityPolicy: string) {
+function applySecurityHeaders(response: NextResponse, contentSecurityPolicy: string, pathname: string) {
   response.headers.set("Content-Security-Policy", contentSecurityPolicy);
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("Permissions-Policy", PERMISSIONS_POLICY);
+  response.headers.set("Permissions-Policy", permissionsPolicyFor(pathname));
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
 }
 
@@ -54,7 +62,7 @@ export function middleware(request: NextRequest) {
       headers: requestHeaders,
     },
   });
-  applySecurityHeaders(response, contentSecurityPolicy);
+  applySecurityHeaders(response, contentSecurityPolicy, request.nextUrl.pathname);
   return response;
 }
 

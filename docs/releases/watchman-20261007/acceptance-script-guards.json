@@ -1,0 +1,20 @@
+{
+  "status": "PASS",
+  "guards": [
+    {
+      "guard": "production-required",
+      "refused": true,
+      "check": "Acceptance must run in the deployed production backend"
+    },
+    {
+      "guard": "expected-sha",
+      "refused": true,
+      "check": "Runtime APP_BUILD_SHA does not match the expected candidate"
+    },
+    {
+      "guard": "local-authorization",
+      "refused": true,
+      "check": "Local acceptance is restricted to the explicitly authorized isolated QA database"
+    }
+  ]
+}

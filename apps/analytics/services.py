@@ -103,6 +103,7 @@ AUDIT_STREAM_LABELS = {
     "permissions": "Permissions",
     "sessions": "Session & Login",
     "reports": "Report Archives",
+    "gate": "Gate Register",
 }
 
 
@@ -196,14 +197,17 @@ def _audit_matches_query(event: dict, query: str) -> bool:
     return term in _audit_event_text(event)
 
 
-def _audit_date_bounds(range_key=None, date_from=None, date_to=None):
+def _audit_date_bounds(range_key=None, date_from=None, date_to=None, audit_timezone=None):
     end = timezone.now()
+    if audit_timezone is not None:
+        end = end.astimezone(audit_timezone)
+    zone = audit_timezone or timezone.get_current_timezone()
     start = None
     key = str(range_key or "").lower()
     if date_from:
         parsed = parse_date(str(date_from))
         if parsed:
-            start = timezone.make_aware(datetime.combine(parsed, time.min), timezone.get_current_timezone())
+            start = timezone.make_aware(datetime.combine(parsed, time.min), zone)
     elif key == "1h":
         start = end - timedelta(hours=1)
     elif key == "today":
@@ -217,7 +221,7 @@ def _audit_date_bounds(range_key=None, date_from=None, date_to=None):
 
     parsed_to = parse_date(str(date_to)) if date_to else None
     if parsed_to:
-        end = timezone.make_aware(datetime.combine(parsed_to, time.max), timezone.get_current_timezone())
+        end = timezone.make_aware(datetime.combine(parsed_to, time.max), zone)
     return start, end
 
 
@@ -258,6 +262,24 @@ def _permission_audit_event(row: PermissionAuditLog) -> dict:
         "details": details,
     }
 
+
+
+def _gate_audit_event(row) -> dict:
+    from apps.gate.services import audit_event_payload
+    details = audit_event_payload(row)
+    snapshot = details.get("after") or details.get("before") or {}
+    reference = str(snapshot.get("invoice_number") or row.object_id)
+    return {
+        "id": f"gate:{row.id}", "source": "gate_audit", "source_model": "gate_gateauditevent",
+        "source_id": str(row.id), "stream": "gate", "stream_label": AUDIT_STREAM_LABELS["gate"],
+        "action": row.action, "actor": _audit_user_name(row.actor),
+        "role": getattr(getattr(row.actor, "role", None), "code", "") or "PUBLIC",
+        "entity_type": row.object_type, "entity_id": str(row.object_id), "reference": reference,
+        "summary": f"{row.action.replace('_', ' ').title()} at {row.plant.name}",
+        "timestamp": row.created_at.isoformat(), "severity": "MEDIUM" if row.action.endswith(("CORRECTED", "RECONCILED")) else "LOW",
+        "value": row.reason or "Recorded", "href": "/gate/history", "traceable_reference": f"gate:{row.id}",
+        "trace_supported": False, "details": details,
+    }
 
 def _audit_href_for_permission(row: PermissionAuditLog, reference: str) -> str:
     details = row.details or {}
@@ -5079,6 +5101,11 @@ class ReportingService:
         if user and not is_high_level:
             catalog = [r for r in catalog if role_code in r["roles"]]
             
+        if user:
+            from apps.users.permission_service import PermissionService
+            actual_role = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+            if actual_role != "WATCHMAN" and role_code != "WATCHMAN" and (user.is_owner or actual_role == "OWNER" or "gate.reports" in PermissionService.get_user_permissions(user)):
+                catalog.append({"id": "gate", "title": "Gate Register", "description": "Goods entry and exit, visitor counts, and system reconciliation.", "icon": "DoorOpen", "category": "Operations", "permission": "gate.reports", "roles": ["OWNER"]})
         return catalog
 
     @staticmethod
@@ -5183,7 +5210,7 @@ class ReportingService:
 
     @staticmethod
     @safe_service(default_value={"counts": {}, "modes": {}, "generated_at": None})
-    def get_audit_console():
+    def get_audit_console(include_gate=False):
         login_qs = PermissionAuditLog.objects.select_related("user").filter(
             action__in=["USER_LOGIN", "USER_LOGOUT"]
         ).order_by("-created_at")
@@ -5192,7 +5219,17 @@ class ReportingService:
         ).order_by("-created_at")
         role_override_qs = PermissionAuditLog.objects.filter(action="ROLE_OVERRIDE")
         operational_logs = ReportingService.get_operational_logs("all", 60)
-        report_runs = ReportDispatchRun.objects.order_by("-created_at")[:20]
+        report_runs = ReportDispatchRun.objects.order_by("-created_at")
+        if not include_gate:
+            report_runs = report_runs.exclude(report_code="gate_register_daily")
+        report_runs = report_runs[:20]
+        gate_items = []
+        gate_count = 0
+        if include_gate:
+            from apps.gate.models import GateAuditEvent
+            gate_qs = GateAuditEvent.objects.select_related("actor__role", "plant").order_by("-created_at")
+            gate_count = gate_qs.count()
+            gate_items = [_gate_audit_event(row) for row in gate_qs[:40]]
 
         def _permission_row(row: PermissionAuditLog):
             details = row.details or {}
@@ -5263,13 +5300,15 @@ class ReportingService:
                 "login_entries": login_qs.count(),
                 "permission_audit": permission_qs.count(),
                 "role_override_audit": role_override_qs.count(),
-                "report_runs": ReportDispatchRun.objects.count(),
+                "report_runs": ReportDispatchRun.objects.count() if include_gate else ReportDispatchRun.objects.exclude(report_code="gate_register_daily").count(),
                 "inventory_audit": inventory_move_qs.count(),
                 "production_audit": len(production_logs),
                 "master_data_audit": master_data_logs.count(),
                 "system_config_audit": system_config_logs.count(),
+                "gate_audit": gate_count,
             },
             "modes": {
+                **({"gate": {"items": gate_items, "latest": gate_items[0] if gate_items else None}} if include_gate else {}),
                 "sessions": {
                     "items": [_session_row(row) for row in login_qs[:40]],
                     "latest": _session_row(login_qs[0]) if login_qs.exists() else None,
@@ -5332,7 +5371,7 @@ class ReportingService:
 
     @staticmethod
     @safe_service(default_value={"events": [], "summary": {}, "generated_at": None})
-    def get_audit_ledger(params=None):
+    def get_audit_ledger(params=None, include_gate=False):
         params = params or {}
         query = str(params.get("q") or "").strip()
         stream = str(params.get("stream") or "all").strip() or "all"
@@ -5340,7 +5379,11 @@ class ReportingService:
         actor = str(params.get("actor") or "ALL").strip() or "ALL"
         page = max(1, int(params.get("page") or 1))
         limit = max(20, min(200, int(params.get("limit") or 100)))
-        start, end = _audit_date_bounds(params.get("range"), params.get("date_from"), params.get("date_to"))
+        audit_timezone = None
+        if stream == "gate":
+            from apps.gate.services import gate_zone
+            audit_timezone = gate_zone()
+        start, end = _audit_date_bounds(params.get("range"), params.get("date_from"), params.get("date_to"), audit_timezone=audit_timezone)
 
         events: list[dict] = []
 
@@ -5429,8 +5472,24 @@ class ReportingService:
                 if keep(event):
                     events.append(event)
 
+        if include_gate and stream in {"all", "gate"}:
+            from apps.gate.models import GateAuditEvent
+            gate_qs = GateAuditEvent.objects.select_related("actor__role", "plant").order_by("-created_at")
+            if start:
+                gate_qs = gate_qs.filter(created_at__gte=start)
+            if end:
+                gate_qs = gate_qs.filter(created_at__lte=end)
+            if query:
+                gate_qs = gate_qs.filter(Q(action__icontains=query) | Q(reason__icontains=query) | Q(actor__username__icontains=query) | Q(plant__name__icontains=query) | Q(after__icontains=query))
+            for row in gate_qs[:2500]:
+                event = _gate_audit_event(row)
+                if keep(event):
+                    events.append(event)
+
         if stream in {"all", "reports"}:
             report_qs = ReportDispatchRun.objects.order_by("-created_at")
+            if not include_gate:
+                report_qs = report_qs.exclude(report_code="gate_register_daily")
             if start:
                 report_qs = report_qs.filter(created_at__gte=start)
             if end:
@@ -5493,14 +5552,16 @@ class ReportingService:
 
     @staticmethod
     @safe_service(default_value={"error": "Audit event not found"})
-    def get_audit_event_detail(event_id: str):
+    def get_audit_event_detail(event_id: str, include_gate=False):
         raw = str(event_id or "").strip()
         if ":" not in raw:
             return {"error": "Audit event id must include a source prefix."}
         prefix, source_id = raw.split(":", 1)
         try:
-            parsed_uuid = uuid.UUID(source_id)
-        except Exception:
+            # Report archives use integer primary keys; operational/audit
+            # events use UUIDs. Both are valid unified-ledger event sources.
+            parsed_uuid = int(source_id) if prefix == "report" else uuid.UUID(source_id)
+        except (ValueError, TypeError, AttributeError):
             return {"error": "Audit event id is invalid."}
 
         if prefix == "permission":
@@ -5523,8 +5584,17 @@ class ReportingService:
             if not row:
                 return {"error": "Audit event not found"}
             event = _job_log_event_row(row)
+        elif prefix == "gate" and include_gate:
+            from apps.gate.models import GateAuditEvent
+            row = GateAuditEvent.objects.select_related("actor__role", "plant").filter(id=parsed_uuid).first()
+            if not row:
+                return {"error": "Audit event not found"}
+            event = _gate_audit_event(row)
         elif prefix == "report":
-            row = ReportDispatchRun.objects.filter(id=parsed_uuid).first()
+            report_qs = ReportDispatchRun.objects.all()
+            if not include_gate:
+                report_qs = report_qs.exclude(report_code="gate_register_daily")
+            row = report_qs.filter(id=parsed_uuid).first()
             if not row:
                 return {"error": "Audit event not found"}
             event = _report_event_row(row)

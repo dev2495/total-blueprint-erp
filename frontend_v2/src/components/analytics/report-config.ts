@@ -37,6 +37,8 @@ export type ReportConfig = {
   domain: string;
   kpis: KpiDef[];
   sections: SectionDef[];
+  /** Series date field; auto-detected when omitted. */
+  dateKey?: string;
   /** Preferred trend measures (first found wins as default). */
   trendMeasures?: string[];
   /** Units for series measures whose names are ambiguous (e.g. "value"). */
@@ -45,6 +47,8 @@ export type ReportConfig = {
   seriesTitle?: string;
   /** Preferred detail-table column order. */
   columns?: string[];
+  /** Detail-table column cap (default 10). */
+  maxColumns?: number;
   rowsTitle?: string;
 };
 
@@ -238,6 +242,42 @@ export const REPORT_CONFIG: Record<string, ReportConfig> = {
     ],
     trendMeasures: ["minutes", "events"],
     rowsTitle: "Reasons",
+  },
+  gate: {
+    domain: "Gate",
+    kpis: [
+      { key: "goods_total", label: "Register entries", format: "count", hint: "movements logged, not distinct vehicles" },
+      { key: "inward", label: "Inward entries", format: "count" },
+      { key: "outward", label: "Outward entries", format: "count" },
+      { key: "unmatched", label: "Awaiting ERP match", format: "count", target: 0, higherIsBetter: false, hint: "owner review" },
+      { key: "discrepancies", label: "ERP mismatches", format: "count", target: 0, higherIsBetter: false },
+      { key: "visitor_entries", label: "Visitor entries", format: "count" },
+      { key: "visitor_exits", label: "Visitor exits", format: "count" },
+      { key: "overdue_visitors", label: "Overdue inside now", format: "count", target: 0, higherIsBetter: false, hint: "current, not period" },
+    ],
+    sections: [],
+    // Backend daily series {date, inward, outward, total} in Asia/Kolkata.
+    dateKey: "date",
+    trendMeasures: ["inward", "outward", "total"],
+    seriesFormats: { inward: "count", outward: "count", total: "count" },
+    rowsTitle: "Goods register",
+    maxColumns: 14,
+    columns: [
+      "logged_at",
+      "direction",
+      "invoice_number",
+      "party_name",
+      "vehicle_number",
+      "product_name",
+      "quantity",
+      "uom",
+      "amount",
+      "reconciliation_status",
+      "reference",
+      "invoice_date",
+      "amount_basis",
+      "plant",
+    ],
   },
   scrap: {
     domain: "Quality",

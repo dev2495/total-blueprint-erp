@@ -150,6 +150,7 @@ INSTALLED_APPS = [
     "apps.costing",
     "apps.procurement",
     "apps.platformops",
+    "apps.gate.apps.GateConfig",
     "rest_framework_simplejwt.token_blacklist",
 ]
 if not _env_bool("SKIP_ADMIN_APP_IMPORT", False):
@@ -169,6 +170,7 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
     "x-role-override",
     "x-request-id",
+    "idempotency-key",
 ]
 CORS_EXPOSE_HEADERS = ["x-role-override", "x-request-id"]
 
@@ -288,6 +290,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = os.getenv("TIME_ZONE", "UTC")
+GATE_TIME_ZONE = os.getenv("GATE_TIME_ZONE", "Asia/Kolkata")
+GATE_TRUSTED_PROXY_IPS = [value.strip() for value in os.getenv("GATE_TRUSTED_PROXY_IPS", "").split(",") if value.strip()]
 USE_I18N = False
 USE_TZ = True
 

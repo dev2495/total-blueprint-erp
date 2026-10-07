@@ -29,6 +29,8 @@ services:
     build:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.backend
+      args:
+        APP_BUILD_SHA: ${APP_BUILD_SHA:-unknown}
     restart: unless-stopped
     init: true
     security_opt:
@@ -41,6 +43,9 @@ services:
       BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
       DR_RESTORE_DRILL_COMMAND: /app/deploy/aws/restore-drill.sh
       DR_SMOKE_TEST_COMMAND: RESTORED_DATABASE
+      GATE_PUBLIC_ORIGIN: https://erp.totalpolyprint.com
+      GATE_TIME_ZONE: Asia/Kolkata
+      GATE_TRUSTED_PROXY_IPS: 172.18.0.1
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +73,8 @@ services:
       BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
       DR_RESTORE_DRILL_COMMAND: /app/deploy/aws/restore-drill.sh
       DR_SMOKE_TEST_COMMAND: RESTORED_DATABASE
+      GATE_PUBLIC_ORIGIN: https://erp.totalpolyprint.com
+      GATE_TIME_ZONE: Asia/Kolkata
     depends_on:
       backend:
         condition: service_started
@@ -119,6 +126,8 @@ services:
     build:
       context: /opt/tpp-erp/app
       dockerfile: deploy/aws/Dockerfile.frontend
+      args:
+        APP_BUILD_SHA: ${APP_BUILD_SHA:-unknown}
     restart: unless-stopped
     init: true
     security_opt:

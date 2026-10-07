@@ -1,0 +1,46 @@
+{
+  "observed_at_utc": "2026-10-07T10:33:50.389575+00:00",
+  "base_commit": "d04c2c06cac24bf6a3c35edcaec6e25ffc7db96f",
+  "production_baseline": {
+    "current_commit": "d04c2c06cac24bf6a3c35edcaec6e25ffc7db96f",
+    "application_path": "/opt/tpp-erp/releases/580d826",
+    "checked_tracked_source_files": 2078,
+    "differing_source_files": 0,
+    "missing_source_files": 0,
+    "backend_health": "healthy",
+    "frontend_health": "healthy",
+    "worker": "running",
+    "beat": "running",
+    "image_revision_labels": "unknown",
+    "public_readiness": "ready",
+    "disk_available_gb": 39,
+    "secrets_permissions": "0600 root:root",
+    "latest_managed_backup_observed": "erp_db_20261007_063000.dump.enc",
+    "remote_mutations_performed": false
+  },
+  "local_environment": {
+    "database": "tpp_gate_dev_20261007",
+    "database_source": "empty local database; no production import",
+    "python": "3.12.13",
+    "node": "24.19.0 bundled runtime",
+    "backend_port": 8017,
+    "frontend_port": 3017,
+    "npm_ci": "PASS",
+    "locked_python_install": "PASS",
+    "uv_pip_check": "PASS (53 compatible packages)",
+    "secret_bootstrap_checks": "PASS: generated key, private permissions, preserved settings, idempotency, invalid-key rejection, no secret output",
+    "release_shell_syntax": "PASS",
+    "secret_bootstrap_python_compile": "PASS"
+  },
+  "dependency_changes": {
+    "new_pins": {
+      "cffi": "2.1.1",
+      "cryptography": "50.0.2",
+      "pycparser": "3.0",
+      "qrcode": "8.2"
+    },
+    "changed_existing_pins": {},
+    "direct_pin_existing_dependency": "Pillow==12.3.0"
+  },
+  "new_feature_acceptance": "PENDING: implementation, role journeys, migrations, build and deployed acceptance"
+}

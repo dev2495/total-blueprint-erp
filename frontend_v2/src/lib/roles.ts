@@ -15,6 +15,7 @@ export const ROLE_LANDING_PAGES: Record<string, string> = {
   DISPATCH: '/dashboard/logistics',
   ENGINEERING: '/engineering/artworks',
   PLANT_MANAGER: '/analytics/kpis',
+  WATCHMAN: '/gate',
 }
 
 export const CANONICAL_ROLE_LABELS: Record<string, string> = {
@@ -29,6 +30,7 @@ export const CANONICAL_ROLE_LABELS: Record<string, string> = {
   STORE: 'Store',
   DISPATCH: 'Dispatch',
   PLANT_MANAGER: 'Plant Manager',
+  WATCHMAN: 'Watchman',
 }
 
 export const LEGACY_ROLE_CODE_ALIASES: Record<string, string> = {

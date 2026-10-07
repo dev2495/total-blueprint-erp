@@ -9,6 +9,7 @@ class ReportDistributionProfile(models.Model):
         DISPATCH_DAILY = "dispatch_daily", "Dispatch Daily"
         PACKING_DISPATCH_SUMMARY_DAILY = "packing_dispatch_summary_daily", "Packing Dispatch Summary Daily"
         STOCK_STANDING_DAILY = "stock_standing_daily", "Stock Standing Daily"
+        GATE_REGISTER_DAILY = "gate_register_daily", "Gate Register Daily"
 
     report_code = models.CharField(max_length=64, choices=ReportCode.choices, unique=True)
     active = models.BooleanField(default=True)
@@ -63,9 +64,11 @@ class ReportDispatchRun(models.Model):
     pdf_file_name = models.CharField(max_length=255, blank=True, default="")
     pdf_checksum_sha1 = models.CharField(max_length=40, blank=True, default="")
     pdf_size_bytes = models.PositiveIntegerField(default=0)
+    private_pdf_data = models.BinaryField(null=True, blank=True, editable=False)
     detail_file_name = models.CharField(max_length=255, blank=True, default="")
     detail_checksum_sha1 = models.CharField(max_length=40, blank=True, default="")
     detail_size_bytes = models.PositiveIntegerField(default=0)
+    private_detail_data = models.BinaryField(null=True, blank=True, editable=False)
     triggered_manually = models.BooleanField(default=False)
     triggered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
