@@ -131,13 +131,18 @@ accounts stops rollback before the old application starts.
    `build-release.sh <full SHA> <archive SHA-256> <full expected parent>` on the
    host as root. This only stages source/builds and preserves current images.
 5. Provision/validate the private gate key. Run Django `check --deploy` on the
-   candidate and inspect the migration plan. Require the exact reviewed set;
-   reject any unrelated or unexpected migration before executing migrations.
+   candidate and inspect the migration plan. Pending migrations must be a subset
+   of the exact reviewed set, with every remaining reviewed migration recorded
+   as already applied. Reject unrelated pending migrations, backward steps and
+   missing reviewed migrations before executing migrations. This permits a
+   reviewed resumption after an additive-schema application rollback.
 6. Activate the candidate using the reviewed activation script. Preserve the
    old app source and rollback image tags. Wait only for backend/frontend health,
    then separately check worker/beat running and Celery `pong`. Readiness and
    `/login` must return 200. Verify all service image revisions match the SHA and
-   update `current-commit` only after acceptance checks pass.
+   update `current-commit` only after acceptance checks pass. Capture the entire
+   Celery probe in private `celery-ping.log` before matching `pong`; early-closing
+   pipeline consumers can otherwise cause a false SIGPIPE failure.
 7. Run `scripts/verify_gate_live_acceptance.py --expected-sha <full SHA>` inside
    the new backend container. It requires the matching runtime build SHA and
    production PostgreSQL, signs ordinary JWTs for temporary users, exercises
@@ -165,3 +170,15 @@ observed brief HTTP 502 responses during activation; this procedure does not
 promise zero downtime. Roll back application images/source on health failure
 while retaining the additive schema and encryption key. Never restore the live
 business database merely to roll back an additive application release.
+
+The first activation of `556740b1082c1d38cee1ee09904d7858b345d540` automatically
+rolled back after backend and frontend reported healthy. Its next health probe
+used `celery inspect ping | grep -q pong` with `pipefail`, and the command exited
+141 (SIGPIPE). The repaired probe consumes the full output before checking it.
+Application source/images and Caddy returned to the verified `d04c2c06` parent;
+the four reviewed additive migrations and encryption key were retained. No
+watchman accounts required quarantine. Before resuming with the repaired release,
+review the actual migration ledger and require those four entries to be either
+pending or already applied, with no unrelated pending migration. Preserve the
+original attempt log and rollback account-state record; application rollback
+does not reverse these migrations or regenerate the encryption key.

@@ -22,7 +22,16 @@ done
 python3 "$RELEASE_DIR/deploy/aws/bootstrap-gate-secrets.py"
 docker run --rm --network tpp-erp-private --env-file /opt/tpp-erp/secrets/app.env \
   --security-opt no-new-privileges:true --cap-drop ALL "tpp-erp-backend:$CANDIDATE_TAG" \
-  python manage.py shell -c 'import json; from pathlib import Path; from django.db import connection; from django.db.migrations.executor import MigrationExecutor; allowed=json.loads(Path("docs/releases/watchman-20261007/reviewed-migrations.json").read_text()); e=MigrationExecutor(connection); pending=[[m.app_label,m.name] for m,backwards in e.migration_plan(e.loader.graph.leaf_nodes())]; print("Pending migrations",pending); assert sorted(pending)==sorted(allowed),(pending,allowed)'
+  python manage.py shell -c 'import json; from pathlib import Path; from django.db import connection; from django.db.migrations.executor import MigrationExecutor
+allowed={tuple(item) for item in json.loads(Path("docs/releases/watchman-20261007/reviewed-migrations.json").read_text())}
+executor=MigrationExecutor(connection)
+plan=executor.migration_plan(executor.loader.graph.leaf_nodes())
+pending={(migration.app_label,migration.name) for migration,backwards in plan}
+applied=set(executor.loader.applied_migrations)
+print("Reviewed pending migrations",sorted(pending))
+print("Reviewed already-applied migrations",sorted(allowed & applied))
+if any(backwards for migration,backwards in plan) or pending - allowed or allowed - (pending | applied):
+    raise RuntimeError("Migration plan is not the reviewed pending/already-applied set.")'
 docker run --rm --network tpp-erp-private --env-file /opt/tpp-erp/secrets/app.env \
   --security-opt no-new-privileges:true --cap-drop ALL "tpp-erp-backend:$CANDIDATE_TAG" \
   python manage.py check --deploy
@@ -68,7 +77,10 @@ for service in backend worker beat frontend; do
   test "$(docker inspect --format '{{.State.Running}}' "aws-$service-1")" = true
   test "$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "aws-$service-1")" = "$CANDIDATE_SHA"
 done
-docker exec aws-backend-1 celery -A config inspect ping --timeout=15 | grep -q pong
+# Consume the complete probe before matching it: grep -q in a pipeline can
+# close early and SIGPIPE a healthy Celery command under set -o pipefail.
+(umask 077; docker exec aws-backend-1 celery -A config inspect ping --timeout=15 > "$RELEASE_DIR/celery-ping.log" 2>&1)
+grep -q pong "$RELEASE_DIR/celery-ping.log"
 curl --fail --silent --show-error --max-time 20 -H 'Host: erp.totalpolyprint.com' -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/api/health/ready/ > "$RELEASE_DIR/ready.json"
 curl --fail --silent --show-error --max-time 20 http://127.0.0.1:3000/login > /dev/null
 printf '%s\n' "$CANDIDATE_SHA" > /opt/tpp-erp/releases/current-commit
