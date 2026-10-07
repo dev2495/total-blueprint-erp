@@ -89,10 +89,10 @@ export const DIRECTION_META: Record<GateDirection, { label: string; verb: string
 };
 
 export const VISITOR_STATUS_META: Record<VisitorStatus, { label: string; tone: string; soft: string; edge: string }> = {
-  PENDING: { label: "Waiting at gate", tone: "var(--gate-pending)", soft: "var(--gate-pending-soft)", edge: "var(--gate-pending-edge)" },
+  PENDING: { label: "Legacy pending", tone: "var(--gate-pending)", soft: "var(--gate-pending-soft)", edge: "var(--gate-pending-edge)" },
   INSIDE: { label: "Inside", tone: "var(--gate-inside)", soft: "var(--gate-inside-soft)", edge: "var(--gate-inside-edge)" },
   EXITED: { label: "Exited", tone: "var(--gate-exited)", soft: "var(--surface-2)", edge: "var(--border-default)" },
-  CANCELLED: { label: "Not admitted", tone: "var(--gate-exited)", soft: "var(--surface-2)", edge: "var(--border-default)" },
+  CANCELLED: { label: "Cancelled", tone: "var(--gate-exited)", soft: "var(--surface-2)", edge: "var(--border-default)" },
 };
 
 export const RECON_META: Record<string, { label: string; hint: string; tone: string; soft: string; edge: string }> = {

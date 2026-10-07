@@ -254,7 +254,9 @@ export interface PublicGateConfig {
 
 export interface PublicVisitorReceipt {
   receipt_id: string;
-  status: "PENDING";
+  /** Final flow: "INSIDE" — QR self-submission records entry immediately. */
+  status: "INSIDE" | "PENDING" | string;
+  entry_at?: string | null;
   message?: string;
   replayed?: boolean;
 }

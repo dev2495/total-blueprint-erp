@@ -17,8 +17,7 @@ export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary
   const exceptions = [
     { label: "Awaiting ERP match", value: Number(gate.unmatched || 0), href: "/gate/history" },
     { label: "ERP mismatches", value: Number(gate.discrepancies || 0), href: "/gate/history" },
-    { label: "Overdue inside (>12h)", value: Number(gate.overdue_visitors || 0), href: "/gate/history" },
-    { label: "Stale waiting (>12h)", value: Number(gate.stale_pending_visitors || 0), href: "/gate/history" },
+    { label: "Legacy pending (>12h)", value: Number(gate.stale_pending_visitors || 0), href: "/gate/visitors" },
   ];
   const qty = Object.entries(gate.quantity_by_uom || {}).filter(([, v]) => v !== null && Number(v) > 0);
   const openExceptions = exceptions.reduce((sum, e) => sum + e.value, 0);
@@ -74,12 +73,12 @@ export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary
           <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">At the gate now</div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-line bg-surface-2/60 px-3 py-2.5">
-              <div className="text-[11.5px] text-content-3">Waiting</div>
-              <div className="text-[22px] font-semibold tabular-nums text-warning-fg">{gateQty(gate.pending_visitors ?? 0)}</div>
-            </div>
-            <div className="rounded-xl border border-line bg-surface-2/60 px-3 py-2.5">
               <div className="text-[11.5px] text-content-3">Inside</div>
               <div className="text-[22px] font-semibold tabular-nums text-success-fg">{gateQty(gate.inside_visitors ?? 0)}</div>
+            </div>
+            <div className="rounded-xl border border-line bg-surface-2/60 px-3 py-2.5">
+              <div className="text-[11.5px] text-content-3">Overdue &gt;12h</div>
+              <div className={`text-[22px] font-semibold tabular-nums ${Number(gate.overdue_visitors || 0) ? "text-danger-fg" : "text-content-1"}`}>{gateQty(gate.overdue_visitors ?? 0)}</div>
             </div>
           </div>
         </div>

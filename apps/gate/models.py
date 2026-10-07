@@ -74,7 +74,7 @@ class VisitorVisit(models.Model):
     government_id_encrypted = models.TextField(blank=True)
     government_id_suffix = models.CharField(max_length=4, blank=True)
     selfie_data = models.BinaryField(null=True, blank=True)
-    source = models.CharField(max_length=12, default="PUBLIC", choices=[("PUBLIC", "Public QR"), ("WATCHMAN", "Watchman")])
+    source = models.CharField(max_length=12, default="PUBLIC", choices=[("PUBLIC", "Public QR"), ("OWNER", "Owner recovery"), ("WATCHMAN", "Legacy watchman")])
     status = models.CharField(max_length=10, default="PENDING", choices=[("PENDING", "Pending"), ("INSIDE", "Inside"), ("EXITED", "Exited"), ("CANCELLED", "Cancelled")])
     submitted_at = models.DateTimeField(default=timezone.now, db_index=True)
     consent_at = models.DateTimeField()

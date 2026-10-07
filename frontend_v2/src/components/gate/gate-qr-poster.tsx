@@ -137,8 +137,8 @@ export function GateQrPoster() {
               <ol className="mt-auto grid w-full grid-cols-3 gap-3 pb-[7%] pt-[5%] text-left">
                 {[
                   ["1", "Scan", "Open your phone camera"],
-                  ["2", "Fill", "Name, mobile, purpose, selfie"],
-                  ["3", "Wait", "The watchman lets you in"],
+                  ["2", "Submit", "Your entry is recorded"],
+                  ["3", "Exit", "The watchman checks you out"],
                 ].map(([n, title, body]) => (
                   <li key={n} className="rounded-2xl bg-[#f4f5f8] p-[clamp(8px,2vw,14px)]">
                     <div className="flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold text-white" style={{ background: n === "3" ? "#d9651c" : "#1068a9" }}>
@@ -154,7 +154,7 @@ export function GateQrPoster() {
         </article>
       )}
       <p className="gate-no-print px-1 text-center text-[12px] text-content-4">
-        Test before fixing: scan the printed sign with two different phones. The link opens only the visitor form — it never admits anyone.
+        Test before fixing: scan the printed sign with two different phones. The link opens only this gate&apos;s visitor form; submitting records entry, and the watchman confirms exit.
       </p>
     </div>
   );

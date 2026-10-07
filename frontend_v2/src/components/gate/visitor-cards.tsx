@@ -8,6 +8,7 @@ import { Building2, Clock3, DoorOpen, LogIn, LogOut, Phone, UserRound, UserX } f
 import { getApiErrorStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { gateApi, type GateVisitor } from "@/services/gate";
+import { useGate } from "./gate-shell";
 import { gateElapsed, gateMinutesSince, gateTime, VISITOR_STATUS_META } from "./gate-format";
 import { GateAction, GateSheet, OperationBanner, TonePill } from "./gate-ui";
 import { useGateOperation } from "./use-gate-operation";
@@ -72,10 +73,13 @@ export function invalidateVisitorQueues(qc: ReturnType<typeof useQueryClient>) {
 
 /**
  * A visitor pass: identity on the left of the perforation, time and the one
- * next action on the right. The action available is decided by status only,
+ * next action on the right. Final flow: QR self-submission records entry, so
+ * the watchman's only action is Check out (INSIDE). Legacy PENDING rows can
+ * only be admitted/cancelled by the owner. Status alone decides the action,
  * so an exited pass can never offer "check out" again.
  */
 export function VisitorPass({ visitor: incoming, now }: { visitor: GateVisitor; now: number }) {
+  const { isOwner } = useGate();
   const [sheet, setSheet] = useState<null | "in" | "out" | "cancel">(null);
   // Adopt the server's answer at once so a completed step is never offered again.
   const [visitor, setVisitor] = useState(incoming);
@@ -118,7 +122,7 @@ export function VisitorPass({ visitor: incoming, now }: { visitor: GateVisitor; 
             dot
           />
           <div className="mt-2">
-            {visitor.status === "PENDING" ? (
+            {visitor.status === "PENDING" && isOwner ? (
               <>
                 <div className="gate-num text-[20px] font-semibold leading-none text-content-1">{gateElapsed(visitor.submitted_at, null, now)}</div>
                 <div className="mt-1 text-[11px] leading-tight text-content-4">waiting<br />since {gateTime(visitor.submitted_at)}</div>
@@ -143,13 +147,13 @@ export function VisitorPass({ visitor: incoming, now }: { visitor: GateVisitor; 
         </div>
       </div>
 
-      {visitor.status === "PENDING" ? (
+      {visitor.status === "PENDING" && isOwner ? (
         <div className="grid grid-cols-[1fr_auto] gap-2 border-t border-line p-3">
           <GateAction tone="inside" size="md" onClick={() => setSheet("in")}>
-            <LogIn className="h-5 w-5" /> Admit
+            <LogIn className="h-5 w-5" /> Record entry
           </GateAction>
-          <GateAction tone="plain" size="md" onClick={() => setSheet("cancel")} aria-label={`Mark ${visitor.name} not admitted`}>
-            <UserX className="h-5 w-5" /> Not admitted
+          <GateAction tone="plain" size="md" onClick={() => setSheet("cancel")} aria-label={`Remove ${visitor.name} from the queue`}>
+            <UserX className="h-5 w-5" /> Remove
           </GateAction>
         </div>
       ) : visitor.status === "INSIDE" ? (
@@ -188,7 +192,7 @@ function VisitorActionSheet({
     onSaved: (result) => {
       if (result && typeof result === "object" && "status" in result) {
         onSaved({ ...visitor, ...result });
-        const verb = result.status === "INSIDE" ? `admitted at ${gateTime(result.entry_at)}` : result.status === "EXITED" ? `checked out at ${gateTime(result.exit_at)}` : "marked not admitted";
+        const verb = result.status === "INSIDE" ? `entry recorded at ${gateTime(result.entry_at)}` : result.status === "EXITED" ? `checked out at ${gateTime(result.exit_at)}` : "removed from the queue";
         toast.success(`${result.name || visitor.name} ${verb}`, { description: "Saved to the gate register (server time)." });
       }
       return invalidateVisitorQueues(qc);
@@ -210,7 +214,7 @@ function VisitorActionSheet({
   };
 
   const saved = op.phase === "saved" ? op.result : null;
-  const title = mode === "in" ? "Admit visitor?" : mode === "out" ? "Check out visitor?" : "Not admitted";
+  const title = mode === "in" ? "Record entry?" : mode === "out" ? "Check out visitor?" : "Remove from queue";
 
   return (
     <GateSheet open={open} onOpenChange={(next) => (!next ? close() : undefined)} title={saved ? "Recorded" : title}>
@@ -225,10 +229,10 @@ function VisitorActionSheet({
           <div className="mt-3 text-[18px] font-semibold text-content-1">{saved.name}</div>
           <p className="mt-1 text-[15px] text-content-2">
             {saved.status === "INSIDE"
-              ? `Admitted at ${gateTime(saved.entry_at)}`
+              ? `Entry recorded at ${gateTime(saved.entry_at)}`
               : saved.status === "EXITED"
                 ? `Checked out at ${gateTime(saved.exit_at)}`
-                : "Marked not admitted"}
+                : "Removed from the queue"}
           </p>
           <p className="mt-1 text-[12px] text-content-4">Server time · saved to the gate register</p>
           <GateAction tone="in" className="mt-5 w-full" onClick={close}>
@@ -256,7 +260,7 @@ function VisitorActionSheet({
           ) : null}
 
           {mode === "in" ? (
-            <p className="text-[14px] text-content-3">Check the face against the photo. Entry time is stamped by the server.</p>
+            <p className="text-[14px] text-content-3">Legacy registration. Record entry only if this visitor actually came in; time is stamped by the server.</p>
           ) : null}
 
           {mode === "cancel" ? (
@@ -313,7 +317,7 @@ function VisitorActionSheet({
             >
               {mode === "in" ? (
                 <>
-                  <LogIn className="h-5 w-5" /> Admit now
+                  <LogIn className="h-5 w-5" /> Record entry
                 </>
               ) : mode === "out" ? (
                 <>

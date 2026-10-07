@@ -15,3 +15,18 @@ The development server exposes the repository's existing CSP nonce hydration war
 ## Production UI build validation
 
 A separate copy of the Claude-authored frontend was built with supported Node 24 and started in production mode on 3018. The actual delegated gate report loaded 14 columns and a populated daily trend at 360px with document width 360px, zero page errors and zero console errors. The development-only nonce hydration message did not appear. The initial harness looked for an `Inward` button; the report uses a different accessible element for its measure toggle. The corrected harness waited for the populated trend insight and passed. Final delegated archive/queue follow-ups are additionally checked by Opus and the deployment's final production build.
+
+## Latest visitor requirement supersedes admission checks
+
+Before any production activation, the human clarified that visitors must register themselves through QR and the watchman only confirms visitor exit. The earlier PENDING/admit browser checks above describe the previous local candidate only. The shipping flow is public self-registration -> INSIDE with a server entry time -> watchman-confirmed EXITED. Watchman creation/admission/cancellation is denied; owner-only legacy recovery remains. Final revised-flow checks are appended below and in the updated Opus provenance and backend reports.
+
+## Independent revised flow acceptance
+
+- At 360px a synthetic visitor self-submitted name/mobile/company/purpose, optional PAN and JPEG selfie. HTTP 201 returned INSIDE with no name/mobile fields; the public receipt showed Entry recorded. Neither browser storage held the private visitor values, and document/viewport widths were both 360px.
+- At 390px the watchman saw the visitor inside with its private selfie and masked ID, with Check out as its only action. Confirm check out recorded EXITED and removed the visitor from the active search. Document/viewport widths were both 390px.
+- Direct local database assertions found exactly REGISTERED, ENTERED and EXITED audit events; registration/entry actors were null and exit actor was the watchman. Submission, consent and entry used one identical server timestamp; the selfie remained private and the government ID encrypted.
+- The independent check found that the public POST initially omitted entry_at while the receipt UI substituted device time. The shipping backend now includes the exact saved server timestamp and preserves it on replay; Opus removed the device-clock fallback. Both independent API helpers and all 1,121 backend tests pass with the final timestamp contract.
+- Final 360px browser submission on the reloaded backend returned INSIDE and `entry_at=2026-10-07T11:51:32.842986+00:00`; the receipt displayed the corresponding 05:21 PM. Its private response and browser-storage checks passed with document width 360px.
+- Two browser harness assumptions were corrected: POST receipt originally lacked entry_at (the contract issue above), and waiting for the success sheet's Done button raced the queue refresh that unmounted the visitor card. The actual EXITED response, refreshed empty search and database assertions establish the completed exit.
+
+Final frontend implementation and checks, including owner-only cached PENDING controls and QR help wording, are recorded by Opus in the provenance file. Actual handset camera and printed-poster scans remain physical-device acceptance checks.

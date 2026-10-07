@@ -13,7 +13,7 @@ from apps.analytics.models import ReportDistributionProfile, ReportDispatchRun
 from apps.analytics.report_delivery import ReportDistributionService
 from apps.analytics.services import ReportingService
 from apps.factory.models import Plant
-from apps.gate.models import GateAuditEvent, GoodsLine, GoodsMovement
+from apps.gate.models import GateAuditEvent, GoodsLine, GoodsMovement, VisitorVisit
 from apps.users.models import Role, User
 
 
@@ -167,6 +167,37 @@ class GateReportsAuthorizationTests(TestCase):
         with patch("apps.analytics.tasks.ReportDistributionService.report_date_for_run", return_value=date(2026, 10, 5)), patch("apps.gate.services.gate_today", return_value=date(2026, 10, 7)), patch("apps.analytics.tasks.ReportDistributionService.send_profile", return_value=SimpleNamespace(status="SUCCEEDED")) as send:
             dispatch_due_report_packs_task.run()
         self.assertEqual(send.call_args.kwargs["report_date"], date(2026, 10, 6))
+
+    @override_settings(TIME_ZONE="UTC", GATE_TIME_ZONE="Asia/Kolkata")
+    def test_public_qr_entry_counts_immediately_in_reports_and_daily_pack(self):
+        from apps.gate.services import create_visitor, transition_visitor
+
+        instant = datetime(2026, 10, 6, 20, 0, tzinfo=datetime_timezone.utc)
+        data = {"client_token": uuid.uuid4(), "name": "Private visitor name", "mobile": "9876543210", "purpose": "Meeting", "company": "Visitor company", "consent": True}
+        with patch("django.utils.timezone.now", return_value=instant):
+            receipt = create_visitor(self.plant, data, public=True, scope=f"public-report:{self.plant.pk}")
+            replay = create_visitor(self.plant, data, public=True, scope=f"public-report:{self.plant.pk}")
+            visitor = VisitorVisit.objects.get(pk=receipt["receipt_id"])
+            self.assertEqual(visitor.status, "INSIDE")
+            self.assertEqual(visitor.entry_at, instant)
+            self.assertTrue(replay["replayed"])
+            self.client.force_authenticate(user=self.delegate)
+            response = self.client.get("/api/analytics/reports/gate/?date_from=2026-10-07&date_to=2026-10-07")
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertEqual(response.data["summary"]["visitor_entries"], 1)
+            self.assertEqual(response.data["summary"]["inside_visitors"], 1)
+            self.assertEqual(response.data["summary"]["pending_visitors"], 0)
+            self.assertEqual(response.data["summary"]["visitor_exits"], 0)
+            rendered = ReportDistributionService.render_report("gate_register_daily", date(2026, 10, 7))
+            text = " ".join(page.extract_text() for page in PdfReader(BytesIO(rendered.pdf)).pages)
+            self.assertIn("Visitors entered 1", text)
+            self.assertNotIn(data["name"], text)
+            self.assertNotIn(data["mobile"], text)
+            transition_visitor(self.owner, visitor, {"client_token": uuid.uuid4()}, "check-out")
+            response = self.client.get("/api/analytics/reports/gate/?date_from=2026-10-07&date_to=2026-10-07")
+            self.assertEqual(response.data["summary"]["visitor_entries"], 1)
+            self.assertEqual(response.data["summary"]["visitor_exits"], 1)
+            self.assertEqual(response.data["summary"]["inside_visitors"], 0)
 
     @override_settings(TIME_ZONE="UTC", GATE_TIME_ZONE="Asia/Kolkata")
     def test_gate_audit_today_and_date_filters_use_local_midnight(self):

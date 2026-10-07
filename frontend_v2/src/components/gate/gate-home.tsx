@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ChevronRight, ClipboardList, History, QrCode, UserPlus, Users } from "lucide-react";
+import { ChevronRight, ClipboardList, DoorOpen, History, QrCode, Users } from "lucide-react";
 
 import { gateApi, type GateDirection } from "@/services/gate";
 import { useGate } from "./gate-shell";
@@ -70,9 +70,10 @@ export function GateHome() {
   const { operatorName, isOwner, canLog } = useGate();
   const now = useNow();
   const summary = useGateSummary();
-  const pending = useVisitorQueue("PENDING");
+  const inside = useVisitorQueue("INSIDE");
   const s = summary.data ?? {};
-  const pendingRows = pending.data?.results ?? [];
+  const insideRows = inside.data?.results ?? [];
+  const insideCount = s.inside_visitors ?? inside.data?.count ?? 0;
 
   if (!canLog) {
     return (
@@ -99,9 +100,8 @@ export function GateHome() {
       </div>
 
       <Link href="/gate/visitors" className="gate-card gate-press flex items-stretch overflow-hidden">
-        <VisitorStat label="Waiting" value={s.pending_visitors ?? pendingRows.length} tone="var(--gate-pending)" pulse={(s.pending_visitors ?? 0) > 0} />
-        <VisitorStat label="Inside" value={s.inside_visitors} tone="var(--gate-inside)" />
-        <VisitorStat label="Overdue" value={s.overdue_visitors} tone={(s.overdue_visitors ?? 0) > 0 ? "var(--gate-alert)" : "var(--content-4)"} />
+        <VisitorStat label="Inside now" value={insideCount} tone="var(--gate-inside)" />
+        <VisitorStat label="Overdue >12h" value={s.overdue_visitors} tone={(s.overdue_visitors ?? 0) > 0 ? "var(--gate-alert)" : "var(--content-4)"} pulse={(s.overdue_visitors ?? 0) > 0} />
         <span className="flex w-12 items-center justify-center text-content-4">
           <ChevronRight className="h-5 w-5" />
         </span>
@@ -109,21 +109,21 @@ export function GateHome() {
 
       <section>
         <SectionHeading
-          eyebrow="Visitors"
-          title="Waiting at gate"
+          eyebrow="Visitors · check out when they leave"
+          title="Inside longest"
           action={
-            pendingRows.length > 3 ? (
+            insideCount > 3 ? (
               <Link href="/gate/visitors" className="flex min-h-[44px] items-center text-[14px] font-semibold" style={{ color: "var(--gate-in)" }}>
-                All {pendingRows.length}
+                All {insideCount}
               </Link>
             ) : null
           }
         />
-        {pending.isError ? (
-          <div className="gate-card p-4 text-[14px] text-content-3">Could not load the visitor queue. It refreshes automatically.</div>
-        ) : pendingRows.length ? (
+        {inside.isError ? (
+          <div className="gate-card p-4 text-[14px] text-content-3">Could not load visitors inside. It refreshes automatically.</div>
+        ) : insideRows.length ? (
           <div className="space-y-3">
-            {pendingRows.slice(0, 3).map((visitor) => (
+            {insideRows.slice(0, 3).map((visitor) => (
               <VisitorPass key={visitor.id} visitor={visitor} now={now} />
             ))}
           </div>
@@ -131,15 +131,15 @@ export function GateHome() {
           <div className="gate-card">
             <EmptyState
               icon={<Users className="h-6 w-6" />}
-              title={pending.isLoading ? "Loading…" : "No one waiting"}
-              body="Visitors who scan the gate QR appear here for you to admit."
+              title={inside.isLoading ? "Loading…" : "No visitors inside"}
+              body="Visitors record their own entry by scanning the gate QR. They appear here until you check them out."
             />
           </div>
         )}
       </section>
 
       <div className="grid grid-cols-2 gap-3">
-        <QuickLink href="/gate/visitors/new" icon={<UserPlus className="h-5 w-5" />} label="Walk-in visitor" />
+        <QuickLink href="/gate/visitors" icon={<DoorOpen className="h-5 w-5" />} label="Visitors inside" />
         <QuickLink href="/gate/register" icon={<ClipboardList className="h-5 w-5" />} label="Today's register" />
       </div>
 

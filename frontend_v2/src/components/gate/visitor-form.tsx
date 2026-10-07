@@ -239,7 +239,7 @@ export function VisitorForm({
           <span className="text-[14px] leading-relaxed text-content-2">
             {privacyNote ||
               (you
-                ? "I agree that Total Poly Print records my name, mobile, visit purpose, photo and optional ID for factory gate security. It is used only for this site's visitor register and is not shared for marketing."
+                ? "I agree that Total Poly Print records my name, mobile, visit purpose, photo and optional ID, and my entry and exit times, for factory gate security. It is used only for this site's visitor register and is not shared for marketing."
                 : "The visitor agrees to Total Poly Print recording these details and photo for factory gate security only.")}
           </span>
         </label>

@@ -29,6 +29,6 @@ export function GuardLog({ children }: { children: React.ReactNode }) {
 /** Owner-only pages (history, corrections, audit, QR). The API enforces this too. */
 export function GuardOwner({ children }: { children: React.ReactNode }) {
   const { isOwner } = useGate();
-  if (!isOwner) return <Denied body="Gate history and the visitor QR are available to the owner only." />;
+  if (!isOwner) return <Denied body="This page is available to the owner only." />;
   return <>{children}</>;
 }

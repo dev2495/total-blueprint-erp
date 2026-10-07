@@ -301,7 +301,7 @@ FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
 
 
 PERMISSION_LABELS: Dict[str, str] = {
-    "gate.log": "Log goods and visitor entry or exit at assigned gates",
+    "gate.log": "Log goods and confirm visitor exits at assigned gates",
     "gate.view": "Owner gate register history",
     "gate.reports": "Gate reports pack (sanitized register and summaries)",
     "gate.reconcile": "Owner gate corrections and system reconciliation",

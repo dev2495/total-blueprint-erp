@@ -81,6 +81,13 @@ gate token. Plant codes or plant IDs are not public registration authority. Phot
 government IDs must not appear in audit payloads, reports, log messages, error
 traces, browser URLs, or report attachments.
 
+The final visitor flow records `INSIDE` and the server entry timestamp immediately
+on successful QR submission, with one entry audit event even under retries.
+The watchman sees inside visitors and confirms only their exit; watchman walk-in
+creation, admission and cancellation are denied. Existing pending visits remain
+available only for owner recovery and never appear in the watchman's queue or
+photo access until the owner recovers their entry.
+
 The live proxy address was independently verified as `172.18.0.1` using Docker's
 network gateway and backend health access logs. Current Caddy configuration has
 SHA-256 `6d1b2a9f108f7fba0e974b73c5649b2bc49f6f48fbb3c5cb155a26275b01db29`.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock3, Loader2, QrCode, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Clock3, Loader2, QrCode, ShieldCheck } from "lucide-react";
 
 import { isValidGateToken, publicGateApi, PublicGateError, type PublicGateConfig, type PublicVisitorReceipt } from "@/services/gate";
 import { GateAction } from "./gate-ui";
@@ -13,15 +13,14 @@ const FALLBACK_PURPOSES = ["Meeting", "Delivery", "Collection", "Service / maint
 
 /**
  * Public QR self-registration. No login, no ERP chrome, nothing persisted in
- * the browser. Submitting creates a PENDING request only — the visitor can
- * never admit themselves; the watchman does that at the gate.
+ * the browser. Submitting records the visitor's entry (server time); the
+ * watchman confirms the exit when they leave.
  */
 export function PublicVisitorRegistration({ token }: { token: string }) {
   const validToken = isValidGateToken(token);
   const [config, setConfig] = useState<PublicGateConfig | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!validToken) return;
@@ -39,7 +38,6 @@ export function PublicVisitorRegistration({ token }: { token: string }) {
 
   const op = useGateOperation<VisitorDraft, PublicVisitorReceipt>({
     send: (payload) => publicGateApi.submit(token, payload),
-    onSaved: () => setSavedAt(new Date().toISOString()),
   });
 
   const plantName = config?.plant_name;
@@ -60,11 +58,11 @@ export function PublicVisitorRegistration({ token }: { token: string }) {
           </div>
         </div>
         <h1 className="mt-6 text-[26px] font-semibold leading-tight tracking-[-0.02em] [text-wrap:balance]">
-          {op.phase === "saved" ? "Please wait at the gate" : "Register your visit"}
+          {op.phase === "saved" ? (op.result?.status === "INSIDE" ? "Entry recorded" : "Registration received") : "Register your visit"}
         </h1>
         {op.phase !== "saved" ? (
           <p className="mt-1 text-[14px]" style={{ color: "var(--gate-ink-muted)" }}>
-            Takes about a minute. The watchman confirms your entry.
+            Takes about a minute. Your entry is recorded when you submit; the watchman confirms your exit.
           </p>
         ) : null}
       </header>
@@ -74,7 +72,7 @@ export function PublicVisitorRegistration({ token }: { token: string }) {
           <Notice
             icon={<QrCode className="h-7 w-7" />}
             title="Scan the gate QR code"
-            body="This link is incomplete. Please scan the QR code displayed at the factory gate, or ask the watchman to register you."
+            body="This link is incomplete. Please rescan the QR code displayed at this factory's gate, or ask the watchman for the correct gate QR."
           />
         ) : configError ? (
           <Notice icon={<QrCode className="h-7 w-7" />} title="Gate link not available" body={configError} />
@@ -85,10 +83,8 @@ export function PublicVisitorRegistration({ token }: { token: string }) {
         ) : op.phase === "saved" && op.result ? (
           <WaitingCard
             receipt={op.result}
-            submittedAt={savedAt}
             onAnother={() => {
               op.reset();
-              setSavedAt(null);
               setFormKey((k) => k + 1);
               window.scrollTo({ top: 0 });
             }}
@@ -105,7 +101,7 @@ export function PublicVisitorRegistration({ token }: { token: string }) {
               error={op.error}
               onSubmit={(draft) => void op.submit(draft)}
               onRetry={() => void op.retry()}
-              submitLabel="Send to watchman"
+              submitLabel="Record my entry"
             />
           </div>
         )}
@@ -118,31 +114,41 @@ export function PublicVisitorRegistration({ token }: { token: string }) {
   );
 }
 
-function WaitingCard({ receipt, submittedAt, onAnother }: { receipt: PublicVisitorReceipt; submittedAt: string | null; onAnother: () => void }) {
+/** Times shown here come only from the server receipt — never the phone's clock. */
+function WaitingCard({ receipt, onAnother }: { receipt: PublicVisitorReceipt; onAnother: () => void }) {
+  const inside = receipt.status === "INSIDE";
+  const tone = inside ? "var(--gate-inside)" : "var(--gate-pending)";
   return (
     <div className="gate-card gate-rise overflow-hidden text-center">
-      <div className="px-5 pb-6 pt-7" style={{ background: "var(--gate-pending-soft)" }}>
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-surface-1" style={{ color: "var(--gate-pending)" }}>
-          <Clock3 className="h-8 w-8" />
+      <div className="px-5 pb-6 pt-7" style={{ background: inside ? "var(--gate-inside-soft)" : "var(--gate-pending-soft)" }}>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-surface-1" style={{ color: tone }}>
+          {inside ? <CheckCircle2 className="h-9 w-9" /> : <Clock3 className="h-8 w-8" />}
         </div>
-        <div className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--gate-pending)", borderColor: "var(--gate-pending-edge)", background: "var(--surface-1)" }}>
-          <span className="gate-pulse h-2 w-2 rounded-full" style={{ background: "var(--gate-pending)" }} />
-          Waiting for watchman
+        <div
+          className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-semibold uppercase tracking-[0.08em]"
+          style={{ color: tone, borderColor: inside ? "var(--gate-inside-edge)" : "var(--gate-pending-edge)", background: "var(--surface-1)" }}
+        >
+          <span className="h-2 w-2 rounded-full" style={{ background: tone }} />
+          {inside ? "Entry recorded" : "Received"}
         </div>
         <p className="mx-auto mt-3 max-w-[320px] text-[16px] leading-relaxed text-content-1 [text-wrap:pretty]">
-          {receipt.message || "Your request has reached the gate. You are not admitted yet — the watchman will check and let you in."}
+          {inside
+            ? "Your entry is recorded. When you leave, the watchman will confirm your exit at the gate."
+            : receipt.message || "Your registration has reached the gate. Please show this screen to the watchman."}
         </p>
       </div>
       <div className="space-y-1 px-5 py-4 text-[14px]">
         <div className="flex justify-between">
-          <span className="text-content-3">Request</span>
+          <span className="text-content-3">Reference</span>
           <span className="font-mono font-semibold text-content-1">{String(receipt.receipt_id || "").slice(0, 8).toUpperCase()}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-content-3">Sent</span>
-          <span className="gate-num font-semibold text-content-1">{gateTime(submittedAt)}</span>
-        </div>
-        {receipt.replayed ? <p className="pt-1 text-[12px] text-content-4">This request was already received — no duplicate was created.</p> : null}
+        {inside ? (
+          <div className="flex justify-between">
+            <span className="text-content-3">Entry time</span>
+            <span className="gate-num font-semibold text-content-1">{gateTime(receipt.entry_at)}</span>
+          </div>
+        ) : null}
+        {receipt.replayed ? <p className="pt-1 text-[12px] text-content-4">This registration was already recorded — no duplicate was created.</p> : null}
       </div>
       <div className="px-5 pb-5">
         <GateAction tone="plain" className="w-full" onClick={onAnother}>

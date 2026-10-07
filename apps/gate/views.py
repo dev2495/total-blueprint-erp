@@ -29,7 +29,7 @@ from .models import GateAuditEvent, GatePublicLink, GatePublicRateBucket, GoodsM
 from .serializers import ActionInputSerializer, CancelInputSerializer, CorrectionInputSerializer, GoodsInputSerializer, PURPOSES, ReconcileInputSerializer, VisitorInputSerializer
 from .services import EncryptionUnavailable, audit_event_payload, change_goods, create_goods, create_visitor, date_bounds, document_candidates, gate_today, get_plant, goods_payload, has_gate_permission, is_owner, is_watchman, product_uom, report_payload_for_period, scoped_plants, summary_for_period, transition_visitor, visitor_payload
 
-PRIVACY_NOTE = "Your details and optional photo are recorded for factory access and safety. Government ID is optional; enter it only if requested. The watchman confirms physical entry and exit."
+PRIVACY_NOTE = "Your details and optional photo are recorded for factory access and safety. Government ID is optional; enter it only if requested. Submission records your entry; the watchman confirms your exit."
 
 
 def gate_exception_handler(exc, context):
@@ -214,15 +214,15 @@ class VisitorsView(GateView):
         if status:
             if status not in {"PENDING", "INSIDE", "EXITED", "CANCELLED"}:
                 raise ValidationError("Choose a valid visitor status.")
-            if not is_owner(request.user) and status not in {"PENDING", "INSIDE"}:
-                raise PermissionDenied("Closed visitor history is available to the owner.")
+            if not is_owner(request.user) and status != "INSIDE":
+                raise PermissionDenied("Only visitors inside are available in the exit queue.")
             source = source.filter(status=status)
             if status == "PENDING":
                 source = source.order_by("submitted_at", "id")
             elif status == "INSIDE":
                 source = source.order_by("entry_at", "submitted_at", "id")
         elif not is_owner(request.user):
-            source = source.filter(status__in=["PENDING", "INSIDE"])
+            source = source.filter(status="INSIDE").order_by("entry_at", "submitted_at", "id")
         if "date_from" in request.query_params or "date_to" in request.query_params:
             if not is_owner(request.user):
                 raise PermissionDenied("Visitor date history is available to the owner.")
@@ -234,6 +234,8 @@ class VisitorsView(GateView):
         return paginated(source, request, visitor_payload)
 
     def post(self, request):
+        if not is_owner(request.user):
+            raise PermissionDenied("Visitors record entry themselves using the factory QR code.")
         data = validated(VisitorInputSerializer, request.data)
         if not data.get("plant"):
             raise ValidationError({"plant": "Choose a plant."})
@@ -242,6 +244,8 @@ class VisitorsView(GateView):
 
 class VisitorActionView(GateView):
     def post(self, request, pk, action):
+        if action != "check-out" and not is_owner(request.user):
+            raise PermissionDenied("Only the owner can recover legacy pending registrations.")
         obj = VisitorVisit.objects.select_related("plant").filter(id=pk, plant__in=scoped_plants(request.user)).first()
         if not obj:
             raise NotFound()
@@ -268,7 +272,7 @@ class SelfieView(GateView):
     def get(self, request, pk):
         source = VisitorVisit.objects.filter(id=pk, plant__in=scoped_plants(request.user))
         if not is_owner(request.user):
-            source = source.filter(status__in=["PENDING", "INSIDE"])
+            source = source.filter(status="INSIDE")
         obj = source.first()
         if not obj or not obj.selfie_data:
             raise NotFound()

@@ -1,13 +1,15 @@
 from datetime import timedelta
+import uuid
 
 from django.test import TestCase, override_settings
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.factory.models import Plant
-from apps.gate.models import GateAssignment
+from apps.gate.models import GateAssignment, VisitorVisit
 from apps.gate.services import gate_today
 from apps.users.authentication import CookieJWTAuthentication
 from apps.users.models import Role, User
@@ -140,3 +142,25 @@ class GateRolePreviewAuthenticationTests(TestCase):
         user, _ = CookieJWTAuthentication().authenticate(Request(raw))
         self.assertEqual(user.pk, self.owner.pk)
         self.assertFalse(hasattr(user, "effective_role_code"))
+
+    def test_watchman_real_tokens_allow_exit_only_for_visitors_including_legacy_pending(self):
+        for index, (actor, preview) in enumerate(((self.owner, "WATCHMAN"), (self.watchman, "OWNER"))):
+            for offset, token_path in enumerate(("bearer", "cookie")):
+                client = self._client(actor, token_path)
+                headers = {"HTTP_X_ROLE_OVERRIDE": preview}
+                suffix = index * 2 + offset
+                pending = VisitorVisit.objects.create(plant=self.plant, name="Legacy pending visitor", mobile=f"987654320{suffix}", purpose="Meeting", status="PENDING", consent_at=timezone.now())
+                with self.subTest(actor=actor.username, token_path=token_path):
+                    for path in ("/api/gate/visitors/", f"/api/gate/visitors/{pending.pk}/check-in/", f"/api/gate/visitors/{pending.pk}/cancel/"):
+                        with self.subTest(path=path):
+                            self.assertEqual(client.post(path, {"client_token": str(uuid.uuid4())}, format="json", **headers).status_code, 403)
+                    pending.refresh_from_db()
+                    self.assertEqual(pending.status, "PENDING")
+                    self.assertIsNone(pending.entry_at)
+                    self.assertIsNone(pending.exit_at)
+                    inside = VisitorVisit.objects.create(plant=self.plant, name="Entered visitor", mobile=f"987654321{suffix}", purpose="Meeting", status="INSIDE", consent_at=timezone.now(), entry_at=timezone.now())
+                    response = client.post(f"/api/gate/visitors/{inside.pk}/check-out/", {"client_token": str(uuid.uuid4())}, format="json", **headers)
+                    self.assertEqual(response.status_code, 200, response.content)
+                    inside.refresh_from_db()
+                    self.assertEqual(inside.status, "EXITED")
+                    self.assertIsNotNone(inside.exit_at)

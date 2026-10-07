@@ -1,12 +1,12 @@
 {
   "status": "PASS",
-  "checked_at": "2026-10-07T10:49:29.028045+00:00",
+  "checked_at": "2026-10-07T11:47:05.641473+00:00",
   "environment": "isolated synthetic local PostgreSQL",
   "strict_rbac": false,
   "checks": [
     "real cookie/bearer auth, non-strict RBAC ceiling and plant scoping",
-    "opaque QR scope, no public data/photos, encrypted optional IDs, sanitized bounded selfie and replay",
-    "concurrent lifecycle, chronological events, retained owner history, safe audit and database-level UPDATE/DELETE rejection",
+    "opaque QR immediate entry, one entry audit/time, no public data/photos, encrypted optional IDs, sanitized bounded selfie and replay",
+    "watchman exit only, concurrent QR entry/exits, chronological single events, retained owner history, safe audit and database-level UPDATE/DELETE rejection",
     "ERP-derived goods, invoice/date discrepancy, retry/duplicate guards, owner corrections/history, sanitized report entitlement and safe CSV",
     "full-row SQL fingerprints unchanged across 81 ERP business tables; no list-photo N+1"
   ],

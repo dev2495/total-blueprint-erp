@@ -942,8 +942,8 @@
     },
     "landingPage": "/gate",
     "overview": {
-      "en": "The watchman logs every vehicle in and out of the assigned gate and admits or checks out visitors from a phone. Watchman access is limited to the gate terminal.",
-      "hi": "चौकीदार फ़ोन से निर्धारित गेट पर आने-जाने वाले हर वाहन को दर्ज करता है और विज़िटर को अंदर/बाहर करता है। चौकीदार का एक्सेस केवल गेट टर्मिनल तक सीमित है।"
+      "en": "The watchman logs every vehicle in and out of the assigned gate and checks visitors out when they leave. Visitors record their own entry by scanning the gate QR. Watchman access is limited to the gate terminal.",
+      "hi": "चौकीदार निर्धारित गेट पर आने-जाने वाले हर वाहन को दर्ज करता है और विज़िटर के जाते समय उन्हें चेक आउट करता है। विज़िटर गेट QR स्कैन करके अपनी एंट्री ख़ुद दर्ज करते हैं। चौकीदार का एक्सेस केवल गेट टर्मिनल तक सीमित है।"
     },
     "responsibilities": [
       {
@@ -951,8 +951,8 @@
         "hi": "इनवॉइस नंबर और वाहन नंबर काग़ज़ और प्लेट जैसा ही टाइप करें; पार्टी और सामान सूची से चुनें।"
       },
       {
-        "en": "Admit only visitors whose face matches the photo; check everyone out when they leave.",
-        "hi": "केवल फ़ोटो से मेल खाने वाले विज़िटर को अंदर आने दें; जाते समय सबको चेक आउट करें।"
+        "en": "Ask visitors to scan the gate QR; their entry is recorded when they submit. Check every visitor out when they leave.",
+        "hi": "विज़िटर से गेट QR स्कैन करवाएँ; सबमिट करते ही उनकी एंट्री दर्ज हो जाती है। जाते समय हर विज़िटर को चेक आउट करें।"
       },
       {
         "en": "Never guess quantities or amounts. Leave amount empty when not on the paper.",
@@ -965,8 +965,8 @@
         "hi": "Gate home खोलें और ऊपर सही प्लांट दिख रहा है यह जांचें।"
       },
       {
-        "en": "Clear the Waiting queue: Admit or mark Not admitted.",
-        "hi": "Waiting कतार साफ़ करें: Admit करें या Not admitted चिह्नित करें।"
+        "en": "Open Visitors (Inside now) and check out everyone who has left; overdue visitors are listed first.",
+        "hi": "Visitors (Inside now) खोलें और जो जा चुके हैं उन्हें चेक आउट करें; ओवरड्यू विज़िटर सबसे ऊपर दिखते हैं।"
       },
       {
         "en": "Before shift end, check out everyone still inside who has left.",
@@ -996,12 +996,12 @@
     "faqs": [
       {
         "q": {
-          "en": "Can a visitor let themselves in by scanning the QR?",
-          "hi": "क्या विज़िटर QR स्कैन करके ख़ुद अंदर आ सकता है?"
+          "en": "Does the watchman admit visitors?",
+          "hi": "क्या चौकीदार विज़िटर को अंदर दर्ज करता है?"
         },
         "a": {
-          "en": "No. The QR form only creates a waiting request. You admit them.",
-          "hi": "नहीं। QR फ़ॉर्म केवल प्रतीक्षा अनुरोध बनाता है। अंदर आप ही करते हैं।"
+          "en": "No. Submitting the QR form records the visitor's entry. The watchman only confirms the exit with Check out.",
+          "hi": "नहीं। QR फ़ॉर्म सबमिट करते ही विज़िटर की एंट्री दर्ज होती है। चौकीदार केवल Check out से बाहर जाने की पुष्टि करता है।"
         }
       }
     ],

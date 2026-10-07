@@ -31,7 +31,7 @@ Modified
 
 - Invoice and vehicle numbers are typed; vehicle is never prefilled from ERP. Party/products/units come only from `/api/gate/masters/` (server search, 100 cap). ERP match fills party/lines/date/amount; source warnings (draft challan, unlinked rows) are shown; unmatched saves as owner review; observed quantities optional on matched docs.
 - Idempotency: first tap freezes payload + UUID token (Blob-safe). Offline/timeout/408/429/any 5xx ⇒ "Not confirmed yet", form locked, "Send same entry again" resends identical bytes. 4xx ⇒ "Not saved", form intact, token retired. `GATE_ID_STORAGE_UNAVAILABLE` ⇒ definitive, asks to choose ID "None". Saved only after a server receipt; a failing cache refresh cannot demote it.
-- Visitors: public form → PENDING "wait for watchman" only. Queues use server search + paging: the API sorts PENDING by oldest submission and INSIDE by oldest entry (across all pages), the first page of 100 loads, and "Load more" fetches further pages on demand (no automatic multi-page fetch, for mobile performance). Counts come from the server summary. Admit / Check out / Not admitted (backend presets) with confirmation; card adopts server status so a completed step is never offered again. Selfies are in-memory object URLs only.
+- Visitors (FINAL flow, supersedes the earlier pending/admit notes below): the public QR form records the visitor's entry on submit (backend `status: "INSIDE"`, `entry_at` = server submission time); the receipt says "Entry recorded" and that the watchman confirms exit. The watchman screen is the Inside queue only (server search, oldest entry first, "Load more") with Check out confirmation; there are no watchman walk-in, admit or cancel controls, and the watchman never requests the PENDING queue. Legacy PENDING rows are visible and recoverable (Record entry / Remove with backend reason presets) only by the owner. `/gate/visitors/new` (walk-in) is owner-only and is not linked from watchman flows. A card adopts the server status so a completed step is never offered again. Selfies are in-memory object URLs only.
 - QR poster renders the backend SVG as an `<img>` (no redraw); optional small centre mark.
 
 ## Checks (all run in this session)
@@ -74,4 +74,35 @@ Modified
 - QA setup: as owner, generated one `gate_register_daily` run for 2026-10-07 (run 1, SUCCEEDED) via the existing send endpoint, so the delegate had a gate archive to read.
 - Browser as `gate.reports` delegate on `/analytics/reports`: `report-distributions` 403, `report-runs` 200; "Recent report runs" panel shows "Gate Register Daily · succeeded" read-only, with Preview PDF (200) and Detail workbook (200); 0 "Generate daily pack" buttons, no generation panel, no error toast; direct POST `…/gate_register_daily/send/` → 403 and PUT `report-distributions/` → 403.
 - Checks: `tsc` 0 errors (via build), `eslint src` 0 problems, help/nav validators pass, isolated `npm run build` exit 0.
+
+## Final visitor flow change (docs/gate-latest-visitor-flow.md)
+
+Files: `public-visitor.tsx` (receipt/title/hints by `receipt.status`; INSIDE ⇒ "Entry recorded", entry time; submit "Record my entry"), `visitor-form.tsx` (consent mentions entry/exit times), `gate-qr-poster.tsx` (steps Scan · Submit "Your entry is recorded" · Exit "The watchman checks you out"), `visitor-queue.tsx` (Inside-only queue + owner-only legacy pending recovery), `visitor-cards.tsx` (PENDING actions owner-only, wording), `gate-home.tsx` (Inside now / Overdue stats, "Inside longest" with checkout, no walk-in link), `gate-format.ts` (PENDING = "Legacy pending", CANCELLED = "Cancelled"), `walk-in-visitor.tsx` + `app/gate/visitors/new/page.tsx` (owner-only), `gate-guards.tsx`, `gate-intelligence.tsx` (Inside / Overdue now; "Legacy pending" exception), `services/gate.ts` (receipt status `INSIDE`, `entry_at`), `lib/sidebar-nav.ts` (Gate parent href `/analytics/reports/gate`), help `roles.json` (WATCHMAN guide: visitors self-record entry, watchman checks out).
+
+Checks: `tsc` 0 errors, `eslint src` 0 problems, theme-token guard, help (173/173, 12 role guides) and nav validators pass, isolated `npm run build` exit 0.
+
+Browser (QA stack):
+- 360px public form: header/hint "Your entry is recorded when you submit; the watchman confirms your exit", no horizontal scroll. Before the backend restart the API still returned `PENDING` + the old server message; the UI shows a neutral "Registration received" state (it never claims an admission step). See the post-restart section for the INSIDE path.
+- Watchman 390px: `/gate` and `/gate/visitors` show Inside-only UI with no Admit/Walk-in/Remove/Waiting controls and no `status=PENDING` request; `/gate/visitors/new` ⇒ "owner only".
+- Owner: legacy pending recovery lists 2 rows; removed my stale QA row "QA Final Flow Visitor" with "Duplicate / mistaken registration" (toast + row gone).
+- Delegate (`gate.reports`): sidebar Gate parent and command palette both resolve to `/analytics/reports/gate`.
+
+Post-restart verification (API pid started 17:10:44):
+- 360px public submit "QA Self Entry Visitor" ⇒ receipt "Entry recorded", entry time 05:11 PM, reference shown; no horizontal scroll; localStorage holds only UI prefs (`tpp-theme`, sidebar pin), sessionStorage empty.
+- Watchman 390px `/gate`: "Inside now 1 · Overdue >12h 0", the visitor listed under "Inside longest" with only a Check out control; confirmation sheet "Check out visitor? … Inside since 05:11 PM" ⇒ toast "checked out at 05:11 PM"; INSIDE search for the visitor returns 0 afterwards.
+- Watchman API refusals: POST `visitors/` (walk-in) 403, `visitors/<id>/check-in/` 403, `visitors/<id>/cancel/` 403.
+- Last wording change (removal toast "removed from the queue") re-checked: `eslint src` 0 problems, help/nav validators pass, isolated `npm run build` exit 0.
 - Frontend source is final; no further frontend edits after this pass.
+
+## Defensive guard (final, Opus 5.5 Medium)
+
+- `src/components/gate/visitor-cards.tsx` `VisitorPass`: the PENDING action footer (Record entry / Remove) now renders only when `visitor.status === "PENDING" && isOwner`, matching the already owner-gated PENDING timer branch. A stale cached or malformed PENDING row can no longer expose entry/cancel controls to a watchman (the backend already returns 403). No other changes.
+- Checks: `tsc --noEmit` no errors, `eslint src` 0 problems, help (173/173) and nav validators pass, isolated `npm run build` exit 0 (theme-token guard passed, compiled successfully).
+
+## Receipt time and invalid-link copy (final, Opus 5.5 Medium)
+
+- `src/components/gate/public-visitor.tsx`: the receipt's "Entry time" row renders only for `status: "INSIDE"` and only from the server receipt's `entry_at` (unknown ⇒ "—"); the device-clock fallback (`savedAt`/`submittedAt`) was removed entirely. Non-INSIDE receipts show no time row.
+- Invalid/missing-token notice now reads: "This link is incomplete. Please rescan the QR code displayed at this factory's gate, or ask the watchman for the correct gate QR." (no "register you" wording).
+- Browser (API reloaded with `entry_at` in safe receipts), 360px: public submit "QA Receipt Time Visitor" ⇒ receipt keys `receipt_id, status, entry_at, message, replayed`, status INSIDE, `entry_at` 2026-10-07T11:48:43Z; UI "Entry time 05:18 PM" equals the server value in Asia/Kolkata. `/visit` shows the new notice copy. (This QA visitor remains INSIDE in the QA DB.)
+- Checks: `tsc` 0 errors, `eslint src` 0 problems, help (173/173) and nav validators pass, isolated `npm run build` exit 0.
+- Frontend source frozen.

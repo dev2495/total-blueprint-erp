@@ -57,7 +57,7 @@ def is_watchman(user):
 def is_owner(user):
     if is_watchman(user):
         return False
-    return bool(user.is_owner or get_canonical_role_code(getattr(getattr(user, "role", None), "code", "")) == "OWNER")
+    return bool(getattr(user, "is_owner", False) or get_canonical_role_code(getattr(getattr(user, "role", None), "code", "")) == "OWNER")
 
 
 def has_gate_permission(user, code):
@@ -408,19 +408,31 @@ def encrypt_government_id(number):
 
 
 def create_visitor(plant, data, user=None, public=False, scope=""):
+    if not public:
+        require_owner(user)
+        get_plant(user, plant.id)
     def operation():
         number = data.get("government_id_number", "")
         encrypted = encrypt_government_id(number)
         now = timezone.now()
-        obj = VisitorVisit.objects.create(plant=plant, name=data["name"], mobile=data["mobile"], purpose=data["purpose"], company=data.get("company", ""), government_id_type=data.get("government_id_type", ""), government_id_encrypted=encrypted, government_id_suffix=number[-4:] if number else "", selfie_data=data.get("selfie"), source="PUBLIC" if public else "WATCHMAN", consent_at=now)
-        audit(obj, "VISITOR_REGISTERED", user)
+        obj = VisitorVisit.objects.create(plant=plant, name=data["name"], mobile=data["mobile"], purpose=data["purpose"], company=data.get("company", ""), government_id_type=data.get("government_id_type", ""), government_id_encrypted=encrypted, government_id_suffix=number[-4:] if number else "", selfie_data=data.get("selfie"), source="PUBLIC" if public else "OWNER", status="INSIDE" if public else "PENDING", submitted_at=now, consent_at=now, entry_at=now if public else None)
+        # QR registration and entry are one atomic visitor action. Neither
+        # timestamp nor audit evidence is repeated when the receipt is replayed.
+        audit(obj, "VISITOR_REGISTERED", None if public else user)
         if public:
-            return {"receipt_id": str(obj.id), "status": obj.status, "message": "Registration received. Please wait for the watchman to confirm entry."}
+            audit(obj, "VISITOR_ENTERED", reason="Visitor QR submission recorded entry.")
+            return {"receipt_id": str(obj.id), "status": obj.status, "entry_at": obj.entry_at.isoformat(), "message": "Entry recorded. Please ask the watchman to confirm your exit when leaving."}
         return visitor_payload(obj)
     return idempotent_action(plant, scope or f"visitor:{user.id}", data, operation)
 
 
 def transition_visitor(user, obj, data, action):
+    if action not in {"check-in", "check-out", "cancel"}:
+        raise ValidationError("Choose a valid visitor action.")
+    if action != "check-out":
+        require_owner(user)
+    elif not has_gate_permission(user, "gate.log"):
+        raise PermissionDenied("This account cannot record visitor exits.")
     get_plant(user, obj.plant_id)
     def operation():
         current = VisitorVisit.objects.select_for_update().get(id=obj.id)

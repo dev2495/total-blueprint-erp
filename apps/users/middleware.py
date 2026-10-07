@@ -85,6 +85,11 @@ class RoleOverrideMiddleware:
         if not path.startswith("/api/"):
             return True
         if path.startswith("/api/gate/") or path == "/api/gate":
+            if method not in {"GET", "HEAD", "OPTIONS"} and (path == "/api/gate/visitors" or path.startswith("/api/gate/visitors/")):
+                # QR submission records entry. Watchmen may only confirm exit,
+                # including when an older pending registration still exists.
+                segments = path.strip("/").split("/")
+                return method == "POST" and len(segments) == 5 and segments[-1] == "check-out"
             # Gate views apply action and plant checks independently.
             return True
         from apps.users.permission_registry import is_public_endpoint

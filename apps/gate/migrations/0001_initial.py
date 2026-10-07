@@ -101,7 +101,7 @@ class Migration(migrations.Migration):
                 ('government_id_encrypted', models.TextField(blank=True)),
                 ('government_id_suffix', models.CharField(blank=True, max_length=4)),
                 ('selfie_data', models.BinaryField(blank=True, null=True)),
-                ('source', models.CharField(choices=[('PUBLIC', 'Public QR'), ('WATCHMAN', 'Watchman')], default='PUBLIC', max_length=12)),
+                ('source', models.CharField(choices=[('PUBLIC', 'Public QR'), ('OWNER', 'Owner recovery'), ('WATCHMAN', 'Legacy watchman')], default='PUBLIC', max_length=12)),
                 ('status', models.CharField(choices=[('PENDING', 'Pending'), ('INSIDE', 'Inside'), ('EXITED', 'Exited'), ('CANCELLED', 'Cancelled')], default='PENDING', max_length=10)),
                 ('submitted_at', models.DateTimeField(db_index=True, default=django.utils.timezone.now)),
                 ('consent_at', models.DateTimeField()),

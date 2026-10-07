@@ -37,10 +37,10 @@ export function WalkInVisitor() {
       <div className="mx-auto max-w-[640px] space-y-4">
         <div className="px-1 pt-1">
           <div className="text-[13px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--gate-inside)" }}>
-            Registered · waiting for admission
+            Owner walk-in · registered
           </div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-content-1">Admit when ready</h1>
-          <p className="mt-1 text-[14px] text-content-3">Registration is saved. Entry time is only stamped when you tap Admit.</p>
+          <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-content-1">Record entry when they come in</h1>
+          <p className="mt-1 text-[14px] text-content-3">Registration is saved. Entry time is stamped when you tap Record entry.</p>
         </div>
         <VisitorPass visitor={op.result} now={now} />
         <div className="grid grid-cols-2 gap-3">

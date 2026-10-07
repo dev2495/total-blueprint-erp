@@ -516,7 +516,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     title: "Gate",
-    href: "/gate/history",
+    // Parent target must be valid for report delegates too; owner pages are children.
+    href: "/analytics/reports/gate",
     icon: DoorOpen,
     roles: ["OWNER"],
     gateAccess: { literalPermissions: ["gate.reports"] },

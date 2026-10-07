@@ -8,6 +8,14 @@ land at `/gate`. The closed permission list is `gate.log`,
 ERP master, sales, inventory, report, analytics, settings or history access.
 Use `/api/gate/masters/` for sanitized pickers, never ERP master APIs.
 
+Visitor QR self-submission records entry immediately (`status: "INSIDE"` with
+`entry_at`); it is not an admission request. Watchman visitor actions are exit
+only via `POST /api/gate/visitors/{visitor_id}/check-out/`. Do not show walk-in,
+admit/check-in or cancel actions to Watchman. Those POST routes return 403 for
+actual/effective Watchman, including any legacy `PENDING` registrations. Owner
+history and correction access remain separate. Report `visitor_entries` counts
+the QR submission's recorded entry immediately, without a second confirmation.
+
 `entitlements.context.gate_plants` and user `gate_plant_ids` are UUID lists. An
 empty assignment must display an assignment-needed state and allow no logging.
 User admin create/edit accepts `gate_plant_ids: [plant_uuid, ...]`. Assignments can

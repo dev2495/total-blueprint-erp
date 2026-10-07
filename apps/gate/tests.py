@@ -14,6 +14,7 @@ from django.db import DatabaseError, close_old_connections, connection, connecti
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APIClient
 
 from apps.factory.models import Plant
@@ -24,8 +25,8 @@ from apps.production.models import DeliveryChallan, DeliveryChallanItem
 from apps.sales.models import Customer, CustomerDispatch, CustomerDispatchLine, SalesOrder, SalesOrderItem, TradeOrder, TradeOrderItem
 from apps.templates.models import TemplateBlueprint
 from apps.users.models import Role, User
-from .models import GateAssignment, GateAuditEvent, GatePublicLink, GatePublicRateBucket, GoodsMovement, VisitorVisit
-from .services import Conflict, create_goods, date_bounds, gate_today, transition_visitor
+from .models import GateAssignment, GateAuditEvent, GatePublicLink, GatePublicRateBucket, GateRequestReceipt, GoodsMovement, VisitorVisit
+from .services import Conflict, create_goods, create_visitor, date_bounds, gate_today, transition_visitor
 
 
 def fixture():
@@ -59,7 +60,7 @@ class GateAPITests(TransactionTestCase):
         data.update(changes)
         return data
 
-    def pending(self, **changes):
+    def registered(self, **changes):
         data = self.visitor_data(**changes)
         result = self.public.post("/api/gate/public/visitors/", data, format="json")
         self.assertEqual(result.status_code, 201, result.data)
@@ -218,40 +219,87 @@ class GateAPITests(TransactionTestCase):
         challan.refresh_from_db()
         self.assertEqual(challan.status, "DRAFT")
 
-    def test_public_registration_pending_private_and_idempotent(self):
+    def test_public_registration_records_entry_private_and_idempotent(self):
         data = self.visitor_data()
         first = self.public.post("/api/gate/public/visitors/", data, format="json")
         again = self.public.post("/api/gate/public/visitors/", data, format="json")
         self.assertEqual(first.status_code, 201, first.data)
         self.assertEqual(first["Cache-Control"], "no-store")
         self.assertTrue(again.data["replayed"])
-        self.assertEqual(set(first.data), {"receipt_id", "status", "message", "replayed"})
-        self.assertEqual(first.data["status"], "PENDING")
-        self.assertEqual(VisitorVisit.objects.get().entry_at, None)
+        self.assertEqual(set(first.data), {"receipt_id", "status", "entry_at", "message", "replayed"})
+        self.assertEqual(first.data["status"], "INSIDE")
+        visitor = VisitorVisit.objects.get()
+        self.assertEqual(first.data["entry_at"], visitor.entry_at.isoformat())
+        self.assertEqual(again.data["entry_at"], first.data["entry_at"])
+        self.assertEqual({key: value for key, value in first.data.items() if key != "replayed"}, {key: value for key, value in again.data.items() if key != "replayed"})
+        self.assertEqual(visitor.entry_at, visitor.submitted_at)
+        self.assertEqual(visitor.entry_at, visitor.consent_at)
+        self.assertIsNone(visitor.entry_by)
+        self.assertIsNone(visitor.exit_at)
+        events = GateAuditEvent.objects.filter(object_id=visitor.id)
+        self.assertEqual(events.count(), 2)
+        self.assertEqual(set(events.values_list("action", flat=True)), {"VISITOR_REGISTERED", "VISITOR_ENTERED"})
+        self.assertFalse(events.filter(actor__isnull=False).exists())
+        self.assertEqual(events.get(action="VISITOR_ENTERED").after["entry_at"], visitor.entry_at.isoformat())
+        self.assertEqual(GateRequestReceipt.objects.count(), 1)
         self.assertEqual(self.public.get("/api/gate/public/visitors/").status_code, 405)
         self.assertNotEqual(self.public.get("/api/gate/visitors/").status_code, 200)
         self.assertEqual(self.public.get("/api/gate/public/config/", {"gate_token": str(self.link.token)}).status_code, 200)
         self.assertEqual(self.public.get("/api/gate/public/config/").status_code, 404)
         self.assertEqual(self.public.get(f"/api/gate/public/visitors/{first.data['receipt_id']}/").status_code, 404)
 
-    def test_state_transitions_duplicate_mobile_and_cancel(self):
-        visitor = self.pending()
+    def test_watchman_exit_only_duplicate_mobile_and_retry(self):
+        visitor = self.registered()
         self.assertEqual(self.public.post("/api/gate/public/visitors/", self.visitor_data(), format="json").status_code, 409)
         action = {"client_token": str(uuid.uuid4())}
-        self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/check-out/", action, format="json").status_code, 409)
-        enter = self.client.post(f"/api/gate/visitors/{visitor.id}/check-in/", action, format="json")
-        self.assertEqual(enter.status_code, 200, enter.data)
-        self.assertTrue(self.client.post(f"/api/gate/visitors/{visitor.id}/check-in/", action, format="json").data["replayed"])
-        self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/check-in/", {"client_token": str(uuid.uuid4())}, format="json").status_code, 409)
-        self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/check-out/", {"client_token": str(uuid.uuid4())}, format="json").status_code, 200)
+        self.assertEqual(self.client.post("/api/gate/visitors/", self.visitor_data(plant=str(self.plant.id)), format="json").status_code, 403)
+        self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/check-in/", action, format="json").status_code, 403)
+        self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/cancel/", {**action, "reason": "Visitor left"}, format="json").status_code, 403)
+        exited = self.client.post(f"/api/gate/visitors/{visitor.id}/check-out/", action, format="json")
+        self.assertEqual(exited.status_code, 200, exited.data)
+        retry = self.client.post(f"/api/gate/visitors/{visitor.id}/check-out/", action, format="json")
+        self.assertTrue(retry.data["replayed"])
+        self.assertEqual(retry.data["exit_at"], exited.data["exit_at"])
+        self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/check-out/", {"client_token": str(uuid.uuid4())}, format="json").status_code, 409)
         visitor.refresh_from_db()
         self.assertGreaterEqual(visitor.exit_at, visitor.entry_at)
+        self.assertEqual(visitor.exit_by, self.watchman)
+        self.assertEqual(GateAuditEvent.objects.filter(object_id=visitor.id, action="VISITOR_EXITED").count(), 1)
         self.assertEqual(self.client.get("/api/gate/visitors/").data["count"], 0)
-        next_visit = self.pending()
-        cancel = self.client.post(f"/api/gate/visitors/{next_visit.id}/cancel/", {"client_token": str(uuid.uuid4()), "reason": "Visitor left"}, format="json")
-        self.assertEqual(cancel.data["status"], "CANCELLED")
-        self.assertIsNone(cancel.data["entry_at"])
-        self.pending()
+        self.assertEqual(self.registered().status, "INSIDE")
+
+    def test_owner_recovers_pending_visitors_without_watchman_entry_privileges(self):
+        self.client.force_authenticate(self.owner)
+        created = self.client.post("/api/gate/visitors/", self.visitor_data(plant=str(self.plant.id)), format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        visitor = VisitorVisit.objects.get(id=created.data["id"])
+        self.assertEqual(visitor.source, "OWNER")
+        self.assertEqual(visitor.status, "PENDING")
+        self.assertIsNone(visitor.entry_at)
+        self.client.force_authenticate(self.watchman)
+        self.assertEqual(self.client.get("/api/gate/visitors/").data["count"], 0)
+        self.assertEqual(self.client.get("/api/gate/visitors/", {"status": "PENDING"}).status_code, 403)
+        for action in ["check-in", "cancel"]:
+            data = {"client_token": uuid.uuid4(), "reason": "Visitor left"}
+            self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/{action}/", data, format="json").status_code, 403)
+            with self.assertRaises(PermissionDenied):
+                transition_visitor(self.watchman, visitor, data, action)
+        with self.assertRaises(PermissionDenied):
+            create_visitor(self.plant, self.visitor_data(), self.watchman)
+        self.assertEqual(self.client.post(f"/api/gate/visitors/{visitor.id}/check-out/", {"client_token": str(uuid.uuid4())}, format="json").status_code, 409)
+        self.client.force_authenticate(self.owner)
+        action = {"client_token": str(uuid.uuid4())}
+        entered = self.client.post(f"/api/gate/visitors/{visitor.id}/check-in/", action, format="json")
+        self.assertEqual(entered.status_code, 200, entered.data)
+        self.assertTrue(self.client.post(f"/api/gate/visitors/{visitor.id}/check-in/", action, format="json").data["replayed"])
+        visitor.refresh_from_db()
+        self.assertEqual(visitor.entry_by, self.owner)
+        other = self.client.post("/api/gate/visitors/", self.visitor_data(plant=str(self.plant.id), mobile="9876543211"), format="json")
+        self.assertEqual(other.status_code, 201, other.data)
+        cancelled = self.client.post(f"/api/gate/visitors/{other.data['id']}/cancel/", {"client_token": str(uuid.uuid4()), "reason": "Visitor left"}, format="json")
+        self.assertEqual(cancelled.status_code, 200, cancelled.data)
+        self.assertEqual(cancelled.data["status"], "CANCELLED")
+        self.assertIsNone(cancelled.data["entry_at"])
 
     def test_operational_queues_page_oldest_first_beyond_one_hundred_visitors(self):
         now = timezone.now()
@@ -261,6 +309,7 @@ class GateAPITests(TransactionTestCase):
             inside.append(VisitorVisit(plant=self.plant, name=f"Inside {index}", mobile=str(9976000000+index), purpose="Meeting", consent_at=now, status="INSIDE", entry_by=self.watchman, entry_at=now-timedelta(minutes=index), submitted_at=now-timedelta(days=1+(124-index)%3)))
         VisitorVisit.objects.bulk_create(pending+inside)
         for status, prefix in [("PENDING", "Pending"), ("INSIDE", "Inside")]:
+            self.client.force_authenticate(self.owner if status == "PENDING" else self.watchman)
             first = self.client.get("/api/gate/visitors/", {"status": status, "page_size": "100"})
             second = self.client.get("/api/gate/visitors/", {"status": status, "page_size": "100", "page": "2"})
             self.assertEqual(first.status_code, 200, first.data)
@@ -270,6 +319,9 @@ class GateAPITests(TransactionTestCase):
             self.assertEqual(second.data["results"][0]["name"], f"{prefix} 24")
             self.assertEqual(second.data["results"][-1]["name"], f"{prefix} 0")
             self.assertEqual(len({row["id"] for row in first.data["results"]+second.data["results"]}), 125)
+        default = self.client.get("/api/gate/visitors/")
+        self.assertEqual(default.data["count"], 125)
+        self.assertEqual(default.data["results"][0]["name"], "Inside 124")
         self.client.force_authenticate(self.owner)
         history = self.client.get("/api/gate/visitors/")
         self.assertEqual(history.data["results"][0]["name"], "Pending 0")
@@ -313,6 +365,8 @@ class GateAPITests(TransactionTestCase):
         self.assertEqual(image.status_code, 200)
         self.assertEqual(image["Cache-Control"], "private, no-store")
         self.assertNotEqual(self.public.get(f"/api/gate/visitors/{visitor.id}/selfie/").status_code, 200)
+        legacy = VisitorVisit.objects.create(plant=self.plant, name="Legacy pending", mobile="9876543211", purpose="Meeting", consent_at=timezone.now(), source="WATCHMAN", selfie_data=visitor.selfie_data)
+        self.assertEqual(self.client.get(f"/api/gate/visitors/{legacy.id}/selfie/", HTTP_ACCEPT="image/jpeg").status_code, 404)
         visitor.status = "EXITED"
         visitor.entry_at = timezone.now()
         visitor.exit_at = timezone.now()
@@ -320,6 +374,7 @@ class GateAPITests(TransactionTestCase):
         self.assertEqual(self.client.get(f"/api/gate/visitors/{visitor.id}/selfie/").status_code, 404)
         self.client.force_authenticate(self.owner)
         self.assertEqual(self.client.get(f"/api/gate/visitors/{visitor.id}/selfie/").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/gate/visitors/{legacy.id}/selfie/").status_code, 200)
 
     def test_invalid_selfie_and_consent_rejected(self):
         data = self.visitor_data(consent=False)
@@ -346,7 +401,7 @@ class GateAPITests(TransactionTestCase):
         self.vendor.name = "=TEST()"
         self.vendor.save()
         self.client.post("/api/gate/goods/", self.goods_data(), format="json")
-        self.pending()
+        self.registered()
         role, _ = Role.objects.get_or_create(code="SALES", defaults={"name": "Sales"})
         reader = User.objects.create_user(username="gate-report-reader", role=role, extra_permissions=["gate.reports"])
         self.client.force_authenticate(reader)

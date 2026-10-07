@@ -19,7 +19,7 @@ import re
 import secrets
 import sys
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -201,6 +201,7 @@ def main(expected_sha, local):
             checks.append("real JWT bearer/cookie authentication; watchman ceiling and plant scope")
 
             public = RollbackAPIClient(enforce_csrf_checks=True, **client_defaults)
+            before_visit = api(watch.get("/api/gate/summary/", {"plant": str(plant.id)}), 200, "Visitor counters before registration").json()
             cfg = api(public.get("/api/gate/public/config/", {"gate_token": str(link.token)}), 200, "Public UUID configuration")
             require(cfg.get("Cache-Control") == "no-store" and "plant" not in cfg.json(), "Public configuration leaks identity or cache policy")
             require(set(cfg.json()) <= {"company_name", "plant_name", "plant_code", "purposes", "privacy_note", "government_id_enabled"}, "Public configuration exposes extra fields")
@@ -218,42 +219,67 @@ def main(expected_sha, local):
             def multipart():
                 return {**payload, "selfie": SimpleUploadedFile("synthetic.jpg", photo.getvalue(), content_type="image/jpeg")}
 
-            receipt = api(public.post("/api/gate/public/visitors/", multipart(), format="multipart"), 201, "Public pending registration").json()
-            require(set(receipt) == {"receipt_id", "status", "message", "replayed"} and receipt["status"] == "PENDING", "Public submission leaks fields or records admission")
+            receipt = api(public.post("/api/gate/public/visitors/", multipart(), format="multipart"), 201, "Public immediate entry registration").json()
+            require(set(receipt) == {"receipt_id", "status", "entry_at", "message", "replayed"} and receipt["status"] == "INSIDE", "Public submission leaks fields or fails to record entry")
             visitor_id = receipt["receipt_id"]
             objects.append(visitor_id)
             row = VisitorVisit.objects.get(id=visitor_id)
             require(row.plant_id == plant.id, "Public caller substituted factory scope")
+            require(row.status == "INSIDE" and row.entry_at == row.submitted_at == row.consent_at and row.exit_at is None and row.entry_by_id is None, "Public entry must be recorded immediately without watchman admission")
+            original_entry_at = row.entry_at
+            require(datetime.fromisoformat(receipt["entry_at"]) == original_entry_at, "Public receipt entry timestamp differs from the recorded entry")
+            initial_events = list(GateAuditEvent.objects.filter(object_id=visitor_id).order_by("created_at").values_list("action", "actor_id"))
+            require(initial_events == [("VISITOR_REGISTERED", None), ("VISITOR_ENTERED", None)], "Public submission did not record one registration and one entry audit without an actor")
+            entry_summary = api(watch.get("/api/gate/summary/", {"plant": str(plant.id)}), 200, "Immediate visitor entry counters").json()
+            require(entry_summary["inside_visitors"] == before_visit["inside_visitors"] + 1 and entry_summary["visitor_entries"] == before_visit["visitor_entries"] + 1 and entry_summary["pending_visitors"] == before_visit["pending_visitors"], "Public registration did not count immediate entry/inside")
             require(government_id not in row.government_id_encrypted and Fernet(key.encode()).decrypt(row.government_id_encrypted.encode()).decode() == government_id, "Government ID encryption failed")
             image = Image.open(io.BytesIO(bytes(row.selfie_data)))
             require(image.format == "JPEG" and max(image.size) <= 640 and not image.getexif(), "Selfie sanitization failed")
             replay = api(public.post("/api/gate/public/visitors/", multipart(), format="multipart"), 201, "Public retry").json()
-            require(replay["receipt_id"] == visitor_id and replay["replayed"], "Public retry duplicated visitor")
+            require(replay["receipt_id"] == visitor_id and replay["entry_at"] == receipt["entry_at"] and replay["replayed"], "Public retry duplicated visitor or changed its entry timestamp")
             api(public.post("/api/gate/public/visitors/", {**payload, "company": "Changed retry"}, format="json"), 409, "Changed retry rejected")
             api(public.post("/api/gate/public/visitors/", {**payload, "client_token": new_token()}, format="json"), 409, "Duplicate active mobile rejected")
+            row.refresh_from_db()
+            require(row.entry_at == original_entry_at and GateAuditEvent.objects.filter(object_id=visitor_id, action="VISITOR_ENTERED").count() == 1, "Registration retry changed entry time or duplicated entry audit")
             for route in (f"/api/gate/public/visitors/{visitor_id}/", f"/api/gate/public/visitors/{visitor_id}/selfie/"):
                 api(public.get(route), 404, "No public receipt/image route")
             require(public.get(f"/api/gate/visitors/{visitor_id}/selfie/").status_code in {401, 403}, "Anonymous selfie denied")
             api(delegate.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 403, "Reports permission grants no selfie")
             selfie = api(watch.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 200, "Active watchman selfie")
             require(selfie.get("Cache-Control") == "private, no-store" and selfie.get("Content-Type") == "image/jpeg", "Private selfie headers missing")
-            checks.append("public pending-only opaque QR registration; encrypted IDs; private sanitized selfie; replay and duplicate rejection")
+            checks.append("public immediate entry via opaque QR; one entry timestamp/audit; encrypted IDs; private sanitized selfie; replay/duplicate rejection")
 
-            api(watch.post(f"/api/gate/visitors/{visitor_id}/check-out/", {"client_token": new_token()}, format="json"), 409, "Exit before entry rejected")
-            action = {"client_token": new_token()}
-            api(cookie.post(f"/api/gate/visitors/{visitor_id}/check-in/", action, format="json"), 403, "Unsafe cookie request needs CSRF")
+            walkin = {"client_token": new_token(), "plant": str(plant.id), "name": f"Denied walk-in {nonce}", "mobile": "7" + f"{secrets.randbelow(1_000_000_000):09d}", "purpose": "Meeting", "consent": True}
+            api(watch.post("/api/gate/visitors/", walkin, format="json"), 403, "Watchman walk-in creation denied")
+            for client in (watch, cookie):
+                api(client.post(f"/api/gate/visitors/{visitor_id}/check-in/", {"client_token": new_token()}, format="json"), 403, "Watchman admission denied")
+                api(client.post(f"/api/gate/visitors/{visitor_id}/cancel/", {"client_token": new_token(), "reason": "Visit cancelled"}, format="json"), 403, "Watchman cancellation denied")
+            exit_action = {"client_token": new_token()}
+            api(cookie.post(f"/api/gate/visitors/{visitor_id}/check-out/", exit_action, format="json"), 403, "Unsafe cookie exit needs CSRF")
             csrf = api(cookie.get("/api/users/csrf/"), 200, "Cookie CSRF bootstrap").json()["csrfToken"]
             cookie.credentials(HTTP_X_CSRFTOKEN=csrf)
-            entered = api(cookie.post(f"/api/gate/visitors/{visitor_id}/check-in/", action, format="json"), 200, "CSRF-authenticated physical entry").json()
-            require(entered["status"] == "INSIDE", "Entry did not transition visitor")
-            require(api(watch.post(f"/api/gate/visitors/{visitor_id}/check-in/", action, format="json"), 200, "Entry retry").json()["replayed"], "Entry retry did not replay")
-            api(watch.post(f"/api/gate/visitors/{visitor_id}/check-in/", {"client_token": new_token()}, format="json"), 409, "Second physical entry rejected")
-            exit_action = {"client_token": new_token()}
-            api(watch.post(f"/api/gate/visitors/{visitor_id}/check-out/", exit_action, format="json"), 200, "Physical exit")
+            exited = api(cookie.post(f"/api/gate/visitors/{visitor_id}/check-out/", exit_action, format="json"), 200, "CSRF-authenticated physical exit").json()
+            require(exited["status"] == "EXITED", "Exit did not transition visitor")
             require(api(watch.post(f"/api/gate/visitors/{visitor_id}/check-out/", exit_action, format="json"), 200, "Exit retry").json()["replayed"], "Exit retry did not replay")
+            api(watch.post(f"/api/gate/visitors/{visitor_id}/check-out/", {"client_token": new_token()}, format="json"), 409, "Second physical exit rejected")
             row.refresh_from_db()
-            require(row.status == "EXITED" and row.entry_at <= row.exit_at, "Lifecycle status/time invariant failed")
+            require(row.status == "EXITED" and row.entry_at == original_entry_at and row.entry_at <= row.exit_at, "Lifecycle status/time invariant failed")
             require(GateAuditEvent.objects.filter(object_id=visitor_id, action="VISITOR_ENTERED").count() == 1 and GateAuditEvent.objects.filter(object_id=visitor_id, action="VISITOR_EXITED").count() == 1, "Repeated lifecycle duplicated audit")
+            exit_summary = api(watch.get("/api/gate/summary/", {"plant": str(plant.id)}), 200, "Visitor exit counters").json()
+            require(exit_summary["inside_visitors"] == before_visit["inside_visitors"] and exit_summary["visitor_entries"] == before_visit["visitor_entries"] + 1 and exit_summary["visitor_exits"] == before_visit["visitor_exits"] + 1, "Exit counters or repeated entry totals are incorrect")
+            legacy_payload = {"client_token": new_token(), "plant": str(plant.id), "name": f"Owner recovery {nonce}", "mobile": "6" + f"{secrets.randbelow(1_000_000_000):09d}", "purpose": "Meeting", "consent": True, "selfie": SimpleUploadedFile("recovery.jpg", photo.getvalue(), content_type="image/jpeg")}
+            legacy = api(owner.post("/api/gate/visitors/", legacy_payload, format="multipart"), 201, "Owner-only pending recovery").json()
+            objects.append(legacy["id"])
+            require(legacy["status"] == "PENDING" and legacy["source"] == "OWNER", "Owner recovery did not retain explicit pending provenance")
+            api(watch.get("/api/gate/visitors/", {"status": "PENDING"}), 403, "Legacy pending queue owner only")
+            active_queue = api(watch.get("/api/gate/visitors/", {"search": nonce}), 200, "Watchman inside-only queue").json()
+            require(legacy["id"] not in {item["id"] for item in active_queue["results"]} and all(item["status"] == "INSIDE" for item in active_queue["results"]), "Watchman queue includes pending or closed visits")
+            api(watch.get(f"/api/gate/visitors/{legacy['id']}/selfie/"), 404, "Legacy pending selfie owner only")
+            for action, data in (("check-in", {"client_token": new_token()}), ("cancel", {"client_token": new_token(), "reason": "Visit cancelled"})):
+                api(watch.post(f"/api/gate/visitors/{legacy['id']}/{action}/", data, format="json"), 403, "Watchman cannot operate legacy pending recovery")
+            api(watch.post(f"/api/gate/visitors/{legacy['id']}/check-out/", {"client_token": new_token()}, format="json"), 409, "Legacy pending cannot exit before owner recovery")
+            api(owner.post(f"/api/gate/visitors/{legacy['id']}/check-in/", {"client_token": new_token()}, format="json"), 200, "Owner pending recovery admission")
+            api(watch.post(f"/api/gate/visitors/{legacy['id']}/check-out/", {"client_token": new_token()}, format="json"), 200, "Watchman exits recovered inside visit")
             api(watch.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 404, "Closed visitor selfie denied to watchman")
             api(watch.get("/api/gate/visitors/", {"status": "EXITED"}), 403, "Closed history denied to watchman")
             api(owner.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 200, "Owner closed selfie")
@@ -262,7 +288,7 @@ def main(expected_sha, local):
             other_payload = {"client_token": new_token(), "plant": str(other.id), "name": f"Other scope {nonce}", "mobile": "8" + f"{secrets.randbelow(1_000_000_000):09d}", "purpose": "Meeting", "consent": True}
             other_visitor = api(owner.post("/api/gate/visitors/", other_payload, format="json"), 201, "Owner second-factory pending visitor").json()["id"]
             objects.append(other_visitor)
-            api(watch.post(f"/api/gate/visitors/{other_visitor}/check-in/", {"client_token": new_token()}, format="json"), 404, "Other-factory action denied")
+            api(watch.post(f"/api/gate/visitors/{other_visitor}/check-out/", {"client_token": new_token()}, format="json"), 404, "Other-factory exit denied")
             api(owner.post(f"/api/gate/visitors/{other_visitor}/cancel/", {"client_token": new_token(), "reason": "Visit cancelled"}, format="json"), 200, "Pending cancellation")
             require(VisitorVisit.objects.get(id=other_visitor).entry_at is None, "Cancellation invented physical entry")
             audit = api(owner.get("/api/gate/audit/", {"object_id": visitor_id}), 200, "Owner immutable audit")
@@ -277,7 +303,7 @@ def main(expected_sha, local):
                 except DatabaseError:
                     rejected = True
                 require(rejected, "PostgreSQL audit mutation guard is missing")
-            checks.append("CSRF cookie entry and bearer exit; chronological idempotent lifecycle; owner history; immutable safe audit")
+            checks.append("watchman exit only; creation/admission/cancellation denied; cookie CSRF and bearer retry; owner history; immutable safe audit")
 
             master_data = masters.json()
             require(bool(master_data["parties"]) and bool(master_data["products"]), "Existing active party/product masters are required")

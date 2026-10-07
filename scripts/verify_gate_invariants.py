@@ -9,13 +9,14 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import os
 import secrets
 import sys
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parents[1]
@@ -92,11 +93,14 @@ def business_snapshot():
 
 def race(access, path, payloads):
     barrier = threading.Barrier(len(payloads))
+    address_nonce = uuid.uuid4().hex
+    address = f"2001:db8:{address_nonce[:4]}:{address_nonce[4:8]}:{address_nonce[8:12]}:{address_nonce[12:16]}::1"
     def run(payload):
         close_old_connections()
         try:
-            client = APIClient(enforce_csrf_checks=True)
-            client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+            client = APIClient(enforce_csrf_checks=True, REMOTE_ADDR=address)
+            if access:
+                client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
             barrier.wait(timeout=10)
             response = client.post(path, payload, format="json")
             return response.status_code, response.json()
@@ -108,6 +112,8 @@ def race(access, path, payloads):
 
 def main():
     require(settings.DATABASES["default"]["NAME"] == "tpp_gate_dev_20261007", "Refusing to run outside the isolated local gate QA database")
+    for name in ("django.request", "config.views", "apps.users.middleware"):
+        logging.getLogger(name).setLevel(logging.CRITICAL)
     fixtures = json.loads((BASE / ".runtime/gate-qa.json").read_text())
     nonce = secrets.token_hex(5)
     checks = []
@@ -144,6 +150,7 @@ def main():
         checks.append("real cookie/bearer auth, non-strict RBAC ceiling and plant scoping")
 
         public = APIClient(enforce_csrf_checks=True, REMOTE_ADDR=f"198.51.100.{secrets.randbelow(254) + 1}")
+        before_visit = api(watch.get("/api/gate/summary/", {"plant": fixtures["plant"]}), 200, "Visitor counters before registration").json()
         cfg = api(public.get("/api/gate/public/config/", {"gate_token": fixtures["public_token"]}), 200, "Public QR configuration")
         require(set(cfg.json()) <= {"company_name", "plant_name", "plant_code", "purposes", "privacy_note", "government_id_enabled"}, "Public configuration leaks unexpected data")
         api(public.get("/api/gate/public/config/", {"plant_code": "GATE_QA_A"}), 404, "Plant code cannot replace opaque QR authority")
@@ -159,42 +166,76 @@ def main():
         payload = {"client_token": token(), "gate_token": fixtures["public_token"], "plant": fixtures["other_plant"], "name": visitor_name, "mobile": mobile, "purpose": "Meeting", "company": "Synthetic QA", "government_id_type": "PAN", "government_id_number": government_id, "consent": True}
         def multipart():
             return {**payload, "selfie": SimpleUploadedFile("qa.jpg", image.getvalue(), content_type="image/jpeg")}
-        created = api(public.post("/api/gate/public/visitors/", multipart(), format="multipart"), 201, "Public pending registration")
+        created = api(public.post("/api/gate/public/visitors/", multipart(), format="multipart"), 201, "Public immediate entry registration")
         receipt = created.json()
-        require(set(receipt) == {"receipt_id", "status", "message", "replayed"}, "Public registration leaks personal fields")
-        require(receipt["status"] == "PENDING", "Public registration cannot admit visitor")
+        require(set(receipt) == {"receipt_id", "status", "entry_at", "message", "replayed"}, "Public registration leaks personal fields")
+        require(receipt["status"] == "INSIDE", "Public registration must immediately record entry")
         visitor_id = receipt["receipt_id"]
         row = VisitorVisit.objects.get(id=visitor_id)
         require(str(row.plant_id) == fixtures["plant"], "Public caller cannot substitute plant")
+        require(row.status == "INSIDE" and row.entry_at == row.submitted_at == row.consent_at and row.exit_at is None and row.entry_by_id is None, "Public registration requires no watchman admission")
+        original_entry_at = row.entry_at
+        require(datetime.fromisoformat(receipt["entry_at"]) == original_entry_at, "Public receipt must show the persisted entry timestamp")
+        initial_events = list(GateAuditEvent.objects.filter(object_id=visitor_id).order_by("created_at").values_list("action", "actor_id"))
+        require(initial_events == [("VISITOR_REGISTERED", None), ("VISITOR_ENTERED", None)], "Public registration must record one registration and entry audit without an actor")
+        entry_summary = api(watch.get("/api/gate/summary/", {"plant": fixtures["plant"]}), 200, "Immediate entry summary").json()
+        require(entry_summary["inside_visitors"] == before_visit["inside_visitors"] + 1 and entry_summary["visitor_entries"] == before_visit["visitor_entries"] + 1 and entry_summary["pending_visitors"] == before_visit["pending_visitors"], "QR entry counters must be immediate")
         require(row.government_id_encrypted and government_id not in row.government_id_encrypted, "Government ID stored as plaintext")
         encryption_key = getattr(settings, "GATE_ID_ENCRYPTION_KEY", "") or os.environ["GATE_ID_ENCRYPTION_KEY"]
         require(Fernet(encryption_key.encode()).decrypt(row.government_id_encrypted.encode()).decode() == government_id, "Government ID encryption round trip")
         sanitized = Image.open(io.BytesIO(bytes(row.selfie_data)))
         require(sanitized.format == "JPEG" and max(sanitized.size) <= 640 and not sanitized.getexif(), "Selfie resize or metadata stripping failed")
         replay = api(public.post("/api/gate/public/visitors/", multipart(), format="multipart"), 201, "Public retry")
-        require(replay.json()["receipt_id"] == visitor_id and replay.json()["replayed"], "Public retry created duplicate")
+        require(replay.json()["receipt_id"] == visitor_id and replay.json()["entry_at"] == receipt["entry_at"] and replay.json()["replayed"], "Public retry created duplicate or changed entry timestamp")
         api(public.post("/api/gate/public/visitors/", {**payload, "company": "Changed retry"}, format="json"), 409, "Changed retry token rejection")
         api(public.post("/api/gate/public/visitors/", {**payload, "client_token": token()}, format="json"), 409, "Duplicate active mobile rejection")
+        row.refresh_from_db()
+        require(row.entry_at == original_entry_at and GateAuditEvent.objects.filter(object_id=visitor_id, action="VISITOR_ENTERED").count() == 1, "Public retries must preserve entry time and one audit")
         for path in [f"/api/gate/public/visitors/{visitor_id}/", f"/api/gate/public/visitors/{visitor_id}/selfie/"]:
             api(public.get(path), 404, "No public receipt detail or image route")
         require(public.get(f"/api/gate/visitors/{visitor_id}/selfie/").status_code in {401, 403}, "Anonymous selfie access")
         photo = api(watch.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 200, "Active scoped selfie")
         require(photo["Cache-Control"] == "private, no-store" and photo["Content-Type"] == "image/jpeg", "Private selfie response headers")
-        checks.append("opaque QR scope, no public data/photos, encrypted optional IDs, sanitized bounded selfie and replay")
+        checks.append("opaque QR immediate entry, one entry audit/time, no public data/photos, encrypted optional IDs, sanitized bounded selfie and replay")
 
         other_mobile = "8" + f"{secrets.randbelow(1_000_000_000):09d}"
         other = api(owner.post("/api/gate/visitors/", {"client_token": token(), "plant": fixtures["other_plant"], "name": f"Other Plant {nonce}", "mobile": other_mobile, "purpose": "Meeting", "consent": True}, format="json"), 201, "Other-plant synthetic visitor").json()
-        api(watch.post(f"/api/gate/visitors/{other['id']}/check-in/", {"client_token": token()}, format="json"), 404, "Cross-plant action denial")
-        api(watch.post(f"/api/gate/visitors/{visitor_id}/check-out/", {"client_token": token()}, format="json"), 409, "Exit before entry rejection")
-        entered = race(access, f"/api/gate/visitors/{visitor_id}/check-in/", [{"client_token": token()}, {"client_token": token()}])
-        require(sorted(status for status, _ in entered) == [200, 409], "Concurrent independent entries must have one winner")
+        api(watch.post(f"/api/gate/visitors/{other['id']}/check-out/", {"client_token": token()}, format="json"), 404, "Cross-plant exit denial")
+        for client in (watch, watch_cookie):
+            api(client.post("/api/gate/visitors/", {"client_token": token(), "plant": fixtures["plant"], "name": f"Denied walk-in {nonce}", "mobile": "7" + f"{secrets.randbelow(1_000_000_000):09d}", "purpose": "Meeting", "consent": True}, format="json"), 403, "Watchman walk-in creation denial")
+            api(client.post(f"/api/gate/visitors/{visitor_id}/check-in/", {"client_token": token()}, format="json"), 403, "Watchman admission denial")
+            api(client.post(f"/api/gate/visitors/{visitor_id}/cancel/", {"client_token": token(), "reason": "Visit cancelled"}, format="json"), 403, "Watchman cancellation denial")
         exit_token = token()
         exited = race(access, f"/api/gate/visitors/{visitor_id}/check-out/", [{"client_token": exit_token}, {"client_token": exit_token}])
         require([status for status, _ in exited] == [200, 200] and sorted(data["replayed"] for _, data in exited) == [False, True], "Concurrent same-token exit must replay one result")
         row.refresh_from_db()
-        require(row.status == "EXITED" and row.entry_at <= row.exit_at, "Lifecycle timestamps/status invariant")
+        require(row.status == "EXITED" and row.entry_at == original_entry_at and row.entry_at <= row.exit_at, "Lifecycle timestamps/status invariant")
         events = GateAuditEvent.objects.filter(object_id=visitor_id)
         require(events.filter(action="VISITOR_ENTERED").count() == 1 and events.filter(action="VISITOR_EXITED").count() == 1, "Concurrent transitions duplicated audit events")
+        exit_summary = api(watch.get("/api/gate/summary/", {"plant": fixtures["plant"]}), 200, "Visitor exit summary").json()
+        require(exit_summary["inside_visitors"] == before_visit["inside_visitors"] and exit_summary["visitor_entries"] == before_visit["visitor_entries"] + 1 and exit_summary["visitor_exits"] == before_visit["visitor_exits"] + 1, "Exit must update counts without duplicate entry")
+
+        concurrent_payload = {**payload, "client_token": token(), "name": f"Concurrent visitor {nonce}", "mobile": "6" + f"{secrets.randbelow(1_000_000_000):09d}"}
+        entries = race(None, "/api/gate/public/visitors/", [concurrent_payload, concurrent_payload])
+        require([status for status, _ in entries] == [201, 201] and sorted(data["replayed"] for _, data in entries) == [False, True], "Concurrent same-token QR submissions must replay one entry")
+        concurrent_id = entries[0][1]["receipt_id"]
+        require(entries[1][1]["receipt_id"] == concurrent_id and GateAuditEvent.objects.filter(object_id=concurrent_id, action="VISITOR_ENTERED").count() == 1, "Concurrent QR submission duplicated visitor/entry audit")
+        require(entries[0][1]["entry_at"] == entries[1][1]["entry_at"] and datetime.fromisoformat(entries[0][1]["entry_at"]) == VisitorVisit.objects.get(id=concurrent_id).entry_at, "Concurrent QR retries returned different entry timestamps")
+        exits = race(access, f"/api/gate/visitors/{concurrent_id}/check-out/", [{"client_token": token()}, {"client_token": token()}])
+        require(sorted(status for status, _ in exits) == [200, 409], "Concurrent independent exits must have one winner")
+        require(GateAuditEvent.objects.filter(object_id=concurrent_id, action="VISITOR_EXITED").count() == 1, "Concurrent independent exits duplicated exit audit")
+        legacy_payload = {"client_token": token(), "plant": fixtures["plant"], "name": f"Owner recovery {nonce}", "mobile": "7" + f"{secrets.randbelow(1_000_000_000):09d}", "purpose": "Meeting", "consent": True, "selfie": SimpleUploadedFile("recovery.jpg", image.getvalue(), content_type="image/jpeg")}
+        legacy = api(owner.post("/api/gate/visitors/", legacy_payload, format="multipart"), 201, "Owner-only pending recovery").json()
+        require(legacy["status"] == "PENDING" and legacy["source"] == "OWNER", "Owner recovery must retain pending provenance")
+        api(watch.get("/api/gate/visitors/", {"status": "PENDING"}), 403, "Legacy pending queue owner only")
+        active_queue = api(watch.get("/api/gate/visitors/", {"search": nonce}), 200, "Inside-only watchman queue").json()
+        require(legacy["id"] not in {item["id"] for item in active_queue["results"]} and all(item["status"] == "INSIDE" for item in active_queue["results"]), "Watchman queue must hide pending and closed history")
+        api(watch.get(f"/api/gate/visitors/{legacy['id']}/selfie/"), 404, "Pending recovery photo owner only")
+        api(watch.post(f"/api/gate/visitors/{legacy['id']}/check-in/", {"client_token": token()}, format="json"), 403, "Watchman cannot admit legacy pending")
+        api(watch.post(f"/api/gate/visitors/{legacy['id']}/cancel/", {"client_token": token(), "reason": "Visit cancelled"}, format="json"), 403, "Watchman cannot cancel legacy pending")
+        api(watch.post(f"/api/gate/visitors/{legacy['id']}/check-out/", {"client_token": token()}, format="json"), 409, "Pending recovery cannot exit before entry")
+        api(owner.post(f"/api/gate/visitors/{legacy['id']}/check-in/", {"client_token": token()}, format="json"), 200, "Owner legacy pending recovery")
+        api(watch.post(f"/api/gate/visitors/{legacy['id']}/check-out/", {"client_token": token()}, format="json"), 200, "Watchman exits recovered inside visitor")
         api(watch.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 404, "Watchman cannot read closed-visit selfie")
         api(owner.get(f"/api/gate/visitors/{visitor_id}/selfie/"), 200, "Owner can inspect closed-visit selfie")
         api(watch.get("/api/gate/visitors/", {"status": "EXITED"}), 403, "Owner-only closed visitor history")
@@ -215,7 +256,7 @@ def main():
             require(rejected, "Database must reject audit history mutation")
         receipt_text = json.dumps(list(GateRequestReceipt.objects.filter(scope__contains=visitor_id).values("response")), sort_keys=True)
         require(government_id not in receipt_text and "selfie_data" not in receipt_text and "government_id_encrypted" not in receipt_text, "Lifecycle receipt leaks raw private fields")
-        checks.append("concurrent lifecycle, chronological events, retained owner history, safe audit and database-level UPDATE/DELETE rejection")
+        checks.append("watchman exit only, concurrent QR entry/exits, chronological single events, retained owner history, safe audit and database-level UPDATE/DELETE rejection")
 
         goods_data = {"client_token": token(), "plant": fixtures["plant"], "direction": "INWARD", "invoice_number": grn.vendor_invoice_no, "vehicle_number": grn.vehicle_no, "party_kind": "VENDOR", "party_id": fixtures["vendor"], "document_kind": "GRN", "document_id": str(grn.id)}
         goods = api(watch_cookie.post("/api/gate/goods/", goods_data, format="json"), 201, "Cookie-authenticated matched goods write").json()
