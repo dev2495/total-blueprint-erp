@@ -156,6 +156,12 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
     ).prefetch_related("lines")
     serializer_class = PurchaseOrderReceiptSerializer
 
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"error": "Posted receipts preserve stock history and cannot be deleted."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
     def get_queryset(self):
         qs = super().get_queryset()
         po = self.request.query_params.get("purchase_order")
@@ -212,18 +218,14 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
                 notes=data.get("notes", ""),
                 quality_status=data.get("quality_status", "PENDING"),
                 location=location,
+                client_token=client_token,
             )
         except DjangoValidationError as e:
             return Response({"error": str(e)}, status=400)
 
-        # Stamp the token after the service created the row.
-        if client_token and not receipt.client_token:
-            receipt.client_token = client_token
-            receipt.save(update_fields=["client_token"])
-
         return Response(
             PurchaseOrderReceiptSerializer(receipt).data,
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_200_OK if getattr(receipt, "_idempotent_replay", False) else status.HTTP_201_CREATED,
         )
 
 

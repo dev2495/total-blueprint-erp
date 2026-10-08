@@ -36,11 +36,19 @@ class DashboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def search(self, request):
         try:
-            query = request.query_params.get('q', '')
+            query = str(request.query_params.get('q', '') or '').strip()
             if not query:
                 return Response([])
-            results = DashboardService.search_global(query)
-            return Response(results)
+            results = DashboardService.search_global_v2(
+                query=query, user=request.user, limit=10, requested_types=["order", "job"],
+            )
+            # Preserve the legacy list and four-field contract while applying
+            # the same entitlements and work center scope as current search.
+            return Response([
+                {"type": "Order" if row["type"] == "order" else "Job",
+                 "label": row["label"], "href": row["href"], "status": row["status"]}
+                for row in results["results"]
+            ])
         except Exception as e:
             logger.error(f"Dashboard search error: {str(e)}", exc_info=True)
             return _error_response(str(e))

@@ -667,6 +667,7 @@ export default function WCMTerminal() {
     Record<string, WcmMaterialIssueDraft>
   >({});
   const [materialIssueDirty, setMaterialIssueDirty] = useState(false);
+  const materialIssueDraftVersionRef = useRef(0);
   const [materialIssuePickerOpen, setMaterialIssuePickerOpen] = useState(false);
   const hydratedMaterialJobRef = useRef("");
   const hydratedMaterialSignatureRef = useRef("");
@@ -2102,6 +2103,7 @@ export default function WCMTerminal() {
     patch: Partial<WcmMaterialIssueDraft>,
   ) => {
     if (!requirementId) return;
+    materialIssueDraftVersionRef.current += 1;
     setMaterialIssueDirty(true);
     setMaterialIssueDrafts((prev) => ({
       ...prev,
@@ -2760,6 +2762,8 @@ export default function WCMTerminal() {
 
   const handlePushToOperator = () => {
     if (!activeAssignment) return;
+    const submittedDraftVersion = materialIssueDraftVersionRef.current;
+    const submittedJobId = selectedJobId;
     mutation.mutate(async () => {
       if (isReleasedToMachine) {
         throw new Error("This job is already released to machine execution.");
@@ -2787,6 +2791,13 @@ export default function WCMTerminal() {
         activeAssignment.id,
         materialIssuePayload as any[],
       );
+      if (
+        materialIssueDraftVersionRef.current === submittedDraftVersion &&
+        hydratedMaterialJobRef.current === submittedJobId
+      ) {
+        setMaterialIssueDirty(false);
+        setMaterialIssuePickerOpen(false);
+      }
       setActiveAssignmentId(null);
       await refetchContext();
       await refetchSatisfaction();
@@ -2836,6 +2847,8 @@ export default function WCMTerminal() {
       return;
     }
     setAssignConflict(null);
+    const submittedDraftVersion = materialIssueDraftVersionRef.current;
+    const submittedJobId = selectedJobId;
     mutation.mutate(async () => {
       if (isReleasedToMachine) {
         throw new Error("This job is already released to machine execution.");
@@ -2876,6 +2889,15 @@ export default function WCMTerminal() {
         activeAssignment.id,
         materialIssuePayload as any[],
       );
+      // Resume polling only for the draft this successful request saved.
+      // An edit or job switch while the request was pending remains protected.
+      if (
+        materialIssueDraftVersionRef.current === submittedDraftVersion &&
+        hydratedMaterialJobRef.current === submittedJobId
+      ) {
+        setMaterialIssueDirty(false);
+        setMaterialIssuePickerOpen(false);
+      }
       if (released?.assigned_machine) {
         setSelectedMachineId(String(released.assigned_machine));
       }
@@ -4239,10 +4261,11 @@ export default function WCMTerminal() {
                 </div>
               </div>
             ) : null}
-            <div
+            <fieldset
+              disabled={isReleasedToMachine || mutation.isPending}
               className={cn(
-                "order-2 mt-4 space-y-2.5",
-                isReleasedToMachine && "pointer-events-none opacity-75",
+                "order-2 mt-4 min-w-0 space-y-2.5",
+                isReleasedToMachine && "opacity-75",
               )}
             >
               {materialIssueRows.length === 0 ? (
@@ -4784,7 +4807,7 @@ export default function WCMTerminal() {
                   );
                 })
               )}
-            </div>
+            </fieldset>
             {granuleIssueRows.length ? (
               <div className="order-3 mt-3 rounded-xl border border-success-border bg-success-bg px-3 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">

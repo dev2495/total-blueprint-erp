@@ -3,8 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import OperationalError, ProgrammingError
+from django.db import OperationalError, ProgrammingError, transaction
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 
 from apps.factory.models import Process
 from apps.users.audit_mixins import MasterDataAuditMixin
@@ -57,6 +58,25 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     queryset = TemplateBlueprint.objects.all().order_by("-created_at")
     lookup_value_regex = r"[0-9a-fA-F-]{36}"
     editable_statuses = {"DRAFT", "ENGINEERING", "APPROVED"}
+    serialized_detail_mutations = {
+        "update", "partial_update", "process_steps", "process_step_detail",
+        "process_step_dispatch", "process_step_roll_handling", "step_materials",
+        "process_step_material_detail", "sync_workflow_apply", "reorder_process_steps",
+        "rebuild_from_route",
+    }
+
+    def get_object(self):
+        # DRF authenticates and checks object access before any row lock. These
+        # handlers run atomically so their fresh status check and child writes
+        # share the parent's publication lock until the request completes.
+        template = super().get_object()
+        if self.request.method not in {"GET", "HEAD", "OPTIONS"} and self.action in self.serialized_detail_mutations:
+            template = get_object_or_404(
+                self.get_queryset().select_for_update(of=("self",), no_key=True),
+                pk=template.pk,
+            )
+            self.check_object_permissions(self.request, template)
+        return template
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -160,6 +180,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         except (ProgrammingError, OperationalError) as exc:
             return self._schema_error_response(exc)
 
+    @transaction.atomic
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.status in {"LIVE", "OBSOLETE"}:
@@ -426,6 +447,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         return Response(steps)
 
     @action(detail=True, methods=["get", "post"], url_path="process-steps")
+    @transaction.atomic
     def process_steps(self, request, pk=None):
         template = self.get_object()
 
@@ -455,6 +477,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         return Response(TemplateProcessStepSerializer(step).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["put", "delete"], url_path="process-steps/(?P<step_id>[^/.]+)")
+    @transaction.atomic
     def process_step_detail(self, request, pk=None, step_id=None):
         template = self.get_object()
         if template.status in {"LIVE", "OBSOLETE"}:
@@ -480,6 +503,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=True, methods=["get", "patch"], url_path="process-steps/(?P<step_id>[^/.]+)/dispatch")
+    @transaction.atomic
     def process_step_dispatch(self, request, pk=None, step_id=None):
         template = self.get_object()
         try:
@@ -534,12 +558,16 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["get", "patch"], url_path="process-steps/(?P<step_id>[^/.]+)/roll-handling")
+    @transaction.atomic
     def process_step_roll_handling(self, request, pk=None, step_id=None):
         template = self.get_object()
         try:
             step = TemplateProcessStep.objects.select_related("process").get(id=step_id, template=template)
         except TemplateProcessStep.DoesNotExist:
             return Response({"detail": "Step not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method != "GET" and template.status in {"LIVE", "OBSOLETE"}:
+            return Response({"detail": "Cannot modify roll handling on a LIVE or OBSOLETE template"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             spec, _ = TemplateProcessStepRollSpec.objects.get_or_create(
@@ -553,9 +581,6 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 return Response(TemplateProcessStepRollHandlingSerializer(spec).data)
             except (ProgrammingError, OperationalError) as exc:
                 return self._schema_error_response(exc)
-        if template.status in {"LIVE", "OBSOLETE"}:
-            return Response({"detail": "Cannot modify roll handling on a LIVE or OBSOLETE template"}, status=status.HTTP_400_BAD_REQUEST)
-
         serializer = TemplateProcessStepRollHandlingSerializer(spec, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         try:
@@ -565,6 +590,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             return self._schema_error_response(exc)
 
     @action(detail=True, methods=["get", "post"], url_path="process-steps/(?P<step_id>[^/.]+)/materials")
+    @transaction.atomic
     def step_materials(self, request, pk=None, step_id=None):
         template = self.get_object()
         try:
@@ -671,6 +697,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["put", "delete"], url_path="process-steps/(?P<step_id>[^/.]+)/materials/(?P<mat_id>[^/.]+)")
+    @transaction.atomic
     def process_step_material_detail(self, request, pk=None, step_id=None, mat_id=None):
         template = self.get_object()
         if template.status in {"LIVE", "OBSOLETE"}:
@@ -679,7 +706,9 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 detail="Template is LIVE or OBSOLETE.",
             )
         try:
-            row = TemplateProcessStepMaterial.objects.get(id=mat_id, template_step_id=step_id)
+            row = TemplateProcessStepMaterial.objects.get(
+                id=mat_id, template_step_id=step_id, template_step__template=template
+            )
         except TemplateProcessStepMaterial.DoesNotExist:
             return Response({"detail": "Material mapping not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -714,6 +743,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"], url_path="sync-workflow-apply")
+    @transaction.atomic
     def sync_workflow_apply(self, request, pk=None):
         template = self.get_object()
         if template.status in {"LIVE", "OBSOLETE"}:
@@ -748,6 +778,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=["post"], url_path="process-steps/reorder")
+    @transaction.atomic
     def reorder_process_steps(self, request, pk=None):
         template = self.get_object()
         if template.status in {"LIVE", "OBSOLETE"}:
@@ -778,6 +809,7 @@ class TemplateBlueprintViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         return Response(TemplateProcessStepSerializer(template.process_steps.select_related("process").prefetch_related("materials").all(), many=True).data)
 
     @action(detail=True, methods=["post"], url_path="rebuild-from-route")
+    @transaction.atomic
     def rebuild_from_route(self, request, pk=None):
         template = self.get_object()
         if template.status in {"LIVE", "OBSOLETE"}:

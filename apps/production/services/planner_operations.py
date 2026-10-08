@@ -11,6 +11,7 @@ from rest_framework.response import Response
 
 from apps.production.models import PlannedStockOrder, PlannerOperation
 from apps.sales.models import SalesOrderItem
+from apps.production.services.order_locks import lock_sales_order_items
 
 
 def entity_revision(kind, entity):
@@ -56,7 +57,9 @@ def planner_operation(action):
                     with connection.cursor() as cursor:
                         cursor.execute('SELECT pg_advisory_xact_lock(%s)', [lock_key])
                 if order_kind == 'sales':
-                    entity = SalesOrderItem.objects.select_for_update().filter(id=item_id, sales_order_id=order_id).first() if item_id else None
+                    matching_ids = SalesOrderItem.objects.filter(id=item_id, sales_order_id=order_id).values_list('id', flat=True) if item_id else []
+                    locked_items = lock_sales_order_items(matching_ids)
+                    entity = locked_items[0] if locked_items else None
                 else:
                     entity = PlannedStockOrder.objects.select_for_update().filter(id=order_id).first()
                 if entity is None:

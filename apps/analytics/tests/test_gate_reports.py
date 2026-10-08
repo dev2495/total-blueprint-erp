@@ -162,6 +162,9 @@ class GateReportsAuthorizationTests(TestCase):
             self.client.force_authenticate(user=user)
             with patch("apps.analytics.views.AnalyticsService.get_control_tower_stats", return_value={}), patch("apps.analytics.views._build_control_tower_trading_block", return_value={}), patch("apps.analytics.views._build_control_tower_procurement_block", return_value={}), patch("apps.gate.services.summary_for_period", return_value={"inside_visitors": 3}):
                 response = self.client.get("/api/analytics/control-tower/?timeframe=day")
+            if user == self.store:
+                self.assertEqual(response.status_code, 403, response.content)
+                continue
             self.assertEqual(response.status_code, 200, response.content)
             self.assertEqual("gate" in response.data, visible)
 

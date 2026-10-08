@@ -42,6 +42,11 @@ class PlantCostPoolLineSerializer(serializers.ModelSerializer):
     cost_group_label = serializers.CharField(source="cost_group.label", read_only=True)
     pool_total = serializers.DecimalField(max_digits=15, decimal_places=2, read_only=True)
 
+    def validate_month_record(self, value):
+        if self.instance is not None and value.pk != self.instance.month_record_id:
+            raise serializers.ValidationError("A cost pool line cannot be moved to another month.")
+        return value
+
     class Meta:
         model = PlantCostPoolLine
         fields = [
@@ -89,6 +94,7 @@ class PlantCostPoolMonthSerializer(serializers.ModelSerializer):
             "updated_at",
             "lines",
         ]
+        read_only_fields = ["status"]
 
 
 class ProcessCostRateSerializer(serializers.ModelSerializer):

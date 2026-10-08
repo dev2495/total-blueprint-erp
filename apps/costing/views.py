@@ -1,8 +1,11 @@
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Avg, Count, Q, Sum
+from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from apps.sales.models import SalesOrderItem
@@ -32,6 +35,17 @@ from .serializers import (
 from .services import CostingService
 
 
+def _lock_cost_month(month_id):
+    # Every pool mutation locks the parent before writing a month or line,
+    # so a concurrent close cannot be bypassed by a stale status read.
+    return get_object_or_404(PlantCostPoolMonth.objects.select_for_update(), pk=month_id)
+
+
+def _require_unlocked_month(month):
+    if month.status == "LOCKED":
+        raise ValidationError({"detail": "Locked cost pool months and their lines cannot be changed."})
+
+
 class MaterialCostSnapshotViewSet(viewsets.ModelViewSet):
     queryset = MaterialCostSnapshot.objects.all()
     serializer_class = MaterialCostSnapshotSerializer
@@ -47,9 +61,24 @@ class PlantCostPoolMonthViewSet(viewsets.ModelViewSet):
     queryset = PlantCostPoolMonth.objects.select_related("plant").prefetch_related("lines__cost_group").all()
     serializer_class = PlantCostPoolMonthSerializer
 
+    @transaction.atomic
+    def perform_update(self, serializer):
+        month = _lock_cost_month(serializer.instance.pk)
+        _require_unlocked_month(month)
+        serializer.instance = month
+        serializer.save()
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        month = _lock_cost_month(instance.pk)
+        _require_unlocked_month(month)
+        month.delete()
+
     @action(detail=True, methods=["post"], url_path="allocate-from-totals")
+    @transaction.atomic
     def allocate_from_totals(self, request, pk=None):
-        month_record = self.get_object()
+        month_record = _lock_cost_month(self.get_object().pk)
+        _require_unlocked_month(month_record)
         percentages = request.data.get("percentages") or {}
         if not isinstance(percentages, dict) or not percentages:
             return Response({"error": "percentages object is required."}, status=status.HTTP_400_BAD_REQUEST)
@@ -85,15 +114,18 @@ class PlantCostPoolMonthViewSet(viewsets.ModelViewSet):
         return Response(PlantCostPoolMonthSerializer(month_record).data)
 
     @action(detail=True, methods=["post"], url_path="lock")
+    @transaction.atomic
     def lock_month(self, request, pk=None):
-        month_record = self.get_object()
+        month_record = _lock_cost_month(self.get_object().pk)
         month_record.status = "LOCKED"
         month_record.save(update_fields=["status", "updated_at"])
         return Response({"status": "LOCKED", "id": str(month_record.id)})
 
     @action(detail=True, methods=["post"], url_path="review")
+    @transaction.atomic
     def review_month(self, request, pk=None):
-        month_record = self.get_object()
+        month_record = _lock_cost_month(self.get_object().pk)
+        _require_unlocked_month(month_record)
         month_record.status = "REVIEWED"
         month_record.save(update_fields=["status", "updated_at"])
         return Response({"status": "REVIEWED", "id": str(month_record.id)})
@@ -170,6 +202,25 @@ class PlantCostPoolMonthViewSet(viewsets.ModelViewSet):
 class PlantCostPoolLineViewSet(viewsets.ModelViewSet):
     queryset = PlantCostPoolLine.objects.select_related("month_record__plant", "cost_group").all()
     serializer_class = PlantCostPoolLineSerializer
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        month = _lock_cost_month(serializer.validated_data["month_record"].pk)
+        _require_unlocked_month(month)
+        serializer.save(month_record=month)
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        month = _lock_cost_month(serializer.instance.month_record_id)
+        _require_unlocked_month(month)
+        serializer.instance.refresh_from_db()
+        serializer.save(month_record=month)
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        month = _lock_cost_month(instance.month_record_id)
+        _require_unlocked_month(month)
+        instance.delete()
 
 
 class ProcessCostRateViewSet(viewsets.ModelViewSet):

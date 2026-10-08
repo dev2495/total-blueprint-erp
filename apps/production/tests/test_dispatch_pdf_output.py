@@ -761,6 +761,60 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertLessEqual(len(pages[0].split("\r\n")), DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE)
         self.assertEqual(text.count("SO ITEM "), 3)
 
+    def test_many_order_balances_paginate_without_losing_units_or_document_details(self):
+        rows = [_ready_row(index, line_key=f"line-{index}") for index in range(1, 61)]
+        balances = [
+            {"line": str(index), "ordered": "1000", "previous": "100", "current": "200", "balance": "700", "uom": "KG"}
+            for index in range(1, 61)
+        ]
+        challan = _snapshot_challan(rows, balance_rows=balances, version=3)
+
+        text = DispatchListPDFService.render_text(challan)
+        html = DispatchListPDFService.render_html(challan)
+        native = DispatchListPDFService.render_escp(challan).getvalue()
+        pages = text.rstrip("\r\n").split("\f")
+        self.assertGreater(len(pages), 2)
+        self.assertTrue(all(len(page.split("\r\n")) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in pages))
+        self.assertTrue(all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for page in pages for line in page.split("\r\n")))
+        self.assertEqual(html.count('<pre class="sheet">'), len(pages))
+        self.assertEqual(native.count(b"\f"), len(pages))
+        for index in range(1, 61):
+            for token in (f"UNIT-{index:03d}", f"SO ITEM {index} BALANCE:"):
+                self.assertEqual(text.count(token), 1)
+                self.assertEqual(html.count(token), 1)
+                self.assertEqual(native.count(token.encode("ascii")), 1)
+        self.assertEqual(text.count("BAGS:"), 1)
+        self.assertIn("UNITS: 60", text)
+        self.assertEqual(text.count("DELIVERY TO : Test Customer Warehouse"), 1)
+        self.assertIn("LOCATION : Illustrative Test Location", pages[-1])
+        if canvas is not None:
+            pdf = DispatchListPDFService.render(challan).getvalue()
+            self.assertEqual(_pdf_page_count(pdf), len(pages))
+            for index in range(1, 61):
+                self.assertEqual(pdf.count(f"UNIT-{index:03d}".encode("ascii")), 1)
+                self.assertEqual(pdf.count(f"SO ITEM {index} BALANCE:".encode("ascii")), 1)
+
+    def test_long_balance_values_wrap_without_truncation(self):
+        balance = {"line": "123", "ordered": "1000000000", "previous": "100000000", "current": "200000000", "balance": "700000000", "uom": "KILOGRAMS"}
+        text = DispatchListPDFService.render_text(_snapshot_challan([_ready_row(1)], balance_rows=[balance], version=3))
+        self.assertIn("1000000000.00", text)
+        self.assertIn("700000000.00 KILOGRAMS", text.replace("\r\n", " "))
+        self.assertTrue(all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for line in text.splitlines()))
+
+    def test_tall_last_unit_can_use_a_page_before_a_large_balance_footer(self):
+        row = _ready_row(1)
+        row["description"] = "PET / NYLON / ALUMINIUM / LDNAT-ML"
+        balances = [
+            {"line": str(index), "ordered": "1000", "previous": "100", "current": "200", "balance": "700", "uom": "KG"}
+            for index in range(1, 20)
+        ]
+        text = DispatchListPDFService.render_text(_snapshot_challan([row], balance_rows=balances, version=3))
+        self.assertEqual(text.count("UNIT-001"), 1)
+        self.assertEqual(text.count("SO ITEM "), 19)
+        self.assertIn("ALUMINIUM /", text)
+        self.assertIn("LDNAT-ML", text)
+        self.assertTrue(all(len(page.splitlines()) <= DispatchListPDFService.DOT_MATRIX_LINES_PER_PAGE for page in text.split("\f")))
+
     def test_raw_job_uses_normal_body_and_selective_heading_emphasis(self):
         text = DispatchListPDFService.render_text(_snapshot_challan([_ready_row(1)]))
 

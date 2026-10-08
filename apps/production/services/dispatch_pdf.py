@@ -1047,7 +1047,7 @@ class DispatchListPDFService:
             ]
         )
 
-        balance_lines = []
+        balance_blocks: list[list[str]] = []
         for balance in balance_rows or []:
             line_no = balance.get("line") or "-"
             ordered = qty(balance.get("ordered"))
@@ -1064,48 +1064,76 @@ class DispatchListPDFService:
                     f"SO ITEM {line_no} BAL: ORDER {ordered} | PREV {previous} | "
                     f"THIS {current} | BAL {remaining_qty} {uom}"
                 )
-            balance_lines.append(cell(text, cls.DOT_MATRIX_COLUMNS).rstrip())
+            balance_blocks.append(wrapped_cell(text, cls.DOT_MATRIX_COLUMNS, (" | ", " ")))
 
+        # Treat physical rows, totals, and each SO balance as printable blocks.
+        # A large balance footer can continue on additional forms after the
+        # physical rows, while the totals are emitted exactly once.
+        counts = f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}"
+        total_label = "TOTAL KG"
+        if len(counts) + 1 + len(total_label) > spec_width:
+            total_label = "TOTAL"
+        footer_blocks = [
+            [
+                divider("-"),
+                row_line(
+                    [
+                        (counts, spec_width - len(total_label) - 1, "left"),
+                        (total_label, len(total_label), "right"),
+                        (weight(totals["gross"], "gross"), col["gross"], "right"),
+                        ("", col["pcs"], "right"),
+                        (weight(totals["tare"], "tare"), col["tare"], "right"),
+                        (weight(totals["net"], "net"), col["net"], "right"),
+                    ]
+                ),
+            ],
+            *balance_blocks,
+        ]
         normalized_detail_lines = [clean(line) for line in (detail_lines or []) if clean(line)]
+        if normalized_detail_lines:
+            footer_blocks.extend(
+                wrapped_cell(line, cls.DOT_MATRIX_COLUMNS, (" ",))
+                for line in normalized_detail_lines
+            )
+        else:
+            signatures = signature_labels or ("Dispatch Incharge", "Security", "Receiver")
+            footer_blocks.append(
+                ["", row_line([(f"{label}: ".ljust(31, "_"), 31, "left") for label in signatures[:3]])]
+            )
+            if footer_note:
+                footer_blocks.append(wrapped_cell(footer_note, cls.DOT_MATRIX_COLUMNS, (" ",)))
+
         fixed_header_lines = 6 + len(transport_lines or [])
-        final_footer_lines = (
-            2 + len(balance_lines) + len(normalized_detail_lines)
-            if normalized_detail_lines
-            else 4 + len(balance_lines) + (1 if footer_note else 0)
-        )
-        final_capacity = cls.DOT_MATRIX_LINES_PER_PAGE - fixed_header_lines - final_footer_lines
-        regular_capacity = cls.DOT_MATRIX_LINES_PER_PAGE - fixed_header_lines - 2
-        if final_capacity < 1:
-            raise RuntimeError("Dispatch slip has too many balance lines for the configured form length.")
+        final_capacity = cls.DOT_MATRIX_LINES_PER_PAGE - fixed_header_lines
+        regular_capacity = final_capacity - 2
+        if regular_capacity < 2:
+            raise RuntimeError("Dispatch slip headers leave no room for the configured form content.")
+        remaining = [
+            {"entry": entry, "lines": [], "height": entry["height"]}
+            for entry in entries
+        ] + [
+            {"entry": None, "lines": block, "height": len(block)}
+            for block in footer_blocks
+        ]
         pages: list[list[dict[str, Any]]] = []
-        remaining = list(entries)
-        remaining_height = sum(entry["height"] for entry in remaining)
-        while remaining_height > final_capacity:
-            required_height = remaining_height - final_capacity
-            target_height = min(regular_capacity, required_height)
+        remaining_height = sum(block["height"] for block in remaining)
+        while remaining:
+            capacity = final_capacity if remaining_height <= final_capacity else regular_capacity
             page: list[dict[str, Any]] = []
             used_height = 0
-            while remaining:
-                next_height = remaining[0]["height"]
-                if next_height > regular_capacity:
-                    raise RuntimeError("One dispatch row is too tall for the configured form length.")
-                if page and used_height + next_height > regular_capacity:
-                    break
-                page.append(remaining.pop(0))
-                used_height += next_height
-                remaining_height -= next_height
-                if used_height >= target_height:
-                    break
+            while remaining and used_height + remaining[0]["height"] <= capacity:
+                block = remaining.pop(0)
+                page.append(block)
+                used_height += block["height"]
+                remaining_height -= block["height"]
             if not page:
-                raise RuntimeError("Dispatch rows cannot fit the configured form length.")
+                raise RuntimeError("One dispatch content block is too tall for the configured form length.")
             pages.append(page)
-        if not remaining:
-            raise RuntimeError("One dispatch row is too tall to share a page with the dispatch footer.")
-        pages.append(remaining)
         page_count = len(pages)
 
         rendered_pages: list[str] = []
-        for page_number, page_entries in enumerate(pages, start=1):
+        for page_number, page_blocks in enumerate(pages, start=1):
+            page_entries = [block["entry"] for block in page_blocks if block["entry"] is not None]
             lines: list[str] = []
             lines.append(
                 row_line(
@@ -1137,7 +1165,7 @@ class DispatchListPDFService:
             )
             for line in transport_lines or []:
                 lines.append(cell(line, cls.DOT_MATRIX_COLUMNS).rstrip())
-            lines.append(table_header)
+            lines.append(table_header if page_entries else "SO BALANCES / DELIVERY CONTINUED")
             lines.append(divider("-"))
 
             for entry in page_entries:
@@ -1168,47 +1196,10 @@ class DispatchListPDFService:
                         )
                     )
 
+            for block in page_blocks:
+                lines.extend(block["lines"])
             if page_number < page_count:
-                lines.append("")
-                lines.append("CONTINUED ON NEXT PAGE")
-                rendered_pages.append("\r\n".join(lines))
-                continue
-
-            # Totals sit directly under the GROSS / TARE / NET columns so the
-            # summed weights align with the per-unit weights above them.
-            counts = f"BAGS: {totals['bags']}  ROLLS: {totals['rolls']}  UNITS: {totals['units']}  PCS: {totals['pcs']}"
-            total_label = "TOTAL KG"
-            if len(counts) + 1 + len(total_label) > spec_width:
-                total_label = "TOTAL"
-            lines.append(divider("-"))
-            lines.append(
-                row_line(
-                    [
-                        (counts, spec_width - len(total_label) - 1, "left"),
-                        (total_label, len(total_label), "right"),
-                        (weight(totals["gross"], "gross"), col["gross"], "right"),
-                        ("", col["pcs"], "right"),
-                        (weight(totals["tare"], "tare"), col["tare"], "right"),
-                        (weight(totals["net"], "net"), col["net"], "right"),
-                    ]
-                )
-            )
-            lines.extend(balance_lines)
-            if normalized_detail_lines:
-                lines.extend(cell(line, cls.DOT_MATRIX_COLUMNS).rstrip() for line in normalized_detail_lines)
-            else:
-                lines.append("")
-                signatures = signature_labels or ("Dispatch Incharge", "Security", "Receiver")
-                lines.append(
-                    row_line(
-                        [
-                            (f"{label}: ".ljust(31, "_"), 31, "left")
-                            for label in signatures[:3]
-                        ]
-                    )
-                )
-                if footer_note:
-                    lines.append(cell(footer_note, cls.DOT_MATRIX_COLUMNS).rstrip())
+                lines.extend(["", "CONTINUED ON NEXT PAGE"])
             if len(lines) > cls.DOT_MATRIX_LINES_PER_PAGE:
                 raise RuntimeError(f"Dispatch slip page {page_number} exceeds the configured form length.")
             rendered_pages.append("\r\n".join(lines))

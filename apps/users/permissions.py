@@ -9,6 +9,15 @@ from apps.users.permission_service import PermissionService
 logger = logging.getLogger(__name__)
 
 
+class ActualAdminPermission(BasePermission):
+    """Administrative resources require actual master rights on every action."""
+
+    message = "Only an administrator or owner can manage this resource."
+
+    def has_permission(self, request, view):
+        return PermissionService.is_gate_master(getattr(request, "user", None))
+
+
 class RoleBasedAccessPermission(BasePermission):
     """Deny-by-default RBAC for API endpoints when STRICT_RBAC is enabled."""
 

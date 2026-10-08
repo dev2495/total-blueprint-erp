@@ -138,6 +138,7 @@ class TemplateBlueprintSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "status",
             "version",
             "version_group",
             "is_current_version",
@@ -190,7 +191,7 @@ class TemplateProcessStepMaterialSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "template_step", "created_at", "updated_at"]
         extra_kwargs = {
             "consumption_basis": {"required": False, "allow_null": True},
             "formula_driver": {"required": False, "allow_null": True},
@@ -214,6 +215,12 @@ class TemplateProcessStepMaterialSerializer(serializers.ModelSerializer):
         ).strip().upper()
         if not category_code:
             raise serializers.ValidationError({"category_code": "category_code is required."})
+        if instance and TemplateProcessStepMaterial.objects.filter(
+            template_step_id=instance.template_step_id, category_code=category_code
+        ).exclude(pk=instance.pk).exists():
+            raise serializers.ValidationError({
+                "non_field_errors": ["The fields template_step, category_code must make a unique set."]
+            })
         attrs["category_code"] = category_code
         ink_legacy = category_code in {"INK", "INKS"}
         if ink_legacy and instance is None:
@@ -364,7 +371,7 @@ class TemplateProcessStepRollHandlingSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "template_step", "created_at", "updated_at"]
 
 
 class TemplateProcessStepSerializer(serializers.ModelSerializer):

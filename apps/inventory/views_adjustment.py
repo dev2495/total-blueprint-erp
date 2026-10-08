@@ -195,7 +195,9 @@ class StockAdjustmentSerializer(serializers.ModelSerializer):
             )
         return adj
 
+    @transaction.atomic
     def update(self, instance, validated_data):
+        instance = StockAdjustment.objects.select_for_update().get(pk=instance.pk)
         if instance.status != "DRAFT":
             raise DRFValidationError(
                 f"Cannot edit adjustment in status {instance.status}"
@@ -238,6 +240,13 @@ class StockAdjustmentViewSet(viewsets.ModelViewSet):
     serializer_class = StockAdjustmentSerializer
     permission_classes = [IsAuthenticated, CanAdjustStock]
 
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        instance = StockAdjustment.objects.select_for_update().get(pk=instance.pk)
+        if instance.status != "DRAFT":
+            raise DRFValidationError("Posted and voided adjustments preserve stock history and cannot be deleted.")
+        instance.delete()
+
     def get_queryset(self):
         qs = super().get_queryset()
         params = self.request.query_params
@@ -272,8 +281,9 @@ class StockAdjustmentViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(adj).data)
 
     @action(detail=True, methods=["post"], url_path="add-line")
+    @transaction.atomic
     def add_line(self, request, pk=None):
-        adj = self.get_object()
+        adj = StockAdjustment.objects.select_for_update().get(pk=self.get_object().pk)
         if adj.status != "DRAFT":
             raise DRFValidationError(f"Cannot add lines to {adj.status} adjustment.")
         ser = StockAdjustmentLineSerializer(data=request.data)
@@ -295,8 +305,9 @@ class StockAdjustmentViewSet(viewsets.ModelViewSet):
         return Response(StockAdjustmentLineSerializer(line).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["delete"], url_path=r"lines/(?P<line_id>[^/.]+)")
+    @transaction.atomic
     def remove_line(self, request, pk=None, line_id=None):
-        adj = self.get_object()
+        adj = StockAdjustment.objects.select_for_update().get(pk=self.get_object().pk)
         if adj.status != "DRAFT":
             raise DRFValidationError(f"Cannot remove lines from {adj.status} adjustment.")
         StockAdjustmentLine.objects.filter(adjustment=adj, id=line_id).delete()

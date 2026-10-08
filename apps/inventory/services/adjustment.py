@@ -37,12 +37,25 @@ def _generate_adj_code() -> str:
 
 
 class StockAdjustmentService:
+    @staticmethod
+    def _locked_lines(adjustment):
+        lines = list(adjustment.lines.select_for_update().order_by("id"))
+        # Header -> lines -> stock. Use the same material-first stock order
+        # across adjustments/receipts, preserving line order within one pool.
+        return sorted(lines, key=lambda line: (
+            str(line.inventory_material_id or line.trading_good_id or line.inventory_roll_id or ""),
+            line.stock_class, str(line.location_id or ""), line.line_no, str(line.id),
+        ))
+
     @classmethod
     @transaction.atomic
     def post(cls, *, adjustment: StockAdjustment, user=None) -> StockAdjustment:
+        adjustment = StockAdjustment.objects.select_for_update().get(pk=adjustment.pk)
+        if adjustment.status == "POSTED":
+            return adjustment
         if adjustment.status != "DRAFT":
             raise ValidationError(f"Cannot post adjustment in status {adjustment.status}")
-        for line in adjustment.lines.select_for_update().all():
+        for line in cls._locked_lines(adjustment):
             cls._apply_line(line)
         adjustment.status = "POSTED"
         adjustment.posted_at = timezone.now()
@@ -53,11 +66,12 @@ class StockAdjustmentService:
     @classmethod
     @transaction.atomic
     def void(cls, *, adjustment: StockAdjustment, user=None) -> StockAdjustment:
+        adjustment = StockAdjustment.objects.select_for_update().get(pk=adjustment.pk)
         if adjustment.status == "VOID":
             return adjustment
         if adjustment.status == "POSTED":
             # Reverse each line by applying inverse delta to the same stock pool.
-            for line in adjustment.lines.select_for_update().all():
+            for line in cls._locked_lines(adjustment):
                 inverse = StockAdjustmentLine(
                     adjustment=line.adjustment,
                     stock_class=line.stock_class,

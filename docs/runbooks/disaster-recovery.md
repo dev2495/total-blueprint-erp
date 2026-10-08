@@ -19,14 +19,17 @@
    - query `platformops_backup_records` for latest `SUCCEEDED`
    - verify checksum + object availability
 3. Restore to staging first:
-   - run `DR_RESTORE_DRILL_COMMAND`
+   - call `BackupService.run_restore_drill(backup_record=selected_backup)`; the
+     service verifies and passes that exact record's managed file and SHA256 to
+     `DR_RESTORE_DRILL_COMMAND`. The script copies and rechecks it before restore.
    - execute smoke tests (`DR_SMOKE_TEST_COMMAND`)
    - On AWS, run the drill inside the backend container so the host backup mount is
      available at `/var/backups/tpp-erp/managed`:
-     `cd /opt/tpp-erp/app && sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend /app/deploy/aws/restore-drill.sh`
-   - Do not invoke `/opt/tpp-erp/app/deploy/aws/restore-drill.sh` directly on the
-     host without setting `BACKUP_LOCAL_DIR`; its default path is the container
-     mount and will otherwise produce a false "no managed backup" failure.
+     `cd /opt/tpp-erp/app && sudo docker compose -f deploy/aws/docker-compose.yml run --rm backend python manage.py shell -c 'from apps.platformops.services.backup_service import BackupService; BackupService.run_restore_drill()'`
+   - For an explicitly chosen backup, load its `BackupRecord` and pass it as
+     `backup_record`; otherwise the service selects the latest successful record.
+     The shell script requires `RESTORE_BACKUP_PATH` and `RESTORE_BACKUP_SHA256`
+     from the service and never independently selects a filename.
 4. If staging smoke passes:
    - restore production database
 5. Validate:

@@ -286,7 +286,7 @@ export function GoodsEntry({ initialDirection }: { initialDirection: GateDirecti
         {meta.verb} at <span className="font-semibold text-content-2">{plant?.name}</span>. Time is stamped by the server when you save.
       </p>
 
-      <fieldset disabled={locked} className="mt-4 space-y-4">
+      <fieldset disabled={locked} className="mt-4 min-w-0 space-y-4">
         <section className="gate-card space-y-4 p-4">
           <div>
             <FieldLabel required hint="Type from paper">
@@ -545,8 +545,8 @@ function LineCard({
         />
         <FieldError message={errors.product} />
       </div>
-      <div className="grid grid-cols-[1fr_1fr] gap-3">
-        <div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="min-w-0">
           <FieldLabel required>Quantity</FieldLabel>
           <input
             className="gate-field gate-num font-mono text-[18px] font-semibold"
@@ -559,7 +559,7 @@ function LineCard({
           />
           <FieldError message={errors.quantity} />
         </div>
-        <div>
+        <div className="min-w-0">
           <FieldLabel hint="If on paper">Amount ₹</FieldLabel>
           <input
             className="gate-field gate-num font-mono"

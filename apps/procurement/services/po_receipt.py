@@ -68,8 +68,17 @@ class PurchaseOrderReceiptService:
         notes: str = "",
         quality_status: str = "PENDING",
         location: InventoryLocation = None,
+        client_token: str = "",
     ) -> PurchaseOrderReceipt:
         po = PurchaseOrder.objects.select_for_update().get(pk=po.pk)
+        client_token = str(client_token or "").strip()[:64]
+        if client_token:
+            existing = PurchaseOrderReceipt.objects.filter(
+                purchase_order=po, client_token=client_token
+            ).first()
+            if existing:
+                existing._idempotent_replay = True
+                return existing
         if po.status not in {"SENT", "ACK", "PARTIAL"}:
             raise ValidationError(f"Cannot receive against {po.status} PO")
         if not lines_data:
@@ -102,6 +111,7 @@ class PurchaseOrderReceiptService:
             lr_no=lr_no or "",
             notes=notes or "",
             quality_status=quality_status or "PENDING",
+            client_token=client_token,
             received_by=user if (user and getattr(user, "is_authenticated", True)) else None,
         )
 

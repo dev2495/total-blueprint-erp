@@ -9,6 +9,20 @@ from .role_catalog import canonicalize_role_matrix, get_canonical_role_code
 
 class PermissionService:
     @staticmethod
+    def revoke_refresh_tokens(user: User) -> int:
+        """Revoke this account's existing sessions without logging others out."""
+        from django.utils import timezone
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+
+        tokens = list(OutstandingToken.objects.filter(
+            user=user, expires_at__gt=timezone.now(), blacklistedtoken__isnull=True,
+        ))
+        BlacklistedToken.objects.bulk_create(
+            [BlacklistedToken(token=token) for token in tokens], ignore_conflicts=True,
+        )
+        return len(tokens)
+
+    @staticmethod
     def is_gate_master(user) -> bool:
         """Actual master rights, with the watchman ceiling before every flag."""
         if not user or not getattr(user, "is_authenticated", False):

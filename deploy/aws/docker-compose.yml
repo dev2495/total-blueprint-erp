@@ -15,7 +15,7 @@ services:
   redis:
     image: redis:7-bookworm
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction"]
     volumes:
       - /opt/tpp-erp/redis:/data
     healthcheck:

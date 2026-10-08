@@ -85,16 +85,26 @@ class CylinderSlotAssignmentViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        artwork_id = request.data.get("artwork") or instance.artwork_id
+        identity_fields = {
+            "artwork": str(instance.artwork_id),
+            "side": instance.side,
+            "side_slot_index": str(instance.side_slot_index),
+            "slot": str(instance.side_slot_index),
+        }
+        for field, current in identity_fields.items():
+            if field in request.data:
+                incoming = str(request.data[field] or "").strip()
+                if field == "side":
+                    incoming = incoming.upper()
+                if incoming != current:
+                    return Response({field: "Assignment artwork, side and slot cannot be changed. Use a new assignment."}, status=400)
         cylinder_id = request.data.get("cylinder") or instance.cylinder_id
-        side = request.data.get("side") or instance.side
-        slot = request.data.get("side_slot_index") or request.data.get("slot") or instance.side_slot_index
         try:
             assignment = CylinderService.assign_existing_to_slot(
-                artwork_id=artwork_id,
+                artwork_id=instance.artwork_id,
                 cylinder_id=cylinder_id,
-                side=side,
-                slot=slot,
+                side=instance.side,
+                slot=instance.side_slot_index,
             )
         except Exception as exc:
             return Response({"detail": str(exc)}, status=400)

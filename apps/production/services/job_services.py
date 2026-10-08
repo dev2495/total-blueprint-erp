@@ -1667,8 +1667,33 @@ class JobService:
         return job
 
     @classmethod
+    @transaction.atomic
     def release_job(cls, job_id):
-        job = ProductionJob.objects.get(id=job_id)
+        from apps.production.models import PlannedStockOrder
+        from apps.production.services.order_locks import lock_sales_order_item
+
+        source_ids = ProductionJob.objects.values("sales_order_item_id", "mts_order_id").get(id=job_id)
+        source_obj = None
+        if source_ids["sales_order_item_id"]:
+            source_obj = lock_sales_order_item(source_ids["sales_order_item_id"])
+        elif source_ids["mts_order_id"]:
+            source_obj = PlannedStockOrder.objects.select_for_update(of=("self",)).get(id=source_ids["mts_order_id"])
+        # Dispatch setup edits lock their source before editing template steps,
+        # then jobs. Backfill in the same order, before taking this job's lock.
+        candidate = ProductionJob.objects.select_related("template").get(id=job_id)
+        if candidate.job_state not in ['PLANNED', 'WAITING']:
+            raise ValueError(f"Can only release PLANNED or WAITING jobs. Current state: {candidate.job_state}")
+        if candidate.template_id:
+            TemplateDispatchService.backfill_auto_resolvable_template_steps(candidate.template, apply=True)
+        # Recheck the job only after the source locks: a concurrent revision
+        # may have retired this queued job while the release request waited.
+        job = ProductionJob.objects.select_for_update(of=("self",)).get(id=job_id)
+        if job.sales_order_item_id != source_ids["sales_order_item_id"] or job.mts_order_id != source_ids["mts_order_id"]:
+            raise ValueError("The job source changed. Refresh the plan before releasing it.")
+        if job.sales_order_item_id:
+            job.sales_order_item = source_obj
+        elif job.mts_order_id:
+            job.mts_order = source_obj
         if job.job_state not in ['PLANNED', 'WAITING']:
             raise ValueError(f"Can only release PLANNED or WAITING jobs. Current state: {job.job_state}")
 
@@ -1682,7 +1707,6 @@ class JobService:
         # artwork_assignment_required is false and the release proceeds as
         # a warning-print run (no ink in BOM). This branch only blocks the
         # hard-required case.
-        source_obj = getattr(job, "sales_order_item", None) or getattr(job, "mts_order", None)
         if source_obj is not None:
             if getattr(job, "sales_order_item_id", None):
                 require_bom_ready_for_production(
@@ -1701,8 +1725,6 @@ class JobService:
 
         with transaction.atomic():
             process = job.current_process or job.process
-            if job.template_id:
-                TemplateDispatchService.backfill_auto_resolvable_template_steps(job.template, apply=True)
             resolver_step_index = job.current_step_index
             if job.routing_rule_id:
                 try:

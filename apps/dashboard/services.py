@@ -338,10 +338,11 @@ class DashboardService:
         query_lc = str(query or "").strip().lower()
 
         from apps.users.permission_service import PermissionService
+        from apps.users.role_catalog import get_canonical_role_code
 
         granted_permissions = set(PermissionService.get_user_permissions(user))
         context = PermissionService.get_assigned_context(user)
-        effective_role = str(getattr(user, "effective_role_code", getattr(getattr(user, "role", None), "code", "")) or "").upper()
+        effective_role = get_canonical_role_code(getattr(user, "effective_role_code", getattr(getattr(user, "role", None), "code", "")))
         is_admin_actor = bool(
             user.is_superuser
             or user.is_owner
@@ -423,7 +424,7 @@ class DashboardService:
 
         if include_type("job") and has_permission("production.view"):
             job_qs = ProductionJob.objects.filter(job_number__icontains=query).select_related("machine", "work_center")
-            if not is_admin_actor:
+            if not is_admin_actor and effective_role == "WORK_CENTER_MANAGER":
                 if machine_scope_ids or wc_scope_ids:
                     job_qs = job_qs.filter(
                         Q(machine_id__in=machine_scope_ids) | Q(work_center_id__in=wc_scope_ids)

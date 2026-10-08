@@ -5,7 +5,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
-from .models import CompanyProfile, User, Role, UserProfileChangeRequest
+from .models import CompanyProfile, PermissionAuditLog, User, Role, UserProfileChangeRequest
 from .permission_registry import is_assignable_permission, normalize_permission_code
 from .permission_service import PermissionService
 
@@ -188,6 +188,16 @@ class UserSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
         instance.save()
+        if password:
+            revoked = PermissionService.revoke_refresh_tokens(instance)
+            request = self.context.get("request")
+            actor = getattr(request, "user", None)
+            PermissionAuditLog.objects.create(
+                user=actor if getattr(actor, "is_authenticated", False) else None,
+                action="PASSWORD_CHANGED", method=getattr(request, "method", ""),
+                path=getattr(request, "path", ""),
+                details={"status": "reset", "target_user_id": str(instance.pk), "revoked_refresh_tokens": revoked},
+            )
         if gate_plant_ids is not None:
             PermissionService.assign_gate_plants(instance, gate_plant_ids)
         return instance
@@ -268,8 +278,14 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         if user is None or not user.is_active:
             raise serializers.ValidationError("No active account found with the given credentials.")
 
-        update_last_login(None, user)
-        refresh = self.get_token(user)
+        with transaction.atomic():
+            # Serialize issuance with password resets: authentication may have
+            # read the previous password before another request acquired its lock.
+            user = User.objects.select_for_update().get(pk=user.pk)
+            if not user.is_active or not user.check_password(password):
+                raise serializers.ValidationError("No active account found with the given credentials.")
+            update_last_login(None, user)
+            refresh = self.get_token(user)
         self.user = user
         return {
             "refresh": str(refresh),

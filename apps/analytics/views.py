@@ -15,6 +15,7 @@ from apps.analytics.services import AnalyticsService, KPIService, FactoryOvervie
 from apps.analytics.report_delivery import ReportDistributionService
 from apps.analytics.pdf_exports import AnalyticsPDFExportService
 from apps.analytics.reports_service import ReportService
+from apps.analytics.permissions import AnalyticsAccessPermission
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 import logging
@@ -268,7 +269,7 @@ def _load_capability_registry():
         return json.load(handle)
 
 class AnalyticsViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, AnalyticsAccessPermission]
 
     @action(detail=False, methods=['get', 'put'], url_path='report-distributions')
     def report_distributions(self, request):

@@ -5,10 +5,12 @@ import pathlib
 import shlex
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 
 from django.conf import settings
+from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.platformops.models import BackupRecord, OperationalAlert, RestoreDrillRecord
@@ -134,19 +136,83 @@ class BackupService:
         )
 
     @classmethod
-    def _upload_to_object_storage(cls, file_path: pathlib.Path) -> tuple[str, str]:
+    def _upload_to_object_storage(cls, file_path: pathlib.Path, *, artifact_record=None, object_key=None) -> tuple[str, str]:
         bucket = os.getenv("BACKUP_S3_BUCKET", "").strip()
+        previous_bucket = (artifact_record.metadata or {}).get("storage_bucket") if artifact_record is not None else None
+        if previous_bucket and bucket != previous_bucket:
+            raise RuntimeError("The original backup storage bucket is required to retry this upload.")
         if not bucket:
+            if object_key is not None:
+                raise RuntimeError("BACKUP_S3_BUCKET is required to retry the original backup upload.")
             return "LOCAL", file_path.name
 
         client = cls._s3_client()
         prefix = os.getenv("BACKUP_S3_PREFIX", "db-backups/").strip()
         if prefix and not prefix.endswith("/"):
             prefix += "/"
-        object_key = f"{prefix}{timezone.now().strftime('%Y/%m/%d')}/{file_path.name}"
+        object_key = object_key or f"{prefix}{timezone.now().strftime('%Y/%m/%d')}/{file_path.name}"
+
+        if artifact_record is not None:
+            # Keep the intended key even if a remote upload returns an
+            # ambiguous failure after writing the object.
+            artifact_record.storage_provider = "S3"
+            artifact_record.object_key = object_key
+            artifact_record.metadata = {**(artifact_record.metadata or {}), "storage_bucket": bucket}
+            artifact_record.save(update_fields=["storage_provider", "object_key", "metadata"])
 
         client.upload_file(str(file_path), bucket, object_key)
         return "S3", object_key
+
+    @classmethod
+    def _local_artifact_path(cls, file_name: str) -> pathlib.Path:
+        name = str(file_name or "")
+        if not name or pathlib.Path(name).name != name or not name.endswith((".dump", ".dump.enc")):
+            raise RuntimeError("Backup artifact has no safe completed file name.")
+        return cls._backup_dir() / name
+
+    @classmethod
+    def _verify_completed_artifact(cls, record: BackupRecord) -> pathlib.Path:
+        path = cls._local_artifact_path(record.file_name)
+        if not record.checksum_sha256 or not record.size_bytes or not path.is_file():
+            raise RuntimeError("The original completed backup artifact cannot be verified.")
+        if path.stat().st_size != record.size_bytes or cls._sha256(path) != record.checksum_sha256:
+            raise RuntimeError("The original completed backup artifact failed checksum or size verification.")
+        if record.storage_provider not in {"LOCAL", "S3"} or (record.storage_provider == "S3" and not record.object_key):
+            raise RuntimeError("The original backup storage identity cannot be verified.")
+        return path
+
+    @classmethod
+    @transaction.atomic
+    def _claim_backup_attempt(cls, created_by, attempt_key: str) -> BackupRecord:
+        if attempt_key and connection.vendor == "postgresql":
+            # Serialize only the short claim, including first-row creation.
+            digest = hashlib.sha256(f"database-backup:{attempt_key}".encode()).digest()
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT pg_advisory_xact_lock(%s)", [int.from_bytes(digest[:8], "big", signed=True)])
+        record = (
+            BackupRecord.objects.select_for_update().filter(metadata__attempt_key=attempt_key)
+            .order_by("-created_at").first()
+        ) if attempt_key else None
+        now = timezone.now()
+        if record is None:
+            return BackupRecord.objects.create(
+                kind=BackupRecord.BackupKind.POSTGRES_DUMP,
+                status=BackupRecord.BackupStatus.RUNNING,
+                started_at=now,
+                created_by=created_by,
+                metadata={"attempt_key": attempt_key} if attempt_key else {},
+            )
+        if record.status == BackupRecord.BackupStatus.SUCCEEDED:
+            return record
+        if record.status == BackupRecord.BackupStatus.RUNNING:
+            raise RuntimeError("This logical backup attempt is already running.")
+        has_artifact = bool(record.file_name or record.object_key or record.checksum_sha256 or record.size_bytes)
+        if not has_artifact:
+            record.started_at = now
+        record.status = BackupRecord.BackupStatus.RUNNING
+        record.error_text = ""
+        record.save(update_fields=["status", "started_at", "error_text"])
+        return record
 
     @classmethod
     def run_database_backup(cls, created_by=None, *, attempt_key: str = "") -> BackupRecord:
@@ -157,58 +223,61 @@ class BackupService:
         failure records while still retaining the final error or artifact.
         """
         attempt_key = str(attempt_key or "").strip()
-        backup_record = None
-        if attempt_key:
-            backup_record = BackupRecord.objects.filter(
-                metadata__attempt_key=attempt_key,
-            ).order_by("-created_at").first()
-
-        now = timezone.now()
-        if backup_record is None:
-            backup_record = BackupRecord.objects.create(
-                kind=BackupRecord.BackupKind.POSTGRES_DUMP,
-                status=BackupRecord.BackupStatus.RUNNING,
-                started_at=now,
-                created_by=created_by,
-                metadata={"attempt_key": attempt_key} if attempt_key else {},
-            )
-        else:
-            backup_record.status = BackupRecord.BackupStatus.RUNNING
-            backup_record.started_at = now
-            backup_record.finished_at = None
-            backup_record.duration_seconds = None
-            backup_record.error_text = ""
-            backup_record.save(
-                update_fields=[
-                    "status",
-                    "started_at",
-                    "finished_at",
-                    "duration_seconds",
-                    "error_text",
-                ]
-            )
+        backup_record = cls._claim_backup_attempt(created_by, attempt_key)
         start_ts = time.monotonic()
+        backup_file = None
 
         try:
-            backup_file = cls._backup_dir() / f"erp_db_{cls._timestamp()}.dump"
-            cmd = cls._build_pg_dump_command(backup_file)
-
-            env = os.environ.copy()
-            db_password = os.getenv("DB_PASSWORD", "")
-            if db_password:
-                env["PGPASSWORD"] = db_password
-
-            completed = subprocess.run(cmd, capture_output=True, text=True, env=env)
-            if completed.returncode != 0:
-                raise RuntimeError(completed.stderr.strip() or "pg_dump failed")
-
-            final_path = cls._maybe_encrypt(backup_file)
-            checksum = cls._sha256(final_path)
-            size_bytes = final_path.stat().st_size
-            storage_provider, object_key = cls._upload_to_object_storage(final_path)
-
-            finished_at = timezone.now()
-            duration = int(max(1, time.monotonic() - start_ts))
+            if backup_record.status == BackupRecord.BackupStatus.SUCCEEDED:
+                cls._verify_completed_artifact(backup_record)
+                return backup_record
+            has_artifact = bool(backup_record.file_name or backup_record.object_key or backup_record.checksum_sha256 or backup_record.size_bytes)
+            if has_artifact:
+                final_path = cls._verify_completed_artifact(backup_record)
+                checksum = backup_record.checksum_sha256
+                size_bytes = backup_record.size_bytes
+                original_key = backup_record.object_key if backup_record.storage_provider == "S3" else None
+            else:
+                # Each execution owns a private staging path and immutable
+                # final name. Only an incomplete attempt creates a new dump;
+                # upload retries keep the already-published artifact identity.
+                file_name = f"erp_db_{cls._timestamp()}_{backup_record.id.hex}_{uuid.uuid4().hex}.dump"
+                backup_file = cls._backup_dir() / f"{file_name}.partial"
+                cmd = cls._build_pg_dump_command(backup_file)
+                env = os.environ.copy()
+                db_password = os.getenv("DB_PASSWORD", "")
+                if db_password:
+                    env["PGPASSWORD"] = db_password
+                completed = subprocess.run(cmd, capture_output=True, text=True, env=env)
+                if completed.returncode != 0:
+                    raise RuntimeError(completed.stderr.strip() or "pg_dump failed")
+                final_path = cls._maybe_encrypt(backup_file)
+                checksum = cls._sha256(final_path)
+                size_bytes = final_path.stat().st_size
+                published_path = final_path.with_name(file_name + (".enc" if final_path.suffix == ".enc" else ""))
+                final_path.replace(published_path)
+                final_path = published_path
+                backup_record.file_name = final_path.name
+                backup_record.object_key = final_path.name
+                backup_record.storage_provider = "LOCAL"
+                backup_record.checksum_sha256 = checksum
+                backup_record.size_bytes = size_bytes
+                backup_record.metadata = {
+                    **(backup_record.metadata or {}),
+                    "command": " ".join(shlex.quote(c) for c in cmd),
+                    "encrypted": final_path.suffix.endswith(".enc"),
+                    "snapshot_completed_at": timezone.now().isoformat(),
+                    "snapshot_duration_seconds": int(max(1, time.monotonic() - start_ts)),
+                }
+                backup_record.save(update_fields=["file_name", "object_key", "storage_provider", "checksum_sha256", "size_bytes", "metadata"])
+                original_key = None
+            storage_provider, object_key = cls._upload_to_object_storage(
+                final_path, artifact_record=backup_record, object_key=original_key,
+            )
+            completed_at = timezone.now()
+            snapshot_completed_at = (backup_record.metadata or {}).get("snapshot_completed_at")
+            finished_at = dt.datetime.fromisoformat(snapshot_completed_at) if snapshot_completed_at else (backup_record.finished_at or backup_record.started_at or backup_record.created_at)
+            duration = (backup_record.metadata or {}).get("snapshot_duration_seconds") or backup_record.duration_seconds or int(max(1, time.monotonic() - start_ts))
             backup_record.status = BackupRecord.BackupStatus.SUCCEEDED
             backup_record.finished_at = finished_at
             backup_record.duration_seconds = duration
@@ -219,8 +288,7 @@ class BackupService:
             backup_record.size_bytes = size_bytes
             backup_record.metadata = {
                 **(backup_record.metadata or {}),
-                "command": " ".join(shlex.quote(c) for c in cmd),
-                "encrypted": final_path.suffix.endswith(".enc"),
+                "last_attempt_finished_at": completed_at.isoformat(),
             }
             backup_record.save(
                 update_fields=[
@@ -238,9 +306,14 @@ class BackupService:
             OperationalAlert.objects.filter(
                 category="BACKUP",
                 resolved=False,
-            ).update(resolved=True, resolved_at=finished_at)
+            ).update(resolved=True, resolved_at=completed_at)
             return backup_record
         except Exception as exc:
+            if backup_file is not None:
+                # Only unpublished paths belong to the failed execution.
+                # A published artifact remains identified by the audit row.
+                backup_file.unlink(missing_ok=True)
+                backup_file.with_suffix(backup_file.suffix + ".enc").unlink(missing_ok=True)
             backup_record.status = BackupRecord.BackupStatus.FAILED
             backup_record.finished_at = timezone.now()
             backup_record.duration_seconds = int(max(1, time.monotonic() - start_ts))
@@ -270,12 +343,30 @@ class BackupService:
         local_missing = 0
         bucket = os.getenv("BACKUP_S3_BUCKET", "").strip()
         s3_deleted = 0
+        skipped_failed_attempts = 0
+        skipped_active_attempts = 0
         s3_client = None
         active_record = None
 
         try:
             for record in records:
                 active_record = record
+                if record.status in {BackupRecord.BackupStatus.PENDING, BackupRecord.BackupStatus.RUNNING}:
+                    skipped_active_attempts += 1
+                    continue
+                # A failed pg_dump attempt never acquires artifact fields.
+                # Retain its failure audit, but do not let metadata without an
+                # artifact block pruning later successful backups.
+                if (
+                    record.status == BackupRecord.BackupStatus.FAILED
+                    and record.finished_at is not None
+                    and not str(record.file_name or "").strip()
+                    and not str(record.object_key or "").strip()
+                    and not str(record.checksum_sha256 or "").strip()
+                    and record.size_bytes in (None, 0)
+                ):
+                    skipped_failed_attempts += 1
+                    continue
                 provider = str(record.storage_provider or "LOCAL").strip().upper()
                 if provider == "LOCAL":
                     if not record.file_name:
@@ -293,10 +384,19 @@ class BackupService:
                         )
                     if not record.object_key:
                         raise RuntimeError("S3 backup record has no object key.")
+                    local_path = cls._local_artifact_path(record.file_name)
+                    original_bucket = (record.metadata or {}).get("storage_bucket")
+                    if original_bucket and original_bucket != bucket:
+                        raise RuntimeError("The original backup storage bucket is required to prune this S3 artifact.")
                     if s3_client is None:
                         s3_client = cls._s3_client()
                     s3_client.delete_object(Bucket=bucket, Key=record.object_key)
                     s3_deleted += 1
+                    if local_path.exists():
+                        local_path.unlink(missing_ok=True)
+                        local_deleted += 1
+                    else:
+                        local_missing += 1
                 else:
                     raise RuntimeError(f"Unsupported backup storage provider: {provider}")
 
@@ -345,15 +445,20 @@ class BackupService:
             "deleted_local_files": local_deleted,
             "missing_local_files": local_missing,
             "deleted_s3_objects": s3_deleted,
+            "skipped_failed_attempts": skipped_failed_attempts,
+            "skipped_active_attempts": skipped_active_attempts,
             "retention_days": retention_days,
         }
 
     @classmethod
-    def run_restore_drill(cls) -> RestoreDrillRecord:
+    def run_restore_drill(cls, *, backup_record: Optional[BackupRecord] = None) -> RestoreDrillRecord:
+        # An explicitly requested release backup must remain the drill's exact
+        # subject even when another scheduled backup completes concurrently.
         latest_backup: Optional[BackupRecord] = (
+            BackupRecord.objects.get(pk=backup_record.pk)
+            if backup_record is not None else
             BackupRecord.objects.filter(status=BackupRecord.BackupStatus.SUCCEEDED)
-            .order_by("-created_at")
-            .first()
+            .order_by("-created_at").first()
         )
 
         record = RestoreDrillRecord.objects.create(
@@ -371,11 +476,20 @@ class BackupService:
                 record.status = RestoreDrillRecord.RestoreStatus.SKIPPED
                 record.notes = "DR_RESTORE_DRILL_COMMAND is not configured; restore step skipped."
             else:
+                if latest_backup is None or latest_backup.status != BackupRecord.BackupStatus.SUCCEEDED:
+                    raise RuntimeError("A successful backup record is required for the restore drill.")
+                artifact_path = cls._verify_completed_artifact(latest_backup)
+                drill_env = {
+                    **os.environ,
+                    "RESTORE_BACKUP_PATH": str(artifact_path),
+                    "RESTORE_BACKUP_SHA256": latest_backup.checksum_sha256,
+                    "RESTORE_BACKUP_ID": str(latest_backup.id),
+                }
                 restore_tokens = cls._parse_safe_command(
                     restore_cmd,
                     env_name="DR_RESTORE_DRILL_COMMAND",
                 )
-                completed_restore = subprocess.run(restore_tokens, capture_output=True, text=True)
+                completed_restore = subprocess.run(restore_tokens, capture_output=True, text=True, env=drill_env)
                 if completed_restore.returncode != 0:
                     raise RuntimeError(f"Restore command failed: {completed_restore.stderr.strip()}")
 
@@ -389,7 +503,7 @@ class BackupService:
                         smoke_cmd,
                         env_name="DR_SMOKE_TEST_COMMAND",
                     )
-                    smoke = subprocess.run(smoke_tokens, capture_output=True, text=True)
+                    smoke = subprocess.run(smoke_tokens, capture_output=True, text=True, env=drill_env)
                     record.smoke_test_passed = smoke.returncode == 0
                     if smoke.returncode != 0:
                         raise RuntimeError(f"Smoke test failed: {smoke.stderr.strip()}")

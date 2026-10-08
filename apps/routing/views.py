@@ -38,7 +38,11 @@ class RoutingRuleViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         incoming = request.data.get("ordered_processes", None)
-        if incoming is not None and [str(v) for v in incoming] != [str(v) for v in (instance.ordered_processes or [])]:
+        incoming_graph = request.data.get("route_graph", None)
+        sequence_changed = incoming is not None and [str(v) for v in incoming] != [str(v) for v in (instance.ordered_processes or [])]
+        graph_changed = "route_graph" in request.data and (incoming_graph or {}) != (instance.route_graph or {})
+        if sequence_changed or graph_changed:
+            from apps.production.models import ProductionJob
             from apps.templates.models import TemplateBlueprint
 
             active_template_refs = (
@@ -46,10 +50,10 @@ class RoutingRuleViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 .exclude(status="OBSOLETE")
                 .order_by("name")
             )
-            if active_template_refs.exists():
+            if active_template_refs.exists() or ProductionJob.objects.filter(routing_rule=instance).exists():
                 return Response(
                     {
-                        "error": "Routing sequence is locked by current templates.",
+                        "error": "Routing sequence and graph are locked by current templates or production history.",
                         "detail": (
                             "Disable the old route/template and create a corrected route/template version. "
                             f"Current linked templates: {', '.join(active_template_refs.values_list('name', flat=True)[:5])}."

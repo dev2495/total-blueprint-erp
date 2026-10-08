@@ -6,7 +6,7 @@ from django.db.models import Sum, F
 from django.utils import timezone
 from apps.sales.models import SalesOrderItem
 from apps.production.models import PlannedStockOrder
-from apps.inventory.models import InventoryBulk, InventoryRoll, InventoryLocation
+from apps.inventory.models import InventoryBulk, InventoryRoll, InventoryLocation, PackagingStock
 from apps.materials.models import InventoryMaterial
 from .models import MRPPlan, MRPRequirement, MRPSuggestion
 from apps.costing.services import CostingService
@@ -336,21 +336,34 @@ class MRPService:
     @staticmethod
     def _get_available_stock(material: InventoryMaterial, plant_id: str = None) -> Decimal:
         """
-        Gets current usable stock (Phase 57: Uses InventoryBulk + InventoryRoll).
+        Gets current usable stock in the material's stock UOM.
         """
         bulk_query = InventoryBulk.objects.filter(material=material)
         if plant_id:
             bulk_query = bulk_query.filter(plant_id=plant_id)
-        
-        # Also include unconsumed rolls (only if it's the exact material)
-        roll_query = InventoryRoll.objects.filter(material=material, status='AVAILABLE')
-        if plant_id:
-            roll_query = roll_query.filter(location__plant_id=plant_id)
-            
         bulk_qty = bulk_query.aggregate(total=Sum('qty_kg'))['total'] or Decimal('0')
-        roll_qty = roll_query.aggregate(total=Sum('weight_kg'))['total'] or Decimal('0')
-        
-        return bulk_qty + roll_qty
+
+        # PackagingStock already stores base-UOM quantities, including PCS and
+        # METER. Receipts and in-house output use this pool rather than bulk.
+        packaging_qty = Decimal('0')
+        if material.category == 'PACKAGING':
+            packaging_query = PackagingStock.objects.filter(material=material)
+            if plant_id:
+                packaging_query = packaging_query.filter(plant_id=plant_id)
+            packaging_qty = packaging_query.aggregate(total=Sum('qty'))['total'] or Decimal('0')
+
+        # A roll's weight can offset only KG demand; do not add kilograms to
+        # a count or length quantity. Bulk qty_kg is a legacy field name and
+        # stores quantities in the material's configured stock UOM.
+        stock_uom = material.addon_purchase_uom if material.category == 'ADDON' else material.base_uom
+        roll_qty = Decimal('0')
+        if InventoryMaterial.normalize_master_uom(stock_uom or 'KG') == 'KG':
+            roll_query = InventoryRoll.objects.filter(material=material, status='AVAILABLE')
+            if plant_id:
+                roll_query = roll_query.filter(location__plant_id=plant_id)
+            roll_qty = roll_query.aggregate(total=Sum('weight_kg'))['total'] or Decimal('0')
+
+        return bulk_qty + packaging_qty + roll_qty
 
     @staticmethod
     def _get_wip_stock(material: InventoryMaterial, plant_id: str = None) -> Decimal:

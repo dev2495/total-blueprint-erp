@@ -217,7 +217,21 @@ class TemplateDispatchService:
         notes=None,
         optional_at_planning=None,
         skippable_after_previous_output=None,
+        refresh_open_sources=True,
     ):
+        from apps.production.models import PlannedStockOrder, ProductionJob
+        from apps.production.services.order_locks import lock_sales_order_items
+        from apps.sales.models import SalesOrderItem
+
+        # Dispatch edits write both template steps and open jobs. Acquire their
+        # source locks first, as release and snapshot revision do, so step/job
+        # updates cannot invert the source -> template step -> job lock order.
+        if refresh_open_sources:
+            lock_sales_order_items(
+                SalesOrderItem.objects.filter(template_id=step.template_id).values_list("id", flat=True)
+            )
+            stock_ids = ProductionJob.objects.filter(template_id=step.template_id).values_list("mts_order_id", flat=True)
+            list(PlannedStockOrder.objects.select_for_update(of=("self",)).filter(id__in=stock_ids).order_by("id"))
         allowed_ids = cls.normalize_work_center_ids(allowed_work_center_ids or [])
         if allowed_ids:
             valid_ids = {
@@ -268,14 +282,15 @@ class TemplateDispatchService:
             "dispatch_updated_at",
             "updated_at",
         ])
-        cls.refresh_open_jobs_for_step(step)
-        from apps.sales.services.order_service import SalesOrderService
+        if refresh_open_sources:
+            cls.refresh_open_jobs_for_step(step)
+            from apps.sales.services.order_service import SalesOrderService
 
-        SalesOrderService.refresh_open_snapshots_for_template(
-            step.template,
-            reason="TEMPLATE_DISPATCH_EDIT",
-            raise_on_error=True,
-        )
+            SalesOrderService.refresh_open_snapshots_for_template(
+                step.template,
+                reason="TEMPLATE_DISPATCH_EDIT",
+                raise_on_error=True,
+            )
         return step
 
     @classmethod
@@ -444,12 +459,15 @@ class TemplateDispatchService:
         return {"eligible": changed, "applied": changed if apply else 0}
 
     @classmethod
+    @transaction.atomic
     def backfill_auto_resolvable_template_steps(cls, template, *, apply=False):
         rows = []
         changed = 0
         steps = template.process_steps.select_related("process", "default_work_center").filter(
             is_removed_from_route=False
         ).order_by("sequence_number")
+        if apply:
+            steps = steps.select_for_update(of=("self",))
         for step in steps:
             status = cls.step_status(step)
             rows.append({
@@ -470,6 +488,10 @@ class TemplateDispatchService:
                         default_work_center_id=valid["id"],
                         selection_policy=cls.AUTO_DEFAULT,
                         notes=step.dispatch_notes or "Auto-filled from the only capable work center before publish.",
+                        # A unique capable center already resolves to this WC.
+                        # Persisting that default must not revise/cancel queues
+                        # or lock other orders during their release/creation.
+                        refresh_open_sources=False,
                     )
                 changed += 1
         return {"eligible": changed, "applied": changed if apply else 0, "rows": rows}
@@ -879,7 +901,10 @@ class TemplateGovernanceService:
     @transaction.atomic
     def publish_template(template_id: str):
         template = (
-            TemplateBlueprint.objects.select_for_update()
+            # Status/version changes preserve the referenced primary key.
+            # Permit concurrent FK validation from a source-locked queue
+            # rebuild while still serializing competing template writers.
+            TemplateBlueprint.objects.select_for_update(no_key=True)
             .get(id=template_id)
         )
         if template.status == "OBSOLETE":
@@ -902,7 +927,7 @@ class TemplateGovernanceService:
             )
 
         now = timezone.now()
-        siblings = TemplateBlueprint.objects.select_for_update().filter(
+        siblings = TemplateBlueprint.objects.select_for_update(no_key=True).filter(
             version_group=template.version_group,
         ).exclude(id=template.id)
         superseded_live_ids = list(
@@ -971,7 +996,7 @@ class TemplateGovernanceService:
     @staticmethod
     @transaction.atomic
     def retire_template(template_id: str):
-        template = TemplateBlueprint.objects.select_for_update().get(id=template_id)
+        template = TemplateBlueprint.objects.select_for_update(no_key=True).get(id=template_id)
         if template.status == "OBSOLETE":
             return template
         template.status = "OBSOLETE"
@@ -1098,7 +1123,7 @@ class TemplateGovernanceService:
     @staticmethod
     @transaction.atomic
     def clone_template(template_id: str, user=None, *, correction_reason: str = ""):
-        source = TemplateBlueprint.objects.select_for_update().get(id=template_id)
+        source = TemplateBlueprint.objects.select_for_update(no_key=True).get(id=template_id)
         return TemplateGovernanceService._copy_template(
             source,
             user=user,
@@ -1109,7 +1134,7 @@ class TemplateGovernanceService:
     @transaction.atomic
     def edit_draft(template_id: str, user=None, *, correction_reason: str = ""):
         source = (
-            TemplateBlueprint.objects.select_for_update()
+            TemplateBlueprint.objects.select_for_update(no_key=True)
             .get(id=template_id)
         )
         if source.status in {"DRAFT", "ENGINEERING", "APPROVED"}:
@@ -1118,12 +1143,12 @@ class TemplateGovernanceService:
                 source.save(update_fields=["correction_reason", "updated_at"])
             return source
         if source.status == "OBSOLETE" and source.superseded_by_id:
-            source = TemplateBlueprint.objects.select_for_update().get(id=source.superseded_by_id)
+            source = TemplateBlueprint.objects.select_for_update(no_key=True).get(id=source.superseded_by_id)
         if source.status != "LIVE":
             raise ValidationError("Only live or editable templates can be opened for safe editing.")
 
         existing = (
-            TemplateBlueprint.objects.select_for_update()
+            TemplateBlueprint.objects.select_for_update(no_key=True)
             .filter(
                 source_template=source,
                 status__in=["DRAFT", "ENGINEERING", "APPROVED"],

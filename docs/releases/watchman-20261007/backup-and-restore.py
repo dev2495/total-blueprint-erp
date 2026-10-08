@@ -24,7 +24,7 @@ artifact = BackupService._backup_dir() / backup.file_name
 if not artifact.is_file() or BackupService._sha256(artifact) != backup.checksum_sha256:
     raise SystemExit("Managed backup artifact checksum failed; do not activate.")
 print(json.dumps({"backup_id": str(backup.id), "status": backup.status, "checksum_sha256": backup.checksum_sha256, "size_bytes": backup.size_bytes, "duration_seconds": backup.duration_seconds}), flush=True)
-restore = BackupService.run_restore_drill()
+restore = BackupService.run_restore_drill(backup_record=backup)
 if restore.status != "SUCCEEDED" or not restore.smoke_test_passed or restore.backup_record_id != backup.id:
     raise SystemExit("Restore drill did not successfully verify this backup; do not activate.")
 print(json.dumps({"restore_id": str(restore.id), "backup_id": str(restore.backup_record_id), "status": restore.status, "smoke_test_passed": restore.smoke_test_passed, "duration_seconds": restore.duration_seconds}), flush=True)

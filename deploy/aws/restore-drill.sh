@@ -7,20 +7,32 @@ db_port="${DB_PORT:-5432}"
 db_user="${DB_USER:-postgres}"
 db_password="${DB_PASSWORD:-}"
 
-latest_backup="$(
-  find "$backup_dir" -maxdepth 1 -type f \
-    \( -name 'erp_db_*.dump' -o -name 'erp_db_*.dump.enc' \) \
-    -print | sort | tail -n 1
-)"
-
-if [ -z "$latest_backup" ]; then
-  echo "No managed PostgreSQL backup is available for the restore drill." >&2
+selected_backup="${RESTORE_BACKUP_PATH:-}"
+expected_checksum="${RESTORE_BACKUP_SHA256:-}"
+if [ -z "$selected_backup" ] || [ "${#expected_checksum}" -ne 64 ]; then
+  echo "The selected backup path and SHA256 from BackupService are required." >&2
+  exit 1
+fi
+case "$expected_checksum" in
+  *[!0-9a-fA-F]*) echo "The selected backup SHA256 is invalid." >&2; exit 1 ;;
+esac
+case "$selected_backup" in
+  *.dump|*.dump.enc) ;;
+  *) echo "Restore requires a completed dump artifact; staging files are excluded." >&2; exit 1 ;;
+esac
+if [ ! -f "$selected_backup" ] || [ -L "$selected_backup" ]; then
+  echo "The selected completed backup is unavailable." >&2
+  exit 1
+fi
+managed_dir="$(cd "$backup_dir" && pwd -P)"
+selected_dir="$(cd "$(dirname "$selected_backup")" && pwd -P)"
+if [ "$managed_dir" != "$selected_dir" ]; then
+  echo "The selected backup is outside the managed backup directory." >&2
   exit 1
 fi
 
 work_dir="$(mktemp -d /tmp/tpp-restore-drill.XXXXXX)"
 drill_db="tpp_restore_drill_$(date +%Y%m%d_%H%M%S)_$$"
-restore_file="$latest_backup"
 export PGPASSWORD="$db_password"
 
 cleanup() {
@@ -29,7 +41,18 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-case "$latest_backup" in
+# Restore only a private copy of the selected artifact. A retention run cannot
+# change the bytes being verified/restored after this copy has been checked.
+verified_backup="$work_dir/$(basename "$selected_backup")"
+cp "$selected_backup" "$verified_backup"
+actual_checksum="$(openssl dgst -sha256 "$verified_backup" | awk '{print $NF}')"
+if [ "$actual_checksum" != "$expected_checksum" ]; then
+  echo "The selected backup failed SHA256 verification." >&2
+  exit 1
+fi
+restore_file="$verified_backup"
+
+case "$verified_backup" in
   *.enc)
     if [ -z "${BACKUP_ENCRYPTION_KEY:-}" ]; then
       echo "BACKUP_ENCRYPTION_KEY is required to verify the encrypted backup." >&2
@@ -38,7 +61,7 @@ case "$latest_backup" in
     restore_file="$work_dir/restore.dump"
     openssl enc -d -aes-256-cbc -pbkdf2 \
       -pass env:BACKUP_ENCRYPTION_KEY \
-      -in "$latest_backup" \
+      -in "$verified_backup" \
       -out "$restore_file"
     ;;
 esac

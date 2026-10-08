@@ -5,6 +5,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import URLValidator, validate_email
 from django.db.models import Q
+from django.db import transaction
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -38,6 +39,7 @@ from .permission_registry import (
     normalize_permission_code,
 )
 from .permission_service import PermissionService
+from .permissions import ActualAdminPermission
 from .role_catalog import canonicalize_role_matrix, canonicalize_role_rows, get_canonical_role_code
 from .serializers import (
     CompanyProfileSerializer,
@@ -206,9 +208,15 @@ class CookieTokenRefreshView(APIView):
         if not refresh:
             return Response({"detail": "refresh token is required"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        serializer = TokenRefreshSerializer(data={"refresh": refresh})
         try:
-            serializer.is_valid(raise_exception=True)
+            # Password changes and resets lock the same user while revoking
+            # outstanding refreshes. Revalidate after this lock so a concurrent
+            # rotation cannot escape revocation with a newly issued token.
+            with transaction.atomic():
+                token = RefreshToken(refresh)
+                User.objects.select_for_update().get(pk=token["user_id"])
+                serializer = TokenRefreshSerializer(data={"refresh": refresh})
+                serializer.is_valid(raise_exception=True)
         except Exception:
             return Response({"detail": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -327,6 +335,7 @@ class CsrfCookieView(APIView):
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request):
         current_password = str(request.data.get("current_password") or "")
         new_password = str(request.data.get("new_password") or "")
@@ -336,7 +345,7 @@ class ChangePasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = request.user
+        user = User.objects.select_for_update().get(pk=request.user.pk)
         if not user.check_password(current_password):
             return Response({"detail": "Current password is incorrect"}, status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -346,14 +355,17 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.save(update_fields=["password"])
+        revoked = PermissionService.revoke_refresh_tokens(user)
         PermissionAuditLog.objects.create(
             user=user,
             action="PASSWORD_CHANGED",
             method="POST",
             path="/api/users/change-password/",
-            details={"status": "updated"},
+            details={"status": "updated", "revoked_refresh_tokens": revoked},
         )
-        return Response({"status": "password_updated", "require_relogin": True})
+        response = Response({"status": "password_updated", "require_relogin": True})
+        _clear_auth_cookies(response)
+        return response
 
 
 class ProfileChangeRequestViewSet(viewsets.ViewSet):
@@ -465,7 +477,20 @@ class ProfileChangeRequestViewSet(viewsets.ViewSet):
 class RoleViewSet(viewsets.ModelViewSet):
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, ActualAdminPermission]
+
+    def destroy(self, request, *args, **kwargs):
+        role = self.get_object()
+        role_code, role_id = role.code, str(role.pk)
+        response = super().destroy(request, *args, **kwargs)
+        PermissionAuditLog.objects.create(
+            user=request.user,
+            action="ROLE_CHANGED",
+            method="DELETE",
+            path=request.path,
+            details={"deleted_role": role_code, "role_id": role_id},
+        )
+        return response
 
     def list(self, request, *args, **kwargs):
         if not _is_admin_actor(request.user):

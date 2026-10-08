@@ -113,7 +113,10 @@ class PurchaseOrderReceiptSerializer(serializers.ModelSerializer):
             "lines",
             "created_at",
         ]
-        read_only_fields = ["code", "received_by", "lines", "created_at"]
+        read_only_fields = [
+            "code", "purchase_order", "plant", "received_at",
+            "received_by", "lines", "created_at",
+        ]
 
     def get_received_by_name(self, obj):
         u = obj.received_by

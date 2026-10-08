@@ -288,3 +288,92 @@ class MRPReliabilityTests(TestCase):
             suggestion.refresh_from_db()
             self.assertFalse(suggestion.draft_ref)
             self.assertEqual(suggestion.action_status, 'PENDING')
+
+
+class MRPPackagingStockNettingTests(TestCase):
+    def setUp(self):
+        from apps.factory.models import Plant
+        from apps.inventory.models import InventoryLocation
+        from apps.sales.models import SalesOrder
+        from apps.templates.models import TemplateBlueprint
+
+        self.plant = Plant.objects.create(code='MRP-PACK-A', name='Packaging A')
+        self.other_plant = Plant.objects.create(code='MRP-PACK-B', name='Packaging B')
+        self.location = InventoryLocation.objects.create(plant=self.plant, code='PACK-A', name='Packaging A')
+        self.other_location = InventoryLocation.objects.create(plant=self.other_plant, code='PACK-B', name='Packaging B')
+        self.template = TemplateBlueprint.objects.create(name='MRP Packaging Demand', fg_type='POUCH')
+        self.order = SalesOrder.objects.create(customer_name='Packaging demand', status='PLANNED')
+
+    def _material(self, uom):
+        return InventoryMaterial.objects.create(
+            code=f'MRP-PACK-{uom}', name=f'Packaging {uom}', category='PACKAGING', base_uom=uom,
+        )
+
+    def _demand(self, material, qty):
+        from apps.sales.models import SalesOrderItem
+
+        SalesOrderItem.objects.create(
+            sales_order=self.order, template=self.template, line_status='PLANNED', qty_uom='PCS', qty_value=1000,
+            bom_snapshot={'packaging': [{'material_id': str(material.pk), 'stock_qty': str(qty), 'stock_uom': material.base_uom}]},
+        )
+
+    def test_piece_packaging_stock_offsets_real_order_demand(self):
+        from apps.inventory.models import PackagingStock
+
+        material = self._material('PCS')
+        PackagingStock.objects.create(material=material, plant=self.plant, location=self.location, qty=500)
+        self._demand(material, 600)
+
+        plan = MRPService.run_mrp(str(self.plant.pk))
+
+        requirement = plan.requirements.get(material=material)
+        self.assertEqual(requirement.required_qty_kg, Decimal('600'))
+        self.assertEqual(requirement.available_qty_kg, Decimal('500'))
+        self.assertEqual(requirement.shortage_qty_kg, Decimal('100'))
+        self.assertEqual(plan.suggestions.get(type='PURCHASE').qty, Decimal('100'))
+
+    def test_sufficient_meter_packaging_stock_avoids_purchase(self):
+        from apps.inventory.models import PackagingStock
+
+        material = self._material('METER')
+        PackagingStock.objects.create(material=material, plant=self.plant, location=self.location, qty=500)
+        self._demand(material, 400)
+
+        plan = MRPService.run_mrp(str(self.plant.pk))
+
+        self.assertEqual(plan.requirements.get(material=material).shortage_qty_kg, Decimal('0'))
+        self.assertFalse(plan.suggestions.exists())
+
+    def test_other_plant_packaging_stock_produces_transfer_before_purchase(self):
+        from apps.inventory.models import PackagingStock
+
+        material = self._material('PCS')
+        PackagingStock.objects.create(material=material, plant=self.plant, location=self.location, qty=200)
+        PackagingStock.objects.create(material=material, plant=self.other_plant, location=self.other_location, qty=500)
+        self._demand(material, 600)
+
+        plan = MRPService.run_mrp(str(self.plant.pk))
+
+        suggestion = plan.suggestions.get()
+        self.assertEqual(suggestion.type, 'TRANSFER')
+        self.assertEqual(suggestion.qty, Decimal('400'))
+        self.assertEqual(suggestion.target_plant_id, self.plant.pk)
+
+    def test_available_stock_combines_only_matching_units(self):
+        from apps.inventory.models import InventoryBulk, InventoryRoll, PackagingStock
+
+        for uom, expected in [('KG', Decimal('17')), ('PCS', Decimal('15')), ('METER', Decimal('15'))]:
+            with self.subTest(uom=uom):
+                material = self._material(uom)
+                PackagingStock.objects.create(material=material, plant=self.plant, location=self.location, qty=10)
+                InventoryBulk.objects.create(material=material, plant=self.plant, location=self.location, qty_kg=5)
+                InventoryRoll.objects.create(
+                    material=material, plant=self.plant, location=self.location, label_id=f'MRP-ROLL-{uom}',
+                    width_mm=100, weight_kg=2, status='AVAILABLE',
+                )
+                InventoryRoll.objects.create(
+                    material=material, plant=self.plant, location=self.location, label_id=f'MRP-RESERVED-{uom}',
+                    width_mm=100, weight_kg=99, status='RESERVED',
+                )
+
+                self.assertEqual(MRPService._get_available_stock(material, str(self.plant.pk)), expected)

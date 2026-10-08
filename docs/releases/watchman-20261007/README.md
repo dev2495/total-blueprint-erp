@@ -135,7 +135,8 @@ accounts stops rollback before the old application starts.
    excluded. Record archive SHA-256 and candidate SHA.
 3. Recheck the expected parent, runtime health, available disk space and image
    identities. Run `BackupService.run_database_backup` with a unique release
-   attempt key, followed by `BackupService.run_restore_drill`; require successful
+   attempt key, followed by `BackupService.run_restore_drill(backup_record=backup)`;
+   bind the restore to that exact artifact and require successful
    checksums and restored-database smoke results before changing production.
 4. Upload the reviewed archive as `/tmp/tpp-gate-<12-char SHA>.tar.gz`. Run
    `build-release.sh <full SHA> <archive SHA-256> <full expected parent>` on the
