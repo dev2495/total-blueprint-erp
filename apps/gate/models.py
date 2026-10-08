@@ -139,3 +139,70 @@ class GatePublicRateBucket(models.Model):
     key = models.CharField(max_length=100, primary_key=True)
     count = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField(db_index=True)
+
+
+class InwardBillIntake(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="inward_bill_intakes")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="inward_bill_intakes")
+    arrival_at = models.DateTimeField(default=timezone.now, db_index=True)
+    status = models.CharField(max_length=16, default="PENDING_GRN", choices=[("PENDING_GRN", "Pending GRN"), ("PARTIAL_GRN", "Partially received"), ("RECEIPTED", "Receipted"), ("VOID", "Explained resolution")])
+    content_hash = models.CharField(max_length=64, db_index=True)
+    review_data = models.JSONField(default=dict, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="resolved_inward_bills")
+    resolution_reason = models.CharField(max_length=500, blank=True)
+    resolution_code = models.CharField(max_length=20, blank=True)
+    duplicate_of = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True)
+
+    class Meta:
+        ordering = ["arrival_at", "id"]
+        indexes = [models.Index(fields=["plant", "status", "arrival_at"])]
+        constraints = [models.CheckConstraint(condition=Q(status__in=["PENDING_GRN", "PARTIAL_GRN"]) | Q(resolved_at__isnull=False), name="bill_resolution_timestamp")]
+
+
+class InwardBillPage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    intake = models.ForeignKey(InwardBillIntake, on_delete=models.PROTECT, related_name="pages")
+    page_number = models.PositiveSmallIntegerField()
+    data = models.BinaryField()
+    width = models.PositiveIntegerField()
+    height = models.PositiveIntegerField()
+    byte_size = models.PositiveIntegerField()
+    sha256 = models.CharField(max_length=64)
+    objects = ImmutableQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["page_number"]
+        constraints = [models.UniqueConstraint(fields=["intake", "page_number"], name="bill_page_order_unique")]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise TypeError("Bill images are immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise TypeError("Bill images are immutable.")
+
+
+class InwardBillReceiptReference(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    intake = models.ForeignKey(InwardBillIntake, on_delete=models.PROTECT, related_name="receipt_references")
+    kind = models.CharField(max_length=12, choices=[(kind, kind) for kind in ["BULK", "ROLL", "PACKAGING", "PO_RECEIPT", "TRADING"]])
+    object_id = models.UUIDField()
+    snapshot = models.JSONField(default=dict)
+    linked_at = models.DateTimeField(default=timezone.now)
+    linked_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    objects = ImmutableQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["linked_at", "id"]
+        constraints = [models.UniqueConstraint(fields=["kind", "object_id"], name="bill_receipt_source_unique")]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise TypeError("Bill receipt references are immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise TypeError("Bill receipt references are immutable.")

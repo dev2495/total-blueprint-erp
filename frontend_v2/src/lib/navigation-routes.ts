@@ -71,6 +71,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/gate/qr",
   "/gate/setup",
   "/gate/register",
+  "/gate/inward-bills",
   "/gate/visitors",
   "/gate/visitors/new",
   "/factory/machines",
@@ -88,6 +89,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/inventory/bulk-transactions",
   "/inventory/count",
   "/inventory/grn-history",
+  "/inventory/gate-bills",
   "/inventory/grn",
   "/inventory/ink-floor",
   "/inventory/inter-plant",
@@ -170,6 +172,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
 ]);
 
 const DYNAMIC_ROUTE_PATTERNS: RegExp[] = [
+  /^\/inventory\/gate-bills\/[0-9a-f-]{36}$/i,
   /^\/production\/jobs\/[^/]+$/,
   /^\/analytics\/orders\/[^/]+\/costing$/,
   /^\/engineering\/approvals\/[^/]+$/,

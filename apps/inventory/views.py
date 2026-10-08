@@ -1215,6 +1215,9 @@ class StockViewSet(viewsets.ViewSet):
 
         return Response(list(grouped.values()))
 
+from apps.gate.bill_services import with_bill_grn
+
+
 class GRNViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -1278,6 +1281,7 @@ class GRNViewSet(viewsets.ViewSet):
             return Response({"error": str(getattr(e, "message", "") or e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='create')
+    @with_bill_grn("UNIFIED")
     @transaction.atomic
     def create_unified(self, request):
         """

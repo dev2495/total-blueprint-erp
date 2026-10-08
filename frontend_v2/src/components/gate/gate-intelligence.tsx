@@ -5,12 +5,12 @@ import { ArrowDownLeft, ArrowUpRight, DoorOpen } from "lucide-react";
 import { Panel } from "@/components/premium";
 import type { GateSummary } from "@/services/gate";
 import { gateQty } from "./gate-format";
+import { GateBillMetrics } from "./gate-bill-metrics";
 
 const linkClass = "text-[12.5px] font-medium text-primary hover:underline";
 
 /**
- * Owner intelligence card fed by control-tower `gate` (present only for an
- * actual owner). Period movements and *current* visitor state are kept
+ * Master intelligence card fed by control-tower `gate`. Period movements and *current* visitor state are kept
  * visually separate, as the backend contract requires.
  */
 export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary & { quantity_by_uom?: Record<string, string | null>; stale_pending_visitors?: number }; periodLabel: string }) {
@@ -26,7 +26,7 @@ export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary
     <Panel
       icon={<DoorOpen />}
       title="Gate register"
-      description={`Vehicles and visitors · ${periodLabel}`}
+      description={`Goods, bill arrivals and visitors · ${periodLabel}`}
       actions={
         <span className="flex gap-3">
           <Link href="/gate/history" className={linkClass}>
@@ -99,6 +99,9 @@ export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary
             ))}
           </ul>
         </div>
+      </div>
+      <div className="mt-4 border-t border-line pt-4">
+        <GateBillMetrics summary={gate} periodLabel={periodLabel} />
       </div>
     </Panel>
   );

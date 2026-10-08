@@ -23231,5 +23231,195 @@
       "faq-access-control",
       "faq-data-refresh"
     ]
+  },
+  {
+    "routePattern": "/inventory/gate-bills",
+    "title": {
+      "en": "Inventory gate bills",
+      "hi": "Inventory gate bills"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
+      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+    },
+    "purpose": {
+      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
+      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the factory before recording or receiving a bill.",
+        "hi": "बिल दर्ज या प्राप्त करने से पहले फैक्ट्री की पुष्टि करें."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open a pending bill, inspect every photo and select vendor and invoice details from the bill.",
+        "hi": "लंबित बिल खोलें, सभी फोटो जाँचें और बिल से विक्रेता व इनवॉइस विवरण चुनें."
+      },
+      {
+        "en": "Create a normal GRN or match an existing receipt from the same factory. Matching does not post stock again.",
+        "hi": "सामान्य GRN बनाएं या उसी फैक्ट्री की मौजूदा रसीद मिलाएँ. मिलाने से स्टॉक दोबारा नहीं बढ़ता."
+      },
+      {
+        "en": "Keep partially received bills open. Confirm all bill lines received only after every required receipt is linked.",
+        "hi": "आंशिक प्राप्त बिल खुले रखें. सभी आवश्यक रसीदें जुड़ने के बाद ही सभी लाइन प्राप्त होने की पुष्टि करें."
+      },
+      {
+        "en": "Resolve duplicate, non-stock, unreadable or cancelled paperwork with an explanation instead of inventing a receipt.",
+        "hi": "डुप्लिकेट, गैर-स्टॉक, अस्पष्ट या रद्द कागज़ का कारण देकर समाधान करें; झूठी रसीद न बनाएं."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Pending count",
+          "hi": "लंबित संख्या"
+        },
+        "help": {
+          "en": "Includes pending and partly received bills. Reading an alert does not remove a bill from this queue.",
+          "hi": "लंबित और आंशिक प्राप्त बिल शामिल हैं. सूचना पढ़ने से बिल कतार से नहीं हटता."
+        }
+      },
+      {
+        "field": {
+          "en": "Plant scope",
+          "hi": "फैक्ट्री दायरा"
+        },
+        "help": {
+          "en": "Current Store receipt access covers all existing inventory plants; use the plant filter to narrow the queue.",
+          "hi": "वर्तमान स्टोर रसीद अधिकार सभी इन्वेंटरी फैक्ट्रियों के लिए हैं; फ़िल्टर से कतार सीमित करें."
+        }
+      }
+    ],
+    "decisionFlowId": "gate-bill-receipt-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Receipt cannot be matched",
+          "hi": "रसीद नहीं मिल सकती"
+        },
+        "reason": {
+          "en": "It must belong to this factory, contain accepted goods and not already be linked to another bill. Check the original document.",
+          "hi": "रसीद इसी फैक्ट्री की हो, स्वीकार माल हो और किसी दूसरे बिल से न जुड़ी हो. मूल दस्तावेज जाँचें."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a request times out, retry the same action; check the saved record before starting again.",
+        "hi": "अनुरोध का समय समाप्त हो तो वही कार्रवाई फिर करें; नया शुरू करने से पहले सहेजा रिकॉर्ड जाँचें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/grn",
+      "/inventory/grn-history",
+      "/analytics/reports/gate"
+    ],
+    "screenshotKeys": [
+      "inventory-gate-bills-queue"
+    ]
+  },
+  {
+    "routePattern": "/inventory/gate-bills/[id]",
+    "title": {
+      "en": "Review inward bill",
+      "hi": "इनवर्ड बिल जाँचें"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
+      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+    },
+    "purpose": {
+      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
+      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm the factory before recording or receiving a bill.",
+        "hi": "बिल दर्ज या प्राप्त करने से पहले फैक्ट्री की पुष्टि करें."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open a pending bill, inspect every photo and select vendor and invoice details from the bill.",
+        "hi": "लंबित बिल खोलें, सभी फोटो जाँचें और बिल से विक्रेता व इनवॉइस विवरण चुनें."
+      },
+      {
+        "en": "Create a normal GRN or match an existing receipt from the same factory. Matching does not post stock again.",
+        "hi": "सामान्य GRN बनाएं या उसी फैक्ट्री की मौजूदा रसीद मिलाएँ. मिलाने से स्टॉक दोबारा नहीं बढ़ता."
+      },
+      {
+        "en": "Keep partially received bills open. Confirm all bill lines received only after every required receipt is linked.",
+        "hi": "आंशिक प्राप्त बिल खुले रखें. सभी आवश्यक रसीदें जुड़ने के बाद ही सभी लाइन प्राप्त होने की पुष्टि करें."
+      },
+      {
+        "en": "Resolve duplicate, non-stock, unreadable or cancelled paperwork with an explanation instead of inventing a receipt.",
+        "hi": "डुप्लिकेट, गैर-स्टॉक, अस्पष्ट या रद्द कागज़ का कारण देकर समाधान करें; झूठी रसीद न बनाएं."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Pending count",
+          "hi": "लंबित संख्या"
+        },
+        "help": {
+          "en": "Includes pending and partly received bills. Reading an alert does not remove a bill from this queue.",
+          "hi": "लंबित और आंशिक प्राप्त बिल शामिल हैं. सूचना पढ़ने से बिल कतार से नहीं हटता."
+        }
+      },
+      {
+        "field": {
+          "en": "Plant scope",
+          "hi": "फैक्ट्री दायरा"
+        },
+        "help": {
+          "en": "Current Store receipt access covers all existing inventory plants; use the plant filter to narrow the queue.",
+          "hi": "वर्तमान स्टोर रसीद अधिकार सभी इन्वेंटरी फैक्ट्रियों के लिए हैं; फ़िल्टर से कतार सीमित करें."
+        }
+      }
+    ],
+    "decisionFlowId": "gate-bill-receipt-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Receipt cannot be matched",
+          "hi": "रसीद नहीं मिल सकती"
+        },
+        "reason": {
+          "en": "It must belong to this factory, contain accepted goods and not already be linked to another bill. Check the original document.",
+          "hi": "रसीद इसी फैक्ट्री की हो, स्वीकार माल हो और किसी दूसरे बिल से न जुड़ी हो. मूल दस्तावेज जाँचें."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a request times out, retry the same action; check the saved record before starting again.",
+        "hi": "अनुरोध का समय समाप्त हो तो वही कार्रवाई फिर करें; नया शुरू करने से पहले सहेजा रिकॉर्ड जाँचें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/grn",
+      "/inventory/grn-history",
+      "/analytics/reports/gate"
+    ],
+    "screenshotKeys": [
+      "inventory-gate-bills-queue"
+    ]
   }
 ]

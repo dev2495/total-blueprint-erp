@@ -23,6 +23,7 @@ export const MAIN_NAV_ROUTES = new Set<string>([
   "/inventory",
   "/inventory/grn",
   "/inventory/grn-history",
+  "/inventory/gate-bills",
   "/inventory/stock-lifecycle",
   "/inventory/count",
   "/inventory/period",

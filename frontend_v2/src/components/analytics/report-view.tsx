@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
+import { GateBillMetrics } from "@/components/gate/gate-bill-metrics";
 import { cn } from "@/lib/utils";
 import { analyticsApi, type ReportTabResponse } from "@/services/analytics";
 import { factoryService } from "@/services/factory";
@@ -49,6 +50,12 @@ import {
 /* ------------------------------------------------------------------ */
 /* Formatting                                                          */
 /* ------------------------------------------------------------------ */
+
+const GATE_SERIES_LABELS: Record<string, string> = {
+  bill_arrivals: "Bills captured",
+  bill_received: "Bills received",
+  bill_voided: "Bills resolved",
+};
 
 const ACRONYMS: Record<string, string> = {
   oee: "OEE",
@@ -429,8 +436,19 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
 
   /* Series */
   const rawSeriesRows = useMemo(
-    () => (asRows(payload.series).length ? asRows(payload.series) : asRows(payload.charts?.trend)),
-    [payload.series, payload.charts],
+    () => {
+      const goods = asRows(payload.series).length ? asRows(payload.series) : asRows(payload.charts?.trend);
+      if (tab !== "gate") return goods;
+      // Separate backend bill counts are joined only by factory business date.
+      // Preserve goods quantities and totals; do not derive a combined stock total.
+      const days = new Map(goods.map((row) => [String(row.date), { ...row }]));
+      for (const row of asRows(payload.bill_series)) {
+        const key = String(row.date);
+        days.set(key, { ...days.get(key), ...row });
+      }
+      return Array.from(days.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    },
+    [payload.series, payload.charts, payload.bill_series, tab],
   );
   const dateKey = config.dateKey && rawSeriesRows.some((r) => r[config.dateKey!] != null) ? config.dateKey : detectDateKey(rawSeriesRows);
   /* Daily series only list days with activity; fill the gaps with zero so the
@@ -468,11 +486,11 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
   const measureOptions = useMemo(() => {
     if (!seriesRows.length) return [] as string[];
     const keys = Array.from(new Set(seriesRows.flatMap((r) => Object.keys(r)))).filter(
-      (k) => k !== dateKey && !/(_id|^id)$/.test(k) && seriesRows.some((r) => isNum(r[k]) && Number(r[k]) !== 0),
+      (k) => k !== dateKey && !/(_id|^id)$/.test(k) && seriesRows.some((r) => isNum(r[k]) && (tab === "gate" || Number(r[k]) !== 0)),
     );
     const preferred = (config.trendMeasures || []).filter((k) => keys.includes(k));
-    return [...preferred, ...keys.filter((k) => !preferred.includes(k))].slice(0, 5);
-  }, [config.trendMeasures, dateKey, seriesRows]);
+    return [...preferred, ...keys.filter((k) => !preferred.includes(k))].slice(0, tab === "gate" ? 6 : 5);
+  }, [config.trendMeasures, dateKey, seriesRows, tab]);
   const activeMeasure = measureOptions.includes(measure) ? measure : measureOptions[0] || "";
   const measureFormat: MetricFormat = config.seriesFormats?.[activeMeasure] ?? inferFormat(activeMeasure);
 
@@ -714,6 +732,12 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
         ) : null}
       </div>
 
+      {tab === "gate" && !loading && reportQuery.data ? (
+        <Panel title="Inward bills" description="Capture → inventory review → confirmed receipt">
+          <GateBillMetrics summary={summary} periodLabel={`${dateFrom} to ${dateTo}`} />
+        </Panel>
+      ) : null}
+
       {/* OEE decomposition */}
       {tab === "oee" && isNum(summary.global_availability) ? (
         <Panel title="Where OEE is lost" description="OEE = availability × performance × quality. The weakest factor is where effort pays back first.">
@@ -750,10 +774,10 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
         <Panel
           title={dateKey ? "Trend" : config.seriesTitle || "Distribution"}
-          description={dateKey ? `Daily ${humanize(activeMeasure || "value").toLowerCase()} across the period` : undefined}
+          description={dateKey ? `Daily ${(tab === "gate" ? GATE_SERIES_LABELS[activeMeasure] || humanize(activeMeasure || "value") : humanize(activeMeasure || "value")).toLowerCase()} across the period` : undefined}
           actions={
             dateKey && measureOptions.length > 1 && !pivotShift ? (
-              <Segmented size="sm" value={activeMeasure} onChange={setMeasure} options={measureOptions.map((m) => ({ value: m, label: tab === "oee" && m === "value" ? "OEE %" : humanize(m) }))} />
+              <Segmented className={tab === "gate" ? "max-w-[calc(100vw-5rem)] flex-wrap gap-1 [&>button]:min-h-11" : undefined} size="sm" value={activeMeasure} onChange={setMeasure} options={measureOptions.map((m) => ({ value: m, label: tab === "oee" && m === "value" ? "OEE %" : tab === "gate" ? GATE_SERIES_LABELS[m] || humanize(m) : humanize(m) }))} />
             ) : null
           }
         >
@@ -773,7 +797,7 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
             <TrendArea
               data={seriesRows}
               xKey={dateKey}
-              series={[{ key: activeMeasure, label: tab === "oee" && activeMeasure === "value" ? "OEE %" : humanize(activeMeasure) }]}
+              series={[{ key: activeMeasure, label: tab === "oee" && activeMeasure === "value" ? "OEE %" : tab === "gate" ? GATE_SERIES_LABELS[activeMeasure] || humanize(activeMeasure) : humanize(activeMeasure) }]}
               height={260}
               xFormat={shortDate}
               valueFormat={(v) => formatValue(v, measureFormat)}

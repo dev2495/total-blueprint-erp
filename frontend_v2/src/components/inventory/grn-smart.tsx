@@ -68,6 +68,7 @@ import {
 import { MaterialPicker } from "@/components/inventory/material-picker";
 
 import { RollLabelActions } from "./roll-label-actions";
+import { GrnBillBanner, useGrnBillContext, type BillPostWrapper } from "./gate-bills/bill-grn-context";
 
 type ClassKind = "BULK" | "ROLL" | "PACKAGING" | "TRADING";
 type BulkMaterialFilter =
@@ -441,6 +442,8 @@ function receiptTotalQty(receipt: any, fallback: number) {
 }
 
 export function GrnSmartV36() {
+  // Optional gate-bill context (?inward_bill_id=…); absent ⇒ unchanged behaviour.
+  const billCtx = useGrnBillContext();
   const { toast } = useToast();
   const { isPinned } = useDashboardChrome();
   const queryClient = useQueryClient();
@@ -537,7 +540,15 @@ export function GrnSmartV36() {
     staleTime: 15_000,
   });
   const vendors = vendorsQ.data || [];
-  const locations = locationsQ.data || [];
+  const allLocations = React.useMemo(() => locationsQ.data || [], [locationsQ.data]);
+  // Receiving a gate bill fixes the factory: only that plant's locations.
+  const locations = React.useMemo(
+    () =>
+      billCtx.plantId
+        ? allLocations.filter((loc: any) => String(loc?.plant ?? loc?.plant_id ?? "") === String(billCtx.plantId))
+        : allLocations,
+    [allLocations, billCtx.plantId],
+  );
   const materials = materialsQ.data || [];
   const granuleCodes = (granuleCodesQ.data || []) as GranuleQualityCode[];
   const openPurchaseOrders = openPurchaseOrdersQ.data || [];
@@ -619,7 +630,18 @@ export function GrnSmartV36() {
     );
   }, [klass, locations, selectedPo, sourceType, warehouseId]);
 
+  // Prefill empty header fields from inventory's bill review (never overwrite typing).
+  const billReview = billCtx.bill?.review_data;
+  React.useEffect(() => {
+    if (!billReview) return;
+    if (billReview.vendor_id) setVendorId((v) => v || String(billReview.vendor_id));
+    if (billReview.invoice_number) setVendorInvoiceNo((v) => v || String(billReview.invoice_number));
+    if (billReview.invoice_date) setVendorInvoiceDate((v) => v || String(billReview.invoice_date));
+    if (billReview.vehicle_number) setLrVehicle((v) => v || String(billReview.vehicle_number));
+  }, [billReview, lastPosted]);
+
   const handleClassChange = React.useCallback((next: ClassKind) => {
+    if (billCtx.hasFrozen()) return;
     setKlass(next);
     setItems([FRESH_ITEM()]);
     if (next !== "BULK") setBulkMaterialFilter("ALL");
@@ -633,17 +655,18 @@ export function GrnSmartV36() {
       valid: false,
     });
     setLastPosted(null);
-  }, []);
+  }, [billCtx]);
 
   const handleSourceTypeChange = React.useCallback(
     (next: "PO" | "DIRECT" | "INTERPLANT" | "JOBWORK" | "MANUAL_PO") => {
+      if (billCtx.hasFrozen()) return;
       setSourceType(next);
       setLastPosted(null);
       if (next !== "PO") setPoId("");
       if (next !== "MANUAL_PO") setManualPoRef("");
       if (next !== "PO") setItems([FRESH_ITEM()]);
     },
-    [],
+    [billCtx],
   );
 
   const resetDraftAfterPost = React.useCallback(() => {
@@ -693,7 +716,7 @@ export function GrnSmartV36() {
           throw new Error(
             "Selected PO has no receivable lines for this stock class.",
           );
-        return procurementService.createReceipt({
+        return billCtx.wrapPost("PO_RECEIPT", {
           purchase_order: poId,
           location_id: warehouseId,
           vendor_invoice_no: vendorInvoiceNo,
@@ -703,7 +726,7 @@ export function GrnSmartV36() {
           notes: remarks,
           quality_status: "PENDING",
           lines: poLines,
-        });
+        }, (body) => procurementService.createReceipt(body as Parameters<typeof procurementService.createReceipt>[0]));
       }
       const basePayload: any = {
         klass,
@@ -771,15 +794,18 @@ export function GrnSmartV36() {
           };
         }),
       };
-      return inventoryService.createUnifiedGRN(basePayload);
+      return billCtx.wrapPost("UNIFIED", basePayload, (body) =>
+        inventoryService.createUnifiedGRN(body as Parameters<typeof inventoryService.createUnifiedGRN>[0]),
+      );
     },
     onSuccess: (receipt: any) => {
+      billCtx.onPosted(receipt, String(receipt?.grn_no || receipt?.code || "GRN"));
       const posted: PostedReceipt = {
         rolls: (receipt?.stock_movements || []).filter((row: any) => row.type === "ROLL"),
         grn_no: String(receipt?.grn_no || receipt?.code || "GRN posted"),
-        klass,
+        klass: (receipt?.klass || klass) as ClassKind,
         total_qty: receiptTotalQty(receipt, totalQty),
-        uom: items[0]?.uom || "units",
+        uom: receipt?.klass === "ROLL" ? "KG" : receipt?.stock_movements?.[0]?.uom || items[0]?.uom || "units",
         movement_count: Array.isArray(receipt?.stock_movements)
           ? receipt.stock_movements.length
           : Array.isArray(receipt?.lines)
@@ -823,14 +849,16 @@ export function GrnSmartV36() {
   });
 
   const uploadRollsMutation = useMutation({
-    mutationFn: ({ file, dryRun }: { file: File; dryRun: boolean }) =>
-      inventoryService.uploadRollGrnExcel(file, {
+    mutationFn: ({ file, dryRun }: { file: File; dryRun: boolean }) => {
+      if (billCtx.requested || billCtx.hasFrozen()) throw new Error("Use the receiving grid while a gate bill is linked. Excel posting does not link this bill.");
+      return inventoryService.uploadRollGrnExcel(file, {
         vendor_id: vendorId || undefined,
         warehouse_id: warehouseId || undefined,
         vendor_invoice_no: vendorInvoiceNo || undefined,
         vendor_invoice_date: vendorInvoiceDate || undefined,
         dry_run: dryRun,
-      }),
+      });
+    },
     onSuccess: (receipt: any) => {
       if (receipt?.dry_run) {
         setRollUploadPreview({
@@ -931,8 +959,9 @@ export function GrnSmartV36() {
   });
 
   const postRollReviewMutation = useMutation({
-    mutationFn: () =>
-      inventoryService.postRollGrnReview({
+    mutationFn: () => {
+      if (billCtx.requested || billCtx.hasFrozen()) throw new Error("Use the receiving grid while a gate bill is linked. Excel posting does not link this bill.");
+      return inventoryService.postRollGrnReview({
         vendor_id: vendorId || undefined,
         vendor: rollUploadPreview?.vendorCode || undefined,
         warehouse_id: warehouseId || undefined,
@@ -941,7 +970,8 @@ export function GrnSmartV36() {
         vendor_invoice_date:
           vendorInvoiceDate || rollUploadPreview?.invoiceDate || undefined,
         review_rows: rollReviewRows,
-      }),
+      });
+    },
     onSuccess: (receipt: any) => {
       const posted: PostedReceipt = {
         rolls: (receipt?.stock_movements || []).filter((row: any) => row.type === "ROLL"),
@@ -1079,6 +1109,7 @@ export function GrnSmartV36() {
           UNIFIED FORM
         </span>
       </div>
+      <GrnBillBanner ctx={billCtx} />
       {queryError && (
         <div className="rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-xs text-danger-fg">
           <div className="font-bold">Master data did not load.</div>
@@ -1198,6 +1229,7 @@ export function GrnSmartV36() {
               label="Bulk material"
               desc="Granules · masterbatch · adhesive · ink · solvent"
               active={klass === "BULK"}
+              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
               onClick={() => handleClassChange("BULK")}
             />
             <ClassTile
@@ -1206,6 +1238,7 @@ export function GrnSmartV36() {
               label="Film roll"
               desc="Pre-printed · laminated · slit · sheet"
               active={klass === "ROLL"}
+              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
               onClick={() => handleClassChange("ROLL")}
             />
             <ClassTile
@@ -1214,6 +1247,7 @@ export function GrnSmartV36() {
               label="Packaging"
               desc="Inner pouches · gunny · carton · tape · POD"
               active={klass === "PACKAGING"}
+              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
               onClick={() => handleClassChange("PACKAGING")}
             />
             <ClassTile
@@ -1222,6 +1256,7 @@ export function GrnSmartV36() {
               label="Trading goods"
               desc="Ready pouches · resold rolls · outsourced items"
               active={klass === "TRADING"}
+              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
               onClick={() => handleClassChange("TRADING")}
             />
           </div>
@@ -1242,6 +1277,7 @@ export function GrnSmartV36() {
                     <Toggle
                       key={t}
                       active={sourceType === t}
+                      disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
                       onClick={() => handleSourceTypeChange(t)}
                     >
                       {t === "PO"
@@ -1447,7 +1483,9 @@ export function GrnSmartV36() {
               vendorInvoiceDate={vendorInvoiceDate}
               lrVehicle={lrVehicle}
               onSummaryChange={setTradingSummary}
+              wrapPost={billCtx.wrapPost}
               onPosted={(receipt) => {
+                billCtx.onPosted(receipt, String(receipt?.code || "Trading receipt"));
                 queryClient.invalidateQueries({
                   queryKey: ["inventory-snapshot"],
                 });
@@ -1507,7 +1545,8 @@ export function GrnSmartV36() {
                       size="sm"
                       variant="outline"
                       type="button"
-                      disabled={uploadRollsMutation.isPending}
+                      disabled={uploadRollsMutation.isPending || billCtx.requested || Boolean(billCtx.uncertain)}
+                      title={billCtx.requested ? "Use the receiving grid to link this gate bill" : undefined}
                       onClick={() => rollUploadInputRef.current?.click()}
                       className="rounded-lg gap-1.5"
                     >
@@ -1581,7 +1620,7 @@ export function GrnSmartV36() {
                         size="sm"
                         disabled={
                           !rollReviewRows.length ||
-                          postRollReviewMutation.isPending
+                          postRollReviewMutation.isPending || billCtx.requested || Boolean(billCtx.uncertain)
                         }
                         onClick={() => postRollReviewMutation.mutate()}
                         className="rounded-lg bg-success-fg text-white hover:bg-success-fg"
@@ -2205,6 +2244,7 @@ function ClassTile({
   desc,
   active,
   onClick,
+  disabled,
 }: {
   id: ClassKind;
   icon: React.ReactNode;
@@ -2212,11 +2252,13 @@ function ClassTile({
   desc: string;
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       data-testid={`smart-grn-class-${id}`}
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "flex flex-col gap-2 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
         active
@@ -2266,14 +2308,17 @@ function Toggle({
   active,
   onClick,
   children,
+  disabled,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "rounded-lg px-3 py-1.5 text-xs font-bold shadow-sm transition",
         active
@@ -4228,7 +4273,9 @@ function TradingReceiptPanel({
   lrVehicle,
   onSummaryChange,
   onPosted,
+  wrapPost,
 }: {
+  wrapPost?: BillPostWrapper;
   vendorId: string;
   warehouseLocations: Location[];
   warehouseId: string;
@@ -4283,8 +4330,8 @@ function TradingReceiptPanel({
   }, [plantId, selected]);
 
   const post = useMutation({
-    mutationFn: () =>
-      tradingGoodReceiptService.create({
+    mutationFn: () => {
+      const body = {
         trading_good: tradingGoodId,
         vendor: vendorId,
         plant: plantId,
@@ -4295,7 +4342,11 @@ function TradingReceiptPanel({
         vendor_invoice_date: vendorInvoiceDate || undefined,
         lr_no: lrVehicle,
         notes,
-      }),
+      };
+      const call = (payload: Record<string, unknown>) =>
+        tradingGoodReceiptService.create(payload as unknown as Parameters<typeof tradingGoodReceiptService.create>[0]);
+      return wrapPost ? wrapPost("TRADING", body, call) : call(body);
+    },
     onSuccess: (receipt) => {
       toast({
         title: "Trading-good receipt posted",

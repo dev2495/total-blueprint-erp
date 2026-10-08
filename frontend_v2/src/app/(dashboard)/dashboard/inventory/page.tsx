@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { GateBillInboxLink } from "@/components/layout/gate-bill-inbox-link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -74,6 +75,7 @@ export default function InventoryDashboard() {
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4" data-testid="inventory-dashboard">
+      <GateBillInboxLink />
       <PageHero
         eyebrow="Stock nexus"
         icon={<Warehouse />}

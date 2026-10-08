@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
+import { GateBillInboxLink } from "@/components/layout/gate-bill-inbox-link";
 
 import { InventoryHomeV36 } from "@/components/inventory/inventory-home";
 
@@ -14,6 +15,7 @@ export default function InventoryPage() {
       }
     >
       <div className="erp-production-surface min-h-screen px-4 py-4 sm:px-6">
+        <div className="mb-4"><GateBillInboxLink /></div>
         <InventoryHomeV36 />
       </div>
     </Suspense>

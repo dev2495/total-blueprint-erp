@@ -8,6 +8,9 @@ type GateUserLike = {
     role?: string;
     /** Backend PermissionService.is_gate_master (watchman ceiling already applied). */
     gate_master?: boolean;
+    /** Backend PermissionService.has_inventory_bill_review (explicit; wildcards never imply it). */
+    inventory_bill_review?: boolean;
+    inventory_bill_scope?: "ALL_PLANTS" | "NONE" | string;
     permissions?: string[];
     permission_map?: Record<string, string[]>;
     context?: { gate_plants?: string[] } & Record<string, unknown>;
@@ -71,4 +74,25 @@ export function canLogAtGate(user: GateUserLike, effectiveRole?: string | null):
 export function canViewGateReports(user: GateUserLike, effectiveRole?: string | null): boolean {
   if (!user || isWatchmanUser(user, effectiveRole)) return false;
   return isGateMaster(user, effectiveRole) || hasLiteralGrant(user, GATE_PERMISSIONS.reports);
+}
+
+/**
+ * Inventory gate-bill queue / private bill images / receiving actions.
+ * Mirrors backend `has_inventory_bill_review`: WATCHMAN (actual or previewed)
+ * never qualifies; then the explicit `entitlements.inventory_bill_review`
+ * flag decides (masters, default STORE, or literal gate.bill.review + receipt
+ * authority). A "*" wildcard, gate.reports or a role preview never grants it.
+ */
+export function canReviewGateBills(user: GateUserLike, effectiveRole?: string | null): boolean {
+  if (!user || isWatchmanUser(user, effectiveRole)) return false;
+  const flag = user.entitlements?.inventory_bill_review;
+  if (typeof flag === "boolean") return flag;
+  // Older payloads without the flag: masters only (never infer from "*").
+  return isGateMaster(user, effectiveRole);
+}
+
+/** Recording a bill arrival at the gate: the watchman, or a master account. */
+export function canSubmitGateBills(user: GateUserLike, effectiveRole?: string | null): boolean {
+  if (!user) return false;
+  return isWatchmanUser(user, effectiveRole) || isGateMaster(user, effectiveRole);
 }

@@ -109,7 +109,7 @@ class NotificationService:
                 attempt_no=1,
                 delivered_at=timezone.now(),
                 idempotency_key=f"{notification.id}:in_app",
-                recipient=(notification.user.username if notification.user else notification.target_role),
+                recipient=(str(notification.user_id) if notification.event_key == "gate.inward_bill_uploaded" else notification.user.username if notification.user else notification.target_role),
                 meta={"reason": "in_app_persistence"},
             )
 
@@ -353,10 +353,7 @@ class NotificationService:
 
     @classmethod
     def get_notifications_for_user(cls, user, include_unread_only=False, limit=50):
-        role_code = cls._canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
-        qs = Notification.objects.filter(
-            Q(user=user) | Q(target_role=role_code)
-        )
+        qs = cls.visible_queryset(user)
 
         if include_unread_only:
             qs = qs.filter(is_read=False)
@@ -364,9 +361,20 @@ class NotificationService:
         return qs.order_by('-created_at')[:limit]
 
     @classmethod
+    def visible_queryset(cls, user):
+        from .bill_notifications import visible_bill_notifications
+
+        role_code = cls._canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+        target = Q(user=user)
+        if role_code:
+            target |= Q(target_role=role_code)
+        qs = Notification.objects.filter(target)
+        return visible_bill_notifications(qs, user)
+
+    @classmethod
     def mark_as_read(cls, notification_id, user):
         try:
-            notification = Notification.objects.get(id=notification_id)
+            notification = cls.visible_queryset(user).get(id=notification_id)
             role_code = cls._canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
             if notification.user == user or notification.target_role == role_code:
                 notification.is_read = True
@@ -379,12 +387,7 @@ class NotificationService:
 
     @classmethod
     def get_unread_count(cls, user):
-        role_code = cls._canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
-
-        return Notification.objects.filter(
-            Q(user=user) | Q(target_role=role_code),
-            is_read=False
-        ).count()
+        return cls.visible_queryset(user).filter(is_read=False).count()
 
     @classmethod
     def get_rules(cls):

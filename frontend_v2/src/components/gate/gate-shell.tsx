@@ -34,7 +34,7 @@ import { getApiErrorStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { getCanonicalRoleCode, getLandingPage } from "@/lib/roles";
 import { gateApi, type GatePlant } from "@/services/gate";
-import { canLogAtGate, canViewGateReports, isGateOwner, isWatchmanUser } from "./gate-access";
+import { canLogAtGate, canReviewGateBills, canSubmitGateBills, canViewGateReports, isGateOwner, isWatchmanUser } from "./gate-access";
 import { GateMark } from "./gate-ui";
 
 type GateContextValue = {
@@ -46,6 +46,10 @@ type GateContextValue = {
   isWatchman: boolean;
   canLog: boolean;
   canReports: boolean;
+  /** Record a bill-photo arrival (watchman or master). */
+  canSubmitBills: boolean;
+  /** Inventory gate-bill queue / receiving (explicit backend entitlement). */
+  canReviewBills: boolean;
   operatorName: string;
 };
 
@@ -114,7 +118,7 @@ function GatePlantScope({
   canLog: boolean;
   canReports: boolean;
 }) {
-  const { user } = useAuth();
+  const { user, effectiveRole } = useAuth();
   const plantsQuery = useQuery({
     queryKey: ["gate", "plants"],
     queryFn: () => gateApi.masters({}),
@@ -146,9 +150,11 @@ function GatePlantScope({
       isWatchman,
       canLog,
       canReports,
+      canSubmitBills: canSubmitGateBills(user, effectiveRole),
+      canReviewBills: canReviewGateBills(user, effectiveRole),
       operatorName: user?.first_name || user?.full_name || user?.username || "",
     }),
-    [plants, plantId, isOwner, isWatchman, canLog, canReports, user],
+    [plants, plantId, isOwner, isWatchman, canLog, canReports, user, effectiveRole],
   );
 
   if (plantsQuery.isLoading) return <GateShellSkeleton />;
@@ -309,7 +315,7 @@ function GateTopBar() {
 
 const TABS = [
   { href: "/gate", label: "Gate", icon: Home, match: (p: string) => p === "/gate" },
-  { href: "/gate/goods", label: "Goods", icon: ArrowLeftRight, match: (p: string) => p.startsWith("/gate/goods") },
+  { href: "/gate/goods", label: "Goods", icon: ArrowLeftRight, match: (p: string) => p.startsWith("/gate/goods") || p.startsWith("/gate/inward-bills") },
   { href: "/gate/visitors", label: "Visitors", icon: Users, match: (p: string) => p.startsWith("/gate/visitors") },
   { href: "/gate/register", label: "Today", icon: ClipboardList, match: (p: string) => p.startsWith("/gate/register") },
 ];

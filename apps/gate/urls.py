@@ -1,7 +1,16 @@
 from django.urls import path
 from . import views
+from . import bill_views
 
 urlpatterns = [
+    path("inward-bills/", bill_views.BillsView.as_view()),
+    path("inward-bills/<uuid:pk>/", bill_views.BillDetailView.as_view()),
+    path("inward-bills/<uuid:pk>/pages/<uuid:page_id>/", bill_views.BillPageView.as_view()),
+    path("inward-bills/<uuid:pk>/review/", bill_views.BillReviewView.as_view()),
+    path("inward-bills/<uuid:pk>/receipt-candidates/", bill_views.BillCandidatesView.as_view()),
+    path("inward-bills/<uuid:pk>/link-receipts/", bill_views.BillResolveView.as_view(), {"action": "link-receipts"}),
+    path("inward-bills/<uuid:pk>/complete/", bill_views.BillResolveView.as_view(), {"action": "complete"}),
+    path("inward-bills/<uuid:pk>/void/", bill_views.BillResolveView.as_view(), {"action": "void"}),
     path("masters/", views.MastersView.as_view()),
     path("match/", views.MatchView.as_view()),
     path("goods/", views.GoodsView.as_view()),

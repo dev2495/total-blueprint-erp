@@ -47,7 +47,7 @@ class GateAPITests(TransactionTestCase):
     def setUp(self):
         self.owner, self.watchman, self.plant, self.other, self.link, self.vendor, self.material = fixture()
         self.client = APIClient()
-        self.client.force_authenticate(self.watchman)
+        self.client.force_authenticate(self.owner)
         self.public = APIClient()
 
     def goods_data(self, **changes):
@@ -67,6 +67,7 @@ class GateAPITests(TransactionTestCase):
         return VisitorVisit.objects.get(id=result.data["receipt_id"])
 
     def test_scope_denies_unassigned_plant_and_empty_gate(self):
+        self.client.force_authenticate(self.watchman)
         response = self.client.post("/api/gate/goods/", self.goods_data(plant=str(self.other.id)), format="json")
         self.assertEqual(response.status_code, 403)
         GateAssignment.objects.filter(user=self.watchman).delete()
@@ -165,6 +166,7 @@ class GateAPITests(TransactionTestCase):
 
     def test_watchman_ceiling_and_history(self):
         result = self.client.post("/api/gate/goods/", self.goods_data(), format="json")
+        self.client.force_authenticate(self.watchman)
         self.assertEqual(self.client.get(f"/api/gate/goods/{result.data['id']}/").status_code, 403)
         self.assertEqual(self.client.get("/api/gate/audit/").status_code, 403)
         self.assertEqual(self.client.get("/api/gate/reports/").status_code, 403)
@@ -317,6 +319,7 @@ class GateAPITests(TransactionTestCase):
         self.assertEqual(self.public.get(f"/api/gate/public/visitors/{first.data['receipt_id']}/").status_code, 404)
 
     def test_watchman_exit_only_duplicate_mobile_and_retry(self):
+        self.client.force_authenticate(self.watchman)
         visitor = self.registered()
         self.assertEqual(self.public.post("/api/gate/public/visitors/", self.visitor_data(), format="json").status_code, 409)
         action = {"client_token": str(uuid.uuid4())}
@@ -415,6 +418,7 @@ class GateAPITests(TransactionTestCase):
         self.assertNotIn("ABCDE1234F", json.dumps(list(GateAuditEvent.objects.values("before", "after"))))
 
     def test_selfie_sanitized_scoped_private_and_list_does_not_load_images(self):
+        self.client.force_authenticate(self.watchman)
         buffer = io.BytesIO()
         Image.new("RGB", (1200, 1600), "#11aabb").save(buffer, "PNG")
         data = self.visitor_data()
@@ -486,6 +490,7 @@ class GateAPITests(TransactionTestCase):
         self.assertEqual(self.client.get("/api/gate/reports/", {"date_from": "2024-01-01", "date_to": "2026-10-07"}).status_code, 400)
 
     def test_business_day_india_timezone_and_pagination_bounds(self):
+        self.client.force_authenticate(self.watchman)
         instant = datetime(2026, 10, 6, 19, 0, tzinfo=ZoneInfo("UTC"))
         with patch("apps.gate.services.timezone.now", return_value=instant):
             self.assertEqual(str(gate_today()), "2026-10-07")
@@ -496,6 +501,7 @@ class GateAPITests(TransactionTestCase):
             self.assertEqual(self.client.get("/api/gate/goods/", {"page_size": size}).status_code, 400)
 
     def test_qr_owner_only_real_svg_no_public_plant_inventory(self):
+        self.client.force_authenticate(self.watchman)
         self.assertEqual(self.client.get("/api/gate/qr/", {"plant": str(self.plant.id)}).status_code, 403)
         self.client.force_authenticate(self.owner)
         qr = self.client.get("/api/gate/qr/", {"plant": str(self.plant.id)})
@@ -538,7 +544,7 @@ class GateConcurrencyTests(TransactionTestCase):
             self.skipTest("PostgreSQL row lock acceptance")
         def record(_):
             close_old_connections()
-            user = User.objects.get(id=self.watchman.id)
+            user = User.objects.get(id=self.owner.id)
             data = {"client_token": uuid.uuid4(), "plant": self.plant.id, "direction": "INWARD", "invoice_number": "RACE-1", "vehicle_number": "DD03U9802", "party_kind": "VENDOR", "party_id": self.vendor.id, "lines": [{"product_kind": "MATERIAL", "product_id": self.material.id, "quantity": Decimal("1"), "uom": "KG", "amount": None}]}
             try:
                 create_goods(user, data)

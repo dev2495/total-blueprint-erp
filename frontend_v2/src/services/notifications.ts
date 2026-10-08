@@ -26,6 +26,9 @@ export interface Notification {
     created_at: string
     related_object_type?: string
     related_object_id?: string
+    /** Server-provided in-app route (e.g. /inventory/gate-bills/<id>); preferred over type mapping. */
+    deep_link?: string
+    plant?: string | null
     delivery_attempts?: NotificationDeliveryAttempt[]
 }
 
@@ -66,40 +69,32 @@ export interface PermissionAuditRow {
 }
 
 export const NotificationService = {
+    /** Throws on failure so callers can show "could not refresh" instead of a false empty list. */
     async getNotifications(unreadOnly = false, limit = 50): Promise<Notification[]> {
-        try {
-            const { data } = await api.get('/api/users/notifications/list', {
-                params: { unread_only: unreadOnly, limit }
-            })
-            return data
-        } catch {
-            return []
-        }
+        const { data } = await api.get('/api/users/notifications/list', {
+            params: { unread_only: unreadOnly, limit }
+        })
+        if (!Array.isArray(data)) throw new Error("Invalid notification response")
+        return data
     },
 
+    /** Throws on failure (never a false zero). */
     async getUnreadCount(): Promise<number> {
-        try {
-            const { data } = await api.get('/api/users/notifications/unread-count')
-            return Number(data?.count || 0)
-        } catch {
-            return 0
+        const { data } = await api.get('/api/users/notifications/unread-count')
+        const count = data?.count
+        if (typeof count !== "number" || !Number.isInteger(count) || count < 0) {
+            throw new Error("Invalid unread count response")
         }
+        return count
     },
 
+    /** Throws on failure so the UI never marks an item read that the server did not. */
     async markAsRead(notificationId: string): Promise<void> {
-        try {
-            await api.post(`/api/users/notifications/${notificationId}/mark-read`)
-        } catch {
-            return
-        }
+        await api.post(`/api/users/notifications/${notificationId}/mark-read`)
     },
 
     async markAllAsRead(): Promise<void> {
-        try {
-            await api.post('/api/users/notifications/mark-all-read')
-        } catch {
-            return
-        }
+        await api.post('/api/users/notifications/mark-all-read')
     },
 
     async getRules(): Promise<NotificationRule[]> {

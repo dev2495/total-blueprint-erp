@@ -44,6 +44,15 @@ class RoleBasedAccessPermission(BasePermission):
                 return False
             return True
 
+        bill_path = path.split("?", 1)[0].rstrip("/")
+        if bill_path == "/api/gate/inward-bills" or bill_path.startswith("/api/gate/inward-bills/"):
+            required = resolve_required_permission(path, method)
+            if required == "gate.bill.submit":
+                return PermissionService.is_gate_master(user)
+            if required == "gate.bill.review":
+                return PermissionService.has_inventory_bill_review(user)
+            return False
+
         if getattr(user, "is_superuser", False) or getattr(user, "is_owner", False):
             return True
 

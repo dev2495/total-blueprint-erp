@@ -808,10 +808,20 @@ class NotificationViewSet(viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated]
 
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
     @action(detail=False, methods=['get'], url_path='list')
     def list_notifications(self, request):
         unread_only = request.query_params.get('unread_only', 'false').lower() == 'true'
-        limit = int(request.query_params.get('limit', 50))
+        try:
+            limit = int(request.query_params.get('limit', 50))
+            if not 1 <= limit <= 100:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'detail': 'Choose a notification limit between 1 and 100.'}, status=400)
 
         notifications = NotificationService.get_notifications_for_user(
             request.user,
@@ -836,6 +846,8 @@ class NotificationViewSet(viewsets.ViewSet):
                     'created_at': n.created_at.isoformat(),
                     'related_object_type': n.related_object_type,
                     'related_object_id': str(n.related_object_id) if n.related_object_id else None,
+                    'plant': str(n.plant_id) if n.plant_id else None,
+                    'deep_link': n.deep_link,
                     'delivery_attempts': [
                         {
                             'id': str(a.id),
@@ -860,6 +872,24 @@ class NotificationViewSet(viewsets.ViewSet):
         count = NotificationService.get_unread_count(request.user)
         return Response({'count': count})
 
+    @action(detail=False, methods=['get'], url_path='inward-bill-summary')
+    def inward_bill_summary(self, request):
+        if not PermissionService.has_inventory_bill_review(request.user):
+            return Response({'detail': 'Receipt review access is required.'}, status=403)
+        from .services.bill_notifications import pending_bill_summary
+        import uuid
+
+        raw_plant = request.query_params.get('plant')
+        try:
+            plant_id = uuid.UUID(raw_plant) if raw_plant else None
+        except (ValueError, TypeError, AttributeError):
+            return Response({'detail': 'Use a valid plant reference.'}, status=400)
+        if plant_id and not PermissionService.inventory_review_plants(request.user).filter(pk=plant_id).exists():
+            return Response({'detail': 'Plant was not found in your receipt scope.'}, status=404)
+        response = Response(pending_bill_summary(request.user, plant_id))
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
     @action(detail=True, methods=['post'], url_path='mark-read')
     def mark_read(self, request, pk=None):
         success = NotificationService.mark_as_read(pk, request.user)
@@ -869,11 +899,7 @@ class NotificationViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='mark-all-read')
     def mark_all_read(self, request):
-        role_code = get_canonical_role_code(getattr(getattr(request.user, "role", None), "code", ""))
-        Notification.objects.filter(
-            Q(user=request.user) | Q(target_role=role_code),
-            is_read=False,
-        ).update(is_read=True, read_at=timezone.now())
+        NotificationService.visible_queryset(request.user).filter(is_read=False).update(is_read=True, read_at=timezone.now())
         return Response({'status': 'all_marked_read'})
 
     @action(detail=False, methods=['get'], url_path='rules')

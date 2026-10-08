@@ -249,7 +249,7 @@ export const REPORT_CONFIG: Record<string, ReportConfig> = {
       { key: "goods_total", label: "Register entries", format: "count", hint: "movements logged, not distinct vehicles" },
       { key: "inward", label: "Inward entries", format: "count" },
       { key: "outward", label: "Outward entries", format: "count" },
-      { key: "unmatched", label: "Awaiting ERP match", format: "count", target: 0, higherIsBetter: false, hint: "owner review" },
+      { key: "unmatched", label: "Awaiting ERP match", format: "count", target: 0, higherIsBetter: false, hint: "master review" },
       { key: "discrepancies", label: "ERP mismatches", format: "count", target: 0, higherIsBetter: false },
       { key: "visitor_entries", label: "Visitor entries", format: "count" },
       { key: "visitor_exits", label: "Visitor exits", format: "count" },
@@ -258,8 +258,8 @@ export const REPORT_CONFIG: Record<string, ReportConfig> = {
     sections: [],
     // Backend daily series {date, inward, outward, total} in Asia/Kolkata.
     dateKey: "date",
-    trendMeasures: ["inward", "outward", "total"],
-    seriesFormats: { inward: "count", outward: "count", total: "count" },
+    trendMeasures: ["bill_arrivals", "bill_received", "bill_voided", "inward", "outward", "total"],
+    seriesFormats: { bill_arrivals: "count", bill_received: "count", bill_voided: "count", inward: "count", outward: "count", total: "count" },
     rowsTitle: "Goods register",
     maxColumns: 14,
     columns: [

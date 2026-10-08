@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
+  Camera,
   Building2,
   Check,
   ClipboardList,
@@ -89,7 +90,7 @@ export function GateSetup() {
       <Step
         n={3}
         title="Give a watchman this gate"
-        body="In Users, create or edit the person, set the role to Watchman, and tick this factory under Gate assignment. A watchman sees only the gate terminal: goods inward/outward and checking visitors out."
+        body="In Users, create or edit the person, set the role to Watchman, and tick this factory under Gate assignment. A watchman sees only the gate terminal: capturing inward bill photos, logging outward goods and checking visitors out."
       >
         <div className="grid gap-2 sm:grid-cols-2">
           <ToolLink href="/system/users" icon={<Users className="h-5 w-5" />} title="Users" body="Edit an existing person" />
@@ -99,7 +100,9 @@ export function GateSetup() {
 
       <Step n={4} title="Daily use" body="Admins and owners have every gate tool by default. Report delegates (gate.reports) only see the sanitized report.">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <ToolLink href="/gate" icon={<DoorOpen className="h-5 w-5" />} title="Gate terminal" body="Log goods inward / outward" />
+          <ToolLink href="/gate" icon={<DoorOpen className="h-5 w-5" />} title="Gate terminal" body="Capture inward bills, log outward goods" />
+          <ToolLink href="/gate/inward-bills" icon={<Camera className="h-5 w-5" />} title="Capture inward bill" body="Photograph each page; no stock is posted" />
+          <ToolLink href="/inventory/gate-bills" icon={<ClipboardList className="h-5 w-5" />} title="Inventory bill queue" body="Review, create or match GRNs, confirm every line" />
           <ToolLink href="/gate/visitors" icon={<Users className="h-5 w-5" />} title="Visitors inside" body="Check visitors out" />
           <ToolLink href="/gate/register" icon={<ClipboardList className="h-5 w-5" />} title="Today's register" body="Paper-style goods register" />
           <ToolLink href="/gate/history" icon={<History className="h-5 w-5" />} title="Gate history" body="ERP match, corrections, audit" />
@@ -107,6 +110,11 @@ export function GateSetup() {
           <ToolLink href="/system/report-center" icon={<FileText className="h-5 w-5" />} title="Daily report pack" body="Gate Register Daily" />
         </div>
       </Step>
+      <div className="rounded-2xl border border-line bg-surface-2 px-4 py-4 text-[13px] leading-relaxed text-content-2">
+        <p className="font-semibold text-content-1">How an inward bill reaches stock</p>
+        <p className="mt-1">The watchman captures the bill. Inventory receives an in-app alert and checks the photos against a new or existing GRN. A bill stays pending or partly received until inventory confirms every line, or records a reason to resolve it without a GRN.</p>
+        <p className="mt-2 text-content-3">Store accounts already have review access across the existing inventory plants. Other accounts need explicit bill review and receipt permissions. Visitor entry remains a QR self-submit; the watchman confirms exit only.</p>
+      </div>
     </div>
   );
 }

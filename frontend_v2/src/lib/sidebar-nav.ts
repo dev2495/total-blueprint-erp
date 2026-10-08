@@ -95,6 +95,7 @@ const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
   "/inventory/packaging": "page.inventory.packaging.view",
   "/inventory/addons": "page.inventory.addons.view",
   "/inventory/grn": "page.inventory.grn.view",
+  "/inventory/gate-bills": "page.inventory.gate_bills.view",
   "/inventory/grn-history": "page.inventory.grn_history.view",
   "/inventory/stock-lifecycle": "page.inventory.stock_lifecycle.view",
   "/inventory/count": "page.inventory.count.view",
@@ -167,6 +168,8 @@ export interface NavAccessDescriptor {
    * canonical OWNER; listed permissions must be literal grants, never "*".
    */
   gateAccess?: { ownerOnly?: boolean; literalPermissions?: string[] }
+  /** Requires actual receipt authority from the backend entitlement, never a wildcard. */
+  inventoryBillReview?: boolean
 }
 
 export interface NavChildItem extends NavAccessDescriptor {
@@ -192,6 +195,7 @@ export interface SidebarAccessContext {
   isSuperuser?: boolean
   /** Backend entitlements.gate_master (watchman ceiling applied server-side). */
   gateMaster?: boolean
+  inventoryBillReview?: boolean
   grantedPermissions?: Iterable<string>
   grantedPermissionMap?: Record<string, string[]>
 }
@@ -365,6 +369,12 @@ export const NAV_ITEMS: NavItem[] = [
         icon: Palette,
         roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "WORK_CENTER_MANAGER"],
         permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
+        title: "Gate bills",
+        href: "/inventory/gate-bills",
+        icon: ClipboardList,
+        inventoryBillReview: true,
       },
       {
         title: "Smart GRN",
@@ -738,6 +748,13 @@ export function canAccessNavTarget(
   target: NavAccessDescriptor,
   context: SidebarAccessContext,
 ) {
+  if (target.inventoryBillReview) {
+    const roles = [context.currentRoleCode, context.baseRoleCode].map(normalizeRole)
+    if (roles.includes("WATCHMAN")) return false
+    if (typeof context.inventoryBillReview === "boolean") return context.inventoryBillReview
+    // Older auth payload: full masters only, never infer receipt review from "*".
+    return canAccessGateTarget({ ownerOnly: true }, context)
+  }
   if (target.gateAccess) return canAccessGateTarget(target.gateAccess, context)
   const currentRole = normalizeRole(context.currentRoleCode)
   const baseRoleCode = normalizeRole(context.baseRoleCode || context.currentRoleCode)
@@ -785,6 +802,9 @@ export function getSidebarRoutesForRole(
   options?: {
     baseRoleCode?: string
     isOwner?: boolean
+    isSuperuser?: boolean
+    gateMaster?: boolean
+    inventoryBillReview?: boolean
     grantedPermissions?: Iterable<string>
     grantedPermissionMap?: Record<string, string[]>
   },
@@ -793,6 +813,9 @@ export function getSidebarRoutesForRole(
     currentRoleCode: roleCode,
     baseRoleCode: options?.baseRoleCode,
     isOwner: options?.isOwner,
+    isSuperuser: options?.isSuperuser,
+    gateMaster: options?.gateMaster,
+    inventoryBillReview: options?.inventoryBillReview,
     grantedPermissions: options?.grantedPermissions,
     grantedPermissionMap: options?.grantedPermissionMap,
   }

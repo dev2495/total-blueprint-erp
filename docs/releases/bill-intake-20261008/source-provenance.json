@@ -1,0 +1,10 @@
+{
+  "deployed_parent": "72759ea64c703118a670b507b5aacfec417ae6f7",
+  "public_parent": "e6d81bec02a8ab7e1c7de2f073330f5661d10622",
+  "recovered_commit": "5482847f901440408231ae2a4964f4568c945a1e",
+  "recovered_tree": "1c614d80e577dad17da70db1c787a6e3bc386de0",
+  "reviewed_parent_archive_sha256": "4debfb36076a4c5aadd9c865f7b77faa3f8bbec9e991bbcdba184799fe93b3c1",
+  "verified_regular_source_files": 2178,
+  "private_repair_files_retained": 57,
+  "recovery_note": "The original private 72759ea commit was not published to GitHub. All reviewed source files were independently compared with a fresh read-only snapshot of the live AWS release. Recovered commit 5482847 retains the public history and exact deployed source tree; it is not the original private Git object."
+}

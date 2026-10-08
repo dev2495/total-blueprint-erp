@@ -179,7 +179,17 @@ export interface GateVisitor {
   selfie_url?: string | null;
 }
 
-export interface GateSummary {
+export interface GateBillSummary {
+  bill_arrivals?: number;
+  bill_received?: number;
+  bill_voided?: number;
+  bill_pending_grn?: number;
+  bill_partial_grn?: number;
+  bill_pending_oldest_arrival_at?: string | null;
+  bill_pending_scope?: string;
+}
+
+export interface GateSummary extends GateBillSummary {
   plant?: string;
   date?: string;
   inward?: number;
@@ -210,7 +220,7 @@ export interface GateAuditEvent {
   plant_name?: string | null;
 }
 
-export interface GateReport {
+export interface GateReport extends GateBillSummary {
   date_from: string;
   date_to: string;
   goods_total?: number;

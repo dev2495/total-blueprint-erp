@@ -26,6 +26,13 @@ export function GuardLog({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Bill-photo arrival needs gate.bill.submit (watchman or master). */
+export function GuardBillSubmit({ children }: { children: React.ReactNode }) {
+  const { canSubmitBills } = useGate();
+  if (!canSubmitBills) return <Denied body="Bill photos are recorded by the gate watchman or an administrator/owner." />;
+  return <>{children}</>;
+}
+
 /** Admin/Owner pages (setup, history, corrections, audit, QR, walk-in). The API enforces this too. */
 export function GuardOwner({ children }: { children: React.ReactNode }) {
   const { isOwner } = useGate();

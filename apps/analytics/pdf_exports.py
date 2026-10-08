@@ -74,6 +74,9 @@ class AnalyticsPDFExportService:
         metrics = f"Inward {summary.get('inward', 0)} · Outward {summary.get('outward', 0)} · Unmatched {summary.get('unmatched', 0)} · Discrepancies {summary.get('discrepancies', 0)}"
         visitors = f"Visitors entered {summary.get('visitor_entries', 0)} · Exited {summary.get('visitor_exits', 0)} · Inside now {summary.get('inside_visitors', 0)} · Pending {summary.get('pending_visitors', 0)} · Overdue {summary.get('overdue_visitors', 0)}"
         story.extend([Paragraph(cls._escape(metrics), styles["body"]), Paragraph(cls._escape(visitors), styles["body"]), Spacer(1, 3 * mm)])
+        if "bill_arrivals" in summary:
+            bills = f"Bill arrivals {summary.get('bill_arrivals', 0)} · Received in period {summary.get('bill_received', 0)} · Voided in period {summary.get('bill_voided', 0)} · Pending now {summary.get('bill_pending_grn', 0)} · Partially received now {summary.get('bill_partial_grn', 0)}"
+            story.extend([Paragraph(cls._escape(bills), styles["body"]), Paragraph(cls._escape(summary.get('bill_pending_scope', '')), styles["muted"]), Spacer(1, 3 * mm)])
         headers = ["Date / time", "Plant", "Direction", "Invoice", "Vehicle", "Party", "Product", "Qty / UOM", "Amount", "Match"]
         rows = [[Paragraph(cls._escape(header), header_style) for header in headers]]
         for row in payload.get("rows") or []:

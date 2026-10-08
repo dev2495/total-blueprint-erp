@@ -167,6 +167,10 @@ class Notification(models.Model):
     # Reference to related object
     related_object_type = models.CharField(max_length=50, blank=True, help_text="e.g., SalesOrder, ProductionJob")
     related_object_id = models.UUIDField(null=True, blank=True)
+    plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, null=True, blank=True, related_name='user_notifications')
+    # Persist the DB default so the previous application image can still insert
+    # notifications while this additive migration is active during cutover/rollback.
+    deep_link = models.CharField(max_length=255, blank=True, default="", db_default="")
     
     # Status
     is_read = models.BooleanField(default=False)
@@ -185,6 +189,13 @@ class Notification(models.Model):
             models.Index(fields=['target_role', 'is_read']),
             models.Index(fields=['created_at']),
             models.Index(fields=['event_key', 'created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'event_key', 'related_object_id'],
+                condition=models.Q(event_key='gate.inward_bill_uploaded'),
+                name='users_unique_inward_bill_notice',
+            ),
         ]
 
     def __str__(self):

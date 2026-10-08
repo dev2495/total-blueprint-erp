@@ -561,7 +561,7 @@ class _GateRegisterPDFRenderer(_BaseDailyPDFRenderer):
         return RenderedReport(
             report_code=cls.report_code, report_date=report_date, pdf=pdf_bytes,
             file_name=f"gate-register-daily-{report_date.isoformat()}.pdf", checksum_sha1=_sha1(pdf_bytes),
-            summary_text=f"Inward: {summary.get('inward', 0)}\nOutward: {summary.get('outward', 0)}\nUnmatched: {summary.get('unmatched', 0)}\nDiscrepancies: {summary.get('discrepancies', 0)}",
+            summary_text=f"Inward: {summary.get('inward', 0)}\nOutward: {summary.get('outward', 0)}\nUnmatched: {summary.get('unmatched', 0)}\nDiscrepancies: {summary.get('discrepancies', 0)}\nBill arrivals: {summary.get('bill_arrivals', 0)}\nBill pending now: {summary.get('bill_pending_grn', 0)}\nBill partially received now: {summary.get('bill_partial_grn', 0)}\nBill received in period: {summary.get('bill_received', 0)}",
             warning_text="\n".join(warnings), window_start=window_start, window_end=next_day - timedelta(microseconds=1),
             detail_attachments=[RenderedAttachment(file_name=f"gate-register-daily-{report_date.isoformat()}.csv", content=csv_bytes, content_type="text/csv", checksum_sha1=_sha1(csv_bytes))],
         )

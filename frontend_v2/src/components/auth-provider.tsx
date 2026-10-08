@@ -24,6 +24,8 @@ interface User {
     entitlements?: {
         role: string;
         gate_master?: boolean;
+        inventory_bill_review?: boolean;
+        inventory_bill_scope?: string;
         landing_page: string;
         permissions: string[];
         permission_map?: Record<string, string[]>;

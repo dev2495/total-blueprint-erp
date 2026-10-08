@@ -337,6 +337,8 @@ def store_lines(movement, lines):
 
 
 def create_goods(user, data):
+    if is_watchman(user) and data["direction"] == "INWARD":
+        raise PermissionDenied("Use the camera bill upload to record inward arrival. Inventory records the GRN.")
     plant = get_plant(user, data["plant"])
     def operation():
         party = party_master(data["party_kind"], data["party_id"])
@@ -460,7 +462,8 @@ def summary_for_period(start_date, end_date, plant_ids=None):
     counts = {row["direction"]: row["n"] for row in goods.values("direction").annotate(n=Count("id"))}
     qty = {row["uom"]: str(row["qty"]) for row in GoodsLine.objects.filter(movement__in=goods).values("uom").annotate(qty=Sum("quantity"))}
     amounts = {row["movement__direction"]: str(row["amount"]) if row["amount"] is not None else None for row in GoodsLine.objects.filter(movement__in=goods).values("movement__direction").annotate(amount=Sum("amount"))}
-    return {"date_from": str(start_date), "date_to": str(end_date), "business_timezone": str(gate_zone()), "goods_total": sum(counts.values()), "inward": counts.get("INWARD", 0), "outward": counts.get("OUTWARD", 0), "unmatched": goods.filter(reconciliation_status="UNMATCHED").count(), "discrepancies": goods.filter(reconciliation_status="DISCREPANCY").count(), "pending_visitors": visitors.filter(status="PENDING").count(), "inside_visitors": visitors.filter(status="INSIDE").count(), "visitor_entries": visitors.filter(entry_at__gte=start, entry_at__lt=end).count(), "visitor_exits": visitors.filter(exit_at__gte=start, exit_at__lt=end).count(), "overdue_visitors": visitors.filter(status="INSIDE", entry_at__lt=timezone.now()-timedelta(hours=12)).count(), "stale_pending_visitors": visitors.filter(status="PENDING", submitted_at__lt=timezone.now()-timedelta(hours=12)).count(), "amount_by_direction": amounts, "quantity_by_uom": qty, "unknown_amount_lines": GoodsLine.objects.filter(movement__in=goods, amount__isnull=True).count(), "amount_note": "Known observed/ERP line amounts only; may exclude tax or freight. See document amount basis. Not an accounting total."}
+    from apps.analytics.gate_bill_reporting import summary_for_period as bill_summary
+    return {**bill_summary(start_date, end_date, plant_ids), "date_from": str(start_date), "date_to": str(end_date), "business_timezone": str(gate_zone()), "goods_total": sum(counts.values()), "inward": counts.get("INWARD", 0), "outward": counts.get("OUTWARD", 0), "unmatched": goods.filter(reconciliation_status="UNMATCHED").count(), "discrepancies": goods.filter(reconciliation_status="DISCREPANCY").count(), "pending_visitors": visitors.filter(status="PENDING").count(), "inside_visitors": visitors.filter(status="INSIDE").count(), "visitor_entries": visitors.filter(entry_at__gte=start, entry_at__lt=end).count(), "visitor_exits": visitors.filter(exit_at__gte=start, exit_at__lt=end).count(), "overdue_visitors": visitors.filter(status="INSIDE", entry_at__lt=timezone.now()-timedelta(hours=12)).count(), "stale_pending_visitors": visitors.filter(status="PENDING", submitted_at__lt=timezone.now()-timedelta(hours=12)).count(), "amount_by_direction": amounts, "quantity_by_uom": qty, "unknown_amount_lines": GoodsLine.objects.filter(movement__in=goods, amount__isnull=True).count(), "amount_note": "Known observed/ERP line amounts only; may exclude tax or freight. See document amount basis. Not an accounting total."}
 
 
 def report_payload_for_period(start_date, end_date, plant_ids=None):

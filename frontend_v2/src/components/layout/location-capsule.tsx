@@ -73,7 +73,7 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
       segment,
       href: cumulative,
       target: resolveNavigableRoute(cumulative),
-      label: toLabel(segment),
+      label: /^\/inventory\/gate-bills\/[0-9a-f-]{36}$/i.test(cumulative) ? "Bill" : toLabel(segment),
     };
   });
 

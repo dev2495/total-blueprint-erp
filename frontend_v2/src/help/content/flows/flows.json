@@ -816,5 +816,85 @@
         ]
       }
     ]
+  },
+  {
+    "id": "gate-bill-receipt-flow",
+    "title": {
+      "en": "Inward bill receiving",
+      "hi": "इनवर्ड बिल प्राप्ति"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Check every bill page against the delivery",
+          "hi": "हर बिल पृष्ठ को डिलीवरी से जाँचें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Stock goods",
+              "hi": "स्टॉक माल"
+            },
+            "nextId": "receipt"
+          },
+          {
+            "label": {
+              "en": "Duplicate, service or cancelled bill",
+              "hi": "डुप्लिकेट, सेवा या रद्द बिल"
+            },
+            "nextId": "resolve"
+          }
+        ]
+      },
+      {
+        "id": "receipt",
+        "title": {
+          "en": "Does an accepted receipt already exist at this factory?",
+          "hi": "क्या इसी फैक्ट्री पर स्वीकार रसीद पहले से है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "resolution": {
+              "en": "Match the existing receipt explicitly. Stock is not posted again.",
+              "hi": "मौजूदा रसीद स्पष्ट रूप से मिलाएँ. स्टॉक दोबारा नहीं बढ़ता."
+            }
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "resolution": {
+              "en": "Create a normal GRN. Keep the bill partial until every required receipt is recorded, then confirm all lines received.",
+              "hi": "सामान्य GRN बनाएं. सभी आवश्यक रसीद दर्ज होने तक बिल आंशिक रखें, फिर सभी लाइन प्राप्त होने की पुष्टि करें."
+            }
+          }
+        ]
+      },
+      {
+        "id": "resolve",
+        "title": {
+          "en": "Explain why this paperwork needs no stock receipt",
+          "hi": "समझाएं कि इस कागज़ की स्टॉक रसीद क्यों नहीं चाहिए"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Record reason",
+              "hi": "कारण दर्ज करें"
+            },
+            "resolution": {
+              "en": "Choose the correct resolution code and add an explanation. A bill with linked receipts cannot be voided.",
+              "hi": "सही समाधान कोड चुनें और कारण दें. जुड़ी रसीद वाला बिल रद्द नहीं हो सकता."
+            }
+          }
+        ]
+      }
+    ]
   }
 ]

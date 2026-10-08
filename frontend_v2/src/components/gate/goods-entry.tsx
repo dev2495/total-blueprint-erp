@@ -81,6 +81,7 @@ function sanitizeDecimal(value: string, places: number) {
 }
 
 export function GoodsEntry({ initialDirection }: { initialDirection: GateDirection }) {
+  const router = useRouter();
   const { plantId, plant } = useGate();
   const qc = useQueryClient();
   const [direction, setDirection] = useState<GateDirection>(initialDirection);
@@ -222,6 +223,11 @@ export function GoodsEntry({ initialDirection }: { initialDirection: GateDirecti
 
   const switchDirection = (next: GateDirection) => {
     if (locked || next === direction) return;
+    // Inward arrivals are recorded by bill photo now; the typed inward form is retired.
+    if (next === "INWARD") {
+      router.push("/gate/inward-bills");
+      return;
+    }
     setDirection(next);
     setPartyId("");
     setPartyName("");

@@ -9,6 +9,35 @@ from .role_catalog import canonicalize_role_matrix, get_canonical_role_code
 
 class PermissionService:
     @staticmethod
+    def is_watchman(user) -> bool:
+        actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+        effective = get_canonical_role_code(getattr(user, "effective_role_code", actual))
+        return "WATCHMAN" in {actual, effective}
+
+    @staticmethod
+    def has_inventory_bill_review(user) -> bool:
+        """Receipt authority from the real account; previews/wildcards add none."""
+        if not user or not getattr(user, "is_authenticated", False) or not getattr(user, "is_active", False):
+            return False
+        if PermissionService.is_watchman(user):
+            return False
+        if PermissionService.is_gate_master(user):
+            return True
+        actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+        actual_permissions = set(effective_permissions_for_role(actual))
+        actual_permissions.update(getattr(getattr(user, "role", None), "default_permissions", []) or [])
+        actual_permissions.update(getattr(user, "extra_permissions", []) or [])
+        can_receive = bool({"inventory.manage", "procurement.manage"} & actual_permissions)
+        return can_receive and (actual == "STORE" or "gate.bill.review" in actual_permissions)
+
+    @staticmethod
+    def inventory_review_plants(user):
+        """Current receipt APIs have global plant scope; preserve that authority."""
+        from apps.factory.models import Plant
+
+        return Plant.objects.all() if PermissionService.has_inventory_bill_review(user) else Plant.objects.none()
+
+    @staticmethod
     def revoke_refresh_tokens(user: User) -> int:
         """Revoke this account's existing sessions without logging others out."""
         from django.utils import timezone
@@ -85,15 +114,19 @@ class PermissionService:
         if actual_role_code == "WATCHMAN" or active_role_code == "WATCHMAN":
             return effective_permissions_for_role("WATCHMAN")
         
-        if active_role_code == 'ADMIN' or active_role_code == 'SUPER_ADMIN' or user.is_superuser:
-            # Admins get everything for now, or fetch Admin role perms
-            role = Role.objects.filter(code='ADMIN').first()
-            if role:
-                perms.update(role.default_permissions)
-        elif active_role_code:
-            role = Role.objects.filter(code=active_role_code).first()
-            if role:
-                perms.update(role.default_permissions)
+        role_code = 'ADMIN' if active_role_code in {'ADMIN', 'SUPER_ADMIN'} or user.is_superuser else active_role_code
+        actual_role = user.role
+        if actual_role and actual_role.code == role_code:
+            role = actual_role
+        elif role_code and (actual_role or role_code != 'GUEST'):
+            role = Role.objects.filter(code=role_code).first()
+        else:
+            # GUEST is only a display fallback for an unassigned account.
+            # It must not load an unrelated role row or add a query to every
+            # production board read; explicit account grants still apply.
+            role = None
+        if role:
+            perms.update(role.default_permissions)
 
         # Always apply the canonical matrix as the baseline so newly added
         # permissions take effect on deploy without requiring a database re-sync.
@@ -108,6 +141,11 @@ class PermissionService:
         # default, independently of stale role rows or a non-watchman preview.
         if PermissionService.is_gate_master(user):
             perms.update(GATE_MASTER_PERMISSIONS)
+
+        if PermissionService.has_inventory_bill_review(user):
+            perms.update({"gate.bill.review", "page.inventory.gate_bills.view", "notifications.view"})
+        else:
+            perms.difference_update({"gate.bill.review", "page.inventory.gate_bills.view"})
 
         # Self-account actions must remain available across role matrix drifts.
         perms.add("users.self_manage")
@@ -247,6 +285,8 @@ class PermissionService:
             "context": PermissionService.get_assigned_context(user),
             "is_owner": user.is_owner and get_canonical_role_code(user.role.code if user.role else "") != "WATCHMAN",
             "gate_master": PermissionService.is_gate_master(user),
+            "inventory_bill_review": PermissionService.has_inventory_bill_review(user),
+            "inventory_bill_scope": "ALL_PLANTS" if PermissionService.has_inventory_bill_review(user) else "NONE",
             "landing_page": PermissionService.get_landing_route(user)
         }
 

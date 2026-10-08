@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
-import { isGateOwner } from "@/components/gate/gate-access";
+import { canReviewGateBills, isGateOwner } from "@/components/gate/gate-access";
 import { PremiumPageShell } from "@/components/ui-custom/premium-page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -184,7 +184,7 @@ const STREAMS: StreamMeta[] = [
     icon: FileStack,
   },
   {
-    // Owner-only stream (audit-ledger?stream=gate); the backend omits it for anyone else.
+    // Master-only stream (audit-ledger?stream=gate), including immutable bill events.
     id: "gate",
     modeKey: "gate",
     label: "Gate Register",
@@ -402,6 +402,11 @@ function normalizeEvent(
 
 function normalizeLedgerEvent(row: AuditLedgerEvent): AuditEvent {
   const stream = streamMeta((row.stream as AuditMode) || "trace");
+  const details = asRecord(row.details);
+  const billId = asString(details.object_id);
+  const billHref = row.stream === "gate" && row.entity_type === "BILL" && /^[0-9a-f-]{36}$/i.test(billId)
+    ? `/inventory/gate-bills/${billId}`
+    : "";
   return {
     id: row.id,
     source: row.source,
@@ -421,11 +426,11 @@ function normalizeLedgerEvent(row: AuditLedgerEvent): AuditEvent {
     method: asString(row.method, ""),
     path: asString(row.path, ""),
     ip: asString(row.ip, ""),
-    href: asString(row.href, "/system/audit"),
+    href: billHref || asString(row.href, "/system/audit"),
     traceableReference: asString(row.traceable_reference, row.reference),
     traceSupported: Boolean(row.trace_supported),
     raw: row as unknown as Record<string, unknown>,
-    details: asRecord(row.details),
+    details,
   };
 }
 
@@ -587,7 +592,9 @@ export default function AuditCenterPage() {
 
   const ledgerEvents = auditLedgerQuery.data?.events || [];
   const ledgerSummary = auditLedgerQuery.data?.summary;
-  const traceTarget = selectedEvent?.traceableReference || traceLookupCandidate(deferredQuery);
+  const traceTarget = selectedEvent
+    ? (selectedEvent.traceSupported ? selectedEvent.traceableReference : "")
+    : traceLookupCandidate(deferredQuery);
 
   const traceQuery = useQuery({
     queryKey: ["audit-trace-lookup", traceTarget],
@@ -1669,6 +1676,8 @@ function InvestigationPanel({
   query: string;
   onTrace: (reference: string) => void;
 }) {
+  const { user, effectiveRole } = useAuth();
+  const canOpenBill = canReviewGateBills(user, effectiveRole) && event?.stream === "gate" && event.entityType === "BILL" && /^\/inventory\/gate-bills\/[0-9a-f-]{36}$/i.test(event.href);
   const entity = trace?.entity;
   const summary = asRecord(trace?.summary);
   const timeline = Array.isArray(trace?.timeline) ? trace.timeline : [];
@@ -1707,6 +1716,12 @@ function InvestigationPanel({
           Copy
         </Button>
       </div>
+
+      {canOpenBill ? (
+        <Link href={event!.href} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line bg-surface-1 px-4 text-[13px] font-semibold text-primary hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          Open bill <ArrowRight className="h-4 w-4" />
+        </Link>
+      ) : null}
 
       <div className={styles.traceStatusCard}>
         {traceLoading ? (

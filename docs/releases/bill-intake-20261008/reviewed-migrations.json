@@ -1,0 +1,12 @@
+[
+  {
+    "app": "gate",
+    "name": "0003_inward_bill_intake",
+    "sha256": "62138abadd6806659b4ffb3acf9e403c41bbabae9cb0dc72f4d296b178d93456"
+  },
+  {
+    "app": "users",
+    "name": "0013_inward_bill_notifications",
+    "sha256": "c4853894b2843093c24c782a8f4fedaaa320339763b62bf017989232a7d6cea8"
+  }
+]

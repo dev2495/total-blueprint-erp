@@ -4,6 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { describeApiError } from "@/lib/api";
+import { GrnBillBanner, useGrnBillContext } from "@/components/inventory/gate-bills/bill-grn-context";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -42,6 +44,8 @@ const STEPS: Array<{ key: "vehicle" | "lines" | "quality"; label: string }> = [
 export function GrnWizard({ poId }: { poId: string }) {
   const router = useRouter();
   const qc = useQueryClient();
+  // Optional gate-bill context (?inward_bill_id=…) — links this PO receipt to the bill atomically.
+  const billCtx = useGrnBillContext();
   const { data: po, isLoading } = useQuery<PurchaseOrder>({
     queryKey: ["procurement", "po", poId],
     queryFn: () => procurementService.get(poId),
@@ -85,6 +89,16 @@ export function GrnWizard({ poId }: { poId: string }) {
     setLines(openLines);
   }, [po]);
 
+  // Prefill empty header fields from inventory's bill review.
+  const billReview = billCtx.bill?.review_data;
+  React.useEffect(() => {
+    if (!billReview) return;
+    if (billReview.invoice_number) setInvoiceNo((v) => v || String(billReview.invoice_number));
+    if (billReview.invoice_date) setInvoiceDate((v) => v || String(billReview.invoice_date));
+    if (billReview.vehicle_number) setVehicleNo((v) => v || String(billReview.vehicle_number));
+  }, [billReview]);
+  const plantMismatch = Boolean(billCtx.bill && po && (po as { plant?: string }).plant && String((po as { plant?: string }).plant) !== String(billCtx.bill.plant));
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!po) throw new Error("PO not loaded");
@@ -114,15 +128,22 @@ export function GrnWizard({ poId }: { poId: string }) {
               : {}),
           })),
       };
-      return procurementService.createReceipt(payload);
+      if (billCtx.billId && quality === "REJECTED") {
+        throw new Error("A rejected receipt cannot receive a gate bill. Set quality to Pending or Approved, or post without the bill.");
+      }
+      return billCtx.wrapPost("PO_RECEIPT", payload, (body) =>
+        procurementService.createReceipt(body as Parameters<typeof procurementService.createReceipt>[0]),
+      );
     },
     onSuccess: (receipt) => {
       toast.success(`GRN ${receipt.code} posted`);
       qc.invalidateQueries({ queryKey: ["procurement"] });
-      router.push(`/procurement/purchase-orders/${poId}`);
+      billCtx.onPosted(receipt, String(receipt.code || "PO receipt"));
+      const linked = (receipt as { inward_bill?: { id?: string } }).inward_bill;
+      router.push(linked?.id ? `/inventory/gate-bills/${linked.id}` : `/procurement/purchase-orders/${poId}`);
     },
-    onError: (e: { response?: { data?: { error?: string } } }) => {
-      toast.error(e.response?.data?.error || "Failed to post GRN");
+    onError: (e: { message?: string; response?: { data?: { error?: string } } }) => {
+      toast.error(e.response?.data?.error || describeApiError(e, e.message || "Failed to post GRN"));
     },
   });
 
@@ -143,6 +164,13 @@ export function GrnWizard({ poId }: { poId: string }) {
         >
           <ArrowLeft className="h-3 w-3" /> Back to PO {po.code}
         </Link>
+        <GrnBillBanner ctx={billCtx} />
+        {plantMismatch ? (
+          <div role="alert" className="rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-fg">
+            This PO belongs to a different factory than the gate bill. The bill can only be received at its own factory — pick a PO of
+            {" "}{billCtx.bill?.plant_name}, or post this receipt without the bill.
+          </div>
+        ) : null}
 
         <div className="erp-hero rounded-2xl border p-5 text-white">
           <div className="flex items-center gap-3">

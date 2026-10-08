@@ -2869,7 +2869,8 @@ class ReportService:
                     raise ValidationError({"plant": "Plant does not exist."})
             data = report_payload_for_period(start, end, plant_ids=[normalized["plant_id"]] if normalized.get("plant_id") else None)
             series = ReportService._gate_daily_movement_series(start, end, normalized.get("plant_id"))
-            return {"tab": "gate", "summary": data["summary"], "rows": data.get("rows", []), "series": series, "breakdowns": data.get("breakdowns", {}), "coverage": {"gate_register": 100}, "warnings": data.get("warnings", []), "generated_at": timezone.now().isoformat()}
+            from .gate_bill_reporting import daily_series
+            return {"tab": "gate", "summary": data["summary"], "rows": data.get("rows", []), "series": series, "bill_series": daily_series(start, end, normalized.get("plant_id")), "breakdowns": data.get("breakdowns", {}), "coverage": {"gate_register": 100}, "warnings": data.get("warnings", []), "generated_at": timezone.now().isoformat()}
 
         tab_map = {
             "production": ReportService.get_production_performance,

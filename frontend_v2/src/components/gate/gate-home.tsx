@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { BarChart3, ChevronRight, ClipboardList, DoorOpen, History, QrCode, Settings, Users } from "lucide-react";
+import { BarChart3, Camera, ChevronRight, ClipboardList, DoorOpen, History, QrCode, Settings, Users } from "lucide-react";
 
 import { gateApi, type GateDirection } from "@/services/gate";
 import { useGate } from "./gate-shell";
@@ -150,20 +150,22 @@ export function GateHome() {
 
 function LaneTile({ direction, count, loading }: { direction: GateDirection; count?: number; loading?: boolean }) {
   const meta = DIRECTION_META[direction];
+  // Inward = take a bill photo (no typing); outward keeps the typed register.
+  const inward = direction === "INWARD";
   return (
     <Link
-      href={`/gate/goods?direction=${direction}`}
+      href={inward ? "/gate/inward-bills" : "/gate/goods?direction=OUTWARD"}
       className="gate-press relative flex min-h-[148px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-white"
       style={{ background: meta.tone }}
-      aria-label={`New ${meta.label.toLowerCase()} goods entry`}
+      aria-label={inward ? "Record inward: take bill photo" : "Record outward goods"}
     >
       <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15">
-        <DirectionGlyph direction={direction} className="h-6 w-6 !text-white" />
+        {inward ? <Camera className="h-6 w-6" /> : <DirectionGlyph direction={direction} className="h-6 w-6 !text-white" />}
       </span>
       <span>
-        <span className="block text-[22px] font-semibold leading-tight tracking-[-0.02em]">{meta.label}</span>
+        <span className="block text-[20px] font-semibold leading-tight tracking-[-0.02em]">{inward ? "Take bill photo" : meta.label}</span>
         <span className="block text-[13px] text-white/80">
-          {loading ? "…" : `${count ?? 0} today`} · tap to log
+          {inward ? "Record inward" : loading ? "…" : `${count ?? 0} today · tap to log`}
         </span>
       </span>
       <span aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />

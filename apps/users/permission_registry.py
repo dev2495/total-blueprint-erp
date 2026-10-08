@@ -1,4 +1,5 @@
 from functools import lru_cache
+import re
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from .role_catalog import get_canonical_role_code
@@ -20,6 +21,8 @@ PUBLIC_ENDPOINT_PREFIXES = (
 
 # Ordered list; first match wins.
 ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
+    ("GET", "/api/gate/inward-bills/", "gate.bill.review"),
+    ("POST", "/api/gate/inward-bills/", "gate.bill.submit"),
     ("GET", "/api/gate/reports/", "gate.reports"),
     ("GET", "/api/gate/history/", "gate.view"),
     ("GET", "/api/gate/audit/", "gate.audit"),
@@ -239,6 +242,7 @@ FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
     {"permission": "page.inventory.packaging.view", "route": "/inventory/packaging", "label": "Packaging workspace"},
     {"permission": "page.inventory.addons.view", "route": "/inventory/addons", "label": "Ink and adhesive inventory"},
     {"permission": "page.inventory.grn.view", "route": "/inventory/grn", "label": "Smart GRN"},
+    {"permission": "page.inventory.gate_bills.view", "route": "/inventory/gate-bills", "label": "Inward bill queue"},
     {"permission": "page.inventory.grn_history.view", "route": "/inventory/grn-history", "label": "GRN history"},
     {"permission": "page.inventory.stock_lifecycle.view", "route": "/inventory/stock-lifecycle", "label": "Stock lifecycle"},
     {"permission": "page.inventory.count.view", "route": "/inventory/count", "label": "Physical count"},
@@ -307,6 +311,9 @@ PERMISSION_LABELS: Dict[str, str] = {
     "gate.reconcile": "Admin and owner gate corrections and system reconciliation",
     "gate.audit": "Admin and owner gate audit trail",
     "gate.private": "Admin and owner private visitor images",
+    "gate.bill.submit": "Capture inward bill pages at the gate",
+    "gate.bill.review": "Review inward bills and link inventory receipts",
+    "page.inventory.gate_bills.view": "Inward bill review queue",
     "logistics.view": "Logistics dispatch data",
     "logistics.manage": "Create and manage dispatch challans",
     "packing.view": "Packing yard data",
@@ -321,11 +328,12 @@ PERMISSION_LABELS: Dict[str, str] = {
 GATE_MASTER_PERMISSIONS = {
     "gate.log", "gate.view", "gate.reports", "gate.reconcile", "gate.audit", "gate.private",
     "page.gate.watchman.view", "page.gate.history.view", "page.analytics.reports_gate.view",
+    "gate.bill.submit", "gate.bill.review", "page.inventory.gate_bills.view",
 }
 
 
 ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
-    "WATCHMAN": ["users.self_manage", "gate.log", "page.gate.watchman.view", "page.profile.view"],
+    "WATCHMAN": ["users.self_manage", "gate.log", "gate.bill.submit", "page.gate.watchman.view", "page.profile.view"],
     "OWNER": ["*"],
     "SUPER_ADMIN": ["*"],
     "ADMIN": ["*"],
@@ -389,6 +397,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "factory.view",
     ],
     "STORE": [
+        "gate.bill.review",
+        "page.inventory.gate_bills.view",
         "users.self_manage",
         "inventory.view",
         "inventory.manage",
@@ -464,6 +474,15 @@ def is_public_endpoint(path: str) -> bool:
 
 
 def resolve_required_permission(path: str, method: str) -> Optional[str]:
+    bill_path = str(path or "").split("?", 1)[0].rstrip("/")
+    if bill_path == "/api/gate/inward-bills" or bill_path.startswith("/api/gate/inward-bills/"):
+        if str(method or "").upper() == "POST" and re.fullmatch(r"/api/gate/inward-bills/[^/]+/(review|link-receipts|complete|void)", bill_path):
+            return "gate.bill.review"
+        if str(method or "").upper() == "POST" and bill_path == "/api/gate/inward-bills":
+            return "gate.bill.submit"
+        if str(method or "").upper() == "GET":
+            return "gate.bill.review"
+        return None
     for alias in ('/api/materials/', '/api/films/', '/api/addons/', '/api/inks/', '/api/adhesives/', '/api/solvents/'):
         if path.startswith(alias):
             path = '/api/master/' + path[len(alias):]

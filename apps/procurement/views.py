@@ -150,6 +150,9 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         return Response(VendorPerformanceService.compute(vendor))
 
 
+from apps.gate.bill_services import with_bill_grn
+
+
 class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
     queryset = PurchaseOrderReceipt.objects.all().select_related(
         "purchase_order", "plant"
@@ -169,6 +172,7 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
             qs = qs.filter(purchase_order_id=po)
         return qs
 
+    @with_bill_grn("PO_RECEIPT")
     def create(self, request, *args, **kwargs):
         ser = PurchaseOrderReceiptCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
@@ -251,6 +255,7 @@ class TradingGoodReceiptViewSet(viewsets.ModelViewSet):
             qs = qs.filter(code__icontains=params["search"])
         return qs
 
+    @with_bill_grn("TRADING")
     def create(self, request, *args, **kwargs):
         ser = TradingGoodReceiptCreateSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
