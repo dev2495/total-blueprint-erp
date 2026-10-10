@@ -992,7 +992,8 @@ class AnalyticsService:
             })
 
         # --- Construct Metric Block ---
-        req_scope = JobMaterialRequirement.objects.filter(production_job__created_at__date__gte=start_date)
+        # Job workers' own material is not factory usage (no issue, no variance).
+        req_scope = JobMaterialRequirement.objects.filter(production_job__created_at__date__gte=start_date).exclude(supply_source="JOBWORK_VENDOR")
         material_totals = req_scope.aggregate(
             theoretical=Sum("theoretical_qty"),
             planned_issue=Sum("planned_issue_qty"),
@@ -2074,7 +2075,7 @@ class AnalyticsService:
         production_scope = JobExecutionLog.objects.filter(logged_at__date__gte=last_7_days)
         scrap_scope = ScrapLog.objects.filter(logged_at__date__gte=last_30_days)
         downtime_scope = DowntimeLog.objects.filter(start_time__date__gte=last_30_days)
-        requirement_scope = JobMaterialRequirement.objects.filter(production_job__created_at__date__gte=last_30_days)
+        requirement_scope = JobMaterialRequirement.objects.filter(production_job__created_at__date__gte=last_30_days).exclude(supply_source="JOBWORK_VENDOR")
         if scoped_to_work_centers:
             production_scope = production_scope.filter(production_job__work_center_id__in=wc_ids)
             scrap_scope = scrap_scope.filter(production_job__work_center_id__in=wc_ids)

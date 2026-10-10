@@ -8173,6 +8173,10 @@
       {
         "en": "Receive the dispatched challan at the destination and verify quantity and location before allocating stock there.",
         "hi": "गंतव्य पर डिस्पैच चालान प्राप्त करें और आवंटन से पहले मात्रा तथा लोकेशन जांचें।"
+      },
+      {
+        "en": "Open a challan and print its QR sticker; stick it on the challan copy that travels with the vehicle — the gate scans it.",
+        "hi": "चालान खोलें और उसका QR स्टिकर प्रिंट करें; वाहन के साथ जाने वाली चालान कॉपी पर चिपकाएँ — गेट उसे स्कैन करता है।"
       }
     ],
     "fieldHelp": [
@@ -8315,6 +8319,10 @@
       {
         "en": "Submit action, confirm success toast, and re-check downstream impact.",
         "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
+      },
+      {
+        "en": "Need a QR on another paper? Print the QR sticker here and stick it on that paper — the gate scans it.",
+        "hi": "किसी दूसरे कागज़ पर QR चाहिए? यहाँ QR स्टिकर प्रिंट करें और उस कागज़ पर चिपकाएँ — गेट उसे स्कैन करता है।"
       }
     ],
     "fieldHelp": [
@@ -8440,6 +8448,10 @@
       {
         "en": "Reports: material at job workers by age and yield/wastage by job worker. Opened from a bill, pick the order the bill belongs to.",
         "hi": "रिपोर्ट: उम्र अनुसार जॉब वर्कर के पास माल और जॉब वर्कर अनुसार उपज/वेस्टेज. बिल से खोलने पर उस बिल का ऑर्डर चुनें."
+      },
+      {
+        "en": "A bill that came after the goods (or a monthly bill): open it from Bills & documents → Receive job work and use 'Already received — link this bill' to tick the returns it charges for, even on closed orders. Differences are saved as warnings; linking moves no stock.",
+        "hi": "माल के बाद आया बिल (या मासिक बिल): इसे बिल व दस्तावेज़ → जॉब वर्क प्राप्त करें से खोलें और 'पहले से प्राप्त — यह बिल जोड़ें' में वे वापसियाँ चुनें जिनका यह शुल्क है, बंद ऑर्डर पर भी. अंतर चेतावनी के रूप में सेव होते हैं; जोड़ने से स्टॉक नहीं बदलता."
       }
     ],
     "fieldHelp": [],
@@ -9463,6 +9475,10 @@
       {
         "en": "Submit action, confirm success toast, and re-check downstream impact.",
         "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
+      },
+      {
+        "en": "Print the QR sticker (1–5 copies) on the label printer and stick it on the Tally bill or dispatch slip — the gate scans it and the departure links itself.",
+        "hi": "लेबल प्रिंटर पर QR स्टिकर (1–5 कॉपी) प्रिंट करें और Tally बिल या डिस्पैच स्लिप पर चिपकाएँ — गेट उसे स्कैन करता है और रवानगी अपने-आप जुड़ जाती है।"
       }
     ],
     "fieldHelp": [
@@ -19160,6 +19176,10 @@
       {
         "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
         "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      },
+      {
+        "en": "Print the QR sticker (1–5 copies) on the label printer and stick it on the Tally bill or dispatch slip — the gate scans it and the departure links itself.",
+        "hi": "लेबल प्रिंटर पर QR स्टिकर (1–5 कॉपी) प्रिंट करें और Tally बिल या डिस्पैच स्लिप पर चिपकाएँ — गेट उसे स्कैन करता है और रवानगी अपने-आप जुड़ जाती है।"
       }
     ],
     "fieldHelp": [
@@ -20425,6 +20445,10 @@
       {
         "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
         "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      },
+      {
+        "en": "Print the QR sticker (1–5 copies) on the label printer and stick it on the Tally bill or dispatch slip — the gate scans it and the departure links itself.",
+        "hi": "लेबल प्रिंटर पर QR स्टिकर (1–5 कॉपी) प्रिंट करें और Tally बिल या डिस्पैच स्लिप पर चिपकाएँ — गेट उसे स्कैन करता है और रवानगी अपने-आप जुड़ जाती है।"
       }
     ],
     "fieldHelp": [
@@ -23900,6 +23924,10 @@
       {
         "en": "Short-close with a reason when items will not come back.",
         "hi": "सामान वापस नहीं आएगा तो कारण देकर शॉर्ट-क्लोज़ करें."
+      },
+      {
+        "en": "If the items leave with another paper, print the QR sticker and stick it on that paper — the gate scans it.",
+        "hi": "सामान किसी दूसरे कागज़ के साथ जाए तो QR स्टिकर प्रिंट करके उस कागज़ पर चिपकाएँ — गेट उसे स्कैन करता है।"
       }
     ],
     "fieldHelp": [],
@@ -23960,6 +23988,14 @@
       {
         "en": "Close when nothing is left at the job worker (completes a planned route step); Close short writes off what is left with a reason.",
         "hi": "जॉब वर्कर के पास कुछ न बचे तो बंद करें (नियोजित रूट चरण पूरा होता है); Close short कारण सहित बचा माल बट्टे खाते डालता है."
+      },
+      {
+        "en": "Continue production with what's back: when part of the material is back, complete the job-work route step now so the next in-house step can start; the order stays open and later returns go straight to that step. Not offered on a job's last step — finished pieces can be packed and dispatched as they arrive.",
+        "hi": "जो वापस आया उससे उत्पादन जारी रखें: जब माल का कुछ हिस्सा वापस आ जाए, तो जॉब-वर्क रूट चरण अभी पूरा करें ताकि अगला इन-हाउस चरण शुरू हो सके; ऑर्डर खुला रहता है और बाद की वापसी सीधे उसी चरण में जाती है. जॉब के अंतिम चरण पर यह विकल्प नहीं है — तैयार पीस आते ही पैक और डिस्पैच किए जा सकते हैं."
+      },
+      {
+        "en": "Closing the order never deducts the step's inks, adhesive or packs from factory stock: material the job worker supplied is recorded as vendor-supplied, and material sent on the challan is counted on the job from the challan.",
+        "hi": "ऑर्डर बंद करने से चरण की इंक, एडहेसिव या पैक फैक्ट्री स्टॉक से नहीं घटते: जॉब वर्कर द्वारा दिया माल विक्रेता-आपूर्ति के रूप में दर्ज होता है, और चालान पर भेजा माल चालान से जॉब पर गिना जाता है."
       }
     ],
     "fieldHelp": [],

@@ -602,6 +602,31 @@ class JobWorkCancelSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=1000)
 
 
+class JobWorkReleaseStepSerializer(serializers.Serializer):
+    """Continue production with what is back (the order stays open)."""
+
+    client_token = serializers.UUIDField()
+    step_force_reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
+class JobWorkLateBillSerializer(serializers.Serializer):
+    """Link a job worker's bill to returns received earlier without one."""
+
+    client_token = serializers.UUIDField()
+    bill_id = serializers.UUIDField()
+    return_ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=60)
+    billed_qty = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0"))
+    billed_uom = serializers.ChoiceField(choices=["PCS", "KG", "METER", "ROLL"], required=False, allow_blank=True)
+    billed_rate = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, allow_null=True, min_value=Decimal("0"))
+    billed_amount = serializers.DecimalField(max_digits=16, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0"))
+    complete = serializers.BooleanField(required=False, default=False)
+
+    def validate_return_ids(self, value):
+        if len({str(item) for item in value}) != len(value):
+            raise serializers.ValidationError("Pick each return once.")
+        return value
+
+
 class JobWorkLegacyReconcileSerializer(serializers.Serializer):
     client_token = serializers.UUIDField()
     order_id = serializers.UUIDField(required=False, allow_null=True)

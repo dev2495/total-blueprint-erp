@@ -1021,6 +1021,11 @@ class JobWorkOrder(models.Model):
     closed_at = models.DateTimeField(null=True, blank=True)
     closed_by = models.ForeignKey('users.User', on_delete=models.PROTECT, null=True, blank=True, related_name='closed_job_work_orders')
     short_close_reason = models.TextField(blank=True, default="", db_default="")
+    # Planned route step completed before the order closed ("continue
+    # production with what's back"); the order stays open for the rest.
+    step_released_at = models.DateTimeField(null=True, blank=True)
+    step_released_by = models.ForeignKey('users.User', on_delete=models.PROTECT, null=True, blank=True, related_name='released_job_work_steps')
+    step_release_reason = models.TextField(blank=True, default="", db_default="")
     created_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='created_job_work_orders')
     meta_json = models.JSONField(default=dict, blank=True)
 
@@ -1215,6 +1220,42 @@ class JobWorkSettlement(_AppendOnlyDocument):
         db_table = 'inventory_job_work_settlements'
         ordering = ['created_at', 'id']
         indexes = [models.Index(fields=['order', 'sent_line'], name='jobwork_settle_line_idx')]
+
+
+class JobWorkBillLink(_AppendOnlyDocument):
+    """A job worker's bill linked to a return after it was received (late or
+    monthly bill). Returns are append-only, so the link lives here: one row
+    per return, and a return belongs to one bill only. The billed figures are
+    the bill-level values as entered (shared by every return of one
+    submission); ``received_qty`` / ``allocated_amount`` are this return's
+    share by received quantity."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    bill = models.ForeignKey('gate.InwardBillIntake', on_delete=models.PROTECT, related_name='jobwork_bill_links')
+    job_work_return = models.OneToOneField(JobWorkReturn, on_delete=models.PROTECT, related_name='late_bill_link')
+    order = models.ForeignKey(JobWorkOrder, on_delete=models.PROTECT, related_name='bill_links')
+    plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, related_name='job_work_bill_links')
+    vendor = models.ForeignKey('Vendor', on_delete=models.PROTECT, related_name='job_work_bill_links')
+    billed_qty = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    billed_uom = models.CharField(max_length=8, blank=True, default="")
+    billed_rate = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    billed_amount = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
+    received_qty = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True, help_text="This return's received quantity in billed_uom.")
+    allocated_amount = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True, help_text="This return's share of billed_amount by received quantity.")
+    return_count = models.PositiveIntegerField(default=1)
+    bill_complete = models.BooleanField(default=False)
+    warnings = models.JSONField(default=list, blank=True)
+    request_key = models.CharField(max_length=64, editable=False)
+    linked_by = models.ForeignKey('users.User', on_delete=models.PROTECT, related_name='job_work_bill_links')
+    linked_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'inventory_job_work_bill_links'
+        ordering = ['linked_at', 'id']
+        indexes = [models.Index(fields=['bill', 'linked_at'], name='jobwork_billlink_bill_idx')]
+
+    def __str__(self):
+        return f"{self.job_work_return_id} -> bill {self.bill_id}"
 
 
 # ============================================================================

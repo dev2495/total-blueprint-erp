@@ -1224,10 +1224,18 @@ class JobService:
         force_reason=None,
         material_confirmations=None,
         require_material_confirmations=False,
+        material_settled_externally=False,
     ):
         """
         Close-only completion: step closure is based on step-aware target, not order-total.
         If short beyond tolerance, `force_reason` is required.
+
+        ``material_settled_externally`` (job work only): the step ran at an
+        outside job worker whose material use was already settled through the
+        job-work order (our material left on the challan and was consumed at
+        JOBWORK_OUT, or the job worker used their own). Both close-time
+        auto-reconciliation passes are skipped, so nothing is consumed from the
+        job's WIP/consumption location. Every other caller keeps the default.
         """
         if isinstance(job, (str, bytes)):
             job = ProductionJob.objects.get(id=job)
@@ -1263,26 +1271,27 @@ class JobService:
             )
 
         with transaction.atomic():
-            consumption_location_id = job.from_location_id or (
-                job.work_center.default_wip_location_id if job.work_center else None
-            )
-            produced_kg = Decimal(str(step_profile.get("step_produced_kg") or 0))
-            # WCM issue confirmations are the actual stock event. Persist those first so
-            # the auto-ratio close pass never creates a negative return against issued material.
-            ExecutionService.reconcile_step_material_actuals(
-                job=job,
-                material_confirmations=material_confirmations or [],
-                consumption_location_id=consumption_location_id,
-                user=user,
-                strict=require_material_confirmations,
-            )
-            ExecutionService._reconcile_step_bulk_consumption(
-                job=job,
-                produced_kg=produced_kg,
-                consumption_location_id=consumption_location_id,
-                user=user,
-                material_confirmations=material_confirmations or [],
-            )
+            if not material_settled_externally:
+                consumption_location_id = job.from_location_id or (
+                    job.work_center.default_wip_location_id if job.work_center else None
+                )
+                produced_kg = Decimal(str(step_profile.get("step_produced_kg") or 0))
+                # WCM issue confirmations are the actual stock event. Persist those first so
+                # the auto-ratio close pass never creates a negative return against issued material.
+                ExecutionService.reconcile_step_material_actuals(
+                    job=job,
+                    material_confirmations=material_confirmations or [],
+                    consumption_location_id=consumption_location_id,
+                    user=user,
+                    strict=require_material_confirmations,
+                )
+                ExecutionService._reconcile_step_bulk_consumption(
+                    job=job,
+                    produced_kg=produced_kg,
+                    consumption_location_id=consumption_location_id,
+                    user=user,
+                    material_confirmations=material_confirmations or [],
+                )
             return cls._finalize_step_completion(
                 job,
                 user=user,

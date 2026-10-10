@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GradientHero } from "@/components/erp/gradient-hero";
+import { PrintGateQrLabelButton } from "@/components/gate/print-qr-label-button";
 import { cn } from "@/lib/utils";
 import { inventoryService, type DeliveryChallan } from "@/services/inventory";
 import { factoryService, type Plant } from "@/services/factory";
@@ -704,6 +705,7 @@ function DetailDrawer({
               Open transfer form <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
+          <PrintGateQrLabelButton kind="INTERPLANT_DC" id={challan.id} reference={challan.dc_no || undefined} />
         </div>
       </div>
     </div>

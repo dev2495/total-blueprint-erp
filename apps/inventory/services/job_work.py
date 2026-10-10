@@ -9,7 +9,11 @@ Flow (docs/documents-jobwork/SPEC.md, FINAL-PLAN §5)::
       (balance roll / bulk back in stock). Outputs become normal ERP stock
       (FG batch, output rolls, bulk) and wastage a ScrapLog against the job.
     → close when nothing remains at the vendor (short-close writes off the
-      rest with a reason). Only closing completes a planned route step.
+      rest with a reason). Closing completes a planned route step — unless
+      production already continued with what was back (release-step), which
+      completes it earlier and leaves the order open for the rest. The step
+      guard and the step's material actuals live in job_work_steps; late and
+      monthly bills in job_work_bills.
 
 Every mutation locks the order row (SELECT ... FOR UPDATE) and is idempotent
 per client token: the same token and payload replay the stored result, a
@@ -1471,42 +1475,39 @@ class JobWorkService:
         return _with_locked_order(order_id, "cancel", data, body)
 
     @classmethod
+    def release_step(cls, *, order_id, user, data: dict) -> dict:
+        """Continue production with what is back (see job_work_steps.release_route_step)."""
+        require_jobwork_permission(user, "inventory.manage")
+        from apps.inventory.services.job_work_steps import release_route_step
+
+        return _with_locked_order(order_id, "release-step", data, lambda order: release_route_step(order, user, data))
+
+    @classmethod
     def _finish_production(cls, order: JobWorkOrder, user, *, step_force_reason: str) -> Optional[dict]:
-        """Planned step: complete the route step as the real user. Emergency:
-        release the job hold. Failures surface as errors; nothing is held silently."""
+        """Planned step: complete the route step as the real user — only while
+        the job is still on it (step guard). Emergency: release the job hold.
+        Failures surface as errors; nothing is held silently."""
         if not order.production_job_id:
             return None
+        from apps.inventory.services import job_work_steps as steps
         from apps.production.models import ProductionJob
-        from apps.production.services.job_services import JobService
 
-        job = ProductionJob.objects.select_for_update(of=("self",)).select_related("work_center").get(id=order.production_job_id)
+        job = ProductionJob.objects.select_for_update(of=("self",)).select_related(
+            "work_center", "closed_by", "current_process", "process", "routing_rule",
+        ).get(id=order.production_job_id)
         if order.mode != "PLANNED_STEP":
             return {"job_number": job.job_number, "action": "RELEASED", "detail": release_job(job, user)}
-        if job.job_state == "COMPLETED":
-            return {"job_number": job.job_number, "action": "ALREADY_COMPLETED", "detail": "The route step was already completed."}
-        if job.job_state not in {"EXECUTING", "PAUSED"}:
-            raise Conflict(f"Job {job.job_number} is {job.job_state.lower()}; the job-work step can only be completed while the job is paused for job work.")
-        try:
-            JobService.complete_step(job, user=user, force_reason=step_force_reason or None)
-        except (ValueError, DjangoValidationError) as exc:
-            message = messages_of(exc)
-            if "force_reason" in message:
-                raise ValidationError({"step_force_reason": (
-                    f"Job {job.job_number} is short of its step target: {message.split(' Provide')[0]} "
-                    "Give a reason to complete the step with a variance."
-                )})
-            raise Conflict(f"Job {job.job_number}: the route step could not be completed. {message}")
-        except APIException:
-            raise
-        except Exception as exc:  # route engine errors (dispatch rules, successors)
-            logger.exception("Job-work close could not complete job %s", job.job_number)
-            raise Conflict(f"Job {job.job_number}: the route step could not be completed. {exc}")
-        job.refresh_from_db()
-        if job.is_on_hold:
-            job.is_on_hold = False
-            job.hold_reason = None
-            job.save(update_fields=["is_on_hold", "hold_reason", "updated_at"])
-        return {"job_number": job.job_number, "action": "STEP_COMPLETED", "detail": f"Route step completed by {getattr(user, 'username', 'system')}."}
+        position, detail = steps.step_position(order, job)
+        if position == steps.PAST:
+            if order.step_released_at:
+                # Completed by this order's early release: the step's material
+                # actuals are ours to refresh with what came back since.
+                materials = steps.sync_step_requirements(order, job)
+                return {"job_number": job.job_number, "action": "STEP_RELEASED_EARLIER", "detail": f"{detail} The job was not changed again.", "materials": materials}
+            return {"job_number": job.job_number, "action": "ALREADY_COMPLETED", "detail": f"{detail} The job was not changed."}
+        if position != steps.ON_STEP:
+            raise Conflict(detail)
+        return steps.complete_route_step(order, job, user, step_force_reason)
 
     # --------------------------------------------------------- legacy fix
     @classmethod

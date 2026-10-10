@@ -51,6 +51,7 @@ export interface JobWorkOrderRow {
   overdue: boolean;
   itc04_alert: boolean;
   is_legacy: boolean;
+  step_released_at: string | null;
 }
 
 export interface JobWorkSentLine {
@@ -129,6 +130,55 @@ export interface JobWorkWarning {
   message: string;
 }
 
+export interface JobWorkReturnBill {
+  id: string;
+  status: string;
+  invoice_number: string;
+  /** WITH_RETURN: linked in the return's save; LATER: linked from job work afterwards; BILL_DESK: linked from Bills & documents. */
+  linked: "WITH_RETURN" | "LATER" | "BILL_DESK";
+  linked_at: string | null;
+  linked_by_name: string | null;
+}
+
+export interface JobWorkBillLinkInfo {
+  bill_id: string;
+  linked_at: string;
+  linked_by_name: string | null;
+  billed_qty: string | null;
+  billed_uom: string;
+  billed_rate: string | null;
+  billed_amount: string | null;
+  received_qty: string | null;
+  allocated_amount: string | null;
+  return_count: number;
+  bill_complete: boolean;
+  warnings: JobWorkWarning[];
+}
+
+export interface JobWorkNextJob {
+  id: string;
+  job_number: string;
+  job_state: string;
+  step_number: number;
+  process_code: string | null;
+  process_name: string | null;
+  work_center_name: string | null;
+  is_on_hold: boolean;
+}
+
+export interface JobWorkRouteStep {
+  number: number;
+  label: string;
+  /** ON_STEP: the job waits at this step; PAST: the step is already complete; BLOCKED: see position_detail. */
+  position: "ON_STEP" | "PAST" | "BLOCKED";
+  position_detail: string;
+  is_last: boolean;
+  next_jobs: JobWorkNextJob[];
+  progress: { uom: string; target: string; produced: string; remaining: string; tolerance: string; short: boolean } | null;
+  release_blocked_reason: string | null;
+  can_release: boolean;
+}
+
 export interface JobWorkReturnDoc {
   id: string;
   number: string;
@@ -136,7 +186,10 @@ export interface JobWorkReturnDoc {
   received_by_name: string | null;
   vendor_document_no: string;
   vendor_document_date: string | null;
-  bill: { id: string; status: string } | null;
+  /** The bill this return is charged on, however it was linked. */
+  bill: JobWorkReturnBill | null;
+  /** Present when the bill was linked after the return (late / monthly bill). */
+  bill_link: JobWorkBillLinkInfo | null;
   settled_sent_kg: string;
   output_kg: string;
   output_pcs: number;
@@ -206,6 +259,10 @@ export interface JobWorkOrderDetail {
   closed_by_name: string | null;
   short_close_reason: string;
   cancel_reason: string;
+  /** Set when production continued with what was back before the order closed. */
+  step_release: { released_at: string; released_by_name: string | null; reason: string } | null;
+  /** Planned route-step orders only. */
+  route_step: JobWorkRouteStep | null;
   created_at: string;
   created_by_name: string | null;
   is_legacy: boolean;
@@ -240,7 +297,7 @@ export interface JobWorkOrderDetail {
   timeline: JobWorkTimelineEvent[];
   legacy: { stuck_rolls: number; stuck_kg: string };
   permissions: { can_manage: boolean; can_link_bill: boolean; can_reconcile: boolean };
-  actions: { can_dispatch: boolean; can_receive: boolean; can_close: boolean; can_short_close: boolean; can_cancel: boolean };
+  actions: { can_dispatch: boolean; can_receive: boolean; can_close: boolean; can_short_close: boolean; can_cancel: boolean; can_release_step: boolean };
 }
 
 export interface JobWorkActionResult {
@@ -252,7 +309,7 @@ export interface JobWorkActionResult {
   return_number?: string;
   warnings?: JobWorkWarning[];
   bill?: { id: string; status: string; resolved_at: string | null } | null;
-  step?: { job_number: string; action: string; detail: string } | null;
+  step?: { job_number: string; action: string; detail: string; next_jobs?: JobWorkNextJob[] } | null;
   written_off?: Array<{ line: string; qty: string; uom: string; kg: string }>;
 }
 
@@ -355,6 +412,58 @@ export interface JobWorkReturnPayload {
   variance_reason?: string;
   bill?: { bill_id: string; billed_qty?: string | null; billed_uom?: JobWorkUom | ""; billed_rate?: string | null; billed_amount?: string | null; complete: boolean } | null;
   notes?: string;
+}
+
+export interface JobWorkUnbilledReturn {
+  id: string;
+  number: string;
+  received_at: string;
+  vendor_document_no: string;
+  plant: string;
+  plant_name: string;
+  order_id: string;
+  order_number: string;
+  order_status: JobWorkStatus;
+  order_status_label: string;
+  vendor: string | null;
+  vendor_name: string;
+  process_name: string | null;
+  production_job_number: string | null;
+  expected_output_kind: JobWorkOutputKind;
+  output_pcs: number;
+  output_kg: string;
+  settled_sent_kg: string;
+  order_rate: string | null;
+  order_rate_uom: string;
+  vendor_rate: JobWorkRate | null;
+  blocked_reason: string | null;
+}
+
+export interface JobWorkUnbilledList {
+  results: JobWorkUnbilledReturn[];
+  count: number;
+  vendor: { id: string; name: string };
+  bill: { id: string; status: string; open: boolean; invoice_number: string; taxable_amount: string | null; category: string } | null;
+}
+
+export interface JobWorkLinkBillPayload {
+  client_token: string;
+  bill_id: string;
+  return_ids: string[];
+  billed_qty?: string | null;
+  billed_uom?: JobWorkUom | "";
+  billed_rate?: string | null;
+  billed_amount?: string | null;
+  complete: boolean;
+}
+
+export interface JobWorkLinkBillResult {
+  bill: { id: string; status: string; resolved_at: string | null } | null;
+  links: Array<{ return_id: string; return_number: string; order_id: string; order_number: string; received_qty: string | null; allocated_amount: string | null }>;
+  warnings: JobWorkWarning[];
+  return_count: number;
+  billed_uom: string;
+  replayed?: boolean;
 }
 
 export interface JobWorkAgeingRow {
@@ -481,6 +590,13 @@ export const jobWorkApi = {
   shortClose: async (id: string, payload: { client_token: string; reason: string; step_force_reason?: string }) =>
     (await api.post<JobWorkActionResult>(`${BASE}/${id}/short-close/`, payload)).data,
   cancel: async (id: string, payload: { client_token: string; reason: string }) => (await api.post<JobWorkActionResult>(`${BASE}/${id}/cancel/`, payload)).data,
+  /** Continue production with what's back: completes the planned route step now; the order stays open. */
+  releaseStep: async (id: string, payload: { client_token: string; step_force_reason?: string }) =>
+    (await api.post<JobWorkActionResult>(`${BASE}/${id}/release-step/`, payload, { timeout: 120_000 })).data,
+  /** Returns of a job worker with no bill yet (any order status), for late / monthly bills. */
+  unbilledReturns: async (params: { bill?: string; vendor?: string; plant?: string }) =>
+    (await api.get<JobWorkUnbilledList>(`${BASE}/unbilled-returns/`, { params: clean(params) })).data,
+  linkBill: async (payload: JobWorkLinkBillPayload) => (await api.post<JobWorkLinkBillResult>(`${BASE}/link-bill/`, payload, { timeout: 120_000 })).data,
   eligibleRolls: async (id: string, params: { search?: string; scope?: "job" | "plant" }) =>
     (await api.get<{ results: JobWorkEligibleRoll[]; scope: string }>(`${BASE}/${id}/eligible-rolls/`, { params: clean(params) })).data,
   eligibleBulk: async (id: string) => (await api.get<{ results: JobWorkEligibleBulk[] }>(`${BASE}/${id}/eligible-bulk/`)).data.results,

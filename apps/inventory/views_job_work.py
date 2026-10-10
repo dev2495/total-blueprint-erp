@@ -24,12 +24,15 @@ from apps.inventory.serializers import (
     JobWorkCloseSerializer,
     JobWorkCreateSerializer,
     JobWorkDispatchSerializer,
+    JobWorkLateBillSerializer,
     JobWorkLegacyReconcileSerializer,
+    JobWorkReleaseStepSerializer,
     JobWorkReturnSerializer,
     JobWorkShortCloseSerializer,
     JobWorkVendorRateSerializer,
 )
 from apps.inventory.services import job_work_integrations  # noqa: F401  (registers QR, bill kind, notifications)
+from apps.inventory.services import job_work_bills
 from apps.inventory.services.fsm import TransitionError
 from apps.inventory.services.job_work import (
     JobWorkService,
@@ -314,6 +317,14 @@ class JobWorkOrderViewSet(viewsets.ViewSet):
         data = self._valid(JobWorkCancelSerializer, request)
         return self._detail_response(request, pk, JobWorkService.cancel(order_id=pk, user=request.user, data=data))
 
+    @action(detail=True, methods=["post"], url_path="release-step")
+    def release_step(self, request, pk=None):
+        """Continue production with what's back: complete the planned route
+        step now; the order stays open for the material still at the vendor."""
+        require_jobwork_permission(request.user, "inventory.manage")
+        data = self._valid(JobWorkReleaseStepSerializer, request)
+        return self._detail_response(request, pk, JobWorkService.release_step(order_id=pk, user=request.user, data=data))
+
     @action(detail=True, methods=["get"], url_path=rf"challans/(?P<challan_id>{UUID_RE})/pdf")
     def challan_pdf(self, request, pk=None, challan_id=None):
         require_jobwork_permission(request.user, "inventory.view")
@@ -353,6 +364,19 @@ class JobWorkOrderViewSet(viewsets.ViewSet):
             qs = qs.filter(plant_id=request.query_params["plant"])
         rows = [order_row(order) for order in qs.order_by("dispatched_at", "created_at")[:100]]
         return Response({"results": rows, "count": len(rows)})
+
+    @action(detail=False, methods=["get"], url_path="unbilled-returns")
+    def unbilled_returns(self, request):
+        """Returns of one job worker with no bill yet, any order status (late / monthly bills)."""
+        return Response(job_work_bills.unbilled_returns(user=request.user, params=request.query_params))
+
+    @action(detail=False, methods=["post"], url_path="link-bill")
+    def link_bill(self, request):
+        """Link an open job-work bill to returns received earlier (one transaction)."""
+        require_jobwork_permission(request.user, "inventory.manage")
+        data = self._valid(JobWorkLateBillSerializer, request)
+        result = job_work_bills.link_bill(user=request.user, data=data)
+        return Response(result, status=status.HTTP_200_OK if result.get("replayed") else status.HTTP_201_CREATED)
 
     # ---------------------------------------------------------- reports
     @action(detail=False, methods=["get"], url_path="reports/at-vendor")

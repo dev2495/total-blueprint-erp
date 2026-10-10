@@ -5,7 +5,9 @@
   ``on_gate_out`` stamps the challan's gate-out time. Neither moves stock.
 * Office outward search for the same kind (apps.gate.outward_registry).
 * Bill receipt kind ``JOBWORK_RETURN`` (apps.gate.bill_services) so a job
-  worker's bill can be linked to the return it charges for.
+  worker's bill can be linked to the return it charges for — in the return's
+  own save (``JobWorkReturn.bill``) or later (``JobWorkBillLink``, late and
+  monthly bills; apps.inventory.services.job_work_bills).
 * Notification ``jobwork.return_overdue`` (documents.manage) and the daily
   overdue / ITC-04 ageing run used by ``apps.inventory.tasks``.
 
@@ -23,7 +25,7 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from apps.inventory.models import JOBWORK_FINAL_STATUSES, JobWorkChallan, JobWorkOrder, JobWorkReturn
+from apps.inventory.models import JOBWORK_FINAL_STATUSES, JobWorkBillLink, JobWorkChallan, JobWorkOrder, JobWorkReturn
 from apps.inventory.services.job_work import ITC04_LIMIT_DAYS, ITC04_WARNING_DAYS, audit, line_balances
 
 logger = logging.getLogger(__name__)
@@ -139,13 +141,26 @@ def return_receipt_snapshot(bill, pk, lock=False):
         raise ValidationError("A job-work return cannot be dated in the future.")
     if ret.received_at < bill.arrival_at - timedelta(days=RETURN_BEFORE_BILL_DAYS):
         raise ValidationError(f"The return {ret.number} is more than {RETURN_BEFORE_BILL_DAYS} days older than the bill.")
-    if ret.billed_qty is not None:
+    # A return is billed either in its own save (ret.bill) or later through a
+    # JobWorkBillLink (late / monthly bill); one bill per return either way.
+    linked_at_return = ret.bill_id is not None and str(ret.bill_id) == str(bill.id)
+    if ret.bill_id is not None and not linked_at_return:
+        raise ValidationError(f"The return {ret.number} is already billed on another bill.")
+    late = JobWorkBillLink.objects.filter(job_work_return_id=ret.id).exclude(bill_id=bill.id).first()
+    if late is not None:
+        raise ValidationError(f"The return {ret.number} is already billed on another bill.")
+    if linked_at_return and ret.billed_qty is not None:
         quantity, uom = ret.billed_qty, ret.billed_uom or "PCS"
     elif ret.output_pcs:
         quantity, uom = Decimal(ret.output_pcs), "PCS"
     else:
         quantity, uom = ret.output_kg or ret.settled_sent_kg, "KG"
-    invoice = ret.vendor_document_no or bill_invoice_number(bill)
+    if linked_at_return:
+        invoice = ret.vendor_document_no or bill_invoice_number(bill)
+    else:
+        # Late link: the bill is the invoice; the return's own document number
+        # is usually the job worker's delivery challan.
+        invoice = bill_invoice_number(bill) or ret.vendor_document_no
     return {
         "kind": RECEIPT_KIND,
         "id": str(ret.id),
@@ -160,6 +175,15 @@ def return_receipt_snapshot(bill, pk, lock=False):
         "uom": uom,
         "quality_status": "POSTED",
     }
+
+
+def return_is_linked(pk) -> bool:
+    """Linked outside a bill reference row. Both link paths write the
+    InwardBillReceiptReference in the same transaction, which bill_services
+    checks first; a late link (JobWorkBillLink) is written right after the
+    reference, so it also counts here. ``JobWorkReturn.bill`` is deliberately
+    not checked: the return's own save sets it before attaching the bill."""
+    return JobWorkBillLink.objects.filter(job_work_return_id=pk).exists()
 
 
 # ----------------------------------------------------- overdue alerts
@@ -210,7 +234,7 @@ def register() -> None:
     from apps.users.services.bill_notifications import register_document_event
 
     register_qr_kind(QR_KIND, resolve_jobwork_challan, gate_out_jobwork_challan)
-    register_receipt_kind(RECEIPT_KIND, return_receipt_snapshot)
+    register_receipt_kind(RECEIPT_KIND, return_receipt_snapshot, return_is_linked)
     register_document_event(OVERDUE_EVENT, "documents.manage")
     try:
         from apps.gate.outward_registry import register_outward_search

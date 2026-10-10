@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { PrintGateQrLabelButton } from "@/components/gate/print-qr-label-button";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 
@@ -116,6 +117,7 @@ export function InterPlantPrintClient({ challanId }: { challanId: string }) {
               {loadError}
             </div>
           ) : null}
+          <PrintGateQrLabelButton kind="INTERPLANT_DC" id={safeChallanId} />
           {popupBlocked ? (
             <div className="rounded-2xl border border-warning-border bg-warning-bg px-4 py-3 text-sm text-warning-fg">
               Popup was blocked. Use &quot;Open PDF&quot; and print from the

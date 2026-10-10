@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, ClipboardList, FileText, History, PackageCheck, Printer, Scissors, Send, Truck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Ban, CheckCircle2, ClipboardList, FastForward, FileText, History, PackageCheck, Printer, Scissors, Send, Truck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,12 @@ import { jobWorkApi, type JobWorkOrderDetail, type JobWorkReturnDoc } from "@/se
 
 import { CloseDialog, type CloseKind } from "./close-dialogs";
 import { DispatchDialog } from "./dispatch-dialog";
+import { ReleaseStepDialog } from "./release-step-dialog";
 import { Chip, ErrorBanner, fmtDate, fmtDateTime, fmtInr, fmtKg, fmtNum, JobWorkAccessDenied, JobWorkStatusPill, jobWorkError, Notice, toNumber, useJobWorkAccess } from "./job-work-common";
 
 const RATE = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 import { ReceivePanel } from "./receive-panel";
+import { PrintGateQrLabelButton } from "@/components/gate/print-qr-label-button";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RETURN_LINE_LABEL: Record<string, string> = {
@@ -42,6 +44,7 @@ export function JobWorkDetail({ id }: { id: string }) {
   const [receiving, setReceiving] = useState(Boolean(billId) || params?.get("receive") === "1");
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [closeKind, setCloseKind] = useState<CloseKind | null>(null);
+  const [releaseOpen, setReleaseOpen] = useState(false);
   useEffect(() => {
     if (billId) setReceiving(true);
   }, [billId]);
@@ -139,6 +142,7 @@ export function JobWorkDetail({ id }: { id: string }) {
         meta={
           <>
             {order.overdue ? <Chip tone="bad">Overdue</Chip> : null}
+            {order.step_release ? <Chip tone="good">Production continued {fmtDate(order.step_release.released_at)}</Chip> : null}
             {order.at_vendor.itc04_alert ? <Chip tone="warn">Material 300+ days at vendor (ITC-04)</Chip> : null}
             {order.is_legacy ? <Chip>Created before the upgrade</Chip> : null}
           </>
@@ -154,6 +158,11 @@ export function JobWorkDetail({ id }: { id: string }) {
               {order.actions.can_receive ? (
                 <Button type="button" onClick={() => setReceiving(true)} className="min-h-[44px]" data-testid="jobwork-receive">
                   <PackageCheck /> Receive
+                </Button>
+              ) : null}
+              {order.actions.can_release_step ? (
+                <Button type="button" variant="secondary" onClick={() => setReleaseOpen(true)} className="min-h-[44px]" data-testid="jobwork-release-step">
+                  <FastForward /> Continue production with what&apos;s back
                 </Button>
               ) : null}
               {order.actions.can_close ? (
@@ -199,7 +208,12 @@ export function JobWorkDetail({ id }: { id: string }) {
         </Notice>
       ) : null}
       {!order.permissions.can_manage ? <Notice tone="info">You can view this order. Sending, receiving and closing need inventory manage rights.</Notice> : null}
-      {order.status === "RETURNED" && order.actions.can_close ? <Notice tone="good">Everything sent is settled. Close the order to finish{order.mode === "PLANNED_STEP" ? " and complete the route step" : ""}.</Notice> : null}
+      {order.status === "RETURNED" && order.actions.can_close ? (
+        <Notice tone="good">
+          Everything sent is settled. Close the order to finish{order.mode === "PLANNED_STEP" && !order.step_release && order.route_step?.position === "ON_STEP" ? " and complete the route step" : ""}.
+        </Notice>
+      ) : null}
+      <RouteStepNotice order={order} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel title="Order" icon={<ClipboardList />} className="lg:col-span-2" bodyClassName="grid gap-x-6 gap-y-2 text-[13px] sm:grid-cols-2">
@@ -214,6 +228,19 @@ export function JobWorkDetail({ id }: { id: string }) {
               "None (emergency handoff)"
             )}
           </Fact>
+          {order.route_step ? (
+            <Fact label="Route step">
+              Step {order.route_step.number}
+              {order.process ? ` · ${order.process.name}` : ""}
+              {" · "}
+              {order.step_release ? "completed early (production continued)" : order.route_step.position === "ON_STEP" ? "waiting for this order" : order.route_step.position === "PAST" ? "already completed" : "not reachable"}
+              {order.route_step.next_jobs.length ? (
+                <span className="block text-content-3">
+                  Next: {order.route_step.next_jobs.map((next) => `${next.job_number} (${next.process_name || `step ${next.step_number}`}, ${next.job_state.toLowerCase()}${next.is_on_hold ? ", on hold" : ""})`).join("; ")}
+                </span>
+              ) : null}
+            </Fact>
+          ) : null}
           <Fact label="Expected output">
             {order.expected_output_label}
             {order.expected_qty ? ` · ${fmtNum(order.expected_qty)} ${order.expected_uom}` : ""}
@@ -231,6 +258,13 @@ export function JobWorkDetail({ id }: { id: string }) {
           {order.notes ? <Fact label="Notes">{order.notes}</Fact> : null}
           {order.closed_at ? <Fact label={order.status === "CANCELLED" ? "Cancelled" : "Closed"}>{fmtDateTime(order.closed_at)}{order.closed_by_name ? ` by ${order.closed_by_name}` : ""}</Fact> : null}
           {order.short_close_reason ? <Fact label="Closed short because">{order.short_close_reason}</Fact> : null}
+          {order.step_release ? (
+            <Fact label="Production continued">
+              {fmtDateTime(order.step_release.released_at)}
+              {order.step_release.released_by_name ? ` by ${order.step_release.released_by_name}` : ""}
+              {order.step_release.reason ? <span className="block text-content-3">{order.step_release.reason}</span> : null}
+            </Fact>
+          ) : null}
           {order.cancel_reason ? <Fact label="Cancelled because">{order.cancel_reason}</Fact> : null}
         </Panel>
         <Panel title="At the job worker" icon={<AlertTriangle />} bodyClassName="space-y-2 text-[13px]">
@@ -260,9 +294,14 @@ export function JobWorkDetail({ id }: { id: string }) {
                   {challan.issued_by_name ? ` · ${challan.issued_by_name}` : ""} · {fmtKg(challan.total_qty_kg)} · {fmtInr(challan.total_value)}
                   {challan.gate_out_at ? <Chip tone="good">Left gate {fmtDateTime(challan.gate_out_at)}</Chip> : <Chip>Not scanned at gate</Chip>}
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => void printChallan(challan.pdf_url)}>
-                  <Printer /> Print challan
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => void printChallan(challan.pdf_url)}>
+                    <Printer /> Print challan
+                  </Button>
+                  {!challan.gate_out_at ? (
+                    <PrintGateQrLabelButton kind="JOBWORK_CHALLAN" id={challan.id} reference={challan.number} showHint={false} />
+                  ) : null}
+                </div>
               </div>
               <SentLines lines={challan.lines} />
             </div>
@@ -301,10 +340,52 @@ export function JobWorkDetail({ id }: { id: string }) {
         <>
           <DispatchDialog order={order} open={dispatchOpen} onOpenChange={setDispatchOpen} onPrint={(url) => void printChallan(url)} />
           <CloseDialog order={order} kind={closeKind} onOpenChange={setCloseKind} />
+          {order.route_step ? <ReleaseStepDialog order={order} open={releaseOpen} onOpenChange={setReleaseOpen} /> : null}
         </>
       ) : null}
     </div>
   );
+}
+
+/** Planned route step: early release state, or why the step cannot be completed here. */
+function RouteStepNotice({ order }: { order: JobWorkOrderDetail }) {
+  const route = order.route_step;
+  if (!route) return null;
+  const open = !["CLOSED", "CANCELLED", "DRAFT"].includes(order.status);
+  const next = route.next_jobs[0];
+  const nextText = next ? ` Job ${next.job_number} (${next.process_name || `step ${next.step_number}`}) is ${next.job_state.toLowerCase()}${next.is_on_hold ? " and on hold" : ""}.` : "";
+  if (order.step_release) {
+    const by = order.step_release.released_by_name ? ` by ${order.step_release.released_by_name}` : "";
+    return (
+      <Notice tone="good" title={`Production continued on ${fmtDateTime(order.step_release.released_at)}${by}`}>
+        Route step {route.number} was completed with what was back{order.step_release.reason ? ` (${order.step_release.reason})` : ""}.{nextText}
+        {open && order.at_vendor.lines
+          ? ` ${fmtKg(order.at_vendor.kg)} is still at ${order.vendor_name}; receive it here and it goes straight to the next step. Close the order when everything is back.`
+          : ""}
+      </Notice>
+    );
+  }
+  if (!open) return null;
+  if (order.actions.can_release_step) {
+    const output = order.totals.output_pcs ? `${fmtNum(order.totals.output_pcs)} pcs` : fmtKg(order.totals.output_kg);
+    return (
+      <Notice tone="info" title="Production can continue with what's back">
+        {output} has come back from {order.vendor_name}. &ldquo;Continue production with what&apos;s back&rdquo; completes route step {route.number} now
+        {next ? ` so job ${next.job_number} (${next.process_name || "next step"}) can start` : ""}; the {fmtKg(order.at_vendor.kg)} still at the job worker is received on this order later.
+      </Notice>
+    );
+  }
+  if (route.position !== "ON_STEP") {
+    return (
+      <Notice tone="warn" title={route.position === "PAST" ? "The route step is already completed" : "The route step cannot be completed from this order"}>
+        {route.position_detail} {route.position === "PAST" ? "Receiving and closing this order will not change the job." : ""}
+      </Notice>
+    );
+  }
+  if (order.permissions.can_manage && !route.is_last && order.at_vendor.lines && route.release_blocked_reason) {
+    return <Notice tone="info">Continue production before everything is back: {route.release_blocked_reason}</Notice>;
+  }
+  return null;
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -346,6 +427,8 @@ function SentLines({ lines }: { lines: JobWorkOrderDetail["sent_lines"] }) {
 
 function ReturnCard({ ret }: { ret: JobWorkReturnDoc }) {
   const off = ret.variance_pct !== null && Math.abs(Number(ret.variance_pct)) > 0.05;
+  const billedAmount = ret.billed_amount || ret.bill_link?.allocated_amount || ret.bill_link?.billed_amount || null;
+  const warnings = [...ret.warnings, ...(ret.bill_link?.warnings ?? [])].filter((warning, index, all) => all.findIndex((other) => other.message === warning.message) === index);
   return (
     <div className="rounded-xl border border-line">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2 text-[13px]">
@@ -357,10 +440,17 @@ function ReturnCard({ ret }: { ret: JobWorkReturnDoc }) {
         <span className="flex flex-wrap items-center gap-2">
           {ret.bill ? (
             <Link href={`/inventory/gate-bills/${ret.bill.id}`} className="text-[12px] font-semibold text-primary hover:underline">
-              Bill {ret.bill.id.slice(0, 8).toUpperCase()} · {ret.bill.status.replace("_", " ").toLowerCase()}
+              Bill {ret.bill.invoice_number || ret.bill.id.slice(0, 8).toUpperCase()} · {ret.bill.status.replace("_", " ").toLowerCase()}
             </Link>
+          ) : (
+            <Chip title="Link it from Bills & documents → job work when the job worker's bill arrives">No bill yet</Chip>
+          )}
+          {ret.bill && ret.bill.linked !== "WITH_RETURN" ? (
+            <Chip tone="info" title={ret.bill.linked_at ? `Linked ${fmtDateTime(ret.bill.linked_at)}${ret.bill.linked_by_name ? ` by ${ret.bill.linked_by_name}` : ""}` : undefined}>
+              Billed later{ret.bill_link && ret.bill_link.return_count > 1 ? ` · bill covers ${ret.bill_link.return_count} returns` : ""}
+            </Chip>
           ) : null}
-          {ret.billed_amount ? <Chip tone="info">Billed {fmtInr(ret.billed_amount)}</Chip> : null}
+          {billedAmount ? <Chip tone="info">Billed {fmtInr(billedAmount)}{ret.bill_link?.allocated_amount && ret.bill_link.return_count > 1 ? " (share)" : ""}</Chip> : null}
         </span>
       </div>
       <ul className="divide-y divide-line">
@@ -387,9 +477,9 @@ function ReturnCard({ ret }: { ret: JobWorkReturnDoc }) {
         {ret.variance_pct !== null ? ` (${ret.variance_pct}%)` : ""}
         {ret.variance_reason ? ` — ${ret.variance_reason}` : ""}
       </div>
-      {ret.warnings.length ? (
+      {warnings.length ? (
         <ul className="space-y-1 border-t border-line bg-warning-bg px-3 py-2 text-[12px] text-warning-fg">
-          {ret.warnings.map((warning, index) => (
+          {warnings.map((warning, index) => (
             <li key={index}>{warning.message}</li>
           ))}
         </ul>

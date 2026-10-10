@@ -275,6 +275,12 @@ class CostingService:
             return total_cost, has_actuals, breakdown, flags
 
         for requirement in requirements:
+            if getattr(requirement, "supply_source", "") == "JOBWORK_VENDOR":
+                # The job worker's own material is part of their labour bill,
+                # not factory material cost: known zero, never "missing".
+                has_actuals = True
+                flags.append(f"MATERIAL_SUPPLIED_BY_JOB_WORKER:{requirement.material.code}")
+                continue
             issued = cls._to_decimal(requirement.actual_issued_qty)
             returned = cls._to_decimal(requirement.actual_returned_qty)
             consumed = cls._to_decimal(requirement.consumed_qty)

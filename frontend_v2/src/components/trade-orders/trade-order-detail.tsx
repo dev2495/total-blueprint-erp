@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { GradientHero } from "@/components/erp/gradient-hero";
+import { PrintGateQrLabelButton } from "@/components/gate/print-qr-label-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -325,6 +326,9 @@ export function TradeOrderDetail({ id }: { id: string }) {
                   )}
                   Cancel order
                 </Button>
+              ) : null}
+              {order.status !== "CANCELLED" ? (
+                <PrintGateQrLabelButton kind="TRADE_ORDER" id={order.id} reference={order.code} size="default" className="border-t border-line pt-3" />
               ) : null}
             </div>
           </div>

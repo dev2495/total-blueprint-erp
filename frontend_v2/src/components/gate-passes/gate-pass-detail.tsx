@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Ban, CheckCircle2, ClipboardCheck, Clock3, FileImage, PackageCheck, Pencil, Send, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { PrintGateQrLabelButton } from "@/components/gate/print-qr-label-button";
 import { useGateOperation } from "@/components/gate/use-gate-operation";
 import { ActionFeedback, LoadFailure, RightsDenied, docDate, docDateTime, useDocumentRights } from "@/components/outward/document-rights";
 import { PageThumb } from "@/components/outward/outward-common";
@@ -123,6 +124,9 @@ export function GatePassDetail({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <PrintGatePassButton gatePass={gatePass} />
+          {gatePass.status === "ISSUED" || gatePass.status === "OUT" ? (
+            <PrintGateQrLabelButton kind="GATE_PASS" id={gatePass.id} reference={gatePass.display_number} size="default" className="max-w-[300px]" />
+          ) : null}
           {actions.has("edit") ? (
             <Button type="button" variant="outline" onClick={() => setEditing(true)}>
               <Pencil className="h-4 w-4" /> Edit draft

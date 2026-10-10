@@ -1392,9 +1392,24 @@ class JobMaterialRequirement(models.Model):
     actual_scrap_qty = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Actual scrap quantity")
     variance_qty = models.DecimalField(max_digits=12, decimal_places=4, default=0, help_text="Consumed minus theoretical variance")
     is_estimated = models.BooleanField(default=False, help_text="True when actual values were estimated instead of directly captured")
-    
+
     uom = models.CharField(max_length=10, default='KG')
-    
+
+    # Who supplied the material for this step. Job-work steps record our
+    # material sent on the challan (JOBWORK_SENT, consumed at JOBWORK_OUT) or
+    # the job worker's own material (JOBWORK_VENDOR: no factory consumption,
+    # excluded from factory material cost and usage-variance reports).
+    SUPPLY_FACTORY = 'FACTORY'
+    SUPPLY_JOBWORK_SENT = 'JOBWORK_SENT'
+    SUPPLY_JOBWORK_VENDOR = 'JOBWORK_VENDOR'
+    SUPPLY_SOURCE_CHOICES = [
+        (SUPPLY_FACTORY, 'Factory stock'),
+        (SUPPLY_JOBWORK_SENT, 'Sent to the job worker on a challan'),
+        (SUPPLY_JOBWORK_VENDOR, "Job worker's own material"),
+    ]
+    supply_source = models.CharField(max_length=16, choices=SUPPLY_SOURCE_CHOICES, default=SUPPLY_FACTORY, db_default=SUPPLY_FACTORY)
+    supply_note = models.CharField(max_length=255, blank=True, default="", db_default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

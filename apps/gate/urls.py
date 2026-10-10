@@ -50,6 +50,7 @@ urlpatterns += [
     path("outward-documents/<uuid:pk>/void/", outward_views.OutwardActionView.as_view(), {"action": "void"}),
     path("qr/resolve/", qr_views.QRResolveView.as_view()),
     path("qr/token/", qr_views.QRTokenView.as_view()),
+    path("qr/label.pdf", qr_views.QRLabelView.as_view()),
     path("gate-passes/", gate_pass_views.GatePassListView.as_view()),
     path("gate-passes/open-lines/", gate_pass_views.GatePassOpenLinesView.as_view()),
     path("gate-passes/form-options/", gate_pass_views.GatePassFormOptionsView.as_view()),

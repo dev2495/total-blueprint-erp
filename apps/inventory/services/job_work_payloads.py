@@ -42,6 +42,8 @@ ACTION_LABELS = {
     "JW_SHORT_CLOSED": "Order closed short",
     "JW_CANCELLED": "Draft cancelled",
     "JW_RECONCILED": "Legacy rolls reconciled",
+    "JW_STEP_RELEASED": "Production continued with what's back",
+    "JW_BILL_LINKED": "Bill linked to received material",
 }
 OPEN_FOR_LIST = ("DRAFT", "SENT", "PARTIAL", "PARTLY_RETURNED", "RETURNED")
 DEC0 = Value(Decimal("0"), output_field=DecimalField(max_digits=14, decimal_places=3))
@@ -136,6 +138,7 @@ def order_row(order: JobWorkOrder) -> dict:
         "overdue": is_overdue(order, open_lines=open_lines, oldest_open=oldest),
         "itc04_alert": bool(days is not None and days >= ITC04_WARNING_DAYS),
         "is_legacy": is_legacy_capable(order),
+        "step_released_at": iso(order.step_released_at),
     }
 
 
@@ -202,7 +205,43 @@ def challan_payload(challan: JobWorkChallan, balances: Dict[str, dict]) -> dict:
     }
 
 
-def return_payload(ret: JobWorkReturn) -> dict:
+def _late_link(ret: JobWorkReturn):
+    from django.core.exceptions import ObjectDoesNotExist
+
+    try:
+        return ret.late_bill_link
+    except ObjectDoesNotExist:
+        return None
+
+
+def return_bill(ret: JobWorkReturn, reference=None) -> Optional[dict]:
+    """The bill a return is charged on, whichever way it was linked: in the
+    return's own save, later from job work (late / monthly bill), or from the
+    bill desk's generic receipt link."""
+    from apps.inventory.services.job_work import bill_invoice_number
+
+    link = _late_link(ret)
+    if ret.bill_id:
+        bill, how, at, by = ret.bill, "WITH_RETURN", ret.received_at, ret.received_by
+    elif link is not None:
+        bill, how, at, by = link.bill, "LATER", link.linked_at, link.linked_by
+    elif reference is not None:
+        bill, how, at, by = reference.intake, "BILL_DESK", reference.linked_at, reference.linked_by
+    else:
+        return None
+    return {
+        "id": str(bill.id),
+        "status": bill.status,
+        "invoice_number": bill_invoice_number(bill),
+        "linked": how,
+        "linked_at": iso(at),
+        "linked_by_name": _user_name(by),
+    }
+
+
+def return_payload(ret: JobWorkReturn, reference=None) -> dict:
+    from apps.inventory.services.job_work_bills import bill_link_payload
+
     lines = []
     for line in ret.lines.all():
         lines.append({
@@ -225,7 +264,6 @@ def return_payload(ret: JobWorkReturn) -> dict:
             "scrap_log_id": str(line.scrap_log_id) if line.scrap_log_id else None,
             "meta": line.meta_json or {},
         })
-    bill = ret.bill
     return {
         "id": str(ret.id),
         "number": ret.number,
@@ -233,7 +271,8 @@ def return_payload(ret: JobWorkReturn) -> dict:
         "received_by_name": _user_name(ret.received_by),
         "vendor_document_no": ret.vendor_document_no,
         "vendor_document_date": iso(ret.vendor_document_date),
-        "bill": {"id": str(bill.id), "status": bill.status} if bill else None,
+        "bill": return_bill(ret, reference),
+        "bill_link": bill_link_payload(_late_link(ret)),
         "settled_sent_kg": num(ret.settled_sent_kg),
         "output_kg": num(ret.output_kg),
         "output_pcs": ret.output_pcs,
@@ -276,11 +315,58 @@ def inner_pack_enabled(job) -> bool:
     return bool(isinstance(primary, dict) and primary.get("enabled"))
 
 
+def return_references(return_ids) -> Dict[str, object]:
+    """Bill references of JOBWORK_RETURN kind (covers a link made from the bill desk)."""
+    from apps.gate.models import InwardBillReceiptReference
+
+    ids = [str(value) for value in return_ids]
+    if not ids:
+        return {}
+    rows = InwardBillReceiptReference.objects.filter(kind="JOBWORK_RETURN", object_id__in=ids).select_related("intake", "linked_by")
+    return {str(row.object_id): row for row in rows}
+
+
+def route_step_payload(order: JobWorkOrder, job, *, returns, open_rows, stuck, can_manage: bool, status: str) -> dict:
+    """The planned route step this order runs, and whether production can
+    continue with what is back (release-step)."""
+    from apps.inventory.services import job_work_steps as steps
+
+    position, detail = steps.step_position(order, job)
+    last = steps.is_last_route_step(job)
+    open_status = status in {"SENT", "PARTLY_RETURNED", "RETURNED"}
+    has_output = any(Decimal(str(ret.output_kg or 0)) > 0 or int(ret.output_pcs or 0) > 0 for ret in returns)
+    blocked = None
+    if order.step_released_at:
+        blocked = None
+    elif not open_status:
+        blocked = f"The order is {STATUS_LABELS.get(order.status, order.status).lower()}."
+    elif position != steps.ON_STEP:
+        blocked = detail
+    elif last:
+        blocked = "This is the job's last route step. Finished pieces can be packed and dispatched as they come back; close the order when everything is back."
+    elif stuck:
+        blocked = "Rolls from before the upgrade must be reconciled first."
+    elif not has_output:
+        blocked = f"Receive processed material from {order.vendor_name or 'the job worker'} first; production then continues with it."
+    progress = steps.step_progress(job) if (position == steps.ON_STEP and open_status and not order.step_released_at) else None
+    return {
+        "number": steps.order_step_index(order, job) + 1,
+        "label": steps.step_label(order, job),
+        "position": position,
+        "position_detail": detail,
+        "is_last": last,
+        "next_jobs": steps.next_jobs_payload(job),
+        "progress": {key: (num(value) if isinstance(value, Decimal) else value) for key, value in progress.items()} if progress else None,
+        "release_blocked_reason": blocked,
+        "can_release": bool(can_manage and blocked is None and not order.step_released_at and open_rows),
+    }
+
+
 def order_detail(order: JobWorkOrder, user) -> dict:
     order = JobWorkOrder.objects.select_related(
-        "plant", "vendor", "process", "closed_by", "created_by", "production_job", "production_job__current_process",
+        "plant", "vendor", "process", "closed_by", "created_by", "step_released_by", "production_job", "production_job__current_process",
         "production_job__process", "production_job__sales_order_item", "production_job__sales_order_item__sales_order",
-        "production_job__mts_order", "production_job__template",
+        "production_job__mts_order", "production_job__template", "production_job__closed_by", "production_job__routing_rule",
     ).get(id=order.id)
     lines = list(order.sent_lines.select_related("challan", "roll", "material").order_by("sent_at", "line_no"))
     balances = line_balances(order, lines=lines)
@@ -291,12 +377,20 @@ def order_detail(order: JobWorkOrder, user) -> dict:
     oldest = min((row["line"].sent_at for row in open_rows), default=None)
     stuck = legacy_stuck_rolls(order)
     challans = list(order.challans.select_related("issued_by", "gate_out_by").prefetch_related("lines__roll", "lines__challan").order_by("issued_at"))
-    returns = list(order.returns.select_related("received_by", "bill").prefetch_related("lines__location", "lines__material", "lines__fg_batch").order_by("received_at"))
+    returns = list(
+        order.returns.select_related("received_by", "bill", "late_bill_link", "late_bill_link__bill", "late_bill_link__linked_by")
+        .prefetch_related("lines__location", "lines__material", "lines__fg_batch").order_by("received_at")
+    )
+    references = return_references([ret.id for ret in returns])
     can_manage = has_jobwork_permission(user, "inventory.manage")
     status = "PARTLY_RETURNED" if order.status == "PARTIAL" else order.status
     open_status = status not in JOBWORK_FINAL_STATUSES
     so_item = getattr(job, "sales_order_item", None) if job else None
     card = vendor_rate(order.vendor, getattr(process, "code", ""), order.rate_uom) if process is not None else None
+    route_step = (
+        route_step_payload(order, job, returns=returns, open_rows=open_rows, stuck=stuck, can_manage=can_manage, status=status)
+        if order.mode == "PLANNED_STEP" and job is not None else None
+    )
     return {
         "id": str(order.id),
         "number": order.number,
@@ -336,6 +430,12 @@ def order_detail(order: JobWorkOrder, user) -> dict:
         "closed_at": iso(order.closed_at),
         "closed_by_name": _user_name(order.closed_by),
         "short_close_reason": order.short_close_reason,
+        "step_release": {
+            "released_at": iso(order.step_released_at),
+            "released_by_name": _user_name(order.step_released_by),
+            "reason": order.step_release_reason,
+        } if order.step_released_at else None,
+        "route_step": route_step,
         "cancel_reason": (order.meta_json or {}).get("cancel_reason") or "",
         "created_at": iso(order.created_at),
         "created_by_name": _user_name(order.created_by),
@@ -353,7 +453,7 @@ def order_detail(order: JobWorkOrder, user) -> dict:
         "totals": {key: (num(value) if isinstance(value, Decimal) else value) for key, value in totals.items()},
         "sent_lines": [sent_line_payload(line, balances[str(line.id)]) for line in lines],
         "challans": [challan_payload(challan, balances) for challan in challans],
-        "returns": [return_payload(ret) for ret in returns],
+        "returns": [return_payload(ret, references.get(str(ret.id))) for ret in returns],
         "timeline": timeline(order),
         "legacy": {
             "stuck_rolls": len(stuck),
@@ -370,7 +470,8 @@ def order_detail(order: JobWorkOrder, user) -> dict:
             "can_close": can_manage and status == "RETURNED" and not open_rows and not stuck,
             "can_short_close": can_manage and status in {"SENT", "PARTLY_RETURNED", "RETURNED"} and not stuck,
             "can_cancel": can_manage and status == "DRAFT" and not lines,
-        } if open_status else {"can_dispatch": False, "can_receive": False, "can_close": False, "can_short_close": False, "can_cancel": False},
+            "can_release_step": bool(route_step and route_step["can_release"]),
+        } if open_status else {"can_dispatch": False, "can_receive": False, "can_close": False, "can_short_close": False, "can_cancel": False, "can_release_step": False},
     }
 
 

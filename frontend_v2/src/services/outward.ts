@@ -5,7 +5,7 @@ import type { BillPage } from "@/services/gate-bills";
  * Outward gate documents: the watchman photographs every paper leaving with
  * goods (optionally scanning the ERP QR first); the inventory office matches
  * each departure to its ERP documents. Never moves stock.
- * Contract: apps/gate/outward_views.py, apps/gate/qr_views.py.
+ * Contract: apps/gate/outward_views.py, apps/gate/qr_views.py (QR token, QR gate sticker PDF).
  * Page images are private: fetched as authenticated blobs only.
  */
 
@@ -19,6 +19,8 @@ export type OutwardLinkKind =
   | "JOBWORK_CHALLAN"
   | "GATE_PASS"
   | "OTHER";
+/** ERP documents that carry a signed gate QR (printed PDFs and QR gate stickers). */
+export type GateQrKind = Exclude<OutwardLinkKind, "OTHER">;
 
 export interface OutwardSnapshotLine {
   description: string;
@@ -243,6 +245,14 @@ export const outwardApi = {
     (await api.get<QrChip>("/api/gate/qr/resolve/", { params: { code, plant }, timeout: 15_000 })).data,
   qrToken: async (kind: Exclude<OutwardLinkKind, "OTHER">, id: string) =>
     (await api.get<{ kind: string; id: string; token: string; svg: string }>("/api/gate/qr/token/", { params: { kind, id } })).data,
+  /**
+   * QR gate sticker PDF (101.6 × 50.8 mm label, one page per copy) → object URL; caller revokes it.
+   * 403 no access, 404 record missing, 409 cancelled / cannot leave the gate.
+   */
+  qrLabelObjectUrl: async (kind: GateQrKind, id: string, copies = 1) => {
+    const { data } = await api.get<Blob>("/api/gate/qr/label.pdf", { params: { kind, id, copies }, responseType: "blob", timeout: 60_000 });
+    return URL.createObjectURL(data);
+  },
 };
 
 export const OUTWARD_STATUS_META: Record<OutwardStatus, { label: string; short: string; hint: string; tone: "warn" | "info" | "good" | "neutral" | "bad" }> = {

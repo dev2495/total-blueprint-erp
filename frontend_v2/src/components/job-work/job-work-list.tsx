@@ -13,6 +13,7 @@ import { gateBillsApi } from "@/services/gate-bills";
 import { inventoryService } from "@/services/inventory";
 import { jobWorkApi, type JobWorkOrderRow, type JobWorkTab } from "@/services/job-work";
 
+import { BillLinkReturns } from "./bill-link-returns";
 import { Chip, ErrorBanner, fmtDate, fmtKg, inputClass, JobWorkAccessDenied, JobWorkStatusPill, jobWorkError, Notice, useJobWorkAccess } from "./job-work-common";
 import { CreateOrderDialog } from "./create-order-dialog";
 import { JobWorkReports } from "./job-work-reports";
@@ -215,6 +216,7 @@ function OrderRow({ row, href }: { row: JobWorkOrderRow; href?: string }) {
             {row.overdue ? <Chip tone="bad">Overdue</Chip> : null}
             {row.itc04_alert ? <Chip tone="warn" title="Material at the job worker for 300+ days; GST allows one year">ITC-04</Chip> : null}
             {row.mode === "EMERGENCY" ? <Chip tone="info">Emergency</Chip> : null}
+            {row.step_released_at && !["CLOSED", "CANCELLED"].includes(row.status) ? <Chip tone="good" title="The route step was completed with what came back; the rest is still expected">Production continued</Chip> : null}
             {row.is_legacy ? <Chip>Before upgrade</Chip> : null}
           </div>
           <div className="mt-0.5 truncate text-[12.5px] text-content-2">
@@ -258,8 +260,8 @@ function BillOrderPicker({ billId, vendorParam, onExit }: { billId: string; vend
       <PageHero
         eyebrow="Bills & documents · job work"
         icon={<FileText />}
-        title="Pick the order this bill belongs to"
-        description="A job worker's bill is linked to the return it charges for. Choose the job-work order, then record what came back with the bill beside the form."
+        title="Link this job worker's bill"
+        description="Material coming back with this bill: pick its open order and record the return with the bill beside the form. Material already received (even on closed orders, or several returns for a monthly bill): tick it below and link the bill."
         actions={
           <button type="button" onClick={onExit} className="inline-flex min-h-[44px] items-center rounded-xl bg-white/10 px-4 text-[13px] font-semibold text-white hover:bg-white/15">
             All job work
@@ -273,8 +275,8 @@ function BillOrderPicker({ billId, vendorParam, onExit }: { billId: string; vend
         <ErrorBanner message={jobWorkError(billQ.error, "The bill could not load.")} onRetry={() => void billQ.refetch()} />
       ) : (
         <Panel
-          title={billQ.isLoading ? "Loading bill…" : `Bill ${billId.slice(0, 8).toUpperCase()}${vendorName ? ` · ${vendorName}` : ""}`}
-          description={invoice ? `Invoice ${invoice}` : "Invoice number not entered yet"}
+          title={billQ.isLoading ? "Loading bill…" : `Coming back with this bill · ${invoice ? `invoice ${invoice}` : `bill ${billId.slice(0, 8).toUpperCase()}`}${vendorName ? ` · ${vendorName}` : ""}`}
+          description={`Open orders of this job worker: pick one to receive the material with the bill.${invoice ? "" : " (Invoice number not entered yet.)"}`}
           bodyClassName="space-y-3"
         >
           {!vendorId && !billQ.isLoading ? (
@@ -291,11 +293,12 @@ function BillOrderPicker({ billId, vendorParam, onExit }: { billId: string; vend
             </ul>
           ) : vendorId && !ordersQ.isError ? (
             <PanelEmpty icon={<ClipboardList />} title="No open orders for this job worker">
-              Material must have been sent on a job-work order before its return can be booked. Check the vendor on the bill, or create the order first.
+              Material must have been sent on a job-work order before its return can be booked. If it already came back, link the bill below.
             </PanelEmpty>
           ) : null}
         </Panel>
       )}
+      {access.canLinkBill && !billQ.isError && vendorId ? <BillLinkReturns billId={billId} vendorId={vendorId} /> : null}
     </div>
   );
 }

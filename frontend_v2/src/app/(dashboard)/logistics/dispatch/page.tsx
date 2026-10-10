@@ -19,6 +19,7 @@ import {
   Truck,
 } from "lucide-react";
 
+import { GATE_QR_STICKER_HINT, PrintGateQrLabelButton, useGateQrLabelAccess } from "@/components/gate/print-qr-label-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -148,6 +149,7 @@ export default function DispatchBayPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [manifestPage, setManifestPage] = useState(1);
   const [lineFilter, setLineFilter] = useState("ALL");
+  const qrStickers = useGateQrLabelAccess();
 
   const board = useQuery({
     queryKey: ["dispatch-board"],
@@ -1150,6 +1152,11 @@ export default function DispatchBayPage() {
             </div>
           }
         >
+          {history.length && qrStickers.allowed ? (
+            <p className="border-t border-line px-4 py-2 text-[11.5px] text-content-3">
+              <span className="font-semibold text-content-2">QR sticker:</span> {GATE_QR_STICKER_HINT}
+            </p>
+          ) : null}
           {history.length ? (
             <ul className="divide-y divide-line border-t border-line">
               {pagedHistory.map((row: DeliveryChallan) => {
@@ -1189,6 +1196,9 @@ export default function DispatchBayPage() {
                         >
                           <FileText className="mr-1 h-3.5 w-3.5" /> PDF
                         </Button>
+                        {status !== "CANCELLED" ? (
+                          <PrintGateQrLabelButton kind="SALES_DC" id={row.id} reference={row.dc_no} showHint={false} />
+                        ) : null}
                         {status === "DRAFT" ? (
                           <Button
                             size="sm"

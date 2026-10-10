@@ -2052,7 +2052,8 @@ class ReportService:
         jobs = ReportService._apply_filters(jobs, filters, date_field='created_at')
         job_ids = list(jobs.values_list('id', flat=True))
 
-        req = JobMaterialRequirement.objects.filter(production_job_id__in=job_ids)
+        # Job workers' own material is not factory usage (no issue, no variance).
+        req = JobMaterialRequirement.objects.filter(production_job_id__in=job_ids).exclude(supply_source="JOBWORK_VENDOR")
 
         # ── Global Totals ──
         totals = req.aggregate(
@@ -2700,7 +2701,7 @@ class ReportService:
         reqs = JobMaterialRequirement.objects.select_related("material", "production_job").filter(
             production_job_id__in=job_ids,
             material__category__iexact="INK",
-        )
+        ).exclude(supply_source="JOBWORK_VENDOR")  # job worker's own ink is not factory consumption
 
         def _color_family(name: str):
             token = str(name or "").upper()

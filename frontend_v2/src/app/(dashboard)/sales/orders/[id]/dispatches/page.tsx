@@ -16,6 +16,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { GATE_QR_STICKER_HINT, PrintGateQrLabelButton, useGateQrLabelAccess } from "@/components/gate/print-qr-label-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,7 @@ export default function SalesOrderDispatchesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const qrStickers = useGateQrLabelAccess();
 
   const listQuery = useQuery({
     queryKey: ["customer-dispatches", orderId],
@@ -160,6 +162,11 @@ export default function SalesOrderDispatchesPage() {
           <CardDescription>
             Every dispatch raised against this sales order, newest first.
           </CardDescription>
+          {qrStickers.allowed ? (
+            <p className="text-[11.5px] text-content-3">
+              <span className="font-semibold text-content-2">QR sticker:</span> {GATE_QR_STICKER_HINT}
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
           {listQuery.isLoading ? (
@@ -202,7 +209,7 @@ export default function SalesOrderDispatchesPage() {
                         {row.lr_no ? ` · LR ${row.lr_no}` : ""}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {row.status === "DRAFT" ? (
                         <>
                           <Button
@@ -224,6 +231,9 @@ export default function SalesOrderDispatchesPage() {
                             Confirm
                           </Button>
                         </>
+                      ) : null}
+                      {row.status !== "CANCELLED" ? (
+                        <PrintGateQrLabelButton kind="CUSTOMER_DISPATCH" id={row.id} reference={row.code} showHint={false} />
                       ) : null}
                       <button
                         type="button"

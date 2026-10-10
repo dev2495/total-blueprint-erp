@@ -42,6 +42,7 @@ function CloseForm({ order, kind, onDone }: { order: JobWorkOrderDetail; kind: C
   const frozen = useRef<Record<string, string> | null>(null);
   const copy = COPY[kind];
   const planned = order.mode === "PLANNED_STEP" && order.production_job;
+  const stepDone = Boolean(order.step_release) || order.route_step?.position === "PAST";
   const totals = order.totals;
   const varianceOver = totals.variance_pct !== null && Math.abs(Number(totals.variance_pct)) > Number(totals.tolerance_pct) && !totals.variance_reason_recorded;
 
@@ -111,7 +112,13 @@ function CloseForm({ order, kind, onDone }: { order: JobWorkOrderDetail; kind: C
       <div className="space-y-3">
         {failure ? <ErrorBanner message={failure} /> : null}
         {pendingRetry ? <p className="text-[12.5px] text-content-3">The last attempt may have reached the server; confirming again resends the same request.</p> : null}
-        {planned && kind !== "cancel" ? (
+        {planned && kind !== "cancel" && stepDone ? (
+          <Notice tone="info">
+            {order.step_release
+              ? `Route step ${order.route_step?.number ?? ""} of job ${order.production_job?.job_number} was completed when production continued with what was back. ${kind === "close" ? "Closing" : "Closing short"} only finishes this order; the job is not changed again.`
+              : `${order.route_step?.position_detail ?? "The route step is already completed."} ${kind === "close" ? "Closing" : "Closing short"} only finishes this order.`}
+          </Notice>
+        ) : planned && kind !== "cancel" ? (
           <Notice tone="info">
             This is the planned route step of job {order.production_job?.job_number}. {kind === "close" ? "Closing" : "Closing short"} completes that step as you, so the job continues to its next step.
           </Notice>
@@ -128,7 +135,7 @@ function CloseForm({ order, kind, onDone }: { order: JobWorkOrderDetail; kind: C
             <input id="jw-close-var" value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} className={inputClass} />
           </Field>
         ) : null}
-        {needStepReason && kind !== "cancel" ? (
+        {needStepReason && kind !== "cancel" && !stepDone ? (
           <Field label="The job is short of its step target — reason to complete it anyway" htmlFor="jw-close-step">
             <input id="jw-close-step" value={stepReason} onChange={(e) => setStepReason(e.target.value)} placeholder="e.g. Customer accepted 23,000 pcs" className={inputClass} />
           </Field>
