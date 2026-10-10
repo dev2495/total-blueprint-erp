@@ -24,6 +24,7 @@ from apps.inventory.models import (
     InventoryFinancialPeriod,
     InventoryLocation,
     InventoryRoll,
+    JOBWORK_OPEN_STATUSES,
     JobWorkOrder,
     PackagingStock,
     PackagingTransaction,
@@ -1489,7 +1490,7 @@ class InventoryAuditService:
         open_challans = DeliveryChallan.objects.filter(from_plant=plant, status__in=["DRAFT", "APPROVED", "IN_TRANSIT"]).count()
         if open_challans:
             blockers.append({"code": "OPEN_INTERPLANT", "label": "Open inter-plant challans", "count": open_challans})
-        open_jobwork = JobWorkOrder.objects.filter(plant=plant, status__in=["DRAFT", "SENT", "PARTIAL"]).count()
+        open_jobwork = JobWorkOrder.objects.filter(plant=plant, status__in=JOBWORK_OPEN_STATUSES).count()
         if open_jobwork:
             blockers.append({"code": "OPEN_JOBWORK", "label": "Open jobwork orders", "count": open_jobwork})
         critical_alerts = InventoryAlert.objects.filter(plant=plant, resolved=False, severity="CRITICAL").count()

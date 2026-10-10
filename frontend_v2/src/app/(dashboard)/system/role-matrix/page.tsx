@@ -109,6 +109,19 @@ function humanize(value: string): string {
     );
 }
 
+const MODULE_LABELS: Record<string, string> = {
+  BILLS_DOCUMENTS: "Bills & documents",
+};
+
+const MODULE_HINTS: Record<string, string> = {
+  BILLS_DOCUMENTS:
+    "Inventory (Store) holds these by default; Owner and Admin always have them. Tick them here to let another role upload, classify or file bills, record general receipts, manage gate passes or match outward photos. Watchman can never receive office rights. Receiving stock against a bill also needs Inventory or Procurement manage.",
+};
+
+function moduleLabel(moduleKey: string): string {
+  return MODULE_LABELS[moduleKey] || humanize(moduleKey);
+}
+
 function roleLabel(roleCode: string, roleMeta?: Role): string {
   return getCanonicalRoleLabel(roleCode, roleMeta?.name);
 }
@@ -722,7 +735,7 @@ export default function RoleMatrixPage() {
                           <SelectItem key={moduleKey} value={moduleKey}>
                             {moduleKey === "ALL"
                               ? "All modules"
-                              : humanize(moduleKey)}
+                              : moduleLabel(moduleKey)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -774,9 +787,12 @@ export default function RoleMatrixPage() {
                           <div className="mb-2 flex items-center gap-2 border-b pb-2">
                             <span className="h-2 w-2 rounded-full bg-primary" />
                             <h4 className="text-sm font-bold uppercase tracking-wide text-content-2">
-                              {humanize(moduleKey)}
+                              {moduleLabel(moduleKey)}
                             </h4>
                           </div>
+                          {MODULE_HINTS[moduleKey] ? (
+                            <p className="mb-2 text-xs text-content-3">{MODULE_HINTS[moduleKey]}</p>
+                          ) : null}
                           <div className="grid gap-2 md:grid-cols-2">
                             {rows.map((row) => {
                               const checked = selectedPermissions.has(

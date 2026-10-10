@@ -13,6 +13,8 @@ import {
   Plane,
   Microscope,
   FileText,
+  PackageCheck,
+  Ticket,
   Zap,
   Users,
   MapPin,
@@ -96,6 +98,9 @@ const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
   "/inventory/addons": "page.inventory.addons.view",
   "/inventory/grn": "page.inventory.grn.view",
   "/inventory/gate-bills": "page.inventory.gate_bills.view",
+  "/inventory/general-receipts": "page.inventory.general_receipts.view",
+  "/inventory/gate-passes": "page.inventory.gate_passes.view",
+  "/inventory/outward-documents": "page.inventory.outward_documents.view",
   "/inventory/grn-history": "page.inventory.grn_history.view",
   "/inventory/stock-lifecycle": "page.inventory.stock_lifecycle.view",
   "/inventory/count": "page.inventory.count.view",
@@ -170,6 +175,13 @@ export interface NavAccessDescriptor {
   gateAccess?: { ownerOnly?: boolean; literalPermissions?: string[] }
   /** Requires actual receipt authority from the backend entitlement, never a wildcard. */
   inventoryBillReview?: boolean
+  /**
+   * Bill & document rights (documents.*, gatepass.manage, outward.reconcile).
+   * Any listed code must be a literal grant: the backend resolves these from the
+   * real account (Inventory by default, Role-matrix/user overrides otherwise)
+   * and adds them explicitly for Owner/Admin. "*" alone never grants them.
+   */
+  documentAccess?: string[]
 }
 
 export interface NavChildItem extends NavAccessDescriptor {
@@ -196,6 +208,8 @@ export interface SidebarAccessContext {
   /** Backend entitlements.gate_master (watchman ceiling applied server-side). */
   gateMaster?: boolean
   inventoryBillReview?: boolean
+  /** Backend entitlements.documents: {"documents.view": true, ...}. */
+  documentEntitlements?: Record<string, boolean>
   grantedPermissions?: Iterable<string>
   grantedPermissionMap?: Record<string, string[]>
 }
@@ -371,10 +385,28 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.view", "inventory.manage"],
       },
       {
-        title: "Gate bills",
+        title: "Bills & documents",
         href: "/inventory/gate-bills",
-        icon: ClipboardList,
-        inventoryBillReview: true,
+        icon: FileText,
+        documentAccess: ["documents.view", "gate.bill.review"],
+      },
+      {
+        title: "General receipts",
+        href: "/inventory/general-receipts",
+        icon: PackageCheck,
+        documentAccess: ["documents.view"],
+      },
+      {
+        title: "Gate passes",
+        href: "/inventory/gate-passes",
+        icon: Ticket,
+        documentAccess: ["gatepass.manage", "documents.view"],
+      },
+      {
+        title: "Outward documents",
+        href: "/inventory/outward-documents",
+        icon: Truck,
+        documentAccess: ["outward.reconcile"],
       },
       {
         title: "Smart GRN",
@@ -744,10 +776,24 @@ function canAccessGateTarget(gate: NonNullable<NavAccessDescriptor["gateAccess"]
   })
 }
 
+function canAccessDocumentTarget(codes: string[], context: SidebarAccessContext) {
+  const roles = [context.currentRoleCode, context.baseRoleCode].map(normalizeRole)
+  if (roles.includes("WATCHMAN")) return false
+  if (codes.some((code) => context.documentEntitlements?.[code] === true)) return true
+  if (codes.includes("gate.bill.review") && context.inventoryBillReview === true) return true
+  // Older auth payload without entitlements.documents: literal user grants only.
+  if (!context.documentEntitlements) {
+    const literal = new Set(Array.from(context.grantedPermissions || []).map((p) => String(p || "").trim()))
+    if (codes.some((code) => literal.has(code))) return true
+  }
+  return false
+}
+
 export function canAccessNavTarget(
   target: NavAccessDescriptor,
   context: SidebarAccessContext,
 ) {
+  if (target.documentAccess) return canAccessDocumentTarget(target.documentAccess, context)
   if (target.inventoryBillReview) {
     const roles = [context.currentRoleCode, context.baseRoleCode].map(normalizeRole)
     if (roles.includes("WATCHMAN")) return false

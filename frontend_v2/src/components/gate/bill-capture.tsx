@@ -1,136 +1,48 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowDown,
-  ArrowUp,
-  Camera,
-  CheckCircle2,
-  Clock3,
-  FileImage,
-  ImagePlus,
-  Loader2,
-  MapPin,
-  RotateCcw,
-  Trash2,
-  TriangleAlert,
-} from "lucide-react";
+import { Camera, CheckCircle2, Clock3, FileImage } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import {
-  BILL_ACCEPT,
-  BILL_MAX_BYTES,
   BILL_MAX_PAGES,
-  BILL_MIN_EDGE,
   BILL_STATUS_META,
   gateBillsApi,
   type InwardBill,
 } from "@/services/gate-bills";
 import { useGate } from "./gate-shell";
 import { gateDay, gateTime } from "./gate-format";
-import { GateAction, GateSheet, OperationBanner, SectionHeading } from "./gate-ui";
+import { GateAction, OperationBanner, SectionHeading } from "./gate-ui";
+import { FactoryChoice, PageCaptureSection, usePageDrafts, type CaptureCopy } from "./page-capture";
 import { useGateOperation } from "./use-gate-operation";
 
 /*
  * Watchman inward arrival = photos of the bill, nothing typed.
  * Pages are kept only in memory (Blob + object URL) in the order shown; the
  * upload freezes token + files so a lost response retries the same request.
+ * The camera/page list is shared with the outward flow (page-capture.tsx).
  */
 
-type DraftPage = { key: string; blob: Blob; url: string; width: number; height: number; note?: string };
+const BILL_COPY: CaptureCopy = {
+  noun: "bill",
+  sectionTitle: "Bill pages",
+  headingId: "bill-pages",
+  takeLabel: "Take bill photo",
+  takeHint: "Hold the phone flat over the bill. Keep all four edges in the photo.",
+  tooManyPages: `A bill can have at most ${BILL_MAX_PAGES} pages. Extra photos were not added.`,
+  pageAlt: (n) => `Bill page ${n}`,
+  fullAlt: "Bill page full size",
+};
 
-const MAX_PIXELS = 40_000_000;
-const REENCODE_LONG_EDGE = 3200; // above the server's 2400 normalisation: no legibility loss
-
-let pageSeq = 0;
-const nextKey = () => `bill-page-${++pageSeq}`;
-
-async function decode(file: Blob): Promise<{ width: number; height: number; bitmap?: ImageBitmap }> {
-  if (typeof createImageBitmap === "function") {
-    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" } as ImageBitmapOptions);
-    return { width: bitmap.width, height: bitmap.height, bitmap };
-  }
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("decode"));
-      el.src = url;
-    });
-    return { width: img.naturalWidth, height: img.naturalHeight };
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
-async function reencode(bitmap: ImageBitmap): Promise<Blob> {
-  const scale = Math.min(1, REENCODE_LONG_EDGE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("This phone could not prepare the photo.");
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  for (const quality of [0.92, 0.88, 0.84]) {
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-    if (blob && blob.size <= BILL_MAX_BYTES) return blob;
-  }
-  throw new Error("This photo is too large even after preparing it. Retake it a little further away.");
-}
-
-/** Validate one picked/captured file against the server contract; never crops. */
-async function preparePage(file: File): Promise<DraftPage> {
-  const type = (file.type || "").toLowerCase();
-  const name = file.name.toLowerCase();
-  if (type === "image/heic" || type === "image/heif" || name.endsWith(".heic") || name.endsWith(".heif")) {
-    throw new Error("HEIC photos are not accepted. Use the Take bill photo button, or set the iPhone camera to “Most Compatible” (JPEG).");
-  }
-  if (!["image/jpeg", "image/png", "image/webp"].includes(type)) {
-    throw new Error("Only JPEG, PNG or WebP photos of the bill can be uploaded (no PDF).");
-  }
-  let decoded: Awaited<ReturnType<typeof decode>>;
-  try {
-    decoded = await decode(file);
-  } catch {
-    throw new Error("This photo could not be opened. Please retake it.");
-  }
-  const { width, height, bitmap } = decoded;
-  try {
-    if (Math.min(width, height) < BILL_MIN_EDGE) {
-      throw new Error(`Photo is too small (${width}×${height}). Take it closer so the bill fills the frame.`);
-    }
-    let blob: Blob = file;
-    let note: string | undefined;
-    if (file.size > BILL_MAX_BYTES || width * height > MAX_PIXELS) {
-      if (!bitmap) throw new Error("Photo is larger than 10 MB. Retake it with a lower camera resolution.");
-      blob = await reencode(bitmap);
-      note = "Prepared for upload (large photo)";
-    }
-    return { key: nextKey(), blob, url: URL.createObjectURL(blob), width, height, note };
-  } finally {
-    bitmap?.close();
-  }
-}
+const IN_TONE = { color: "var(--gate-in)", soft: "var(--gate-in-soft)", edge: "var(--gate-in-edge)" };
 
 export function BillCapture() {
   const { plants, plant, plantId, setPlantId } = useGate();
   const qc = useQueryClient();
-  const [pages, setPages] = useState<DraftPage[]>([]);
-  const [pickError, setPickError] = useState<string | null>(null);
-  const [preparing, setPreparing] = useState(false);
-  const [viewKey, setViewKey] = useState<string | null>(null);
-  const [replaceKey, setReplaceKey] = useState<string | null>(null);
+  const drafts = usePageDrafts(BILL_MAX_PAGES, BILL_COPY);
+  const { pages, preparing } = drafts;
   const [progress, setProgress] = useState<number | null>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
-  const pagesRef = useRef(pages);
-  pagesRef.current = pages;
-
-  // Release object URLs on unmount.
-  useEffect(() => () => pagesRef.current.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
   const op = useGateOperation<{ plant: string; images: Blob[] }, InwardBill>({
     send: async (payload) => {
@@ -161,73 +73,16 @@ export function BillCapture() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [pages.length, op.phase]);
 
-  const addFiles = useCallback(
-    async (files: FileList | null, replace?: string | null) => {
-      if (!files?.length) return;
-      setPickError(null);
-      setPreparing(true);
-      try {
-        const room = replace ? 1 : BILL_MAX_PAGES - pagesRef.current.length;
-        const list = Array.from(files).slice(0, Math.max(0, room));
-        if (!replace && files.length > room) setPickError(`A bill can have at most ${BILL_MAX_PAGES} pages. Extra photos were not added.`);
-        const prepared: DraftPage[] = [];
-        for (const file of list) {
-          try {
-            prepared.push(await preparePage(file));
-          } catch (error) {
-            setPickError(error instanceof Error ? error.message : "Photo could not be used.");
-          }
-        }
-        if (!prepared.length) return;
-        setPages((current) => {
-          if (replace) {
-            return current.map((p) => {
-              if (p.key !== replace) return p;
-              URL.revokeObjectURL(p.url);
-              return prepared[0];
-            });
-          }
-          return [...current, ...prepared];
-        });
-      } finally {
-        setPreparing(false);
-        setReplaceKey(null);
-      }
-    },
-    [],
-  );
-
-  const removePage = (key: string) =>
-    setPages((current) => {
-      const target = current.find((p) => p.key === key);
-      if (target) URL.revokeObjectURL(target.url);
-      return current.filter((p) => p.key !== key);
-    });
-
-  const movePage = (key: string, delta: -1 | 1) =>
-    setPages((current) => {
-      const index = current.findIndex((p) => p.key === key);
-      const to = index + delta;
-      if (index < 0 || to < 0 || to >= current.length) return current;
-      const next = [...current];
-      [next[index], next[to]] = [next[to], next[index]];
-      return next;
-    });
-
   const submit = () => {
     if (!plantId || !pages.length || locked) return;
     void op.submit({ plant: plantId, images: pages.map((p) => p.blob) });
   };
 
   const startNext = () => {
-    pagesRef.current.forEach((p) => URL.revokeObjectURL(p.url));
-    setPages([]);
-    setPickError(null);
+    drafts.reset();
     op.reset();
     window.scrollTo({ top: 0 });
   };
-
-  const viewing = pages.find((p) => p.key === viewKey) ?? null;
 
   if (op.phase === "saved" && op.result) {
     return (
@@ -248,162 +103,9 @@ export function BillCapture() {
         </p>
       </header>
 
-      {plants.length > 1 ? (
-        <section aria-labelledby="bill-factory">
-          <h2 id="bill-factory" className="mb-2 px-1 text-[13px] font-semibold text-content-2">
-            Factory gate
-          </h2>
-          <div className="grid gap-2" role="radiogroup" aria-label="Factory gate">
-            {plants.map((p) => {
-              const active = p.id === plantId;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  disabled={locked}
-                  onClick={() => setPlantId(p.id)}
-                  className={cn(
-                    "gate-press flex min-h-[56px] items-center gap-3 rounded-2xl border px-4 text-left disabled:opacity-60",
-                    active ? "border-transparent text-white" : "border-line bg-surface-1 text-content-1",
-                  )}
-                  style={active ? { background: "var(--gate-in)" } : undefined}
-                >
-                  <MapPin className="h-5 w-5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">{p.name}</span>
-                  {active ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : null}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ) : (
-        <div className="flex items-center gap-2 px-1 text-[14px] text-content-2">
-          <MapPin className="h-4 w-4 text-content-4" />
-          Recording at <span className="font-semibold text-content-1">{plant?.name}</span>
-        </div>
-      )}
+      <FactoryChoice plants={plants} plant={plant} plantId={plantId} setPlantId={setPlantId} locked={locked} tone="var(--gate-in)" headingId="bill-factory" />
 
-      <input
-        ref={cameraRef}
-        type="file"
-        accept={BILL_ACCEPT}
-        capture="environment"
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden
-        onChange={(e) => {
-          const target = replaceKey;
-          void addFiles(e.target.files, target);
-          e.target.value = "";
-        }}
-      />
-      <input
-        ref={galleryRef}
-        type="file"
-        accept={BILL_ACCEPT}
-        multiple
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden
-        onChange={(e) => {
-          void addFiles(e.target.files, null);
-          e.target.value = "";
-        }}
-      />
-
-      <section aria-labelledby="bill-pages" className="space-y-3">
-        <div className="flex items-end justify-between px-1">
-          <h2 id="bill-pages" className="text-[17px] font-semibold text-content-1">
-            Bill pages
-          </h2>
-          <span className="gate-num text-[13px] text-content-3">
-            {pages.length} / {BILL_MAX_PAGES}
-          </span>
-        </div>
-
-        {pages.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => { setReplaceKey(null); cameraRef.current?.click(); }}
-            disabled={locked || !plantId}
-            className="gate-press flex min-h-[180px] w-full flex-col items-center justify-center gap-3 rounded-[22px] border-2 border-dashed px-6 text-center disabled:opacity-60"
-            style={{ borderColor: "var(--gate-in-edge)", background: "var(--gate-in-soft)", color: "var(--gate-in)" }}
-          >
-            {preparing ? <Loader2 className="h-10 w-10 animate-spin" /> : <Camera className="h-10 w-10" />}
-            <span className="text-[18px] font-semibold">Take bill photo</span>
-            <span className="text-[13px] text-content-3">Hold the phone flat over the bill. Keep all four edges in the photo.</span>
-          </button>
-        ) : (
-          <ol className="space-y-3">
-            {pages.map((page, index) => (
-              <li key={page.key} className="gate-card overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setViewKey(page.key)}
-                  className="gate-press relative block w-full bg-[var(--gate-paper)]"
-                  aria-label={`View page ${index + 1} full screen`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={page.url} alt={`Bill page ${index + 1}`} className="mx-auto max-h-[320px] w-full object-contain" />
-                  <span className="gate-num absolute left-3 top-3 rounded-full bg-[var(--gate-ink)] px-3 py-1 text-[13px] font-semibold text-white">
-                    Page {index + 1}
-                  </span>
-                </button>
-                <div className="flex items-center gap-1.5 border-t border-line p-2">
-                  <span className="min-w-0 flex-1 truncate px-2 text-[12px] text-content-3">
-                    {page.width}×{page.height}
-                    {page.note ? ` · ${page.note}` : ""}
-                  </span>
-                  <IconButton label={`Move page ${index + 1} up`} disabled={locked || index === 0} onClick={() => movePage(page.key, -1)}>
-                    <ArrowUp className="h-5 w-5" />
-                  </IconButton>
-                  <IconButton label={`Move page ${index + 1} down`} disabled={locked || index === pages.length - 1} onClick={() => movePage(page.key, 1)}>
-                    <ArrowDown className="h-5 w-5" />
-                  </IconButton>
-                  <IconButton
-                    label={`Retake page ${index + 1}`}
-                    disabled={locked}
-                    onClick={() => {
-                      setReplaceKey(page.key);
-                      cameraRef.current?.click();
-                    }}
-                  >
-                    <RotateCcw className="h-5 w-5" />
-                  </IconButton>
-                  <IconButton label={`Remove page ${index + 1}`} disabled={locked} onClick={() => removePage(page.key)}>
-                    <Trash2 className="h-5 w-5" />
-                  </IconButton>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-
-        <div className="grid grid-cols-2 gap-2">
-          {pages.length > 0 ? (
-            <GateAction tone="plain" size="md" onClick={() => { setReplaceKey(null); cameraRef.current?.click(); }} disabled={locked || pages.length >= BILL_MAX_PAGES}>
-              <Camera className="h-5 w-5" /> Add page
-            </GateAction>
-          ) : null}
-          <GateAction
-            tone="plain"
-            size="md"
-            onClick={() => { setReplaceKey(null); galleryRef.current?.click(); }}
-            disabled={locked || pages.length >= BILL_MAX_PAGES || !plantId}
-            className={pages.length === 0 ? "col-span-2" : undefined}
-          >
-            <ImagePlus className="h-5 w-5" /> From gallery
-          </GateAction>
-        </div>
-
-        {pickError ? (
-          <p role="alert" className="flex items-start gap-2 rounded-2xl border px-4 py-3 text-[14px]" style={{ borderColor: "var(--gate-alert-edge)", background: "var(--gate-alert-soft)", color: "var(--gate-alert)" }}>
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {pickError}
-          </p>
-        ) : null}
-      </section>
+      <PageCaptureSection drafts={drafts} copy={BILL_COPY} tone={IN_TONE} locked={locked} canStart={Boolean(plantId)} />
 
       <OperationBanner
         phase={op.phase}
@@ -435,31 +137,7 @@ export function BillCapture() {
       ) : null}
 
       <TodayArrivals />
-
-      <GateSheet open={Boolean(viewing)} onOpenChange={(open) => !open && setViewKey(null)} title={viewing ? `Page ${pages.indexOf(viewing) + 1}` : "Page"} tall>
-        {viewing ? (
-          <div className="overflow-auto rounded-2xl bg-[var(--gate-paper)]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={viewing.url} alt="Bill page full size" className="h-auto w-full" />
-          </div>
-        ) : null}
-      </GateSheet>
     </div>
-  );
-}
-
-function IconButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="gate-press flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-content-2 disabled:opacity-35"
-    >
-      {children}
-    </button>
   );
 }
 

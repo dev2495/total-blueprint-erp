@@ -140,8 +140,12 @@ function NextPendingLink({ currentId }: { currentId: string }) {
   );
 }
 
-/** Banner + private viewer shown above the GRN form while receiving a gate bill. */
-export function GrnBillBanner({ ctx }: { ctx: GrnBillContext }) {
+/**
+ * Banner + private viewer shown above the GRN form while receiving a gate bill.
+ * `viewer={false}`: compact guard banner only (the bill itself is shown by the
+ * surrounding `<BillWorkspace>`); all retry / closed-bill / load-error guards stay.
+ */
+export function GrnBillBanner({ ctx, viewer = true }: { ctx: GrnBillContext; viewer?: boolean }) {
   const [showPhoto, setShowPhoto] = useState(true);
   if (ctx.pendingBillId && (!ctx.requested || ctx.pendingBillId.toLowerCase() !== ctx.billId.toLowerCase())) {
     return (
@@ -174,8 +178,8 @@ export function GrnBillBanner({ ctx }: { ctx: GrnBillContext }) {
   const open = bill.status === "PENDING_GRN" || bill.status === "PARTIAL_GRN";
   return (
     <section className="rounded-2xl border border-info-border bg-surface-1 shadow-sm" data-testid="grn-bill-context" aria-label="Gate bill being received">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-info-bg text-info-fg">
+      <div className={cn("flex flex-wrap items-center border-b border-line", viewer ? "gap-3 px-4 py-3" : "gap-2 px-3 py-2")}>
+        <span className={cn("flex items-center justify-center rounded-xl bg-info-bg text-info-fg", viewer ? "h-9 w-9" : "h-7 w-7")}>
           <Inbox className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
@@ -187,6 +191,7 @@ export function GrnBillBanner({ ctx }: { ctx: GrnBillContext }) {
             Arrived {billDateTime(bill.arrival_at)} · {bill.page_count} page{bill.page_count === 1 ? "" : "s"} · receiving location is limited to {bill.plant_name}
           </div>
         </div>
+        {viewer ? (
         <button
           type="button"
           onClick={() => setShowPhoto((v) => !v)}
@@ -195,13 +200,14 @@ export function GrnBillBanner({ ctx }: { ctx: GrnBillContext }) {
         >
           <FileImage className="h-4 w-4" /> {showPhoto ? "Hide photo" : "Show photo"} {showPhoto ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
+        ) : null}
         <Link href={`/inventory/gate-bills/${bill.id}`} className="inline-flex min-h-[40px] items-center rounded-xl px-3 text-[12.5px] font-semibold text-primary hover:underline">
           Open bill
         </Link>
       </div>
 
-      <div className={cn("grid gap-4 p-4", showPhoto ? "xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]" : "")}>
-        {showPhoto ? <BillViewer pages={bill.pages} billLabel={`Bill ${billRef(bill.id)}`} compact /> : null}
+      <div className={cn("grid", viewer ? "gap-4 p-4" : "gap-3 p-3", viewer && showPhoto ? "xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]" : "")}>
+        {viewer && showPhoto ? <BillViewer pages={bill.pages} billLabel={`Bill ${billRef(bill.id)}`} compact /> : null}
         <div className="min-w-0 space-y-3">
           {!open ? (
             <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-[13px] text-content-1">

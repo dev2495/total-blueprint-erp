@@ -8399,131 +8399,77 @@
   {
     "routePattern": "/inventory/job-work",
     "title": {
-      "en": "Inventory • Job Work",
-      "hi": "Inventory • Job Work गाइड"
+      "en": "Job work",
+      "hi": "जॉब वर्क"
     },
     "module": "Inventory",
     "roles": [
-      "ADMIN",
-      "OWNER",
-      "SUPER_ADMIN",
       "STORE",
       "PLANNER",
-      "WORK_CENTER_MANAGER",
-      "DISPATCH"
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
     ],
     "summary": {
-      "en": "Use this page to validate stock positions, movements, and traceability events.",
-      "hi": "इस पेज का उपयोग स्टॉक स्थिति, मूवमेंट और ट्रेसबिलिटी इवेंट की पुष्टि करने के लिए करें।"
+      "en": "Material sent to outside job workers: orders, Rule 45 challans, returns, balances and overdue items.",
+      "hi": "बाहरी जॉब वर्कर को भेजा गया माल: ऑर्डर, नियम 45 चालान, वापसी, बकाया और देरी वाले आइटम."
     },
     "purpose": {
-      "en": "This guide helps users complete all key tasks on Inventory • Job Work without process ambiguity.",
-      "hi": "यह गाइड उपयोगकर्ताओं को Inventory • Job Work पर सभी मुख्य कार्य बिना प्रक्रिया भ्रम के पूरा करने में मदद करती है।"
+      "en": "Know what is at each job worker, receive it back correctly and keep GST ITC-04 time limits.",
+      "hi": "जानें कि हर जॉब वर्कर के पास क्या है, उसे सही तरीके से वापस प्राप्त करें और GST ITC-04 समय सीमा का पालन करें."
     },
     "prerequisites": [
       {
-        "en": "Confirm role access and location context before making changes.",
-        "hi": "परिवर्तन करने से पहले भूमिका एक्सेस और लोकेशन संदर्भ की पुष्टि करें।"
-      },
-      {
-        "en": "Validate upstream data (master/order/job) is already approved.",
-        "hi": "सुनिश्चित करें कि अपस्ट्रीम डेटा (मास्टर/ऑर्डर/जॉब) पहले से अनुमोदित है।"
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
       }
     ],
     "keyActions": [
       {
-        "en": "Review page KPIs or status cards to identify pending actions.",
-        "hi": "लंबित कार्य पहचानने के लिए KPI या स्टेटस कार्ड की समीक्षा करें।"
+        "en": "Create an order with expected output, agreed rate and return date.",
+        "hi": "अपेक्षित उत्पादन, तय दर और वापसी तारीख के साथ ऑर्डर बनाएं."
       },
       {
-        "en": "Apply filters, open target record, and verify required fields.",
-        "hi": "फिल्टर लागू करें, लक्ष्य रिकॉर्ड खोलें, और आवश्यक फ़ील्ड सत्यापित करें।"
+        "en": "Send rolls on a printed challan; the gate scans its QR when the truck leaves.",
+        "hi": "छपे चालान पर रोल भेजें; ट्रक जाते समय गेट उसका QR स्कैन करता है."
       },
       {
-        "en": "Submit action, confirm success toast, and re-check downstream impact.",
-        "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
+        "en": "Overdue lists orders past their return date or holding material 300+ days (ITC-04 one-year limit).",
+        "hi": "Overdue में वापसी तारीख पार या 300+ दिन से माल रखे ऑर्डर (ITC-04 एक वर्ष सीमा)."
+      },
+      {
+        "en": "Reports: material at job workers by age and yield/wastage by job worker. Opened from a bill, pick the order the bill belongs to.",
+        "hi": "रिपोर्ट: उम्र अनुसार जॉब वर्कर के पास माल और जॉब वर्कर अनुसार उपज/वेस्टेज. बिल से खोलने पर उस बिल का ऑर्डर चुनें."
       }
     ],
-    "fieldHelp": [
-      {
-        "field": {
-          "en": "Primary Selector",
-          "hi": "प्राथमिक चयन"
-        },
-        "help": {
-          "en": "Always choose the correct plant/work center/machine context first.",
-          "hi": "हमेशा पहले सही प्लांट/वर्क सेंटर/मशीन संदर्भ चुनें।"
-        }
-      },
-      {
-        "field": {
-          "en": "Status",
-          "hi": "स्थिति"
-        },
-        "help": {
-          "en": "Status transitions are controlled; only valid next states are allowed.",
-          "hi": "स्थिति परिवर्तन नियंत्रित हैं; केवल वैध अगली स्थिति ही अनुमत है।"
-        }
-      },
-      {
-        "field": {
-          "en": "Audit Notes",
-          "hi": "ऑडिट नोट्स"
-        },
-        "help": {
-          "en": "Record reason codes and comments for every override decision.",
-          "hi": "हर ओवरराइड निर्णय के लिए कारण कोड और टिप्पणियाँ दर्ज करें।"
-        }
-      }
-    ],
+    "fieldHelp": [],
     "decisionFlowId": "inventory-action-flow",
     "commonErrors": [
       {
         "error": {
-          "en": "Permission denied / action hidden",
-          "hi": "अनुमति अस्वीकृत / कार्रवाई छिपी हुई"
+          "en": "Vendor not compatible",
+          "hi": "विक्रेता उपयुक्त नहीं"
         },
         "reason": {
-          "en": "Role matrix or governance visibility is missing for this module/action.",
-          "hi": "इस मॉड्यूल/कार्रवाई के लिए रोल मैट्रिक्स या गवर्नेंस दृश्यता सेट नहीं है।"
-        }
-      },
-      {
-        "error": {
-          "en": "Validation failed on submit",
-          "hi": "सबमिट पर वैलिडेशन विफल"
-        },
-        "reason": {
-          "en": "Mandatory fields are blank or context selection is inconsistent.",
-          "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
+          "en": "The job worker must be active, of type Job worker/Both, support the process and be mapped to the plant.",
+          "hi": "जॉब वर्कर सक्रिय, Job worker/Both प्रकार का, प्रक्रिया समर्थित और फैक्ट्री से जुड़ा होना चाहिए."
         }
       }
     ],
     "recoverySteps": [
       {
-        "en": "Refresh the page and re-open the target record from list view.",
-        "hi": "पेज रिफ्रेश करें और सूची दृश्य से लक्ष्य रिकॉर्ड फिर खोलें।"
-      },
-      {
-        "en": "Validate role override context, then retry with correct module permissions.",
-        "hi": "रोल ओवरराइड संदर्भ सत्यापित करें, फिर सही अनुमति के साथ पुनः प्रयास करें।"
-      },
-      {
-        "en": "If issue persists, raise Governance ticket with route, payload, and timestamp.",
-        "hi": "समस्या बनी रहे तो route, payload और timestamp सहित Governance टिकट उठाएँ।"
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
       }
     ],
     "relatedRoutes": [
-      "/inventory/alerts",
-      "/inventory/bulk-transactions"
+      "/inventory/gate-bills",
+      "/inventory/outward-documents",
+      "/logistics/packing"
     ],
     "screenshotKeys": [
       "inventory-job-work-overview",
       "inventory-job-work-workflow"
-    ],
-    "faqRefs": [
-      "faq-access-control",
-      "faq-data-refresh"
     ]
   },
   {
@@ -23235,8 +23181,8 @@
   {
     "routePattern": "/inventory/gate-bills",
     "title": {
-      "en": "Inventory gate bills",
-      "hi": "Inventory gate bills"
+      "en": "Bills & documents",
+      "hi": "बिल व दस्तावेज़"
     },
     "module": "Inventory",
     "roles": [
@@ -23246,92 +23192,163 @@
       "OWNER"
     ],
     "summary": {
-      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
-      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+      "en": "Every bill the factory receives — gate photos and office uploads (photos or PDF) — in one inbox and searchable register.",
+      "hi": "फैक्ट्री को मिलने वाला हर बिल — गेट की फ़ोटो और ऑफ़िस अपलोड (फ़ोटो या PDF) — एक इनबॉक्स और खोजने योग्य रजिस्टर में."
     },
     "purpose": {
-      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
-      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+      "en": "Classify each paper and finish it the right way: GRN for stock, job-work receipt, General Receipt for spares, machinery or services, or File for utilities, fees, transport and notes. Only stock posts inventory.",
+      "hi": "हर कागज़ को वर्गीकृत करें और सही तरीके से पूरा करें: स्टॉक के लिए GRN, जॉब-वर्क रसीद, स्पेयर्स/मशीनरी/सर्विस के लिए जनरल रसीद, या बिजली, फ़ीस, ट्रांसपोर्ट और नोट के लिए फ़ाइल. केवल स्टॉक से इन्वेंटरी बदलती है."
     },
     "prerequisites": [
       {
-        "en": "Confirm the factory before recording or receiving a bill.",
-        "hi": "बिल दर्ज या प्राप्त करने से पहले फैक्ट्री की पुष्टि करें."
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
       }
     ],
     "keyActions": [
       {
-        "en": "Open a pending bill, inspect every photo and select vendor and invoice details from the bill.",
-        "hi": "लंबित बिल खोलें, सभी फोटो जाँचें और बिल से विक्रेता व इनवॉइस विवरण चुनें."
+        "en": "Inbox: open a bill that needs classifying, waits for a receipt or is partly received.",
+        "hi": "इनबॉक्स: वर्गीकरण बाकी, रसीद की प्रतीक्षा या आंशिक प्राप्त बिल खोलें."
       },
       {
-        "en": "Create a normal GRN or match an existing receipt from the same factory. Matching does not post stock again.",
-        "hi": "सामान्य GRN बनाएं या उसी फैक्ट्री की मौजूदा रसीद मिलाएँ. मिलाने से स्टॉक दोबारा नहीं बढ़ता."
+        "en": "Upload bill: add photos or a PDF that reached the office by post or email.",
+        "hi": "बिल अपलोड: डाक या ईमेल से ऑफ़िस आए फ़ोटो या PDF जोड़ें."
       },
       {
-        "en": "Keep partially received bills open. Confirm all bill lines received only after every required receipt is linked.",
-        "hi": "आंशिक प्राप्त बिल खुले रखें. सभी आवश्यक रसीदें जुड़ने के बाद ही सभी लाइन प्राप्त होने की पुष्टि करें."
+        "en": "All documents / Filed: search by bill number, party or vendor and export CSV.",
+        "hi": "सभी दस्तावेज़ / फ़ाइल किए गए: बिल नंबर, पार्टी या विक्रेता से खोजें और CSV निकालें."
       },
       {
-        "en": "Resolve duplicate, non-stock, unreadable or cancelled paperwork with an explanation instead of inventing a receipt.",
-        "hi": "डुप्लिकेट, गैर-स्टॉक, अस्पष्ट या रद्द कागज़ का कारण देकर समाधान करें; झूठी रसीद न बनाएं."
+        "en": "Reports: ageing, amounts by category, top vendors, General Receipt spend and (Owner/Admin) image storage.",
+        "hi": "रिपोर्ट: लंबित अवधि, श्रेणी अनुसार राशि, प्रमुख विक्रेता, जनरल रसीद खर्च और (Owner/Admin) इमेज स्टोरेज."
       }
     ],
     "fieldHelp": [
       {
         "field": {
-          "en": "Pending count",
-          "hi": "लंबित संख्या"
+          "en": "Category",
+          "hi": "श्रेणी"
         },
         "help": {
-          "en": "Includes pending and partly received bills. Reading an alert does not remove a bill from this queue.",
-          "hi": "लंबित और आंशिक प्राप्त बिल शामिल हैं. सूचना पढ़ने से बिल कतार से नहीं हटता."
+          "en": "Decides the next step. Stock and Job work change inventory; Spares, Machinery and Service create a General Receipt; Utility, Fees, Transport and Other are filed as records.",
+          "hi": "अगला कदम तय करती है. स्टॉक और जॉब वर्क इन्वेंटरी बदलते हैं; स्पेयर्स, मशीनरी और सर्विस जनरल रसीद बनाते हैं; बिजली, फ़ीस, ट्रांसपोर्ट और अन्य रिकॉर्ड के रूप में फ़ाइल होते हैं."
         }
       },
       {
         "field": {
-          "en": "Plant scope",
-          "hi": "फैक्ट्री दायरा"
+          "en": "Source",
+          "hi": "स्रोत"
         },
         "help": {
-          "en": "Current Store receipt access covers all existing inventory plants; use the plant filter to narrow the queue.",
-          "hi": "वर्तमान स्टोर रसीद अधिकार सभी इन्वेंटरी फैक्ट्रियों के लिए हैं; फ़िल्टर से कतार सीमित करें."
+          "en": "Gate arrival = photographed by the watchman when goods arrived. Office = uploaded later; it does not claim a gate arrival.",
+          "hi": "गेट आगमन = माल आने पर वॉचमैन की फ़ोटो. ऑफ़िस = बाद में अपलोड; यह गेट आगमन नहीं दर्शाता."
         }
       }
     ],
-    "decisionFlowId": "gate-bill-receipt-flow",
+    "decisionFlowId": "bills-documents-flow",
     "commonErrors": [
       {
         "error": {
-          "en": "Receipt cannot be matched",
-          "hi": "रसीद नहीं मिल सकती"
+          "en": "Possible duplicate",
+          "hi": "संभावित डुप्लिकेट"
         },
         "reason": {
-          "en": "It must belong to this factory, contain accepted goods and not already be linked to another bill. Check the original document.",
-          "hi": "रसीद इसी फैक्ट्री की हो, स्वीकार माल हो और किसी दूसरे बिल से न जुड़ी हो. मूल दस्तावेज जाँचें."
+          "en": "The same vendor bill number in the same financial year already exists. Open it; file or receive the copy only with a reason.",
+          "hi": "उसी विक्रेता का वही बिल नंबर उसी वित्त वर्ष में पहले से है. उसे खोलें; कारण देकर ही प्रति फ़ाइल या प्राप्त करें."
         }
       }
     ],
     "recoverySteps": [
       {
-        "en": "If a request times out, retry the same action; check the saved record before starting again.",
-        "hi": "अनुरोध का समय समाप्त हो तो वही कार्रवाई फिर करें; नया शुरू करने से पहले सहेजा रिकॉर्ड जाँचें."
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
       }
     ],
     "relatedRoutes": [
       "/inventory/grn",
-      "/inventory/grn-history",
-      "/analytics/reports/gate"
+      "/inventory/general-receipts",
+      "/inventory/job-work",
+      "/inventory/outward-documents"
+    ],
+    "screenshotKeys": [
+      "inventory-documents-register"
+    ]
+  },
+  {
+    "routePattern": "/inventory/gate-bills/[id]",
+    "title": {
+      "en": "Bill / document",
+      "hi": "बिल / दस्तावेज़"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "The bill stays beside the form while you enter its details and choose the next step.",
+      "hi": "विवरण भरते और अगला कदम चुनते समय बिल फ़ॉर्म के बगल में रहता है."
+    },
+    "purpose": {
+      "en": "Record what the paper is (type, category, vendor or party, bill number and date, amounts, due date, valid-until, ship-to factory) and complete it without retyping.",
+      "hi": "कागज़ क्या है दर्ज करें (प्रकार, श्रेणी, विक्रेता या पार्टी, बिल नंबर व तारीख, राशि, देय तिथि, वैधता, शिप-टू फैक्ट्री) और दोबारा टाइप किए बिना पूरा करें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Save details, then press the Next step button (Open GRN, Receive job work, Create General Receipt, File or Attach).",
+        "hi": "विवरण सेव करें, फिर अगला कदम बटन दबाएँ (GRN खोलें, जॉब वर्क प्राप्त करें, जनरल रसीद बनाएं, फ़ाइल या संलग्न करें)."
+      },
+      {
+        "en": "Use Dock, Float, Pop-out or the phone sheet to keep the bill readable; Alt+B shows or hides it.",
+        "hi": "बिल पढ़ने योग्य रखने के लिए डॉक, फ़्लोट, पॉप-आउट या फ़ोन शीट इस्तेमाल करें; Alt+B से दिखाएँ/छिपाएँ."
+      },
+      {
+        "en": "Attach a transport LR or service report to its main bill instead of filing it alone.",
+        "hi": "ट्रांसपोर्ट LR या सर्विस रिपोर्ट को अकेले फ़ाइल करने के बजाय मुख्य बिल से संलग्न करें."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "bills-documents-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Someone else changed this bill",
+          "hi": "किसी और ने बिल बदला"
+        },
+        "reason": {
+          "en": "Another reviewer saved first. Reload to see their values, then save again.",
+          "hi": "दूसरे समीक्षक ने पहले सेव किया. उनके मान देखने के लिए रीलोड करें, फिर दोबारा सेव करें."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/gate-bills",
+      "/inventory/grn",
+      "/inventory/general-receipts/new"
     ],
     "screenshotKeys": [
       "inventory-gate-bills-queue"
     ]
   },
   {
-    "routePattern": "/inventory/gate-bills/[id]",
+    "routePattern": "/inventory/gate-bills/[id]/view",
     "title": {
-      "en": "Review inward bill",
-      "hi": "इनवर्ड बिल जाँचें"
+      "en": "Bill viewer (pop-out)",
+      "hi": "बिल व्यूअर (पॉप-आउट)"
     },
     "module": "Inventory",
     "roles": [
@@ -23341,85 +23358,644 @@
       "OWNER"
     ],
     "summary": {
-      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
-      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+      "en": "Shows one bill on its own window — ideal for a second monitor.",
+      "hi": "एक बिल को अलग विंडो में दिखाता है — दूसरे मॉनिटर के लिए उपयुक्त."
     },
     "purpose": {
-      "en": "Review photographed inward bills, create or explicitly match receipts, and close each bill when every line is accounted for.",
-      "hi": "इनवर्ड बिल फोटो जाँचें, रसीद बनाएं या स्पष्ट रूप से मिलाएँ और हर लाइन का हिसाब होने पर बिल बंद करें."
+      "en": "Read the bill at full size while the GRN or receipt form stays in the main window; page, zoom, rotation and pinned area follow the form window.",
+      "hi": "GRN या रसीद फ़ॉर्म मुख्य विंडो में रखते हुए बिल पूरे आकार में पढ़ें; पेज, ज़ूम, घुमाव और पिन किया हिस्सा फ़ॉर्म विंडो के साथ चलते हैं."
     },
     "prerequisites": [
       {
-        "en": "Confirm the factory before recording or receiving a bill.",
-        "hi": "बिल दर्ज या प्राप्त करने से पहले फैक्ट्री की पुष्टि करें."
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
       }
     ],
     "keyActions": [
       {
-        "en": "Open a pending bill, inspect every photo and select vendor and invoice details from the bill.",
-        "hi": "लंबित बिल खोलें, सभी फोटो जाँचें और बिल से विक्रेता व इनवॉइस विवरण चुनें."
+        "en": "Drag to move the page, Ctrl/⌘ + scroll or pinch to zoom, double-click to zoom in.",
+        "hi": "पेज खिसकाने के लिए ड्रैग करें, ज़ूम के लिए Ctrl/⌘ + स्क्रॉल या पिंच, ज़ूम इन के लिए डबल-क्लिक."
       },
       {
-        "en": "Create a normal GRN or match an existing receipt from the same factory. Matching does not post stock again.",
-        "hi": "सामान्य GRN बनाएं या उसी फैक्ट्री की मौजूदा रसीद मिलाएँ. मिलाने से स्टॉक दोबारा नहीं बढ़ता."
+        "en": "Shift-drag to pin the part you are copying; Alt + ←/→ changes page even while typing in the form.",
+        "hi": "जो हिस्सा कॉपी कर रहे हैं उसे Shift-ड्रैग से पिन करें; Alt + ←/→ फ़ॉर्म में टाइप करते समय भी पेज बदलता है."
       },
       {
-        "en": "Keep partially received bills open. Confirm all bill lines received only after every required receipt is linked.",
-        "hi": "आंशिक प्राप्त बिल खुले रखें. सभी आवश्यक रसीदें जुड़ने के बाद ही सभी लाइन प्राप्त होने की पुष्टि करें."
-      },
-      {
-        "en": "Resolve duplicate, non-stock, unreadable or cancelled paperwork with an explanation instead of inventing a receipt.",
-        "hi": "डुप्लिकेट, गैर-स्टॉक, अस्पष्ट या रद्द कागज़ का कारण देकर समाधान करें; झूठी रसीद न बनाएं."
+        "en": "Use Bring back in the form, or close this window, to dock the bill again.",
+        "hi": "बिल वापस लगाने के लिए फ़ॉर्म में 'Bring back' दबाएँ या यह विंडो बंद करें."
       }
     ],
-    "fieldHelp": [
+    "fieldHelp": [],
+    "decisionFlowId": "bills-documents-flow",
+    "commonErrors": [],
+    "recoverySteps": [
       {
-        "field": {
-          "en": "Pending count",
-          "hi": "लंबित संख्या"
-        },
-        "help": {
-          "en": "Includes pending and partly received bills. Reading an alert does not remove a bill from this queue.",
-          "hi": "लंबित और आंशिक प्राप्त बिल शामिल हैं. सूचना पढ़ने से बिल कतार से नहीं हटता."
-        }
-      },
-      {
-        "field": {
-          "en": "Plant scope",
-          "hi": "फैक्ट्री दायरा"
-        },
-        "help": {
-          "en": "Current Store receipt access covers all existing inventory plants; use the plant filter to narrow the queue.",
-          "hi": "वर्तमान स्टोर रसीद अधिकार सभी इन्वेंटरी फैक्ट्रियों के लिए हैं; फ़िल्टर से कतार सीमित करें."
-        }
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
       }
     ],
-    "decisionFlowId": "gate-bill-receipt-flow",
+    "relatedRoutes": [
+      "/inventory/gate-bills/[id]",
+      "/inventory/grn"
+    ]
+  },
+  {
+    "routePattern": "/inventory/general-receipts",
+    "title": {
+      "en": "General receipts",
+      "hi": "जनरल रसीदें"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Spares, machinery, tools, services and charges — who received them or confirmed the work, and when. They never change stock.",
+      "hi": "स्पेयर्स, मशीनरी, औज़ार, सर्विस और शुल्क — किसने प्राप्त किया या काम की पुष्टि की, और कब. इनसे स्टॉक नहीं बदलता."
+    },
+    "purpose": {
+      "en": "Keep a searchable record of non-stock purchases and the full history of each machine.",
+      "hi": "गैर-स्टॉक खरीद का खोजने योग्य रिकॉर्ड और हर मशीन का पूरा इतिहास रखें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Filter by factory, type, line type, status, date or text.",
+        "hi": "फैक्ट्री, प्रकार, लाइन प्रकार, स्थिति, तारीख या टेक्स्ट से छाँटें."
+      },
+      {
+        "en": "Machine history: pick a machine to see every spare, service and gate-pass movement, newest first.",
+        "hi": "मशीन इतिहास: मशीन चुनें और हर स्पेयर, सर्विस और गेट-पास आवाजाही देखें, नवीनतम पहले."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "bills-documents-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/gate-bills",
+      "/inventory/gate-passes"
+    ],
+    "screenshotKeys": [
+      "inventory-general-receipts"
+    ]
+  },
+  {
+    "routePattern": "/inventory/general-receipts/new",
+    "title": {
+      "en": "New general receipt",
+      "hi": "नई जनरल रसीद"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Record goods received or service work done against a bill, with the bill beside the form.",
+      "hi": "बिल के सामने रखते हुए प्राप्त माल या पूरा हुआ सर्विस काम दर्ज करें."
+    },
+    "purpose": {
+      "en": "Confirm what arrived or what work was done, where it went and on which machine — without touching production stock.",
+      "hi": "क्या आया या कौन सा काम हुआ, कहाँ गया और किस मशीन पर — उत्पादन स्टॉक को छुए बिना पुष्टि करें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Choose Goods or Service, then add lines; suggestions come from past receipts. Amount = quantity × rate.",
+        "hi": "माल या सर्विस चुनें, फिर लाइनें जोड़ें; सुझाव पिछली रसीदों से आते हैं. राशि = मात्रा × दर."
+      },
+      {
+        "en": "Set what happened to each item (kept in store, installed, used) and the machine.",
+        "hi": "हर वस्तु का क्या हुआ (स्टोर में, लगाया, उपयोग किया) और मशीन चुनें."
+      },
+      {
+        "en": "Tick 'Came back on a returnable gate pass' to close an RGP line; tick 'This receipt completes the bill' only when every bill line is covered.",
+        "hi": "RGP लाइन बंद करने के लिए 'रिटर्नेबल गेट पास पर वापस आया' चुनें; 'यह रसीद बिल पूरा करती है' तभी चुनें जब बिल की हर लाइन शामिल हो."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "bills-documents-flow",
     "commonErrors": [
       {
         "error": {
-          "en": "Receipt cannot be matched",
-          "hi": "रसीद नहीं मिल सकती"
+          "en": "Amount does not match",
+          "hi": "राशि मेल नहीं खाती"
         },
         "reason": {
-          "en": "It must belong to this factory, contain accepted goods and not already be linked to another bill. Check the original document.",
-          "hi": "रसीद इसी फैक्ट्री की हो, स्वीकार माल हो और किसी दूसरे बिल से न जुड़ी हो. मूल दस्तावेज जाँचें."
+          "en": "Amount must equal quantity × rate (to the paisa). Correct quantity or rate.",
+          "hi": "राशि मात्रा × दर (पैसे तक) के बराबर होनी चाहिए. मात्रा या दर सुधारें."
+        }
+      },
+      {
+        "error": {
+          "en": "Only part of the gate pass is still out",
+          "hi": "गेट पास का केवल कुछ हिस्सा बाहर है"
+        },
+        "reason": {
+          "en": "You cannot return more than is still out on the RGP line.",
+          "hi": "RGP लाइन पर जितना बाहर है उससे अधिक वापस नहीं कर सकते."
         }
       }
     ],
     "recoverySteps": [
       {
-        "en": "If a request times out, retry the same action; check the saved record before starting again.",
-        "hi": "अनुरोध का समय समाप्त हो तो वही कार्रवाई फिर करें; नया शुरू करने से पहले सहेजा रिकॉर्ड जाँचें."
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
       }
     ],
     "relatedRoutes": [
-      "/inventory/grn",
-      "/inventory/grn-history",
-      "/analytics/reports/gate"
+      "/inventory/general-receipts",
+      "/inventory/gate-bills/[id]",
+      "/inventory/gate-passes"
+    ]
+  },
+  {
+    "routePattern": "/inventory/general-receipts/[id]",
+    "title": {
+      "en": "General receipt",
+      "hi": "जनरल रसीद"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "A printable, read-only general receipt with lines, GST, machine and gate-pass links and its bill.",
+      "hi": "लाइनों, GST, मशीन व गेट-पास लिंक और उसके बिल के साथ प्रिंट योग्य, केवल-पढ़ने वाली जनरल रसीद."
+    },
+    "purpose": {
+      "en": "Show proof of what was received or done, and correct mistakes by reversal.",
+      "hi": "क्या प्राप्त हुआ या किया गया उसका प्रमाण दिखाएँ, और गलती रिवर्सल से सुधारें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Print the receipt for the file.",
+        "hi": "फ़ाइल के लिए रसीद प्रिंट करें."
+      },
+      {
+        "en": "Owner/Admin can reverse it with a reason; it stays linked to its bill and shows as reversed.",
+        "hi": "Owner/Admin कारण देकर इसे रिवर्स कर सकते हैं; यह बिल से जुड़ी रहती है और रिवर्स दिखती है."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "bills-documents-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Cannot reverse",
+          "hi": "रिवर्स नहीं हो सकती"
+        },
+        "reason": {
+          "en": "A receipt that brought items back on a gate pass cannot be reversed.",
+          "hi": "जिस रसीद से गेट पास पर सामान वापस आया उसे रिवर्स नहीं किया जा सकता."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/general-receipts"
+    ]
+  },
+  {
+    "routePattern": "/inventory/outward-documents",
+    "title": {
+      "en": "Outward documents",
+      "hi": "बाहर जाने वाले दस्तावेज़"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Papers the watchman photographed as goods left the factory.",
+      "hi": "माल बाहर जाते समय वॉचमैन द्वारा फ़ोटो लिए गए कागज़."
+    },
+    "purpose": {
+      "en": "Make sure every departure is matched to the ERP document it carried. Matching never moves stock or marks delivery.",
+      "hi": "हर रवानगी को उसके ERP दस्तावेज़ से मिलाएँ. मिलाने से स्टॉक नहीं बदलता और डिलीवरी दर्ज नहीं होती."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "QR-printed ERP papers match themselves; Pending match lists the rest, oldest first.",
+        "hi": "QR वाले ERP कागज़ स्वयं मिल जाते हैं; बाकी 'Pending match' में सबसे पुराने पहले."
+      },
+      {
+        "en": "Open a departure to link documents or note a discrepancy.",
+        "hi": "दस्तावेज़ जोड़ने या अंतर दर्ज करने के लिए रवानगी खोलें."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "outward-gate-pass-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/gate-passes",
+      "/logistics/dispatch"
     ],
     "screenshotKeys": [
-      "inventory-gate-bills-queue"
+      "inventory-outward-documents"
+    ]
+  },
+  {
+    "routePattern": "/inventory/outward-documents/[id]",
+    "title": {
+      "en": "Match outward departure",
+      "hi": "रवानगी मिलाएँ"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Photos beside the matching panel for one departure.",
+      "hi": "एक रवानगी के लिए मिलान पैनल के बगल में फ़ोटो."
+    },
+    "purpose": {
+      "en": "Link every ERP document the truck carried, then mark the departure matched or note a discrepancy.",
+      "hi": "ट्रक में गए हर ERP दस्तावेज़ को जोड़ें, फिर रवानगी मिलाई गई चिह्नित करें या अंतर दर्ज करें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Search, scan or paste a QR code, or add a paper that is not in the ERP.",
+        "hi": "खोजें, QR स्कैन या पेस्ट करें, या ERP में न होने वाला कागज़ जोड़ें."
+      },
+      {
+        "en": "A challan leaving over several trips is flagged, not blocked.",
+        "hi": "कई फेरों में जाने वाला चालान चिह्नित होता है, रोका नहीं जाता."
+      },
+      {
+        "en": "Owner/Admin can void a mistaken record; photos and time stay on record.",
+        "hi": "Owner/Admin गलत रिकॉर्ड रद्द कर सकते हैं; फ़ोटो और समय रिकॉर्ड में रहते हैं."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "outward-gate-pass-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/outward-documents"
+    ]
+  },
+  {
+    "routePattern": "/inventory/outward-documents/[id]/view",
+    "title": {
+      "en": "Outward photos (pop-out)",
+      "hi": "बाहर जाने की फ़ोटो (पॉप-आउट)"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "The outward photos in their own window for a second monitor.",
+      "hi": "दूसरे मॉनिटर के लिए अलग विंडो में बाहर जाने की फ़ोटो."
+    },
+    "purpose": {
+      "en": "Read the papers at full size while matching in the main window; page, zoom and rotation follow the matching screen.",
+      "hi": "मुख्य विंडो में मिलान करते हुए कागज़ पूरे आकार में पढ़ें; पेज, ज़ूम और घुमाव मिलान स्क्रीन के साथ चलते हैं."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Close this window or use Bring back to dock the photos again.",
+        "hi": "फ़ोटो वापस लगाने के लिए यह विंडो बंद करें या 'Bring back' दबाएँ."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "outward-gate-pass-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/outward-documents/[id]"
+    ]
+  },
+  {
+    "routePattern": "/inventory/gate-passes",
+    "title": {
+      "en": "Gate passes (RGP / NRGP)",
+      "hi": "गेट पास (RGP / NRGP)"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Returnable and non-returnable gate passes for parts, tools and equipment leaving the factory.",
+      "hi": "फैक्ट्री से बाहर जाने वाले पुर्ज़ों, औज़ारों और उपकरणों के रिटर्नेबल और नॉन-रिटर्नेबल गेट पास."
+    },
+    "purpose": {
+      "en": "Know what is outside the factory, with whom, and when it must come back. Gate passes never move stock.",
+      "hi": "जानें कि क्या फैक्ट्री से बाहर है, किसके पास, और कब वापस आना है. गेट पास से स्टॉक नहीं बदलता."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open shows passes issued or out; Overdue shows returnable items past their return date.",
+        "hi": "Open में जारी या बाहर गए पास; Overdue में वापसी तारीख निकल चुके रिटर्नेबल सामान."
+      },
+      {
+        "en": "Create a new pass for items going for repair, calibration, fabrication, trial, loan, scrap sale or samples.",
+        "hi": "मरम्मत, कैलिब्रेशन, फैब्रिकेशन, ट्रायल, लोन, स्क्रैप बिक्री या सैंपल के लिए नया पास बनाएं."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "outward-gate-pass-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/gate-passes/new",
+      "/inventory/outward-documents",
+      "/inventory/general-receipts"
+    ],
+    "screenshotKeys": [
+      "inventory-gate-passes"
+    ]
+  },
+  {
+    "routePattern": "/inventory/gate-passes/new",
+    "title": {
+      "en": "New gate pass",
+      "hi": "नया गेट पास"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "Create an RGP (items come back) or NRGP (items do not come back).",
+      "hi": "RGP (सामान वापस आता है) या NRGP (सामान वापस नहीं आता) बनाएं."
+    },
+    "purpose": {
+      "en": "Give the gate a numbered, QR-printed paper for every non-stock item leaving the factory.",
+      "hi": "फैक्ट्री से बाहर जाने वाली हर गैर-स्टॉक वस्तु के लिए गेट को क्रमांकित, QR वाला कागज़ दें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Choose RGP for repair, calibration, fabrication, trial or loan; NRGP for scrap sale, sample or return to supplier.",
+        "hi": "मरम्मत, कैलिब्रेशन, फैब्रिकेशन, ट्रायल या लोन के लिए RGP; स्क्रैप बिक्री, सैंपल या सप्लायर को वापसी के लिए NRGP चुनें."
+      },
+      {
+        "en": "Add each item and link the machine when it is a machine part. Save as draft, or save and issue to get the number and QR.",
+        "hi": "हर वस्तु जोड़ें और मशीन का पुर्ज़ा हो तो मशीन जोड़ें. ड्राफ़्ट सेव करें, या नंबर व QR पाने के लिए सेव करके जारी करें."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "outward-gate-pass-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Return date required",
+          "hi": "वापसी तारीख आवश्यक"
+        },
+        "reason": {
+          "en": "A returnable pass needs the expected return date.",
+          "hi": "रिटर्नेबल पास के लिए अपेक्षित वापसी तारीख आवश्यक है."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/gate-passes"
+    ]
+  },
+  {
+    "routePattern": "/inventory/gate-passes/[id]",
+    "title": {
+      "en": "Gate pass",
+      "hi": "गेट पास"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "One gate pass with its items, returns, gate photos and history.",
+      "hi": "एक गेट पास उसकी वस्तुओं, वापसी, गेट फ़ोटो और इतिहास के साथ."
+    },
+    "purpose": {
+      "en": "Issue, print, track and close the pass until every returnable item is back.",
+      "hi": "हर रिटर्नेबल वस्तु वापस आने तक पास जारी करें, प्रिंट करें, ट्रैक करें और बंद करें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Issue the draft and print it; it shows 'Out of factory' once the gate records it.",
+        "hi": "ड्राफ़्ट जारी करें और प्रिंट करें; गेट द्वारा दर्ज होने पर 'Out of factory' दिखेगा."
+      },
+      {
+        "en": "Record returns with a General Receipt against the vendor bill, or with Receive back when no bill comes.",
+        "hi": "वापसी विक्रेता बिल पर जनरल रसीद से, या बिल न आए तो 'Receive back' से दर्ज करें."
+      },
+      {
+        "en": "Short-close with a reason when items will not come back.",
+        "hi": "सामान वापस नहीं आएगा तो कारण देकर शॉर्ट-क्लोज़ करें."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "outward-gate-pass-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/gate-passes",
+      "/inventory/general-receipts/new"
+    ]
+  },
+  {
+    "routePattern": "/inventory/job-work/[id]",
+    "title": {
+      "en": "Job-work order",
+      "hi": "जॉब-वर्क ऑर्डर"
+    },
+    "module": "Inventory",
+    "roles": [
+      "STORE",
+      "PLANNER",
+      "ADMIN",
+      "SUPER_ADMIN",
+      "OWNER"
+    ],
+    "summary": {
+      "en": "One job-work order: material sent, challans, returns, balance at the job worker and timeline.",
+      "hi": "एक जॉब-वर्क ऑर्डर: भेजा माल, चालान, वापसी, जॉब वर्कर के पास बकाया और समयरेखा."
+    },
+    "purpose": {
+      "en": "Receive what the job worker sends back so finished goods, balance rolls and wastage are all accounted for, then close the order.",
+      "hi": "जॉब वर्कर से लौटा माल प्राप्त करें ताकि तैयार माल, बचे रोल और वेस्टेज सबका हिसाब हो, फिर ऑर्डर बंद करें."
+    },
+    "prerequisites": [
+      {
+        "en": "Bills & documents rights belong to Inventory by default. Owner/Admin can grant them to another role or person in Role matrix or User overrides.",
+        "hi": "बिल व दस्तावेज़ अधिकार डिफ़ॉल्ट रूप से इन्वेंटरी के पास हैं. Owner/Admin इन्हें Role matrix या User overrides में किसी और भूमिका या व्यक्ति को दे सकते हैं."
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Send material issues a numbered challan with a gate QR.",
+        "hi": "माल भेजने पर गेट QR वाला क्रमांकित चालान बनता है."
+      },
+      {
+        "en": "Receive: mark each sent roll used up, back unused or partly used, then enter output (pieces in boxes, rolls or bulk) and wastage.",
+        "hi": "प्राप्त करें: हर भेजा रोल पूरा उपयोग, बिना उपयोग वापस या आंशिक उपयोग चिह्नित करें, फिर उत्पादन (डिब्बों में पीस, रोल या बल्क) और वेस्टेज दर्ज करें."
+      },
+      {
+        "en": "The balance meter must agree within the tolerance, or give a reason. With the bill beside the form, the bill is linked in the same save.",
+        "hi": "बैलेंस मीटर सहनशीलता के भीतर होना चाहिए, नहीं तो कारण दें. बिल साथ खुला हो तो उसी सेव में जुड़ जाता है."
+      },
+      {
+        "en": "Close when nothing is left at the job worker (completes a planned route step); Close short writes off what is left with a reason.",
+        "hi": "जॉब वर्कर के पास कुछ न बचे तो बंद करें (नियोजित रूट चरण पूरा होता है); Close short कारण सहित बचा माल बट्टे खाते डालता है."
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Material balance outside tolerance",
+          "hi": "माल संतुलन सहनशीलता से बाहर"
+        },
+        "reason": {
+          "en": "Sent weight does not match output + balance + wastage. Recheck weights or give the reason.",
+          "hi": "भेजा वज़न उत्पादन + बकाया + वेस्टेज से मेल नहीं खाता. वज़न जाँचें या कारण दें."
+        }
+      },
+      {
+        "error": {
+          "en": "Bill rate differs",
+          "hi": "बिल दर अलग है"
+        },
+        "reason": {
+          "en": "The bill rate or pieces differ from the agreed rate card or received pieces; the warning is saved on the return.",
+          "hi": "बिल दर या पीस तय दर कार्ड या प्राप्त पीस से अलग हैं; चेतावनी वापसी पर सेव होती है."
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice. Refresh before starting a new entry.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन दोबारा दबाएँ — सिस्टम दोबारा प्रयास पहचानता है और दो बार दर्ज नहीं करता. नई एंट्री से पहले पेज रीफ़्रेश करें."
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/job-work",
+      "/inventory/gate-bills/[id]",
+      "/logistics/packing"
     ]
   }
 ]

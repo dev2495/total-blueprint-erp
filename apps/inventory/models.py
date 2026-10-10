@@ -13,6 +13,60 @@ from apps.materials.stock_forms import (
 )
 from django.db.models import UniqueConstraint
 
+JOBWORK_OUTPUT_KINDS = [
+    ('FG_PCS', 'Finished pieces'),
+    ('ROLLS', 'Rolls'),
+    ('BULK', 'Bulk material'),
+]
+JOBWORK_RATE_UOMS = [
+    ('PCS', 'Per piece'),
+    ('KG', 'Per kg'),
+    ('METER', 'Per metre'),
+    ('ROLL', 'Per roll'),
+]
+JOBWORK_QTY_UOMS = [
+    ('PCS', 'Pieces'),
+    ('KG', 'Kilograms'),
+    ('METER', 'Metres'),
+    ('ROLL', 'Rolls'),
+]
+# Orders that can still change (dispatch, return, close). PARTIAL is the
+# pre-upgrade name of PARTLY_RETURNED; an older application image may still
+# write it after a rollback, so every reader treats it as PARTLY_RETURNED.
+JOBWORK_OPEN_STATUSES = ('DRAFT', 'SENT', 'PARTIAL', 'PARTLY_RETURNED', 'RETURNED')
+JOBWORK_FINAL_STATUSES = ('CLOSED', 'CANCELLED')
+
+
+def validate_jobwork_rates(value):
+    """Vendor job-work rate card: [{"process_code", "rate", "uom"}]."""
+    from django.core.exceptions import ValidationError as DjangoValidationError
+
+    if value in (None, ""):
+        return
+    if not isinstance(value, list):
+        raise DjangoValidationError("Job-work rates must be a list of {process_code, rate, uom}.")
+    allowed = {code for code, _ in JOBWORK_RATE_UOMS}
+    seen = set()
+    for index, row in enumerate(value, start=1):
+        if not isinstance(row, dict):
+            raise DjangoValidationError(f"Rate row {index} must be an object with process_code, rate and uom.")
+        code = str(row.get("process_code") or "").strip().upper()
+        uom = str(row.get("uom") or "").strip().upper()
+        if not code or len(code) > 50:
+            raise DjangoValidationError(f"Rate row {index}: choose a process.")
+        if uom not in allowed:
+            raise DjangoValidationError(f"Rate row {index}: unit must be one of {', '.join(sorted(allowed))}.")
+        try:
+            rate = Decimal(str(row.get("rate")))
+        except Exception:
+            raise DjangoValidationError(f"Rate row {index}: enter the rate as a number.")
+        if not rate.is_finite() or rate <= 0 or rate > Decimal("100000000"):
+            raise DjangoValidationError(f"Rate row {index}: rate must be greater than zero.")
+        if (code, uom) in seen:
+            raise DjangoValidationError(f"Rate row {index}: {code} per {uom} is listed twice.")
+        seen.add((code, uom))
+
+
 class Vendor(models.Model):
     """
     Vendor Master (Phase 19).
@@ -67,9 +121,16 @@ class Vendor(models.Model):
         blank=True,
         help_text="Plant IDs or codes this vendor serves for jobwork. Empty means all plants.",
     )
+    jobwork_rates = models.JSONField(
+        default=list,
+        blank=True,
+        db_default=models.Value([], output_field=models.JSONField()),
+        validators=[validate_jobwork_rates],
+        help_text="Agreed job-work labour rates: [{process_code, rate, uom}] (rate excludes GST).",
+    )
     turnaround_hours = models.PositiveIntegerField(default=48)
     qc_required = models.BooleanField(default=True)
-    
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -887,6 +948,25 @@ class InterPlantChallanItem(models.Model):
         label = self.roll.label_id if self.roll else (self.material.code if self.material else "LINE")
         return f"{self.challan_id} - {self.line_type} - {label}"
 
+class _AppendOnlyDocument(models.Model):
+    """Issued job-work documents never change except for the listed stamps."""
+
+    MUTABLE_FIELDS: frozenset = frozenset()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if not update_fields or not set(update_fields) <= set(self.MUTABLE_FIELDS):
+                raise TypeError(f"{type(self).__name__} rows are issued documents and cannot be edited.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise TypeError(f"{type(self).__name__} rows are issued documents and cannot be deleted.")
+
+
 class JobWorkOrder(models.Model):
     MODE_CHOICES = [
         ('PLANNED_STEP', 'Planned Route Step'),
@@ -895,10 +975,13 @@ class JobWorkOrder(models.Model):
     STATUS_CHOICES = [
         ('DRAFT', 'Draft'),
         ('SENT', 'Sent'),
-        ('PARTIAL', 'Partially Received'),
+        ('PARTLY_RETURNED', 'Partly returned'),
+        ('RETURNED', 'Returned'),
         ('CLOSED', 'Closed'),
+        ('CANCELLED', 'Cancelled'),
+        ('PARTIAL', 'Partly returned (legacy)'),
     ]
-    
+
     MATERIAL_TYPE_CHOICES = [
         ('RM', 'Raw Material'),
         ('WIP', 'Work In Progress'),
@@ -906,9 +989,11 @@ class JobWorkOrder(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.CharField(max_length=32, blank=True, default="", db_default="", db_index=True)
     plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, related_name='job_work_orders')
     production_job = models.ForeignKey('production.ProductionJob', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_orders')
-    
+    process = models.ForeignKey('factory.Process', on_delete=models.PROTECT, null=True, blank=True, related_name='job_work_orders')
+
     # Linked Vendor (New Phase 19)
     vendor = models.ForeignKey('Vendor', on_delete=models.PROTECT, null=True, blank=True, related_name='job_work_orders')
     # Backward compatibility field (can be deprecated later)
@@ -916,20 +1001,220 @@ class JobWorkOrder(models.Model):
     mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='EMERGENCY')
     route_step_index = models.IntegerField(null=True, blank=True)
     emergency_reason = models.TextField(blank=True)
-    
+
     sent_material_type = models.CharField(max_length=10, choices=MATERIAL_TYPE_CHOICES, default='RM')
     expected_return_type = models.CharField(max_length=10, choices=MATERIAL_TYPE_CHOICES, default='WIP')
+    expected_output_kind = models.CharField(max_length=8, choices=JOBWORK_OUTPUT_KINDS, default='ROLLS', db_default='ROLLS')
+    expected_qty = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    expected_uom = models.CharField(max_length=8, choices=JOBWORK_QTY_UOMS, blank=True, default="", db_default="")
+    rate = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True, help_text="Agreed labour rate per rate_uom (excluding GST).")
+    rate_uom = models.CharField(max_length=8, choices=JOBWORK_RATE_UOMS, blank=True, default="", db_default="")
+    wastage_tolerance_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("3.00"), db_default=Decimal("3.00"),
+        help_text="Unexplained material-balance difference allowed before a reason is required.",
+    )
+    expected_return_date = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DRAFT')
     notes = models.TextField(blank=True)
     dispatched_at = models.DateTimeField(null=True, blank=True)
     received_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey('users.User', on_delete=models.PROTECT, null=True, blank=True, related_name='closed_job_work_orders')
+    short_close_reason = models.TextField(blank=True, default="", db_default="")
+    created_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='created_job_work_orders')
     meta_json = models.JSONField(default=dict, blank=True)
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'inventory_job_work_orders'
+        constraints = [
+            UniqueConstraint(fields=['number'], condition=~models.Q(number=''), name='jobwork_order_number_unique'),
+        ]
+        indexes = [models.Index(fields=['plant', 'status', 'created_at'], name='jobwork_plant_status_idx')]
+
+    def __str__(self):
+        return self.number or str(self.id)
+
+
+class JobWorkChallan(_AppendOnlyDocument):
+    """GST Rule 45 delivery challan issued when material leaves for a job worker."""
+
+    MUTABLE_FIELDS = frozenset({"gate_out_at", "gate_out_by"})
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.CharField(max_length=32, unique=True)
+    order = models.ForeignKey(JobWorkOrder, on_delete=models.CASCADE, related_name='challans')
+    plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, related_name='job_work_challans')
+    vendor = models.ForeignKey('Vendor', on_delete=models.PROTECT, related_name='job_work_challans')
+    issued_at = models.DateTimeField(default=timezone.now)
+    issued_by = models.ForeignKey('users.User', on_delete=models.PROTECT, null=True, blank=True, related_name='issued_job_work_challans')
+    purpose = models.CharField(max_length=160)
+    expected_return_date = models.DateField(null=True, blank=True)
+    place_of_supply = models.CharField(max_length=80, blank=True, default="")
+    vehicle_no = models.CharField(max_length=32, blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+    consignor = models.JSONField(default=dict, blank=True)
+    consignee = models.JSONField(default=dict, blank=True)
+    total_qty_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    total_value = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    gate_out_at = models.DateTimeField(null=True, blank=True)
+    gate_out_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='gated_job_work_challans')
+    request_key = models.CharField(max_length=64, unique=True, null=True, blank=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'inventory_job_work_challans'
+        ordering = ['issued_at', 'id']
+        indexes = [models.Index(fields=['plant', 'issued_at'], name='jobwork_challan_plant_idx')]
+
+    def __str__(self):
+        return self.number
+
+
+class JobWorkSentLine(_AppendOnlyDocument):
+    """One roll or bulk quantity on a challan. Legacy lines (no challan) record
+    rolls sent before challans existed, created only by Owner reconciliation."""
+
+    KIND_CHOICES = [('ROLL', 'Roll'), ('BULK', 'Bulk material')]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.ForeignKey(JobWorkOrder, on_delete=models.CASCADE, related_name='sent_lines')
+    challan = models.ForeignKey(JobWorkChallan, on_delete=models.CASCADE, null=True, blank=True, related_name='lines')
+    line_no = models.PositiveIntegerField()
+    kind = models.CharField(max_length=4, choices=KIND_CHOICES)
+    is_legacy = models.BooleanField(default=False)
+    roll = models.ForeignKey(InventoryRoll, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_sent_lines')
+    roll_label = models.CharField(max_length=60, blank=True, default="")
+    material = models.ForeignKey(InventoryMaterial, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_sent_lines')
+    material_name = models.CharField(max_length=255, blank=True, default="")
+    granule_code = models.ForeignKey('materials.GranuleQualityCode', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_sent_lines')
+    from_location = models.ForeignKey(InventoryLocation, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_sent_lines')
+    description = models.CharField(max_length=255)
+    hsn_code = models.CharField(max_length=12, blank=True, default="")
+    quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    uom = models.CharField(max_length=8, default='KG')
+    qty_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    width_mm = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    thickness_micron = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    rate_per_unit = models.DecimalField(max_digits=14, decimal_places=4, default=0)
+    value = models.DecimalField(max_digits=16, decimal_places=2, default=0)
+    sent_at = models.DateTimeField(default=timezone.now)
+    meta_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'inventory_job_work_sent_lines'
+        ordering = ['sent_at', 'line_no', 'id']
+        indexes = [models.Index(fields=['order', 'kind'], name='jobwork_sent_order_idx')]
+
+    def __str__(self):
+        return f"{self.challan.number if self.challan_id else 'LEGACY'} #{self.line_no}"
+
+
+class JobWorkReturn(_AppendOnlyDocument):
+    """One receipt of material back from the job worker (JWR)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.CharField(max_length=32, unique=True)
+    order = models.ForeignKey(JobWorkOrder, on_delete=models.CASCADE, related_name='returns')
+    plant = models.ForeignKey('factory.Plant', on_delete=models.PROTECT, related_name='job_work_returns')
+    received_at = models.DateTimeField(default=timezone.now)
+    received_by = models.ForeignKey('users.User', on_delete=models.PROTECT, null=True, blank=True, related_name='received_job_work_returns')
+    bill = models.ForeignKey('gate.InwardBillIntake', on_delete=models.PROTECT, null=True, blank=True, related_name='jobwork_returns')
+    vendor_document_no = models.CharField(max_length=80, blank=True, default="")
+    vendor_document_date = models.DateField(null=True, blank=True)
+    settled_sent_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    output_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    output_pcs = models.BigIntegerField(default=0)
+    balance_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    wastage_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    variance_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    variance_pct = models.DecimalField(max_digits=9, decimal_places=3, null=True, blank=True)
+    variance_reason = models.TextField(blank=True, default="")
+    billed_qty = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    billed_uom = models.CharField(max_length=8, blank=True, default="")
+    billed_rate = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    billed_amount = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
+    notes = models.TextField(blank=True, default="")
+    request_key = models.CharField(max_length=64, unique=True, null=True, blank=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'inventory_job_work_returns'
+        ordering = ['received_at', 'id']
+        indexes = [models.Index(fields=['plant', 'received_at'], name='jobwork_return_plant_idx')]
+
+    def __str__(self):
+        return self.number
+
+
+class JobWorkReturnLine(_AppendOnlyDocument):
+    KIND_CHOICES = [
+        ('FG_PCS', 'Finished pieces'),
+        ('OUTPUT_ROLL', 'Output roll'),
+        ('OUTPUT_BULK', 'Output bulk'),
+        ('BALANCE_ROLL', 'Balance roll returned'),
+        ('BALANCE_BULK', 'Balance bulk returned'),
+        ('WASTAGE', 'Wastage'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job_work_return = models.ForeignKey(JobWorkReturn, on_delete=models.CASCADE, related_name='lines')
+    line_no = models.PositiveIntegerField()
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES)
+    quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    uom = models.CharField(max_length=8)
+    qty_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    boxes = models.PositiveIntegerField(null=True, blank=True)
+    bags = models.PositiveIntegerField(null=True, blank=True)
+    returned_to_factory = models.BooleanField(null=True, blank=True)
+    location = models.ForeignKey(InventoryLocation, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_return_lines')
+    sent_line = models.ForeignKey(JobWorkSentLine, on_delete=models.SET_NULL, null=True, blank=True, related_name='return_lines')
+    material = models.ForeignKey(InventoryMaterial, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_return_lines')
+    roll = models.ForeignKey(InventoryRoll, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_return_lines')
+    roll_label = models.CharField(max_length=60, blank=True, default="")
+    fg_batch = models.ForeignKey('production.FinishedGoodsBatch', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_return_lines')
+    scrap_log = models.ForeignKey('production.ScrapLog', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_return_lines')
+    bulk_transaction = models.ForeignKey(BulkTransaction, on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_return_lines')
+    meta_json = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'inventory_job_work_return_lines'
+        ordering = ['line_no', 'id']
+
+    def __str__(self):
+        return f"{self.job_work_return.number} #{self.line_no} {self.kind}"
+
+
+class JobWorkSettlement(_AppendOnlyDocument):
+    """How a sent line left the job worker's balance: processed, returned or written off."""
+
+    SOURCE_CHOICES = [
+        ('RETURN', 'Job-work return'),
+        ('SHORT_CLOSE', 'Short-close write-off'),
+        ('RECONCILE', 'Legacy reconciliation'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.ForeignKey(JobWorkOrder, on_delete=models.CASCADE, related_name='settlements')
+    sent_line = models.ForeignKey(JobWorkSentLine, on_delete=models.CASCADE, related_name='settlements')
+    job_work_return = models.ForeignKey(JobWorkReturn, on_delete=models.CASCADE, null=True, blank=True, related_name='settlements')
+    source = models.CharField(max_length=12, choices=SOURCE_CHOICES)
+    consumed_qty = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    returned_qty = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    consumed_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    returned_kg = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    written_off = models.BooleanField(default=False)
+    note = models.CharField(max_length=500, blank=True, default="")
+    created_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_work_settlements')
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'inventory_job_work_settlements'
+        ordering = ['created_at', 'id']
+        indexes = [models.Index(fields=['order', 'sent_line'], name='jobwork_settle_line_idx')]
 
 
 # ============================================================================

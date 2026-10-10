@@ -72,6 +72,36 @@ const vendorSchema = z.object({
   qc_required: z.boolean().default(false),
   jobwork_capabilities_text: z.string().optional(),
   jobwork_plants_text: z.string().optional(),
+  jobwork_rates: z
+    .array(
+      z.object({
+        process_code: z
+          .string()
+          .trim()
+          .min(1, "Enter the process code")
+          .max(50)
+          .transform((value) => value.toUpperCase()),
+        rate: z.coerce
+          .number({ error: "Enter the rate" })
+          .positive("Rate must be greater than zero"),
+        uom: z.enum(["PCS", "KG", "METER", "ROLL"]),
+      }),
+    )
+    .default([])
+    .superRefine((rows, ctx) => {
+      const seen = new Set<string>();
+      rows.forEach((row, index) => {
+        const key = `${row.process_code}|${row.uom}`;
+        if (seen.has(key)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [index, "process_code"],
+            message: "This process and unit already has a rate",
+          });
+        }
+        seen.add(key);
+      });
+    }),
 });
 
 type VendorFormInput = z.input<typeof vendorSchema>;
@@ -140,7 +170,16 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
         ", ",
       ),
       jobwork_plants_text: (initialData?.jobwork_plants || []).join(", "),
+      jobwork_rates: (initialData?.jobwork_rates || []).map((row) => ({
+        process_code: String(row.process_code || ""),
+        rate: Number(row.rate || 0),
+        uom: row.uom || "PCS",
+      })),
     },
+  });
+  const rateRows = useFieldArray({
+    control: form.control,
+    name: "jobwork_rates",
   });
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -167,6 +206,13 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
               : [],
             jobwork_plants: isJobworkVendor
               ? parseCsv(values.jobwork_plants_text)
+              : [],
+            jobwork_rates: isJobworkVendor
+              ? (values.jobwork_rates || []).map((row) => ({
+                  process_code: row.process_code,
+                  rate: String(row.rate),
+                  uom: row.uom,
+                }))
               : [],
           } as any),
         )}
@@ -875,6 +921,133 @@ export function VendorForm({ initialData, onSubmit, isLoading }: Props) {
                 </FormItem>
               )}
             />
+
+            <div className="space-y-2" data-testid="vendor-jobwork-rates">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <Label className="text-xs font-bold text-content-3 uppercase">
+                    Job-work rate card
+                  </Label>
+                  <p className="text-xs text-content-4">
+                    Agreed labour rate per process, excluding GST. New job-work
+                    orders use it as the default and bills are checked against
+                    it.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    rateRows.append({ process_code: "", rate: 0, uom: "PCS" })
+                  }
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Add rate
+                </Button>
+              </div>
+              {rateRows.fields.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-info-border bg-surface-1 px-3 py-2.5 text-xs text-content-3">
+                  No agreed rates yet. Add one per process (for example
+                  POUCHING at ₹2.50 per piece).
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {rateRows.fields.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="grid grid-cols-1 gap-2 rounded-xl border border-info-border bg-surface-1 p-2.5 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-start"
+                    >
+                      <FormField
+                        control={form.control}
+                        name={`jobwork_rates.${index}.process_code`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <Label className="sr-only">Process code</Label>
+                            <FormControl>
+                              <Input
+                                placeholder="Process code, e.g. POUCHING"
+                                aria-label={`Rate ${index + 1} process code`}
+                                className="text-sm font-mono uppercase"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`jobwork_rates.${index}.rate`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <Label className="sr-only">Rate</Label>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                inputMode="decimal"
+                                min={0}
+                                step="0.0001"
+                                placeholder="Rate (₹)"
+                                aria-label={`Rate ${index + 1} amount`}
+                                className="text-sm tabular-nums"
+                                value={
+                                  field.value === 0 || field.value == null
+                                    ? ""
+                                    : String(field.value)
+                                }
+                                onChange={(event) =>
+                                  field.onChange(event.target.value)
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`jobwork_rates.${index}.uom`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <Label className="sr-only">Unit</Label>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                            >
+                              <FormControl>
+                                <SelectTrigger
+                                  aria-label={`Rate ${index + 1} unit`}
+                                  className="text-sm"
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="PCS">Per piece</SelectItem>
+                                <SelectItem value="KG">Per kg</SelectItem>
+                                <SelectItem value="METER">Per metre</SelectItem>
+                                <SelectItem value="ROLL">Per roll</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 justify-self-end text-content-3"
+                        aria-label={`Remove rate ${index + 1}`}
+                        onClick={() => rateRows.remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

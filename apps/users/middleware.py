@@ -104,6 +104,30 @@ class RoleOverrideMiddleware:
                         except ValueError:
                             pass
                 return False
+            office_prefixes = ("/api/gate/document-pages", "/api/gate/gate-passes", "/api/gate/document-reports")
+            if any(path == prefix or path.startswith(prefix + "/") for prefix in office_prefixes):
+                return False
+            if path == "/api/gate/outward-documents" or path.startswith("/api/gate/outward-documents/"):
+                import re
+                from uuid import UUID
+
+                if method == "POST":
+                    return path == "/api/gate/outward-documents"
+                if method in {"GET", "HEAD", "OPTIONS"}:
+                    if path == "/api/gate/outward-documents":
+                        return True
+                    match = re.fullmatch(r"/api/gate/outward-documents/([^/]+)(?:/pages/([^/]+))?", path)
+                    if match:
+                        try:
+                            for value in match.groups():
+                                if value:
+                                    UUID(value)
+                            return True
+                        except ValueError:
+                            pass
+                return False
+            if path == "/api/gate/qr/resolve":
+                return method in {"GET", "HEAD", "OPTIONS"}
             if method not in {"GET", "HEAD", "OPTIONS"} and (path == "/api/gate/visitors" or path.startswith("/api/gate/visitors/")):
                 # QR submission records entry. Watchmen may only confirm exit,
                 # including when an older pending registration still exists.

@@ -66,6 +66,8 @@ import {
   type TradingGood,
 } from "@/services/trading-goods";
 import { MaterialPicker } from "@/components/inventory/material-picker";
+import { BillWorkspace, useBillWorkspaceLayout } from "@/components/documents/bill-workspace";
+import { inwardBillDocument } from "@/components/documents/inward-bill-document";
 
 import { RollLabelActions } from "./roll-label-actions";
 import { GrnBillBanner, useGrnBillContext, type BillPostWrapper } from "./gate-bills/bill-grn-context";
@@ -450,8 +452,9 @@ export function GrnSmartV36() {
   const rollUploadInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const [klass, setKlass] = React.useState<ClassKind>("BULK");
+  // Job-work returns are received in Job Work → Receive (not a GRN source).
   const [sourceType, setSourceType] = React.useState<
-    "PO" | "DIRECT" | "INTERPLANT" | "JOBWORK" | "MANUAL_PO"
+    "PO" | "DIRECT" | "INTERPLANT" | "MANUAL_PO"
   >("PO");
   const [poId, setPoId] = React.useState("");
   const [manualPoRef, setManualPoRef] = React.useState("");
@@ -540,7 +543,17 @@ export function GrnSmartV36() {
     staleTime: 15_000,
   });
   const vendors = vendorsQ.data || [];
-  const allLocations = React.useMemo(() => locationsQ.data || [], [locationsQ.data]);
+  // Virtual locations (job work, transit, scrap) can never receive purchased
+  // goods; the server refuses them too.
+  const allLocations = React.useMemo(
+    () =>
+      (locationsQ.data || []).filter((loc: any) => {
+        const type = String(loc?.type || "").toUpperCase();
+        const code = String(loc?.code || "").toUpperCase();
+        return !["JOBWORK", "TRANSIT", "SCRAP"].includes(type) && !["JOBWORK_OUT", "IN_TRANSIT", "SCRAP"].includes(code);
+      }),
+    [locationsQ.data],
+  );
   // Receiving a gate bill fixes the factory: only that plant's locations.
   const locations = React.useMemo(
     () =>
@@ -658,7 +671,7 @@ export function GrnSmartV36() {
   }, [billCtx]);
 
   const handleSourceTypeChange = React.useCallback(
-    (next: "PO" | "DIRECT" | "INTERPLANT" | "JOBWORK" | "MANUAL_PO") => {
+    (next: "PO" | "DIRECT" | "INTERPLANT" | "MANUAL_PO") => {
       if (billCtx.hasFrozen()) return;
       setSourceType(next);
       setLastPosted(null);
@@ -1095,8 +1108,29 @@ export function GrnSmartV36() {
     { label: "Period", ok: true },
   ];
 
+  // Gate-bill receiving: the bill sits beside the form (dock / float / pop-out /
+  // phone sheet) and the hero + big class cards collapse to give space back.
+  const billMode = billCtx.requested;
+  const workspaceDoc = React.useMemo(
+    () => (billCtx.bill ? inwardBillDocument(billCtx.bill) : null),
+    [billCtx.bill],
+  );
+
   return (
-    <div data-testid="smart-grn" className="w-full max-w-none space-y-4 pb-48">
+    <BillWorkspace
+      document={workspaceDoc}
+      headerActions={
+        workspaceDoc ? (
+          <Link
+            href={`/inventory/gate-bills/${workspaceDoc.id}`}
+            className="inline-flex h-7 items-center rounded-md px-2 text-[12px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-border [@media(pointer:coarse)]:h-11"
+          >
+            Open bill
+          </Link>
+        ) : null
+      }
+    >
+    <GrnLayoutRoot>
       {/* Header */}
       <div className="flex items-center justify-between">
         <Link
@@ -1109,7 +1143,7 @@ export function GrnSmartV36() {
           UNIFIED FORM
         </span>
       </div>
-      <GrnBillBanner ctx={billCtx} />
+      <GrnBillBanner ctx={billCtx} viewer={false} />
       {queryError && (
         <div className="rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-xs text-danger-fg">
           <div className="font-bold">Master data did not load.</div>
@@ -1195,7 +1229,8 @@ export function GrnSmartV36() {
         </div>
       )}
 
-      {/* Hero */}
+      {/* Hero (hidden while receiving a gate bill: the bill needs the space) */}
+      {!billMode && (
       <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-success-fg via-info-fg to-info-fg px-5 py-4 text-white shadow-2xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -1213,9 +1248,47 @@ export function GrnSmartV36() {
           </div>
         </div>
       </section>
+      )}
 
       <main className="space-y-5">
-        {/* 1 — Class picker */}
+        {/* 1 — Class picker (compact segmented control while receiving a gate bill) */}
+        {billMode ? (
+          <div
+            className="flex min-h-[40px] flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-surface-1 px-3 py-1 shadow-sm"
+            data-testid="smart-grn-class-compact"
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              Stock class
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="Stock class"
+              className="grid w-full grid-cols-2 gap-0.5 rounded-xl bg-surface-2 p-0.5 sm:inline-flex sm:w-auto sm:flex-wrap"
+            >
+              {CLASS_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={klass === option.id}
+                  data-testid={`smart-grn-class-${option.id}`}
+                  title={option.desc}
+                  disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
+                  onClick={() => handleClassChange(option.id)}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-border disabled:opacity-50 motion-reduce:transition-none [@media(pointer:coarse)]:h-11",
+                    klass === option.id
+                      ? "bg-surface-1 text-success-fg shadow-sm ring-1 ring-success-border"
+                      : "text-content-2 hover:bg-surface-1",
+                  )}
+                >
+                  {option.icon}
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
         <Section
           idx={1}
           eyebrow="What are you receiving?"
@@ -1223,44 +1296,21 @@ export function GrnSmartV36() {
           tone="emerald"
         >
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-            <ClassTile
-              id="BULK"
-              icon={<Boxes className="h-5 w-5" />}
-              label="Bulk material"
-              desc="Granules · masterbatch · adhesive · ink · solvent"
-              active={klass === "BULK"}
-              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
-              onClick={() => handleClassChange("BULK")}
-            />
-            <ClassTile
-              id="ROLL"
-              icon={<Layers className="h-5 w-5" />}
-              label="Film roll"
-              desc="Pre-printed · laminated · slit · sheet"
-              active={klass === "ROLL"}
-              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
-              onClick={() => handleClassChange("ROLL")}
-            />
-            <ClassTile
-              id="PACKAGING"
-              icon={<Package className="h-5 w-5" />}
-              label="Packaging"
-              desc="Inner pouches · gunny · carton · tape · POD"
-              active={klass === "PACKAGING"}
-              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
-              onClick={() => handleClassChange("PACKAGING")}
-            />
-            <ClassTile
-              id="TRADING"
-              icon={<Package className="h-5 w-5" />}
-              label="Trading goods"
-              desc="Ready pouches · resold rolls · outsourced items"
-              active={klass === "TRADING"}
-              disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
-              onClick={() => handleClassChange("TRADING")}
-            />
+            {CLASS_OPTIONS.map((option) => (
+              <ClassTile
+                key={option.id}
+                id={option.id}
+                icon={option.tileIcon}
+                label={option.label}
+                desc={option.desc}
+                active={klass === option.id}
+                disabled={Boolean(billCtx.uncertain) || submitMutation.isPending}
+                onClick={() => handleClassChange(option.id)}
+              />
+            ))}
           </div>
         </Section>
+        )}
 
         {/* 2 — Source */}
         <Section
@@ -1272,7 +1322,7 @@ export function GrnSmartV36() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Source type">
               <div className="flex flex-wrap gap-2">
-                {(["PO", "MANUAL_PO", "DIRECT", "JOBWORK"] as const).map(
+                {(["PO", "MANUAL_PO", "DIRECT"] as const).map(
                   (t) => (
                     <Toggle
                       key={t}
@@ -1284,16 +1334,22 @@ export function GrnSmartV36() {
                         ? "Against system PO"
                         : t === "MANUAL_PO"
                           ? "Manual vendor PO ref"
-                          : t === "DIRECT"
-                            ? "Direct receipt"
-                            : "Job work return"}
+                          : "Direct receipt"}
                     </Toggle>
                   ),
                 )}
               </div>
               <Link
+                href="/inventory/job-work"
+                data-testid="smart-grn-jobwork-hint"
+                className="mt-2 block text-[11px] font-semibold text-content-3 hover:text-primary"
+              >
+                Receiving goods back from a job worker? Use{" "}
+                <span className="text-primary underline">Job Work → Receive</span>
+              </Link>
+              <Link
                 href="/inventory/inter-plant"
-                className="mt-2 inline-flex text-[11px] font-bold text-primary hover:text-primary"
+                className="mt-1 inline-flex text-[11px] font-bold text-primary hover:text-primary"
               >
                 Inter-plant receipts are handled in Inter-Plant Flows.
               </Link>
@@ -2031,12 +2087,7 @@ export function GrnSmartV36() {
       </main>
 
       {/* Sticky footer */}
-      <div
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface-1/95 shadow-[0_-18px_50px_rgba(15,23,42,0.12)] backdrop-blur",
-          isPinned ? "lg:left-[304px]" : "lg:left-[86px]",
-        )}
-      >
+      <GrnFooterBar isPinned={isPinned}>
         <div className="mx-auto grid max-w-none gap-2 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
@@ -2088,8 +2139,8 @@ export function GrnSmartV36() {
               })}
             </span>
           </div>
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 basis-[20rem] flex-wrap items-center gap-2 text-xs">
               <span
                 className={cn(
                   "rounded-full px-2.5 py-0.5 font-semibold uppercase ring-1 ring-inset",
@@ -2114,7 +2165,7 @@ export function GrnSmartV36() {
                 </span>
               ))}
             </div>
-            <div className="flex items-center justify-end gap-2">
+            <div className="ml-auto flex items-center justify-end gap-2">
               <Link
                 href="/inventory"
                 className="rounded-xl border border-line bg-surface-1 px-3 py-1.5 text-xs font-bold text-content-2 shadow-sm"
@@ -2150,7 +2201,92 @@ export function GrnSmartV36() {
             </div>
           </div>
         </div>
+      </GrnFooterBar>
+    </GrnLayoutRoot>
+    </BillWorkspace>
+  );
+}
+
+// ─── Outer layout ─────────────────────────────────────────────────
+
+const CLASS_OPTIONS: Array<{
+  id: ClassKind;
+  label: string;
+  desc: string;
+  icon: React.ReactNode;
+  tileIcon: React.ReactNode;
+}> = [
+  {
+    id: "BULK",
+    label: "Bulk material",
+    desc: "Granules · masterbatch · adhesive · ink · solvent",
+    icon: <Boxes className="h-3.5 w-3.5" aria-hidden />,
+    tileIcon: <Boxes className="h-5 w-5" />,
+  },
+  {
+    id: "ROLL",
+    label: "Film roll",
+    desc: "Pre-printed · laminated · slit · sheet",
+    icon: <Layers className="h-3.5 w-3.5" aria-hidden />,
+    tileIcon: <Layers className="h-5 w-5" />,
+  },
+  {
+    id: "PACKAGING",
+    label: "Packaging",
+    desc: "Inner pouches · gunny · carton · tape · POD",
+    icon: <Package className="h-3.5 w-3.5" aria-hidden />,
+    tileIcon: <Package className="h-5 w-5" />,
+  },
+  {
+    id: "TRADING",
+    label: "Trading goods",
+    desc: "Ready pouches · resold rolls · outsourced items",
+    icon: <Package className="h-3.5 w-3.5" aria-hidden />,
+    tileIcon: <Package className="h-5 w-5" />,
+  },
+];
+
+/** Form root: room for the fixed footer, or none when the footer sticks inside the bill workspace pane. */
+function GrnLayoutRoot({ children }: { children: React.ReactNode }) {
+  const layout = useBillWorkspaceLayout();
+  return (
+    <div
+      data-testid="smart-grn"
+      className={cn("w-full max-w-none space-y-4", layout.paneScroll ? "pb-0" : "pb-48")}
+      style={layout.sheetOffset ? { paddingBottom: `calc(12rem + ${layout.sheetOffset}px)` } : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Totals / readiness / post bar. Fixed to the viewport bottom normally; inside
+ * the docked bill workspace it sticks to the bottom of the form pane so the
+ * bill never covers Post. Above the phone bill sheet it leaves the sheet's peek free.
+ */
+function GrnFooterBar({ isPinned, children }: { isPinned: boolean; children: React.ReactNode }) {
+  const layout = useBillWorkspaceLayout();
+  if (layout.paneScroll) {
+    return (
+      <div
+        data-testid="smart-grn-footer"
+        className="sticky bottom-0 z-30 rounded-2xl border border-line bg-surface-1 shadow-[0_-12px_30px_-12px_rgba(15,23,42,0.22)]"
+      >
+        {children}
       </div>
+    );
+  }
+  return (
+    <div
+      data-testid="smart-grn-footer"
+      className={cn(
+        "fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface-1/95 shadow-[0_-18px_50px_rgba(15,23,42,0.12)] backdrop-blur",
+        isPinned ? "lg:left-[304px]" : "lg:left-[86px]",
+      )}
+      style={layout.sheetOffset ? { bottom: layout.sheetOffset } : undefined}
+    >
+      {children}
     </div>
   );
 }

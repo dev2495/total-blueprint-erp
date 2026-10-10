@@ -136,6 +136,7 @@ export const MODULE_ORDER: { key: string; label: string }[] = [
   { key: "sales", label: "Sales" },
   { key: "production", label: "Production" },
   { key: "inventory", label: "Inventory" },
+  { key: "bills_documents", label: "Bills & documents" },
   { key: "master", label: "Master Data" },
   { key: "templates", label: "Templates" },
   { key: "engineering", label: "Engineering" },

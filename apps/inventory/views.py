@@ -13,6 +13,7 @@ from django.utils import timezone
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 from io import BytesIO
+import json
 import uuid
 import csv
 import logging
@@ -20,7 +21,6 @@ from collections import defaultdict
 
 from .models import (
     InventoryLocation,
-    JobWorkOrder,
     DeliveryChallan,
     InventoryRoll,
     RollMovement,
@@ -34,8 +34,8 @@ from .models import (
     Vendor,
 )
 from .serializers import (
-    InventoryLocationSerializer, JobWorkOrderSerializer,
-    BulkGRNSerializer, RollGRNSerializer, PackagingGRNSerializer, JobWorkDispatchSerializer, JobWorkReceiveSerializer,
+    InventoryLocationSerializer,
+    BulkGRNSerializer, RollGRNSerializer, PackagingGRNSerializer,
     DeliveryChallanSerializer, ChallanDispatchSerializer, ChallanReceiveSerializer,
     InventoryRollSerializer, RollDetailSerializer, RollMovementSerializer, RollConsumptionSerializer,
     RollReserveSerializer, RollReleaseSerializer, RollMoveSerializer, RollConsumeSerializer,
@@ -44,11 +44,11 @@ from .serializers import (
     resolve_roll_role, resolve_roll_stage_name,
 )
 from .services.grn import GRNService
+from .views_job_work import JobWorkOrderViewSet  # noqa: F401  (registered in urls.py)
 
 logger = logging.getLogger(__name__)
 from .services.grn_history import GRNHistoryService
 from .services.stock import StockService
-from .services.job_work import JobWorkService
 from .services.inter_plant import InterPlantService
 from .services.challan_pdf import ChallanPDFService
 from .services.roll_service import RollService
@@ -1217,6 +1217,67 @@ class StockViewSet(viewsets.ViewSet):
 
 from apps.gate.bill_services import with_bill_grn
 
+JOBWORK_GRN_REFUSAL = (
+    "Job-work returns cannot be posted as a GRN. Open Inventory → Job work, choose the order and use "
+    "Receive, so the material sent to the job worker is settled and nothing is counted twice."
+)
+
+
+def _refuse_jobwork_grn(request):
+    """Smart GRN once offered a "Job work return" source that created fresh
+    stock while the sent rolls stayed at JOBWORK_OUT. Refuse it server-side."""
+    data = getattr(request, "data", None)
+    source = str((data.get("source_type") if hasattr(data, "get") else "") or "").strip().upper().replace("-", "_")
+    if source in {"JOBWORK", "JOB_WORK", "JOBWORK_RETURN"}:
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        raise DRFValidationError({"source_type": JOBWORK_GRN_REFUSAL})
+
+
+VIRTUAL_RECEIPT_LOCATION_TYPES = {"JOBWORK", "TRANSIT", "SCRAP"}
+VIRTUAL_RECEIPT_LOCATION_CODES = {"JOBWORK_OUT", "IN_TRANSIT", "SCRAP"}
+RECEIPT_LOCATION_KEYS = {"location_id", "store_location_id", "fallback_location_id", "warehouse_id", "location"}
+
+
+def _receipt_location_ids(value, found=None):
+    found = set() if found is None else found
+    if isinstance(value, dict) or hasattr(value, "lists"):
+        items = value.lists() if hasattr(value, "lists") else value.items()
+        for key, item in items:
+            if key in RECEIPT_LOCATION_KEYS:
+                for candidate in (item if isinstance(item, (list, tuple)) else [item]):
+                    try:
+                        found.add(uuid.UUID(str(candidate)))
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+            else:
+                _receipt_location_ids(item, found)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _receipt_location_ids(item, found)
+    elif isinstance(value, str) and value[:1] in "[{":
+        try:
+            _receipt_location_ids(json.loads(value), found)
+        except ValueError:
+            pass
+    return found
+
+
+def _refuse_virtual_receipt_location(request):
+    """Purchased goods can never be received into a virtual location: stock at
+    JOBWORK_OUT / IN_TRANSIT / SCRAP would have no job-work order, challan or
+    scrap record behind it (phantom stock)."""
+    ids = _receipt_location_ids(getattr(request, "data", None) or {})
+    if not ids:
+        return
+    virtual = InventoryLocation.objects.filter(id__in=ids).filter(
+        Q(type__in=VIRTUAL_RECEIPT_LOCATION_TYPES) | Q(code__in=VIRTUAL_RECEIPT_LOCATION_CODES)
+    ).first()
+    if virtual is not None:
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+
+        raise DRFValidationError({"location_id": f"{virtual.name} is a virtual location (job work, transit or scrap). Receive goods into a real store location."})
+
 
 class GRNViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -1290,6 +1351,8 @@ class GRNViewSet(viewsets.ViewSet):
         Accepts the new class-tagged payload while keeping the existing bulk,
         roll, and packaging posting services as the accounting source of truth.
         """
+        _refuse_jobwork_grn(request)
+        _refuse_virtual_receipt_location(request)
         klass = str(request.data.get("klass") or request.data.get("stock_class") or "").upper().strip()
         if klass not in {"BULK", "ROLL", "PACKAGING"}:
             return Response({"error": "klass must be BULK, ROLL, or PACKAGING."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1725,6 +1788,8 @@ class GRNViewSet(viewsets.ViewSet):
         - GRN Header: two-column key/value sheet.
         - Roll Lines: one physical roll per row.
         """
+        _refuse_jobwork_grn(request)
+        _refuse_virtual_receipt_location(request)
         uploaded = request.FILES.get("file") or request.FILES.get("upload")
         if not uploaded:
             return Response({"error": "Upload an .xlsx file in field 'file'."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1972,6 +2037,8 @@ class GRNViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='post-roll-review')
     def post_roll_review(self, request):
         """Post reviewed/edited roll-upload rows after the UI validation step."""
+        _refuse_jobwork_grn(request)
+        _refuse_virtual_receipt_location(request)
         rows = request.data.get("review_rows") or request.data.get("rows") or []
         if not isinstance(rows, list) or not rows:
             return Response({"error": "Review rows are required before posting."}, status=status.HTTP_400_BAD_REQUEST)
@@ -2136,6 +2203,8 @@ class GRNViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], url_path='bulk')
     def create_bulk(self, request):
         """Phase 56: Bulk GRN with cost tracking."""
+        _refuse_jobwork_grn(request)
+        _refuse_virtual_receipt_location(request)
         serializer = BulkGRNSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2169,6 +2238,8 @@ class GRNViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='roll')
     def create_roll(self, request):
+        _refuse_jobwork_grn(request)
+        _refuse_virtual_receipt_location(request)
         serializer = RollGRNSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2203,6 +2274,8 @@ class GRNViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='packaging')
     def create_packaging(self, request):
+        _refuse_jobwork_grn(request)
+        _refuse_virtual_receipt_location(request)
         serializer = PackagingGRNSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2224,164 +2297,6 @@ class GRNViewSet(viewsets.ViewSet):
                 reference=data.get('reference', '') or 'PACKAGING_GRN',
             )
             return Response({"status": "success"}, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
-
-class JobWorkOrderViewSet(viewsets.ModelViewSet):
-    queryset = JobWorkOrder.objects.all().order_by('-created_at')
-    serializer_class = JobWorkOrderSerializer
-    permission_classes = [IsAuthenticated]
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            detail = getattr(e, "detail", None)
-            if isinstance(detail, dict):
-                return Response(
-                    {"status": "error", "message": "Validation failed.", "field_errors": detail},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            return Response({"status": "error", "message": "Request failed."}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'], url_path='vendor-candidates')
-    def vendor_candidates(self, request):
-        process_code = str(request.query_params.get('process_code') or "").upper()
-        plant_id = request.query_params.get('plant_id')
-        production_job_id = request.query_params.get('production_job_id')
-        plant = None
-        if production_job_id:
-            try:
-                job = ProductionJob.objects.select_related(
-                    'current_process',
-                    'process',
-                    'work_center__plant',
-                    'from_location__plant',
-                    'to_location__plant',
-                ).get(id=production_job_id)
-                process = job.current_process or job.process
-                process_code = str(getattr(process, "code", process_code) or "").upper()
-                if job.work_center and job.work_center.plant:
-                    plant = job.work_center.plant
-                elif job.from_location and job.from_location.plant:
-                    plant = job.from_location.plant
-                elif job.to_location and job.to_location.plant:
-                    plant = job.to_location.plant
-            except ProductionJob.DoesNotExist:
-                return Response({"status": "error", "message": "production_job not found."}, status=status.HTTP_404_NOT_FOUND)
-        elif plant_id:
-            try:
-                from apps.factory.models import Plant
-                plant = Plant.objects.get(id=plant_id)
-            except Exception:
-                logger.warning("Unable to resolve requested plant for compatible vendor lookup: %r", plant_id, exc_info=True)
-                plant = None
-
-        rows = []
-        for vendor, verdict in JobWorkService.compatible_vendors(process_code=process_code, plant=plant):
-            rows.append({
-                "id": str(vendor.id),
-                "name": vendor.name,
-                "code": vendor.code,
-                "type": vendor.type,
-                "status": vendor.status,
-                "turnaround_hours": vendor.turnaround_hours,
-                "qc_required": vendor.qc_required,
-                "jobwork_capabilities": vendor.jobwork_capabilities or [],
-                "jobwork_plants": vendor.jobwork_plants or [],
-                "vendor_capability_match": verdict["match"],
-                "match_reasons": verdict["reasons"],
-            })
-        return Response({"results": rows})
-
-    @action(detail=True, methods=['get'], url_path='eligible-rolls')
-    def eligible_rolls(self, request, pk=None):
-        try:
-            order = self.get_object()
-            qs = InventoryRoll.objects.select_related(
-                'material',
-                'location',
-                'location__plant',
-                'production_job',
-            ).filter(location__plant=order.plant)
-            if order.production_job_id:
-                # Prefer source job rolls first.
-                source_qs = qs.filter(
-                    Q(production_job=order.production_job) | Q(created_by_job=order.production_job)
-                )
-                if source_qs.exists():
-                    qs = source_qs
-            qs = qs.filter(status__in=['AVAILABLE', 'RESERVED', 'IN_PROCESS', 'SENT_JOBWORK']).order_by('-created_at')[:200]
-            rows = []
-            for roll in qs:
-                rows.append({
-                    "id": str(roll.id),
-                    "label_id": roll.label_id,
-                    "material_name": getattr(roll.material, "name", None),
-                    "status": roll.status,
-                    "weight_kg": float(roll.weight_kg or 0),
-                    "location_name": getattr(roll.location, "name", None),
-                    "production_job_number": getattr(roll.production_job, "job_number", None),
-                })
-            return Response({"results": rows})
-        except Exception as e:
-            return Response({"status": "error", "message": "Request failed."}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'], url_path='dispatch')
-    def dispatch_order(self, request, pk=None):
-        serializer = JobWorkDispatchSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        
-        try:
-            JobWorkService.dispatch_material(
-                order_id=pk,
-                roll_ids=[str(i) for i in data.get('roll_ids', [])],
-                bulk_items=data.get('bulk_items')
-            )
-            return Response({"status": "dispatched"})
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['post'])
-    def receive(self, request, pk=None):
-        serializer = JobWorkReceiveSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        
-        try:
-            target_location = InventoryLocation.objects.get(id=data['target_location_id'])
-            
-            received_rolls = []
-            if 'received_rolls' in data:
-                for item in data['received_rolls']:
-                    r_dict = dict(item)
-                    if 'material_id' not in r_dict or not r_dict['material_id']:
-                         return Response({"error": "material_id required for received rolls"}, status=400)
-                    
-                    r_dict['material_id'] = str(r_dict['material_id']) 
-                    r_dict['thickness_micron'] = float(r_dict['thickness_micron'])
-                    r_dict['width_mm'] = float(r_dict['width_mm'])
-                    r_dict['weight_kg'] = float(r_dict['weight_kg'])
-                    if r_dict.get('grade_id'):
-                        r_dict['grade_id'] = str(r_dict['grade_id'])
-                    if 'length_m' in r_dict:
-                        r_dict['length_m'] = float(r_dict['length_m'])
-                    received_rolls.append(r_dict)
-            
-            received_bulk = data.get('received_bulk', [])
-
-            JobWorkService.receive_material(
-                order_id=pk,
-                target_location=target_location,
-                received_rolls=received_rolls,
-                received_bulk=received_bulk
-            )
-            
-            return Response({"status": "received"})
         except Exception as e:
             return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
 

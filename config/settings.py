@@ -400,6 +400,23 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.mrp.tasks.run_nightly_mrp",
         "schedule": crontab(minute=0, hour=2),
     },
+    # Bills & documents, gate passes and job work reminders (IST mornings).
+    "document-reminders-daily": {
+        "task": "apps.gate.tasks.document_reminders_task",
+        "schedule": crontab(minute=30, hour=3),
+    },
+    "gate-pass-overdue-daily": {
+        "task": "apps.gate.tasks.gate_pass_overdue_task",
+        "schedule": crontab(minute=35, hour=3),
+    },
+    "jobwork-overdue-daily": {
+        "task": "apps.inventory.tasks.jobwork_overdue_task",
+        "schedule": crontab(minute=40, hour=3),
+    },
+    "document-storage-monitor-daily": {
+        "task": "apps.gate.tasks.document_storage_monitor_task",
+        "schedule": crontab(minute=50, hour=3),
+    },
 }
 
 

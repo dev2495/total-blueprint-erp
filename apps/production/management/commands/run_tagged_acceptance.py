@@ -1,4 +1,5 @@
 import json
+import uuid
 import csv
 import logging
 from decimal import Decimal
@@ -2257,16 +2258,19 @@ class Command(BaseCommand):
             production_job=stock_job,
             notes=f"E2E planned step jobwork {tag}",
         )
-        JobWorkService.dispatch_material(
+        JobWorkService.dispatch(
             order_id=str(planned_jobwork_order.id),
-            roll_ids=[str(wip_roll.id)],
-            bulk_items=None,
+            user=admin,
+            data={"client_token": str(uuid.uuid4()), "rolls": [{"roll_id": str(wip_roll.id), "value": "1.00"}], "hsn_code": "3920"},
         )
-        JobWorkService.receive_material(
+        jobwork_sent_line = planned_jobwork_order.sent_lines.get(roll=wip_roll)
+        JobWorkService.receive_return(
             order_id=str(planned_jobwork_order.id),
-            target_location=fg_location,
-            received_rolls=[{"roll_id": str(wip_roll.id)}],
-            received_bulk=None,
+            user=admin,
+            data={
+                "client_token": str(uuid.uuid4()),
+                "sent_lines": [{"sent_line_id": str(jobwork_sent_line.id), "disposition": "RETURNED", "location_id": str(fg_location.id)}],
+            },
         )
         wip_roll.refresh_from_db()
         planned_jobwork_order.refresh_from_db()

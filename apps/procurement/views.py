@@ -190,6 +190,8 @@ class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
                 return Response({"error": "Receiving location not found"}, status=404)
             if str(location.plant_id) != str(po.plant_id):
                 return Response({"error": "Receiving location must belong to the PO plant."}, status=400)
+            if location.type in {"JOBWORK", "TRANSIT", "SCRAP"} or location.code in {"JOBWORK_OUT", "IN_TRANSIT", "SCRAP"}:
+                return Response({"error": f"{location.name} is a virtual location (job work, transit or scrap). Receive goods into a real store location."}, status=400)
 
         # ── Idempotency layer ─────────────────────────────────────────────
         # Accept either an Idempotency-Key header or a body-level client_token.

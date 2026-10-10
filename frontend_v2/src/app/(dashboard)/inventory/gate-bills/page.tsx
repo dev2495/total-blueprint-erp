@@ -2,7 +2,7 @@
 
 import { GateBillQueue } from "@/components/inventory/gate-bills/bill-queue";
 
-/** Inventory: bills photographed at the gate that still need a GRN. */
+/** Inventory: Bills & documents — gate photos and office uploads, classified and received or filed. */
 export default function GateBillsPage() {
   return <GateBillQueue />;
 }

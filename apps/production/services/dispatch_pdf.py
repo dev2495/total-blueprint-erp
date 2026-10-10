@@ -234,6 +234,38 @@ def _line_spec(sales_order_item: Any, *, fallback_width: Any = None) -> dict[str
     }
 
 
+def _gate_qr_token(challan: Any) -> str | None:
+    """Signed gate QR (``apps.gate.qr``) for a saved sales delivery challan.
+
+    The watchman scans it at the gate so the outward photo links itself to this
+    challan. Unsaved/preview objects without a UUID get no QR.
+    """
+    try:
+        from apps.gate.qr import make_token
+
+        return make_token("SALES_DC", getattr(challan, "id", None))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _gate_qr_svg(token: str) -> str:
+    from apps.gate.qr import qr_svg
+
+    svg = qr_svg(token, box_size=4)
+    if svg.startswith("<?xml"):
+        svg = svg.split("?>", 1)[1].strip()
+    return svg
+
+
+def _factory_zone():
+    """Printed documents show factory (gate) time, not the server's UTC."""
+    from zoneinfo import ZoneInfo
+
+    from django.conf import settings
+
+    return ZoneInfo(getattr(settings, "GATE_TIME_ZONE", "") or "Asia/Kolkata")
+
+
 class DispatchListPDFService:
     """
     Dot-matrix friendly production dispatch and ready-slip PDFs.
@@ -273,6 +305,10 @@ class DispatchListPDFService:
     # edges.  The 96-column form fits A4 landscape at 10 CPI.
     PDF_MARGIN_LEFT = 24.0
     PDF_MARGIN_TOP = 30.0
+    # Gate QR on the office PDF only: drawn in the free band right of the
+    # 96-column text (text ends at 24 + 96 * 7.2 = 715 pt; A4 landscape is
+    # 842 pt wide). The raw ESC/P tractor job is unchanged.
+    PDF_GATE_QR_SIZE = 78.0
     ESC = "\x1b"
     # Keep the original prefix first so helpers already installed at the
     # customer site continue to accept jobs generated after this upgrade.
@@ -314,7 +350,7 @@ class DispatchListPDFService:
     def _fmt_dt(value):
         if not value:
             return "-"
-        local = timezone.localtime(value) if timezone.is_aware(value) else value
+        local = timezone.localtime(value, _factory_zone()) if timezone.is_aware(value) else value
         return local.strftime("%d/%m/%Y %H:%M")
 
     @staticmethod
@@ -859,6 +895,7 @@ class DispatchListPDFService:
         balance_rows: list[dict[str, Any]] | None = None,
         signature_labels: tuple[str, str, str] | None = None,
         detail_lines: list[str] | None = None,
+        qr_token: str | None = None,
     ) -> BytesIO:
         if canvas is None:
             raise RuntimeError("PDF engine unavailable: reportlab is not installed.")
@@ -887,6 +924,8 @@ class DispatchListPDFService:
         for page_number, page in enumerate(pages):
             if page_number:
                 pdf.showPage()
+            elif qr_token:
+                cls._draw_gate_qr(pdf, qr_token, page_size)
             # Twelve-point Courier is exactly 10 CPI and keeps the canonical
             # 96-column form inside A4 landscape without viewer scaling.
             y = height - cls.PDF_MARGIN_TOP
@@ -900,6 +939,21 @@ class DispatchListPDFService:
         pdf.save()
         buffer.seek(0)
         return buffer
+
+    @classmethod
+    def _draw_gate_qr(cls, pdf, token: str, page_size) -> None:
+        from reportlab.lib.utils import ImageReader
+
+        from apps.gate.qr import qr_png_bytes
+
+        width, height = page_size
+        size = cls.PDF_GATE_QR_SIZE
+        x = width - cls.PDF_MARGIN_LEFT - size
+        y = height - cls.PDF_MARGIN_TOP + 10 - size
+        pdf.drawImage(ImageReader(BytesIO(qr_png_bytes(token))), x, y, size, size)
+        pdf.setFont("Helvetica", 6.5)
+        pdf.drawCentredString(x + size / 2, y - 8, "GATE QR")
+        pdf.setKeywords(f"tpp-gate-qr {token}")
 
     @classmethod
     def _render_rows_text(
@@ -924,13 +978,15 @@ class DispatchListPDFService:
         totals = cls._totals(normalized_rows)
         printed_at = cls._fmt_dt(timezone.now())
         if hasattr(document_date, "strftime"):
+            if hasattr(document_date, "tzinfo") and timezone.is_aware(document_date):
+                document_date = timezone.localtime(document_date, _factory_zone())
             slip_date = document_date.strftime("%d/%m/%y")
         else:
             raw_date = str(document_date or "")[:10]
             try:
                 slip_date = timezone.datetime.fromisoformat(raw_date).strftime("%d/%m/%y")
             except (TypeError, ValueError):
-                slip_date = timezone.localdate().strftime("%d/%m/%y")
+                slip_date = timezone.localdate(timezone=_factory_zone()).strftime("%d/%m/%y")
 
         def clean(value: Any) -> str:
             return re.sub(r"\s+", " ", str(value or "").replace("\n", " ")).strip().encode("ascii", "replace").decode("ascii")
@@ -1212,11 +1268,13 @@ class DispatchListPDFService:
         return text
 
     @classmethod
-    def _render_rows_text_html(cls, text: str, *, title: str) -> str:
+    def _render_rows_text_html(cls, text: str, *, title: str, qr_token: str | None = None) -> str:
         pages = [page.replace("\r\n", "\n") for page in text.rstrip("\r\n").split("\f") if page]
         if not pages:
             pages = [""]
         page_html = "\n".join(f'  <pre class="sheet">{escape(page)}</pre>' for page in pages)
+        if qr_token:
+            page_html = f'  <div class="gate-qr" role="img" aria-label="Gate QR code">{_gate_qr_svg(qr_token)}<span>GATE QR</span></div>\n' + page_html
         return f"""<!doctype html>
 <html>
 <head>
@@ -1247,7 +1305,10 @@ class DispatchListPDFService:
     pre.sheet:last-of-type {{
       page-break-after: auto;
     }}
+    .gate-qr {{ position: absolute; top: 44px; right: 16px; width: 1.05in; text-align: center; font: 700 8px Arial, sans-serif; color: #000; }}
+    .gate-qr svg {{ display: block; width: 1.05in; height: 1.05in; }}
     @media print {{
+      .gate-qr {{ top: 0; right: 0; }}
       .toolbar {{ display: none; }}
       pre.sheet {{
         font-size: 12pt;
@@ -1319,6 +1380,7 @@ class DispatchListPDFService:
                 f"TRANSPORT NAME : {_text(document.get('transporter_name'), 'NOT RECORDED')}",
                 f"LOCATION : {_text(delivery.get('location'), 'NOT RECORDED')}",
             ],
+            qr_token=_gate_qr_token(challan),
         )
 
     @classmethod
@@ -1343,7 +1405,7 @@ class DispatchListPDFService:
 
     @classmethod
     def render_html(cls, challan: DeliveryChallan) -> str:
-        return cls._render_rows_text_html(cls.render_text(challan), title=f"{challan.dc_no} dispatch slip")
+        return cls._render_rows_text_html(cls.render_text(challan), title=f"{challan.dc_no} dispatch slip", qr_token=_gate_qr_token(challan))
 
     @classmethod
     def render_escp(cls, challan: DeliveryChallan) -> BytesIO:
@@ -1373,7 +1435,7 @@ class DispatchListPDFService:
             sales_order_no=sales_order.order_number or "-",
             plant_name="-",
             rows=rows,
-            document_date=timezone.localdate(),
+            document_date=timezone.localdate(timezone=_factory_zone()),
             signature_labels=("Packed By", "Checked By", "Dispatch Incharge"),
             footer_note="Packing verification slip. Create dispatch slip only after physical loading.",
         )
@@ -1398,7 +1460,7 @@ class DispatchListPDFService:
             sales_order_no=sales_order.order_number or "-",
             plant_name="-",
             rows=rows,
-            document_date=timezone.localdate(),
+            document_date=timezone.localdate(timezone=_factory_zone()),
             signature_labels=("Packed By", "Checked By", "Dispatch Incharge"),
             footer_note="Packing verification slip. Create dispatch slip only after physical loading.",
         )

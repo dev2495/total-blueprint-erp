@@ -4,8 +4,19 @@ from django.db import transaction
 from apps.factory.models import Machine, WorkCenter
 
 from .models import User, Role, WorkCenterAssignment, MachineAssignment
-from .permission_registry import GATE_MASTER_PERMISSIONS, ROLE_PERMISSION_MATRIX, effective_permissions_for_role
+from .permission_registry import DOCUMENT_PAGE_PERMISSIONS, DOCUMENT_PERMISSIONS, GATE_MASTER_PERMISSIONS, ROLE_PERMISSION_MATRIX, effective_permissions_for_role
 from .role_catalog import canonicalize_role_matrix, get_canonical_role_code
+
+# Landing for custom roles, in order of preference (permission, route).
+CUSTOM_ROLE_LANDINGS = (
+    ("page.inventory.gate_bills.view", "/inventory/gate-bills"),
+    ("page.inventory.outward_documents.view", "/inventory/outward-documents"),
+    ("inventory.view", "/inventory/rolls"),
+)
+
+# Document rights that include reading the bill register (documents.view).
+VIEW_IMPLYING_DOCUMENT_PERMISSIONS = frozenset({"documents.upload", "documents.manage", "gatepass.manage"})
+
 
 class PermissionService:
     @staticmethod
@@ -15,8 +26,20 @@ class PermissionService:
         return "WATCHMAN" in {actual, effective}
 
     @staticmethod
+    def actual_account_permissions(user) -> set:
+        """Grants of the real account: canonical matrix for its actual role, the
+        Role matrix overrides (role.default_permissions) and user extras.
+        Role previews and wildcards never add bill/document authority."""
+        actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
+        granted = set(effective_permissions_for_role(actual))
+        granted.update(getattr(getattr(user, "role", None), "default_permissions", []) or [])
+        granted.update(getattr(user, "extra_permissions", []) or [])
+        granted.discard("*")
+        return granted
+
+    @staticmethod
     def has_inventory_bill_review(user) -> bool:
-        """Receipt authority from the real account; previews/wildcards add none."""
+        """Stock-receipt authority against bills, from the real account only."""
         if not user or not getattr(user, "is_authenticated", False) or not getattr(user, "is_active", False):
             return False
         if PermissionService.is_watchman(user):
@@ -24,11 +47,45 @@ class PermissionService:
         if PermissionService.is_gate_master(user):
             return True
         actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
-        actual_permissions = set(effective_permissions_for_role(actual))
-        actual_permissions.update(getattr(getattr(user, "role", None), "default_permissions", []) or [])
-        actual_permissions.update(getattr(user, "extra_permissions", []) or [])
+        actual_permissions = PermissionService.actual_account_permissions(user)
         can_receive = bool({"inventory.manage", "procurement.manage"} & actual_permissions)
-        return can_receive and (actual == "STORE" or "gate.bill.review" in actual_permissions)
+        return can_receive and (actual == "STORE" or bool({"gate.bill.review", "documents.manage"} & actual_permissions))
+
+    @staticmethod
+    def has_document_permission(user, code: str) -> bool:
+        """Bill & document rights (documents.*, gatepass.manage, outward.reconcile).
+
+        Owner/Admin: always. Watchman: never. Everyone else: only what the real
+        account is granted (Inventory/STORE by default, or a Role-matrix /
+        user override). documents.view is implied by documents.upload,
+        documents.manage and gatepass.manage. outward.reconcile alone does not
+        open the inward bill register: it is the outward-photo matching right.
+        """
+        if code not in DOCUMENT_PERMISSIONS:
+            raise ValueError(f"Unknown document permission: {code}")
+        if not user or not getattr(user, "is_authenticated", False) or not getattr(user, "is_active", False):
+            return False
+        if PermissionService.is_watchman(user):
+            return False
+        if PermissionService.is_gate_master(user):
+            return True
+        granted = PermissionService.actual_account_permissions(user)
+        if code in granted:
+            return True
+        return code == "documents.view" and bool(VIEW_IMPLYING_DOCUMENT_PERMISSIONS & granted)
+
+    @staticmethod
+    def document_entitlements(user) -> dict:
+        return {code: PermissionService.has_document_permission(user, code) for code in sorted(DOCUMENT_PERMISSIONS)}
+
+    @staticmethod
+    def document_plants(user):
+        """Bill & document scope is company-wide (for any document right), like inventory receipt scope.
+        Callers still check the exact right (e.g. documents.view for bills, outward.reconcile for outward)."""
+        from apps.factory.models import Plant
+
+        holds = PermissionService.has_document_permission(user, "documents.view") or PermissionService.has_document_permission(user, "outward.reconcile")
+        return Plant.objects.all() if holds else Plant.objects.none()
 
     @staticmethod
     def inventory_review_plants(user):
@@ -143,9 +200,24 @@ class PermissionService:
             perms.update(GATE_MASTER_PERMISSIONS)
 
         if PermissionService.has_inventory_bill_review(user):
-            perms.update({"gate.bill.review", "page.inventory.gate_bills.view", "notifications.view"})
+            perms.update({"gate.bill.review", "notifications.view"})
         else:
-            perms.difference_update({"gate.bill.review", "page.inventory.gate_bills.view"})
+            perms.discard("gate.bill.review")
+
+        # Bill & document rights follow the real account (never a preview).
+        documents = PermissionService.document_entitlements(user)
+        for code, allowed in documents.items():
+            if allowed:
+                perms.add(code)
+            else:
+                perms.discard(code)
+        for page, needs in DOCUMENT_PAGE_PERMISSIONS.items():
+            if any(documents.get(code) for code in needs) or (page == "page.inventory.gate_bills.view" and PermissionService.has_inventory_bill_review(user)):
+                perms.add(page)
+            else:
+                perms.discard(page)
+        if any(documents.values()):
+            perms.add("notifications.view")
 
         # Self-account actions must remain available across role matrix drifts.
         perms.add("users.self_manage")
@@ -287,6 +359,7 @@ class PermissionService:
             "gate_master": PermissionService.is_gate_master(user),
             "inventory_bill_review": PermissionService.has_inventory_bill_review(user),
             "inventory_bill_scope": "ALL_PLANTS" if PermissionService.has_inventory_bill_review(user) else "NONE",
+            "documents": PermissionService.document_entitlements(user),
             "landing_page": PermissionService.get_landing_route(user)
         }
 
@@ -322,7 +395,18 @@ class PermissionService:
             'WATCHMAN': '/gate',
         }
         
-        return ROUTING_MAP.get(code, '/dashboard/admin')
+        if code in ROUTING_MAP:
+            return ROUTING_MAP[code]
+        # A custom role made in the Role matrix (e.g. Accounts with bill
+        # upload) opens the first workspace it can actually use, never the
+        # admin console it cannot load.
+        if PermissionService.is_gate_master(user):
+            return '/dashboard/admin'
+        granted = set(PermissionService.get_user_permissions(user))
+        for permission, route in CUSTOM_ROLE_LANDINGS:
+            if permission in granted:
+                return route
+        return '/dashboard/admin'
 
     @staticmethod
     def get_role_matrix():

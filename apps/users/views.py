@@ -874,9 +874,9 @@ class NotificationViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='inward-bill-summary')
     def inward_bill_summary(self, request):
-        if not PermissionService.has_inventory_bill_review(request.user):
+        if not (PermissionService.has_inventory_bill_review(request.user) or PermissionService.has_document_permission(request.user, 'documents.view')):
             return Response({'detail': 'Receipt review access is required.'}, status=403)
-        from .services.bill_notifications import pending_bill_summary
+        from .services.bill_notifications import pending_bill_summary, summary_plants
         import uuid
 
         raw_plant = request.query_params.get('plant')
@@ -884,7 +884,7 @@ class NotificationViewSet(viewsets.ViewSet):
             plant_id = uuid.UUID(raw_plant) if raw_plant else None
         except (ValueError, TypeError, AttributeError):
             return Response({'detail': 'Use a valid plant reference.'}, status=400)
-        if plant_id and not PermissionService.inventory_review_plants(request.user).filter(pk=plant_id).exists():
+        if plant_id and not summary_plants(request.user).filter(pk=plant_id).exists():
             return Response({'detail': 'Plant was not found in your receipt scope.'}, status=404)
         response = Response(pending_bill_summary(request.user, plant_id))
         response['Cache-Control'] = 'private, no-store'

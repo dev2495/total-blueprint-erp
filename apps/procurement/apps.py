@@ -6,3 +6,8 @@ class ProcurementConfig(AppConfig):
     name = "apps.procurement"
     label = "procurement"
     verbose_name = "Procurement"
+
+    def ready(self):
+        # Registers the GENERAL_RECEIPT bill receipt kind in every process
+        # (web, Celery, management commands) so bill linking always works.
+        from . import general_receipt_services  # noqa: F401

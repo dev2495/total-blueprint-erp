@@ -28,3 +28,6 @@ qrcode==8.2
 # Parser security floor; artwork PDFs are validated before storage.
 sqlparse>=0.6.0
 pypdf>=6.13.2
+
+# Office bill PDFs are rendered to page images server-side (original kept).
+pypdfium2==5.13.0

@@ -23,6 +23,18 @@ PUBLIC_ENDPOINT_PREFIXES = (
 ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("GET", "/api/gate/inward-bills/", "gate.bill.review"),
     ("POST", "/api/gate/inward-bills/", "gate.bill.submit"),
+    # Bills & documents (office). Views re-check the exact action permission.
+    ("GET", "/api/gate/document-pages/", "documents.view"),
+    ("POST", "/api/gate/document-pages/", "documents.view"),
+    ("GET", "/api/gate/outward-documents/", "outward.reconcile"),
+    ("POST", "/api/gate/outward-documents/", "outward.reconcile"),
+    ("GET", "/api/gate/qr/resolve", "outward.reconcile"),
+    ("GET", "/api/gate/gate-passes/", "documents.view"),
+    ("POST", "/api/gate/gate-passes/", "gatepass.manage"),
+    ("PATCH", "/api/gate/gate-passes/", "gatepass.manage"),
+    ("GET", "/api/gate/document-reports/", "documents.view"),
+    ("GET", "/api/procurement/general-receipts/", "documents.view"),
+    ("POST", "/api/procurement/general-receipts/", "documents.manage"),
     ("GET", "/api/gate/reports/", "gate.reports"),
     ("GET", "/api/gate/history/", "gate.view"),
     ("GET", "/api/gate/audit/", "gate.audit"),
@@ -242,7 +254,10 @@ FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
     {"permission": "page.inventory.packaging.view", "route": "/inventory/packaging", "label": "Packaging workspace"},
     {"permission": "page.inventory.addons.view", "route": "/inventory/addons", "label": "Ink and adhesive inventory"},
     {"permission": "page.inventory.grn.view", "route": "/inventory/grn", "label": "Smart GRN"},
-    {"permission": "page.inventory.gate_bills.view", "route": "/inventory/gate-bills", "label": "Inward bill queue"},
+    {"permission": "page.inventory.gate_bills.view", "route": "/inventory/gate-bills", "label": "Bills & documents"},
+    {"permission": "page.inventory.general_receipts.view", "route": "/inventory/general-receipts", "label": "General receipts (spares, machinery, services)"},
+    {"permission": "page.inventory.gate_passes.view", "route": "/inventory/gate-passes", "label": "Gate passes (RGP / NRGP)"},
+    {"permission": "page.inventory.outward_documents.view", "route": "/inventory/outward-documents", "label": "Outward gate documents"},
     {"permission": "page.inventory.grn_history.view", "route": "/inventory/grn-history", "label": "GRN history"},
     {"permission": "page.inventory.stock_lifecycle.view", "route": "/inventory/stock-lifecycle", "label": "Stock lifecycle"},
     {"permission": "page.inventory.count.view", "route": "/inventory/count", "label": "Physical count"},
@@ -312,8 +327,14 @@ PERMISSION_LABELS: Dict[str, str] = {
     "gate.audit": "Admin and owner gate audit trail",
     "gate.private": "Admin and owner private visitor images",
     "gate.bill.submit": "Capture inward bill pages at the gate",
-    "gate.bill.review": "Review inward bills and link inventory receipts",
-    "page.inventory.gate_bills.view": "Inward bill review queue",
+    "gate.bill.review": "Receive stock (GRN) against bills — also needs inventory or procurement manage",
+    "page.inventory.gate_bills.view": "Bills & documents register",
+    "gate.outward.submit": "Photograph outward documents at the gate",
+    "documents.view": "View bills & documents, pages, general receipts, gate passes and reports",
+    "documents.upload": "Upload bills received at the office (photos or PDF)",
+    "documents.manage": "Classify, file and void bills; record general receipts (spares, machinery, services)",
+    "gatepass.manage": "Create, issue, return and close gate passes (RGP / NRGP)",
+    "outward.reconcile": "Match outward gate photos to ERP documents",
     "logistics.view": "Logistics dispatch data",
     "logistics.manage": "Create and manage dispatch challans",
     "packing.view": "Packing yard data",
@@ -325,15 +346,30 @@ PERMISSION_LABELS: Dict[str, str] = {
 }
 
 
+# Bill & document rights. Inventory (STORE) holds them by default; any other
+# role or account gets them only through the Role matrix / user overrides.
+# Watchman never holds them (closed role). Resolved from the actual account.
+DOCUMENT_PERMISSIONS = {
+    "documents.view", "documents.upload", "documents.manage", "gatepass.manage", "outward.reconcile",
+}
+DOCUMENT_PAGE_PERMISSIONS = {
+    "page.inventory.gate_bills.view": {"documents.view"},
+    "page.inventory.general_receipts.view": {"documents.view"},
+    "page.inventory.gate_passes.view": {"documents.view", "gatepass.manage"},
+    "page.inventory.outward_documents.view": {"outward.reconcile"},
+}
+
+BILLS_DOCUMENTS_GROUP = DOCUMENT_PERMISSIONS | set(DOCUMENT_PAGE_PERMISSIONS) | {"gate.bill.review"}
+
 GATE_MASTER_PERMISSIONS = {
     "gate.log", "gate.view", "gate.reports", "gate.reconcile", "gate.audit", "gate.private",
     "page.gate.watchman.view", "page.gate.history.view", "page.analytics.reports_gate.view",
-    "gate.bill.submit", "gate.bill.review", "page.inventory.gate_bills.view",
-}
+    "gate.bill.submit", "gate.bill.review", "page.inventory.gate_bills.view", "gate.outward.submit",
+} | DOCUMENT_PERMISSIONS | set(DOCUMENT_PAGE_PERMISSIONS)
 
 
 ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
-    "WATCHMAN": ["users.self_manage", "gate.log", "gate.bill.submit", "page.gate.watchman.view", "page.profile.view"],
+    "WATCHMAN": ["users.self_manage", "gate.log", "gate.bill.submit", "gate.outward.submit", "page.gate.watchman.view", "page.profile.view"],
     "OWNER": ["*"],
     "SUPER_ADMIN": ["*"],
     "ADMIN": ["*"],
@@ -399,6 +435,14 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
     "STORE": [
         "gate.bill.review",
         "page.inventory.gate_bills.view",
+        "documents.view",
+        "documents.upload",
+        "documents.manage",
+        "gatepass.manage",
+        "outward.reconcile",
+        "page.inventory.general_receipts.view",
+        "page.inventory.gate_passes.view",
+        "page.inventory.outward_documents.view",
         "users.self_manage",
         "inventory.view",
         "inventory.manage",
@@ -476,6 +520,10 @@ def is_public_endpoint(path: str) -> bool:
 def resolve_required_permission(path: str, method: str) -> Optional[str]:
     bill_path = str(path or "").split("?", 1)[0].rstrip("/")
     if bill_path == "/api/gate/inward-bills" or bill_path.startswith("/api/gate/inward-bills/"):
+        if str(method or "").upper() == "POST" and bill_path == "/api/gate/inward-bills/office-upload":
+            return "documents.upload"
+        if str(method or "").upper() == "POST" and re.fullmatch(r"/api/gate/inward-bills/[^/]+/(classify|file|attach|detach|reopen)", bill_path):
+            return "documents.manage"
         if str(method or "").upper() == "POST" and re.fullmatch(r"/api/gate/inward-bills/[^/]+/(review|link-receipts|complete|void)", bill_path):
             return "gate.bill.review"
         if str(method or "").upper() == "POST" and bill_path == "/api/gate/inward-bills":
@@ -547,6 +595,9 @@ def get_permission_catalog() -> List[Dict[str, object]]:
             action_key = "*"
         else:
             module_key, _, action_key = permission.partition(".")
+            if permission in BILLS_DOCUMENTS_GROUP:
+                # One "Bills & documents" group in the Role matrix and user overrides.
+                module_key = "bills_documents"
         sources = sorted(sources_by_permission[permission])
         row = {
             "permission": permission,

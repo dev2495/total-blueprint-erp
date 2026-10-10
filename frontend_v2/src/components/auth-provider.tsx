@@ -4,6 +4,7 @@ import { createContext, startTransition, useCallback, useContext, useEffect, use
 import Cookies from "js-cookie";
 import { useRouter, usePathname } from "next/navigation";
 import { api, ensureCsrfToken, refreshSessionCookie, SKIP_AUTH_REFRESH_HEADER } from "@/lib/api";
+import { isNavigableRoute } from "@/lib/navigation-routes";
 import { getLandingPage, ROLE_LANDING_PAGES } from "@/lib/roles";
 import { systemUserService } from "@/services/system-users";
 
@@ -26,6 +27,8 @@ interface User {
         gate_master?: boolean;
         inventory_bill_review?: boolean;
         inventory_bill_scope?: string;
+        /** Bill & document rights resolved from the real account (never a preview). */
+        documents?: Record<string, boolean>;
         landing_page: string;
         permissions: string[];
         permission_map?: Record<string, string[]>;
@@ -263,8 +266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Legacy aliases (older backend / UI used these).
             if (landing === "/dashboard/super-admin") return "/dashboard/admin";
 
-            // Only allow known top-level route families.
-            const isValidRoute = Object.values(ROLE_LANDING_PAGES).includes(landing);
+            // Only allow role landing pages or known app routes (custom roles land on their first workspace).
+            const isValidRoute = Object.values(ROLE_LANDING_PAGES).includes(landing) || isNavigableRoute(landing);
             if (isValidRoute) {
                 return landing;
             }

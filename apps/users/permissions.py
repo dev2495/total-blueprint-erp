@@ -50,8 +50,22 @@ class RoleBasedAccessPermission(BasePermission):
             if required == "gate.bill.submit":
                 return PermissionService.is_gate_master(user)
             if required == "gate.bill.review":
-                return PermissionService.has_inventory_bill_review(user)
+                # Views enforce the exact action (stock posting needs receipt
+                # authority; non-stock filing needs documents.manage).
+                return PermissionService.has_inventory_bill_review(user) or PermissionService.has_document_permission(user, "documents.view")
+            if required in {"documents.upload", "documents.manage", "documents.view"}:
+                return PermissionService.has_document_permission(user, required)
             return False
+
+        if bill_path == "/api/gate/document-pages" or bill_path.startswith("/api/gate/document-pages/"):
+            # Shared page views serve inward bill pages and outward photos; the
+            # view re-checks the page kind (inward: documents.view / bill
+            # review, outward: outward.reconcile).
+            return (
+                PermissionService.has_document_permission(user, "documents.view")
+                or PermissionService.has_document_permission(user, "outward.reconcile")
+                or PermissionService.has_inventory_bill_review(user)
+            )
 
         if getattr(user, "is_superuser", False) or getattr(user, "is_owner", False):
             return True

@@ -48,6 +48,8 @@ type GateContextValue = {
   canReports: boolean;
   /** Record a bill-photo arrival (watchman or master). */
   canSubmitBills: boolean;
+  /** Photograph papers leaving the gate (watchman or master; gate.outward.submit). */
+  canSubmitOutward: boolean;
   /** Inventory gate-bill queue / receiving (explicit backend entitlement). */
   canReviewBills: boolean;
   operatorName: string;
@@ -151,6 +153,7 @@ function GatePlantScope({
       canLog,
       canReports,
       canSubmitBills: canSubmitGateBills(user, effectiveRole),
+      canSubmitOutward: canSubmitGateBills(user, effectiveRole),
       canReviewBills: canReviewGateBills(user, effectiveRole),
       operatorName: user?.first_name || user?.full_name || user?.username || "",
     }),
@@ -315,7 +318,7 @@ function GateTopBar() {
 
 const TABS = [
   { href: "/gate", label: "Gate", icon: Home, match: (p: string) => p === "/gate" },
-  { href: "/gate/goods", label: "Goods", icon: ArrowLeftRight, match: (p: string) => p.startsWith("/gate/goods") || p.startsWith("/gate/inward-bills") },
+  { href: "/gate/goods", label: "Goods", icon: ArrowLeftRight, match: (p: string) => p.startsWith("/gate/goods") || p.startsWith("/gate/inward-bills") || p.startsWith("/gate/outward") },
   { href: "/gate/visitors", label: "Visitors", icon: Users, match: (p: string) => p.startsWith("/gate/visitors") },
   { href: "/gate/register", label: "Today", icon: ClipboardList, match: (p: string) => p.startsWith("/gate/register") },
 ];

@@ -25,3 +25,12 @@ def low_stock_scan():
     except Exception as exc:
         logger.exception("low_stock_scan failed: %s", exc)
         return {"raised": 0, "resolved": 0, "scanned": 0, "error": str(exc)}
+
+
+@shared_task(name="apps.inventory.tasks.jobwork_overdue_task", ignore_result=True)
+def jobwork_overdue_task():
+    """Daily: job-work orders past their expected return date and material held
+    by a job worker for 300+ days (GST ITC-04 one-year limit)."""
+    from apps.inventory.services.job_work_integrations import run_jobwork_overdue_reminders
+
+    return run_jobwork_overdue_reminders()

@@ -44,9 +44,10 @@ function useSidebarAuth() {
       isSuperuser: user?.is_superuser,
       gateMaster: user?.entitlements?.gate_master,
       inventoryBillReview: user?.entitlements?.inventory_bill_review,
+      documentEntitlements: user?.entitlements?.documents,
       grantedPermissions: extraPermissions,
     }),
-    [baseRoleCode, extraPermissions, user?.is_owner, user?.is_superuser, user?.entitlements?.gate_master, user?.entitlements?.inventory_bill_review, userRoleCode],
+    [baseRoleCode, extraPermissions, user?.is_owner, user?.is_superuser, user?.entitlements?.gate_master, user?.entitlements?.inventory_bill_review, user?.entitlements?.documents, userRoleCode],
   );
 
   const authorizedItems = useMemo(

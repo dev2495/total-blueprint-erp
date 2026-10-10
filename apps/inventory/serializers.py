@@ -3,11 +3,14 @@ import logging
 from rest_framework import serializers
 from .models import (
     InventoryLocation, InventoryRoll, InventoryBulk, BulkTransaction,
-    JobWorkOrder, DeliveryChallan, InterPlantChallanItem, RollLink, RollConsumption, RollMovement,
+    DeliveryChallan, InterPlantChallanItem, RollLink, RollConsumption, RollMovement,
     PackagingStock, PackagingTransaction,
-    InventoryAuditBatch, InventoryAuditLine, InventoryFinancialPeriod,
+    InventoryAuditBatch, InventoryAuditLine, InventoryFinancialPeriod, Vendor,
 )
 from apps.materials.models import InventoryMaterial
+from apps.factory.models import Plant, Process
+from apps.production.models import ProductionJob
+from django.utils import timezone
 
 LEGACY_STAGE_NAMES = {
     0: 'Raw Material',
@@ -430,91 +433,203 @@ class InventoryRollSerializer(serializers.ModelSerializer):
 
 
 
-# --- Job Work Order ---
+# --- Job Work (input validation; read payloads live in services/job_work_payloads.py) ---
 
-class JobWorkOrderSerializer(serializers.ModelSerializer):
-    plant_name = serializers.CharField(source='plant.name', read_only=True)
-    vendor_name = serializers.SerializerMethodField()
-    production_job_number = serializers.CharField(source='production_job.job_number', read_only=True, allow_null=True)
-    
-    class Meta:
-        model = JobWorkOrder
-        fields = '__all__'
-        read_only_fields = ['id', 'status', 'created_at', 'updated_at']
-        extra_kwargs = {
-            'vendor': {'required': True, 'allow_null': False},
-            'vendor_name': {'required': False},
-        }
+class JobWorkCreateSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    plant = serializers.PrimaryKeyRelatedField(queryset=Plant.objects.all(), required=False, allow_null=True)
+    vendor = serializers.PrimaryKeyRelatedField(queryset=Vendor.objects.all())
+    production_job = serializers.PrimaryKeyRelatedField(queryset=ProductionJob.objects.all(), required=False, allow_null=True)
+    process = serializers.PrimaryKeyRelatedField(queryset=Process.objects.all(), required=False, allow_null=True)
+    mode = serializers.ChoiceField(choices=["PLANNED_STEP", "EMERGENCY"], required=False)
+    emergency_reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    sent_material_type = serializers.ChoiceField(choices=["RM", "WIP", "FG"], required=False)
+    expected_return_type = serializers.ChoiceField(choices=["RM", "WIP", "FG"], required=False)
+    expected_output_kind = serializers.ChoiceField(choices=["FG_PCS", "ROLLS", "BULK"])
+    expected_qty = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0.001"))
+    expected_uom = serializers.ChoiceField(choices=["PCS", "KG", "METER", "ROLL"], required=False, allow_blank=True)
+    rate = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, allow_null=True, min_value=Decimal("0.0001"))
+    rate_uom = serializers.ChoiceField(choices=["PCS", "KG", "METER", "ROLL"], required=False, allow_blank=True)
+    wastage_tolerance_pct = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0"), max_value=Decimal("50"))
+    expected_return_date = serializers.DateField(required=False, allow_null=True)
+    save_rate_to_vendor = serializers.BooleanField(required=False, default=False)
 
     def validate_vendor(self, value):
-        if not value:
-            raise serializers.ValidationError("Vendor is required.")
         if str(value.status or "").upper() != "ACTIVE":
             raise serializers.ValidationError("Only active vendors can be selected.")
         if str(value.type or "").upper() not in {"JOBWORK", "BOTH"}:
-            raise serializers.ValidationError("Vendor must be JOBWORK or BOTH type.")
+            raise serializers.ValidationError("Choose a job-work vendor (type Job Worker or Both).")
         return value
 
     def validate(self, attrs):
-        attrs = super().validate(attrs)
-        instance = getattr(self, "instance", None)
-
-        mode = str(
-            attrs.get("mode")
-            or getattr(instance, "mode", None)
-            or "EMERGENCY"
-        ).upper()
-        emergency_reason = str(
-            attrs.get("emergency_reason")
-            if "emergency_reason" in attrs
-            else getattr(instance, "emergency_reason", "")
-        ).strip()
-        production_job = attrs.get("production_job") or getattr(instance, "production_job", None)
-        vendor = attrs.get("vendor") or getattr(instance, "vendor", None)
-
-        if mode not in {"PLANNED_STEP", "EMERGENCY"}:
-            raise serializers.ValidationError({"mode": "Mode must be PLANNED_STEP or EMERGENCY."})
-        if mode == "EMERGENCY" and not emergency_reason:
-            raise serializers.ValidationError({"emergency_reason": "Emergency reason is required for EMERGENCY jobwork."})
-        if mode == "PLANNED_STEP" and not production_job:
-            raise serializers.ValidationError({"production_job": "production_job is required for PLANNED_STEP jobwork."})
-        if mode == "PLANNED_STEP" and production_job:
-            attrs["route_step_index"] = attrs.get("route_step_index", getattr(production_job, "current_step_index", 0))
-
-        if production_job and vendor:
-            from apps.inventory.services.job_work import JobWorkService
-
-            process = getattr(production_job, "current_process", None) or getattr(production_job, "process", None)
-            process_code = str(getattr(process, "code", "") or "").upper()
-            plant = None
-            if getattr(production_job, "work_center_id", None) and getattr(production_job, "work_center", None):
-                plant = production_job.work_center.plant
-            if not plant and getattr(production_job, "from_location_id", None) and getattr(production_job, "from_location", None):
-                plant = production_job.from_location.plant
-            if not plant and getattr(production_job, "to_location_id", None) and getattr(production_job, "to_location", None):
-                plant = production_job.to_location.plant
-            verdict = JobWorkService.vendor_matches_jobwork(vendor, process_code=process_code, plant=plant)
-            if not verdict["match"]:
-                raise serializers.ValidationError({"vendor": " ".join(verdict["reasons"]) or "Vendor is not compatible for this job."})
-
+        mode = attrs.get("mode") or ("PLANNED_STEP" if attrs.get("production_job") else "EMERGENCY")
+        attrs["mode"] = mode
+        if mode == "EMERGENCY" and not str(attrs.get("emergency_reason") or "").strip():
+            raise serializers.ValidationError({"emergency_reason": "Say why this work goes out in an emergency."})
+        if mode == "PLANNED_STEP" and not attrs.get("production_job"):
+            raise serializers.ValidationError({"production_job": "A planned route step needs its production job."})
+        if not attrs.get("plant") and not attrs.get("production_job"):
+            raise serializers.ValidationError({"plant": "Choose the plant that sends the material."})
+        if attrs.get("expected_output_kind") == "FG_PCS" and not attrs.get("production_job"):
+            raise serializers.ValidationError({"production_job": "Finished pieces are booked against a production job. Link the job."})
+        if attrs.get("rate") is not None and not attrs.get("rate_uom"):
+            raise serializers.ValidationError({"rate_uom": "Choose what the rate is charged per (piece, kg, metre or roll)."})
+        if attrs.get("expected_return_date") and attrs["expected_return_date"] < timezone.localdate():
+            raise serializers.ValidationError({"expected_return_date": "The expected return date cannot be in the past."})
         return attrs
 
-    def get_vendor_name(self, obj):
-        if getattr(obj, "vendor_id", None) and getattr(obj, "vendor", None):
-            return obj.vendor.name
-        return str(getattr(obj, "vendor_name", "") or "")
 
-    def create(self, validated_data):
-        vendor = validated_data.get("vendor")
-        if vendor:
-            validated_data["vendor_name"] = vendor.name
-        return super().create(validated_data)
+class JobWorkDispatchRollSerializer(serializers.Serializer):
+    roll_id = serializers.UUIDField()
+    value = serializers.DecimalField(max_digits=16, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0.01"))
+    hsn_code = serializers.RegexField(r"^[0-9]{4,8}$", required=False, allow_blank=True, error_messages={"invalid": "HSN codes are 4 to 8 digits."})
 
-    def update(self, instance, validated_data):
-        vendor = validated_data.get("vendor") or instance.vendor
-        if vendor:
-            validated_data["vendor_name"] = vendor.name
-        return super().update(instance, validated_data)
+
+class JobWorkDispatchBulkSerializer(serializers.Serializer):
+    material_id = serializers.UUIDField()
+    location_id = serializers.UUIDField()
+    quantity = serializers.DecimalField(max_digits=14, decimal_places=3, min_value=Decimal("0.001"))
+    granule_code_id = serializers.UUIDField(required=False, allow_null=True)
+    value = serializers.DecimalField(max_digits=16, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0.01"))
+    hsn_code = serializers.RegexField(r"^[0-9]{4,8}$", required=False, allow_blank=True, error_messages={"invalid": "HSN codes are 4 to 8 digits."})
+
+
+class JobWorkDispatchSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    rolls = JobWorkDispatchRollSerializer(many=True, required=False)
+    roll_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+    bulk_items = JobWorkDispatchBulkSerializer(many=True, required=False)
+    hsn_code = serializers.RegexField(r"^[0-9]{4,8}$", required=False, allow_blank=True, error_messages={"invalid": "HSN codes are 4 to 8 digits."})
+    purpose = serializers.CharField(required=False, allow_blank=True, max_length=160)
+    expected_return_date = serializers.DateField(required=False, allow_null=True)
+    vehicle_no = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+    def validate(self, attrs):
+        if not attrs.get("rolls") and not attrs.get("roll_ids") and not attrs.get("bulk_items"):
+            raise serializers.ValidationError({"rolls": "Pick at least one roll or bulk quantity to send."})
+        return attrs
+
+
+class JobWorkSentLineReturnSerializer(serializers.Serializer):
+    sent_line_id = serializers.UUIDField()
+    disposition = serializers.ChoiceField(choices=["PROCESSED", "RETURNED", "PARTLY_USED"])
+    returned_qty = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0"))
+    consumed_qty = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0"))
+    location_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class JobWorkFGReturnSerializer(serializers.Serializer):
+    qty_pcs = serializers.IntegerField(min_value=1, max_value=2_000_000_000)
+    boxes = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=1_000_000)
+    qty_kg = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0.001"))
+    location_id = serializers.UUIDField()
+    inner_pack_source = serializers.ChoiceField(choices=["FACTORY", "VENDOR"], required=False)
+
+
+class JobWorkOutputRollSerializer(serializers.Serializer):
+    material_id = serializers.UUIDField()
+    weight_kg = serializers.DecimalField(max_digits=10, decimal_places=3, min_value=Decimal("0.001"))
+    width_mm = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
+    thickness_micron = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=Decimal("0.01"))
+    grade_id = serializers.UUIDField(required=False, allow_null=True)
+    label_id = serializers.CharField(required=False, allow_blank=True, max_length=50)
+    batch_no = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    length_m = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0"))
+    stock_form = serializers.CharField(required=False, allow_blank=True, max_length=24)
+    width_basis = serializers.CharField(required=False, allow_blank=True, max_length=32)
+    location_id = serializers.UUIDField()
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and data.get("grade_id") in ("", b""):
+            data = {**data, "grade_id": None}
+        return super().to_internal_value(data)
+
+
+class JobWorkOutputBulkSerializer(serializers.Serializer):
+    material_id = serializers.UUIDField()
+    quantity = serializers.DecimalField(max_digits=14, decimal_places=3, min_value=Decimal("0.001"))
+    location_id = serializers.UUIDField()
+    granule_code_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class JobWorkWastageSerializer(serializers.Serializer):
+    kg = serializers.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
+    bags = serializers.IntegerField(required=False, allow_null=True, min_value=0, max_value=100000)
+    returned_to_factory = serializers.BooleanField(required=False, default=False)
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=500)
+
+
+class JobWorkBillLinkSerializer(serializers.Serializer):
+    bill_id = serializers.UUIDField()
+    billed_qty = serializers.DecimalField(max_digits=14, decimal_places=3, required=False, allow_null=True, min_value=Decimal("0"))
+    billed_uom = serializers.ChoiceField(choices=["PCS", "KG", "METER", "ROLL"], required=False, allow_blank=True)
+    billed_rate = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, allow_null=True, min_value=Decimal("0"))
+    billed_amount = serializers.DecimalField(max_digits=16, decimal_places=2, required=False, allow_null=True, min_value=Decimal("0"))
+    complete = serializers.BooleanField(required=False, default=False)
+
+
+class JobWorkReturnSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    received_at = serializers.DateTimeField(required=False, allow_null=True)
+    vendor_document_no = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    vendor_document_date = serializers.DateField(required=False, allow_null=True)
+    sent_lines = JobWorkSentLineReturnSerializer(many=True, required=False)
+    fg = JobWorkFGReturnSerializer(required=False, allow_null=True)
+    output_rolls = JobWorkOutputRollSerializer(many=True, required=False)
+    output_bulk = JobWorkOutputBulkSerializer(many=True, required=False)
+    wastage = JobWorkWastageSerializer(required=False, allow_null=True)
+    variance_reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+    bill = JobWorkBillLinkSerializer(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+
+
+class JobWorkCloseSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    variance_reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+    step_force_reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
+class JobWorkShortCloseSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    reason = serializers.CharField(max_length=1000)
+    step_force_reason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+
+
+class JobWorkCancelSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    reason = serializers.CharField(max_length=1000)
+
+
+class JobWorkLegacyReconcileSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    order_id = serializers.UUIDField(required=False, allow_null=True)
+    action = serializers.ChoiceField(choices=["CONSUME", "RETURN"])
+    roll_ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=500)
+    location_id = serializers.UUIDField(required=False, allow_null=True)
+    output_roll_ids = serializers.ListField(child=serializers.UUIDField(), required=False, max_length=200)
+    reason = serializers.CharField(max_length=500)
+
+    def validate(self, attrs):
+        if attrs["action"] == "RETURN" and not attrs.get("location_id"):
+            raise serializers.ValidationError({"location_id": "Choose where the rolls are back in stock."})
+        return attrs
+
+
+class JobWorkVendorRateSerializer(serializers.Serializer):
+    client_token = serializers.UUIDField()
+    vendor = serializers.PrimaryKeyRelatedField(queryset=Vendor.objects.all())
+    process_code = serializers.CharField(max_length=50)
+    rate = serializers.DecimalField(max_digits=12, decimal_places=4, min_value=Decimal("0.0001"))
+    uom = serializers.ChoiceField(choices=["PCS", "KG", "METER", "ROLL"])
+
+    def validate_process_code(self, value):
+        code = str(value or "").strip().upper()
+        if not Process.objects.filter(code__iexact=code).exists():
+            raise serializers.ValidationError("Choose an existing process.")
+        return code
+
 
 # --- Delivery Challan ---
 
@@ -687,21 +802,6 @@ class PackagingGRNSerializer(serializers.Serializer):
     quantity = serializers.DecimalField(max_digits=15, decimal_places=4)
     cost = serializers.DecimalField(max_digits=12, decimal_places=4, required=False, default=0)
     reference = serializers.CharField(required=False, allow_blank=True)
-
-class JobWorkDispatchSerializer(serializers.Serializer):
-    roll_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
-    bulk_items = serializers.ListField(
-        child=serializers.DictField(), # {material_id, quantity, location_id}
-        required=False
-    )
-
-class JobWorkReceiveSerializer(serializers.Serializer):
-    target_location_id = serializers.UUIDField()
-    received_rolls = RollItemSerializer(many=True, required=False) # New rolls created from JW
-    received_bulk = serializers.ListField(
-        child=serializers.DictField(), # {material_id, quantity}
-        required=False
-    )
 
 class ChallanDispatchSerializer(serializers.Serializer):
     target_location_id = serializers.UUIDField(required=False)

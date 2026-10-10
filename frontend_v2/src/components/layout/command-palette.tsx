@@ -163,9 +163,10 @@ export function CommandPalette({
       isSuperuser: user?.is_superuser,
       gateMaster: user?.entitlements?.gate_master,
       inventoryBillReview: user?.entitlements?.inventory_bill_review,
+      documentEntitlements: user?.entitlements?.documents,
       grantedPermissions: extraPermissions,
     }),
-    [baseRoleCode, extraPermissions, roleCode, user?.is_owner, user?.is_superuser, user?.entitlements?.gate_master, user?.entitlements?.inventory_bill_review],
+    [baseRoleCode, extraPermissions, roleCode, user?.is_owner, user?.is_superuser, user?.entitlements?.gate_master, user?.entitlements?.inventory_bill_review, user?.entitlements?.documents],
   );
 
   const routeIndex = React.useMemo<RouteIndexItem[]>(() => {

@@ -15,12 +15,23 @@ try:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
     from reportlab.pdfgen import canvas
 except Exception:  # pragma: no cover - explicit runtime failure below
     colors = None
     A4 = None
     mm = None
+    ImageReader = None
     canvas = None
+
+
+def _factory_zone():
+    """Printed documents show factory (gate) time, not the server's UTC."""
+    from zoneinfo import ZoneInfo
+
+    from django.conf import settings
+
+    return ZoneInfo(getattr(settings, "GATE_TIME_ZONE", "") or "Asia/Kolkata")
 
 
 @dataclass
@@ -42,7 +53,7 @@ class ChallanPDFService:
     def _fmt_dt(value):
         if not value:
             return "-"
-        local = timezone.localtime(value) if timezone.is_aware(value) else value
+        local = timezone.localtime(value, _factory_zone()) if timezone.is_aware(value) else value
         return local.strftime("%d-%b-%Y %H:%M")
 
     @classmethod
@@ -92,20 +103,23 @@ class ChallanPDFService:
 
         pdf.setFillColor(colors.black)
         pdf.setStrokeColor(colors.HexColor("#CBD5E1"))
-        pdf.rect(10 * mm, 260 * mm, 190 * mm, 20 * mm, fill=0, stroke=1)
+        # The right 22 mm of the band holds the signed gate QR (watchman scan).
+        pdf.rect(10 * mm, 260 * mm, 166 * mm, 20 * mm, fill=0, stroke=1)
+        cls._draw_gate_qr(pdf, challan)
 
         pdf.setFont("Helvetica-Bold", 9)
         pdf.drawString(14 * mm, 274.5 * mm, "DC No")
-        pdf.drawString(68 * mm, 274.5 * mm, "Status")
-        pdf.drawString(108 * mm, 274.5 * mm, "Created")
-        pdf.drawString(148 * mm, 274.5 * mm, "Dispatched")
+        pdf.drawString(60 * mm, 274.5 * mm, "Status")
+        pdf.drawString(94 * mm, 274.5 * mm, "Created")
+        pdf.drawString(134 * mm, 274.5 * mm, "Dispatched")
 
         pdf.setFont("Helvetica", 9)
-        pdf.drawString(14 * mm, 269.8 * mm, challan.dc_no or str(challan.id)[:8])
-        pdf.drawString(68 * mm, 269.8 * mm, challan.status)
-        pdf.drawString(108 * mm, 269.8 * mm, cls._fmt_dt(challan.created_at))
-        pdf.drawString(148 * mm, 269.8 * mm, cls._fmt_dt(challan.dispatched_at))
-        pdf.drawString(148 * mm, 265.2 * mm, f"Received: {cls._fmt_dt(challan.received_at)}")
+        pdf.drawString(14 * mm, 269.8 * mm, (challan.dc_no or str(challan.id)[:8])[:24])
+        pdf.drawString(60 * mm, 269.8 * mm, challan.status)
+        pdf.drawString(94 * mm, 269.8 * mm, cls._fmt_dt(challan.created_at))
+        pdf.drawString(134 * mm, 269.8 * mm, cls._fmt_dt(challan.dispatched_at))
+        pdf.setFont("Helvetica", 8)
+        pdf.drawString(134 * mm, 265.2 * mm, f"Received: {cls._fmt_dt(challan.received_at)}")
 
         if challan.is_system_generated:
             pdf.setFillColor(colors.HexColor("#DBEAFE"))
@@ -117,13 +131,26 @@ class ChallanPDFService:
 
         if challan.source_job:
             pdf.setFont("Helvetica", 8)
-            pdf.drawString(108 * mm, 265.2 * mm, f"Source Job: {challan.source_job.job_number}")
+            pdf.drawString(60 * mm, 265.2 * mm, f"Source Job: {challan.source_job.job_number}"[:40])
         if challan.target_job:
             pdf.setFont("Helvetica", 8)
-            pdf.drawString(108 * mm, 261.0 * mm, f"Target Job: {challan.target_job.job_number}")
+            pdf.drawString(60 * mm, 261.0 * mm, f"Target Job: {challan.target_job.job_number}"[:40])
 
         cls._draw_legal_blocks(pdf, challan, source_legal, dest_legal)
         cls._draw_transport_block(pdf, challan)
+
+    @classmethod
+    def _draw_gate_qr(cls, pdf, challan: DeliveryChallan):
+        """Signed gate QR (apps.gate.qr) so the watchman's outward photo links itself."""
+        from apps.gate.qr import make_token, qr_png_bytes
+
+        token = make_token("INTERPLANT_DC", challan.id)
+        pdf.setStrokeColor(colors.HexColor("#CBD5E1"))
+        pdf.rect(178 * mm, 260 * mm, 22 * mm, 20 * mm, fill=0, stroke=1)
+        pdf.drawImage(ImageReader(BytesIO(qr_png_bytes(token))), 181 * mm, 262.6 * mm, 16 * mm, 16 * mm)
+        pdf.setFont("Helvetica", 5.5)
+        pdf.drawCentredString(189 * mm, 260.9 * mm, "GATE QR")
+        pdf.setKeywords(f"tpp-gate-qr {token}")
 
     @classmethod
     def _draw_legal_blocks(cls, pdf, challan: DeliveryChallan, source_legal: _LegalSection, dest_legal: _LegalSection):

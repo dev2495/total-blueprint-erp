@@ -186,11 +186,17 @@ class JobService:
                     roll.save(update_fields=["status"])
 
     @classmethod
+    def _expected_jobwork_output(cls, process):
+        """Pouching-type steps (BULK output) return finished pieces; others return rolls."""
+        return "FG_PCS" if str(getattr(process, "output_form", "") or "").upper() == "BULK" else "ROLLS"
+
+    @classmethod
     def _auto_pause_for_planned_jobwork(cls, job):
         """
         Route-step jobwork gate:
-        if current process is a jobwork step, auto-create/refresh a PLANNED_STEP
-        order and keep the job paused until vendor return closes it.
+        if current process is a jobwork step, auto-create (or reuse) the open
+        PLANNED_STEP order and keep the job paused. The route step completes
+        only when inventory closes that order (JobWorkService.close).
         """
         process = job.current_process or job.process
         process_code = str(getattr(process, "code", "") or "").upper()
@@ -198,7 +204,7 @@ class JobService:
             return None
 
         from apps.inventory.services.job_work import JobWorkService
-        from apps.inventory.models import JobWorkOrder
+        from apps.inventory.models import JOBWORK_OPEN_STATUSES, JobWorkOrder
 
         # Resolve plant in job context.
         plant = None
@@ -214,7 +220,7 @@ class JobService:
         existing = JobWorkOrder.objects.filter(
             production_job=job,
             mode="PLANNED_STEP",
-            status__in=["DRAFT", "SENT", "PARTIAL"],
+            status__in=list(JOBWORK_OPEN_STATUSES),
         ).order_by("-created_at").first()
 
         if existing:
@@ -235,11 +241,13 @@ class JobService:
                 notes=f"Auto-created planned route-step jobwork for {job.job_number}",
                 mode="PLANNED_STEP",
                 route_step_index=job.current_step_index,
+                expected_output_kind=cls._expected_jobwork_output(process),
             )
 
+        order_number = getattr(order, "number", "") or ""
         job.job_state = "PAUSED"
         job.is_on_hold = True
-        job.hold_reason = f"Planned Job Work pending return ({order.vendor_name})"
+        job.hold_reason = f"Planned Job Work {order_number} pending return ({order.vendor_name})".replace("  ", " ")[:255]
         job.save(update_fields=["job_state", "is_on_hold", "hold_reason", "updated_at"])
         return order
 
@@ -1925,9 +1933,10 @@ class JobService:
         elif job.to_location and job.to_location.plant:
             plant = job.to_location.plant
         if not plant:
-            plant = Plant.objects.first()
-        if not plant:
-            raise ValidationError("Could not resolve plant for this job.")
+            # Never guess a plant: a wrong plant would send another factory's stock.
+            raise ValidationError(
+                f"Could not resolve the plant for job {job.job_number}. Set its work centre or locations before sending it to job work."
+            )
 
         vendor = None
         if vendor_id:
@@ -1945,21 +1954,33 @@ class JobService:
             if not vendor:
                 raise ValidationError("No compatible active jobwork vendor found for this process/plant.")
 
+        from apps.inventory.models import JOBWORK_OPEN_STATUSES
+
         existing = JobWorkOrder.objects.filter(
             production_job=job,
-            status__in=["DRAFT", "SENT", "PARTIAL"],
+            status__in=list(JOBWORK_OPEN_STATUSES),
         ).order_by("-created_at").first()
 
         if existing:
             update_fields = []
+            is_draft = existing.status == "DRAFT"
             if vendor and existing.vendor_id != vendor.id:
+                if not is_draft:
+                    raise ValidationError(
+                        f"Job-work order {existing.number or existing.id} already sent material to {existing.vendor_name}. "
+                        "Close it before handing this job to another vendor."
+                    )
                 existing.vendor = vendor
                 existing.vendor_name = vendor.name
                 update_fields.extend(["vendor", "vendor_name"])
             if existing.mode != normalized_mode:
+                if not is_draft:
+                    raise ValidationError(
+                        f"Job-work order {existing.number or existing.id} is already {existing.get_status_display().lower()}; its mode cannot change."
+                    )
                 existing.mode = normalized_mode
                 update_fields.append("mode")
-            if existing.route_step_index != job.current_step_index:
+            if is_draft and existing.route_step_index != job.current_step_index:
                 existing.route_step_index = job.current_step_index
                 update_fields.append("route_step_index")
             if normalized_mode == "EMERGENCY" and emergency_reason and existing.emergency_reason != emergency_reason:
@@ -1969,7 +1990,7 @@ class JobService:
                 existing.notes = notes
                 update_fields.append("notes")
             if update_fields:
-                existing.save(update_fields=update_fields)
+                existing.save(update_fields=update_fields + ["updated_at"])
             order = existing
         else:
             order = JobWorkService.create_order(
@@ -1982,6 +2003,7 @@ class JobService:
                 mode=normalized_mode,
                 route_step_index=job.current_step_index,
                 emergency_reason=emergency_reason,
+                expected_output_kind=cls._expected_jobwork_output(process),
             )
 
         pause_reason = (

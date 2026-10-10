@@ -896,5 +896,153 @@
         ]
       }
     ]
+  },
+  {
+    "id": "bills-documents-flow",
+    "title": {
+      "en": "Bill & document flow",
+      "hi": "बिल व दस्तावेज़ प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "What is this paper?",
+          "hi": "यह कागज़ क्या है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Stock items",
+              "hi": "स्टॉक सामान"
+            },
+            "resolution": {
+              "en": "Open GRN from the bill; stock posts through the normal GRN.",
+              "hi": "बिल से GRN खोलें; स्टॉक सामान्य GRN से दर्ज होता है."
+            }
+          },
+          {
+            "label": {
+              "en": "Job work return",
+              "hi": "जॉब वर्क वापसी"
+            },
+            "resolution": {
+              "en": "Receive job work on its order; finished goods, balance rolls and wastage are reconciled.",
+              "hi": "उसके ऑर्डर पर जॉब वर्क प्राप्त करें; तैयार माल, बचे रोल और वेस्टेज का मिलान होता है."
+            }
+          },
+          {
+            "label": {
+              "en": "Spares, machinery or service",
+              "hi": "स्पेयर्स, मशीनरी या सर्विस"
+            },
+            "resolution": {
+              "en": "Create a General Receipt; no stock changes.",
+              "hi": "जनरल रसीद बनाएं; स्टॉक नहीं बदलता."
+            }
+          },
+          {
+            "label": {
+              "en": "Utility, fee, transport, note",
+              "hi": "बिजली, फ़ीस, ट्रांसपोर्ट, नोट"
+            },
+            "nextId": "file"
+          }
+        ]
+      },
+      {
+        "id": "file",
+        "title": {
+          "en": "Record-only paper",
+          "hi": "केवल रिकॉर्ड कागज़"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Belongs to another bill",
+              "hi": "किसी अन्य बिल का हिस्सा"
+            },
+            "resolution": {
+              "en": "Attach it to that bill.",
+              "hi": "उसे उस बिल से संलग्न करें."
+            }
+          },
+          {
+            "label": {
+              "en": "Stands alone",
+              "hi": "अलग कागज़"
+            },
+            "resolution": {
+              "en": "File it with bill number, date and amount.",
+              "hi": "बिल नंबर, तारीख और राशि के साथ फ़ाइल करें."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "outward-gate-pass-flow",
+    "title": {
+      "en": "Outward & gate pass flow",
+      "hi": "बाहर जाना व गेट पास प्रवाह"
+    },
+    "nodes": [
+      {
+        "id": "start",
+        "title": {
+          "en": "Is the item stock sold or transferred?",
+          "hi": "क्या सामान बेचा या ट्रांसफ़र किया स्टॉक है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "resolution": {
+              "en": "Dispatch/transfer in the ERP prints a QR paper; the gate scans it and the departure matches itself.",
+              "hi": "ERP में डिस्पैच/ट्रांसफ़र QR कागज़ छापता है; गेट उसे स्कैन करता है और रवानगी स्वयं मिल जाती है."
+            }
+          },
+          {
+            "label": {
+              "en": "No — part, tool or equipment",
+              "hi": "नहीं — पुर्ज़ा, औज़ार या उपकरण"
+            },
+            "nextId": "pass"
+          }
+        ]
+      },
+      {
+        "id": "pass",
+        "title": {
+          "en": "Will it come back?",
+          "hi": "क्या यह वापस आएगा?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "resolution": {
+              "en": "Issue an RGP with the return date; close it with a General Receipt or Receive back.",
+              "hi": "वापसी तारीख के साथ RGP जारी करें; जनरल रसीद या Receive back से बंद करें."
+            }
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "resolution": {
+              "en": "Issue an NRGP; it closes when the gate records it.",
+              "hi": "NRGP जारी करें; गेट द्वारा दर्ज होते ही बंद हो जाता है."
+            }
+          }
+        ]
+      }
+    ]
   }
 ]

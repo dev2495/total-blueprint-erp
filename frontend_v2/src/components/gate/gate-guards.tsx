@@ -33,6 +33,13 @@ export function GuardBillSubmit({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Outward photo departure needs gate.outward.submit (watchman or master). */
+export function GuardOutwardSubmit({ children }: { children: React.ReactNode }) {
+  const { canSubmitOutward } = useGate();
+  if (!canSubmitOutward) return <Denied body="Outward papers are photographed by the gate watchman or an administrator/owner." />;
+  return <>{children}</>;
+}
+
 /** Admin/Owner pages (setup, history, corrections, audit, QR, walk-in). The API enforces this too. */
 export function GuardOwner({ children }: { children: React.ReactNode }) {
   const { isOwner } = useGate();

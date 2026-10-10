@@ -1,8 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-/** Camera is allowed same-origin only on the two visitor forms that take a selfie. */
-const CAMERA_ROUTES = [/^\/visit(\/|$)/, /^\/gate\/visitors\/new\/?$/];
+/**
+ * Camera is allowed same-origin only on the two visitor forms that take a
+ * selfie and on the watchman outward screen, which scans the ERP QR live.
+ */
+const CAMERA_ROUTES = [/^\/visit(\/|$)/, /^\/gate\/visitors\/new\/?$/, /^\/gate\/outward\/?$/];
 
 function permissionsPolicyFor(pathname: string) {
   const camera = CAMERA_ROUTES.some((pattern) => pattern.test(pathname)) ? "camera=(self)" : "camera=()";

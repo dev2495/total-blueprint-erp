@@ -332,7 +332,10 @@ class BillIntakeTests(TransactionTestCase):
 
     def test_explained_void_preserves_images_and_sql_evidence(self):
         bill = self.new_bill()
-        result = self.review.post(f"/api/gate/inward-bills/{bill}/void/", {"client_token": str(uuid.uuid4()), "reason": "Equipment service bill has no inventory stock", "resolution_code": "NON_STOCK"}, format="json")
+        refused = self.review.post(f"/api/gate/inward-bills/{bill}/void/", {"client_token": str(uuid.uuid4()), "reason": "Equipment service bill has no inventory stock", "resolution_code": "NON_STOCK"}, format="json")
+        self.assertEqual(refused.status_code, 400, refused.data)
+        self.assertIn("General Receipt", str(refused.data))
+        result = self.review.post(f"/api/gate/inward-bills/{bill}/void/", {"client_token": str(uuid.uuid4()), "reason": "Photo is blurred beyond reading", "resolution_code": "UNREADABLE"}, format="json")
         self.assertEqual(result.status_code, 200, result.data)
         self.assertEqual(result.data["status"], "VOID")
         self.assertEqual(InwardBillPage.objects.count(), 1)

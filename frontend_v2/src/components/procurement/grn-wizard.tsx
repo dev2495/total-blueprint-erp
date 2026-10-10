@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { describeApiError } from "@/lib/api";
 import { GrnBillBanner, useGrnBillContext } from "@/components/inventory/gate-bills/bill-grn-context";
+import { BillWorkspace } from "@/components/documents/bill-workspace";
+import { inwardBillDocument } from "@/components/documents/inward-bill-document";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -97,6 +99,8 @@ export function GrnWizard({ poId }: { poId: string }) {
     if (billReview.invoice_date) setInvoiceDate((v) => v || String(billReview.invoice_date));
     if (billReview.vehicle_number) setVehicleNo((v) => v || String(billReview.vehicle_number));
   }, [billReview]);
+  // The gate bill sits beside the wizard (dock / float / pop-out / phone sheet).
+  const workspaceDoc = React.useMemo(() => (billCtx.bill ? inwardBillDocument(billCtx.bill) : null), [billCtx.bill]);
   const plantMismatch = Boolean(billCtx.bill && po && (po as { plant?: string }).plant && String((po as { plant?: string }).plant) !== String(billCtx.bill.plant));
 
   const submitMutation = useMutation({
@@ -156,6 +160,19 @@ export function GrnWizard({ poId }: { poId: string }) {
   }
 
   return (
+    <BillWorkspace
+      document={workspaceDoc}
+      headerActions={
+        workspaceDoc ? (
+          <Link
+            href={`/inventory/gate-bills/${workspaceDoc.id}`}
+            className="inline-flex h-7 items-center rounded-md px-2 text-[12px] font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info-border [@media(pointer:coarse)]:h-11"
+          >
+            Open bill
+          </Link>
+        ) : null
+      }
+    >
     <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
       <div className="mx-auto max-w-5xl space-y-5">
         <Link
@@ -164,7 +181,7 @@ export function GrnWizard({ poId }: { poId: string }) {
         >
           <ArrowLeft className="h-3 w-3" /> Back to PO {po.code}
         </Link>
-        <GrnBillBanner ctx={billCtx} />
+        <GrnBillBanner ctx={billCtx} viewer={false} />
         {plantMismatch ? (
           <div role="alert" className="rounded-2xl border border-danger-border bg-danger-bg px-4 py-3 text-sm text-danger-fg">
             This PO belongs to a different factory than the gate bill. The bill can only be received at its own factory — pick a PO of
@@ -412,6 +429,7 @@ export function GrnWizard({ poId }: { poId: string }) {
         </div>
       </div>
     </div>
+    </BillWorkspace>
   );
 }
 

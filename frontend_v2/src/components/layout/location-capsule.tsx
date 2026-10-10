@@ -25,7 +25,25 @@ const LABELS: Record<string, string> = {
   engineering: "Engineering",
   profile: "Profile",
   logistics: "Logistics",
+  grn: "GRN",
+  "gate-bills": "Bills & documents",
 };
+
+// Record pages (bills, receipts, passes, outward, job work, users) show a record label instead
+// of the generic "Terminal" used for machine / work-centre terminals.
+const RECORD_LABELS: Array<[RegExp, string]> = [
+  [/^\/inventory\/gate-bills\/[0-9a-f-]{36}$/i, "Bill"],
+  [/^\/inventory\/general-receipts\/[0-9a-f-]{36}$/i, "Receipt"],
+  [/^\/inventory\/gate-passes\/[0-9a-f-]{36}$/i, "Gate pass"],
+  [/^\/inventory\/outward-documents\/[0-9a-f-]{36}$/i, "Outward document"],
+  [/^\/inventory\/job-work\/[0-9a-f-]{36}$/i, "Job-work order"],
+  [/^\/system\/users\/[0-9a-f-]{36}$/i, "User"],
+];
+
+function recordLabel(path: string): string | null {
+  const match = RECORD_LABELS.find(([pattern]) => pattern.test(path));
+  return match ? match[1] : null;
+}
 
 function toLabel(segment: string): string {
   const key = String(segment || "").toLowerCase();
@@ -73,7 +91,7 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
       segment,
       href: cumulative,
       target: resolveNavigableRoute(cumulative),
-      label: /^\/inventory\/gate-bills\/[0-9a-f-]{36}$/i.test(cumulative) ? "Bill" : toLabel(segment),
+      label: recordLabel(cumulative) ?? toLabel(segment),
     };
   });
 

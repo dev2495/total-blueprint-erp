@@ -952,6 +952,7 @@ class ScrapLog(models.Model):
         ('DEFECT', 'Print/Quality Defect'),
         ('MACHINE', 'Machine Fault'),
         ('MATERIAL', 'Material Issue'),
+        ('JOBWORK_WASTE', 'Job Work Wastage'),
         ('OTHER', 'Other'),
     ]
 

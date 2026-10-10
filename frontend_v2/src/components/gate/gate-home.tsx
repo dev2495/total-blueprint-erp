@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { BarChart3, Camera, ChevronRight, ClipboardList, DoorOpen, History, QrCode, Settings, Users } from "lucide-react";
+import { BarChart3, Camera, ChevronRight, ClipboardList, DoorOpen, History, QrCode, ScanLine, Settings, Users } from "lucide-react";
 
 import { gateApi, type GateDirection } from "@/services/gate";
 import { useGate } from "./gate-shell";
 import { DIRECTION_META } from "./gate-format";
 import { DirectionGlyph, EmptyState, SectionHeading } from "./gate-ui";
 import { VisitorPass } from "./visitor-cards";
+import { useOutwardTodayCount } from "./outward-capture";
 
 export function useNow(intervalMs = 30_000) {
   const [now, setNow] = useState(() => Date.now());
@@ -67,8 +68,9 @@ export function useVisitorQueue(status: "PENDING" | "INSIDE") {
 const DATE_LINE = new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "numeric", month: "long" });
 
 export function GateHome() {
-  const { operatorName, isOwner, canLog } = useGate();
+  const { operatorName, isOwner, canLog, canSubmitOutward } = useGate();
   const now = useNow();
+  const outwardToday = useOutwardTodayCount(canLog && canSubmitOutward);
   const summary = useGateSummary();
   const inside = useVisitorQueue("INSIDE");
   const s = summary.data ?? {};
@@ -93,14 +95,18 @@ export function GateHome() {
         </h1>
       </div>
 
-      {/* Focal: the two lanes. One thumb, one tap. */}
+      {/* Focal: three big tiles — Inward · Outward · Visitors inside. One thumb, one tap. */}
       <div className="grid grid-cols-2 gap-3">
         <LaneTile direction="INWARD" count={s.inward} loading={summary.isLoading} />
-        <LaneTile direction="OUTWARD" count={s.outward} loading={summary.isLoading} />
+        {canSubmitOutward ? (
+          <OutwardTile count={outwardToday.count} loading={outwardToday.loading} />
+        ) : (
+          <LaneTile direction="OUTWARD" count={s.outward} loading={summary.isLoading} />
+        )}
       </div>
 
-      <Link href="/gate/visitors" className="gate-card gate-press flex items-stretch overflow-hidden">
-        <VisitorStat label="Inside now" value={insideCount} tone="var(--gate-inside)" />
+      <Link href="/gate/visitors" className="gate-card gate-press flex min-h-[96px] items-stretch overflow-hidden" aria-label="Visitors inside">
+        <VisitorStat label="Visitors inside" value={insideCount} tone="var(--gate-inside)" />
         <VisitorStat label="Overdue >12h" value={s.overdue_visitors} tone={(s.overdue_visitors ?? 0) > 0 ? "var(--gate-alert)" : "var(--content-4)"} pulse={(s.overdue_visitors ?? 0) > 0} />
         <span className="flex w-12 items-center justify-center text-content-4">
           <ChevronRight className="h-5 w-5" />
@@ -170,6 +176,29 @@ function LaneTile({ direction, count, loading }: { direction: GateDirection; cou
       </span>
       <span aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
     </Link>
+  );
+}
+
+/** Outward = scan the ERP QR + photograph the papers (no typed register for the watchman). */
+function OutwardTile({ count, loading }: { count?: number; loading?: boolean }) {
+  // A full page load (not a client-side Link) so the browser applies this
+  // route's Permissions-Policy (camera=(self)) for live QR scanning.
+  return (
+    <a
+      href="/gate/outward"
+      className="gate-press relative flex min-h-[148px] flex-col justify-between overflow-hidden rounded-[22px] p-4 text-white"
+      style={{ background: DIRECTION_META.OUTWARD.tone }}
+      aria-label="Record outward: scan QR and photograph papers"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15">
+        <ScanLine className="h-6 w-6" />
+      </span>
+      <span>
+        <span className="block text-[20px] font-semibold leading-tight tracking-[-0.02em]">Outward</span>
+        <span className="block text-[13px] text-white/80">{loading ? "…" : count === undefined ? "Scan QR · photo" : `${count} today · scan + photo`}</span>
+      </span>
+      <span aria-hidden className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+    </a>
   );
 }
 

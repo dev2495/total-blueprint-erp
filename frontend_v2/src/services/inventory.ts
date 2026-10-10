@@ -1,4 +1,5 @@
 import { api } from "@/lib/api"
+import { jobWorkApi } from "./job-work"
 
 type MaybePaginated<T> = T[] | { results?: T[] } | unknown
 
@@ -47,6 +48,8 @@ export interface Vendor {
     lead_time_days: number
     jobwork_capabilities?: string[]
     jobwork_plants?: string[]
+    /** Agreed job-work labour rates (excluding GST). */
+    jobwork_rates?: Array<{ process_code: string; rate: string | number; uom: 'PCS' | 'KG' | 'METER' | 'ROLL' }>
     turnaround_hours?: number
     qc_required?: boolean
     status: 'ACTIVE' | 'INACTIVE' | 'BLACKLISTED'
@@ -434,50 +437,8 @@ export interface BulkStock {
     uom: string
 }
 
-export interface JobWorkOrder {
-    id: string
-    plant: string
-    plant_name: string
-    vendor?: string | null
-    vendor_name: string
-    production_job?: string | null
-    production_job_number?: string | null
-    mode?: 'PLANNED_STEP' | 'EMERGENCY'
-    route_step_index?: number | null
-    emergency_reason?: string
-    sent_material_type: string
-    expected_return_type: string
-    status: string
-    notes: string
-    dispatched_at?: string | null
-    received_at?: string | null
-    meta_json?: Record<string, any>
-    created_at: string
-}
-
-export interface JobWorkVendorCandidate {
-    id: string
-    name: string
-    code: string
-    type: string
-    status: string
-    turnaround_hours: number
-    qc_required: boolean
-    jobwork_capabilities: string[]
-    jobwork_plants: string[]
-    vendor_capability_match: boolean
-    match_reasons: string[]
-}
-
-export interface JobWorkEligibleRoll {
-    id: string
-    label_id: string
-    material_name?: string | null
-    status: string
-    weight_kg: number
-    location_name?: string | null
-    production_job_number?: string | null
-}
+// Job work types and API live in "@/services/job-work" (orders, challans, returns).
+export type { JobWorkOrderRow as JobWorkOrder, JobWorkVendorCandidate, JobWorkEligibleRoll } from "./job-work"
 
 export const inventoryService = {
     // Locations
@@ -743,50 +704,14 @@ export const inventoryService = {
         return data as { status: string; audit_id: string; delta: Record<string, any> }
     },
 
-    // Job Work
-    getOrders: async () => {
-        const { data } = await api.get<MaybePaginated<JobWorkOrder>>("/api/inventory/job-work/")
-        return unwrapList<JobWorkOrder>(data)
-    },
-
-    createOrder: async (orderData: {
-        plant: string
-        vendor: string
-        mode?: "PLANNED_STEP" | "EMERGENCY"
-        route_step_index?: number
-        emergency_reason?: string
-        sent_material_type: "RM" | "WIP" | "FG"
-        expected_return_type: "RM" | "WIP" | "FG"
-        production_job?: string
-        notes?: string
-    }) => {
-        const { data } = await api.post("/api/inventory/job-work/", orderData)
-        return data as JobWorkOrder
-    },
-
-    dispatchOrder: async (orderId: string, payload: { roll_ids: string[], bulk_items?: any[] }) => {
-        const { data } = await api.post(`/api/inventory/job-work/${orderId}/dispatch/`, payload)
-        return data
-    },
-
-    receiveOrder: async (orderId: string, payload: { target_location_id: string, received_rolls?: any[], received_bulk?: any[] }) => {
-        const { data } = await api.post(`/api/inventory/job-work/${orderId}/receive/`, payload)
-        return data
-    },
-
+    // Job Work: see jobWorkApi in "@/services/job-work".
     getJobWorkVendorCandidates: async (params?: {
         production_job_id?: string
         plant_id?: string
         process_code?: string
-    }) => {
-        const { data } = await api.get<{ results?: JobWorkVendorCandidate[] }>("/api/inventory/job-work/vendor-candidates/", { params })
-        return data?.results || []
-    },
+    }) => (await jobWorkApi.vendorCandidates(params || {})).results,
 
-    getJobWorkEligibleRolls: async (orderId: string) => {
-        const { data } = await api.get<{ results?: JobWorkEligibleRoll[] }>(`/api/inventory/job-work/${orderId}/eligible-rolls/`)
-        return data?.results || []
-    },
+    getJobWorkEligibleRolls: async (orderId: string) => (await jobWorkApi.eligibleRolls(orderId, {})).results,
 
     getLedger: async (params?: any) => {
         const { data } = await api.get("/api/inventory/ledger/", { params })

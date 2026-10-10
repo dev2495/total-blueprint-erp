@@ -12,9 +12,10 @@ import { useGateSummary } from "./gate-home";
 import { DIRECTION_META } from "./gate-format";
 import { EmptyState, GateAction } from "./gate-ui";
 import { RegisterLedger } from "./register-ledger";
+import { TodayDepartures } from "./outward-capture";
 
 export function TodayRegister() {
-  const { plantId, plant } = useGate();
+  const { plantId, plant, canSubmitOutward } = useGate();
   const [filter, setFilter] = useState<"ALL" | GateDirection>("ALL");
   const summary = useGateSummary();
   // Direction is filtered by the server; pages of 100 load on demand.
@@ -104,6 +105,7 @@ export function TodayRegister() {
         </div>
       )}
       <p className="px-1 text-[12px] text-content-4">Entries cannot be edited here. The owner corrects mistakes with a recorded reason.</p>
+      {canSubmitOutward ? <TodayDepartures /> : null}
     </div>
   );
 }

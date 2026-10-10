@@ -11,6 +11,8 @@ import hashlib
 from decimal import Decimal
 
 from django.db import models, transaction, connections, router
+from django.conf import settings
+from django.db.models import Q
 from django.db.models.functions import Length
 from django.utils import timezone
 
@@ -349,3 +351,90 @@ class TradingGoodReceipt(models.Model):
         with transaction.atomic(using=using):
             self.code = gen_code("TGR", TradingGoodReceipt, using=using)
             return super().save(*args, **kwargs)
+
+
+GENERAL_RECEIPT_TYPES = [("GOODS", "Goods received"), ("SERVICE", "Service / work done")]
+GENERAL_LINE_CATEGORIES = [
+    ("SPARES", "Spares and parts"),
+    ("MACHINERY", "Machinery / equipment"),
+    ("TOOLS", "Tools"),
+    ("CONSUMABLE", "General consumable"),
+    ("SAFETY", "Safety items"),
+    ("ELECTRICAL", "Electrical"),
+    ("CIVIL", "Civil / building"),
+    ("OFFICE", "Office / admin"),
+    ("SERVICE", "Service / labour"),
+    ("CHARGE", "Freight / other charge"),
+]
+GENERAL_LINE_DISPOSITIONS = [
+    ("KEPT_IN_STORE", "Kept in store"),
+    ("INSTALLED", "Installed / fitted"),
+    ("CONSUMED", "Used immediately"),
+    ("NOT_APPLICABLE", "Not applicable"),
+]
+GENERAL_UOMS = ["NOS", "PCS", "SET", "PAIR", "KG", "LTR", "MTR", "BOX", "ROLL", "JOB", "HRS", "VISIT", "LOT"]
+
+
+class GeneralReceipt(models.Model):
+    """Receipt of non-stock goods or acceptance of a service against a bill.
+
+    Records who received/confirmed what and when. It never posts production
+    stock; inventory balances stay owned by the stock GRN services.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    number = models.CharField(max_length=32, unique=True)
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="general_receipts")
+    document = models.ForeignKey("gate.InwardBillIntake", on_delete=models.PROTECT, null=True, blank=True, related_name="general_receipts")
+    vendor = models.ForeignKey("inventory.Vendor", on_delete=models.PROTECT, null=True, blank=True, related_name="general_receipts")
+    party_name = models.CharField(max_length=255)
+    invoice_number = models.CharField(max_length=80, blank=True, default="")
+    invoice_date = models.DateField(null=True, blank=True)
+    receipt_type = models.CharField(max_length=8, choices=GENERAL_RECEIPT_TYPES)
+    received_at = models.DateTimeField()
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="general_receipts_received")
+    reference = models.CharField(max_length=80, blank=True, default="")
+    notes = models.CharField(max_length=1000, blank=True, default="")
+    status = models.CharField(max_length=10, choices=[("POSTED", "Posted"), ("REVERSED", "Reversed")], default="POSTED")
+    reversed_at = models.DateTimeField(null=True, blank=True)
+    reversed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="general_receipts_reversed")
+    reversal_reason = models.CharField(max_length=500, blank=True, default="")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="general_receipts_created")
+    created_at = models.DateTimeField(auto_now_add=True)
+    request_key = models.CharField(max_length=128, unique=True, null=True, blank=True, editable=False)
+    request_fingerprint = models.CharField(max_length=64, blank=True, default="", editable=False)
+
+    class Meta:
+        ordering = ["-received_at", "-id"]
+        indexes = [
+            models.Index(fields=["plant", "received_at"], name="general_receipt_plant_idx"),
+            models.Index(fields=["vendor", "received_at"], name="general_receipt_vendor_idx"),
+        ]
+        constraints = [models.CheckConstraint(condition=Q(status="POSTED") | Q(reversed_at__isnull=False), name="general_receipt_reversal_timestamp")]
+
+
+class GeneralReceiptLine(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    receipt = models.ForeignKey(GeneralReceipt, on_delete=models.PROTECT, related_name="lines")
+    line_no = models.PositiveSmallIntegerField()
+    line_category = models.CharField(max_length=12, choices=GENERAL_LINE_CATEGORIES)
+    description = models.CharField(max_length=255)
+    quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    uom = models.CharField(max_length=8)
+    rate = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    disposition = models.CharField(max_length=16, choices=GENERAL_LINE_DISPOSITIONS, default="NOT_APPLICABLE")
+    machine = models.ForeignKey("factory.Machine", on_delete=models.PROTECT, null=True, blank=True, related_name="general_receipt_lines")
+    equipment_text = models.CharField(max_length=160, blank=True, default="")
+    serial_no = models.CharField(max_length=80, blank=True, default="")
+    gate_pass_line = models.ForeignKey("gate.GatePassLine", on_delete=models.PROTECT, null=True, blank=True, related_name="general_receipt_lines")
+    remarks = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        ordering = ["line_no"]
+        indexes = [models.Index(fields=["machine"], name="general_line_machine_idx")]
+        constraints = [
+            models.UniqueConstraint(fields=["receipt", "line_no"], name="general_receipt_line_unique"),
+            models.CheckConstraint(condition=Q(quantity__gt=0), name="general_line_qty_positive"),
+            models.CheckConstraint(condition=Q(amount__isnull=True) | Q(amount__gte=0), name="general_line_amount_nonnegative"),
+        ]
