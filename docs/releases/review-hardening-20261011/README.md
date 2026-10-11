@@ -29,14 +29,14 @@
 4. `check --deploy` with the new image, and refuse any migration plan other than the two below.
 5. Update `/opt/tpp-erp/secrets/app.env`:
    - `JWT_COOKIE_SAMESITE=Lax`, `JWT_COOKIE_DOMAIN` empty and `JWT_LEGACY_COOKIE_DOMAINS=.totalpolyprint.com`. Login cookies stop being sent to every `*.totalpolyprint.com` site. The old parent-domain cookies are expired on the next sign-in, refresh or logout, and the new host-only cookie wins meanwhile, so nobody is signed out.
-   - `CELERY_TIMEZONE=Asia/Kolkata` (this is also the default). The beat schedules in `config/settings.py` are now in IST. The nightly inventory snapshot moves to 23:45 IST and MRP to 02:00 IST. Document, gate-pass and job-work reminders keep their 09:00–09:20 IST times.
+   - `CELERY_TIMEZONE=Asia/Kolkata` (this is also the default; production already ran beat in IST through Django's `TIME_ZONE`). Document, gate-pass and job-work reminders and the storage monitor move from 03:30–03:50 IST to 09:00–09:20 IST, and the nightly inventory snapshot from 03:15 IST to 23:45 IST (end of the business day). MRP (02:00), low stock (06:00), backups and the weekly restore drill keep their times.
    - Optional: `CACHE_REDIS_URL`. It defaults to `REDIS_URL` on database 1, and the cache keeps working (with relaxed rate limits) if Redis is down.
    - Optional: `GATE_PUBLIC_HOURLY_CAP` (default 120).
 6. Back up `app.env` before editing it; a rollback restores it. There are no new dependencies.
 7. `migrate`. The migrations are:
    - `users.0014`: `Role.revoked_permissions` and `CompanyProfile.waste_reason_threshold_pct`, both with database defaults, so the previous image can still insert rows.
    - `inventory.0057`: retypes historical transfer legs. It is data-only, and its reverse is a no-op.
-8. Point the `app` symlink at the new dir, tag the new images `production` and `up -d` backend, worker, beat and frontend. Celery beat resets its schedule once, because the timezone changed. Any failed check rolls back the source, images and `app.env`.
+8. Point the `app` symlink at the new dir, tag the new images `production` and `up -d` backend, worker, beat and frontend. Because those hours moved, beat runs the moved jobs once at start-up (their last run predates the new time); they are idempotent and run again at their new time. Any failed check rolls back the source, images and `app.env`.
 9. Smoke test:
    - As Store: Smart GRN, a roll move, and an adjustment drafted by one store user and posted by another.
    - As Sales: a confirmed order cannot be edited or deleted.
@@ -75,3 +75,9 @@ These scripts have no effect on production behaviour; the fixes let the release 
 - **Customer returns after dispatch** (return-to-stock). This is a separate feature: it needs a returns workflow and quality disposition, plus fulfilment recalculation across dispatch and sales reports.
 - **Moving bill/document images out of Postgres to object storage.** This is a data migration with a backup redesign. Disk usage is already monitored by the document storage task.
 - **Public GitHub repository.** Make `dev2495/total-blueprint-erp` private; that is a GitHub setting, not code.
+
+## Go-live (12 Oct 2026, 02:06–02:07 IST)
+- Release `9b0a7400d9f6` activated by `activate-review-release.sh`: managed backup (28.9 MB, SHA-256 verified) with a passing temporary restore drill, `check --deploy`, exactly `users.0014` and `inventory.0057` migrated, cookie settings updated in `app.env` (previous file kept as `app.env.before-review-9b0a7400d9f6`), cutover with a 61 s restart window.
+- Runtime proof in the backend: build `9b0a740`, cookies `SameSite=Lax` and host-only, shared Redis cache round-trip, Celery timezone `Asia/Kolkata`. Readiness 200, `/login` 200, Celery ping OK, no errors in backend, worker or beat logs.
+- Beat ran the moved jobs once at 02:07 IST (0 reminders were due; one extra inventory snapshot was recorded). They run again at their new times.
+- Rollback images: `tpp-erp-{backend,frontend}:rollback-review-9b0a7400d9f6` (= `c8833f41e6f0`); old source pointer kept at `releases/rollback-app-review-9b0a7400d9f6`.
