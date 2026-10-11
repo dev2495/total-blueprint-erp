@@ -4,6 +4,8 @@ import { canonicalizeRoleMatrixRows } from '@/lib/roles'
 export interface RoleMatrixRow {
     default_permissions: string[]
     database_permissions: string[]
+    /** Baseline permissions an administrator removed for this role. */
+    revoked_permissions?: string[]
 }
 
 export type RoleMatrix = Record<string, RoleMatrixRow>

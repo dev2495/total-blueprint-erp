@@ -166,9 +166,11 @@ class BulkService:
 
     @classmethod
     @transaction.atomic
-    def consume_bulk(cls, material_id, qty, location_id, job_id=None, reference="", granule_code_id=None, qty_uom=None):
+    def consume_bulk(cls, material_id, qty, location_id, job_id=None, reference="", granule_code_id=None, qty_uom=None, tx_type="CONSUME"):
         """
         Deduct pooled bulk quantity. Quantity is in material master stock UOM.
+        ``tx_type`` is CONSUME for real consumption and TRANSFER for the
+        outgoing leg of a location transfer.
         """
         qty = q4(qty)
         
@@ -206,7 +208,7 @@ class BulkService:
                 material_id=material_id,
                 granule_code_id=bulk.granule_code_id,
                 location_id=location_id,
-                type='CONSUME',
+                type=str(tx_type or "CONSUME").upper(),
                 qty_kg=-take,
                 avg_cost=q4(bulk.avg_cost),
                 reference=reference,
@@ -226,9 +228,13 @@ class BulkService:
         """
         if qty <= 0:
             raise ValidationError("Quantity to transfer must be positive.")
+        if str(from_location_id) == str(to_location_id):
+            raise ValidationError("Choose a different destination location for the transfer.")
 
-        # Deduct from source
-        cls.consume_bulk(material_id, qty, from_location_id, reference=f"Transfer Out: {reference}", granule_code_id=granule_code_id, qty_uom=qty_uom)
+        # Both legs are TRANSFER rows: a location move is neither consumption
+        # nor a goods receipt, so it must not appear in GRN history, bill
+        # receipt matching or consumption reports.
+        cls.consume_bulk(material_id, qty, from_location_id, reference=f"Transfer Out: {reference}", granule_code_id=granule_code_id, qty_uom=qty_uom, tx_type="TRANSFER")
 
         # Add to destination
         from_loc = InventoryLocation.objects.get(id=from_location_id)
@@ -241,7 +247,7 @@ class BulkService:
         source_bulk = source_qs.order_by("-updated_at").first()
         source_cost = source_bulk.avg_cost if source_bulk else 0
         
-        cls.add_bulk(material_id, qty, to_loc.plant_id, to_location_id, cost=source_cost, reference=f"Transfer In: {reference}", granule_code_id=granule_code_id, qty_uom=qty_uom)
+        cls.add_bulk(material_id, qty, to_loc.plant_id, to_location_id, cost=source_cost, reference=f"Transfer In: {reference}", tx_type="TRANSFER", granule_code_id=granule_code_id, qty_uom=qty_uom)
 
     @classmethod
     @transaction.atomic

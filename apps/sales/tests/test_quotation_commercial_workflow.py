@@ -171,6 +171,35 @@ class QuotationCommercialWorkflowTests(TestCase):
         quote.refresh_from_db()
         return quote
 
+    def test_two_gates_need_two_approvers_unless_owner(self):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        User = get_user_model()
+        approver_a = User.objects.create_user(username="gate-approver-a", extra_permissions=["sales.quote.approve"])
+        approver_b = User.objects.create_user(username="gate-approver-b", extra_permissions=["sales.quote.approve"])
+        quote = self._new_quote()
+        QuotationService.bulk_update_items(quote, [self._quote_scoped_line()], user=self.sales_user)
+        QuotationCostBuildService.persist(
+            quote,
+            {
+                "pricing_definition": "MARKUP_ON_COST",
+                "target_percent": "20",
+                "conversion_components": [{
+                    "category": "PROCESS", "label": "Printing", "source_type": "PROCESS_RATE",
+                    "process_cost_rate_id": str(self.process_rate.id), "quantity": "1", "uom": "HOUR",
+                    "basis": "PER_HOUR",
+                }],
+            },
+            user=self.sales_user,
+        )
+        QuotationLifecycleService.submit(quote, user=self.sales_user)
+        QuotationLifecycleService.approve_gate(quote, gate="COMMERCIAL", user=approver_a, reason="Commercial")
+        with self.assertRaises(DjangoValidationError):
+            QuotationLifecycleService.approve_gate(quote, gate="FINANCE", user=approver_a, reason="Same person")
+        QuotationLifecycleService.approve_gate(quote, gate="FINANCE", user=approver_b, reason="Second person")
+        quote.refresh_from_db()
+        self.assertEqual(quote.status, "APPROVED")
+
     def test_two_paths_and_quote_scoped_variant_never_mutate_masters(self):
         quote = self._new_quote()
         before = self._master_counts()

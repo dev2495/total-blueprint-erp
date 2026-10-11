@@ -333,10 +333,28 @@ class BackupService:
             )
             raise
 
+    MIN_RETENTION_DAYS = 7
+    KEEP_LATEST_SUCCESSFUL = 3
+
     @classmethod
     def prune_backup_retention(cls, retention_days: int = 30) -> dict:
+        try:
+            retention_days = int(retention_days)
+        except (TypeError, ValueError):
+            raise ValueError("retention_days must be a whole number of days.")
+        if retention_days < cls.MIN_RETENTION_DAYS:
+            raise ValueError(f"Backups are kept for at least {cls.MIN_RETENTION_DAYS} days.")
         cutoff = timezone.now() - dt.timedelta(days=retention_days)
-        records = list(BackupRecord.objects.filter(created_at__lt=cutoff).order_by("created_at"))
+        # The newest successful backups survive any retention window, so a
+        # stalled backup schedule can never prune the last restorable copy.
+        protected_ids = list(
+            BackupRecord.objects.filter(status=BackupRecord.BackupStatus.SUCCEEDED)
+            .order_by("-created_at")
+            .values_list("id", flat=True)[: cls.KEEP_LATEST_SUCCESSFUL]
+        )
+        records = list(
+            BackupRecord.objects.filter(created_at__lt=cutoff).exclude(id__in=protected_ids).order_by("created_at")
+        )
         candidate_records = len(records)
         deleted_db_rows = 0
         local_deleted = 0

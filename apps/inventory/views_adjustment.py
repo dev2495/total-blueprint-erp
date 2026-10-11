@@ -14,6 +14,7 @@ from apps.inventory.models import StockAdjustment, StockAdjustmentLine
 from apps.inventory.services.adjustment import (
     StockAdjustmentService,
     _generate_adj_code,
+    can_self_post,
 )
 from apps.users.permission_registry import can_with_wildcard
 from apps.users.permission_service import PermissionService
@@ -32,6 +33,24 @@ class CanAdjustStock(BasePermission):
             return True
         granted = PermissionService.get_user_permissions(user)
         return can_with_wildcard(granted, "inventory.adjust")
+
+
+def _is_virtual_location(location) -> bool:
+    from apps.inventory.services.adjustment import _is_virtual
+
+    return _is_virtual(location)
+
+
+def _check_line_plant(line, plant):
+    """Every line must sit in the adjustment's plant."""
+    if plant is None:
+        return
+    location = line.get("location")
+    roll = line.get("inventory_roll")
+    if location is not None and location.plant_id != plant.id:
+        raise DRFValidationError({"lines": f"{location.name} belongs to another plant than this adjustment."})
+    if roll is not None and (roll.plant_id or getattr(roll.location, "plant_id", None)) != plant.id:
+        raise DRFValidationError({"lines": f"Roll {roll.label_id} belongs to another plant than this adjustment."})
 
 
 class StockAdjustmentLineSerializer(serializers.ModelSerializer):
@@ -101,6 +120,16 @@ class StockAdjustmentLineSerializer(serializers.ModelSerializer):
         location = attrs.get("location") or getattr(self.instance, "location", None)
         inventory_roll = attrs.get("inventory_roll") or getattr(self.instance, "inventory_roll", None)
 
+        uom = str(attrs.get("uom", getattr(self.instance, "uom", "")) or "").strip().upper()
+        if stock_class in {"BULK", "PACKAGING"} and material is not None:
+            base_uom = str(material.base_uom or "").strip().upper()
+            if base_uom and uom and uom != base_uom:
+                raise serializers.ValidationError({"uom": f"{material.code} is stocked in {base_uom}; enter the quantity in {base_uom}."})
+        if stock_class == "ROLL" and uom and uom != "KG":
+            raise serializers.ValidationError({"uom": "Roll adjustments are entered in KG."})
+        if location is not None and _is_virtual_location(location):
+            raise serializers.ValidationError({"location": f"{location.name} is a virtual location (job work, transit or scrap); its stock is settled by that flow."})
+
         if stock_class == "BULK":
             if not material or not location:
                 raise serializers.ValidationError({"stock_class": "BULK adjustments require material and location."})
@@ -132,6 +161,7 @@ class StockAdjustmentSerializer(serializers.ModelSerializer):
     posted_by_name = serializers.CharField(
         source="posted_by.username", read_only=True, allow_null=True
     )
+    can_post = serializers.SerializerMethodField()
 
     class Meta:
         model = StockAdjustment
@@ -151,6 +181,7 @@ class StockAdjustmentSerializer(serializers.ModelSerializer):
             "posted_at",
             "posted_by",
             "posted_by_name",
+            "can_post",
         ]
         read_only_fields = [
             "id",
@@ -166,10 +197,21 @@ class StockAdjustmentSerializer(serializers.ModelSerializer):
             "posted_by_name",
         ]
 
+    def get_can_post(self, obj):
+        """False when the viewer drafted it and a second person must post."""
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if obj.status != "DRAFT" or user is None or not getattr(user, "is_authenticated", False):
+            return False
+        return obj.created_by_id != user.id or can_self_post(user)
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
         if self.instance is None and not attrs.get("lines"):
             raise DRFValidationError({"lines": "At least one adjustment line is required."})
+        plant = attrs.get("plant") or getattr(self.instance, "plant", None)
+        for line in attrs.get("lines") or []:
+            _check_line_plant(line, plant)
         return attrs
 
     def create(self, validated_data):
@@ -288,6 +330,7 @@ class StockAdjustmentViewSet(viewsets.ModelViewSet):
             raise DRFValidationError(f"Cannot add lines to {adj.status} adjustment.")
         ser = StockAdjustmentLineSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
+        _check_line_plant(ser.validated_data, adj.plant)
         with transaction.atomic():
             next_no = (adj.lines.count() or 0) + 1
             line = StockAdjustmentLine.objects.create(

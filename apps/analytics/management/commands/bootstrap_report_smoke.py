@@ -53,21 +53,27 @@ class Command(BaseCommand):
             failures = []
             for profile in ReportDistributionProfile.objects.filter(active=True).order_by("report_code"):
                 rendered = ReportDistributionService.render_report(profile.report_code)
-                artifact_paths = ReportDistributionService.persist_rendered_artifacts(rendered, folder="manual-preview")
-                artifact_path = artifact_paths["pdf"]
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"{profile.report_code}: preview saved -> {artifact_path}"
+                if profile.report_code == ReportDistributionProfile.ReportCode.GATE_REGISTER_DAILY:
+                    # The gate register is private: it is never written to
+                    # media files; send_profile archives it in the database.
+                    self.stdout.write(
+                        self.style.SUCCESS(f"{profile.report_code}: private register, no file preview")
                     )
-                )
-                for attachment_name, attachment_path in artifact_paths.items():
-                    if attachment_name == "pdf":
-                        continue
+                else:
+                    artifact_paths = ReportDistributionService.persist_rendered_artifacts(rendered, folder="manual-preview")
                     self.stdout.write(
                         self.style.SUCCESS(
-                            f"{profile.report_code}: detail saved -> {attachment_path}"
+                            f"{profile.report_code}: preview saved -> {artifact_paths['pdf']}"
                         )
                     )
+                    for attachment_name, attachment_path in artifact_paths.items():
+                        if attachment_name == "pdf":
+                            continue
+                        self.stdout.write(
+                            self.style.SUCCESS(
+                                f"{profile.report_code}: detail saved -> {attachment_path}"
+                            )
+                        )
                 try:
                     run = ReportDistributionService.send_profile(
                         profile,

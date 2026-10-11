@@ -28,6 +28,8 @@ export interface CompanyProfile {
     default_payment_terms: string
     default_jurisdiction: string
     quote_validity_days: number
+    /** Machine output logs: wastage share (%) at which a reason is required. */
+    waste_reason_threshold_pct: number | string
     quote_terms_text: string
     authorised_signatory_name: string
     authorised_signatory_role: string

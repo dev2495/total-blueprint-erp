@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.inventory.models import InkFloorMovement, InkFloorSession
+from apps.inventory.permissions import FLOOR_MOVEMENT, InventoryActionPermission
 from apps.inventory.serializers_ink_floor import InkFloorMovementSerializer, InkFloorSessionSerializer
 from apps.inventory.services.ink_floor import InkFloorService
 
@@ -91,7 +92,8 @@ class InkFloorSessionListView(generics.ListAPIView):
 
 
 class InkFloorIssueView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    write_permissions = {"post": FLOOR_MOVEMENT}
 
     def post(self, request):
         try:
@@ -111,7 +113,8 @@ class InkFloorIssueView(APIView):
 
 
 class InkFloorReturnView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    write_permissions = {"post": FLOOR_MOVEMENT}
 
     def post(self, request):
         try:
@@ -131,7 +134,8 @@ class InkFloorReturnView(APIView):
 
 
 class InkFloorMixReturnView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    write_permissions = {"post": FLOOR_MOVEMENT}
 
     def post(self, request):
         try:
@@ -154,7 +158,8 @@ class InkFloorMixReturnView(APIView):
 
 
 class InkFloorCountView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    write_permissions = {"post": FLOOR_MOVEMENT}
 
     def post(self, request):
         try:

@@ -225,6 +225,13 @@ class QuotationLifecycleService:
             raise ValidationError(f"{gate} approval has already been decided.")
         if approval.requested_by_id == getattr(user, "id", None):
             raise ValidationError("The quotation submitter cannot approve the same revision.")
+        # Two gates mean two independent decisions. Only an owner may clear
+        # both gates of one revision alone.
+        decided_other_gate = QuotationApproval.objects.filter(
+            quotation=quotation, status="APPROVED", decided_by_id=getattr(user, "id", None),
+        ).exclude(gate=gate).exists()
+        if decided_other_gate and not (getattr(user, "is_owner", False) or getattr(user, "is_superuser", False)):
+            raise ValidationError("You already approved the other gate of this revision; a different approver must clear this one.")
         if approval.expires_at and approval.expires_at <= timezone.now():
             raise ValidationError("Approval request expired; clone a fresh revision.")
         approval.status = "APPROVED"

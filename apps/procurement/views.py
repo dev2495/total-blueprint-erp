@@ -105,8 +105,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         po = self.get_object()
         try:
             data = PurchaseOrderPDFService.render_pdf_bytes(po)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception("Unhandled error in %s", request.path)
+            return Response(
+                {"error": "This request could not be completed. Retry, and report the request ID if it keeps failing.",
+                 "request_id": str(getattr(request, "request_id", "") or "")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         resp = HttpResponse(data, content_type="application/pdf")
         resp["Content-Disposition"] = f'inline; filename="{po.code}.pdf"'
         return resp

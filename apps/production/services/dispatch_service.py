@@ -2445,14 +2445,21 @@ class FGDispatchService:
                 roll.save(update_fields=['status'])
             
             elif item.packing_unit_id:
-                # Update gonny status and location
+                # The challan item is the gonny's dispatch record; stamp the
+                # challan on the gonny too so its own history shows where it went.
                 gonny = gonny_map[str(item.packing_unit_id)]
-                
+                meta = dict(gonny.meta_json or {})
+                meta["dispatch"] = {
+                    "challan_id": str(challan.id),
+                    "dc_no": challan.dc_no,
+                    "from_location_id": str(gonny.location_id) if gonny.location_id else None,
+                    "dispatched_at": timezone.now().isoformat(),
+                    "dispatched_by": getattr(user, "username", "") if user is not None else "",
+                }
                 gonny.status = 'DISPATCHED'
                 gonny.location = transit_location
-                gonny.save()
-                
-                # Ledger removed
+                gonny.meta_json = meta
+                gonny.save(update_fields=['status', 'location', 'meta_json'])
             
         # Update challan status
         challan.status = 'DISPATCHED'

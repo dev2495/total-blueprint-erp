@@ -46,8 +46,10 @@ class OpsViewSet(viewsets.ViewSet):
         if not _is_ops_admin(request.user):
             return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
 
-        retention_days = int(request.data.get("retention_days") or 30)
-        result = BackupService.prune_backup_retention(retention_days=retention_days)
+        try:
+            result = BackupService.prune_backup_retention(retention_days=request.data.get("retention_days") or 30)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(result)
 
     @action(detail=False, methods=["get"], url_path="restore-drills")

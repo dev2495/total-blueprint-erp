@@ -2,10 +2,11 @@ from rest_framework import viewsets, generics, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.views import APIView
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, ProtectedError, Q, Sum
 from django.http import FileResponse, HttpResponse
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.utils.dateparse import parse_date
@@ -38,10 +39,17 @@ from .serializers import (
     BulkGRNSerializer, RollGRNSerializer, PackagingGRNSerializer,
     DeliveryChallanSerializer, ChallanDispatchSerializer, ChallanReceiveSerializer,
     InventoryRollSerializer, RollDetailSerializer, RollMovementSerializer, RollConsumptionSerializer,
-    RollReserveSerializer, RollReleaseSerializer, RollMoveSerializer, RollConsumeSerializer,
+    RollMoveSerializer,
     InventoryBulkSerializer, BulkTransactionSerializer,
     PackagingStockSerializer, PackagingTransactionSerializer,
     resolve_roll_role, resolve_roll_stage_name,
+)
+from .permissions import (
+    FLOOR_MOVEMENT,
+    InventoryActionPermission,
+    LOCATION_MASTER,
+    RECEIPT_POSTING,
+    STOCK_MANAGE,
 )
 from .services.grn import GRNService
 from .views_job_work import JobWorkOrderViewSet  # noqa: F401  (registered in urls.py)
@@ -1149,12 +1157,78 @@ class InventoryV36ExportView(APIView):
         return response
 
 
+VIRTUAL_LOCATION_TYPES = {"JOBWORK", "TRANSIT", "SCRAP"}
+VIRTUAL_LOCATION_CODES = {"JOBWORK_OUT", "IN_TRANSIT", "IN-TRANSIT", "SCRAP"}
+
+
+def _is_virtual_location(location) -> bool:
+    return (
+        str(getattr(location, "type", "") or "").upper() in VIRTUAL_LOCATION_TYPES
+        or str(getattr(location, "code", "") or "").upper() in VIRTUAL_LOCATION_CODES
+    )
+
+
+def _location_has_history(location) -> bool:
+    return (
+        InventoryRoll.objects.filter(location=location).exists()
+        or InventoryBulk.objects.filter(location=location).exists()
+        or PackagingStock.objects.filter(location=location).exists()
+        or BulkTransaction.objects.filter(location=location).exists()
+        or PackagingTransaction.objects.filter(location=location).exists()
+        or RollMovement.objects.filter(Q(from_location=location) | Q(to_location=location)).exists()
+    )
+
+
+def _location_has_stock(location) -> bool:
+    return (
+        InventoryRoll.objects.filter(location=location, weight_kg__gt=0).exclude(status__in=["CONSUMED", "SCRAPPED"]).exists()
+        or InventoryBulk.objects.filter(location=location, qty_kg__gt=0).exists()
+        or PackagingStock.objects.filter(location=location, qty__gt=0).exists()
+    )
+
+
 class LocationViewSet(viewsets.ModelViewSet):
+    """Location master. Everyone reads it; only factory administrators change it.
+
+    System locations (RM, WIP, FG, JOBWORK_OUT, IN_TRANSIT, SCRAP …) keep their
+    code, type and plant. A location that already carries stock history keeps
+    its plant and kind and cannot be deleted; it cannot be closed while stock
+    is still on hand.
+    """
+
     queryset = InventoryLocation.objects.all()
     serializer_class = InventoryLocationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    write_permissions = {"*": LOCATION_MASTER}
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['plant', 'type', 'is_active']
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        location = InventoryLocation.objects.select_for_update().get(pk=serializer.instance.pk)
+        data = serializer.validated_data
+        changed = {field for field in ("plant", "code", "type", "is_active") if field in data and data[field] != getattr(location, field)}
+        closing = "is_active" in changed and data["is_active"] is False
+        if location.is_system and ({"plant", "code", "type"} & changed or closing):
+            raise DRFValidationError("System locations keep their plant, code and type and cannot be closed. You can rename them.")
+        if {"plant", "type"} & changed and _location_has_history(location):
+            raise DRFValidationError("This location already has stock history, so its plant and kind cannot change. Create a new location instead.")
+        if closing and _location_has_stock(location):
+            raise DRFValidationError("This location still holds stock. Move or consume it before closing the location.")
+        serializer.save()
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        location = InventoryLocation.objects.select_for_update().get(pk=instance.pk)
+        if location.is_system:
+            raise DRFValidationError("System locations cannot be deleted.")
+        if _location_has_history(location):
+            raise DRFValidationError("This location has stock history and cannot be deleted. Close it (set it inactive) instead.")
+        try:
+            with transaction.atomic():
+                location.delete()
+        except ProtectedError:
+            raise DRFValidationError("This location is referenced by other records and cannot be deleted. Close it (set it inactive) instead.")
 
 class StockViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
@@ -1280,7 +1354,9 @@ def _refuse_virtual_receipt_location(request):
 
 
 class GRNViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    # Posting receipts creates stock; correcting history rewrites it.
+    write_permissions = {"*": RECEIPT_POSTING, "correct_history": STOCK_MANAGE}
 
     @staticmethod
     def _vendor_invoice_exists(klass: str, vendor: Vendor, invoice_no: str) -> bool:
@@ -2314,7 +2390,11 @@ class DeliveryChallanViewSet(viewsets.ModelViewSet):
         'items__to_location',
     ).order_by('-created_at')
     serializer_class = DeliveryChallanSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    # The store and the work-center terminals move material between plants.
+    write_permissions = {"*": FLOOR_MOVEMENT}
+    # Challans change only through create / dispatch / receive.
+    http_method_names = ["get", "post", "head", "options"]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -2336,8 +2416,8 @@ class DeliveryChallanViewSet(viewsets.ModelViewSet):
             )
             out = self.get_serializer(challan).data
             return Response(out, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValidationError, ValueError) as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='create-and-dispatch')
     def create_and_dispatch(self, request):
@@ -2379,8 +2459,12 @@ class DeliveryChallanViewSet(viewsets.ModelViewSet):
                 target_location_id=str(data['target_location_id']) if data.get('target_location_id') else None,
             )
             return Response({"status": "dispatched"})
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        except DeliveryChallan.DoesNotExist:
+            return Response({"error": "Challan not found."}, status=status.HTTP_404_NOT_FOUND)
+        except ObjectDoesNotExist:
+            return Response({"error": "A selected location, material or roll no longer exists. Refresh and retry."}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValidationError, ValueError) as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
     def receive_challan(self, request, pk=None):
@@ -2396,8 +2480,12 @@ class DeliveryChallanViewSet(viewsets.ModelViewSet):
                 bulk_items=data.get('bulk_items', [])
             )
             return Response({"status": "received"})
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        except DeliveryChallan.DoesNotExist:
+            return Response({"error": "Challan not found."}, status=status.HTTP_404_NOT_FOUND)
+        except ObjectDoesNotExist:
+            return Response({"error": "A selected location, material or roll no longer exists. Refresh and retry."}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValidationError, ValueError) as exc:
+            return Response({"error": _api_error_message(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
     @xframe_options_exempt
     @action(detail=True, methods=['get'], url_path='print-pdf')
@@ -2432,15 +2520,53 @@ class PlantLocationListView(generics.ListAPIView):
 # PHASE 54: ROLL TRACKING VIEWS
 # ============================================================================
 
-class RollViewSet(viewsets.ModelViewSet):
+def _query_decimal(params, key):
+    raw = params.get(key)
+    if raw in (None, ""):
+        return None
+    try:
+        value = Decimal(str(raw).strip())
+    except Exception:
+        raise DRFValidationError({key: "Enter a number."})
+    if not value.is_finite():
+        raise DRFValidationError({key: "Enter a number."})
+    return value
+
+
+def _query_uuid(params, key):
+    raw = params.get(key)
+    if raw in (None, ""):
+        return None
+    try:
+        return uuid.UUID(str(raw).strip())
+    except (TypeError, ValueError):
+        raise DRFValidationError({key: "Must be a valid ID."})
+
+
+class RollViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    Phase 56: Roll management endpoints.
-    Provides CRUD operations plus genealogy, movement, reserve, consume, and WCM filtering.
+    Roll lookups (list, detail, genealogy, explorer, WCM picker) and the
+    store's roll operations: labels, split, stock-form conversion, location
+    move and quarantine.
+
+    Rolls are stock evidence: weight, status, location and material change only
+    through these operations and the production, dispatch, job-work and
+    adjustment flows, each of which writes its movement trail. There is no raw
+    create/update/delete.
     """
     queryset = InventoryRoll.objects.all().select_related(
-        'material', 'grade', 'plant', 'location', 'created_by_job', 'created_process'
+        'material', 'material__parent_family', 'grade', 'plant', 'location',
+        'created_by_job', 'created_by_job__production_batch',
+        'production_job', 'production_job__production_batch',
+        'created_process',
     ).order_by('-created_at')
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    write_permissions = {
+        "labels": ("inventory.view",),
+        # Slitting / stock-form conversion runs on the floor as well as in the store.
+        "convert_stock_form": FLOOR_MOVEMENT,
+        "*": STOCK_MANAGE,
+    }
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['status', 'stage_index', 'location', 'plant', 'material', 'grade', 'is_fg']
     
@@ -2483,31 +2609,16 @@ class RollViewSet(viewsets.ModelViewSet):
         Supports thickness range, grade, stage, location, status filters.
         """
         queryset = super().get_queryset()
-        
-        # Thickness range filters (for WCM)
-        thickness_min = self.request.query_params.get('thickness_min')
-        thickness_max = self.request.query_params.get('thickness_max')
-        if thickness_min:
-            queryset = queryset.filter(thickness_micron__gte=Decimal(thickness_min))
-        if thickness_max:
-            queryset = queryset.filter(thickness_micron__lte=Decimal(thickness_max))
-        
-        # Width range filters
-        width_min = self.request.query_params.get('width_min')
-        width_max = self.request.query_params.get('width_max')
-        if width_min:
-            queryset = queryset.filter(width_mm__gte=Decimal(width_min))
-        if width_max:
-            queryset = queryset.filter(width_mm__lte=Decimal(width_max))
-        
-        # Weight range filters
-        weight_min = self.request.query_params.get('weight_min')
-        weight_max = self.request.query_params.get('weight_max')
-        if weight_min:
-            queryset = queryset.filter(weight_kg__gte=Decimal(weight_min))
-        if weight_max:
-            queryset = queryset.filter(weight_kg__lte=Decimal(weight_max))
-        
+        params = self.request.query_params
+        ranges = (
+            ("thickness_min", "thickness_micron__gte"), ("thickness_max", "thickness_micron__lte"),
+            ("width_min", "width_mm__gte"), ("width_max", "width_mm__lte"),
+            ("weight_min", "weight_kg__gte"), ("weight_max", "weight_kg__lte"),
+        )
+        for key, lookup in ranges:
+            value = _query_decimal(params, key)
+            if value is not None:
+                queryset = queryset.filter(**{lookup: value})
         return queryset
 
     @action(detail=False, methods=['get'], url_path='for-wcm')
@@ -2524,37 +2635,26 @@ class RollViewSet(viewsets.ModelViewSet):
         - location: UUID
         - status: AVAILABLE, RESERVED
         """
+        params = request.query_params
         queryset = self.get_queryset().filter(
             status__in=['AVAILABLE', 'RESERVED']
-        )
-        
-        # Apply additional filters from query params
-        material_id = request.query_params.get('material')
-        if material_id:
-            queryset = queryset.filter(material_id=material_id)
-        
-        grade_id = request.query_params.get('grade')
-        if grade_id:
-            queryset = queryset.filter(grade_id=grade_id)
-        
-        stage_index = request.query_params.get('stage_index')
-        if stage_index is not None:
-            queryset = queryset.filter(stage_index=int(stage_index))
-        
-        location_id = request.query_params.get('location')
-        if location_id:
-            queryset = queryset.filter(location_id=location_id)
-        
-        plant_id = request.query_params.get('plant')
-        if plant_id:
-            queryset = queryset.filter(plant_id=plant_id)
-        
-        # Limit results for performance (after robust quarantine filtering).
-        rows = [
-            roll for roll in queryset
-            if not bool(((getattr(roll, "meta_json", None) or {}).get("is_quarantined")))
-        ][:100]
+        ).exclude(meta_json__contains={"is_quarantined": True})
 
+        for key, field in (("material", "material_id"), ("grade", "grade_id"), ("location", "location_id"), ("plant", "plant_id")):
+            value = _query_uuid(params, key)
+            if value is not None:
+                queryset = queryset.filter(**{field: value})
+
+        stage_index = params.get('stage_index')
+        if stage_index not in (None, ""):
+            try:
+                queryset = queryset.filter(stage_index=int(stage_index))
+            except (TypeError, ValueError):
+                raise DRFValidationError({"stage_index": "Enter a whole number."})
+
+        # Quarantine is filtered in the database, so the 100-row cap applies
+        # to usable rolls only and no full table is loaded into memory.
+        rows = list(queryset[:100])
         return Response(InventoryRollSerializer(rows, many=True).data)
 
     @action(detail=True, methods=['post'], url_path='split')
@@ -2796,20 +2896,45 @@ class RollViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Reasons a store user may give for a manual, same-plant location move.
+    # Receipts, dispatch, job work, inter-plant transfers, counts and opening
+    # balances record their own movements through their own flows.
+    MANUAL_MOVE_REASONS = {"ADJUSTMENT", "WIP_TRANSFER", "FG_TRANSFER", "PRODUCTION"}
+
     @action(detail=True, methods=['post'])
     def move(self, request, pk=None):
-        """Move a roll to a new location."""
+        """Move an available roll to another real location in the same plant."""
         serializer = RollMoveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        
-        try:
-            roll = self.get_object()
-            to_location = InventoryLocation.objects.get(id=data['to_location_id'])
+        if data['reason'] not in self.MANUAL_MOVE_REASONS:
+            raise DRFValidationError({"reason": "Choose Adjustment, WIP transfer, FG storage or Production issue. Other movements are recorded by their own flows."})
+
+        with transaction.atomic():
+            roll = InventoryRoll.objects.select_for_update(of=("self",)).select_related("location").get(pk=self.get_object().pk)
+            to_location = InventoryLocation.objects.filter(id=data['to_location_id']).first()
+            if to_location is None:
+                raise DRFValidationError({"to_location_id": "Location not found."})
+            if roll.status != "AVAILABLE":
+                raise DRFValidationError(f"Roll {roll.label_id} is {roll.status}; only an available roll can be moved.")
+            if InventoryReservation.objects.filter(roll=roll, status="ACTIVE").exists():
+                raise DRFValidationError(f"Roll {roll.label_id} is reserved for a job. Unassign it on the work-center terminal first.")
+            from apps.production.models import InventoryAllocation
+            if InventoryAllocation.objects.filter(inventory_roll=roll, status="ACTIVE").exists():
+                raise DRFValidationError(f"Roll {roll.label_id} is allocated to an order. Release the allocation first.")
+            if not to_location.is_active:
+                raise DRFValidationError({"to_location_id": f"{to_location.name} is closed."})
+            if _is_virtual_location(to_location):
+                raise DRFValidationError({"to_location_id": f"{to_location.name} is a virtual location (job work, transit or scrap). Use that flow instead."})
+            if roll.location_id == to_location.id:
+                raise DRFValidationError({"to_location_id": f"Roll {roll.label_id} is already at {to_location.name}."})
+            if roll.location and roll.location.plant_id != to_location.plant_id:
+                raise DRFValidationError({"to_location_id": "Moving to another plant needs an inter-plant challan."})
             job = None
             if data.get('job_id'):
-                job = ProductionJob.objects.get(id=data['job_id'])
-            
+                job = ProductionJob.objects.filter(id=data['job_id']).first()
+                if job is None:
+                    raise DRFValidationError({"job_id": "Job not found."})
             movement = RollService.move_roll(
                 roll=roll,
                 to_location=to_location,
@@ -2818,126 +2943,74 @@ class RollViewSet(viewsets.ModelViewSet):
                 job=job,
                 user=request.user
             )
-            return Response({
-                "status": "moved",
-                "movement": RollMovementSerializer(movement).data
-            })
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "status": "moved",
+            "movement": RollMovementSerializer(movement).data
+        })
+
+    @staticmethod
+    def _retired(message):
+        return Response({"error": message, "code": "ENDPOINT_RETIRED"}, status=status.HTTP_410_GONE)
 
     @action(detail=False, methods=['post'])
     def reserve(self, request):
-        """Reserve multiple rolls for a production job."""
-        serializer = RollReserveSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        
-        try:
-            rolls = InventoryRoll.objects.filter(id__in=data['roll_ids'])
-            job = ProductionJob.objects.get(id=data['job_id'])
-            
-            reserved = RollService.reserve_rolls(list(rolls), job)
-            return Response({
-                "status": "reserved",
-                "count": len(reserved),
-                "rolls": InventoryRollSerializer(reserved, many=True).data
-            })
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        """Retired: reservations are made on the work-center terminal."""
+        return self._retired(
+            "Rolls are reserved on the work-center terminal (Assign rolls), which links the job, lane and material requirement."
+        )
 
     @action(detail=False, methods=['post'])
     def release(self, request):
-        """Release reserved rolls back to available."""
-        serializer = RollReleaseSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        
-        try:
-            rolls = InventoryRoll.objects.filter(id__in=data['roll_ids'])
-            released = RollService.release_rolls(list(rolls))
-            return Response({
-                "status": "released",
-                "count": len(released)
-            })
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        """Retired: reservations are released by the flow that made them."""
+        return self._retired(
+            "Reserved rolls are released on the work-center terminal (Unassign), so the job's reservation record is closed too."
+        )
+
+    QUARANTINE_BLOCKED_STATUSES = {"CONSUMED", "SCRAPPED", "IN_TRANSIT", "SENT_JOBWORK"}
 
     @action(detail=True, methods=['post'], url_path='quarantine')
     def quarantine(self, request, pk=None):
-        """Mark roll as quarantined (excluded from planning/auto-pick)."""
-        try:
-            roll = self.get_object()
+        """Hold a roll out of planning and auto-pick until it is released."""
+        reason = str(request.data.get("reason") or "").strip()
+        if len(reason) < 3:
+            raise DRFValidationError({"reason": "Give the reason for the quarantine."})
+        with transaction.atomic():
+            roll = InventoryRoll.objects.select_for_update().get(pk=self.get_object().pk)
+            if roll.status in self.QUARANTINE_BLOCKED_STATUSES:
+                raise DRFValidationError(f"Roll {roll.label_id} is {roll.status} and cannot be quarantined.")
             meta = dict(roll.meta_json or {})
-            meta["is_quarantined"] = True
-            reason = request.data.get("reason")
-            if reason:
-                meta["quarantine_reason"] = str(reason)
+            if meta.get("is_quarantined"):
+                raise DRFValidationError(f"Roll {roll.label_id} is already quarantined.")
+            now = timezone.now().isoformat()
+            meta.update({"is_quarantined": True, "quarantine_reason": reason[:500], "quarantined_at": now, "quarantined_by": request.user.username})
+            meta["quarantine_history"] = list(meta.get("quarantine_history") or []) + [{"action": "QUARANTINED", "at": now, "by": request.user.username, "reason": reason[:500]}]
             roll.meta_json = meta
             roll.save(update_fields=["meta_json"])
-            return Response({"status": "quarantined", "roll": InventoryRollSerializer(roll).data})
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"status": "quarantined", "roll": InventoryRollSerializer(roll).data})
 
     @action(detail=True, methods=['post'], url_path='unquarantine')
     def unquarantine(self, request, pk=None):
-        """Clear quarantine marker."""
-        try:
-            roll = self.get_object()
+        """Release a quarantined roll back to planning."""
+        note = str(request.data.get("reason") or request.data.get("note") or "").strip()
+        with transaction.atomic():
+            roll = InventoryRoll.objects.select_for_update().get(pk=self.get_object().pk)
             meta = dict(roll.meta_json or {})
+            if not meta.get("is_quarantined"):
+                raise DRFValidationError(f"Roll {roll.label_id} is not quarantined.")
+            now = timezone.now().isoformat()
             meta["is_quarantined"] = False
             meta.pop("quarantine_reason", None)
+            meta["quarantine_history"] = list(meta.get("quarantine_history") or []) + [{"action": "RELEASED", "at": now, "by": request.user.username, "reason": note[:500]}]
             roll.meta_json = meta
             roll.save(update_fields=["meta_json"])
-            return Response({"status": "unquarantined", "roll": InventoryRollSerializer(roll).data})
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"status": "unquarantined", "roll": InventoryRollSerializer(roll).data})
 
     @action(detail=False, methods=['post'])
     def consume(self, request):
-        """
-        Consume rolls for a production job.
-        Creates output, balance, and scrap rolls automatically.
-        """
-        serializer = RollConsumeSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        
-        try:
-            job = ProductionJob.objects.get(id=data['job_id'])
-            process = Process.objects.get(id=data['process_id'])
-            machine = Machine.objects.get(id=data['machine_id'])
-            output_location = None
-            if data.get('output_location_id'):
-                output_location = InventoryLocation.objects.get(id=data['output_location_id'])
-            
-            results = []
-            for input_data in data['inputs']:
-                roll = InventoryRoll.objects.get(id=input_data['roll_id'])
-                result = RollService.consume_roll(
-                    input_roll=roll,
-                    job=job,
-                    process=process,
-                    machine=machine,
-                    used_kg=Decimal(str(input_data['used_kg'])),
-                    scrap_kg=Decimal(str(input_data.get('scrap_kg', 0))),
-                    output_location=output_location,
-                    user=request.user,
-                    notes=data.get('notes', '')
-                )
-                result_data = {
-                    'input_roll': roll.label_id,
-                    'output_roll': result['output_roll'].label_id if result['output_roll'] else None,
-                    'balance_roll': result['balance_roll'].label_id if result['balance_roll'] else None,
-                    'scrap_roll': result['scrap_roll'].label_id if result['scrap_roll'] else None,
-                }
-                results.append(result_data)
-            
-            return Response({
-                "status": "consumed",
-                "results": results
-            })
-        except Exception as e:
-            return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
+        """Retired: production consumption is recorded on the machine terminal."""
+        return self._retired(
+            "Roll consumption is recorded on the machine terminal against the running job, which checks the machine's work center and job state."
+        )
 
     @action(detail=False, methods=['get'], url_path='by-stage')
     def by_stage(self, request):
@@ -3194,28 +3267,21 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
         'material', 'granule_code', 'location', 'plant'
     ).order_by('material__name')
     serializer_class = InventoryBulkSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    write_permissions = {"*": STOCK_MANAGE}
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['plant', 'location', 'material', 'granule_code']
 
     @action(detail=False, methods=['post'])
     def inward(self, request):
-        """Inward bulk material."""
-        data = request.data
-        try:
-            tx = BulkService.add_bulk(
-                material_id=data['material_id'],
-                qty=Decimal(str(data['qty_kg'])),
-                plant_id=data['plant_id'],
-                location_id=data['location_id'],
-                cost=Decimal(str(data.get('avg_cost', 0))),
-                reference=data.get('reference', ''),
-                granule_code_id=data.get('granule_code_id') or data.get('granule_code'),
-                qty_uom=data.get('uom'),
-            )
-            return Response(BulkTransactionSerializer(tx).data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": str(getattr(e, "message", "") or e)}, status=400)
+        """Retired: purchased bulk stock enters through the Smart GRN."""
+        return Response(
+            {
+                "error": "Receive bulk material through the GRN, which records the vendor, invoice and receiving location.",
+                "code": "ENDPOINT_RETIRED",
+            },
+            status=status.HTTP_410_GONE,
+        )
 
     @action(detail=False, methods=['post'])
     def consume(self, request):
@@ -3232,14 +3298,28 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 qty_uom=data.get('uom'),
             )
             return Response(BulkTransactionSerializer(tx).data)
-        except Exception as e:
-            return Response({"error": str(getattr(e, "message", "") or e)}, status=400)
+        except KeyError as exc:
+            return Response({"error": f"{exc.args[0]} is required."}, status=400)
+        except (ArithmeticError, TypeError):
+            return Response({"error": "qty_kg must be a number."}, status=400)
+        except ObjectDoesNotExist:
+            return Response({"error": "A selected material or location no longer exists."}, status=400)
+        except (ValidationError, ValueError) as exc:
+            return Response({"error": _api_error_message(exc)}, status=400)
 
     @action(detail=False, methods=['post'])
     def transfer(self, request):
         """Transfer bulk material between locations."""
         data = request.data
         try:
+            from_location = InventoryLocation.objects.filter(id=data.get('from_location_id')).first()
+            to_location = InventoryLocation.objects.filter(id=data.get('to_location_id')).first()
+            if from_location is None or to_location is None:
+                raise ValidationError("Choose existing source and destination locations.")
+            if from_location.plant_id != to_location.plant_id:
+                raise ValidationError("Moving stock to another plant needs an inter-plant challan.")
+            if not to_location.is_active or _is_virtual_location(from_location) or _is_virtual_location(to_location):
+                raise ValidationError("Transfers run between active store locations. Job work, transit and scrap have their own flows.")
             BulkService.transfer_bulk(
                 material_id=data['material_id'],
                 qty=Decimal(str(data['qty_kg'])),
@@ -3250,8 +3330,14 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
                 qty_uom=data.get('uom'),
             )
             return Response({"status": "transferred"})
-        except Exception as e:
-            return Response({"error": str(getattr(e, "message", "") or e)}, status=400)
+        except KeyError as exc:
+            return Response({"error": f"{exc.args[0]} is required."}, status=400)
+        except (ArithmeticError, TypeError):
+            return Response({"error": "qty_kg must be a number."}, status=400)
+        except ObjectDoesNotExist:
+            return Response({"error": "A selected material or location no longer exists."}, status=400)
+        except (ValidationError, ValueError) as exc:
+            return Response({"error": _api_error_message(exc)}, status=400)
 
 class BulkTransactionListView(generics.ListAPIView):
     """Audit log for Bulk Transactions."""
@@ -3317,7 +3403,7 @@ class InventoryHealthView(generics.GenericAPIView):
             return Response({"error": "Request failed"}, status=500)
 
 
-class InventoryAlertViewSet(viewsets.ModelViewSet):
+class InventoryAlertViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Inventory Alerts management.
     GET /api/inventory/alerts/
@@ -3327,7 +3413,10 @@ class InventoryAlertViewSet(viewsets.ModelViewSet):
         'material', 'roll', 'plant', 'resolved_by'
     ).order_by('-created_at')
     serializer_class = InventoryAlertSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    # Alerts are raised by reconciliation; anyone working the inventory
+    # screens (store, planning, work centers) may resolve them with a note.
+    write_permissions = {"*": ("inventory.view",)}
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['type', 'severity', 'resolved', 'plant']
     
@@ -3376,7 +3465,9 @@ class InventorySnapshotViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = InventorySnapshot.objects.all().select_related('plant').order_by('-created_at')
     serializer_class = InventorySnapshotSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [InventoryActionPermission]
+    # A snapshot only records the current balances.
+    write_permissions = {"create_now": ("inventory.view",)}
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['plant']
 

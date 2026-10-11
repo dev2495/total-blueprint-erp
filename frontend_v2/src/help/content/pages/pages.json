@@ -12900,6 +12900,16 @@
           "en": "Mandatory fields are blank or context selection is inconsistent.",
           "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
         }
+      },
+      {
+        "error": {
+          "en": "Wastage reason required",
+          "hi": "वेस्टेज का कारण आवश्यक"
+        },
+        "reason": {
+          "en": "Trim plus scrap on this output log is at or above the company wastage limit (Company profile → Production). Choose a reason under Trim and scrap and write why it happened; below the limit the reason is optional.",
+          "hi": "इस आउटपुट लॉग में ट्रिम और स्क्रैप कंपनी की वेस्टेज सीमा (कंपनी प्रोफ़ाइल → प्रोडक्शन) के बराबर या अधिक है। ट्रिम और स्क्रैप में कारण चुनें और लिखें कि ऐसा क्यों हुआ; सीमा से कम होने पर कारण वैकल्पिक है।"
+        }
       }
     ],
     "recoverySteps": [
@@ -15477,6 +15487,16 @@
           "en": "Mandatory fields are blank or context selection is inconsistent.",
           "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
         }
+      },
+      {
+        "error": {
+          "en": "A permission I unticked came back",
+          "hi": "हटाई गई अनुमति वापस आ गई"
+        },
+        "reason": {
+          "en": "Unticking a permission and saving now removes it from the role, including built-in defaults. Restore defaults clears these removals. A permission granted to one user in their own overrides still applies to that user.",
+          "hi": "अनुमति हटाकर सेव करने पर अब वह रोल से हट जाती है, बिल्ट-इन डिफ़ॉल्ट सहित। डिफ़ॉल्ट बहाल करने पर ये हटाई गई अनुमतियाँ वापस आ जाती हैं। किसी एक यूज़र को अलग से दी गई अनुमति उस यूज़र पर लागू रहती है।"
+        }
       }
     ],
     "recoverySteps": [
@@ -16996,6 +17016,16 @@
         "reason": {
           "en": "Role permissions, period status, or route state blocks the next step.",
           "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      },
+      {
+        "error": {
+          "en": "Post is disabled: waiting for a second person",
+          "hi": "पोस्ट बंद है: दूसरे व्यक्ति की प्रतीक्षा"
+        },
+        "reason": {
+          "en": "A stock adjustment is posted by someone other than the person who drafted it (owners and administrators may post their own). Every posted line also writes the stock ledger, so the stock card matches on-hand stock.",
+          "hi": "स्टॉक एडजस्टमेंट को वही व्यक्ति पोस्ट नहीं कर सकता जिसने ड्राफ्ट बनाया (मालिक और एडमिन अपना पोस्ट कर सकते हैं)। हर पोस्ट की गई लाइन स्टॉक लेजर में भी दर्ज होती है, ताकि स्टॉक कार्ड वास्तविक स्टॉक से मेल खाए।"
         }
       }
     ],
@@ -21070,6 +21100,16 @@
         "reason": {
           "en": "Role permissions, period status, or route state blocks the next step.",
           "hi": "Role permissions, period status, or route state blocks the next step."
+        }
+      },
+      {
+        "error": {
+          "en": "Operators are asked for a wastage reason too often (or never)",
+          "hi": "ऑपरेटर से वेस्टेज कारण बहुत बार (या कभी नहीं) पूछा जाता है"
+        },
+        "reason": {
+          "en": "Set Production → Wastage reason limit (%). When trim plus scrap reaches this share of a machine output log, the operator must give a reason and note.",
+          "hi": "प्रोडक्शन → वेस्टेज कारण सीमा (%) सेट करें। जब ट्रिम और स्क्रैप मशीन आउटपुट लॉग के इस हिस्से तक पहुँचते हैं, तो ऑपरेटर को कारण और नोट देना होता है।"
         }
       }
     ],

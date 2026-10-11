@@ -50,6 +50,8 @@ export interface StockAdjustment {
   posted_at?: string | null
   posted_by?: string | null
   posted_by_name?: string | null
+  /** False when the viewer drafted it and a second person must post it. */
+  can_post?: boolean
 }
 
 export interface StockAdjustmentPayload {

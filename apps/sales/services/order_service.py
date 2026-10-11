@@ -45,6 +45,24 @@ from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from ..models import CustomerProductOverlay, SalesOrder, SalesOrderItem, SalesSkuVariant
 
 
+QUOTE_SNAPSHOT_KEYS = ("quote_commercial_snapshot", "quote_cost_snapshot", "quote_acceptance_snapshot")
+QUOTE_LINE_SNAPSHOT_KEYS = ("quote_variant_snapshot", "quote_cost_snapshot")
+
+
+def _without_quote_snapshots(payload):
+    """Drop quotation evidence a client must not be able to supply."""
+    source = payload.dict() if callable(getattr(payload, "dict", None)) else dict(payload or {})
+    cleaned = {key: value for key, value in source.items() if key not in QUOTE_SNAPSHOT_KEYS}
+    items = cleaned.get("items")
+    if isinstance(items, list):
+        cleaned["items"] = [
+            {key: value for key, value in dict(item).items() if key not in QUOTE_LINE_SNAPSHOT_KEYS}
+            if isinstance(item, dict) else item
+            for item in items
+        ]
+    return cleaned
+
+
 def _as_int(value, default=0):
     try:
         return int(value)
@@ -1825,7 +1843,15 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
 
 class SalesOrderService:
     @staticmethod
-    def create_sales_order(payload):
+    def create_sales_order(payload, *, trusted_quote_snapshots=False):
+        """Create a DRAFT sales order.
+
+        Quotation evidence (commercial, cost and acceptance snapshots) is only
+        accepted from the quotation-to-order conversion, which passes
+        ``trusted_quote_snapshots=True``; a client payload cannot supply it.
+        """
+        if not trusted_quote_snapshots:
+            payload = _without_quote_snapshots(payload)
         with transaction.atomic():
             customer = None
             customer_name = payload.get("customer_name")

@@ -18,6 +18,17 @@ CUSTOM_ROLE_LANDINGS = (
 VIEW_IMPLYING_DOCUMENT_PERMISSIONS = frozenset({"documents.upload", "documents.manage", "gatepass.manage"})
 
 
+def role_revocations(role) -> set:
+    """Matrix permissions removed for this role; the wildcard is never revocable."""
+    return {str(code) for code in (getattr(role, "revoked_permissions", None) or []) if str(code) and str(code) != "*"}
+
+
+def revocations_for(role_code: str, submitted) -> list:
+    """Canonical-matrix permissions missing from what the administrator saved."""
+    baseline = set(effective_permissions_for_role(role_code))
+    return sorted(code for code in baseline - set(submitted or []) if code != "*")
+
+
 class PermissionService:
     @staticmethod
     def is_watchman(user) -> bool:
@@ -33,6 +44,7 @@ class PermissionService:
         actual = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
         granted = set(effective_permissions_for_role(actual))
         granted.update(getattr(getattr(user, "role", None), "default_permissions", []) or [])
+        granted.difference_update(role_revocations(getattr(user, "role", None)))
         granted.update(getattr(user, "extra_permissions", []) or [])
         granted.discard("*")
         return granted
@@ -187,9 +199,12 @@ class PermissionService:
 
         # Always apply the canonical matrix as the baseline so newly added
         # permissions take effect on deploy without requiring a database re-sync.
-        # The database can only extend beyond the matrix, never silently restrict it.
         if active_role_code:
             perms.update(effective_permissions_for_role(active_role_code))
+        # Removals an administrator made in the Role matrix are honoured.
+        # Per-account grants below still apply on top.
+        if role is not None:
+            perms.difference_update(role_revocations(role))
 
         if user.extra_permissions:
             perms.update(user.extra_permissions)
@@ -416,6 +431,7 @@ class PermissionService:
             matrix[role_code] = {
                 "default_permissions": list(defaults),
                 "database_permissions": list((role.default_permissions or []) if role else []),
+                "revoked_permissions": sorted(role_revocations(role)) if role else [],
             }
         return canonicalize_role_matrix(matrix)
 
@@ -428,7 +444,8 @@ class PermissionService:
         for role_code, permissions in ROLE_PERMISSION_MATRIX.items():
             role, _ = Role.objects.get_or_create(code=role_code, defaults={"name": role_code.title()})
             role.default_permissions = list(permissions)
-            role.save(update_fields=["default_permissions"])
+            role.revoked_permissions = []
+            role.save(update_fields=["default_permissions", "revoked_permissions"])
             updated.append(role_code)
         return updated
 
@@ -438,7 +455,8 @@ class PermissionService:
             getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST')
         )
         granted = set(PermissionService.get_user_permissions(user))
-        expected = set(effective_permissions_for_role(active_role_code))
+        role_row = Role.objects.filter(code=active_role_code).first()
+        expected = set(effective_permissions_for_role(active_role_code)) - role_revocations(role_row)
         return {
             "role": active_role_code,
             "granted_permissions": sorted(granted),

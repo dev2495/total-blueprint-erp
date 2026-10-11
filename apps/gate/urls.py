@@ -30,6 +30,7 @@ urlpatterns = [
     path("reports/", views.ReportsView.as_view()),
     path("reports/csv/", views.ReportsCSVView.as_view()),
     path("qr/", views.QRView.as_view()),
+    path("qr/rotate/", views.QRRotateView.as_view()),
     path("qr/<uuid:plant_id>/svg/", views.QRSVGView.as_view()),
     path("public/config/", views.PublicConfigView.as_view()),
     path("public/visitors/", views.PublicVisitorsView.as_view()),

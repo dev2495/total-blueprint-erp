@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 import uuid
@@ -10,6 +13,12 @@ class Role(models.Model):
     
     # Base Permissions (JSON list of codes)
     default_permissions = models.JSONField(default=list, blank=True)
+    # Canonical-matrix permissions an administrator removed in the Role
+    # matrix. New permissions added to the matrix in later releases still
+    # apply; only these explicit removals are withheld.
+    revoked_permissions = models.JSONField(
+        default=list, blank=True, db_default=models.Value([], output_field=models.JSONField())
+    )
 
     def __str__(self):
         return self.name
@@ -361,6 +370,16 @@ class CompanyProfile(models.Model):
     authorised_signatory_role = models.CharField(max_length=120, default="Authorised Signatory")
     # Logo path (relative to frontend_v2/public/)
     logo_path = models.CharField(max_length=200, default="brand/tpp-logo-pdf.svg")
+
+    # Machine output logs: at or above this wastage share (waste / (output +
+    # waste)) the operator must give a scrap reason and a note.
+    waste_reason_threshold_pct = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("5.00"),
+        db_default=Decimal("5.00"),
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("100"))],
+    )
 
     # Shift boundaries used for shift inference (HH:MM 24h, local time)
     shift_boundaries = models.JSONField(

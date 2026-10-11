@@ -16,6 +16,7 @@ from apps.inventory.services.packaging_service import PackagingService
 from apps.inventory.views import GRNViewSet, _stock_snapshot_payload
 from apps.materials.models import InventoryMaterial
 from apps.materials.serializers import InventoryMaterialSerializer
+from apps.users.models import Role
 
 
 class AddonBulkGrnTests(TestCase):
@@ -28,10 +29,13 @@ class AddonBulkGrnTests(TestCase):
             type="RM",
         )
         self.vendor = Vendor.objects.create(name="Addon Vendor", code="ADDON-V", type="RM", status="ACTIVE")
+        # Posting a GRN needs receipt authority (inventory.manage).
+        store_role, _ = Role.objects.get_or_create(code="STORE", defaults={"name": "Store"})
         self.user = get_user_model().objects.create_user(
             username="grn-uom-admin",
             email="grn-uom-admin@example.com",
             password="pw",
+            role=store_role,
         )
 
     def _post_unified_grn(self, payload):

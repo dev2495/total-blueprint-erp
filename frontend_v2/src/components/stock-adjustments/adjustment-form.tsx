@@ -519,7 +519,8 @@ function LineRow({
           </Label>
           <Input
             value={line.uom}
-            onChange={(e) => onChange({ uom: e.target.value })}
+            readOnly
+            title="Quantities are entered in the item's stock unit."
             className="mt-1 font-mono"
           />
         </div>

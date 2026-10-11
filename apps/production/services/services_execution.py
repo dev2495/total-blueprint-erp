@@ -7656,6 +7656,13 @@ class ExecutionService:
         else:
             output_weight_kg = qty
 
+        # High wastage needs a reason before anything is posted.
+        from apps.production.services.waste_policy import validate_output_waste
+        waste_reason, waste_note = validate_output_waste(
+            output_weight_kg, scrap_qty, kwargs.get("waste_reason"), kwargs.get("waste_note"),
+            require_reason_above_limit=bool(kwargs.get("enforce_waste_reason")),
+        )
+
         if process.output_form == 'ROLL' and roll_behavior == "CREATE_NEW":
             if output_width_mm in (None, "") and not kwargs.get("roll_outputs"):
                 raise ValueError("Output width_mm is required for CREATE_NEW roll.")
@@ -9070,7 +9077,17 @@ class ExecutionService:
 
             # 4. Waste log (operator input). New machine terminal clients send
             # trim and process scrap separately; legacy clients still send only
-            # scrap_qty and retain the old aggregate log shape.
+            # scrap_qty and retain the old aggregate log shape. A row whose
+            # reason column cannot carry the operator's wastage reason (trim
+            # stays TRIM) records it in the note, so the reason is never lost.
+            def _operator_waste_note(label, row_reason):
+                parts = []
+                if waste_reason and waste_reason != row_reason:
+                    parts.append(f"reason {waste_reason}")
+                if waste_note:
+                    parts.append(waste_note)
+                return f"{label}: {'; '.join(parts)}" if parts else label
+
             if split_waste_supplied:
                 if trim_qty and trim_qty > 0:
                     from apps.production.models import ScrapLog
@@ -9079,7 +9096,7 @@ class ExecutionService:
                         quantity=trim_qty,
                         uom='KG',
                         reason='TRIM',
-                        notes='Operator trim entry',
+                        notes=_operator_waste_note('Operator trim entry', 'TRIM'),
                         logged_by=user
                     )
                 if process_scrap_qty and process_scrap_qty > 0:
@@ -9088,8 +9105,8 @@ class ExecutionService:
                         production_job=job,
                         quantity=process_scrap_qty,
                         uom='KG',
-                        reason='DEFECT',
-                        notes='Operator scrap entry',
+                        reason=waste_reason or 'DEFECT',
+                        notes=_operator_waste_note('Operator scrap entry', waste_reason or 'DEFECT'),
                         logged_by=user
                     )
             elif scrap_qty and scrap_qty > 0:
@@ -9098,8 +9115,8 @@ class ExecutionService:
                     production_job=job,
                     quantity=scrap_qty,
                     uom='KG',
-                    reason='OTHER',
-                    notes='Operator scrap entry',
+                    reason=waste_reason or 'OTHER',
+                    notes=_operator_waste_note('Operator scrap entry', waste_reason or 'OTHER'),
                     logged_by=user
                 )
 

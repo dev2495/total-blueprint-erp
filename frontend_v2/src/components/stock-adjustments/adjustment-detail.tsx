@@ -114,9 +114,16 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
+          {adj.status === "DRAFT" && adj.can_post === false ? (
+            <span className="text-[12px] text-content-3">
+              Waiting for a second person to post this adjustment.
+            </span>
+          ) : null}
           {adj.status === "DRAFT" ? (
             <Button
               className="bg-order-fg text-white hover:bg-order-fg"
+              disabled={adj.can_post === false}
+              title={adj.can_post === false ? "Someone other than the person who drafted it must post it." : undefined}
               onClick={() => setConfirmPostOpen(true)}
             >
               <CheckCircle2 className="mr-1.5 h-4 w-4" /> Post

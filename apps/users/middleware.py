@@ -35,7 +35,11 @@ class RoleOverrideMiddleware:
                     token = AccessToken(token_str)
                     user_id = token.get('user_id')
                     if user_id:
-                        request.user = UserModel.objects.get(id=user_id)
+                        # Inactive accounts never authenticate; the role is
+                        # loaded with the user because every check reads it.
+                        user = UserModel.objects.select_related("role").get(id=user_id, is_active=True)
+                        user._loaded_from_jwt = True
+                        request.user = user
                         break
                 except Exception:
                     continue
@@ -70,7 +74,7 @@ class RoleOverrideMiddleware:
             effective_role = get_canonical_role_code(getattr(request.user, "effective_role_code", ""))
             if "WATCHMAN" in {actual_role, effective_role} and not self._watchman_path_allowed(request):
                 from apps.users.permissions import RoleBasedAccessPermission
-                RoleBasedAccessPermission._log_denied(request.user, request.method, request.path, "WATCHMAN_SCOPE")
+                RoleBasedAccessPermission._log_denied(request.user, request.method, request.path, "WATCHMAN_SCOPE", request=request)
                 return JsonResponse({"detail": "Watchman access is limited to the gate terminal and your own account."}, status=403)
 
         response = self.get_response(request)

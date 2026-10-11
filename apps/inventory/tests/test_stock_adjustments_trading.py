@@ -29,6 +29,13 @@ class StockAdjustmentTradingTests(TestCase):
             password="stock-adjust-123",
             role=self.store_role,
         )
+        # Posting needs a second person (maker-checker).
+        self.second_store_user = get_user_model().objects.create_user(
+            username="stock_checker",
+            email="stock_checker@example.com",
+            password="stock-check-123",
+            role=self.store_role,
+        )
         self.sales_user = get_user_model().objects.create_user(
             username="stock_view_only",
             email="stock_view_only@example.com",
@@ -54,6 +61,9 @@ class StockAdjustmentTradingTests(TestCase):
 
     def _as_sales(self):
         self.client.force_authenticate(self.sales_user)
+
+    def _as_checker(self):
+        self.client.force_authenticate(self.second_store_user)
 
     def test_adjustment_permission_required(self):
         self._as_sales()
@@ -102,6 +112,7 @@ class StockAdjustmentTradingTests(TestCase):
         self.assertEqual(create_response.status_code, 201, create_response.content)
         adj_id = create_response.data["id"]
 
+        self._as_checker()
         post_response = self.client.post(f"/api/inventory/adjustments/{adj_id}/post/")
         self.assertEqual(post_response.status_code, 200, post_response.content)
         self.assertEqual(post_response.data["status"], "POSTED")
@@ -178,6 +189,7 @@ class StockAdjustmentTradingTests(TestCase):
         self.assertEqual(create_response.status_code, 201, create_response.content)
         adj_id = create_response.data["id"]
 
+        self._as_checker()
         post_response = self.client.post(f"/api/inventory/adjustments/{adj_id}/post/")
         self.assertEqual(post_response.status_code, 200, post_response.content)
         roll.refresh_from_db()

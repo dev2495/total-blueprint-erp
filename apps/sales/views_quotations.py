@@ -11,6 +11,8 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 
+from config.api_transactions import keep_request_writes
+
 from .models import Quotation, QuotationArtifact, QuotationDelivery, QuotationItem
 from .serializers_quotations import QuotationSerializer
 from .services.quotation_costing import QuotationCostingService
@@ -406,6 +408,9 @@ class QuotationViewSet(viewsets.ModelViewSet):
                     )
                     deliveries.append(delivery)
 
+            # From here the provider may accept some e-mails before another
+            # fails; the release evidence above must survive an error reply.
+            keep_request_writes(request)
             delivered = []
             for delivery in deliveries:
                 if delivery.status == "DELIVERED":

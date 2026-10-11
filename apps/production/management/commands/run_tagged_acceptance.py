@@ -2890,7 +2890,9 @@ class Command(BaseCommand):
                 {
                     "scenario_id": "JOBWORK_PLANNED_STEP",
                     "status": "PASS"
-                    if report["jobwork"]["planned_step"]["status_after_receive"] in {"PARTIAL", "CLOSED"}
+                    # Job-work statuses since the 10 Oct 2026 release: a part
+                    # receipt is PARTLY_RETURNED, a full receipt RETURNED.
+                    if report["jobwork"]["planned_step"]["status_after_receive"] in {"PARTLY_RETURNED", "RETURNED", "CLOSED"}
                     and report["jobwork"]["planned_step"]["roll_status_after_receive"] == "AVAILABLE"
                     else "FAIL",
                     "evidence": json.dumps(report["jobwork"]["planned_step"], default=str),

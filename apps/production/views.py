@@ -704,8 +704,13 @@ class PackingViewSet(viewsets.ViewSet):
         try:
             result = FGDispatchService.get_sales_orders_for_packing()
             return Response(list(result))
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception("Unhandled error in %s", request.path)
+            return Response(
+                {"error": "This request could not be completed. Retry, and report the request ID if it keeps failing.",
+                 "request_id": str(getattr(request, "request_id", "") or "")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=['get'], url_path='yard-snapshot')
     def yard_snapshot(self, request):
@@ -714,8 +719,13 @@ class PackingViewSet(viewsets.ViewSet):
 
         try:
             return Response(FGDispatchService.get_packing_board_snapshot())
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception("Unhandled error in %s", request.path)
+            return Response(
+                {"error": "This request could not be completed. Retry, and report the request ID if it keeps failing.",
+                 "request_id": str(getattr(request, "request_id", "") or "")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=['get'])
     def so_summary(self, request):
@@ -1301,8 +1311,13 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
 
         try:
             return Response(FGDispatchService.get_dispatch_board_snapshot())
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception("Unhandled error in %s", request.path)
+            return Response(
+                {"error": "This request could not be completed. Retry, and report the request ID if it keeps failing.",
+                 "request_id": str(getattr(request, "request_id", "") or "")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     @action(detail=False, methods=['get'])
     def list_challans(self, request):

@@ -1048,35 +1048,11 @@ class PackagingTransactionSerializer(serializers.ModelSerializer):
         model = PackagingTransaction
         fields = '__all__'
 
-class RollReserveSerializer(serializers.Serializer):
-    roll_ids = serializers.ListField(child=serializers.UUIDField())
-    job_id = serializers.UUIDField()
-
-
-class RollReleaseSerializer(serializers.Serializer):
-    roll_ids = serializers.ListField(child=serializers.UUIDField())
-
-
 class RollMoveSerializer(serializers.Serializer):
     to_location_id = serializers.UUIDField()
     reason = serializers.ChoiceField(choices=RollMovement.REASON_CHOICES)
     reason_note = serializers.CharField(required=False, allow_blank=True)
     job_id = serializers.UUIDField(required=False, allow_null=True)
-
-
-class RollConsumeInputSerializer(serializers.Serializer):
-    roll_id = serializers.UUIDField()
-    used_kg = serializers.DecimalField(max_digits=10, decimal_places=3)
-    scrap_kg = serializers.DecimalField(max_digits=10, decimal_places=3, default=0)
-
-
-class RollConsumeSerializer(serializers.Serializer):
-    job_id = serializers.UUIDField()
-    process_id = serializers.UUIDField()
-    machine_id = serializers.UUIDField()
-    inputs = RollConsumeInputSerializer(many=True)
-    output_location_id = serializers.UUIDField(required=False, allow_null=True)
-    notes = serializers.CharField(required=False, allow_blank=True)
 
 
 # ============================================================

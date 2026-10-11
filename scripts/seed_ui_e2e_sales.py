@@ -54,7 +54,14 @@ def _ensure_admin():
     user = get_user_model().objects.filter(username="admin").first()
     if user:
         return user
-    return get_user_model().objects.filter(is_superuser=True).order_by("id").first()
+    # Never fall back to this script's own quotation approver: the submitter
+    # of a revision cannot also approve it.
+    return (
+        get_user_model().objects.filter(is_superuser=True)
+        .exclude(username="uat-green-quotation-approver")
+        .order_by("date_joined", "username")
+        .first()
+    )
 
 
 admin = _ensure_admin()

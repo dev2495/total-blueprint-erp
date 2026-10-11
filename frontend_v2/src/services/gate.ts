@@ -411,6 +411,11 @@ export const gateApi = {
     const { data } = await api.get<GatePlantQr>("/api/gate/qr/", { params: cleanParams({ plant }) });
     return data;
   },
+  /** Owner action: replace the plant's visitor QR; printed copies stop working. */
+  rotatePlantQr: async (plant: string, reason: string) => {
+    const { data } = await api.post<GatePlantQr>("/api/gate/qr/rotate/", { plant, reason });
+    return data;
+  },
   /** The backend-generated QR SVG text (HIGH error correction, 4-module quiet zone). */
   plantQrSvg: async (plant: string) => {
     const { data } = await api.get<string>(`/api/gate/qr/${plant}/svg/`, { responseType: "text", headers: { Accept: "image/svg+xml" } });

@@ -27,6 +27,8 @@ from apps.production.models import (
     ScrapLog,
 )
 from apps.production.views_machine import (
+    machine_history,
+    machine_job_satisfaction,
     machine_complete_job,
     machine_job_events,
     machine_job_context,
@@ -488,7 +490,7 @@ class MachineTerminalEndpointTests(TestCase):
         job = self._make_job("MOD", process=process, material=film, quantity="5.0000")
         parent = self._make_roll("MOD-PARENT", material=film, weight="5.000", width="500", thickness="25", job=job)
 
-        response = self._post_for_job(machine_log_output, job, {"actual_qty": "3.000", "scrap_qty": "0.500"})
+        response = self._post_for_job(machine_log_output, job, {"actual_qty": "3.000", "scrap_qty": "0.500", "waste_reason": "SETUP", "waste_note": "Start-up waste at roll change"})
 
         self.assertEqual(response.status_code, 200, response.data)
         parent.refresh_from_db()
@@ -499,6 +501,79 @@ class MachineTerminalEndpointTests(TestCase):
         self.assertEqual(outputs.filter(meta_json__roll_role="OUTPUT").get().weight_kg, Decimal("3.000"))
         self.assertEqual(remainders.get().weight_kg, Decimal("1.500"))
         self.assertEqual(ScrapLog.objects.get(production_job=job).quantity, Decimal("0.5000"))
+
+    def test_read_endpoints_respect_work_center_scope(self):
+        outsider = User.objects.create_user(username="terminal-outsider", role=Role.objects.create(code="SALES", name="Sales"))
+        for view in (machine_job_context, machine_job_satisfaction):
+            request = self.factory.get("/")
+            force_authenticate(request, user=outsider)
+            self.assertEqual(view(request, self.machine.id, self.job.id).status_code, 403)
+        request = self.factory.get("/")
+        force_authenticate(request, user=outsider)
+        self.assertEqual(machine_history(request, self.machine.id).status_code, 403)
+
+    def _wastage_job(self, suffix):
+        film = self._make_film(f"MT-FILM-W{suffix}")
+        process = Process.objects.create(
+            code=f"MT_MODIFY_W{suffix}", name="Modify Roll", input_form="ROLL", output_form="ROLL", roll_behavior="MODIFY_EXISTING",
+        )
+        job = self._make_job(f"W{suffix}", process=process, material=film, quantity="5.0000")
+        parent = self._make_roll(f"W{suffix}-PARENT", material=film, weight="5.000", width="500", thickness="25", job=job)
+        return job, parent
+
+    def test_high_wastage_needs_reason_and_note_before_anything_posts(self):
+        job, parent = self._wastage_job("1")
+        status_before = parent.status
+        refused = self._post_for_job(machine_log_output, job, {"actual_qty": "3.000", "trim_qty": "0.200", "process_scrap_qty": "0.500"})
+        self.assertEqual(refused.status_code, 400)
+        self.assertIn("Wastage is", refused.data["error"]["message"])
+        parent.refresh_from_db()
+        self.assertEqual((parent.status, parent.weight_kg), (status_before, Decimal("5.000")))
+        self.assertFalse(ScrapLog.objects.filter(production_job=job).exists())
+
+        bad_reason = self._post_for_job(machine_log_output, job, {"actual_qty": "3.000", "process_scrap_qty": "0.500", "waste_reason": "NOT-A-CODE", "waste_note": "Registration drift"})
+        self.assertEqual(bad_reason.status_code, 400)
+
+        logged = self._post_for_job(
+            machine_log_output,
+            job,
+            {"actual_qty": "3.000", "trim_qty": "0.200", "process_scrap_qty": "0.500", "waste_reason": "material", "waste_note": "Film gauge out of spec on the new lot"},
+        )
+        self.assertEqual(logged.status_code, 200, logged.data)
+        rows = {row.reason: row for row in ScrapLog.objects.filter(production_job=job)}
+        self.assertEqual(set(rows), {"TRIM", "MATERIAL"})
+        self.assertIn("Film gauge out of spec", rows["MATERIAL"].notes)
+        self.assertIn("Film gauge out of spec", rows["TRIM"].notes)
+        self.assertIn("reason MATERIAL", rows["TRIM"].notes)
+        self.assertNotIn("reason", rows["MATERIAL"].notes)
+
+    def test_trim_only_wastage_keeps_the_chosen_reason(self):
+        job, _ = self._wastage_job("3")
+        logged = self._post_for_job(
+            machine_log_output,
+            job,
+            {"actual_qty": "3.000", "trim_qty": "0.600", "waste_reason": "MACHINE", "waste_note": "Slitter blade worn, wide edge trim"},
+        )
+        self.assertEqual(logged.status_code, 200, logged.data)
+        row = ScrapLog.objects.get(production_job=job)
+        self.assertEqual(row.reason, "TRIM")
+        self.assertIn("reason MACHINE", row.notes)
+        self.assertIn("Slitter blade worn", row.notes)
+
+    def test_low_wastage_reason_is_optional_and_limit_is_configurable(self):
+        from apps.users.models import CompanyProfile
+
+        job, _ = self._wastage_job("2")
+        low = self._post_for_job(machine_log_output, job, {"actual_qty": "4.800", "process_scrap_qty": "0.100"})
+        self.assertEqual(low.status_code, 200, low.data)
+        self.assertEqual(ScrapLog.objects.get(production_job=job).reason, "DEFECT")
+
+        profile = CompanyProfile.get_solo()
+        profile.waste_reason_threshold_pct = Decimal("1.00")
+        profile.save()
+        context = self._get(machine_job_context)
+        self.assertEqual(context.status_code, 200, context.data)
+        self.assertEqual(context.data["waste_policy"]["reason_threshold_pct"], 1.0)
 
     def test_log_output_split_creates_children_remainder_and_genealogy(self):
         film = self._make_film("MT-FILM-SPLIT")
@@ -520,7 +595,7 @@ class MachineTerminalEndpointTests(TestCase):
                     {"width_mm": "250", "weight_kg": "1.750"},
                     {"width_mm": "300", "weight_kg": "1.250"},
                 ],
-                "scrap_qty": "0.500",
+                "scrap_qty": "0.500", "waste_reason": "SETUP", "waste_note": "Start-up waste at roll change",
             },
         )
 
@@ -576,7 +651,7 @@ class MachineTerminalEndpointTests(TestCase):
         parent_a = self._make_roll("COMBINE-A", material=film_a, weight="2.000", width="500", thickness="12", job=job)
         parent_b = self._make_roll("COMBINE-B", material=film_b, weight="3.000", width="450", thickness="40", job=job)
 
-        response = self._post_for_job(machine_log_output, job, {"actual_qty": "4.500", "scrap_qty": "0.500"})
+        response = self._post_for_job(machine_log_output, job, {"actual_qty": "4.500", "scrap_qty": "0.500", "waste_reason": "SETUP", "waste_note": "Start-up waste at roll change"})
 
         self.assertEqual(response.status_code, 200, response.data)
         parent_a.refresh_from_db()
@@ -637,7 +712,7 @@ class MachineTerminalEndpointTests(TestCase):
         response = self._post_for_job(
             machine_log_output,
             ok_job,
-            {"actual_qty": "2.000", "output_pcs": 100, "scrap_qty": "0.250"},
+            {"actual_qty": "2.000", "output_pcs": 100, "scrap_qty": "0.250", "waste_reason": "SETUP", "waste_note": "Start-up waste at roll change"},
         )
 
         self.assertEqual(response.status_code, 200, response.data)
@@ -846,6 +921,8 @@ class MachineTerminalEndpointTests(TestCase):
                 "output_width_mm": "500",
                 "trim_qty": "0.300",
                 "process_scrap_qty": "0.200",
+                "waste_reason": "DEFECT",
+                "waste_note": "Edge trim plus print defect at start-up",
             },
         )
         self.assertEqual(response.status_code, 200, response.data)

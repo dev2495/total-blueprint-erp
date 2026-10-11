@@ -1,3 +1,4 @@
+import logging
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction
 from uuid import UUID
@@ -7,6 +8,8 @@ from rest_framework.response import Response
 from .models import MRPPlan, MRPRequirement, MRPSuggestion
 from .serializers import MRPPlanSerializer, MRPRequirementSerializer, MRPSuggestionSerializer
 from .services import MRPService
+
+logger = logging.getLogger(__name__)
 
 class MRPViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = MRPPlan.objects.all().order_by('-created_at')
@@ -18,8 +21,13 @@ class MRPViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             plan = MRPService.run_mrp(plant_id=plant_id, user=request.user)
             return Response(MRPPlanSerializer(plan).data, status=status.HTTP_201_CREATED)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception:
+            logger.exception("Unhandled error in %s", request.path)
+            return Response(
+                {"error": "This request could not be completed. Retry, and report the request ID if it keeps failing.",
+                 "request_id": str(getattr(request, "request_id", "") or "")},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=['get'])
     def latest(self, request):

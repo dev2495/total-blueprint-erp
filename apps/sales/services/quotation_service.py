@@ -309,7 +309,7 @@ class QuotationService:
             "items": items_payload,
         }
 
-        sales_order = SalesOrderService.create_sales_order(order_payload)
+        sales_order = SalesOrderService.create_sales_order(order_payload, trusted_quote_snapshots=True)
         commercial_snapshot = {
             "quotation_id": str(quotation.id),
             "quote_number": quotation.quote_number,

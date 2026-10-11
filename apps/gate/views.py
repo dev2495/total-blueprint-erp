@@ -397,10 +397,21 @@ class PublicConfigView(APIView):
         return Response({"company_name": "Total Poly Print", "plant_name": link.plant.name, "plant_code": link.plant.code, "purposes": PURPOSES, "privacy_note": PRIVACY_NOTE, "government_id_enabled": bool(os.getenv("GATE_ID_ENCRYPTION_KEY") or getattr(settings, "GATE_ID_ENCRYPTION_KEY", ""))})
 
 
+GATE_PUBLIC_HOURLY_CAP = int(os.getenv("GATE_PUBLIC_HOURLY_CAP", "120"))
+
+
 class PublicVisitorsView(PublicConfigView):
     def post(self, request):
         data = validated(VisitorInputSerializer, request.data)
         link = public_link(data.get("gate_token"))
+        # A photographed QR works from anywhere, so one gate accepts at most a
+        # bounded number of self-registrations per hour on top of the per-IP
+        # throttle. Owners can replace a leaked QR from Gate setup.
+        recent = VisitorVisit.objects.filter(
+            plant=link.plant, source="PUBLIC", submitted_at__gte=timezone.now() - timedelta(hours=1)
+        ).count()
+        if recent >= GATE_PUBLIC_HOURLY_CAP:
+            raise Throttled(wait=15 * 60, detail="This gate is receiving too many registrations. Please ask the watchman to register you.")
         return Response(create_visitor(link.plant, data, public=True, scope=f"public:{link.token}"), status=201)
 
     def get(self, request):
@@ -423,6 +434,34 @@ class QRView(GateView):
         link = GatePublicLink.objects.select_related("plant").filter(plant_id=plant_id, active=True).first()
         if not link:
             raise NotFound("This gate QR has not been configured.")
+        return Response({"plant_name": link.plant.name, "plant_code": link.plant.code, "gate_token": str(link.token), "public_url": qr_url(link), "svg_url": f"/api/gate/qr/{link.plant_id}/svg/"})
+
+
+class QRRotateView(GateView):
+    """Replace a plant's visitor QR. The printed QR stops working at once."""
+
+    owner_only = True
+
+    def post(self, request):
+        plant_id = uuid_param(request, "plant", required=False) or request.data.get("plant")
+        try:
+            plant_id = uuid.UUID(str(plant_id))
+        except (TypeError, ValueError):
+            raise ValidationError({"plant": "Choose a factory."})
+        reason = str(request.data.get("reason") or "").strip()
+        if len(reason) < 5:
+            raise ValidationError({"reason": "Say why the QR is being replaced (at least 5 characters)."})
+        link = GatePublicLink.objects.select_for_update().select_related("plant").filter(plant_id=plant_id).first()
+        if not link:
+            raise NotFound("This gate QR has not been configured.")
+        before = {"token_suffix": str(link.token)[-6:], "active": link.active}
+        link.token = uuid.uuid4()
+        link.active = True
+        link.save(update_fields=["token", "active"])
+        GateAuditEvent.objects.create(
+            plant_id=link.plant_id, object_id=link.id, object_type="QR_LINK", action="VISITOR_QR_ROTATED",
+            actor=request.user, reason=reason[:500], before=before, after={"token_suffix": str(link.token)[-6:], "active": True},
+        )
         return Response({"plant_name": link.plant.name, "plant_code": link.plant.code, "gate_token": str(link.token), "public_url": qr_url(link), "svg_url": f"/api/gate/qr/{link.plant_id}/svg/"})
 
 

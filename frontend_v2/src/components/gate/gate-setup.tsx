@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   BarChart3,
   Camera,
@@ -13,10 +15,22 @@ import {
   FileText,
   History,
   QrCode,
+  RefreshCw,
   UserCog,
   Users,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { describeApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { gateApi } from "@/services/gate";
 import { useGate } from "./gate-shell";
@@ -85,6 +99,7 @@ export function GateSetup() {
           </div>
         </div>
         <ToolLink href="/gate/qr" icon={<QrCode className="h-5 w-5" />} title="Open & print QR poster" body="One A4 sign with the factory's own QR" />
+        {plantId ? <ReplaceQrControl plantId={plantId} plantName={plant?.name ?? "this factory"} /> : null}
       </Step>
 
       <Step
@@ -116,6 +131,67 @@ export function GateSetup() {
         <p className="mt-2 text-content-3">Store accounts already have review access across the existing inventory plants. Other accounts need explicit bill review and receipt permissions. Visitor entry remains a QR self-submit; the watchman confirms exit only.</p>
       </div>
     </div>
+  );
+}
+
+function ReplaceQrControl({ plantId, plantName }: { plantId: string; plantName: string }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const rotate = useMutation({
+    mutationFn: () => gateApi.rotatePlantQr(plantId, reason.trim()),
+    onSuccess: async () => {
+      setOpen(false);
+      setReason("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["gate", "qr"] }),
+        queryClient.invalidateQueries({ queryKey: ["gate", "qr-svg"] }),
+      ]);
+      toast.success("Visitor QR replaced. Print and fix the new poster at the gate.");
+    },
+    onError: (error) => toast.error(describeApiError(error, "The QR could not be replaced.")),
+  });
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="gate-press flex min-h-[48px] w-full items-center gap-3 rounded-2xl border border-dashed border-line px-4 py-2.5 text-left"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-1 text-content-2">
+          <RefreshCw className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-content-1">Replace visitor QR</span>
+          <span className="block text-[13px] text-content-3">If a photo of the QR is being misused, issue a new one</span>
+        </span>
+      </button>
+      <Dialog open={open} onOpenChange={(next) => !rotate.isPending && setOpen(next)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace the visitor QR for {plantName}?</DialogTitle>
+            <DialogDescription>
+              Every printed copy of the current QR stops working immediately. Print the new poster and fix it at the gate.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Reason (for the gate audit trail)"
+            maxLength={500}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={rotate.isPending}>
+              Keep current QR
+            </Button>
+            <Button onClick={() => rotate.mutate()} disabled={rotate.isPending || reason.trim().length < 5}>
+              {rotate.isPending ? "Replacing…" : "Replace QR"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

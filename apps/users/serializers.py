@@ -14,6 +14,24 @@ def _is_admin_request_actor(user) -> bool:
     role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
     return bool(getattr(user, "is_authenticated", False) and (user.is_superuser or user.is_owner or role_code in {"ADMIN", "SUPER_ADMIN", "OWNER"}))
 
+
+def is_owner_level(user) -> bool:
+    """Owner accounts sit above administrators: is_owner, superuser or the OWNER role."""
+    if user is None:
+        return False
+    role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+    if role_code == "WATCHMAN":
+        return False
+    return bool(getattr(user, "is_superuser", False) or getattr(user, "is_owner", False) or role_code == "OWNER")
+
+
+def other_active_owner_exists(user) -> bool:
+    from django.db.models import Q
+
+    return User.objects.filter(is_active=True).filter(
+        Q(is_owner=True) | Q(is_superuser=True) | Q(role__code="OWNER")
+    ).exclude(pk=getattr(user, "pk", None)).exclude(role__code="WATCHMAN").exists()
+
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
@@ -149,6 +167,9 @@ class UserSerializer(serializers.ModelSerializer):
             self._validate_candidate_password(str(attrs["password"]), attrs)
         if not is_create and request and request.user == self.instance and "email" in attrs and not _is_admin_request_actor(request.user):
             raise serializers.ValidationError({"email": "Self email updates must go through profile change approval."})
+        actor = getattr(request, "user", None) if request else None
+        if request is not None:
+            self._check_owner_hierarchy(actor, attrs)
         final_role = attrs.get("role", getattr(self.instance, "role", None))
         if final_role and final_role.code == "WATCHMAN":
             if attrs.get("is_owner", getattr(self.instance, "is_owner", False)):
@@ -164,6 +185,28 @@ class UserSerializer(serializers.ModelSerializer):
             if ids - existing:
                 raise serializers.ValidationError({"gate_plant_ids": "One or more plants do not exist."})
         return attrs
+
+    def _check_owner_hierarchy(self, actor, attrs):
+        """Administrators manage staff; only an owner manages owner accounts."""
+        actor_is_owner = is_owner_level(actor)
+        target = self.instance
+        if target is not None and is_owner_level(target) and not actor_is_owner:
+            raise serializers.ValidationError({"detail": "Only an owner can change an owner account."})
+        grants_owner = bool(attrs.get("is_owner")) and not bool(getattr(target, "is_owner", False))
+        role = attrs.get("role")
+        grants_owner_role = role is not None and str(role.code or "").upper() == "OWNER" and getattr(getattr(target, "role", None), "code", None) != role.code
+        if (grants_owner or grants_owner_role) and not actor_is_owner:
+            raise serializers.ValidationError({"is_owner": "Only an owner can grant owner rights."})
+        if target is not None and target.is_active and is_owner_level(target):
+            role_after = attrs.get("role", target.role)
+            role_code_after = str(getattr(role_after, "code", "") or "").upper()
+            still_owner = (
+                attrs.get("is_active", target.is_active)
+                and role_code_after != "WATCHMAN"
+                and (target.is_superuser or attrs.get("is_owner", target.is_owner) or role_code_after == "OWNER")
+            )
+            if not still_owner and not other_active_owner_exists(target):
+                raise serializers.ValidationError({"detail": "This is the last active owner account; add another owner first."})
 
     @transaction.atomic
     def create(self, validated_data):
@@ -188,6 +231,8 @@ class UserSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
         instance.save()
+        if "is_active" in validated_data and not instance.is_active:
+            PermissionService.revoke_refresh_tokens(instance)
         if password:
             revoked = PermissionService.revoke_refresh_tokens(instance)
             request = self.context.get("request")
@@ -330,6 +375,7 @@ class CompanyProfileSerializer(serializers.ModelSerializer):
             "authorised_signatory_name",
             "authorised_signatory_role",
             "logo_path",
+            "waste_reason_threshold_pct",
             "updated_at",
             "updated_by_username",
         ]

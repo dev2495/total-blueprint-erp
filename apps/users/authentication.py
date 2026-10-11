@@ -1,6 +1,7 @@
 from django.conf import settings
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.settings import api_settings
 
 from apps.users.csrf import enforce_request_csrf
 
@@ -20,7 +21,7 @@ class CookieJWTAuthentication(JWTAuthentication):
             raw_token = self.get_raw_token(header)
             if raw_token is not None:
                 validated_token = self.get_validated_token(raw_token)
-                return self._preserve_middleware_role(self.get_user(validated_token), request), validated_token
+                return self._preserve_middleware_role(self._resolve_user(request, validated_token), request), validated_token
 
         cookie_name = str(getattr(settings, "JWT_ACCESS_COOKIE_NAME", "access"))
         raw_token = str(request.COOKIES.get(cookie_name) or "").strip()
@@ -30,7 +31,22 @@ class CookieJWTAuthentication(JWTAuthentication):
         validated_token = self.get_validated_token(raw_token)
         if str(getattr(request, "method", "GET")).upper() not in SAFE_METHODS:
             enforce_request_csrf(request)
-        return self._preserve_middleware_role(self.get_user(validated_token), request), validated_token
+        return self._preserve_middleware_role(self._resolve_user(request, validated_token), request), validated_token
+
+    def _resolve_user(self, request, validated_token):
+        """Reuse the active account RoleOverrideMiddleware already loaded for
+        this same token instead of querying it a second time."""
+        middleware_user = getattr(getattr(request, "_request", None), "user", None)
+        user_id = validated_token.get(api_settings.USER_ID_CLAIM)
+        if (
+            middleware_user is not None
+            and getattr(middleware_user, "_loaded_from_jwt", False)
+            and getattr(middleware_user, "is_active", False)
+            and user_id is not None
+            and str(middleware_user.pk) == str(user_id)
+        ):
+            return middleware_user
+        return self.get_user(validated_token)
 
     @staticmethod
     def _preserve_middleware_role(user, request):

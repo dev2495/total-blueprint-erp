@@ -16,7 +16,9 @@ class DashboardErrorStatusTests(SimpleTestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.data["status"], "error")
         self.assertEqual(response.data["message"], "Request failed.")
-        self.assertEqual(response.data["detail"], "stats exploded")
+        # Internal exception text is logged, never returned to the client.
+        self.assertNotIn("stats exploded", str(response.data))
+        self.assertTrue(response.data["detail"])
         self.assertEqual(response.data["results"], [])
         self.assertEqual(response.data["data"], {})
         self.assertEqual(response.data["count"], 0)

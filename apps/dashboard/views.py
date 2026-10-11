@@ -9,11 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 def _error_response(detail: str, http_status: int = status.HTTP_500_INTERNAL_SERVER_ERROR):
+    # The exception text is logged by the caller; the client gets a stable
+    # message instead of internal details.
     return Response(
         {
             "status": "error",
             "message": "Request failed.",
-            "detail": str(detail or "Unknown error"),
+            "detail": "This view could not be loaded. Retry, and report the request ID if it keeps failing.",
             "results": [],
             "data": {},
             "count": 0,

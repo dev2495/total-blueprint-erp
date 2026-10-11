@@ -115,6 +115,12 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   await scrapInput.scrollIntoViewIfNeeded().catch(() => undefined)
   await expect(scrapInput).toBeVisible({ timeout: 10_000 })
   await scrapInput.fill(scrapKgText)
+  // Above the company wastage limit the terminal asks for a reason and note.
+  const wasteNote = page.getByTestId("machine-waste-note")
+  if (await wasteNote.isVisible().catch(() => false)) {
+    await page.getByTestId("machine-waste-reason").getByRole("button").first().click()
+    await wasteNote.fill("E2E wastage at roll change")
+  }
   const varianceReasonInput = page.getByPlaceholder(/variance reason required/i)
   if (await varianceReasonInput.isVisible().catch(() => false)) {
     await varianceReasonInput.fill("E2E output variance within close tolerance")

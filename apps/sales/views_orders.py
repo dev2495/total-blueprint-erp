@@ -1,5 +1,6 @@
 from django.conf import settings
-from django.db.models import Prefetch, Q
+from django.db import transaction
+from django.db.models import Prefetch, ProtectedError, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -19,8 +20,57 @@ from .services.order_block_resolver import resolve_block_reasons
 
 
 class SalesOrderViewSet(viewsets.ModelViewSet):
+    """Sales orders.
+
+    Only a DRAFT order can be edited or deleted. Once confirmed, an order is
+    commercial and production evidence: it changes through confirm, cancel
+    (whole order or lines) and the planner's short-close, never by a raw
+    update or delete.
+    """
+
     queryset = SalesOrder.objects.all().order_by("-created_at")
     serializer_class = SalesOrderSerializer
+    EDITABLE_STATUSES = {"DRAFT"}
+
+    def _locked_order_response(self, order, verb):
+        return Response(
+            {
+                "detail": (
+                    f"Order {order.order_number or order.id} is {order.status}. Only a draft order can be {verb}; "
+                    "use Cancel (whole order or selected lines) for a confirmed order."
+                ),
+                "code": "ORDER_NOT_DRAFT",
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    def update(self, request, *args, **kwargs):
+        order = self.get_object()
+        if order.status not in self.EDITABLE_STATUSES:
+            return self._locked_order_response(order, "edited")
+        return super().update(request, *args, **kwargs)
+
+    @transaction.atomic
+    def destroy(self, request, *args, **kwargs):
+        order = SalesOrder.objects.select_for_update().get(pk=self.get_object().pk)
+        if order.status not in self.EDITABLE_STATUSES:
+            return self._locked_order_response(order, "deleted")
+        from apps.production.models import ProductionJob
+
+        if ProductionJob.objects.filter(sales_order_item__sales_order=order).exists():
+            return Response(
+                {"detail": "This draft already has production jobs. Cancel it instead of deleting it.", "code": "ORDER_HAS_JOBS"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            with transaction.atomic():
+                order.delete()
+        except ProtectedError:
+            return Response(
+                {"detail": "This draft is referenced by stock or dispatch records. Cancel it instead of deleting it.", "code": "ORDER_REFERENCED"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def _is_summary_request(self) -> bool:
         request = getattr(self, "request", None)

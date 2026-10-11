@@ -895,7 +895,11 @@ export default function MachineExecutionPage() {
   const [trimInput, setTrimInput] = useState("0");
   const [scrapInput, setScrapInput] = useState("0");
   const [scrapEntryMode, setScrapEntryMode] = useState<EntryMode>("KG");
-  const [scrapReason, setScrapReason] = useState("TRIM");
+  // Why trim/scrap on this output log was high. Starts empty on purpose:
+  // above the company limit the operator must choose a reason and explain it.
+  const [wasteReason, setWasteReason] = useState("");
+  const [wasteReasonId, setWasteReasonId] = useState<string | null>(null);
+  const [wasteNote, setWasteNote] = useState("");
   const [remainderLocationId, setRemainderLocationId] =
     useState(DEFAULT_REMAINDER);
   const [forceReason, setForceReason] = useState("");
@@ -1579,6 +1583,17 @@ export default function MachineExecutionPage() {
     unitWeightG,
     outputWeightKg,
   ]);
+  const wasteThresholdPct = toNumber(
+    (context as { waste_policy?: { reason_threshold_pct?: number } } | undefined)
+      ?.waste_policy?.reason_threshold_pct,
+    5,
+  );
+  const wastePctValue =
+    wasteKgValue > 0 && previewOutputKg + wasteKgValue > 0
+      ? (wasteKgValue * 100) / (previewOutputKg + wasteKgValue)
+      : 0;
+  const wasteReasonRequired =
+    wasteKgValue > 0 && wastePctValue >= wasteThresholdPct;
   const previewOutputPcs =
     showPcsEntry && unitWeightG > 0 && previewOutputKg > 0
       ? Math.max(1, Math.round((previewOutputKg * 1000) / unitWeightG))
@@ -1732,13 +1747,9 @@ export default function MachineExecutionPage() {
     setTrimInput("0");
     setScrapInput("0");
     setScrapEntryMode("KG");
-    setScrapReason(
-      behavior === "CREATE_NEW"
-        ? "SETUP"
-        : behavior === "SPLIT"
-          ? "TRIM"
-          : "DEFECT",
-    );
+    setWasteReason("");
+    setWasteReasonId(null);
+    setWasteNote("");
     setRemainderLocationId(DEFAULT_REMAINDER);
     setForceReason("");
     setConsumptionMaterialId(materialRowsFromContext[0]?.id || "");
@@ -1938,6 +1949,8 @@ export default function MachineExecutionPage() {
         scrap_qty?: number;
         trim_qty?: number;
         process_scrap_qty?: number;
+        waste_reason?: string;
+        waste_note?: string;
         roll_outputs?: Array<{
           width_mm: number;
           weight_kg: number;
@@ -2054,6 +2067,19 @@ export default function MachineExecutionPage() {
         const length = toNumber(outputLengthM, NaN);
         if (Number.isFinite(length) && length > 0)
           payload.output_length_m = length;
+      }
+      if (wasteKgValue > 0) {
+        const share =
+          (wasteKgValue * 100) / (payload.actual_qty + wasteKgValue);
+        if (
+          share >= wasteThresholdPct &&
+          (!wasteReason || wasteNote.trim().length < 5)
+        )
+          throw new Error(
+            `Wastage is ${share.toFixed(1)}% of this run (limit ${wasteThresholdPct}%). Choose a wastage reason and write why it happened.`,
+          );
+        if (wasteReason) payload.waste_reason = wasteReason;
+        if (wasteNote.trim()) payload.waste_note = wasteNote.trim();
       }
       return machineService.logOutput(
         machineId,
@@ -2945,6 +2971,18 @@ export default function MachineExecutionPage() {
                       setScrapInput={setScrapInput}
                       scrapEntryMode={scrapEntryMode}
                       setScrapEntryMode={setScrapEntryMode}
+                      scrapReasonGroups={scrapReasonGroups}
+                      wasteReason={wasteReason}
+                      wasteReasonId={wasteReasonId}
+                      onWasteReasonChange={(code: string, id: string | null) => {
+                        setWasteReason(code);
+                        setWasteReasonId(id);
+                      }}
+                      wasteNote={wasteNote}
+                      setWasteNote={setWasteNote}
+                      wastePctValue={wastePctValue}
+                      wasteThresholdPct={wasteThresholdPct}
+                      wasteReasonRequired={wasteReasonRequired}
                       remainderLocations={remainderLocations}
                       remainderLocationId={remainderLocationId}
                       setRemainderLocationId={setRemainderLocationId}
@@ -4650,6 +4688,15 @@ function ProcessLogForm(props: any) {
     setScrapInput,
     scrapEntryMode,
     setScrapEntryMode,
+    scrapReasonGroups,
+    wasteReason = "",
+    wasteReasonId = null,
+    onWasteReasonChange,
+    wasteNote = "",
+    setWasteNote,
+    wastePctValue = 0,
+    wasteThresholdPct = 5,
+    wasteReasonRequired = false,
     remainderLocations,
     remainderLocationId,
     setRemainderLocationId,
@@ -5445,6 +5492,42 @@ function ProcessLogForm(props: any) {
             </div>
           </div>
         </div>
+        {toNumber(wasteKgValue, 0) > 0 && onWasteReasonChange ? (
+          <div
+            className="mt-3 space-y-2 border-t border-danger-border pt-3"
+            data-testid="machine-waste-reason"
+          >
+            <div
+              className={cn(
+                "text-[11px] font-semibold",
+                wasteReasonRequired ? "text-danger-fg" : "text-content-3",
+              )}
+            >
+              {wasteReasonRequired
+                ? `Wastage is ${toNumber(wastePctValue, 0).toFixed(1)}% of this run, above the ${wasteThresholdPct}% limit. Choose a reason and write why before logging output.`
+                : `Wastage is ${toNumber(wastePctValue, 0).toFixed(1)}% of this run. Add the reason if you know it.`}
+            </div>
+            <ReasonMasterPicker
+              groups={scrapReasonGroups}
+              fallbackReasons={["SETUP", "TRIM", "DEFECT", "MACHINE", "MATERIAL", "OTHER"]}
+              value={wasteReason}
+              valueId={wasteReasonId}
+              onChange={onWasteReasonChange}
+            />
+            <Textarea
+              data-testid="machine-waste-note"
+              value={wasteNote}
+              onChange={(event) => setWasteNote?.(event.target.value)}
+              maxLength={500}
+              placeholder={
+                wasteReasonRequired
+                  ? "Why was there this much wastage? (required)"
+                  : "Why was there wastage? (optional)"
+              }
+              className="min-h-[64px] bg-surface-1 text-sm"
+            />
+          </div>
+        ) : null}
       </div>
 
       {showRemainderPicker ? (

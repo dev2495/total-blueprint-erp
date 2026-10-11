@@ -10,7 +10,7 @@ django.setup()
 
 from apps.factory.models import Machine, Plant, Process, WorkCenter, WorkCenterProcess
 from apps.inventory.models import InkMaterial, InventoryLocation, Vendor
-from apps.materials.models import InventoryMaterial
+from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.recipes.models import RecipeGrade
 from apps.routing.models import RoutingRule
 
@@ -101,13 +101,17 @@ for code, name, family, density, extrudable in (
     if variant.parent_family_id != family.id:
         raise RuntimeError(f"UI E2E film variant {code} has an unexpected parent family.")
 
-ensure_material(
+ldpe_granule = ensure_material(
     "GRANULE_LDPE",
     "UI E2E LDPE Granule",
     "GRANULE",
     density_gcm3=Decimal("0.9200"),
     is_purchasable=True,
 )
+# Coded granule families receive, transfer and consume by quality code; the
+# tagged acceptance flow posts LDPE stock, so a fresh database needs one.
+if not GranuleQualityCode.objects.filter(granule=ldpe_granule, status="ACTIVE", merged_into__isnull=True).exists():
+    GranuleQualityCode.objects.get_or_create(granule=ldpe_granule, code="UAT-GREEN-LDPE", defaults={"status": "ACTIVE"})
 ensure_material(
     "PACK_INNER_100",
     "UI E2E Inner Pouch 100",

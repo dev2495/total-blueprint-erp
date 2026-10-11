@@ -90,10 +90,11 @@ function normalizePermissionList(values: string[]): string[] {
 function buildDraftFromMatrix(matrix?: RoleMatrix): Record<string, string[]> {
   const draft: Record<string, string[]> = {};
   Object.entries(matrix || {}).forEach(([roleCode, row]) => {
+    const revoked = new Set(normalizePermissionList(row?.revoked_permissions || []));
     draft[roleCode] = normalizePermissionList([
       ...(row?.default_permissions || []),
       ...(row?.database_permissions || []),
-    ]);
+    ]).filter((permission) => !revoked.has(permission));
   });
   return draft;
 }

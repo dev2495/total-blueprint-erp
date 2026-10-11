@@ -16,6 +16,14 @@ from apps.users.models import Notification, NotificationDeliveryAttempt, Notific
 
 
 class PlatformOpsP0Tests(TestCase):
+    def setUp(self):
+        super().setUp()
+        # These tests exercise pruning mechanics on single records; the
+        # keep-latest guard has its own tests in BackupRetentionGuardTests.
+        patcher = patch.object(BackupService, "KEEP_LATEST_SUCCESSFUL", 0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_metrics_summary_contract(self):
         notification = Notification.objects.create(
             type="SYSTEM",
@@ -512,3 +520,28 @@ class PlatformOpsP0Tests(TestCase):
         self.assertFalse(chirag.is_superuser)
         self.assertFalse(chirag.is_staff)
         self.assertTrue(chirag.is_owner)
+
+
+class BackupRetentionGuardTests(TestCase):
+    def _record(self, name, days_old):
+        record = BackupRecord.objects.create(
+            status=BackupRecord.BackupStatus.SUCCEEDED, storage_provider="LOCAL", file_name=name,
+        )
+        BackupRecord.objects.filter(id=record.id).update(created_at=timezone.now() - timedelta(days=days_old))
+        return record
+
+    def test_retention_below_floor_is_refused(self):
+        for value in (-1, 0, 3, "abc"):
+            with self.assertRaises(ValueError):
+                BackupService.prune_backup_retention(retention_days=value)
+
+    def test_latest_successful_backups_survive_any_retention_window(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            records = [self._record(f"b{index}.dump", days) for index, days in enumerate((60, 50, 45, 40))]
+            for record in records:
+                (Path(tmpdir) / record.file_name).write_bytes(b"backup")
+            with patch.dict("os.environ", {"BACKUP_LOCAL_DIR": tmpdir, "BACKUP_S3_BUCKET": ""}, clear=False):
+                result = BackupService.prune_backup_retention(retention_days=30)
+        self.assertEqual(result["deleted_records"], 1)
+        remaining = set(BackupRecord.objects.values_list("id", flat=True))
+        self.assertEqual(remaining, {record.id for record in records[1:]})

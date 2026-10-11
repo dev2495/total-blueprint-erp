@@ -189,22 +189,36 @@ class RollService:
                 {'weight_kg': 5, 'label_suffix': 'SCRAP'}
             ]
         """
-        total_split = sum(Decimal(str(s['weight_kg'])) for s in splits)
-        if total_split > parent_roll.weight_kg:
-            raise ValueError(f"Split total ({total_split}kg) exceeds parent weight ({parent_roll.weight_kg}kg)")
-
-        children = []
+        caller_roll = parent_roll
+        parent_roll = InventoryRoll.objects.select_for_update().select_related("location").get(pk=parent_roll.pk)
+        if parent_roll.status != "AVAILABLE":
+            raise ValueError(f"Roll {parent_roll.label_id} must be AVAILABLE to split (it is {parent_roll.status}).")
+        if not splits:
+            raise ValueError("Add at least one split.")
+        weights = []
         for split in splits:
             weight = Decimal(str(split['weight_kg']))
             if weight <= 0:
-                continue
-                
+                raise ValueError("Every split weight must be greater than zero.")
+            weights.append(weight)
+        total_split = sum(weights)
+        parent_weight = Decimal(str(parent_roll.weight_kg or 0))
+        # Mass balance: every kilogram of the parent must land in a child. A
+        # remainder that silently vanished would be unrecorded loss.
+        if abs(total_split - parent_weight) > Decimal("0.001"):
+            raise ValueError(
+                f"Split weights ({total_split} kg) must add up to the roll weight ({parent_weight} kg). "
+                "Add a balance or scrap split for the remainder."
+            )
+
+        children = []
+        for split, weight in zip(splits, weights):
             suffix = split.get('label_suffix', str(len(children) + 1))
             parent_meta = dict(parent_roll.meta_json or {})
             split_meta = split.get('meta') or {}
             merged_meta = {**parent_meta, **split_meta}
             child = InventoryRoll.objects.create(
-                label_id=f"{parent_roll.label_id}-{suffix}",
+                label_id=cls._free_child_label(f"{parent_roll.label_id}-{suffix}"),
                 material=parent_roll.material,
                 batch_no=parent_roll.batch_no,
                 thickness_micron=parent_roll.thickness_micron,
@@ -239,15 +253,39 @@ class RollService:
                 relation_type='SPLIT',
                 qty_used_kg=weight
             )
-            
+            # Each child enters stock at the parent's location; the parent
+            # (now 0 kg) no longer counts, so the location balance is unchanged.
+            RollMovement.objects.create(
+                roll=child,
+                from_location=None,
+                to_location=parent_roll.location,
+                reason='ADJUSTMENT',
+                reason_note=f"SPLIT of {parent_roll.label_id} ({reason})"[:255],
+                moved_by=user if getattr(user, "is_authenticated", False) else None,
+            )
+
             children.append(child)
 
         # Close parent roll
         parent_roll.status = 'CONSUMED'
         parent_roll.weight_kg = Decimal('0')
-        parent_roll.save()
+        parent_roll.save(update_fields=['status', 'weight_kg'])
+        caller_roll.status, caller_roll.weight_kg = parent_roll.status, parent_roll.weight_kg
 
         return children
+
+    @staticmethod
+    def _free_child_label(base: str) -> str:
+        """``base`` if unused, else ``base-2``, ``base-3`` … (labels are unique)."""
+        base = str(base)[:50]
+        if not InventoryRoll.objects.filter(label_id=base).exists():
+            return base
+        for counter in range(2, 1000):
+            suffix = f"-{counter}"
+            candidate = f"{base[:50 - len(suffix)]}{suffix}"
+            if not InventoryRoll.objects.filter(label_id=candidate).exists():
+                return candidate
+        raise ValueError(f"Could not allocate a unique label for a split of {base}.")
 
     @classmethod
     @transaction.atomic
@@ -679,39 +717,6 @@ class RollService:
             job=job,
             moved_by=user
         )
-
-    @classmethod
-    @transaction.atomic
-    def reserve_rolls(
-        cls,
-        rolls: List[InventoryRoll],
-        job: ProductionJob
-    ) -> List[InventoryRoll]:
-        """
-        Reserve rolls for a production job.
-        """
-        reserved = []
-        for roll in rolls:
-            if roll.status != 'AVAILABLE':
-                raise ValueError(f"Roll {roll.label_id} is not available (status: {roll.status})")
-            roll.status = 'RESERVED'
-            roll.save()
-            reserved.append(roll)
-        return reserved
-
-    @classmethod
-    @transaction.atomic
-    def release_rolls(cls, rolls: List[InventoryRoll]) -> List[InventoryRoll]:
-        """
-        Release reserved rolls back to available.
-        """
-        released = []
-        for roll in rolls:
-            if roll.status == 'RESERVED':
-                roll.status = 'AVAILABLE'
-                roll.save()
-                released.append(roll)
-        return released
 
     @classmethod
     def get_genealogy(cls, roll: InventoryRoll, depth: int = 10) -> Dict[str, Any]:

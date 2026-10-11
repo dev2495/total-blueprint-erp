@@ -1,6 +1,8 @@
+import hashlib
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import URLValidator, validate_email
@@ -10,7 +12,7 @@ from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -38,16 +40,19 @@ from .permission_registry import (
     is_known_permission,
     normalize_permission_code,
 )
-from .permission_service import PermissionService
+from .permission_service import PermissionService, revocations_for
 from .permissions import ActualAdminPermission
 from .role_catalog import canonicalize_role_matrix, canonicalize_role_rows, get_canonical_role_code
 from .serializers import (
+    is_owner_level,
+    other_active_owner_exists,
     CompanyProfileSerializer,
     MyTokenObtainPairSerializer,
     RoleSerializer,
     UserProfileChangeRequestSerializer,
     UserSerializer,
 )
+from .audit_outbox import record_permission_audit
 from .csrf import enforce_request_csrf
 from .services.notification_service import NotificationService
 
@@ -130,6 +135,37 @@ def _set_auth_cookies(response: Response, refresh_token: str):
         path=str(getattr(settings, "JWT_REFRESH_COOKIE_PATH", "/api/users/token/refresh/")),
         **cookie_common,
     )
+    _expire_legacy_domain_cookies(response)
+
+
+def _expire_legacy_domain_cookies(response: Response):
+    """Expire auth cookies still held under a previously configured domain.
+
+    A browser keeps the old parent-domain cookie alongside the new host-only
+    one until it expires. Django keeps one cookie per name, so each expiry is
+    added under its own key with a Morsel that still carries the real name;
+    the response then carries one extra Set-Cookie line per legacy domain.
+    """
+    from http.cookies import Morsel
+
+    current = getattr(settings, "JWT_COOKIE_DOMAIN", None)
+    for domain in getattr(settings, "JWT_LEGACY_COOKIE_DOMAINS", []) or []:
+        if not domain or domain == current:
+            continue
+        for name, path in (
+            (str(getattr(settings, "JWT_ACCESS_COOKIE_NAME", "access")), str(getattr(settings, "JWT_ACCESS_COOKIE_PATH", "/"))),
+            (str(getattr(settings, "JWT_REFRESH_COOKIE_NAME", "refresh")), str(getattr(settings, "JWT_REFRESH_COOKIE_PATH", "/api/users/token/refresh/"))),
+        ):
+            morsel = Morsel()
+            morsel.set(name, "", '""')
+            morsel["domain"] = domain
+            morsel["path"] = path
+            morsel["max-age"] = 0
+            morsel["expires"] = "Thu, 01 Jan 1970 00:00:00 GMT"
+            morsel["secure"] = bool(getattr(settings, "JWT_COOKIE_SECURE", False))
+            morsel["httponly"] = True
+            morsel["samesite"] = str(getattr(settings, "JWT_COOKIE_SAMESITE", "Lax"))
+            response.cookies[f"{name}@legacy:{domain}"] = morsel
 
 
 def _clear_auth_cookies(response: Response):
@@ -148,6 +184,7 @@ def _clear_auth_cookies(response: Response):
 
     response.delete_cookie(str(getattr(settings, "JWT_ACCESS_COOKIE_NAME", "access")), **access_kwargs)
     response.delete_cookie(str(getattr(settings, "JWT_REFRESH_COOKIE_NAME", "refresh")), **refresh_kwargs)
+    _expire_legacy_domain_cookies(response)
 
 
 def _extract_refresh_token(request) -> str:
@@ -156,6 +193,24 @@ def _extract_refresh_token(request) -> str:
         return body_refresh
     cookie_name = str(getattr(settings, "JWT_REFRESH_COOKIE_NAME", "refresh"))
     return str(request.COOKIES.get(cookie_name) or "").strip()
+
+
+LOGIN_FAILURE_LIMIT = 10
+LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
+LOGIN_LOCK_SECONDS = 15 * 60
+
+
+def _login_cache_keys(identifier: str) -> tuple[str, str]:
+    """Failure counter and lock keys for one account, however it is typed."""
+    normalized = str(identifier or "").strip().lower()
+    match = (
+        User.objects.filter(Q(email__iexact=normalized) | Q(username__iexact=normalized))
+        .values_list("pk", flat=True)
+        .first()
+    )
+    subject = f"user:{match}" if match else f"name:{normalized}"
+    digest = hashlib.sha256(subject.encode()).hexdigest()[:40]
+    return f"login-fail:{digest}", f"login-lock:{digest}"
 
 
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -170,8 +225,34 @@ class MyTokenObtainPairView(TokenObtainPairView):
 
     def post(self, request, *args, **kwargs):
         enforce_request_csrf(request)
+        identifier = str((request.data or {}).get("identifier") or (request.data or {}).get("username") or "").strip()
+        fail_key = lock_key = None
+        if identifier:
+            fail_key, lock_key = _login_cache_keys(identifier)
+            if cache.get(lock_key):
+                return Response(
+                    {"detail": "Too many failed sign-in attempts for this account. Wait 15 minutes or ask an administrator to reset the password."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            if fail_key:
+                failures = int(cache.get(fail_key) or 0) + 1
+                cache.set(fail_key, failures, LOGIN_FAILURE_WINDOW_SECONDS)
+                if failures >= LOGIN_FAILURE_LIMIT:
+                    cache.set(lock_key, True, LOGIN_LOCK_SECONDS)
+                    cache.delete(fail_key)
+                    record_permission_audit(
+                        request,
+                        user=None,
+                        action="DENIED",
+                        method="POST",
+                        path="/api/users/login/",
+                        details={"reason": "login_locked", "failed_attempts": failures, "lock_minutes": LOGIN_LOCK_SECONDS // 60},
+                    )
+            raise serializers.ValidationError(serializer.errors)
+        if fail_key:
+            cache.delete(fail_key)
 
         refresh_token = str(serializer.validated_data.get("refresh") or "")
         user = serializer.user
@@ -500,8 +581,9 @@ class RoleViewSet(viewsets.ModelViewSet):
         for row in rows:
             role_code = row.get("code")
             baseline = matrix.get(role_code, {}).get("default_permissions", [])
+            revoked = set(matrix.get(role_code, {}).get("revoked_permissions", []))
             row["default_permissions"] = sorted(
-                set(row.get("default_permissions", [])) | set(baseline)
+                (set(row.get("default_permissions", [])) | set(baseline)) - revoked
             )
         return Response(rows)
 
@@ -522,6 +604,10 @@ class RoleViewSet(viewsets.ModelViewSet):
         if not _is_admin_actor(request.user):
             return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
         response = super().update(request, *args, **kwargs)
+        if "default_permissions" in request.data:
+            role = self.get_object()
+            role.revoked_permissions = revocations_for(get_canonical_role_code(role.code), role.default_permissions)
+            role.save(update_fields=["revoked_permissions"])
         PermissionAuditLog.objects.create(
             user=request.user,
             action='ROLE_CHANGED',
@@ -597,20 +683,26 @@ class RoleViewSet(viewsets.ModelViewSet):
             )
 
         updated_roles = []
+        revoked_by_role = {}
         for role_code, permissions in normalized_matrix.items():
             role, _ = Role.objects.get_or_create(code=role_code, defaults={"name": role_code.title()})
             role.default_permissions = permissions
-            role.save(update_fields=["default_permissions"])
+            # What the administrator unticked from the canonical baseline is
+            # withheld from now on (the matrix used to silently re-add it).
+            role.revoked_permissions = revocations_for(role_code, permissions)
+            role.save(update_fields=["default_permissions", "revoked_permissions"])
             updated_roles.append(role_code)
+            if role.revoked_permissions:
+                revoked_by_role[role_code] = role.revoked_permissions
 
         PermissionAuditLog.objects.create(
             user=request.user,
             action='ROLE_CHANGED',
             method='POST',
             path='/api/users/roles/matrix/import/',
-            details={'updated_roles': updated_roles},
+            details={'updated_roles': updated_roles, 'revoked_permissions': revoked_by_role},
         )
-        return Response({"updated_roles": updated_roles})
+        return Response({"updated_roles": updated_roles, "revoked_permissions": revoked_by_role})
 
     @action(detail=False, methods=['get'], url_path='visibility/revalidate')
     def revalidate_visibility(self, request):
@@ -682,11 +774,32 @@ class UserViewSet(viewsets.ModelViewSet):
             return denied
         return super().partial_update(request, *args, **kwargs)
 
+    @transaction.atomic
     def destroy(self, request, *args, **kwargs):
+        """Deactivate the account. Users are never hard-deleted: their name
+        stays on every stock movement, approval and audit row they made."""
         denied = self._deny_if_not_admin(request)
         if denied:
             return denied
-        return super().destroy(request, *args, **kwargs)
+        target = User.objects.select_for_update().get(pk=self.get_object().pk)
+        if target.pk == request.user.pk:
+            return Response({"detail": "You cannot remove your own account."}, status=status.HTTP_400_BAD_REQUEST)
+        if is_owner_level(target) and not is_owner_level(request.user):
+            return Response({"detail": "Only an owner can remove an owner account."}, status=status.HTTP_403_FORBIDDEN)
+        if target.is_active and is_owner_level(target) and not other_active_owner_exists(target):
+            return Response({"detail": "This is the last active owner account; add another owner first."}, status=status.HTTP_400_BAD_REQUEST)
+        if target.is_active:
+            target.is_active = False
+            target.save(update_fields=["is_active"])
+        revoked = PermissionService.revoke_refresh_tokens(target)
+        PermissionAuditLog.objects.create(
+            user=request.user,
+            action="ROLE_CHANGED",
+            method="DELETE",
+            path=request.path,
+            details={"target_user_id": str(target.pk), "status": "deactivated", "revoked_refresh_tokens": revoked},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -703,7 +816,9 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             result = PermissionService.assign_work_centers(user, wc_ids)
         except DjangoValidationError as exc:
-            PermissionAuditLog.objects.create(
+            # The 400 rolls the request back; the rejection is still audited.
+            record_permission_audit(
+                request,
                 user=request.user,
                 action="ROLE_CHANGED",
                 method="POST",
@@ -761,7 +876,9 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             result = PermissionService.assign_machines(user, machine_ids)
         except DjangoValidationError as exc:
-            PermissionAuditLog.objects.create(
+            # The 400 rolls the request back; the rejection is still audited.
+            record_permission_audit(
+                request,
                 user=request.user,
                 action="ROLE_CHANGED",
                 method="POST",

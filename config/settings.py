@@ -221,8 +221,16 @@ JWT_REFRESH_COOKIE_NAME = os.getenv("JWT_REFRESH_COOKIE_NAME", "refresh")
 JWT_ACCESS_COOKIE_PATH = os.getenv("JWT_ACCESS_COOKIE_PATH", "/")
 JWT_REFRESH_COOKIE_PATH = os.getenv("JWT_REFRESH_COOKIE_PATH", "/api/users/token/refresh/")
 JWT_COOKIE_SECURE = _env_bool("JWT_COOKIE_SECURE", IS_HOSTED_SECURE)
-JWT_COOKIE_SAMESITE = os.getenv("JWT_COOKIE_SAMESITE", "None" if IS_HOSTED_SECURE else "Lax")
+# The browser reaches the UI and the API on one origin (Caddy proxies /api),
+# so session cookies never need to travel on cross-site requests.
+JWT_COOKIE_SAMESITE = os.getenv("JWT_COOKIE_SAMESITE", "Lax")
 JWT_COOKIE_DOMAIN = os.getenv("JWT_COOKIE_DOMAIN", "").strip() or None
+# Domains auth cookies were previously issued for (e.g. ".example.com"). Their
+# cookies are expired on every sign-in, refresh and logout after the move to
+# host-only cookies, so a stale parent-domain cookie can never linger.
+JWT_LEGACY_COOKIE_DOMAINS = [
+    value.strip() for value in os.getenv("JWT_LEGACY_COOKIE_DOMAINS", "").split(",") if value.strip()
+]
 JWT_COOKIE_HTTPONLY = True
 
 MIDDLEWARE = [
@@ -240,6 +248,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.users.middleware.RoleOverrideMiddleware",
     "config.request_context_middleware.RequestContextMiddleware",
+    # Writes queued permission-audit rows after the request transaction ends.
+    "apps.users.audit_outbox.DeferredAuditMiddleware",
 ]
 if HAS_WHITENOISE:
     MIDDLEWARE.insert(2, "whitenoise.middleware.WhiteNoiseMiddleware")
@@ -356,6 +366,32 @@ if IS_HOSTED_SECURE and ALLOW_ROLE_OVERRIDE:
 
 # Celery / Redis
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+
+def _redis_db_url(url: str, db: int) -> str:
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, f"/{db}", parts.query, parts.fragment))
+
+
+# Shared cache for rate limits, sign-in lockouts and short-lived dashboard
+# caches. Hosted environments share it across workers through Redis (a
+# separate database from the Celery broker); local development and tests use
+# an in-process cache unless CACHE_BACKEND=redis is set.
+_cache_backend = os.getenv("CACHE_BACKEND", "redis" if IS_HOSTED_SECURE else "locmem").strip().lower()
+if _cache_backend == "redis":
+    CACHES = {
+        "default": {
+            "BACKEND": "config.cache_backends.ResilientRedisCache",
+            "LOCATION": os.getenv("CACHE_REDIS_URL", "").strip() or _redis_db_url(REDIS_URL, 1),
+            "KEY_PREFIX": "tpp-erp",
+            "TIMEOUT": 300,
+            "OPTIONS": {"socket_connect_timeout": 1, "socket_timeout": 1},
+        }
+    }
+else:
+    CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "tpp-erp"}}
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
 CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES", "3600"))
@@ -366,6 +402,9 @@ CELERY_TASK_SOFT_TIME_LIMIT = int(os.getenv("CELERY_TASK_SOFT_TIME_LIMIT", "840"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
+# Beat schedules below are factory local time (IST), not UTC.
+CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "Asia/Kolkata")
+CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
     "db-backup-every-4h": {
         "task": "apps.platformops.tasks.run_db_backup_task",
@@ -373,15 +412,16 @@ CELERY_BEAT_SCHEDULE = {
     },
     "backup-retention-daily": {
         "task": "apps.platformops.tasks.prune_backup_retention_task",
-        "schedule": crontab(minute=20, hour=1),
+        "schedule": crontab(minute=20, hour=1),  # 01:20 IST
     },
     "restore-drill-weekly": {
         "task": "apps.platformops.tasks.run_restore_drill_task",
-        "schedule": crontab(minute=45, hour=2, day_of_week="sun"),
+        "schedule": crontab(minute=45, hour=2, day_of_week="sun"),  # Sunday 02:45 IST
     },
     "inventory-snapshot-nightly": {
         "task": "apps.platformops.tasks.run_inventory_snapshot_task",
-        "schedule": crontab(minute=15, hour=3),
+        # End of the business day, so each daily snapshot is that day's close.
+        "schedule": crontab(minute=45, hour=23),  # 23:45 IST
     },
     "queue-health-monitor": {
         "task": "apps.platformops.tasks.monitor_queue_health_task",
@@ -394,28 +434,29 @@ CELERY_BEAT_SCHEDULE = {
     # Sprint 3 — Reorder policy + nightly MRP.
     "low-stock-scan": {
         "task": "apps.inventory.tasks.low_stock_scan",
-        "schedule": crontab(minute=0, hour=6),
+        "schedule": crontab(minute=0, hour=6),  # 06:00 IST, before the day shift
     },
     "mrp-nightly": {
         "task": "apps.mrp.tasks.run_nightly_mrp",
-        "schedule": crontab(minute=0, hour=2),
+        "schedule": crontab(minute=0, hour=2),  # 02:00 IST
     },
-    # Bills & documents, gate passes and job work reminders (IST mornings).
+    # Bills & documents, gate passes and job work reminders (IST mornings,
+    # unchanged from their previous 03:30-03:50 UTC run times).
     "document-reminders-daily": {
         "task": "apps.gate.tasks.document_reminders_task",
-        "schedule": crontab(minute=30, hour=3),
+        "schedule": crontab(minute=0, hour=9),  # 09:00 IST
     },
     "gate-pass-overdue-daily": {
         "task": "apps.gate.tasks.gate_pass_overdue_task",
-        "schedule": crontab(minute=35, hour=3),
+        "schedule": crontab(minute=5, hour=9),  # 09:05 IST
     },
     "jobwork-overdue-daily": {
         "task": "apps.inventory.tasks.jobwork_overdue_task",
-        "schedule": crontab(minute=40, hour=3),
+        "schedule": crontab(minute=10, hour=9),  # 09:10 IST
     },
     "document-storage-monitor-daily": {
         "task": "apps.gate.tasks.document_storage_monitor_task",
-        "schedule": crontab(minute=50, hour=3),
+        "schedule": crontab(minute=20, hour=9),  # 09:20 IST
     },
 }
 

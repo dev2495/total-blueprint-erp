@@ -109,6 +109,7 @@ export function canonicalizeRoleRows<T extends RoleLike>(roles: T[]): T[] {
 type RoleMatrixRow = {
   default_permissions: string[]
   database_permissions: string[]
+  revoked_permissions?: string[]
 }
 
 export function canonicalizeRoleMatrixRows<T extends RoleMatrixRow>(matrix: Record<string, T>): Record<string, T> {
@@ -123,6 +124,7 @@ export function canonicalizeRoleMatrixRows<T extends RoleMatrixRow>(matrix: Reco
         ...row,
         default_permissions: Array.from(new Set(row.default_permissions || [])).sort(),
         database_permissions: Array.from(new Set(row.database_permissions || [])).sort(),
+        revoked_permissions: Array.from(new Set(row.revoked_permissions || [])).sort(),
       } as T
       return acc
     }
@@ -130,6 +132,7 @@ export function canonicalizeRoleMatrixRows<T extends RoleMatrixRow>(matrix: Reco
       ...existing,
       default_permissions: Array.from(new Set([...(existing.default_permissions || []), ...(row.default_permissions || [])])).sort(),
       database_permissions: Array.from(new Set([...(existing.database_permissions || []), ...(row.database_permissions || [])])).sort(),
+      revoked_permissions: Array.from(new Set([...(existing.revoked_permissions || []), ...(row.revoked_permissions || [])])).sort(),
     } as T
     return acc
   }, {})

@@ -26,10 +26,29 @@ def health_live(request):
     return JsonResponse(payload, status=200)
 
 
+READY_CACHE_KEY = "health:ready:v1"
+READY_CACHE_SECONDS = 15
+
+
 @api_view(['GET', 'HEAD'])
 @permission_classes([AllowAny])
 def health_ready(request):
-    """Readiness probe: validates critical dependencies and recovery freshness."""
+    """Readiness probe: validates critical dependencies and recovery freshness.
+
+    The probe is public and the Celery check waits up to two seconds for
+    worker replies, so the result is shared for a few seconds: repeated
+    anonymous calls cannot tie up request threads.
+    """
+    from django.core.cache import cache
+
+    checks = cache.get(READY_CACHE_KEY)
+    if not isinstance(checks, dict):
+        checks = _readiness_checks()
+        cache.set(READY_CACHE_KEY, checks, READY_CACHE_SECONDS)
+    return _readiness_response(request, checks)
+
+
+def _readiness_checks():
     checks = {
         "database": {"ok": False},
         "redis": {"ok": False},
@@ -76,7 +95,10 @@ def health_ready(request):
         checks["backup"] = {"ok": bool(backup_metrics.get("fresh"))}
     except Exception:
         checks["backup"] = {"ok": False}
+    return checks
 
+
+def _readiness_response(request, checks):
     required_checks = {"database", "redis"}
     if getattr(settings, "IS_PRODUCTION", False):
         required_checks.update({"celery", "backup"})

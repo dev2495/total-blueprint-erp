@@ -40,7 +40,7 @@ class RoleBasedAccessPermission(BasePermission):
         if "WATCHMAN" in {actual_role, effective_role}:
             from apps.users.middleware import RoleOverrideMiddleware
             if not RoleOverrideMiddleware._watchman_path_allowed(request):
-                self._log_denied(user, method, path, "WATCHMAN_SCOPE")
+                self._log_denied(user, method, path, "WATCHMAN_SCOPE", request=request)
                 return False
             return True
 
@@ -86,7 +86,7 @@ class RoleBasedAccessPermission(BasePermission):
         if required_permission is None:
             # Deny-by-default in strict mode, allow while strict mode is disabled.
             if strict_mode:
-                self._log_denied(user, method, path, required_permission="UNMAPPED")
+                self._log_denied(user, method, path, required_permission="UNMAPPED", request=request)
                 return False
             return True
 
@@ -94,21 +94,21 @@ class RoleBasedAccessPermission(BasePermission):
         if can_with_wildcard(granted, required_permission):
             return True
 
-        self._log_denied(user, method, path, required_permission=required_permission)
+        self._log_denied(user, method, path, required_permission=required_permission, request=request)
         return False
 
     @staticmethod
-    def _log_denied(user, method: str, path: str, required_permission: Optional[str]):
-        try:
-            from apps.users.models import PermissionAuditLog
+    def _log_denied(user, method: str, path: str, required_permission: Optional[str], request=None):
+        # A denial rolls the request transaction back, so the audit row is
+        # queued and written after the request (see apps.users.audit_outbox).
+        from apps.users.audit_outbox import record_permission_audit
 
-            PermissionAuditLog.objects.create(
-                user=user,
-                action="DENIED",
-                method=method,
-                path=path,
-                required_permission=required_permission or "",
-                details={"reason": "rbac_permission_missing"},
-            )
-        except Exception:
-            logger.warning("RBAC denial log failed for %s %s", method, path, exc_info=True)
+        record_permission_audit(
+            request,
+            user=user if getattr(user, "is_authenticated", False) else None,
+            action="DENIED",
+            method=method,
+            path=path,
+            required_permission=required_permission or "",
+            details={"reason": "rbac_permission_missing"},
+        )

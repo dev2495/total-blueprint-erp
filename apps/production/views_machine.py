@@ -388,7 +388,28 @@ def machine_log_output(request, machine_id, job_id):
                 actual_qty = None
     if actual_qty is None:
         return Response({"error": "actual_qty is required"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
+    # Check the wastage reason before anything is reserved or posted.
+    try:
+        trim_raw, process_raw = request.data.get('trim_qty'), request.data.get('process_scrap_qty')
+        if trim_raw not in (None, "") or process_raw not in (None, ""):
+            waste_kg = Decimal(str(trim_raw or 0)) + Decimal(str(process_raw or 0))
+        else:
+            waste_kg = Decimal(str(request.data.get('scrap_qty') or 0))
+        from apps.production.services.waste_policy import validate_output_waste
+
+        validate_output_waste(actual_qty, waste_kg, request.data.get('waste_reason'), request.data.get('waste_note'))
+    except ArithmeticError:
+        return Response(
+            {"error": {"code": "MACHINE_LOG_OUTPUT_VALIDATION_FAILED", "message": "Trim and scrap must be numbers."}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    except ValueError as exc:
+        return Response(
+            {"error": {"code": "MACHINE_LOG_OUTPUT_VALIDATION_FAILED", "message": _machine_validation_message(exc)}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     try:
         payload = {
             "scrap_qty": request.data.get('scrap_qty'),
@@ -401,6 +422,10 @@ def machine_log_output(request, machine_id, job_id):
             "roll_outputs": request.data.get('roll_outputs'),
             "split_outputs": request.data.get('split_outputs'),
             "remainder_location_id": request.data.get('remainder_location_id'),
+            "waste_reason": request.data.get('waste_reason'),
+            "waste_note": request.data.get('waste_note'),
+            # Operator entries above the company wastage limit need a reason.
+            "enforce_waste_reason": True,
         }
         job = OperatorService.log_output_step(job_id, float(actual_qty), request.user, **payload)
         return Response(ProductionJobSerializer(job).data)
@@ -504,18 +529,17 @@ def machine_job_context(request, machine_id, job_id):
     Get full job execution context for machine terminal.
     Route: GET /api/production/machine/<machine_id>/jobs/<job_id>/context/
     """
-    try:
-        machine = Machine.objects.get(id=machine_id)
-        job = ProductionJob.objects.get(id=job_id, machine=machine)
-    except Machine.DoesNotExist:
-        return Response({"error": "Machine not found"}, status=status.HTTP_404_NOT_FOUND)
-    except ProductionJob.DoesNotExist:
-        return Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
+    machine, job, denied = _machine_job_or_response(request.user, machine_id, job_id)
+    if denied is not None:
+        return denied
     
     try:
         context = ExecutionService.get_job_context(job_id, reconcile_assignment=False)
         if isinstance(context, dict) and isinstance(context.get("job"), dict):
             _apply_artwork_payload(context["job"], job)
+        if isinstance(context, dict):
+            from apps.production.services.waste_policy import waste_reason_threshold_pct
+            context["waste_policy"] = {"reason_threshold_pct": float(waste_reason_threshold_pct())}
         return Response(context)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -528,13 +552,9 @@ def machine_job_satisfaction(request, machine_id, job_id):
     Get input satisfaction status for a job on this machine.
     Route: GET /api/production/machine/<machine_id>/jobs/<job_id>/satisfaction/
     """
-    try:
-        machine = Machine.objects.get(id=machine_id)
-        job = ProductionJob.objects.get(id=job_id, machine=machine)
-    except Machine.DoesNotExist:
-        return Response({"error": "Machine not found"}, status=status.HTTP_404_NOT_FOUND)
-    except ProductionJob.DoesNotExist:
-        return Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
+    machine, job, denied = _machine_job_or_response(request.user, machine_id, job_id)
+    if denied is not None:
+        return denied
     
     try:
         status_data = ExecutionService.get_satisfaction_status(job_id)
@@ -558,6 +578,8 @@ def machine_history(request, machine_id):
         machine = Machine.objects.select_related('work_center', 'work_center__plant').get(id=machine_id)
     except Machine.DoesNotExist:
         return Response({"error": "Machine not found"}, status=status.HTTP_404_NOT_FOUND)
+    if not _ensure_machine_scope(request.user, machine.id):
+        return _scope_denied(machine.id)
 
     date_from_raw = request.query_params.get("date_from")
     date_to_raw = request.query_params.get("date_to")

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Building2,
+  Factory,
   MapPin,
   FileText,
   Landmark,
@@ -174,13 +175,13 @@ export default function CompanyProfilePage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           {/* ── Editor ───────────────────────────────────────────────── */}
           <Card className="border-line">
             <CardContent className="p-0">
               <Tabs defaultValue="identity">
-                <div className="border-b border-line px-4 pt-3">
-                  <TabsList className="bg-surface-2">
+                <div className="overflow-x-auto border-b border-line px-4 pt-3">
+                  <TabsList className="w-max bg-surface-2">
                     <TabsTrigger value="identity">
                       <Building2 className="mr-1.5 h-3.5 w-3.5" /> Identity
                     </TabsTrigger>
@@ -198,6 +199,9 @@ export default function CompanyProfilePage() {
                     <TabsTrigger value="terms">
                       <PenSquare className="mr-1.5 h-3.5 w-3.5" /> Terms &amp;
                       Signatory
+                    </TabsTrigger>
+                    <TabsTrigger value="production">
+                      <Factory className="mr-1.5 h-3.5 w-3.5" /> Production
                     </TabsTrigger>
                   </TabsList>
                 </div>
@@ -512,6 +516,27 @@ export default function CompanyProfilePage() {
                         />
                       </Field>
                     </div>
+                  </TabsContent>
+                  <TabsContent value="production" className="m-0 space-y-4">
+                    <Field
+                      label="Wastage reason limit (%)"
+                      helper="When trim plus scrap on a machine output log reaches this share of the run, the operator must choose a scrap reason and write why."
+                    >
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={profile.waste_reason_threshold_pct ?? 5}
+                        onChange={(e) =>
+                          setField(
+                            "waste_reason_threshold_pct",
+                            Math.min(100, Math.max(0, Number(e.target.value) || 0)),
+                          )
+                        }
+                        disabled={!canEdit}
+                      />
+                    </Field>
                   </TabsContent>
                 </div>
               </Tabs>

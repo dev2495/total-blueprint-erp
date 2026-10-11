@@ -113,13 +113,16 @@ def canonicalize_role_matrix(matrix: dict[str, dict]) -> dict[str, dict]:
         if not canonical_code or canonical_code not in CANONICAL_ROLE_LABELS:
             continue
 
-        existing = merged.get(canonical_code, {"default_permissions": [], "database_permissions": []})
+        existing = merged.get(canonical_code, {"default_permissions": [], "database_permissions": [], "revoked_permissions": []})
         merged[canonical_code] = {
             "default_permissions": sorted(
                 set(existing.get("default_permissions", [])) | set((row or {}).get("default_permissions", []) or [])
             ),
             "database_permissions": sorted(
                 set(existing.get("database_permissions", [])) | set((row or {}).get("database_permissions", []) or [])
+            ),
+            "revoked_permissions": sorted(
+                set(existing.get("revoked_permissions", [])) | set((row or {}).get("revoked_permissions", []) or [])
             ),
         }
 
