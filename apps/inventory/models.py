@@ -1466,7 +1466,14 @@ class InventoryAlert(models.Model):
     resolved_at = models.DateTimeField(null=True, blank=True)
     resolved_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_alerts')
     resolution_note = models.TextField(blank=True)
-    
+
+    # Identity of the condition behind the alert (for example
+    # "bulk:<material>:<granule code>:<location>" or "roll:<roll>"). The nightly
+    # reconciliation updates the open alert with this key instead of raising a
+    # new one every night, and resolves it when the condition clears.
+    scope_key = models.CharField(max_length=160, blank=True, default="", db_index=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

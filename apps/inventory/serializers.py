@@ -1094,7 +1094,7 @@ class InventoryAlertSerializer(serializers.ModelSerializer):
             'plant', 'plant_name',
             'expected_value', 'actual_value',
             'resolved', 'resolved_at', 'resolved_by', 'resolved_by_name', 'resolution_note',
-            'created_at'
+            'created_at', 'scope_key', 'last_seen_at',
         ]
         read_only_fields = ['id', 'created_at', 'type', 'message', 'severity', 'material', 'roll', 'plant']
 

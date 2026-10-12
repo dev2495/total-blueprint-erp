@@ -5,7 +5,7 @@ Detects mismatches, generates alerts, creates snapshots.
 from decimal import Decimal
 from typing import List, Dict, Any
 from django.db import transaction
-from django.db.models import Count, Sum, F, Q
+from django.db.models import Count, Max as models_Max, Sum, F, Q
 from django.utils import timezone
 from datetime import timedelta
 
@@ -77,56 +77,137 @@ class InventoryAuditService:
         logger.info(f"Created inventory snapshot for {plant.code}: {snapshot.id}")
         return snapshot
 
+    # Alert types the nightly reconciliation owns: it raises them, keeps the
+    # open row current on every run, and resolves them when the condition
+    # clears. Alerts of other types (LOW_STOCK, COST_MISMATCH) are untouched.
+    RECONCILIATION_ALERT_TYPES = ("TXN_MISMATCH", "NEGATIVE_STOCK", "WEIGHT_MISMATCH", "ORPHAN_ROLL", "STUCK_WIP")
+    AUTO_RESOLUTION_NOTE = "Resolved automatically: the condition was not found by the nightly reconciliation."
+
+    @staticmethod
+    def bulk_scope_key(material_id, granule_code_id, location_id) -> str:
+        return f"bulk:{material_id}:{granule_code_id or '-'}:{location_id}"
+
+    @staticmethod
+    def roll_scope_key(roll_id) -> str:
+        return f"roll:{roll_id}"
+
+    @classmethod
+    def _raise_alert(cls, *, scope_key: str, type: str, message: str, severity: str, seen: set, **context) -> InventoryAlert:
+        """Update the open alert for this condition, or create it."""
+        now = timezone.now()
+        seen.add((type, scope_key))
+        alert = InventoryAlert.objects.filter(type=type, scope_key=scope_key, resolved=False).order_by("created_at").first()
+        if alert is None:
+            return InventoryAlert.objects.create(type=type, scope_key=scope_key, message=message, severity=severity, last_seen_at=now, **context)
+        alert.message = message
+        alert.severity = severity
+        alert.last_seen_at = now
+        for field, value in context.items():
+            setattr(alert, field, value)
+        alert.save(update_fields=["message", "severity", "last_seen_at", *context.keys()])
+        return alert
+
+    @classmethod
+    def _resolve_cleared(cls, types, seen: set, plant: Plant = None) -> int:
+        """Resolve open keyed alerts of these types that this run did not re-raise."""
+        qs = InventoryAlert.objects.filter(type__in=types, resolved=False).exclude(scope_key="")
+        if plant:
+            qs = qs.filter(plant=plant)
+        resolved = 0
+        for alert in qs.only("id", "type", "scope_key"):
+            if (alert.type, alert.scope_key) in seen:
+                continue
+            InventoryAlert.objects.filter(pk=alert.pk, resolved=False).update(
+                resolved=True, resolved_at=timezone.now(), resolution_note=cls.AUTO_RESOLUTION_NOTE
+            )
+            resolved += 1
+        return resolved
+
+    @classmethod
+    def bulk_ledger_gaps(cls, plant: Plant = None, tolerance: Decimal = Decimal("0.01")) -> List[Dict[str, Any]]:
+        """Stock rows whose quantity differs from their own ledger.
+
+        Bulk stock is held per material + quality code + location, and the
+        ledger rows carry the same three keys, so each stock row is compared
+        with the ledger of its own quality code (a null code matches null).
+        """
+        bulk_qs = InventoryBulk.objects.select_related("material", "granule_code", "location", "plant")
+        if plant:
+            bulk_qs = bulk_qs.filter(plant=plant)
+        ledger = {}
+        last_seen = {}
+        tx_qs = BulkTransaction.objects.values("material_id", "granule_code_id", "location_id").annotate(total=Sum("qty_kg"), last=models_Max("created_at"))
+        if plant:
+            tx_qs = tx_qs.filter(location__plant=plant)
+        for row in tx_qs:
+            key = (row["material_id"], row["granule_code_id"], row["location_id"])
+            ledger[key] = row["total"] or Decimal("0")
+            last_seen[key] = row["last"]
+        gaps = []
+        for bulk in bulk_qs.order_by("plant__code", "location__name", "material__code"):
+            key = (bulk.material_id, bulk.granule_code_id, bulk.location_id)
+            ledger_qty = ledger.get(key, Decimal("0"))
+            stock_qty = bulk.qty_kg or Decimal("0")
+            if abs(stock_qty - ledger_qty) <= tolerance:
+                continue
+            gaps.append({
+                "bulk": bulk,
+                "scope_key": cls.bulk_scope_key(bulk.material_id, bulk.granule_code_id, bulk.location_id),
+                "stock_qty": stock_qty,
+                "ledger_qty": ledger_qty,
+                "gap": stock_qty - ledger_qty,
+                "has_ledger": key in ledger,
+                "last_ledger_at": last_seen.get(key),
+            })
+        return gaps
+
     @classmethod
     def run_bulk_reconciliation(cls, plant: Plant = None) -> List[InventoryAlert]:
         """
-        Checks: sum(BulkTransaction) == InventoryBulk.qty for each material/location.
-        Returns list of created alerts.
+        Checks: sum(BulkTransaction) == InventoryBulk.qty_kg for each
+        material + quality code + location. Keeps one open alert per stock
+        row, and resolves alerts whose row now ties to its ledger.
+        Returns the alerts that are open after this run.
         """
         alerts = []
-        
-        bulk_qs = InventoryBulk.objects.all()
-        if plant:
-            bulk_qs = bulk_qs.filter(plant=plant)
-        
-        for bulk in bulk_qs:
-            # Sum all transactions for this bulk
-            txn_total = BulkTransaction.objects.filter(
+        seen = set()
+        for gap in cls.bulk_ledger_gaps(plant):
+            bulk = gap["bulk"]
+            code = f" [{bulk.granule_code.code}]" if bulk.granule_code_id else ""
+            difference = abs(gap["gap"])
+            alert = cls._raise_alert(
+                scope_key=gap["scope_key"],
+                type="TXN_MISMATCH",
+                message=f"Bulk {bulk.material.code}{code} @ {bulk.location.name}: "
+                        f"Expected {gap['ledger_qty']}kg from transactions, actual {gap['stock_qty']}kg",
+                severity="HIGH" if difference > Decimal("10") else "MEDIUM",
+                seen=seen,
                 material=bulk.material,
-                location=bulk.location
-            ).aggregate(total=Sum('qty_kg'))['total'] or Decimal('0')
-            
-            current_qty = bulk.qty_kg
-            difference = abs(current_qty - txn_total)
-            
-            # Flag if mismatch > 0.01kg
-            if difference > Decimal('0.01'):
-                alert = InventoryAlert.objects.create(
-                    type='TXN_MISMATCH',
-                    message=f"Bulk {bulk.material.code} @ {bulk.location.name}: "
-                            f"Expected {txn_total}kg from transactions, actual {current_qty}kg",
-                    severity='HIGH' if difference > Decimal('10') else 'MEDIUM',
-                    material=bulk.material,
-                    plant=bulk.plant,
-                    expected_value=txn_total,
-                    actual_value=current_qty
-                )
-                alerts.append(alert)
-                logger.warning(f"Bulk mismatch detected: {alert.message}")
-            
-            # Check for negative stock
-            if current_qty < 0:
-                alert = InventoryAlert.objects.create(
-                    type='NEGATIVE_STOCK',
-                    message=f"Negative bulk stock: {bulk.material.code} @ {bulk.location.name} = {current_qty}kg",
-                    severity='CRITICAL',
-                    material=bulk.material,
-                    plant=bulk.plant,
-                    actual_value=current_qty
-                )
-                alerts.append(alert)
-                logger.error(f"Negative stock: {alert.message}")
-        
+                plant=bulk.plant,
+                expected_value=gap["ledger_qty"],
+                actual_value=gap["stock_qty"],
+            )
+            alerts.append(alert)
+            logger.warning("Bulk mismatch detected: %s", alert.message)
+
+        negative_qs = InventoryBulk.objects.filter(qty_kg__lt=0).select_related("material", "location", "plant")
+        if plant:
+            negative_qs = negative_qs.filter(plant=plant)
+        for bulk in negative_qs:
+            alert = cls._raise_alert(
+                scope_key=cls.bulk_scope_key(bulk.material_id, bulk.granule_code_id, bulk.location_id),
+                type="NEGATIVE_STOCK",
+                message=f"Negative bulk stock: {bulk.material.code} @ {bulk.location.name} = {bulk.qty_kg}kg",
+                severity="CRITICAL",
+                seen=seen,
+                material=bulk.material,
+                plant=bulk.plant,
+                actual_value=bulk.qty_kg,
+            )
+            alerts.append(alert)
+            logger.error("Negative stock: %s", alert.message)
+
+        cls._resolve_cleared(("TXN_MISMATCH", "NEGATIVE_STOCK"), seen, plant)
         return alerts
 
     @classmethod
@@ -134,9 +215,10 @@ class InventoryAuditService:
         """
         Checks roll weight integrity:
         original_weight == consumed + current_weight + scrap + children_weight
-        Returns list of created alerts.
+        Returns the alerts that are open after this run.
         """
         alerts = []
+        seen = set()
         
         rolls_qs = InventoryRoll.objects.exclude(status='CONSUMED').exclude(original_weight_kg__isnull=True)
         if plant:
@@ -166,18 +248,19 @@ class InventoryAuditService:
             difference = abs(current - expected_remaining)
             
             if difference > Decimal('0.01') and children_weight > 0:
-                alert = InventoryAlert.objects.create(
+                alerts.append(cls._raise_alert(
+                    scope_key=cls.roll_scope_key(roll.id),
                     type='WEIGHT_MISMATCH',
                     message=f"Roll {roll.label_id}: Original {original}kg, "
                             f"Consumed {consumed}kg, Children {children_weight}kg, "
                             f"Expected balance {expected_remaining}kg, Actual {current}kg",
                     severity='MEDIUM',
+                    seen=seen,
                     roll=roll,
                     plant=roll.location.plant if roll.location else None,
                     expected_value=expected_remaining,
-                    actual_value=current
-                )
-                alerts.append(alert)
+                    actual_value=current,
+                ))
             
             # Check for orphan rolls (no parent, not from GRN)
             if roll.stage_index > 0:
@@ -185,23 +268,27 @@ class InventoryAuditService:
                 if not has_parent:
                     # Check if created by production
                     if not roll.production_job:
-                        alert = InventoryAlert.objects.create(
+                        alerts.append(cls._raise_alert(
+                            scope_key=cls.roll_scope_key(roll.id),
                             type='ORPHAN_ROLL',
                             message=f"Roll {roll.label_id} (Stage {roll.stage_index}) has no parent link",
                             severity='LOW',
+                            seen=seen,
                             roll=roll,
-                            plant=roll.location.plant if roll.location else None
-                        )
-                        alerts.append(alert)
+                            plant=roll.location.plant if roll.location else None,
+                        ))
         
+        cls._resolve_cleared(("WEIGHT_MISMATCH", "ORPHAN_ROLL"), seen, plant)
         return alerts
 
     @classmethod
     def check_stuck_wip(cls, plant: Plant = None, days_threshold: int = 7) -> List[InventoryAlert]:
         """
-        Finds WIP rolls that haven't moved in N days.
+        Finds WIP rolls that haven't moved in N days. One open alert per roll;
+        resolved once the roll moves on.
         """
         alerts = []
+        seen = set()
         threshold_date = timezone.now() - timedelta(days=days_threshold)
         
         wip_qs = InventoryRoll.objects.filter(
@@ -215,21 +302,23 @@ class InventoryAuditService:
         
         for roll in wip_qs:
             days_stuck = (timezone.now() - roll.created_at).days
-            alert = InventoryAlert.objects.create(
+            alerts.append(cls._raise_alert(
+                scope_key=cls.roll_scope_key(roll.id),
                 type='STUCK_WIP',
                 message=f"Roll {roll.label_id} stuck at Stage {roll.stage_index} for {days_stuck} days",
                 severity='MEDIUM' if days_stuck < 14 else 'HIGH',
+                seen=seen,
                 roll=roll,
-                plant=roll.location.plant if roll.location else None
-            )
-            alerts.append(alert)
+                plant=roll.location.plant if roll.location else None,
+            ))
         
+        cls._resolve_cleared(("STUCK_WIP",), seen, plant)
         return alerts
 
     @classmethod
     def run_full_audit(cls, plant: Plant = None) -> Dict[str, Any]:
         """
-        Runs complete reconciliation and returns summary.
+        Runs complete reconciliation and returns summary of open alerts.
         """
         bulk_alerts = cls.run_bulk_reconciliation(plant)
         roll_alerts = cls.run_roll_reconciliation(plant)
