@@ -121,7 +121,7 @@ function AddReasonForm({
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-line-strong bg-surface-2 p-3 sm:flex-row sm:items-end">
       <div className="flex-1">
-        <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-content-3">
+        <label className="mb-1 block text-caption font-bold uppercase tracking-widest text-content-3">
           Code
         </label>
         <Input
@@ -137,7 +137,7 @@ function AddReasonForm({
         />
       </div>
       <div className="flex-[2]">
-        <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-content-3">
+        <label className="mb-1 block text-caption font-bold uppercase tracking-widest text-content-3">
           Label
         </label>
         <Input
@@ -149,7 +149,7 @@ function AddReasonForm({
         />
       </div>
       <div className="w-24">
-        <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-content-3">
+        <label className="mb-1 block text-caption font-bold uppercase tracking-widest text-content-3">
           Sort
         </label>
         <Input
@@ -268,7 +268,7 @@ function ReasonRow({
             </Badge>
           ) : null}
           {row.parent_code && !isChild ? (
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-content-4">
+            <span className="text-caption font-semibold uppercase tracking-wide text-content-4">
               ↳ {row.parent_code}
             </span>
           ) : null}
@@ -565,7 +565,7 @@ export default function ReasonCodesPage() {
         <div className="pointer-events-none absolute -bottom-20 left-10 size-48 rounded-full bg-order-fg blur-3xl" />
         <div className="relative flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-info-border">
+            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-2.5 py-1 text-caption font-semibold uppercase tracking-widest text-info-border">
               <Tags className="size-3" /> Production · Reason Codes
             </div>
             <h1 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">

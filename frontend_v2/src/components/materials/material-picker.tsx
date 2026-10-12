@@ -137,11 +137,11 @@ export default function MaterialPicker({
             </div>
             <div className="max-h-72 overflow-y-auto">
               {matQuery.isLoading ? (
-                <div className="px-3 py-6 text-center text-[11px] font-semibold uppercase tracking-widest text-content-4">
+                <div className="px-3 py-6 text-center text-caption font-semibold uppercase tracking-widest text-content-4">
                   <Loader2 className="h-4 w-4 mx-auto animate-spin" />
                 </div>
               ) : (matQuery.data || []).length === 0 ? (
-                <div className="px-3 py-4 text-[11px] font-bold text-content-4">
+                <div className="px-3 py-4 text-caption font-bold text-content-4">
                   No materials match.
                 </div>
               ) : (
@@ -170,14 +170,14 @@ export default function MaterialPicker({
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[11px] font-semibold text-content-3">
+                        <span className="font-mono text-caption font-semibold text-content-3">
                           {m.code}
                         </span>
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-order-fg bg-order-bg px-1.5 rounded">
+                        <span className="text-caption font-semibold uppercase tracking-widest text-order-fg bg-order-bg px-1.5 rounded">
                           {m.category_display || m.category}
                         </span>
                         {m.substitutes_count && m.substitutes_count > 0 ? (
-                          <span className="text-[10px] font-semibold uppercase tracking-widest text-warning-fg bg-warning-bg px-1.5 rounded">
+                          <span className="text-caption font-semibold uppercase tracking-widest text-warning-fg bg-warning-bg px-1.5 rounded">
                             {m.substitutes_count} subs
                           </span>
                         ) : null}
@@ -185,7 +185,7 @@ export default function MaterialPicker({
                       <div className="text-sm font-bold text-content-1 truncate">
                         {m.name}
                       </div>
-                      <div className="mt-0.5 flex items-center gap-2 text-[10px] font-bold text-content-3 font-mono">
+                      <div className="mt-0.5 flex items-center gap-2 text-caption font-bold text-content-3 font-mono">
                         <span>
                           ₹ {inr(m.avg_cost)}/{m.base_uom}
                         </span>

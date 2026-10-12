@@ -98,7 +98,7 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
               >
                 <span
                   className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-caption font-bold",
                     stateRing[step.state ?? "upcoming"],
                   )}
                 >
@@ -111,7 +111,7 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
                 <span className="flex flex-col items-start text-left leading-tight">
                   <span>{step.label}</span>
                   {step.hint && (
-                    <span className="text-[10px] font-normal text-content-3">
+                    <span className="text-caption font-normal text-content-3">
                       {step.hint}
                     </span>
                   )}

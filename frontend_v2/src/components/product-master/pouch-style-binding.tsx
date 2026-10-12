@@ -233,7 +233,7 @@ export function PouchStyleBinding({
             <h3 className="font-display text-sm font-bold text-content-1">
               Pouch style
             </h3>
-            <p className="text-[10px] text-content-3">
+            <p className="text-caption text-content-3">
               Pick a style master · formula auto-computes the target child web
               width.
             </p>
@@ -241,7 +241,7 @@ export function PouchStyleBinding({
         </div>
         <Link
           href="/master/pouch-styles"
-          className="inline-flex items-center gap-1 text-[10px] font-bold text-order-fg hover:underline"
+          className="inline-flex items-center gap-1 text-caption font-bold text-order-fg hover:underline"
         >
           Manage styles <ExternalLink className="h-3 w-3" />
         </Link>
@@ -249,7 +249,7 @@ export function PouchStyleBinding({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
             Pouch style master
           </div>
           <Select
@@ -365,20 +365,20 @@ export function PouchStyleBinding({
             </SelectContent>
           </Select>
           {selected ? (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-caption">
               <Badge
                 variant="outline"
                 className="border-order-border bg-order-bg text-order-fg"
               >
                 approved style
               </Badge>
-              <span className="font-mono text-[10px] text-content-2">
+              <span className="font-mono text-caption text-content-2">
                 {selected.formula_kind}
               </span>
               {selected.locked ? (
                 <Badge
                   variant="outline"
-                  className="border-success-border bg-success-bg text-[10px] text-success-fg"
+                  className="border-success-border bg-success-bg text-caption text-success-fg"
                 >
                   <Lock className="mr-0.5 h-2.5 w-2.5" /> locked
                 </Badge>
@@ -386,7 +386,7 @@ export function PouchStyleBinding({
               {selected.deprecated ? (
                 <Badge
                   variant="outline"
-                  className="border-warning-border bg-warning-bg text-[10px] text-warning-fg"
+                  className="border-warning-border bg-warning-bg text-caption text-warning-fg"
                 >
                   disabled style
                 </Badge>
@@ -394,25 +394,25 @@ export function PouchStyleBinding({
               {!selected.locked ? (
                 <Badge
                   variant="outline"
-                  className="border-warning-border bg-warning-bg text-[10px] text-warning-fg"
+                  className="border-warning-border bg-warning-bg text-caption text-warning-fg"
                 >
                   draft · approve first
                 </Badge>
               ) : null}
               <Badge
                 variant="outline"
-                className="border-info-border bg-info-bg text-[10px] text-primary"
+                className="border-info-border bg-info-bg text-caption text-primary"
               >
                 {stockFormLabel(selected.default_stock_form)} stock
               </Badge>
             </div>
           ) : null}
           {selected ? (
-            <div className="mt-2 rounded-lg bg-surface-1 p-2 ring-1 ring-order-border text-[11px]">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
+            <div className="mt-2 rounded-lg bg-surface-1 p-2 ring-1 ring-order-border text-caption">
+              <div className="text-caption font-semibold uppercase tracking-widest text-order-fg">
                 Allowed inputs
               </div>
-              <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+              <div className="mt-1 flex flex-wrap gap-1 text-caption">
                 {Object.entries(selected.allowed_fields || {}).map(
                   ([k, def]) => (
                     <span
@@ -430,7 +430,7 @@ export function PouchStyleBinding({
                   ),
                 )}
               </div>
-              <div className="mt-1 font-mono text-[10px] text-content-3">
+              <div className="mt-1 font-mono text-caption text-content-3">
                 {selected.formula_expression || ""}
               </div>
               <FormulaInputGrid
@@ -442,7 +442,7 @@ export function PouchStyleBinding({
               />
             </div>
           ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-warning-border bg-warning-bg p-2 text-[11px] text-warning-fg">
+            <div className="mt-2 rounded-lg border border-dashed border-warning-border bg-warning-bg p-2 text-caption text-warning-fg">
               Pick a pouch style master to show only the exact allowed size
               inputs and auto child-width formula. Manual fallback keeps only
               W/H.
@@ -461,7 +461,7 @@ export function PouchStyleBinding({
         <div className="space-y-2">
           {/* AUTO computed (always shown) */}
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
               {selected
                 ? "Auto child width (from formula)"
                 : "Current child width (legacy/manual)"}
@@ -478,7 +478,7 @@ export function PouchStyleBinding({
                   : "—"}
                 <span className="ml-1 text-base font-bold">mm</span>
               </div>
-              <div className="text-[10px] text-white/90">
+              <div className="text-caption text-white/90">
                 {selected
                   ? row.child_target_override
                     ? "auto value · NOT used (override active)"
@@ -493,7 +493,7 @@ export function PouchStyleBinding({
           {/* OVERRIDE input (always visible) */}
           <div>
             <div className="flex items-center justify-between">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
                 Override (optional)
               </div>
               {row.child_target_override ? (
@@ -505,7 +505,7 @@ export function PouchStyleBinding({
                       child_target_width_mm: liveTarget,
                     })
                   }
-                  className="text-[10px] font-bold text-danger-fg underline hover:text-danger-fg"
+                  className="text-caption font-bold text-danger-fg underline hover:text-danger-fg"
                 >
                   Clear override
                 </button>
@@ -542,7 +542,7 @@ export function PouchStyleBinding({
                   : "",
               )}
             />
-            <div className="mt-1 text-[10px] text-content-3">
+            <div className="mt-1 text-caption text-content-3">
               {row.child_target_override
                 ? "Override active. Lane/slit logic uses this value, not the auto."
                 : "Blank = use auto value above. Type a number to override per-size."}
@@ -551,13 +551,13 @@ export function PouchStyleBinding({
 
           {/* Final value used downstream */}
           <div className="rounded-xl border-2 border-order-border bg-order-bg p-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
+            <div className="text-caption font-semibold uppercase tracking-widest text-order-fg">
               Final width used downstream
             </div>
             <div className="mt-1 font-mono text-lg font-semibold text-order-fg">
               {(finalTarget ?? 0).toFixed(2)} mm
             </div>
-            <div className="mt-0.5 text-[10px] text-order-fg">
+            <div className="mt-0.5 text-caption text-order-fg">
               Drives lane-up math, planned parent width, allocator tiers, slit
               confirm.
             </div>
@@ -588,10 +588,10 @@ export function PouchStyleBinding({
 function StockMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-line bg-surface-1 px-2.5 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
-      <div className="mt-0.5 font-mono text-[11px] font-semibold text-content-1">
+      <div className="mt-0.5 font-mono text-caption font-semibold text-content-1">
         {value}
       </div>
     </div>
@@ -749,7 +749,7 @@ function FormulaInputGrid({
 
   return (
     <div className="mt-2 rounded-lg border border-dashed border-order-border bg-order-bg p-2">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
+      <div className="text-caption font-semibold uppercase tracking-widest text-order-fg">
         Allowed size inputs
       </div>
       <div className="mt-1 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -760,11 +760,11 @@ function FormulaInputGrid({
           return (
             <label key={key} className="block">
               <div className="mb-0.5 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                <span className="text-caption font-bold uppercase tracking-wider text-content-3">
                   {def.label || key}
                   {required ? " *" : ""}
                 </span>
-                <span className="font-mono text-[10px] text-content-4">
+                <span className="font-mono text-caption text-content-4">
                   {key}
                 </span>
               </div>
@@ -783,7 +783,7 @@ function FormulaInputGrid({
           );
         })}
       </div>
-      <div className="mt-1 text-[10px] text-order-fg">
+      <div className="mt-1 text-caption text-order-fg">
         Only fields allowed by this pouch style are shown. These values feed the
         formula and are saved on this size.
       </div>
@@ -801,7 +801,7 @@ function ManualFallbackInputs({
   return (
     <div className="mt-2 grid gap-2 sm:grid-cols-2">
       <label className="block">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+        <span className="text-caption font-bold uppercase tracking-wider text-content-3">
           Final width *
         </span>
         <Input
@@ -820,7 +820,7 @@ function ManualFallbackInputs({
         />
       </label>
       <label className="block">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+        <span className="text-caption font-bold uppercase tracking-wider text-content-3">
           Final height *
         </span>
         <Input

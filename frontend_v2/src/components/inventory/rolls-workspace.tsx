@@ -713,7 +713,7 @@ export function RollsWorkspaceV36() {
       {/* Mode toggle */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <ModeToggle mode={mode} onChange={setMode} />
-        <span className="text-[11px] text-content-3">
+        <span className="text-caption text-content-3">
           {mode === "pulse"
             ? "Analytics first · drill-down via Browse"
             : "Full filter rail · matrix / table / grid"}
@@ -876,7 +876,7 @@ export function RollsWorkspaceV36() {
             )}
 
             <div className="rounded-xl border border-info-border bg-info-bg p-3">
-              <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              <div className="mb-2 text-caption font-semibold uppercase tracking-wider text-primary">
                 Size filters
               </div>
               <div className="space-y-3">
@@ -1012,7 +1012,7 @@ export function RollsWorkspaceV36() {
             />
 
             <div>
-              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
                 Location
               </div>
               <select
@@ -1047,20 +1047,20 @@ export function RollsWorkspaceV36() {
             />
 
             <div className="rounded-xl border border-info-border bg-info-bg p-3">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+              <div className="text-caption font-semibold uppercase tracking-wider text-primary">
                 Quick actions
               </div>
               <div className="mt-2 grid grid-cols-2 gap-1.5">
                 <Link
                   href="/inventory/traceability"
-                  className="rounded-md bg-surface-1 px-2 py-1 text-[10px] font-bold text-primary ring-1 ring-info-border text-center hover:bg-info-bg"
+                  className="rounded-md bg-surface-1 px-2 py-1 text-caption font-bold text-primary ring-1 ring-info-border text-center hover:bg-info-bg"
                 >
                   <GitBranch className="inline-block h-3 w-3 mr-1 -mt-0.5" />{" "}
                   Trace
                 </Link>
                 <Link
                   href="/inventory/inter-plant"
-                  className="rounded-md bg-surface-1 px-2 py-1 text-[10px] font-bold text-primary ring-1 ring-info-border text-center hover:bg-info-bg"
+                  className="rounded-md bg-surface-1 px-2 py-1 text-caption font-bold text-primary ring-1 ring-info-border text-center hover:bg-info-bg"
                 >
                   Move →
                 </Link>
@@ -1152,7 +1152,7 @@ function MatrixView({
       tone="violet"
       icon={<span>🌀</span>}
       actions={
-        <div className="flex items-center gap-1.5 text-[11px]">
+        <div className="flex items-center gap-1.5 text-caption">
           <span className="rounded bg-success-bg px-1.5 py-0.5 font-bold text-success-fg">
             ●●●●
           </span>
@@ -1194,7 +1194,7 @@ function MatrixView({
               return (
                 <tr key={row} className="hover:bg-order-bg">
                   <td
-                    className="sticky left-0 bg-surface-1 hover:bg-order-bg px-4 py-1.5 text-[11px] font-medium text-content-2 truncate max-w-[280px]"
+                    className="sticky left-0 bg-surface-1 hover:bg-order-bg px-4 py-1.5 text-caption font-medium text-content-2 truncate max-w-[280px]"
                     title={row}
                   >
                     {row}
@@ -1204,7 +1204,7 @@ function MatrixView({
                     if (!cell || cell.rollCount === 0) {
                       return (
                         <td key={col} className="px-2 py-1.5 text-center">
-                          <span className="inline-flex h-7 w-12 items-center justify-center rounded-md bg-surface-2 text-[10px] text-content-4">
+                          <span className="inline-flex h-7 w-12 items-center justify-center rounded-md bg-surface-2 text-caption text-content-4">
                             —
                           </span>
                         </td>
@@ -1246,7 +1246,7 @@ function MatrixView({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
                 Total
               </td>
               {matrix.cols.map((c: number) => (
@@ -1308,7 +1308,7 @@ function TableView({
   }) => (
     <th
       className={cn(
-        "px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-content-3",
+        "px-3 py-2 text-caption font-semibold uppercase tracking-wider text-content-3",
         align || "text-left",
       )}
     >
@@ -1318,7 +1318,7 @@ function TableView({
       >
         {label} <ArrowUpDown className="h-3 w-3 opacity-50" />
         {sort.key === k && (
-          <span className="text-[8px] text-primary">
+          <span className="text-caption text-primary">
             {sort.dir === "asc" ? "▲" : "▼"}
           </span>
         )}
@@ -1346,7 +1346,7 @@ function TableView({
               <Th k="roll_role" label="Role" />
               <Th k="location_code" label="Location" />
               <Th k="created_at" label="Created" />
-              <th className="px-3 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <th className="px-3 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
                 Action
               </th>
             </tr>
@@ -1358,21 +1358,21 @@ function TableView({
                 className="hover:bg-info-bg cursor-pointer"
                 onClick={() => onSelect(r)}
               >
-                <td className="px-3 py-2 font-mono text-[11px] font-bold text-primary">
+                <td className="px-3 py-2 font-mono text-caption font-bold text-primary">
                   {r.label_id || r.label || "—"}
                 </td>
                 <td className="px-3 py-2">
                   <div className="font-bold text-content-1">
                     {r.material_code || "—"}
                   </div>
-                  <div className="text-[10px] text-content-3 truncate max-w-[180px]">
+                  <div className="text-caption text-content-3 truncate max-w-[180px]">
                     {r.material_name || ""}
                   </div>
                 </td>
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
                       stockFormTone(r.stock_form),
                     )}
                   >
@@ -1391,7 +1391,7 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
                       statusTone(r.status || ""),
                     )}
                   >
@@ -1401,17 +1401,17 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
                       roleTone(r.roll_role || ""),
                     )}
                   >
                     {r.roll_role || "BASE"}
                   </span>
                 </td>
-                <td className="px-3 py-2 font-mono text-[10px] text-content-3">
+                <td className="px-3 py-2 font-mono text-caption text-content-3">
                   {displayLocation(r)}
                 </td>
-                <td className="px-3 py-2 text-[10px] text-content-3">
+                <td className="px-3 py-2 text-caption text-content-3">
                   {r.created_at
                     ? formatDisplayDate(r.created_at)
                     : "—"}
@@ -1422,7 +1422,7 @@ function TableView({
                       e.stopPropagation();
                       onSelect(r);
                     }}
-                    className="inline-flex items-center gap-0.5 rounded-md bg-info-bg px-1.5 py-0.5 text-[10px] font-bold text-primary ring-1 ring-info-border hover:bg-info-bg"
+                    className="inline-flex items-center gap-0.5 rounded-md bg-info-bg px-1.5 py-0.5 text-caption font-bold text-primary ring-1 ring-info-border hover:bg-info-bg"
                   >
                     <Eye className="h-3 w-3" /> View
                   </button>
@@ -1432,7 +1432,7 @@ function TableView({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px]">
+      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption">
         <span className="text-content-3">
           Showing {rolls.length} of {total}
         </span>
@@ -1441,7 +1441,7 @@ function TableView({
           <select
             value={pageSize}
             onChange={(e) => onPageSize(Number(e.target.value))}
-            className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-[11px]"
+            className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-caption"
           >
             {[25, 50, 100, 250, 500].map((n) => (
               <option key={n} value={n}>
@@ -1491,16 +1491,16 @@ function GridView({
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="font-mono text-[11px] font-bold text-primary truncate">
+                <div className="font-mono text-caption font-bold text-primary truncate">
                   {r.label_id || r.label}
                 </div>
-                <div className="text-[10px] text-content-3 truncate">
+                <div className="text-caption text-content-3 truncate">
                   {r.material_code || "—"} · {r.material_name || ""}
                 </div>
               </div>
               <span
                 className={cn(
-                  "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
+                  "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
                   statusTone(r.status || ""),
                 )}
               >
@@ -1510,7 +1510,7 @@ function GridView({
             <div className="mt-2">
               <span
                 className={cn(
-                  "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
+                  "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
                   stockFormTone(r.stock_form),
                 )}
               >
@@ -1519,34 +1519,34 @@ function GridView({
             </div>
             <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-surface-2 p-2">
               <div className="text-center">
-                <div className="text-[8px] font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold uppercase text-content-3">
                   Width
                 </div>
-                <div className="font-mono text-[11px] font-bold text-content-1">
+                <div className="font-mono text-caption font-bold text-content-1">
                   {fmtNum(Number(r.width_mm || 0))}
-                  <span className="text-[10px] text-content-3">mm</span>
+                  <span className="text-caption text-content-3">mm</span>
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-[8px] font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold uppercase text-content-3">
                   Thick
                 </div>
-                <div className="font-mono text-[11px] font-bold text-content-1">
+                <div className="font-mono text-caption font-bold text-content-1">
                   {fmtNum(Number(r.thickness_micron || 0))}
-                  <span className="text-[10px] text-content-3">μ</span>
+                  <span className="text-caption text-content-3">μ</span>
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-[8px] font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold uppercase text-content-3">
                   Weight
                 </div>
-                <div className="font-mono text-[11px] font-bold text-content-1">
+                <div className="font-mono text-caption font-bold text-content-1">
                   {fmtNum(Number(r.net_weight_kg || r.weight_kg || 0), 1)}
-                  <span className="text-[10px] text-content-3">kg</span>
+                  <span className="text-caption text-content-3">kg</span>
                 </div>
               </div>
             </div>
-            <div className="mt-2 flex items-center justify-between text-[10px]">
+            <div className="mt-2 flex items-center justify-between text-caption">
               <span
                 className={cn(
                   "rounded-md px-1.5 py-0.5 font-bold uppercase ring-1",
@@ -1563,14 +1563,14 @@ function GridView({
           </button>
         ))}
       </div>
-      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px]">
+      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption">
         <span className="text-content-3">
           Showing {rolls.length} of {total}
         </span>
         <select
           value={pageSize}
           onChange={(e) => onPageSize(Number(e.target.value))}
-          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-[11px]"
+          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-caption"
         >
           {[24, 48, 96, 200].map((n) => (
             <option key={n} value={n}>
@@ -1608,13 +1608,13 @@ function CellDrawer({
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Roll cell drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1">
                 {row}
               </div>
-              <div className="text-[11px] text-content-3">
+              <div className="text-caption text-content-3">
                 Thickness <span className="font-mono font-bold">{col}μ</span>
               </div>
             </div>
@@ -1626,9 +1626,9 @@ function CellDrawer({
             </button>
           </div>
           {cell && (
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-caption">
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[10px] font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold uppercase text-content-3">
                   Rolls
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1636,7 +1636,7 @@ function CellDrawer({
                 </div>
               </div>
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[10px] font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold uppercase text-content-3">
                   Total KG
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1647,7 +1647,7 @@ function CellDrawer({
           )}
         </div>
         <div className="px-5 py-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
             Individual rolls
           </div>
           {!cell || cell.rollCount === 0 ? (
@@ -1667,7 +1667,7 @@ function CellDrawer({
                       <div className="font-mono text-xs font-bold text-primary truncate">
                         {r.label_id || r.label || r.id}
                       </div>
-                      <div className="text-[10px] text-content-3 truncate">
+                      <div className="text-caption text-content-3 truncate">
                         {displayLocation(r)} ·{" "}
                         {r.status || "—"}
                       </div>
@@ -1680,7 +1680,7 @@ function CellDrawer({
                 </button>
               ))}
               {cell.rollCount > 50 && (
-                <div className="text-center text-[10px] text-content-4 mt-2">
+                <div className="text-center text-caption text-content-4 mt-2">
                   + {cell.rollCount - 50} more
                 </div>
               )}
@@ -1703,13 +1703,13 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                 Roll detail
               </div>
               <div className="font-mono font-display text-lg font-bold text-primary truncate">
                 {roll.label_id || roll.label}
               </div>
-              <div className="text-[11px] text-content-3">
+              <div className="text-caption text-content-3">
                 {roll.material_code || "—"} · {roll.material_name || ""}
               </div>
             </div>
@@ -1723,7 +1723,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <span
               className={cn(
-                "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ring-1",
+                "rounded-md px-2 py-0.5 text-caption font-bold uppercase ring-1",
                 statusTone(roll.status || ""),
               )}
             >
@@ -1731,7 +1731,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             </span>
             <span
               className={cn(
-                "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ring-1",
+                "rounded-md px-2 py-0.5 text-caption font-bold uppercase ring-1",
                 roleTone(roll.roll_role || ""),
               )}
             >
@@ -1739,21 +1739,21 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             </span>
             <span
               className={cn(
-                "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ring-1",
+                "rounded-md px-2 py-0.5 text-caption font-bold uppercase ring-1",
                 stockFormTone(roll.stock_form),
               )}
             >
               {stockFormLabel(roll.stock_form)}
             </span>
             {roll.behavior_source && (
-              <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-2 ring-1 ring-line">
+              <span className="rounded-md bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
                 {roll.behavior_source}
               </span>
             )}
           </div>
         </div>
         <div className="px-5 py-4 space-y-4">
-          <div className="grid grid-cols-3 gap-2 text-[11px]">
+          <div className="grid grid-cols-3 gap-2 text-caption">
             <Stat
               label="Net"
               value={`${fmtNum(Number(roll.net_weight_kg || roll.weight_kg || 0), 2)} kg`}
@@ -1779,10 +1779,10 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Where
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 gap-2 text-caption">
               <Field
                 label="Plant"
                 value={displayPlant(roll)}
@@ -1802,10 +1802,10 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Lifecycle
             </div>
-            <div className="rounded-xl border border-line bg-surface-2 p-3 space-y-1 text-[11px]">
+            <div className="rounded-xl border border-line bg-surface-2 p-3 space-y-1 text-caption">
               <div className="flex items-center justify-between">
                 <span className="text-content-3">Created</span>
                 <span className="font-mono">
@@ -1830,13 +1830,13 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           <div className="pt-2 border-t border-line flex flex-wrap items-center gap-2">
             <Link
               href={`/inventory/traceability?q=${encodeURIComponent(roll.label_id || roll.id)}`}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-bold text-white hover:bg-primary"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-caption font-bold text-white hover:bg-primary"
             >
               <GitBranch className="h-3 w-3" /> Trace lineage
             </Link>
             <Link
               href={`/inventory?focus=${encodeURIComponent(roll.id)}`}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-3 py-1.5 text-[11px] font-bold text-content-2 hover:bg-line"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-surface-2 px-3 py-1.5 text-caption font-bold text-content-2 hover:bg-line"
             >
               Stock card <ArrowRight className="h-3 w-3" />
             </Link>
@@ -1850,7 +1850,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold text-content-1">
@@ -1871,7 +1871,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

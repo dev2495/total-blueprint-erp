@@ -33,7 +33,7 @@ export function DirectionBadge({ direction, size = "md" }: { direction: GateDire
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border font-semibold uppercase tracking-[0.06em]",
-        size === "sm" ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]",
+        size === "sm" ? "px-2 py-0.5 text-caption" : "px-2.5 py-1 text-caption",
       )}
       style={{ color: meta.tone, background: meta.soft, borderColor: meta.edge }}
     >
@@ -60,7 +60,7 @@ export function TonePill({
 }) {
   return (
     <span
-      className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold", className)}
+      className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-caption font-semibold", className)}
       style={{ color: tone, background: soft, borderColor: edge }}
     >
       {dot ? <span className="h-1.5 w-1.5 rounded-full" style={{ background: tone }} /> : null}
@@ -95,7 +95,7 @@ export function SectionHeading({ eyebrow, title, action }: { eyebrow?: string; t
     <div className="mb-2.5 flex items-end justify-between gap-3 px-1">
       <div>
         {eyebrow ? (
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">{eyebrow}</div>
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">{eyebrow}</div>
         ) : null}
         <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-content-1">{title}</h2>
       </div>

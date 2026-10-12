@@ -54,7 +54,7 @@ export const getColumns = ({
     cell: ({ row }) => (
       <div className="flex flex-col">
         <div className="font-bold text-content-2">{row.original.name}</div>
-        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
           {row.original.contact_person ||
             row.original.under_group ||
             "Primary contact pending"}
@@ -73,7 +73,7 @@ export const getColumns = ({
       return (
         <Badge
           variant={t.variant as any}
-          className="text-[10px] uppercase font-bold tracking-tighter shadow-sm"
+          className="text-caption uppercase font-bold tracking-tighter shadow-sm"
         >
           {t.label}
         </Badge>
@@ -88,7 +88,7 @@ export const getColumns = ({
         <div className="text-xs text-content-3 font-mono">
           {row.original.gst_no || "-"}
         </div>
-        <div className="text-[10px] text-content-4 font-mono">
+        <div className="text-caption text-content-4 font-mono">
           {row.original.pan_no || "PAN pending"}
         </div>
       </div>
@@ -111,7 +111,7 @@ export const getColumns = ({
         <div className="text-xs text-content-3">
           {row.original.lead_time_days} Days
         </div>
-        <div className="text-[10px] text-content-4">
+        <div className="text-caption text-content-4">
           {row.original.credit_days || 0} credit days
         </div>
       </div>
@@ -147,13 +147,13 @@ export const getColumns = ({
             <Badge
               key={cap}
               variant="outline"
-              className="text-[10px] font-bold"
+              className="text-caption font-bold"
             >
               {cap}
             </Badge>
           ))}
           {caps.length > 3 ? (
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-caption">
               +{caps.length - 3}
             </Badge>
           ) : null}
@@ -171,7 +171,7 @@ export const getColumns = ({
       return (
         <Badge
           variant="outline"
-          className={`text-[10px] font-bold ${row.original.qc_required ? "text-primary bg-info-bg border-info-border" : "text-content-3 bg-surface-2 border-line"}`}
+          className={`text-caption font-bold ${row.original.qc_required ? "text-primary bg-info-bg border-info-border" : "text-content-3 bg-surface-2 border-line"}`}
         >
           {row.original.qc_required ? "REQUIRED" : "OPTIONAL"}
         </Badge>
@@ -187,7 +187,7 @@ export const getColumns = ({
       return (
         <Badge
           variant="outline"
-          className={`text-[10px] font-bold ${classes} uppercase tracking-tighter`}
+          className={`text-caption font-bold ${classes} uppercase tracking-tighter`}
         >
           {row.original.status}
         </Badge>

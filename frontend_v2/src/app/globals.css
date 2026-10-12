@@ -36,13 +36,21 @@
     --surface-1-soft: #fbfbfd;
     --surface-2: #f7f8fa;
     --surface-3: #0c111d;
+    /* RGB triplets so Tailwind opacity modifiers (bg-surface-1/80) work on tokens. */
+    --surface-1-rgb: 255 255 255;
+    --surface-2-rgb: 247 248 250;
+    --surface-3-rgb: 12 17 29;
+    --success-fg-rgb: 4 120 87;
+    --warning-fg-rgb: 180 83 9;
+    --danger-fg-rgb: 190 18 60;
+    --order-fg-rgb: 51 70 201;
     --surface-glass: rgba(255, 255, 255, 0.8);
     --surface-glass-edge: rgba(255, 255, 255, 0.42);
 
     --text-1: #0a0e17;
     --text-2: #1d2433;
     --text-3: #535c6d;
-    --text-4: #8b94a5;
+    --text-4: #6b7487; /* 4.6:1 on white; was #8b94a5 (3.05:1) */
     --text-on-dark: #f8fafc;
     --text-on-brand: #ffffff;
 
@@ -307,13 +315,20 @@
     --surface-1-soft: #181e2a;
     --surface-2: #10141c;
     --surface-3: #080a0f;
+    --surface-1-rgb: 20 25 36;
+    --surface-2-rgb: 16 20 28;
+    --surface-3-rgb: 8 10 15;
+    --success-fg-rgb: 153 243 205;
+    --warning-fg-rgb: 255 225 163;
+    --danger-fg-rgb: 255 183 196;
+    --order-fg-rgb: 185 198 255;
     --surface-glass: rgba(16, 20, 28, 0.82);
     --surface-glass-edge: rgba(148, 163, 184, 0.18);
 
     --text-1: #f8fafc;
     --text-2: #e4e8ef;
     --text-3: #a9b2c2;
-    --text-4: #798396;
+    --text-4: #8a94a6;
     --text-on-dark: #ffffff;
     --text-on-brand: #ffffff;
 
@@ -548,6 +563,13 @@
       transition: none !important;
       animation: none !important;
     }
+  }
+
+  /* Keyboard focus is always visible: a 2px brand ring on anything focusable
+     that does not draw its own ring. */
+  :where(button, [role="button"], a, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 
   @media (prefers-contrast: more) {

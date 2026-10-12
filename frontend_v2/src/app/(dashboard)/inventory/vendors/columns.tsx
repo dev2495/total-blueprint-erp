@@ -19,12 +19,12 @@ export const getColumns = ({
   {
     accessorKey: "code",
     header: () => (
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Vendor ID
       </div>
     ),
     cell: ({ row }) => (
-      <div className="font-mono text-[10px] font-semibold text-content-4">
+      <div className="font-mono text-caption font-semibold text-content-4">
         {row.getValue("code")}
       </div>
     ),
@@ -32,7 +32,7 @@ export const getColumns = ({
   {
     accessorKey: "name",
     header: () => (
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Entity Name
       </div>
     ),
@@ -41,7 +41,7 @@ export const getColumns = ({
         <div className="h-8 w-8 rounded-lg bg-info-bg flex items-center justify-center border border-info-border">
           <Building2 className="h-4 w-4 text-primary" />
         </div>
-        <div className="font-bold text-content-1 uppercase text-[11px] tracking-tight">
+        <div className="font-bold text-content-1 uppercase text-caption tracking-tight">
           {row.getValue("name")}
         </div>
       </div>
@@ -50,14 +50,14 @@ export const getColumns = ({
   {
     accessorKey: "type",
     header: () => (
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Sector
       </div>
     ),
     cell: ({ row }) => (
       <Badge
         variant="outline"
-        className="text-[10px] font-semibold uppercase tracking-widest bg-surface-2 text-content-3 border-line rounded-md px-2 py-0.5"
+        className="text-caption font-semibold uppercase tracking-widest bg-surface-2 text-content-3 border-line rounded-md px-2 py-0.5"
       >
         {row.getValue("type")}
       </Badge>
@@ -66,14 +66,14 @@ export const getColumns = ({
   {
     accessorKey: "lead_time_days",
     header: () => (
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Lead Time
       </div>
     ),
     cell: ({ row }) => (
       <div className="font-bold text-content-3 text-xs">
         {row.getValue("lead_time_days")}{" "}
-        <span className="text-[10px] text-content-4 font-normal ml-0.5">
+        <span className="text-caption text-content-4 font-normal ml-0.5">
           DAYS
         </span>
       </div>
@@ -82,7 +82,7 @@ export const getColumns = ({
   {
     accessorKey: "status",
     header: () => (
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Status
       </div>
     ),
@@ -99,7 +99,7 @@ export const getColumns = ({
           />
           <span
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-widest",
+              "text-caption font-semibold uppercase tracking-widest",
               isActive ? "text-success-fg" : "text-content-4",
             )}
           >

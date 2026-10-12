@@ -107,7 +107,7 @@ export function SizeGeometryEditor({
         />
       ) : null}
       {outputMissing ? (
-        <div className="rounded-xl border border-warning-border bg-gradient-to-r from-warning-bg via-white to-warm px-3 py-2 text-[11px] text-warning-fg">
+        <div className="rounded-xl border border-warning-border bg-gradient-to-r from-warning-bg via-white to-warm px-3 py-2 text-caption text-warning-fg">
           <span className="font-bold">Pick a packing output first.</span> Go to{" "}
           <em>Identity → Packing sub-type</em> in section 1 and choose{" "}
           <strong>Inner pouch</strong> or <strong>Sheet / Roll</strong>. Size
@@ -119,7 +119,7 @@ export function SizeGeometryEditor({
           className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm"
           data-testid="pouch-size-basics"
         >
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="mb-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             Size row basics
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -363,7 +363,7 @@ export function SizeGeometryEditor({
           <div className="rounded-xl border border-line bg-surface-2 p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                   Custom geometry adjustments
                 </div>
                 <p className="mt-0.5 text-xs text-content-3">
@@ -458,7 +458,7 @@ function EditField({
 }) {
   return (
     <label className={cn("space-y-1", span === 2 && "col-span-2")}>
-      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+      <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
         {label}
       </span>
       {children}

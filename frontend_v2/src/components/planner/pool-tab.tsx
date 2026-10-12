@@ -147,7 +147,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
             )}
           >
             <span>{tab.label}</span>
-            <span className="font-mono-token text-[10px] text-content-3">
+            <span className="font-mono-token text-caption text-content-3">
               {counts[tab.id]}
             </span>
           </button>
@@ -186,7 +186,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
             active={locationFilter !== "all"}
           />
         </div>
-        <span className="ml-auto text-[11px] text-content-3">
+        <span className="ml-auto text-caption text-content-3">
           {filtered.length} rolls ·{" "}
           {data?.totals?.weight_kg ? formatKg(data.totals.weight_kg) : "—"}{" "}
           total
@@ -196,7 +196,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-line bg-surface-2 text-[11px] uppercase tracking-wide text-content-3">
+            <tr className="border-b border-line bg-surface-2 text-caption uppercase tracking-wide text-content-3">
               <th className="px-5 py-2 text-left font-semibold">Label</th>
               <th className="px-3 py-2 text-left font-semibold">Variant</th>
               <th className="px-3 py-2 text-right font-semibold">Weight</th>
@@ -242,7 +242,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
                       <div className="font-mono-token text-[13px] font-semibold text-content-1">
                         {row.label_id || "—"}
                       </div>
-                      <div className="text-[10px] text-content-3">
+                      <div className="text-caption text-content-3">
                         {days}d old
                       </div>
                     </td>
@@ -374,7 +374,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
               </section>
 
               {selectedRow.availability_label ? (
-                <section className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-[11px] text-content-2">
+                <section className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-caption text-content-2">
                   <div className="font-semibold">Availability</div>
                   <div className="mt-1">{selectedRow.availability_label}</div>
                 </section>
@@ -396,7 +396,7 @@ export function PoolTab({ context }: { context: TowerTabContext }) {
 function PoolMeta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-line bg-surface-1 px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono-token text-[13px] text-content-1">

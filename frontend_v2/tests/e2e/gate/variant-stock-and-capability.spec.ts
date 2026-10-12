@@ -54,7 +54,7 @@ test("capability matrix explains config-only vs code-required boundaries", async
   expect(labels.some((label) => label.includes("config"))).toBeTruthy()
   expect(labels.some((label) => label.includes("new physical logic"))).toBeTruthy()
 
-  await expect(page.locator("body")).toContainText("What this ERP can support today, by config, or only with new logic")
-  await expect(page.locator("body")).toContainText(/supported today/i)
+  await expect(page.locator("body")).toContainText("What this ERP supports today, by configuration, or only with new logic")
+  await expect(page.locator("body")).toContainText(/supports today/i)
   await expect(page.locator("body")).toContainText(/needs new physical logic/i)
 })

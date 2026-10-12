@@ -58,7 +58,7 @@ export function UserProfileMenu({
         >
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.avatar_url || ""} alt={displayName} />
-            <AvatarFallback className="text-[11px] font-bold">
+            <AvatarFallback className="text-caption font-bold">
               {initialsFromName(
                 displayName,
                 user.username.slice(0, 2).toUpperCase(),
@@ -79,7 +79,7 @@ export function UserProfileMenu({
           <div className="text-xs font-normal text-content-3">
             {user.email || "Email missing"}
           </div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
             Role: {getCanonicalRoleLabel(roleCode, user.role_info?.name)}
           </div>
         </DropdownMenuLabel>

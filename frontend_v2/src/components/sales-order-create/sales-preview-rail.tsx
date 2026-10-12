@@ -602,7 +602,7 @@ function BomLineRow({ row }: { row: BomRow }) {
           <span className="truncate font-mono text-content-1">{row.code}</span>
           <span
             className={cn(
-              "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1",
+              "shrink-0 rounded px-1.5 py-0.5 text-caption font-semibold ring-1",
               CAT_CHIP[row.cat],
             )}
           >
@@ -974,7 +974,7 @@ export function SalesPreviewRail({
                 ? "Computing live preview…"
                 : "Pick a master, size & axes"}
             </div>
-            <p className="mx-auto mt-1 max-w-[220px] text-[11px] font-semibold text-content-3">
+            <p className="mx-auto mt-1 max-w-[220px] text-caption font-semibold text-content-3">
               Geometry, weight, material-wise BOM and the lane-up plan compute
               here in real time.
             </p>
@@ -1067,12 +1067,12 @@ export function SalesPreviewRail({
           <div className="min-w-0">
             <div className={label}>Live preview</div>
             {masterSizeLabel ? (
-              <div className="truncate font-mono text-[10px] font-bold text-content-4">
+              <div className="truncate font-mono text-caption font-bold text-content-4">
                 {masterSizeLabel}
               </div>
             ) : null}
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold text-success-fg ring-1 ring-success-border">
+          <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
             <span className="h-1.5 w-1.5 rounded-full bg-success-fg" /> live
           </span>
         </div>
@@ -1138,7 +1138,7 @@ export function SalesPreviewRail({
                   {calcAxis}
                 </span>
                 {pouches ? (
-                  <span className="text-[10px] font-bold text-order-fg">
+                  <span className="text-caption font-bold text-order-fg">
                     {fmtNum(pouches)} pcs basis
                   </span>
                 ) : null}
@@ -1215,24 +1215,24 @@ export function SalesPreviewRail({
           <div className={label}>
             BOM · material-wise · for {fmtNum(qty)} {uom}
           </div>
-          <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold text-success-fg ring-1 ring-success-border">
+          <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
             live
           </span>
         </div>
         {bomIssues.length ? (
-          <div className="mb-2 rounded-lg bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg ring-1 ring-warning-border">
+          <div className="mb-2 rounded-lg bg-warning-bg px-3 py-2 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
             {bomIssues.slice(0, 2).join(" · ")}
           </div>
         ) : null}
         {rows.length === 0 ? (
-          <div className="rounded-lg bg-surface-2 px-3 py-2 text-[11px] font-semibold text-content-3 ring-1 ring-line">
+          <div className="rounded-lg bg-surface-2 px-3 py-2 text-caption font-semibold text-content-3 ring-1 ring-line">
             BOM resolves once axes + size are set.
           </div>
         ) : (
           <div className="space-y-2">
             {stepGroups.length ? (
               <div className="rounded-xl bg-order-bg px-3 py-2 ring-1 ring-order-border">
-                <div className="mb-1.5 grid grid-cols-[1fr_auto] gap-2 text-[10px] font-semibold uppercase tracking-wider text-order-fg">
+                <div className="mb-1.5 grid grid-cols-[1fr_auto] gap-2 text-caption font-semibold uppercase tracking-wider text-order-fg">
                   <div>Issue route summary</div>
                   <div className="text-right">{stepGroups.length} steps</div>
                 </div>
@@ -1240,7 +1240,7 @@ export function SalesPreviewRail({
                   {stepGroups.map((group) => (
                     <span
                       key={group.step}
-                      className="rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-order-fg ring-1 ring-order-border"
+                      className="rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-order-fg ring-1 ring-order-border"
                     >
                       {group.step} · {group.rows.length}
                     </span>
@@ -1256,7 +1256,7 @@ export function SalesPreviewRail({
                   className="group overflow-hidden rounded-xl ring-1 ring-line"
                   open
                 >
-                  <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                  <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
                     <div>
                       {CAT_TITLE[group.category]}
                       <span className="ml-1 text-content-4 group-open:hidden">
@@ -1286,7 +1286,7 @@ export function SalesPreviewRail({
             ) : null}
           </div>
         )}
-        <div className="mt-1.5 text-[10px] font-semibold text-content-4">
+        <div className="mt-1.5 text-caption font-semibold text-content-4">
           Material-wise only — no cost / margin on this page.
         </div>
       </div>
@@ -1302,7 +1302,7 @@ export function SalesPreviewRail({
           {Array.from({ length: Math.max(1, lane.laneCount) }).map((_, i) => (
             <div
               key={i}
-              className="grid place-items-center bg-order-fg text-[10px] font-semibold text-white"
+              className="grid place-items-center bg-order-fg text-caption font-semibold text-white"
               style={{ flex: childWeb > 0 ? childWeb : 1 }}
             >
               {lane.laneCount <= 3 ? `${Math.round(childWeb)}mm` : ""}
@@ -1310,7 +1310,7 @@ export function SalesPreviewRail({
           ))}
           {lane.plannedParentMm > childWeb * lane.laneCount + 1 ? (
             <div
-              className="grid flex-1 place-items-center bg-line text-[10px] font-bold text-content-3"
+              className="grid flex-1 place-items-center bg-line text-caption font-bold text-content-3"
               style={{
                 flex: Math.max(
                   0.001,
@@ -1322,7 +1322,7 @@ export function SalesPreviewRail({
             </div>
           ) : null}
         </div>
-        <div className="mt-1.5 text-[11px] font-bold text-content-3">
+        <div className="mt-1.5 text-caption font-bold text-content-3">
           {lane.laneCount}-up · child{" "}
           {childWeb > 0 ? `${Math.round(childWeb)} mm` : "—"} · trim{" "}
           {Math.round(lane.trimMm || 0)} mm

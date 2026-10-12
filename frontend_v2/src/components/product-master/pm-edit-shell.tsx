@@ -174,7 +174,7 @@ export function RichHero({
       <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-b from-order-fg via-order-fg to-order-fg shadow-[0_0_18px_2px_rgba(139,92,246,0.45)]" />
       <div className="relative pl-3 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             {eyebrow}
           </div>
           <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight bg-gradient-to-br from-surface-3 via-order-fg to-order-fg bg-clip-text text-transparent mt-1">
@@ -186,7 +186,7 @@ export function RichHero({
             </p>
           ) : null}
           {chips && chips.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            <div className="mt-3 flex flex-wrap gap-2 text-caption">
               {chips.map((c, i) => (
                 <span
                   key={i}
@@ -200,7 +200,7 @@ export function RichHero({
                       {c.icon}
                     </span>
                   ) : null}
-                  <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+                  <span className="text-caption font-semibold uppercase tracking-wider">
                     {c.label}
                   </span>
                   <span className="font-mono font-semibold">{c.value}</span>
@@ -284,7 +284,7 @@ export function RichSection({
                 {typeof index === "number" ? (
                   <span
                     className={cn(
-                      "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1 text-[10px] font-semibold ring-1 ring-inset",
+                      "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1 text-caption font-semibold ring-1 ring-inset",
                       t.iconBg,
                     )}
                   >
@@ -294,7 +294,7 @@ export function RichSection({
                 {eyebrow ? (
                   <span
                     className={cn(
-                      "text-[10px] font-semibold uppercase tracking-[0.12em]",
+                      "text-caption font-semibold uppercase tracking-[0.12em]",
                       t.eyebrow,
                     )}
                   >
@@ -308,7 +308,7 @@ export function RichSection({
               </div>
               {subtitle ? (
                 <div
-                  className={cn("mt-0.5 text-[11px] leading-snug", t.subtitle)}
+                  className={cn("mt-0.5 text-caption leading-snug", t.subtitle)}
                 >
                   {subtitle}
                 </div>
@@ -594,7 +594,7 @@ export function PouchStylePicker({
               type="button"
               onClick={() => onChange(opt.value)}
               className={cn(
-                "group relative flex flex-col items-center gap-1 rounded-xl border bg-surface-1 px-2 py-2 text-[10px] font-bold transition hover:shadow-md",
+                "group relative flex flex-col items-center gap-1 rounded-xl border bg-surface-1 px-2 py-2 text-caption font-bold transition hover:shadow-md",
                 active
                   ? "border-success-border ring-2 ring-success-border bg-gradient-to-br from-success-bg to-success-bg"
                   : "border-line hover:border-success-border text-content-3",
@@ -606,14 +606,14 @@ export function PouchStylePicker({
               />
               <span
                 className={cn(
-                  "text-[10px] leading-tight text-center",
+                  "text-caption leading-tight text-center",
                   active ? "text-success-fg" : "text-content-3",
                 )}
               >
                 {opt.label}
               </span>
               {active ? (
-                <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-fg text-[10px] font-semibold text-white shadow ring-2 ring-surface-1">
+                <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-fg text-caption font-semibold text-white shadow ring-2 ring-surface-1">
                   ✓
                 </span>
               ) : null}
@@ -623,18 +623,18 @@ export function PouchStylePicker({
       </div>
       <div
         className={cn(
-          "rounded-lg px-3 py-2 text-[11px] font-mono font-bold ring-1",
+          "rounded-lg px-3 py-2 text-caption font-mono font-bold ring-1",
           usesH
             ? "bg-warning-bg text-warning-fg ring-warning-border"
             : "bg-order-bg text-order-fg ring-order-border",
         )}
       >
-        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+        <span className="text-caption font-semibold uppercase tracking-wider">
           Roll W ={" "}
         </span>
         {formula}
         {usesH ? (
-          <span className="ml-2 text-[10px] font-normal opacity-80">
+          <span className="ml-2 text-caption font-normal opacity-80">
             manual override below wins
           </span>
         ) : null}
@@ -657,7 +657,7 @@ export function LayerStatePill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset",
         variable
           ? "bg-gradient-to-r from-success-bg to-success-bg text-success-fg ring-success-border shadow-sm"
           : "bg-info-bg text-primary ring-info-border",
@@ -670,7 +670,7 @@ export function LayerStatePill({
         )}
       />
       <span>{axis}</span>
-      <span className="text-[10px] opacity-80">
+      <span className="text-caption opacity-80">
         {variable ? "Variable" : "Fixed"}
       </span>
     </span>

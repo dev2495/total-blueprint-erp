@@ -39,7 +39,7 @@ export function LiveJobFeed({ jobs = [] }: { jobs: JobItem[] }) {
                     {job.status === "RUNNING" && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] border-success-border text-success-fg bg-success-bg px-1 py-0 h-5"
+                        className="text-caption border-success-border text-success-fg bg-success-bg px-1 py-0 h-5"
                       >
                         RUNNING
                       </Badge>
@@ -47,7 +47,7 @@ export function LiveJobFeed({ jobs = [] }: { jobs: JobItem[] }) {
                     {job.status === "PAUSED" && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] border-warning-border text-warning-fg bg-warning-bg px-1 py-0 h-5"
+                        className="text-caption border-warning-border text-warning-fg bg-warning-bg px-1 py-0 h-5"
                       >
                         PAUSED
                       </Badge>
@@ -56,7 +56,7 @@ export function LiveJobFeed({ jobs = [] }: { jobs: JobItem[] }) {
                   <p className="text-xs font-medium text-content-3 truncate max-w-[180px]">
                     {job.product}
                   </p>
-                  <div className="mt-2 text-[10px] text-content-4 font-mono">
+                  <div className="mt-2 text-caption text-content-4 font-mono">
                     OP: {job.operator || "Unassigned"}
                   </div>
                 </div>

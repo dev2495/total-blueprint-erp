@@ -38,7 +38,7 @@ export default function SettingsPage() {
       <section className="rounded-[2rem] border border-line bg-surface-1 px-6 py-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               <Settings2 className="h-3.5 w-3.5" />
               System Settings
             </div>
@@ -107,7 +107,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card className="border-line">
       <CardContent className="p-5">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
           {label}
         </div>
         <div className="mt-2 text-3xl font-semibold text-content-1">{value}</div>

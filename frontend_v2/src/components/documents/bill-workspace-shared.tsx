@@ -32,7 +32,7 @@ const TONE_CLASS: Record<WorkspaceTone, string> = {
 export function WorkspaceStatusChip({ label, tone = "neutral", className }: { label?: string; tone?: WorkspaceTone; className?: string }) {
   if (!label) return null;
   return (
-    <span className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold", TONE_CLASS[tone], className)}>
+    <span className={cn("inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-caption font-semibold", TONE_CLASS[tone], className)}>
       <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
       {label}
     </span>

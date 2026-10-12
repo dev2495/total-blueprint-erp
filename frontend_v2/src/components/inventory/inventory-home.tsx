@@ -570,13 +570,13 @@ export function InventoryHomeV36() {
           <>
             <Link
               href="/inventory/grn"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-order-fg px-3 py-1.5 text-[11px] font-bold text-white shadow-sm hover:bg-order-fg"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-order-fg px-3 py-1.5 text-caption font-bold text-white shadow-sm hover:bg-order-fg"
             >
               <Plus className="h-3.5 w-3.5" /> Receive stock
             </Link>
             <Link
               href="/inventory/stock-lifecycle"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-surface-1 px-3 py-1.5 text-[11px] font-bold text-content-2 ring-1 ring-line hover:bg-surface-2"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-surface-1 px-3 py-1.5 text-caption font-bold text-content-2 ring-1 ring-line hover:bg-surface-2"
             >
               📅 Period
             </Link>
@@ -635,7 +635,7 @@ export function InventoryHomeV36() {
         {/* Filter rail */}
         <aside className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Filters
             </span>
             <button
@@ -644,7 +644,7 @@ export function InventoryHomeV36() {
                 setLocationFilter("ALL");
                 setSearch("");
               }}
-              className="text-[10px] font-bold text-primary hover:underline"
+              className="text-caption font-bold text-primary hover:underline"
             >
               Clear
             </button>
@@ -669,7 +669,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
               Class
             </div>
             <div className="flex flex-col gap-1">
@@ -717,7 +717,7 @@ export function InventoryHomeV36() {
                   <span>{c.label}</span>
                   <span
                     className={cn(
-                      "rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                      "rounded px-1.5 py-0.5 text-caption font-semibold",
                       classFilter === c.id ? "bg-surface-1/20" : "bg-surface-2",
                     )}
                   >
@@ -729,7 +729,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
               Location
             </div>
             <select
@@ -747,10 +747,10 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
               Aging
             </div>
-            <div className="grid grid-cols-2 gap-1 text-[11px]">
+            <div className="grid grid-cols-2 gap-1 text-caption">
               {[
                 {
                   id: "ALL" as const,
@@ -794,15 +794,15 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4 rounded-xl border border-order-border bg-order-bg p-3">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-order-fg">
+            <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-order-fg">
               <Sparkles className="h-3 w-3" /> Reservations
             </div>
-            <p className="mt-1 text-[10px] leading-snug text-order-fg">
+            <p className="mt-1 text-caption leading-snug text-order-fg">
               Sales orders holding stock visible system-wide.
             </p>
             <Link
               href="/sales/orders"
-              className="mt-2 block text-[10px] font-bold text-order-fg hover:underline"
+              className="mt-2 block text-caption font-bold text-order-fg hover:underline"
             >
               View all SOs →
             </Link>
@@ -881,7 +881,7 @@ export function InventoryHomeV36() {
       >
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-2.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Filtered stock
             </span>
             <span className="rounded-full bg-order-bg px-2.5 py-0.5 font-bold text-order-fg ring-1 ring-order-border">
@@ -896,7 +896,7 @@ export function InventoryHomeV36() {
           </div>
           <Link
             href="/inventory/stock-lifecycle?tab=close"
-            className="text-[11px] font-bold text-primary hover:underline"
+            className="text-caption font-bold text-primary hover:underline"
           >
             Period: open · close →
           </Link>
@@ -995,7 +995,7 @@ function RollMatrixSection({
       tone="violet"
       icon="🌀"
       actions={
-        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+        <div className="flex flex-wrap items-center gap-1.5 text-caption">
           <span className="rounded bg-success-bg px-1.5 py-0.5 font-bold text-success-fg">
             ●●●●
           </span>
@@ -1052,7 +1052,7 @@ function RollMatrixSection({
               return (
                 <tr key={row} className="hover:bg-order-bg">
                   <td
-                    className="sticky left-0 bg-surface-1 hover:bg-order-bg px-4 py-1.5 text-[11px] font-medium text-content-2 truncate max-w-[280px]"
+                    className="sticky left-0 bg-surface-1 hover:bg-order-bg px-4 py-1.5 text-caption font-medium text-content-2 truncate max-w-[280px]"
                     title={row}
                   >
                     {row}
@@ -1062,7 +1062,7 @@ function RollMatrixSection({
                     if (!cell || cell.rollCount === 0) {
                       return (
                         <td key={col} className="px-2 py-1.5 text-center">
-                          <span className="inline-flex h-7 w-12 items-center justify-center rounded-md bg-surface-2 text-[10px] text-content-4">
+                          <span className="inline-flex h-7 w-12 items-center justify-center rounded-md bg-surface-2 text-caption text-content-4">
                             —
                           </span>
                         </td>
@@ -1104,7 +1104,7 @@ function RollMatrixSection({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
                 Total
               </td>
               {matrix.cols.map((c) => (
@@ -1128,7 +1128,7 @@ function RollMatrixSection({
         </table>
       </div>
       {matrix.rows.length > limit && (
-        <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px] text-content-3">
+        <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption text-content-3">
           <span>
             Showing {limit} of {matrix.rows.length} variant rows
           </span>
@@ -1240,11 +1240,11 @@ function BulkSection({
                       {r.material_code || r.code || "—"}
                     </td>
                     <td className="px-3 py-2">
-                      <span className="rounded-md bg-order-bg px-1.5 py-0.5 font-mono text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
+                      <span className="rounded-md bg-order-bg px-1.5 py-0.5 font-mono text-caption font-semibold text-order-fg ring-1 ring-order-border">
                         {bulkStockCode(r)}
                       </span>
                     </td>
-                    <td className="px-3 py-2 font-mono text-[11px] text-content-3">
+                    <td className="px-3 py-2 font-mono text-caption text-content-3">
                       {displayLocation(r)}
                     </td>
                     <td className="px-3 py-2 text-right font-mono font-bold text-content-1">
@@ -1264,7 +1264,7 @@ function BulkSection({
                           onRowClick(r);
                         }}
                         aria-label={`View ${r.material_name || r.material_code || r.code || "bulk stock"} details`}
-                        className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2 py-1 text-[10px] font-bold text-success-fg ring-1 ring-success-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2 py-1 text-caption font-bold text-success-fg ring-1 ring-success-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         View <ChevronRight className="h-3 w-3" />
                       </button>
@@ -1275,7 +1275,7 @@ function BulkSection({
             </tbody>
           </table>
           {rows.length > limit && (
-            <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px] text-content-3">
+            <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption text-content-3">
               <span>
                 Showing {limit} of {rows.length} bulk stock rows · click row for
                 drill-down
@@ -1343,7 +1343,7 @@ function PackagingSection({
         <div>
           <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-2 sm:divide-x sm:divide-y-0">
             <div className="p-4">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
                 Inner pouches
               </div>
               {innerPouches.length ? (
@@ -1357,7 +1357,7 @@ function PackagingSection({
               )}
             </div>
             <div className="p-4">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
                 Outer / shipping
               </div>
               {outers.length ? (
@@ -1373,10 +1373,10 @@ function PackagingSection({
             {others.length > 0 && (
               <div className="p-4 sm:col-span-2 border-t border-line">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
+                  <span className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
                     Other packing
                   </span>
-                  <span className="text-[10px] text-content-3">
+                  <span className="text-caption text-content-3">
                     {others.length} rows
                   </span>
                 </div>
@@ -1389,7 +1389,7 @@ function PackagingSection({
             )}
           </div>
           {rows.length > limit && (
-            <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px] text-content-3">
+            <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption text-content-3">
               <span>
                 Showing {Math.min(limit, rows.length)} of {rows.length}{" "}
                 packaging SKUs
@@ -1462,7 +1462,7 @@ function PodStockSection({
             ))}
           </div>
           {rows.length > limit && (
-            <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px] text-content-3">
+            <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption text-content-3">
               <span>
                 Showing {Math.min(limit, rows.length)} of {rows.length} POD
                 stock rows
@@ -1514,16 +1514,16 @@ function PkgRow({ row, onClick }: { row: any; onClick?: () => void }) {
           {ICON[status]}
         </span>
         <div className="min-w-0">
-          <div className="font-mono text-[11px] font-bold text-content-1 truncate">
+          <div className="font-mono text-caption font-bold text-content-1 truncate">
             {row.code || row.material_code || "—"}
           </div>
-          <div className="text-[10px] text-content-3 truncate">
+          <div className="text-caption text-content-3 truncate">
             {row.name || row.material_name || row.packaging_kind || ""}
           </div>
         </div>
       </div>
       <div className="text-right flex-none">
-        <div className="font-mono text-[11px] font-bold text-content-2">
+        <div className="font-mono text-caption font-bold text-content-2">
           {formatNumber(qty, qtyDecimals)} {stockUom(row, "PCS")}
         </div>
       </div>
@@ -1548,10 +1548,10 @@ function PodTile({ row, onClick }: { row: any; onClick?: () => void }) {
         TONE[status],
       )}
     >
-      <div className="font-mono text-[11px] font-bold text-content-1 truncate">
+      <div className="font-mono text-caption font-bold text-content-1 truncate">
         {row.code || "—"}
       </div>
-      <div className="mt-0.5 font-mono text-[10px] text-content-2">
+      <div className="mt-0.5 font-mono text-caption text-content-2">
         {formatNumber(qty, qtyDecimals)} {stockUom(row, "KG")}
       </div>
     </button>
@@ -1621,7 +1621,7 @@ function SectionShell({
             {icon}
           </span>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
               {eyebrow}
             </div>
             <h2 className="font-display text-lg font-bold text-content-1">
@@ -1675,13 +1675,13 @@ function CellDrawer({
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Roll cell drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1">
                 {row}
               </div>
-              <div className="text-[11px] text-content-3">
+              <div className="text-caption text-content-3">
                 Thickness <span className="font-mono font-bold">{col}μ</span>
               </div>
             </div>
@@ -1693,9 +1693,9 @@ function CellDrawer({
             </button>
           </div>
           {cell && (
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-caption">
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[10px] font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold uppercase text-content-3">
                   Rolls
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1703,7 +1703,7 @@ function CellDrawer({
                 </div>
               </div>
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-[10px] font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold uppercase text-content-3">
                   Total KG
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1714,7 +1714,7 @@ function CellDrawer({
           )}
         </div>
         <div className="px-5 py-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
             Individual rolls
           </div>
           {!cell || cell.rollCount === 0 ? (
@@ -1733,7 +1733,7 @@ function CellDrawer({
                       <div className="font-mono text-xs font-bold text-primary truncate">
                         {r.label || r.code || r.id}
                       </div>
-                      <div className="text-[10px] text-content-3 truncate">
+                      <div className="text-caption text-content-3 truncate">
                         {displayLocation(r)} ·{" "}
                         {r.status || "available"}
                       </div>
@@ -1749,7 +1749,7 @@ function CellDrawer({
                 </div>
               ))}
               {cell.rollCount > 30 && (
-                <div className="text-center text-[10px] text-content-4">
+                <div className="text-center text-caption text-content-4">
                   + {cell.rollCount - 30} more
                 </div>
               )}
@@ -1799,7 +1799,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Stock by age
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -1815,7 +1815,7 @@ function ChartsStrip({
             old={ageing.old}
             total={Math.max(ageing.total, 1)}
           />
-          <div className="flex-1 space-y-1.5 text-[11px]">
+          <div className="flex-1 space-y-1.5 text-caption">
             <Legend
               color="#10b981"
               label={`≤30 days · ${ageing.fresh}`}
@@ -1839,7 +1839,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Stock by class
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -1874,7 +1874,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Movement pulse
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -2008,7 +2008,7 @@ function BarRow({
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between text-[11px]">
+      <div className="flex items-center justify-between text-caption">
         <span className="font-bold text-content-2">{label}</span>
         <span className="font-mono text-content-3">{v}</span>
       </div>
@@ -2051,7 +2051,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                 Bulk stock drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1 truncate">
@@ -2060,7 +2060,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                   row.code ||
                   "Bulk stock"}
               </div>
-              <div className="font-mono text-[11px] text-content-3">
+              <div className="font-mono text-caption text-content-3">
                 {displayLocation(row)} · Code {bulkStockCode(row)}
               </div>
             </div>
@@ -2071,7 +2071,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <X className="h-4 w-4 text-content-3" />
             </button>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+          <div className="mt-3 grid grid-cols-3 gap-2 text-caption">
             <Stat
               label="On hand"
               value={formatStockQty(onhand, row)}
@@ -2089,7 +2089,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             />
           </div>
           <div className="mt-2">
-            <div className="flex items-center justify-between text-[10px] font-bold text-content-3 mb-1">
+            <div className="flex items-center justify-between text-caption font-bold text-content-3 mb-1">
               <span>Reservation %</span>
               <span>{reservationPct}%</span>
             </div>
@@ -2104,10 +2104,10 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
 
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Vendor &amp; details
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 gap-2 text-caption">
               <Field label="Code" value={bulkStockCode(row)} />
               <Field label="UOM" value={stockUom(row)} />
               <Field
@@ -2127,7 +2127,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               Sales reservations holding this stock row
             </div>
             {rsvQuery.isLoading && (
@@ -2146,15 +2146,15 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 className="rounded-xl border border-order-border bg-order-bg px-3 py-2 mb-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] font-bold text-order-fg">
+                  <span className="font-mono text-caption font-bold text-order-fg">
                     {r.so_no || r.so_id || "—"}
                   </span>
-                  <span className="font-mono text-[11px] font-bold text-content-2">
+                  <span className="font-mono text-caption font-bold text-content-2">
                     {formatNumber(Number(r.qty || 0), 1)}{" "}
                     {r.uom || stockUom(row)}
                   </span>
                 </div>
-                <div className="text-[10px] text-content-3 mt-0.5">
+                <div className="text-caption text-content-3 mt-0.5">
                   {r.customer_name || "Customer"} · promise{" "}
                   {r.promise_date || "—"}
                 </div>
@@ -2165,7 +2165,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
           <div className="pt-2 border-t border-line">
             <Link
               href={`/inventory/stock-lifecycle?tab=snapshots&material=${row.material || row.id || ""}`}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[11px] font-bold text-white hover:bg-primary"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-caption font-bold text-white hover:bg-primary"
             >
               Open stock card <ArrowRight className="h-3 w-3" />
             </Link>
@@ -2202,13 +2202,13 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-warning-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
                 Packaging drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1 truncate">
                 {row.code || row.material_code || "Packaging SKU"}
               </div>
-              <div className="text-[11px] text-content-3">
+              <div className="text-caption text-content-3">
                 {row.name || row.material_name || row.packaging_kind || "—"}
               </div>
             </div>
@@ -2219,7 +2219,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <X className="h-4 w-4 text-content-3" />
             </button>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+          <div className="mt-3 grid grid-cols-3 gap-2 text-caption">
             <Stat
               label="On hand"
               value={`${formatNumber(qty, qtyDecimalsForUom(stockUom(row, uomFallback)))} ${stockUom(row, uomFallback)}`}
@@ -2239,10 +2239,10 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Specs
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 gap-2 text-caption">
               <Field label="Kind" value={row.packaging_kind || "—"} />
               <Field label="Pcs / pack" value={row.pcs_per_pack || "—"} />
               <Field label="Color" value={row.color_variant || "—"} />
@@ -2253,7 +2253,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               SO holds
             </div>
             {rsvQuery.isLoading && (
@@ -2270,10 +2270,10 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 className="rounded-xl border border-order-border bg-order-bg px-3 py-2 mb-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] font-bold text-order-fg">
+                  <span className="font-mono text-caption font-bold text-order-fg">
                     {r.so_no || r.so_id || "—"}
                   </span>
-                  <span className="font-mono text-[11px] font-bold text-content-2">
+                  <span className="font-mono text-caption font-bold text-content-2">
                     {formatNumber(
                       Number(r.qty || 0),
                       qtyDecimalsForUom(
@@ -2285,7 +2285,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                     {r.uom || stockUom(row, uomFallback)}
                   </span>
                 </div>
-                <div className="text-[10px] text-content-3 mt-0.5">
+                <div className="text-caption text-content-3 mt-0.5">
                   {r.customer_name || "Customer"} · promise{" "}
                   {r.promise_date || "—"}
                 </div>
@@ -2314,7 +2314,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="font-display text-sm font-bold mt-0.5">{value}</div>
@@ -2325,7 +2325,7 @@ function Stat({
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="text-[12px] font-bold text-content-2 truncate">

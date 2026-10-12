@@ -162,7 +162,7 @@ export default function InventoryHistoryPage() {
       actions={
         latest ? (
           <div className="rounded-xl border border-white/15 bg-white/[0.06] px-3 py-1.5 text-white">
-            <div className="text-[11px] text-white/60">Latest capture</div>
+            <div className="text-caption text-white/60">Latest capture</div>
             <div className="text-[12.5px] font-medium">{formatFullDate(latest.created_at)}</div>
           </div>
         ) : undefined
@@ -531,7 +531,7 @@ export default function InventoryHistoryPage() {
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-surface-1 px-3 py-3 shadow-sm">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-content-1">{value}</div>

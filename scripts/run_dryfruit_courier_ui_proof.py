@@ -200,12 +200,16 @@ def _ensure_route_dispatch_defaults(template: TemplateBlueprint, plant: Plant):
         allowed_ids = status.get("allowed_work_center_ids") or []
         if allowed_ids and selected["id"] not in allowed_ids:
             allowed_ids = [*allowed_ids, selected["id"]]
+        # A seed default for the route, not a product edit: do not revise open
+        # order lines seeded by other fixtures (the fail-closed guard would refuse
+        # lines that lack an axis value and abort the whole proof).
         TemplateDispatchService.update_step_dispatch(
             step,
             allowed_work_center_ids=allowed_ids,
             default_work_center_id=selected["id"],
             selection_policy=TemplateDispatchService.AUTO_DEFAULT,
             notes=step.dispatch_notes or "UI proof seed default for deterministic route release.",
+            refresh_open_sources=False,
         )
 
 

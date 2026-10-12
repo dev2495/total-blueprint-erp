@@ -286,7 +286,7 @@ export function VariantsMatrixV37({
             compareCount={compareIds.length}
           />
           {mode === "matrix" && usableAxes.length >= 1 ? (
-            <div className="flex items-center gap-2 text-[11px] font-bold text-content-3">
+            <div className="flex items-center gap-2 text-caption font-bold text-content-3">
               <span>X</span>
               <select
                 value={xAxis}
@@ -295,7 +295,7 @@ export function VariantsMatrixV37({
                   if (next === yAxis) setYAxis(xAxis); // swap to avoid same-axis dead state
                   setXAxis(next);
                 }}
-                className="h-8 rounded-lg border border-line bg-surface-1 px-2 text-[11px] font-bold text-content-1"
+                className="h-8 rounded-lg border border-line bg-surface-1 px-2 text-caption font-bold text-content-1"
               >
                 {usableAxes.map((a) => (
                   <option key={String(a.axis)} value={String(a.axis)}>
@@ -313,7 +313,7 @@ export function VariantsMatrixV37({
                   if (next === xAxis) setXAxis(yAxis);
                   setYAxis(next);
                 }}
-                className="h-8 rounded-lg border border-line bg-surface-1 px-2 text-[11px] font-bold text-content-1"
+                className="h-8 rounded-lg border border-line bg-surface-1 px-2 text-caption font-bold text-content-1"
               >
                 {usableAxes.map((a) => (
                   <option key={String(a.axis)} value={String(a.axis)}>
@@ -332,15 +332,15 @@ export function VariantsMatrixV37({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="search variant code · axis · customer"
-              className="h-8 w-[260px] rounded-lg pl-7 text-[11px]"
+              className="h-8 w-[260px] rounded-lg pl-7 text-caption"
             />
           </div>
-          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-2.5 text-[11px] font-bold text-content-3 hover:bg-surface-2">
+          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-2.5 text-caption font-bold text-content-3 hover:bg-surface-2">
             <Columns3 className="h-3.5 w-3.5" /> Columns
           </button>
           <button
             onClick={exportCsv}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-2.5 text-[11px] font-bold text-content-3 hover:bg-surface-2"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-2.5 text-caption font-bold text-content-3 hover:bg-surface-2"
           >
             <Download className="h-3.5 w-3.5" /> Export
           </button>
@@ -348,8 +348,8 @@ export function VariantsMatrixV37({
       </div>
 
       {/* ─── Saved views + filters row ─── */}
-      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+      <div className="flex flex-wrap items-center gap-2 text-caption">
+        <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Views
         </span>
         <button
@@ -386,7 +386,7 @@ export function VariantsMatrixV37({
         </button>
         {filters.length ? (
           <>
-            <span className="ml-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="ml-3 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Filters
             </span>
             {filters.map((f) => (
@@ -411,7 +411,7 @@ export function VariantsMatrixV37({
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
           <div className="space-y-3">
             {filteredRows.length === 1 ? (
-              <div className="rounded-2xl border border-warning-border bg-warning-bg px-4 py-2.5 text-[11px] text-warning-fg">
+              <div className="rounded-2xl border border-warning-border bg-warning-bg px-4 py-2.5 text-caption text-warning-fg">
                 Only 1 variant matches — the pivot will look flat. Add more
                 variants across axes (or clear filters/search) to see the matrix
                 come alive.
@@ -495,7 +495,7 @@ function ModeToggle({
           key={b.key}
           onClick={() => setMode(b.key)}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-bold",
+            "inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-caption font-bold",
             mode === b.key
               ? "bg-surface-1 text-content-1 ring-1 ring-line shadow-sm"
               : "text-content-3 hover:text-content-1",
@@ -505,7 +505,7 @@ function ModeToggle({
         </button>
       ))}
       {compareCount > 0 ? (
-        <span className="ml-1 inline-flex h-8 items-center gap-1 rounded-lg bg-success-bg px-2.5 text-[11px] font-bold text-success-fg ring-1 ring-success-border">
+        <span className="ml-1 inline-flex h-8 items-center gap-1 rounded-lg bg-success-bg px-2.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
           Compare ({compareCount})
         </span>
       ) : null}
@@ -595,13 +595,13 @@ function PivotMatrix({
               {labelOf(axes, yAxis)} × {labelOf(axes, xAxis)} pivot ·{" "}
               {rows.length} variants
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               Each cell = one variant · color = total unit weight · click for
               full BOM
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] font-bold text-content-3">
+        <div className="flex items-center gap-1.5 text-caption font-bold text-content-3">
           <span>density</span>
           <span className="rounded bg-order-bg px-1.5 py-0.5 text-order-fg">
             light
@@ -618,7 +618,7 @@ function PivotMatrix({
         <table className="min-w-full text-[12px] border-separate border-spacing-y-0">
           <thead>
             <tr className="text-content-3">
-              <th className="sticky left-0 bg-surface-1 text-left px-2 py-1 font-bold uppercase tracking-wider text-[10px]">
+              <th className="sticky left-0 bg-surface-1 text-left px-2 py-1 font-bold uppercase tracking-wider text-caption">
                 {labelOf(axes, yAxis)} \\ {labelOf(axes, xAxis)}
               </th>
               {xs.map((x) => (
@@ -629,10 +629,10 @@ function PivotMatrix({
                   {x}
                 </th>
               ))}
-              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[10px]">
+              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-caption">
                 total
               </th>
-              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-[10px]">
+              <th className="text-center px-2 py-1 font-bold uppercase tracking-wider text-caption">
                 avg unit
               </th>
             </tr>
@@ -660,7 +660,7 @@ function PivotMatrix({
                     if (!count)
                       return (
                         <td key={x} className="px-1 py-1 text-center">
-                          <span className="inline-flex h-12 w-16 items-center justify-center rounded-lg bg-surface-2 text-[10px] text-content-4">
+                          <span className="inline-flex h-12 w-16 items-center justify-center rounded-lg bg-surface-2 text-caption text-content-4">
                             —
                           </span>
                         </td>
@@ -686,16 +686,16 @@ function PivotMatrix({
                           )}
                           title={`${v0.code} · ${y} × ${x}${count > 1 ? ` (+${count - 1} more)` : ""} · shift-click to compare`}
                         >
-                          <span className="text-[10px] font-bold leading-none">
+                          <span className="text-caption font-bold leading-none">
                             {v0.code}
                           </span>
                           {w != null ? (
-                            <span className="mt-0.5 text-[10px] opacity-80">
+                            <span className="mt-0.5 text-caption opacity-80">
                               {w.toFixed(0)} g
                             </span>
                           ) : null}
                           {count > 1 ? (
-                            <span className="text-[8px] opacity-70">
+                            <span className="text-caption opacity-70">
                               +{count - 1}
                             </span>
                           ) : null}
@@ -706,7 +706,7 @@ function PivotMatrix({
                   <td className="px-2 py-2 text-center font-bold text-content-2">
                     {yTotal}
                   </td>
-                  <td className="px-2 py-2 text-center text-[11px] text-content-3 font-mono">
+                  <td className="px-2 py-2 text-center text-caption text-content-3 font-mono">
                     {avgUnit(yAvg)}
                   </td>
                 </tr>
@@ -715,7 +715,7 @@ function PivotMatrix({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-2 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
                 per-thickness count
               </td>
               {xs.map((x) => {
@@ -734,7 +734,7 @@ function PivotMatrix({
               <td className="px-2 py-2 text-center text-success-fg font-bold">
                 {rows.length}
               </td>
-              <td className="px-2 py-2 text-center text-[11px] text-content-3 font-mono">
+              <td className="px-2 py-2 text-center text-caption text-content-3 font-mono">
                 {(() => {
                   const allW = rows
                     .map(unitWeightOf)
@@ -787,7 +787,7 @@ function CompareBar({
   if (!picked.length) return null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-success-border bg-success-bg px-4 py-2.5">
-      <div className="text-[11px] text-content-2">
+      <div className="text-caption text-content-2">
         <span className="font-semibold uppercase tracking-[0.1em] text-success-fg">
           Selected{" "}
         </span>
@@ -798,13 +798,13 @@ function CompareBar({
       <div className="flex items-center gap-2">
         <button
           disabled={picked.length < 2}
-          className="inline-flex items-center gap-1 rounded-lg bg-success-fg px-3 py-1.5 text-[11px] font-bold text-white disabled:opacity-50 hover:bg-success-fg"
+          className="inline-flex items-center gap-1 rounded-lg bg-success-fg px-3 py-1.5 text-caption font-bold text-white disabled:opacity-50 hover:bg-success-fg"
         >
           Compare {picked.length} → side-by-side
         </button>
         <button
           onClick={onClear}
-          className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-success-fg hover:bg-success-bg"
+          className="rounded-lg px-2.5 py-1.5 text-caption font-bold text-success-fg hover:bg-success-bg"
         >
           Clear
         </button>
@@ -1021,12 +1021,12 @@ function FallbackCards({
           className="text-left rounded-2xl border border-line bg-surface-1 p-3 shadow-sm hover:border-order-border"
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[11px] font-bold text-order-fg">
+            <span className="font-mono text-caption font-bold text-order-fg">
               {r.code || `V${idx + 1}`}
             </span>
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                "rounded-full px-1.5 py-0.5 text-caption font-bold ring-1",
                 r.active
                   ? "bg-success-bg text-success-fg ring-success-border"
                   : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -1042,7 +1042,7 @@ function FallbackCards({
               return (
                 <span
                   key={String(a.axis)}
-                  className="rounded bg-info-bg px-1.5 py-0.5 text-[10px] font-mono font-bold text-primary ring-1 ring-info-border"
+                  className="rounded bg-info-bg px-1.5 py-0.5 text-caption font-mono font-bold text-primary ring-1 ring-info-border"
                 >
                   {fmtAxisLabel(a)}: {v}
                 </span>
@@ -1072,21 +1072,21 @@ function TableView({
         <table className="min-w-full text-[12px]">
           <thead className="bg-surface-2 border-b border-line text-content-3">
             <tr>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-[10px]">
+              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider text-caption">
                 Code
               </th>
               {axes.slice(0, 6).map((a) => (
                 <th
                   key={String(a.axis)}
-                  className="px-3 py-2 text-left font-bold uppercase tracking-wider text-[10px]"
+                  className="px-3 py-2 text-left font-bold uppercase tracking-wider text-caption"
                 >
                   {fmtAxisLabel(a)}
                 </th>
               ))}
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">
+              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-caption">
                 Unit g
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-[10px]">
+              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider text-caption">
                 Status
               </th>
             </tr>
@@ -1104,18 +1104,18 @@ function TableView({
                 {axes.slice(0, 6).map((a) => (
                   <td
                     key={String(a.axis)}
-                    className="px-3 py-2 font-mono text-[11px] text-content-2"
+                    className="px-3 py-2 font-mono text-caption text-content-2"
                   >
                     {axisValueOf(r, String(a.axis)) || "—"}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-right font-mono text-[11px] text-content-2">
+                <td className="px-3 py-2 text-right font-mono text-caption text-content-2">
                   {unitWeightOf(r)?.toFixed(1) ?? "—"}
                 </td>
                 <td className="px-3 py-2 text-right">
                   <span
                     className={cn(
-                      "rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                      "rounded-full px-1.5 py-0.5 text-caption font-bold ring-1",
                       r.active
                         ? "bg-success-bg text-success-fg ring-success-border"
                         : "bg-danger-bg text-danger-fg ring-danger-border",

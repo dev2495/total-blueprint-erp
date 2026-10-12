@@ -489,7 +489,7 @@ export function WcmRollPickerDialog({
             <Scissors className="h-4 w-4 text-order-fg" />
             Pick a roll
             {staleFlash !== null ? (
-              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-fg">
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-caption font-bold text-warning-fg">
                 <Sparkles className="h-3 w-3" /> Stock updated · {staleFlash}{" "}
                 candidates now
               </span>
@@ -542,7 +542,7 @@ export function WcmRollPickerDialog({
           </p>
         ) : null}
 
-        <div className="-mt-1 mb-2 grid grid-cols-2 gap-1.5 text-[10px] sm:grid-cols-5">
+        <div className="-mt-1 mb-2 grid grid-cols-2 gap-1.5 text-caption sm:grid-cols-5">
           <div className="rounded-lg bg-success-bg px-2 py-1 ring-1 ring-success-border">
             <div className="font-semibold uppercase tracking-widest text-success-fg">
               child target
@@ -582,7 +582,7 @@ export function WcmRollPickerDialog({
             <div className="truncate font-mono font-bold text-info-fg">
               {stockFormLabel(targetContract.stock_form)}
             </div>
-            <div className="truncate text-[10px] font-bold text-info-fg">
+            <div className="truncate text-caption font-bold text-info-fg">
               {slitPolicyLabel(targetContract.slit_policy)}
             </div>
           </div>
@@ -652,7 +652,7 @@ export function WcmRollPickerDialog({
                           <Badge
                             variant="outline"
                             className={cn(
-                              "cursor-help text-[10px] font-semibold border",
+                              "cursor-help text-caption font-semibold border",
                               pres?.tone,
                             )}
                           >
@@ -672,26 +672,26 @@ export function WcmRollPickerDialog({
                       </span>
                       <span
                         className={cn(
-                          "rounded-md px-1.5 py-0.5 text-[10px] font-bold",
+                          "rounded-md px-1.5 py-0.5 text-caption font-bold",
                           age.tone,
                         )}
                       >
                         {age.text}
                       </span>
                       {c.location_code ? (
-                        <span className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-content-3">
+                        <span className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-caption text-content-3">
                           {c.plant_code ? `${c.plant_code} · ` : ""}
                           {c.location_code}
                         </span>
                       ) : null}
                       {c.parent_roll?.label_id ? (
-                        <span className="rounded-md border border-order-border bg-order-bg px-1.5 py-0.5 text-[10px] text-order-fg">
+                        <span className="rounded-md border border-order-border bg-order-bg px-1.5 py-0.5 text-caption text-order-fg">
                           ← jumbo {c.parent_roll.label_id}
                         </span>
                       ) : null}
                       <span
                         className={cn(
-                          "rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]",
+                          "rounded-md border px-1.5 py-0.5 text-caption font-semibold uppercase tracking-[0.12em]",
                           String(c.stock_form || "OPEN_WEB").toUpperCase() ===
                             "OPEN_WEB"
                             ? "border-info-border bg-info-bg text-info-fg"
@@ -709,7 +709,7 @@ export function WcmRollPickerDialog({
                         <span className="text-content-4">Width</span>
                         <br />
                         <b>{c.width_mm.toFixed(0)} mm</b>
-                        <div className="text-[10px] text-content-4">
+                        <div className="text-caption text-content-4">
                           {widthBasisLabel(c.width_basis)}
                         </div>
                       </div>
@@ -731,7 +731,7 @@ export function WcmRollPickerDialog({
                     </div>
                     {c.tier === "WIDER_OK_WITH_SLIT" && c.slit_preview && (
                       <>
-                        <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg p-2 text-[11px] text-warning-fg">
+                        <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg p-2 text-caption text-warning-fg">
                           <Scissors className="mr-1 inline h-3 w-3" />
                           Will slit → {childWidthLabel || "child rolls"},
                           remainder{" "}
@@ -768,7 +768,7 @@ export function WcmRollPickerDialog({
                         />
                       </>
                     )}
-                    <div className="mt-1 text-[10px] text-content-4">
+                    <div className="mt-1 text-caption text-content-4">
                       {pres?.subtitle}
                     </div>
                   </button>
@@ -838,7 +838,7 @@ export function WcmRollPickerDialog({
               />
             </div>
             {selectedIds.length > 1 ? (
-              <div className="rounded-lg border border-order-border bg-order-bg px-3 py-2 text-[11px] text-order-fg">
+              <div className="rounded-lg border border-order-border bg-order-bg px-3 py-2 text-caption text-order-fg">
                 <Info className="mr-1 inline h-3 w-3" />
                 Multi-select active · {selectedIds.length} rolls totaling{" "}
                 <b>{totalSelectedWeight.toFixed(2)} kg</b>.
@@ -900,7 +900,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition",
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-caption font-semibold transition",
         active
           ? "border-order-border bg-order-bg text-order-fg"
           : "border-line bg-surface-1 text-content-3 hover:bg-surface-2",
@@ -938,8 +938,8 @@ function SlitModeButton({
         disabled && "cursor-not-allowed opacity-50 hover:border-line",
       )}
     >
-      <div className="text-[11px] font-semibold">{label}</div>
-      <div className="mt-0.5 text-[10px] text-content-3">{detail}</div>
+      <div className="text-caption font-semibold">{label}</div>
+      <div className="mt-0.5 text-caption text-content-3">{detail}</div>
     </button>
   );
 }
@@ -959,7 +959,7 @@ function SlitLayoutMini({
   const totalChildren = childWidthsMm.reduce((s, w) => s + w, 0);
   return (
     <div className="mt-2">
-      <div className="mb-1 flex items-center justify-between text-[10px] text-content-3">
+      <div className="mb-1 flex items-center justify-between text-caption text-content-3">
         <span>Parent {Math.round(parentWidthMm)} mm</span>
         <span>
           · children {Math.round(totalChildren)} mm · remainder{" "}
@@ -981,7 +981,7 @@ function SlitLayoutMini({
               key={idx}
               style={{ flexBasis: `${(w / parentWidthMm) * 100}%` }}
               className={cn(
-                "flex items-center justify-center text-[10px] font-bold",
+                "flex items-center justify-center text-caption font-bold",
                 tones[idx % tones.length],
               )}
               title={`Child ${idx + 1} · ${Math.round(w)} mm`}
@@ -993,7 +993,7 @@ function SlitLayoutMini({
         {remainderMm > 0 ? (
           <div
             style={{ flexBasis: `${(remainderMm / parentWidthMm) * 100}%` }}
-            className="flex items-center justify-center bg-warning-bg text-[10px] font-bold text-warning-fg"
+            className="flex items-center justify-center bg-warning-bg text-caption font-bold text-warning-fg"
             title={`Remainder · ${Math.round(remainderMm)} mm`}
           >
             rem
@@ -1002,7 +1002,7 @@ function SlitLayoutMini({
         {trimMm > 0 ? (
           <div
             style={{ flexBasis: `${(trimMm / parentWidthMm) * 100}%` }}
-            className="flex items-center justify-center bg-line text-[10px] font-bold text-content-2"
+            className="flex items-center justify-center bg-line text-caption font-bold text-content-2"
             title={`Trim · ${Math.round(trimMm)} mm`}
           >
             trim
@@ -1037,7 +1037,7 @@ function ReservationsPreview({
       : `${Math.round(targetWidth || sp.child_widths_mm?.[0] || 0)} mm`
     : null;
   return (
-    <div className="rounded-lg border border-order-border bg-surface-1 p-2.5 text-[11px]">
+    <div className="rounded-lg border border-order-border bg-surface-1 p-2.5 text-caption">
       <div className="font-bold text-order-fg">Reservation preview</div>
       <ul className="mt-1 list-disc pl-5 text-content-2">
         <li>
@@ -1103,7 +1103,7 @@ function CoverageCard({
   const pctLabel = `${Math.round(coverageRatio * 100)}%`;
   return (
     <div className={cn("mb-2 rounded-xl px-3 py-2 ring-1", ringTone)}>
-      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-widest text-content-2">
+      <div className="flex items-center justify-between text-caption font-semibold uppercase tracking-widest text-content-2">
         <span>Coverage</span>
         <span className="font-mono">{pctLabel}</span>
       </div>
@@ -1113,7 +1113,7 @@ function CoverageCard({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+      <div className="mt-2 grid grid-cols-3 gap-2 text-caption">
         <div>
           <div className="text-content-3">Needed</div>
           <div className="font-mono font-bold text-content-1">
@@ -1145,7 +1145,7 @@ function CoverageCard({
         </div>
       </div>
       {overByKg > 0 && isMet ? (
-        <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-fg">
+        <div className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-caption font-bold text-warning-fg">
           + {overByKg.toFixed(1)} kg over
         </div>
       ) : null}
@@ -1161,7 +1161,7 @@ function ZeroCandidatesState({ totalRaw }: { totalRaw: number }) {
         <div className="text-sm font-bold text-warning-fg">
           No eligible rolls
         </div>
-        <p className="mt-1 max-w-md text-[11px] text-warning-fg">
+        <p className="mt-1 max-w-md text-caption text-warning-fg">
           {totalRaw > 0
             ? "All current stock filtered out by the active filters. Loosen filters or check substitutes."
             : "All current stock filtered out by material / width / QC criteria. Check substitutes or request procurement."}
@@ -1170,14 +1170,14 @@ function ZeroCandidatesState({ totalRaw }: { totalRaw: number }) {
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Link
           href="/procurement/purchase-orders/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-order-fg px-3 py-1.5 text-[11px] font-bold text-white hover:bg-order-fg"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-order-fg px-3 py-1.5 text-caption font-bold text-white hover:bg-order-fg"
         >
           <PackagePlus className="h-3.5 w-3.5" />
           Request fresh jumbo
         </Link>
         <Link
           href="/inventory/rolls?status=QUARANTINED"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-warning-border bg-surface-1 px-3 py-1.5 text-[11px] font-bold text-warning-fg hover:bg-warning-bg"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-warning-border bg-surface-1 px-3 py-1.5 text-caption font-bold text-warning-fg hover:bg-warning-bg"
         >
           <Search className="h-3.5 w-3.5" />
           View quarantined rolls

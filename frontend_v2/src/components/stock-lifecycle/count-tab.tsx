@@ -739,7 +739,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
 
         <div className="grid gap-2 md:grid-cols-4">
           <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
               Posting label
             </div>
             <div className="mt-1 text-sm font-semibold text-content-1">
@@ -747,7 +747,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
               Count boundary
             </div>
             <div className="mt-1 text-sm font-semibold text-content-1">
@@ -757,7 +757,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-success-fg">
+            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-success-fg">
               Posting rule
             </div>
             <div className="mt-1 text-sm font-semibold text-success-fg">
@@ -765,7 +765,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-order-border bg-order-bg px-4 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-order-fg">
+            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-order-fg">
               Count effective
             </div>
             <Input
@@ -803,7 +803,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]">
-          <div className="hidden grid-cols-[132px_minmax(0,1fr)_170px_105px_120px_105px_minmax(0,1fr)] gap-3 bg-surface-2 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-content-3 lg:grid">
+          <div className="hidden grid-cols-[132px_minmax(0,1fr)_170px_105px_120px_105px_minmax(0,1fr)] gap-3 bg-surface-2 px-4 py-2 text-caption font-semibold uppercase tracking-wide text-content-3 lg:grid">
             <div>Code</div>
             <div>Material</div>
             <div>Location</div>
@@ -852,30 +852,30 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         {row.code}
                       </div>
                       {row.labelId ? (
-                        <div className="mt-1 text-[10px] font-bold text-order-fg">
+                        <div className="mt-1 text-caption font-bold text-order-fg">
                           roll label
                         </div>
                       ) : null}
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-content-2">{row.name}</div>
-                      <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-content-3">
+                      <div className="mt-1 flex flex-wrap gap-1 text-caption text-content-3">
                         <Badge
                           variant="outline"
-                          className="h-5 rounded-full border-line bg-surface-2 px-2 text-[10px]"
+                          className="h-5 rounded-full border-line bg-surface-2 px-2 text-caption"
                         >
                           {row.category || "STOCK"}
                         </Badge>
                         <Badge
                           variant="outline"
-                          className="h-5 rounded-full border-line bg-surface-2 px-2 text-[10px]"
+                          className="h-5 rounded-full border-line bg-surface-2 px-2 text-caption"
                         >
                           {row.stock_class}
                         </Badge>
                         {row.granuleCodeLabel ? (
                           <Badge
                             variant="outline"
-                            className="h-5 rounded-full border-warning-border bg-warning-bg px-2 text-[10px] text-warning-fg"
+                            className="h-5 rounded-full border-warning-border bg-warning-bg px-2 text-caption text-warning-fg"
                           >
                             code {row.granuleCodeLabel}
                           </Badge>
@@ -883,7 +883,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         {row.stockForm ? (
                           <Badge
                             variant="outline"
-                            className="h-5 rounded-full border-info-border bg-info-bg px-2 text-[10px] text-primary"
+                            className="h-5 rounded-full border-info-border bg-info-bg px-2 text-caption text-primary"
                           >
                             {STOCK_FORM_LABELS[row.stockForm] ||
                               row.stockForm.replace(/_/g, " ")}
@@ -892,7 +892,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         {row.status && row.stock_class === "ROLL" ? (
                           <Badge
                             variant="outline"
-                            className="h-5 rounded-full border-success-border bg-success-bg px-2 text-[10px] text-success-fg"
+                            className="h-5 rounded-full border-success-border bg-success-bg px-2 text-caption text-success-fg"
                           >
                             {row.isFg ? "FG" : "WIP"} ·{" "}
                             {row.status.replace(/_/g, " ")}
@@ -947,7 +947,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         </Select>
                       )}
                       {locationMissing ? (
-                        <p className="mt-1 text-[11px] font-semibold text-danger-fg">
+                        <p className="mt-1 text-caption font-semibold text-danger-fg">
                           Location required
                         </p>
                       ) : null}
@@ -1027,7 +1027,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                         rows={1}
                       />
                       {reasonRequired ? (
-                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-danger-fg">
+                        <p className="mt-1 inline-flex items-center gap-1 text-caption text-danger-fg">
                           <AlertTriangle className="h-3 w-3" />
                           Reason required
                         </p>
@@ -1063,7 +1063,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
                 <span className="block text-xs font-semibold">
                   {option.label}
                 </span>
-                <span className="mt-0.5 block text-[10px] font-semibold opacity-75">
+                <span className="mt-0.5 block text-caption font-semibold opacity-75">
                   {option.description}
                 </span>
               </button>

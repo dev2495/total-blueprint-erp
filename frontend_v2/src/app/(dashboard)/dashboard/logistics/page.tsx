@@ -333,7 +333,7 @@ export default function LogisticsDashboard() {
                     {challan.dc_no}
                   </span>
                   <span
-                    className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md ${
+                    className={`text-caption font-semibold uppercase px-2 py-0.5 rounded-md ${
                       challan.status === "DRAFT"
                         ? "bg-warning-bg text-warning-fg"
                         : challan.status === "DISPATCHED"
@@ -351,7 +351,7 @@ export default function LogisticsDashboard() {
                     {challan.customer_name}
                   </span>
                   {challan.vehicle_no && (
-                    <span className="text-[10px] font-semibold uppercase text-content-4 flex items-center gap-1">
+                    <span className="text-caption font-semibold uppercase text-content-4 flex items-center gap-1">
                       <Truck className="w-3 h-3" /> {challan.vehicle_no}
                     </span>
                   )}

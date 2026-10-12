@@ -110,7 +110,7 @@ export default function SalesOrderDispatchesPage() {
           <div>
             <Link
               href={`/sales/orders/${orderId}`}
-              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/90 hover:bg-surface-1/20"
+              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-caption font-bold uppercase tracking-[0.12em] text-white/90 hover:bg-surface-1/20"
             >
               <ArrowLeft className="h-3 w-3" /> Back to order
             </Link>
@@ -197,12 +197,12 @@ export default function SalesOrderDispatchesPage() {
                         </span>
                         <Badge
                           variant="outline"
-                          className={`rounded-full text-[10px] font-bold uppercase ${STATUS_TONE[row.status]}`}
+                          className={`rounded-full text-caption font-bold uppercase ${STATUS_TONE[row.status]}`}
                         >
                           {row.status}
                         </Badge>
                       </div>
-                      <div className="text-[11px] text-content-3">
+                      <div className="text-caption text-content-3">
                         Dispatch date {row.dispatch_date} · {row.lines.length}{" "}
                         line{row.lines.length === 1 ? "" : "s"}
                         {row.vehicle_no ? ` · Vehicle ${row.vehicle_no}` : ""}
@@ -306,7 +306,7 @@ function StatPill({
   return (
     <Card className={`rounded-2xl ${cls}`}>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-content-3">
+        <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-[0.1em] text-content-3">
           {icon}
           {label}
         </div>

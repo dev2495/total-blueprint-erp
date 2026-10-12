@@ -62,7 +62,7 @@ export function PageHelpInline({
           className={cn("mt-0.5 shrink-0", compact ? "h-4 w-4" : "h-5 w-5")}
         />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold uppercase tracking-wider text-[10px] text-info-fg">
+          <p className="font-semibold uppercase tracking-wider text-caption text-info-fg">
             Help
           </p>
           <p

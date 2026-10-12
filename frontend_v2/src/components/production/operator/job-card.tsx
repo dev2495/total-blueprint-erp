@@ -41,22 +41,22 @@ export function JobCard({ job }: JobCardProps) {
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-4 pt-2 text-sm">
         <div>
-          <label className="text-[10px] uppercase font-bold text-content-4">
+          <label className="text-caption uppercase font-bold text-content-4">
             Process
           </label>
           <p className="font-medium text-content-2">{job.process_name}</p>
         </div>
         <div>
-          <label className="text-[10px] uppercase font-bold text-content-4">
+          <label className="text-caption uppercase font-bold text-content-4">
             Target Qty
           </label>
           <p className="font-mono font-bold text-content-1 bg-surface-2 inline-block px-2 py-0.5 rounded">
             {job.quantity}{" "}
-            <span className="text-[10px] text-content-3">{job.uom}</span>
+            <span className="text-caption text-content-3">{job.uom}</span>
           </p>
         </div>
         <div>
-          <label className="text-[10px] uppercase font-bold text-content-4">
+          <label className="text-caption uppercase font-bold text-content-4">
             Machine
           </label>
           <p className="font-medium text-content-2">
@@ -64,7 +64,7 @@ export function JobCard({ job }: JobCardProps) {
           </p>
         </div>
         <div>
-          <label className="text-[10px] uppercase font-bold text-content-4">
+          <label className="text-caption uppercase font-bold text-content-4">
             Sales Order
           </label>
           <p className="font-medium text-content-2 truncate">
@@ -72,7 +72,7 @@ export function JobCard({ job }: JobCardProps) {
           </p>
         </div>
         <div className="col-span-2 pt-3 border-t mt-1">
-          <label className="text-[10px] uppercase font-bold text-content-4 block mb-2">
+          <label className="text-caption uppercase font-bold text-content-4 block mb-2">
             Input Materials (Rolls)
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -88,7 +88,7 @@ export function JobCard({ job }: JobCardProps) {
                     </span>
                     <Badge
                       variant="outline"
-                      className={`text-[10px] font-bold px-1.5 py-0 ${
+                      className={`text-caption font-bold px-1.5 py-0 ${
                         roll.status === "IN_PROCESS"
                           ? "bg-success-fg text-white border-transparent"
                           : roll.status === "CONSUMED"
@@ -99,7 +99,7 @@ export function JobCard({ job }: JobCardProps) {
                       {roll.status}
                     </Badge>
                   </div>
-                  <div className="flex justify-between items-center text-[10px] text-content-3 font-medium">
+                  <div className="flex justify-between items-center text-caption text-content-3 font-medium">
                     <span>
                       {roll.width_mm}mm × {roll.thickness_micron || "-"}µ
                     </span>
@@ -142,7 +142,7 @@ function StatusBadge({ state }: { state: string }) {
   return (
     <Badge
       variant="secondary"
-      className={`uppercase text-[10px] tracking-wider font-bold ${map[state] || ""}`}
+      className={`uppercase text-caption tracking-wider font-bold ${map[state] || ""}`}
     >
       {state}
     </Badge>

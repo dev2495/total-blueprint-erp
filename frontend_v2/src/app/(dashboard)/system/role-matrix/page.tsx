@@ -824,7 +824,7 @@ export default function RoleMatrixPage() {
                                       <div className="text-xs font-medium text-content-2">
                                         {easyMode ? row.title : row.permission}
                                       </div>
-                                      <div className="text-[11px] text-content-3">
+                                      <div className="text-caption text-content-3">
                                         {row.route || (easyMode ? row.permission : row.title)}
                                       </div>
                                     </div>
@@ -833,7 +833,7 @@ export default function RoleMatrixPage() {
                                     {!row.assignable ? (
                                       <Badge
                                         variant="outline"
-                                        className="text-[10px]"
+                                        className="text-caption"
                                       >
                                         Locked
                                       </Badge>

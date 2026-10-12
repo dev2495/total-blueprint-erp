@@ -95,12 +95,12 @@ export default function OrderProfitabilityPage() {
         <div className="space-y-1">
           <Link
             href="/analytics/costing"
-            className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4 hover:text-primary transition-colors mb-4 group"
+            className="inline-flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-4 hover:text-primary transition-colors mb-4 group"
           >
             <ArrowLeft className="h-3 w-3 group-hover:-translate-x-1 transition-transform" />{" "}
             Back to Center
           </Link>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-semibold uppercase tracking-widest shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-caption font-semibold uppercase tracking-widest shadow-sm">
             <ShoppingCart className="h-3 w-3 fill-info-fg" /> Order Intelligence
           </div>
           <h1 className="text-4xl font-semibold tracking-tight text-content-1 flex items-center gap-3 italic">
@@ -134,13 +134,13 @@ export default function OrderProfitabilityPage() {
             <Target className="h-32 w-32" />
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <p className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Net Profit Margin
             </p>
             <h2 className="text-6xl font-semibold tracking-tighter italic">
               {Number(cost.margin_percent).toFixed(1)}%
             </h2>
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-1/10 text-[10px] font-semibold uppercase tracking-widest">
+            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-1/10 text-caption font-semibold uppercase tracking-widest">
               {Number(cost.margin_percent) > 15
                 ? "Healthy Profit"
                 : "Low Margin Alert"}
@@ -148,7 +148,7 @@ export default function OrderProfitabilityPage() {
           </div>
           <div className="mt-12 pt-8 border-t border-surface-1/10">
             <div className="flex justify-between items-end">
-              <span className="text-[10px] font-semibold uppercase text-content-3">
+              <span className="text-caption font-semibold uppercase text-content-3">
                 Margin Value
               </span>
               <span className="text-2xl font-semibold tabular-nums">
@@ -194,13 +194,13 @@ export default function OrderProfitabilityPage() {
               >
                 <kpi.icon className="h-6 w-6" />
               </div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4 mb-1">
+              <p className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4 mb-1">
                 {kpi.label}
               </p>
               <h3 className="text-2xl font-semibold text-content-1 uppercase tracking-tighter tabular-nums">
                 {kpi.value}
               </h3>
-              <p className="text-[10px] font-bold text-content-3 uppercase tracking-tight mt-4 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              <p className="text-caption font-bold text-content-3 uppercase tracking-tight mt-4 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                 {kpi.desc}
               </p>
             </Card>
@@ -213,7 +213,7 @@ export default function OrderProfitabilityPage() {
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-content-1">
                   Total Lifecycle Cost Impact
                 </span>
-                <span className="text-[10px] font-bold text-content-4 uppercase tracking-widest mt-1">
+                <span className="text-caption font-bold text-content-4 uppercase tracking-widest mt-1">
                   ₹{Math.round(Number(cost.total_cost)).toLocaleString()} Total
                   Spending
                 </span>
@@ -221,7 +221,7 @@ export default function OrderProfitabilityPage() {
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-primary" />
-                  <span className="text-[10px] font-semibold uppercase text-content-3">
+                  <span className="text-caption font-semibold uppercase text-content-3">
                     Materials (
                     {(
                       (Number(cost.material_cost) / Number(cost.total_cost)) *
@@ -232,7 +232,7 @@ export default function OrderProfitabilityPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-warning-fg" />
-                  <span className="text-[10px] font-semibold uppercase text-content-3">
+                  <span className="text-caption font-semibold uppercase text-content-3">
                     Conversion (
                     {(
                       (Number(cost.conversion_cost) / Number(cost.total_cost)) *
@@ -273,10 +273,10 @@ export default function OrderProfitabilityPage() {
           <CardContent className="p-0 h-[400px] overflow-auto scrollbar-hide">
             <div className="p-8 flex flex-col items-center justify-center h-full text-center opacity-30 select-none">
               <Layers className="h-12 w-12 mb-4" />
-              <p className="font-semibold text-[10px] uppercase tracking-widest">
+              <p className="font-semibold text-caption uppercase tracking-widest">
                 Physics-Integrated BOM Breakdown
               </p>
-              <p className="text-[10px] font-bold mt-2 leading-relaxed">
+              <p className="text-caption font-bold mt-2 leading-relaxed">
                 Detailed material cost tracing is active.
                 <br />
                 Rates snapshot used from run date.
@@ -295,10 +295,10 @@ export default function OrderProfitabilityPage() {
           <CardContent className="p-0 h-[400px] overflow-auto scrollbar-hide">
             <div className="p-8 flex flex-col items-center justify-center h-full text-center opacity-30 select-none">
               <Activity className="h-12 w-12 mb-4" />
-              <p className="font-semibold text-[10px] uppercase tracking-widest">
+              <p className="font-semibold text-caption uppercase tracking-widest">
                 Routing Rule Execution Impact
               </p>
-              <p className="text-[10px] font-bold mt-2 leading-relaxed">
+              <p className="text-caption font-bold mt-2 leading-relaxed">
                 Stage-wise conversion cost tracing.
                 <br />
                 Power, labor, and overhead allocation logic.

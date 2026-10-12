@@ -152,7 +152,7 @@ function Header({ doc }: { doc: OutwardDocument }) {
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4">{label}</dt>
+      <dt className="text-caption font-semibold uppercase tracking-[0.08em] text-content-4">{label}</dt>
       <dd className="truncate text-content-1">{value}</dd>
     </div>
   );
@@ -264,7 +264,7 @@ function LinkedPanel({ doc, onChange }: { doc: OutwardDocument; onChange: (next:
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-[14px] font-semibold text-content-1">{link.reference || "—"}</span>
-                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-content-2">{link.kind_label}</span>
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-2">{link.kind_label}</span>
                     <span className="inline-flex items-center gap-1 text-[11.5px] text-content-3">
                       {link.link_source === "QR" ? <QrCode className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
                       {link.link_source === "QR" ? "QR at the gate" : `Linked by ${link.linked_by_name}`}
@@ -401,7 +401,7 @@ function FindPanel({ doc, onChange }: { doc: OutwardDocument; onChange: (next: O
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-[13.5px] font-semibold text-content-1">{row.reference}</span>
-                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-content-2">{row.kind_label}</span>
+                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-2">{row.kind_label}</span>
                       {row.status ? <span className="text-[11.5px] text-content-3">{row.status.replace(/_/g, " ").toLowerCase()}</span> : null}
                     </div>
                     <div className="mt-0.5 text-[12.5px] text-content-2">{[row.party_name, row.summary, row.document_date ? docDate(row.document_date) : null].filter(Boolean).join(" · ")}</div>

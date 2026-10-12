@@ -221,7 +221,7 @@ export function KPIStatsGrid() {
                     key={String(row.date)}
                     className="rounded-lg bg-surface-2 p-3"
                   >
-                    <div className="text-[11px] font-semibold text-content-3">
+                    <div className="text-caption font-semibold text-content-3">
                       {String(row.date)}
                     </div>
                     <div className="mt-1 text-sm font-bold text-content-1">

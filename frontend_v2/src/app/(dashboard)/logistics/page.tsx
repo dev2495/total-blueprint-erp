@@ -55,7 +55,7 @@ function KpiCard({
             <Icon className="h-5 w-5" strokeWidth={2.2} />
           </div>
         </div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           {label}
         </div>
         <div className="mt-2 text-4xl font-semibold tracking-tight text-content-1">
@@ -110,7 +110,7 @@ export default function LogisticsHubPage() {
       <section className="erp-hero overflow-hidden rounded-[22px] px-6 py-6 text-white">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-white/60">
+            <div className="inline-flex items-center gap-1.5 text-caption font-medium uppercase tracking-[0.1em] text-white/60">
               <Truck className="h-3.5 w-3.5" />
               Live Logistics Truth
             </div>
@@ -308,7 +308,7 @@ export default function LogisticsHubPage() {
                         {row.customer || "Unknown customer"}
                       </div>
                     </div>
-                    <div className="rounded-full bg-surface-3 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
+                    <div className="rounded-full bg-surface-3 px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-white">
                       {String(row.status || "").replace(/_/g, " ")}
                     </div>
                   </div>
@@ -353,7 +353,7 @@ export default function LogisticsHubPage() {
                         {row.to_plant || "Unknown"}
                       </div>
                     </div>
-                    <div className="rounded-full bg-info-bg px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-info-fg">
+                    <div className="rounded-full bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-info-fg">
                       {String(row.status || "").replace(/_/g, " ")}
                     </div>
                   </div>

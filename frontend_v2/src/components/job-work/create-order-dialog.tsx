@@ -272,7 +272,7 @@ function CreateOrderForm({ defaultPlant, onDone }: { defaultPlant?: string; onDo
           </Field>
         ) : (
           <Field label="Plant" error={errors.plant} htmlFor="jw-plant">
-            <select id="jw-plant" value={form.plant} onChange={(e) => set("plant", e.target.value)} className={inputClass}>
+            <select id="jw-plant" data-testid="jobwork-create-plant" value={form.plant} onChange={(e) => set("plant", e.target.value)} className={inputClass}>
               <option value="">Choose plant</option>
               {plants.map((plant) => (
                 <option key={plant.id} value={plant.id}>

@@ -71,6 +71,7 @@ import { inwardBillDocument } from "@/components/documents/inward-bill-document"
 
 import { RollLabelActions } from "./roll-label-actions";
 import { GrnBillBanner, useGrnBillContext, type BillPostWrapper } from "./gate-bills/bill-grn-context";
+import { PageHero } from "@/components/premium/page-hero";
 
 type ClassKind = "BULK" | "ROLL" | "PACKAGING" | "TRADING";
 type BulkMaterialFilter =
@@ -1139,7 +1140,7 @@ export function GrnSmartV36() {
         >
           ← Stock workspace
         </Link>
-        <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+        <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-caption font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
           UNIFIED FORM
         </span>
       </div>
@@ -1188,7 +1189,7 @@ export function GrnSmartV36() {
             </Button>
           </div>
           <RollLabelActions rolls={lastPosted.rolls} />
-          <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-2 text-caption sm:grid-cols-3">
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
               <div className="font-semibold uppercase tracking-wider text-success-fg">
                 PO linkage
@@ -1219,7 +1220,7 @@ export function GrnSmartV36() {
               </div>
             </div>
           </div>
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success-fg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success-fg px-2.5 py-0.5 text-caption font-semibold uppercase tracking-wider text-white">
             {sourceType === "PO"
               ? "FULLY MATCHED"
               : sourceType === "MANUAL_PO"
@@ -1231,23 +1232,12 @@ export function GrnSmartV36() {
 
       {/* Hero (hidden while receiving a gate bill: the bill needs the space) */}
       {!billMode && (
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-success-fg via-info-fg to-info-fg px-5 py-4 text-white shadow-2xl">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
-              GRN · goods receipt note
-            </div>
-            <h2 className="font-display mt-1 text-2xl font-bold leading-tight">
-              Receive goods at spreadsheet speed
-            </h2>
-            <p className="mt-1 max-w-5xl text-sm text-white/80">
-              One invoice can carry many rolls or materials. Use the full-width
-              grid below; readiness, totals, GST, freight, incomplete rows, and
-              post action stay in the sticky bottom bar.
-            </p>
-          </div>
-        </div>
-      </section>
+      <PageHero
+        compact
+        eyebrow="Inventory · Goods receipt (GRN)"
+        title="Receive goods"
+        description="Enter one invoice: rolls, bulk material, packaging or trading goods. Totals, GST, freight and the Post button stay in the bar at the bottom."
+      />
       )}
 
       <main className="space-y-5">
@@ -1257,7 +1247,7 @@ export function GrnSmartV36() {
             className="flex min-h-[40px] flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-surface-1 px-3 py-1 shadow-sm"
             data-testid="smart-grn-class-compact"
           >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Stock class
             </span>
             <div
@@ -1342,14 +1332,14 @@ export function GrnSmartV36() {
               <Link
                 href="/inventory/job-work"
                 data-testid="smart-grn-jobwork-hint"
-                className="mt-2 block text-[11px] font-semibold text-content-3 hover:text-primary"
+                className="mt-2 block text-caption font-semibold text-content-3 hover:text-primary"
               >
                 Receiving goods back from a job worker? Use{" "}
                 <span className="text-primary underline">Job Work → Receive</span>
               </Link>
               <Link
                 href="/inventory/inter-plant"
-                className="mt-1 inline-flex text-[11px] font-bold text-primary hover:text-primary"
+                className="mt-1 inline-flex text-caption font-bold text-primary hover:text-primary"
               >
                 Inter-plant receipts are handled in Inter-Plant Flows.
               </Link>
@@ -1411,7 +1401,7 @@ export function GrnSmartV36() {
                   </SelectContent>
                 </Select>
                 {selectedPo && (
-                  <div className="mt-2 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-[11px] text-primary">
+                  <div className="mt-2 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-caption text-primary">
                     <div className="font-bold">
                       {selectedPo.code} · {selectedPo.vendor_name || "Vendor"} ·{" "}
                       {selectedPo.status}
@@ -1643,7 +1633,7 @@ export function GrnSmartV36() {
                 <div className="m-3 rounded-2xl border border-success-border bg-success-bg p-4 text-sm text-success-fg shadow-sm sm:m-4">
                   <div className="flex flex-col gap-3 border-b border-success-border pb-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
+                      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
                         Excel validated · review before posting
                       </div>
                       <div className="mt-1 font-bold">
@@ -1691,8 +1681,8 @@ export function GrnSmartV36() {
                     </div>
                   </div>
                   <div className="mt-3 overflow-x-auto rounded-xl border border-success-border bg-surface-1">
-                    <table className="min-w-[1360px] text-left text-[11px]">
-                      <thead className="bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                    <table className="min-w-[1360px] text-left text-caption">
+                      <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                         <tr>
                           {[
                             "Row",
@@ -2090,7 +2080,7 @@ export function GrnSmartV36() {
       <GrnFooterBar isPinned={isPinned}>
         <div className="mx-auto grid max-w-none gap-2 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Live totals
             </span>
             <span className="rounded-full bg-surface-2 px-2.5 py-0.5 font-bold uppercase text-content-2 ring-1 ring-line">
@@ -2155,7 +2145,7 @@ export function GrnSmartV36() {
                 <span
                   key={check.label}
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
+                    "rounded-full px-2 py-0.5 text-caption font-semibold ring-1",
                     check.ok
                       ? "bg-success-bg text-success-fg ring-success-border"
                       : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -2360,7 +2350,7 @@ function Section({
             {idx}
           </span>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
               {eyebrow}
             </div>
             <h2 className="text-[15px] font-bold text-content-1">{title}</h2>
@@ -2413,7 +2403,7 @@ function ClassTile({
         </span>
         <span className="text-sm font-bold text-content-1">{label}</span>
       </div>
-      <div className="text-[11px] leading-snug text-content-3">{desc}</div>
+      <div className="text-caption leading-snug text-content-3">{desc}</div>
     </button>
   );
 }
@@ -2431,7 +2421,7 @@ function Field({
 }) {
   return (
     <div className={col2 ? "sm:col-span-2" : ""}>
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
         {required && <span className="text-danger-fg"> *</span>}
       </Label>
@@ -2497,7 +2487,7 @@ function BulkMaterialFilterChips({
 
   return (
     <div className="rounded-xl border border-order-border bg-order-bg px-3 py-2">
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+      <div className="mb-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
         Material type filter
       </div>
       <div className="flex flex-wrap gap-2">
@@ -2508,7 +2498,7 @@ function BulkMaterialFilterChips({
             data-testid={`smart-grn-filter-${filter.id.toLowerCase()}`}
             onClick={() => onChange(filter.id)}
             className={cn(
-              "rounded-full border px-3 py-1 text-[11px] font-semibold transition",
+              "rounded-full border px-3 py-1 text-caption font-semibold transition",
               value === filter.id
                 ? "border-order-border bg-order-fg text-white shadow-sm"
                 : "border-order-border bg-surface-1 text-order-fg hover:border-order-border",
@@ -2517,7 +2507,7 @@ function BulkMaterialFilterChips({
             {filter.label}
             <span
               className={cn(
-                "ml-1.5 font-mono text-[10px]",
+                "ml-1.5 font-mono text-caption",
                 value === filter.id ? "text-white/80" : "text-order-fg",
               )}
             >
@@ -2908,7 +2898,7 @@ function RollFastEntryGrid({
     >
       <div className="flex flex-col gap-3 border-b border-success-border bg-success-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
             Fast roll entry
           </div>
           <div className="mt-1 text-sm font-semibold text-content-2">
@@ -2941,8 +2931,8 @@ function RollFastEntryGrid({
         </div>
       </div>
       <div className="max-h-[64vh] overflow-auto">
-        <table className="min-w-[1940px] text-left text-[11px]">
-          <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
+        <table className="min-w-[1940px] text-left text-caption">
+          <thead className="sticky top-0 z-10 bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[260px] px-2 py-2">Film variant</th>
@@ -2991,7 +2981,7 @@ function RollFastEntryGrid({
                       disabled={lockedToPo}
                       placeholder="Search film variant"
                       testId={`smart-grn-line-${index}-material`}
-                      className="h-8 rounded-lg font-mono text-[11px]"
+                      className="h-8 rounded-lg font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -2999,7 +2989,7 @@ function RollFastEntryGrid({
                       aria-label={`Supplier roll number ${index + 1}`} placeholder="Optional supplier ID"
                       value={item.vendor_roll_label || ""}
                       onChange={event => patch(index, { vendor_roll_label: event.target.value })}
-                      className="h-8 rounded-lg text-[11px]" />
+                      className="h-8 rounded-lg text-caption" />
                   </td>
                   <td className="px-2 py-2">
                     <Select
@@ -3008,7 +2998,7 @@ function RollFastEntryGrid({
                         handleStockFormChange(index, value as StockForm)
                       }
                     >
-                      <SelectTrigger className="h-8 rounded-lg border-line text-[11px]">
+                      <SelectTrigger className="h-8 rounded-lg border-line text-caption">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -3036,7 +3026,7 @@ function RollFastEntryGrid({
                           ? "lay-flat"
                           : "open web"
                       }
-                      className="h-8 rounded-lg border-line font-mono text-[11px]"
+                      className="h-8 rounded-lg border-line font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3052,7 +3042,7 @@ function RollFastEntryGrid({
                       onKeyDown={(e) =>
                         handleCellKeyDown(e, index, "thickness_um")
                       }
-                      className="h-8 rounded-lg border-line font-mono text-[11px]"
+                      className="h-8 rounded-lg border-line font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3073,7 +3063,7 @@ function RollFastEntryGrid({
                       onKeyDown={(e) =>
                         handleCellKeyDown(e, index, "gross_weight_kg")
                       }
-                      className="h-8 rounded-lg border-line font-mono text-[11px]"
+                      className="h-8 rounded-lg border-line font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3094,7 +3084,7 @@ function RollFastEntryGrid({
                       onKeyDown={(e) =>
                         handleCellKeyDown(e, index, "tare_weight_kg")
                       }
-                      className="h-8 rounded-lg border-line font-mono text-[11px]"
+                      className="h-8 rounded-lg border-line font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3112,7 +3102,7 @@ function RollFastEntryGrid({
                       onKeyDown={(e) =>
                         handleCellKeyDown(e, index, "net_weight_kg")
                       }
-                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-semibold"
+                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-caption font-semibold"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3125,7 +3115,7 @@ function RollFastEntryGrid({
                         patch(index, { length_m: e.target.value })
                       }
                       onKeyDown={(e) => handleCellKeyDown(e, index, "length_m")}
-                      className="h-8 rounded-lg border-line font-mono text-[11px]"
+                      className="h-8 rounded-lg border-line font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3139,7 +3129,7 @@ function RollFastEntryGrid({
                     >
                       <SelectTrigger
                         className={cn(
-                          "h-8 rounded-lg border-line text-[11px]",
+                          "h-8 rounded-lg border-line text-caption",
                           needsGrade &&
                             !item.grade &&
                             "border-warning-border bg-warning-bg",
@@ -3177,7 +3167,7 @@ function RollFastEntryGrid({
                     >
                       <SelectTrigger
                         className={cn(
-                          "h-8 rounded-lg border-line text-[11px]",
+                          "h-8 rounded-lg border-line text-caption",
                           item.location &&
                             defaultLocationId &&
                             item.location !== defaultLocationId &&
@@ -3217,13 +3207,13 @@ function RollFastEntryGrid({
                       onKeyDown={(e) =>
                         handleCellKeyDown(e, index, "unit_cost")
                       }
-                      className="h-8 rounded-lg border-line font-mono text-[11px]"
+                      className="h-8 rounded-lg border-line font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                        "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
                         complete
                           ? "bg-success-bg text-success-fg"
                           : "bg-warning-bg text-warning-fg",
@@ -3251,12 +3241,12 @@ function RollFastEntryGrid({
         </table>
       </div>
       <div className="flex flex-col gap-2 border-t border-line bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-[11px] font-semibold text-content-3">
+        <div className="text-caption font-semibold text-content-3">
           Width follows stock form: open web = full sheet width; tube = lay-flat
           width. Tube/folded rolls are exact-width allocation only. Gross - tare
           writes net kg automatically.
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+        <div className="flex flex-wrap items-center gap-2 text-caption font-semibold">
           <span className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-content-3">
             {items.length} rolls
           </span>
@@ -3309,7 +3299,7 @@ function FastStat({
         : "border-line bg-surface-1 text-content-2";
   return (
     <div className={cn("rounded-lg border px-3 py-1.5", toneClass)}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="font-mono text-sm font-semibold">{value}</div>
@@ -3665,14 +3655,14 @@ function ReceiptFastEntryGrid({
     >
       <div className="flex flex-col gap-3 border-b border-order-border bg-order-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             {gridTitle}
           </div>
           <div className="mt-1 text-sm font-semibold text-content-2">
             One row per received item. Weight-based rows auto-calculate net from
             gross minus tare; METER/PCS rows use direct received quantity.
           </div>
-          <div className="mt-1 text-[11px] font-semibold text-content-3">
+          <div className="mt-1 text-caption font-semibold text-content-3">
             {pasteHint}
           </div>
         </div>
@@ -3700,8 +3690,8 @@ function ReceiptFastEntryGrid({
         </div>
       </div>
       <div className="max-h-[64vh] overflow-auto">
-        <table className="min-w-[1520px] text-left text-[11px]">
-          <thead className="sticky top-0 z-10 bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
+        <table className="min-w-[1520px] text-left text-caption">
+          <thead className="sticky top-0 z-10 bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[340px] px-2 py-2">Material</th>
@@ -3781,7 +3771,7 @@ function ReceiptFastEntryGrid({
                           : "No material for this filter"
                       }
                       testId={`smart-grn-line-${index}-material`}
-                      className="h-8 rounded-lg font-mono text-[11px]"
+                      className="h-8 rounded-lg font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3796,7 +3786,7 @@ function ReceiptFastEntryGrid({
                       >
                         <SelectTrigger
                           data-testid={`smart-grn-line-${index}-granule-code`}
-                          className="h-8 rounded-lg border-line text-[11px]"
+                          className="h-8 rounded-lg border-line text-caption"
                         >
                           <SelectValue placeholder="Pick code" />
                         </SelectTrigger>
@@ -3818,7 +3808,7 @@ function ReceiptFastEntryGrid({
                         </SelectContent>
                       </Select>
                     ) : (
-                      <div className="flex h-8 items-center rounded-lg border border-line bg-surface-2 px-2 text-[11px] font-bold text-content-3">
+                      <div className="flex h-8 items-center rounded-lg border border-line bg-surface-2 px-2 text-caption font-bold text-content-3">
                         Master UOM · {rowUom}
                       </div>
                     )}
@@ -3843,7 +3833,7 @@ function ReceiptFastEntryGrid({
                       disabled={!usesGrossTare}
                       placeholder={usesGrossTare ? "gross" : "—"}
                       className={cn(
-                        "h-8 rounded-lg border-line font-mono text-[11px]",
+                        "h-8 rounded-lg border-line font-mono text-caption",
                         !usesGrossTare && "bg-surface-2 text-content-4",
                       )}
                     />
@@ -3868,7 +3858,7 @@ function ReceiptFastEntryGrid({
                       disabled={!usesGrossTare}
                       placeholder={usesGrossTare ? "tare" : "—"}
                       className={cn(
-                        "h-8 rounded-lg border-line font-mono text-[11px]",
+                        "h-8 rounded-lg border-line font-mono text-caption",
                         !usesGrossTare && "bg-surface-2 text-content-4",
                       )}
                     />
@@ -3885,7 +3875,7 @@ function ReceiptFastEntryGrid({
                       onChange={(e) => handleQtyChange(index, e.target.value)}
                       onKeyDown={(e) => handleCellKeyDown(e, index, "qty")}
                       placeholder={usesGrossTare ? "auto / net" : "qty"}
-                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-semibold"
+                      className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-caption font-semibold"
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -3905,7 +3895,7 @@ function ReceiptFastEntryGrid({
                       }
                       disabled={supportedUoms.length <= 1}
                     >
-                      <SelectTrigger className="h-8 rounded-lg border-line bg-surface-2 font-mono text-[11px] font-semibold text-content-3">
+                      <SelectTrigger className="h-8 rounded-lg border-line bg-surface-2 font-mono text-caption font-semibold text-content-3">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -3930,7 +3920,7 @@ function ReceiptFastEntryGrid({
                     >
                       <SelectTrigger
                         className={cn(
-                          "h-8 rounded-lg border-line text-[11px]",
+                          "h-8 rounded-lg border-line text-caption",
                           item.location &&
                             defaultLocationId &&
                             item.location !== defaultLocationId &&
@@ -3970,7 +3960,7 @@ function ReceiptFastEntryGrid({
                       onKeyDown={(e) =>
                         handleCellKeyDown(e, index, "unit_cost")
                       }
-                      className="h-8 rounded-lg border-line font-mono text-[11px]"
+                      className="h-8 rounded-lg border-line font-mono text-caption"
                     />
                   </td>
                   <td className="px-2 py-2 font-mono font-semibold text-success-fg">
@@ -3982,7 +3972,7 @@ function ReceiptFastEntryGrid({
                   <td className="px-2 py-2">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                        "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
                         complete
                           ? "bg-success-bg text-success-fg"
                           : "bg-warning-bg text-warning-fg",
@@ -4010,12 +4000,12 @@ function ReceiptFastEntryGrid({
         </table>
       </div>
       <div className="flex flex-col gap-2 border-t border-line bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-[11px] font-semibold text-content-3">
+        <div className="text-caption font-semibold text-content-3">
           Header location is the default. The UOM is fixed from the selected
           master item; KG rows can use gross/tare/net, and METER/PCS rows use
           direct received quantity.
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+        <div className="flex flex-wrap items-center gap-2 text-caption font-semibold">
           <span className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-content-3">
             {items.length} rows
           </span>
@@ -4138,7 +4128,7 @@ function ItemEditor({
   return (
     <div className="rounded-xl border border-line bg-surface-1 p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <span className="rounded-md bg-order-bg px-2 py-0.5 text-[10px] font-semibold tracking-wider text-order-fg">
+        <span className="rounded-md bg-order-bg px-2 py-0.5 text-caption font-semibold tracking-wider text-order-fg">
           Line {index + 1}
         </span>
         <button
@@ -4163,7 +4153,7 @@ function ItemEditor({
               className="h-9 rounded-lg border-line font-mono text-xs shadow-sm"
             />
           ) : (
-            <div className="flex h-9 items-center rounded-lg border border-danger-border bg-danger-bg px-3 text-[11px] font-bold text-danger-fg">
+            <div className="flex h-9 items-center rounded-lg border border-danger-border bg-danger-bg px-3 text-caption font-bold text-danger-fg">
               No active {klass.toLowerCase()} material found for this filter.
             </div>
           )}
@@ -4325,7 +4315,7 @@ function ItemEditor({
 
       {klass === "ROLL" && (
         <div className="mt-3 rounded-xl border border-line bg-surface-2 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3 mb-2">
+          <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-2">
             Roll-specific fields
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -4336,7 +4326,7 @@ function ItemEditor({
                 onChange={(e) =>
                   patchWeight({ gross_weight_kg: e.target.value })
                 }
-                className="h-8 rounded-md border-line font-mono text-[11px]"
+                className="h-8 rounded-md border-line font-mono text-caption"
               />
             </Field>
             <Field label="Tare (KG)">
@@ -4346,7 +4336,7 @@ function ItemEditor({
                 onChange={(e) =>
                   patchWeight({ tare_weight_kg: e.target.value })
                 }
-                className="h-8 rounded-md border-line font-mono text-[11px]"
+                className="h-8 rounded-md border-line font-mono text-caption"
               />
             </Field>
             <Field label="Net auto (KG)">
@@ -4354,14 +4344,14 @@ function ItemEditor({
                 data-testid={`smart-grn-line-${index}-net`}
                 value={item.net_weight_kg || ""}
                 readOnly
-                className="h-8 rounded-md border-line bg-surface-2 font-mono text-[11px]"
+                className="h-8 rounded-md border-line bg-surface-2 font-mono text-caption"
               />
             </Field>
             <Field label="Length (m)">
               <Input
                 value={item.length_m || ""}
                 onChange={(e) => onChange({ length_m: e.target.value })}
-                className="h-8 rounded-md border-line font-mono text-[11px]"
+                className="h-8 rounded-md border-line font-mono text-caption"
               />
             </Field>
             <Field label="Width (mm)">
@@ -4369,7 +4359,7 @@ function ItemEditor({
                 data-testid={`smart-grn-line-${index}-width`}
                 value={item.width_mm || ""}
                 onChange={(e) => onChange({ width_mm: e.target.value })}
-                className="h-8 rounded-md border-line font-mono text-[11px]"
+                className="h-8 rounded-md border-line font-mono text-caption"
                 placeholder="1050"
               />
             </Field>
@@ -4378,7 +4368,7 @@ function ItemEditor({
                 data-testid={`smart-grn-line-${index}-thickness`}
                 value={item.thickness_um || ""}
                 onChange={(e) => onChange({ thickness_um: e.target.value })}
-                className="h-8 rounded-md border-line font-mono text-[11px]"
+                className="h-8 rounded-md border-line font-mono text-caption"
               />
             </Field>
           </div>
@@ -4386,7 +4376,7 @@ function ItemEditor({
       )}
 
       {klass === "PACKAGING" && selectedMaterial && (
-        <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-[11px] font-semibold text-content-3">
+        <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-caption font-semibold text-content-3">
           Packaging kind, supply mode, and pack defaults are taken from
           Packaging Master for{" "}
           <span className="font-mono font-semibold text-content-1">
@@ -4581,7 +4571,7 @@ function TradingReceiptPanel({
     <div className="overflow-hidden bg-surface-1 shadow-sm">
       <div className="flex flex-col gap-3 border-b border-order-border bg-order-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             Fast trading entry
           </div>
           <div className="mt-1 text-sm font-semibold text-content-2">
@@ -4589,12 +4579,12 @@ function TradingReceiptPanel({
             GRN class; KG rows can use gross/tare/net, PCS and METER rows use
             direct quantity.
           </div>
-          <div className="mt-1 text-[11px] font-semibold text-content-3">
+          <div className="mt-1 text-caption font-semibold text-content-3">
             Trading goods post through the trading stock ledger, so stock value
             and average cost stay separate from raw materials.
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+        <div className="flex flex-wrap items-center gap-2 text-caption font-semibold">
           <span className="rounded-lg border border-line bg-surface-1 px-2.5 py-1 text-content-3">
             1 row
           </span>
@@ -4617,8 +4607,8 @@ function TradingReceiptPanel({
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1660px] text-left text-[11px]">
-          <thead className="bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+        <table className="min-w-[1660px] text-left text-caption">
+          <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[360px] px-2 py-2">Trading good</th>
@@ -4649,7 +4639,7 @@ function TradingReceiptPanel({
                   value={tradingGoodId}
                   onValueChange={handleTradingGoodChange}
                 >
-                  <SelectTrigger className="h-8 rounded-lg border-line text-[11px] shadow-sm">
+                  <SelectTrigger className="h-8 rounded-lg border-line text-caption shadow-sm">
                     <SelectValue
                       placeholder={
                         tradingGoodsQ.isLoading
@@ -4678,7 +4668,7 @@ function TradingReceiptPanel({
                   disabled={!usesGrossTare}
                   placeholder={usesGrossTare ? "gross" : "—"}
                   className={cn(
-                    "h-8 rounded-lg border-line font-mono text-[11px]",
+                    "h-8 rounded-lg border-line font-mono text-caption",
                     !usesGrossTare && "bg-surface-2 text-content-4",
                   )}
                 />
@@ -4691,7 +4681,7 @@ function TradingReceiptPanel({
                   disabled={!usesGrossTare}
                   placeholder={usesGrossTare ? "tare" : "—"}
                   className={cn(
-                    "h-8 rounded-lg border-line font-mono text-[11px]",
+                    "h-8 rounded-lg border-line font-mono text-caption",
                     !usesGrossTare && "bg-surface-2 text-content-4",
                   )}
                 />
@@ -4702,21 +4692,21 @@ function TradingReceiptPanel({
                   onChange={(e) => setQty(e.target.value)}
                   type="number"
                   placeholder={usesGrossTare ? "auto / net" : "qty"}
-                  className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-[11px] font-semibold"
+                  className="h-8 rounded-lg border-success-border bg-success-bg font-mono text-caption font-semibold"
                 />
               </td>
               <td className="px-2 py-2">
                 <Input
                   value={baseUom}
                   readOnly
-                  className="h-8 rounded-lg border-line bg-surface-2 font-mono text-[11px] font-semibold text-content-3"
+                  className="h-8 rounded-lg border-line bg-surface-2 font-mono text-caption font-semibold text-content-3"
                 />
               </td>
               <td className="px-2 py-2">
                 <Input
                   value={warehouseLabel || "Pick receiving warehouse above"}
                   readOnly
-                  className="h-8 rounded-lg border-line bg-surface-2 text-[11px] font-semibold text-content-3"
+                  className="h-8 rounded-lg border-line bg-surface-2 text-caption font-semibold text-content-3"
                 />
               </td>
               <td className="px-2 py-2">
@@ -4724,7 +4714,7 @@ function TradingReceiptPanel({
                   value={rate}
                   onChange={(e) => setRate(e.target.value)}
                   type="number"
-                  className="h-8 rounded-lg border-line font-mono text-[11px]"
+                  className="h-8 rounded-lg border-line font-mono text-caption"
                 />
               </td>
               <td className="px-2 py-2">
@@ -4732,7 +4722,7 @@ function TradingReceiptPanel({
                   value={gstPct}
                   onChange={(e) => setTradingGstPct(e.target.value)}
                   type="number"
-                  className="h-8 rounded-lg border-warning-border bg-warning-bg/40 font-mono text-[11px]"
+                  className="h-8 rounded-lg border-warning-border bg-warning-bg/40 font-mono text-caption"
                 />
               </td>
               <td className="px-2 py-2 font-mono font-semibold text-success-fg">
@@ -4742,13 +4732,13 @@ function TradingReceiptPanel({
                 <Input
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="h-8 min-w-[240px] rounded-lg border-line text-[11px]"
+                  className="h-8 min-w-[240px] rounded-lg border-line text-caption"
                 />
               </td>
               <td className="px-2 py-2">
                 <span
                   className={cn(
-                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                    "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
                     valid
                       ? "bg-success-bg text-success-fg"
                       : "bg-warning-bg text-warning-fg",
@@ -4765,7 +4755,7 @@ function TradingReceiptPanel({
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Cost details
               </div>
               <div className="mt-1 text-lg font-semibold text-content-1">
@@ -4801,7 +4791,7 @@ function TradingReceiptPanel({
             </div>
             <div
               className={cn(
-                "rounded-xl border px-3 py-2 text-right text-[11px]",
+                "rounded-xl border px-3 py-2 text-right text-caption",
                 valid
                   ? "border-success-border bg-success-bg text-success-fg"
                   : "border-warning-border bg-warning-bg text-warning-fg",
@@ -4848,14 +4838,14 @@ function TradingReceiptPanel({
               })}%`}
             />
           </div>
-          <div className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-[11px] font-semibold text-primary">
+          <div className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-caption font-semibold text-primary">
             Stock average cost uses the pre-GST rate. GST is stored on this
             receipt for invoice traceability and can override the trading-good
             master default without changing the master row.
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
             Receipt guards
           </div>
           <div className="mt-3 grid gap-2">
@@ -4866,7 +4856,7 @@ function TradingReceiptPanel({
             <TradingGuardRow label="Rate entered" ok={Number(rate) >= 0 && rate !== ""} />
             <TradingGuardRow label="GST percent checked" ok={Number(gstPct) >= 0 && gstPct !== ""} />
           </div>
-          <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-[11px] text-content-3">
+          <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-caption text-content-3">
             {selected ? (
               <>
                 <span className="font-semibold text-content-2">
@@ -4887,12 +4877,12 @@ function TradingReceiptPanel({
         </div>
       </div>
       <div className="flex flex-col gap-2 border-t border-line bg-surface-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-[11px] font-semibold text-content-3">
+        <div className="text-caption font-semibold text-content-3">
           Vendor invoice and transport details are taken from the Source
           section. Plant is inferred from the receiving warehouse.
         </div>
         <div className="flex items-center gap-2">
-          <div className="rounded-lg border border-success-border bg-success-bg px-3 py-1 text-right text-[11px] font-semibold text-success-fg">
+          <div className="rounded-lg border border-success-border bg-success-bg px-3 py-1 text-right text-caption font-semibold text-success-fg">
             ₹
             {receiptTotal.toLocaleString(undefined, {
               maximumFractionDigits: 0,
@@ -4936,7 +4926,7 @@ function TradingCostMetric({
           : "border-line bg-surface-2",
       )}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
         {label}
       </div>
       <div
@@ -4957,7 +4947,7 @@ function TradingGuardRow({ label, ok }: { label: string; ok: boolean }) {
       <span className="font-semibold text-content-2">{label}</span>
       <span
         className={cn(
-          "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+          "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
           ok ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg",
         )}
       >

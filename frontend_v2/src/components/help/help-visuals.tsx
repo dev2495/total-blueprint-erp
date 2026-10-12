@@ -56,14 +56,14 @@ export function HelpFlowDiagram({
     <div className="rounded-2xl border border-line bg-gradient-to-br from-white to-surface-2 p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
             {locale === "hi" ? "Visual Flow" : "Visual Flow"}
           </div>
           <div className="text-base font-semibold text-content-1">
             {flow ? localize(flow.title, locale) : "Workflow"}
           </div>
         </div>
-        <div className="rounded-full border border-line bg-surface-1 px-3 py-1 text-[11px] font-bold text-content-3">
+        <div className="rounded-full border border-line bg-surface-1 px-3 py-1 text-caption font-bold text-content-3">
           {nodes.length} {locale === "hi" ? "steps" : "steps"}
         </div>
       </div>
@@ -82,7 +82,7 @@ export function HelpFlowDiagram({
                 <div className="text-sm font-semibold leading-5 text-content-1">
                   {localize(node.title, locale)}
                 </div>
-                <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-content-4">
+                <div className="mt-0.5 text-caption font-bold uppercase tracking-[0.1em] text-content-4">
                   {node.id}
                 </div>
               </div>
@@ -101,11 +101,11 @@ export function HelpFlowDiagram({
                       {localize(outcome.label, locale)}
                     </div>
                     {target ? (
-                      <div className="mt-1 text-[11px] font-semibold text-primary">
+                      <div className="mt-1 text-caption font-semibold text-primary">
                         {"->"} {target}
                       </div>
                     ) : outcome.resolution ? (
-                      <div className="mt-1 text-[11px] leading-4 text-content-3">
+                      <div className="mt-1 text-caption leading-4 text-content-3">
                         {localize(outcome.resolution, locale)}
                       </div>
                     ) : null}

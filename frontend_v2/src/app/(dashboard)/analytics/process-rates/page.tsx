@@ -155,7 +155,7 @@ export default function ProcessRatesPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-semibold uppercase tracking-widest shadow-sm">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-caption font-semibold uppercase tracking-widest shadow-sm">
             <Activity className="h-3 w-3 fill-info-fg" /> Operational Finance
           </div>
           <h1 className="text-4xl font-semibold tracking-tight text-content-1 flex items-center gap-3 italic">
@@ -178,14 +178,14 @@ export default function ProcessRatesPage() {
               <DialogTitle className="text-sm font-semibold uppercase tracking-[0.12em]">
                 Add Operational Override
               </DialogTitle>
-              <p className="text-[10px] text-content-4 font-bold uppercase tracking-widest mt-1">
+              <p className="text-caption text-content-4 font-bold uppercase tracking-widest mt-1">
                 Define hourly spending for process/machine
               </p>
             </DialogHeader>
             <div className="p-8 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                  <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
                     Target Process
                   </Label>
                   <Select
@@ -206,7 +206,7 @@ export default function ProcessRatesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                  <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
                     Specific Machine (Optional)
                   </Label>
                   <Select
@@ -229,7 +229,7 @@ export default function ProcessRatesPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                    <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
                       Power/hr
                     </Label>
                     <Input
@@ -245,7 +245,7 @@ export default function ProcessRatesPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                    <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
                       Labor/hr
                     </Label>
                     <Input
@@ -261,7 +261,7 @@ export default function ProcessRatesPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                    <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
                       Overhead/hr
                     </Label>
                     <Input
@@ -287,7 +287,7 @@ export default function ProcessRatesPage() {
                   createMutation.mutate(payload);
                 }}
                 disabled={createMutation.isPending || !newRate.process}
-                className="w-full h-12 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-[11px] tracking-[0.12em] shadow-lg"
+                className="w-full h-12 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-caption tracking-[0.12em] shadow-lg"
               >
                 {createMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -308,7 +308,7 @@ export default function ProcessRatesPage() {
               <Building className="h-4 w-4 text-info-fg" />
               Master Process Rate Matrix
             </CardTitle>
-            <p className="text-[10px] font-bold text-content-3 uppercase tracking-widest">
+            <p className="text-caption font-bold text-content-3 uppercase tracking-widest">
               These rates drive the deterministic costing engine
             </p>
           </div>
@@ -317,19 +317,19 @@ export default function ProcessRatesPage() {
           <Table>
             <TableHeader className="bg-surface-2">
               <TableRow className="border-none hover:bg-transparent">
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 px-8">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 py-6 px-8">
                   Process / Machine
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 py-6 text-center">
                   <Zap className="h-3 w-3 inline mr-1" /> Power /hr
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 py-6 text-center">
                   <Users className="h-3 w-3 inline mr-1" /> Labor /hr
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-center">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 py-6 text-center">
                   <Building className="h-3 w-3 inline mr-1" /> Overhead /hr
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 py-6 text-right">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 py-6 text-right">
                   Total ₹/HR
                 </TableHead>
                 <TableHead className="text-right px-8"></TableHead>
@@ -359,7 +359,7 @@ export default function ProcessRatesPage() {
                       <span className="font-semibold text-content-1 uppercase tracking-tight text-sm">
                         {rate.process_name}
                       </span>
-                      <span className="text-[10px] font-bold text-content-4 uppercase tracking-widest mt-1">
+                      <span className="text-caption font-bold text-content-4 uppercase tracking-widest mt-1">
                         {rate.machine_name
                           ? `Machine: ${rate.machine_name} `
                           : "Generic Process Override"}
@@ -499,7 +499,7 @@ export default function ProcessRatesPage() {
             <h4 className="font-semibold text-content-1 text-xs uppercase tracking-widest mb-2">
               {item.title}
             </h4>
-            <p className="text-[10px] font-medium text-content-3 leading-relaxed italic opacity-80">
+            <p className="text-caption font-medium text-content-3 leading-relaxed italic opacity-80">
               {item.desc}
             </p>
           </Card>

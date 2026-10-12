@@ -25,7 +25,7 @@ export function GateBillMetrics({ summary, periodLabel }: { summary: GateSummary
   return (
     <div className="grid gap-4 md:grid-cols-[1.5fr_1fr]" data-testid="gate-bill-metrics">
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4">Bill activity · {periodLabel}</div>
+        <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-4">Bill activity · {periodLabel}</div>
         <dl className="mt-2 grid grid-cols-3 gap-2">
           {metrics.map(({ key, label }) => (
             <div key={key} className="min-w-0 rounded-xl border border-line bg-surface-2/60 px-3 py-3">
@@ -37,7 +37,7 @@ export function GateBillMetrics({ summary, periodLabel }: { summary: GateSummary
         <p className="mt-2 text-[12px] leading-relaxed text-content-3">Capture records arrival. Inventory confirms receipts after checking every bill line.</p>
       </div>
       <div className="rounded-xl border border-line bg-surface-2/60 px-4 py-3">
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4"><Inbox className="h-4 w-4" /> Awaiting inventory now</div>
+        <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.08em] text-content-4"><Inbox className="h-4 w-4" /> Awaiting inventory now</div>
         <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-[28px] font-semibold tabular-nums text-content-1">{gateQty(summary.bill_pending_grn)}</span>
           <span className="text-[12px] text-content-3">{gateQty(summary.bill_partial_grn)} partly received</span>

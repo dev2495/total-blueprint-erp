@@ -660,7 +660,7 @@ export function BulkWorkspaceV36() {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <ModeToggle mode={mode} onChange={setMode} />
-        <span className="text-[11px] text-content-3">
+        <span className="text-caption text-content-3">
           {mode === "pulse"
             ? "Pulse · KPIs and breakdowns"
             : "Browse · full table / grid"}
@@ -880,7 +880,7 @@ export function BulkWorkspaceV36() {
               />
 
               <div>
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
                   Location
                 </div>
                 <select
@@ -899,7 +899,7 @@ export function BulkWorkspaceV36() {
                 </select>
               </div>
 
-              <label className="flex items-center gap-2 rounded-lg bg-order-bg px-2.5 py-1.5 ring-1 ring-order-border text-[11px] font-bold text-order-fg cursor-pointer">
+              <label className="flex items-center gap-2 rounded-lg bg-order-bg px-2.5 py-1.5 ring-1 ring-order-border text-caption font-bold text-order-fg cursor-pointer">
                 <input
                   type="checkbox"
                   checked={filters.onlyReserved}
@@ -913,7 +913,7 @@ export function BulkWorkspaceV36() {
                 />
                 Show only reserved rows
               </label>
-              <label className="flex items-center gap-2 rounded-lg bg-order-bg px-2.5 py-1.5 ring-1 ring-order-border text-[11px] font-bold text-order-fg cursor-pointer">
+              <label className="flex items-center gap-2 rounded-lg bg-order-bg px-2.5 py-1.5 ring-1 ring-order-border text-caption font-bold text-order-fg cursor-pointer">
                 <input
                   type="checkbox"
                   checked={filters.onlyAddons}
@@ -925,10 +925,10 @@ export function BulkWorkspaceV36() {
                 Purchased add-ons only
               </label>
               <div className="rounded-xl border border-success-border bg-success-bg p-3">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+                <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
                   Addon badge rule
                 </div>
-                <p className="mt-1 text-[10px] leading-snug text-success-fg">
+                <p className="mt-1 text-caption leading-snug text-success-fg">
                   Only purchased add-ons from the Add-on Master get the{" "}
                   <span className="rounded-sm bg-order-bg px-1 py-0.5 font-mono font-semibold text-order-fg ring-1 ring-order-border">
                     ADDON
@@ -1106,29 +1106,29 @@ function BulkTable({
                         {r.material_code || r.code || "—"}
                       </span>
                       {addon && (
-                        <span className="rounded-sm bg-order-bg px-1 py-0.5 text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
+                        <span className="rounded-sm bg-order-bg px-1 py-0.5 text-caption font-semibold text-order-fg ring-1 ring-order-border">
                           ADDON
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-content-3 truncate max-w-[200px]">
+                    <div className="text-caption text-content-3 truncate max-w-[200px]">
                       {r.material_name || ""}
                     </div>
                   </td>
                   <td className="px-3 py-2">
-                    <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-content-2 ring-1 ring-line">
+                    <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
                       {cls}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-[11px]">
+                  <td className="px-3 py-2 text-caption">
                     <div className="font-bold text-content-2">
                       {displayPlant(r)}
                     </div>
-                    <div className="font-mono text-[10px] text-content-3">
+                    <div className="font-mono text-caption text-content-3">
                       {displayLocation(r)}
                     </div>
                   </td>
-                  <td className="px-3 py-2 font-mono text-[11px] font-semibold text-content-2">
+                  <td className="px-3 py-2 font-mono text-caption font-semibold text-content-2">
                     {stockCode(r)}
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-bold text-content-1">
@@ -1146,7 +1146,7 @@ function BulkTable({
                         e.stopPropagation();
                         onSelect(r);
                       }}
-                      className="inline-flex items-center gap-0.5 rounded-md bg-success-bg px-1.5 py-0.5 text-[10px] font-bold text-success-fg ring-1 ring-success-border hover:bg-success-bg"
+                      className="inline-flex items-center gap-0.5 rounded-md bg-success-bg px-1.5 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border hover:bg-success-bg"
                     >
                       <Eye className="h-3 w-3" /> View
                     </button>
@@ -1157,14 +1157,14 @@ function BulkTable({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px]">
+      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption">
         <span className="text-content-3">
           Showing {rows.length} of {total}
         </span>
         <select
           value={pageSize}
           onChange={(e) => onPageSize(Number(e.target.value))}
-          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-[11px]"
+          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-caption"
         >
           {[25, 50, 100, 250, 500].map((n) => (
             <option key={n} value={n}>
@@ -1219,22 +1219,22 @@ function BulkGrid({
                       {r.material_code || "—"}
                     </span>
                     {addon && (
-                      <span className="rounded-sm bg-order-bg px-1 py-0.5 text-[8px] font-semibold text-order-fg ring-1 ring-order-border">
+                      <span className="rounded-sm bg-order-bg px-1 py-0.5 text-caption font-semibold text-order-fg ring-1 ring-order-border">
                         ADDON
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px] text-content-3 truncate">
+                  <div className="text-caption text-content-3 truncate">
                     {r.material_name || ""}
                   </div>
                 </div>
-                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold uppercase text-content-2 ring-1 ring-line">
+                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-bold uppercase text-content-2 ring-1 ring-line">
                   {stockCode(r)}
                 </span>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-surface-2 p-2 text-center">
                 <div>
-                  <div className="text-[8px] font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold uppercase text-content-3">
                     On hand
                   </div>
                   <div className="font-mono text-sm font-bold text-content-1">
@@ -1242,7 +1242,7 @@ function BulkGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[8px] font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold uppercase text-content-3">
                     Reserved
                   </div>
                   <div className="font-mono text-sm font-bold text-order-fg">
@@ -1250,7 +1250,7 @@ function BulkGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[8px] font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold uppercase text-content-3">
                     Free
                   </div>
                   <div className="font-mono text-sm font-bold text-success-fg">
@@ -1258,7 +1258,7 @@ function BulkGrid({
                   </div>
                 </div>
               </div>
-              <div className="mt-2 flex items-center justify-between text-[10px]">
+              <div className="mt-2 flex items-center justify-between text-caption">
                 <span className="font-mono text-content-3">
                   <MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />
                   {displayLocation(r)}
@@ -1271,14 +1271,14 @@ function BulkGrid({
           );
         })}
       </div>
-      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px]">
+      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption">
         <span className="text-content-3">
           Showing {rows.length} of {total}
         </span>
         <select
           value={pageSize}
           onChange={(e) => onPageSize(Number(e.target.value))}
-          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-[11px]"
+          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-caption"
         >
           {[24, 48, 96, 200].map((n) => (
             <option key={n} value={n}>
@@ -1316,13 +1316,13 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-success-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
                 Bulk stock row
               </div>
               <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
                 {row.material_code || "—"}
               </div>
-              <div className="text-[11px] text-content-3 truncate">
+              <div className="text-caption text-content-3 truncate">
                 {row.material_name || ""}
               </div>
             </div>
@@ -1334,16 +1334,16 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-2 ring-1 ring-line">
+            <span className="rounded-md bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
               {cls}
             </span>
-            <span className="rounded-md bg-success-bg px-2 py-0.5 text-[10px] font-bold uppercase text-success-fg ring-1 ring-success-border">
+            <span className="rounded-md bg-success-bg px-2 py-0.5 text-caption font-bold uppercase text-success-fg ring-1 ring-success-border">
               {stockUom(row)}
             </span>
           </div>
         </div>
         <div className="px-5 py-4 space-y-4">
-          <div className="grid grid-cols-3 gap-2 text-[11px]">
+          <div className="grid grid-cols-3 gap-2 text-caption">
             <Stat label="On hand" value={formatStockQty(onhand, row)} />
             <Stat
               label="Reserved"
@@ -1357,10 +1357,10 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             />
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Code details
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 gap-2 text-caption">
               <Field label="Code" value={stockCode(row)} />
               <Field label="Grade" value={row.grade || "—"} />
               <Field label="Vendor" value={row.vendor_name || "—"} />
@@ -1383,7 +1383,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               Sales reservations
             </div>
             {rsvQuery.isLoading && (
@@ -1400,14 +1400,14 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 className="rounded-xl border border-order-border bg-order-bg px-3 py-2 mb-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] font-bold text-order-fg">
+                  <span className="font-mono text-caption font-bold text-order-fg">
                     {r.so_no || r.so_id || "—"}
                   </span>
-                  <span className="font-mono text-[11px] font-bold text-content-2">
+                  <span className="font-mono text-caption font-bold text-content-2">
                     {formatStockQty(Number(r.qty || 0), row)}
                   </span>
                 </div>
-                <div className="text-[10px] text-content-3 mt-0.5">
+                <div className="text-caption text-content-3 mt-0.5">
                   {r.customer_name || ""} · promise {r.promise_date || "—"}
                 </div>
               </div>
@@ -1416,7 +1416,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
           <div className="pt-2 border-t border-line">
             <Link
               href={`/inventory/stock-lifecycle?tab=snapshots&material=${row.material || row.id || ""}`}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-success-fg px-3 py-1.5 text-[11px] font-bold text-white hover:bg-success-fg"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-success-fg px-3 py-1.5 text-caption font-bold text-white hover:bg-success-fg"
             >
               Stock card <ArrowRight className="h-3 w-3" />
             </Link>
@@ -1443,7 +1443,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>
@@ -1462,7 +1462,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

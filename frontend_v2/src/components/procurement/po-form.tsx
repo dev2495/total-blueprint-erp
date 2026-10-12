@@ -271,7 +271,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
           {(materials?.length ?? 0) > 0 &&
             (pickerSearch.length > 0 || materials!.length <= 6) && (
               <div className="border-b border-line bg-surface-2 p-2">
-                <div className="text-[10px] uppercase text-content-3">
+                <div className="text-caption uppercase text-content-3">
                   Suggestions
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1">

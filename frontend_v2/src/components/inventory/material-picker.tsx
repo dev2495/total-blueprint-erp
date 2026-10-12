@@ -88,7 +88,7 @@ export function MaterialPicker({
           <div className="flex items-center gap-2 truncate pr-2">
             {selectedItem ? (
               <>
-                <span className="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0">
+                <span className="bg-primary text-white text-caption px-1.5 py-0.5 rounded font-bold shrink-0">
                   {selectedItem.code}
                 </span>
                 <span className="truncate text-content-1 font-semibold text-sm">
@@ -129,7 +129,7 @@ export function MaterialPicker({
               <CommandGroup
                 key={group}
                 heading={
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary px-1">
+                  <span className="text-caption font-bold uppercase tracking-widest text-primary px-1">
                     — {group}
                   </span>
                 }
@@ -146,7 +146,7 @@ export function MaterialPicker({
                     )}
                   >
                     {/* Code badge */}
-                    <span className="text-[10px] font-bold bg-surface-2 text-content-2 px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
+                    <span className="text-caption font-bold bg-surface-2 text-content-2 px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
                       {item.code}
                     </span>
                     {/* Name */}
@@ -155,7 +155,7 @@ export function MaterialPicker({
                     </span>
                     {/* Category/Family badge (shown inline) */}
                     {(item.category || item.type) && (
-                      <span className="text-[10px] font-bold uppercase text-primary bg-info-bg px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
+                      <span className="text-caption font-bold uppercase text-primary bg-info-bg px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
                         {item.category || item.type}
                       </span>
                     )}

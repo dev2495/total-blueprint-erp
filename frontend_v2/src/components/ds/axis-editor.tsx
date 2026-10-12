@@ -132,7 +132,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                   {label}
                   {axis.required && <span className="text-danger-fg">*</span>}
                   {axis.unit && (
-                    <span className="text-[10px] font-normal text-content-4">
+                    <span className="text-caption font-normal text-content-4">
                       {axis.unit}
                     </span>
                   )}
@@ -240,13 +240,13 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
               )}
 
               {axis.description && (
-                <span className="text-[10px] text-content-4">
+                <span className="text-caption text-content-4">
                   {axis.description}
                 </span>
               )}
 
               {errText && (
-                <span className="text-[11px] text-danger-fg">{errText}</span>
+                <span className="text-caption text-danger-fg">{errText}</span>
               )}
             </div>
           );

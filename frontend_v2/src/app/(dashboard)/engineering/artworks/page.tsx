@@ -225,7 +225,7 @@ export default function EngineeringArtworksPage() {
                       <div className="text-sm font-semibold tracking-tight text-content-1">
                         {artwork.name}
                       </div>
-                      <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-content-4">
+                      <div className="mt-1 font-mono text-caption font-bold uppercase tracking-[0.1em] text-content-4">
                         {artwork.design_code}
                       </div>
                     </div>
@@ -262,7 +262,7 @@ export default function EngineeringArtworksPage() {
 
                   <div className="grid grid-cols-2 gap-3 rounded-2xl bg-surface-2 p-4 text-sm">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Front / Back
                       </div>
                       <div className="mt-1 font-semibold text-content-1">
@@ -271,7 +271,7 @@ export default function EngineeringArtworksPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Print / Film
                       </div>
                       <div className="mt-1 font-semibold text-content-1">
@@ -280,14 +280,14 @@ export default function EngineeringArtworksPage() {
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Color Identity
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {(artwork.color_list || []).slice(0, 6).map((color) => (
                           <span
                             key={color}
-                            className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-1 px-2.5 py-1 text-[11px] font-bold text-content-2"
+                            className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-1 px-2.5 py-1 text-caption font-bold text-content-2"
                           >
                             <Palette className="h-3 w-3 text-danger-fg" />{" "}
                             {color}

@@ -116,7 +116,7 @@ export const BomPreviewPanel = React.forwardRef<
             >
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-caption font-bold text-white">
                     {step.step_sequence ?? idx + 1}
                   </span>
                   <span className="text-[12px] font-semibold text-content-2">
@@ -124,7 +124,7 @@ export const BomPreviewPanel = React.forwardRef<
                   </span>
                 </div>
                 {step.theoretical_qty != null && (
-                  <span className="font-mono-token text-[11px] text-content-3">
+                  <span className="font-mono-token text-caption text-content-3">
                     {formatQty(step.theoretical_qty, "kg")}
                   </span>
                 )}
@@ -144,7 +144,7 @@ export const BomPreviewPanel = React.forwardRef<
                   </li>
                 ))}
                 {(step.lines ?? []).length === 0 && (
-                  <li className="py-1 text-[11px] italic text-content-4">
+                  <li className="py-1 text-caption italic text-content-4">
                     No components
                   </li>
                 )}
@@ -160,7 +160,7 @@ export const BomPreviewPanel = React.forwardRef<
             <Chip kind="accent" size="sm">
               Packaging
             </Chip>
-            <span className="text-[10px] text-content-3">
+            <span className="text-caption text-content-3">
               {packaging.length} lines
             </span>
           </div>
@@ -193,7 +193,7 @@ export const BomPreviewPanel = React.forwardRef<
             <Chip kind="warn" size="sm">
               POD
             </Chip>
-            <span className="text-[10px] text-content-3">
+            <span className="text-caption text-content-3">
               {pod.length} lines
             </span>
           </div>

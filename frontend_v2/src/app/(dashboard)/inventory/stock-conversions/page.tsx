@@ -218,7 +218,7 @@ function PreviewRows({
         </div>
       ) : null}
       <div className="overflow-hidden rounded-2xl border border-line bg-surface-1">
-        <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+        <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
           <div>Output</div>
           <div>Stock form</div>
           <div>Width</div>
@@ -412,13 +412,13 @@ export default function StockConversionsPage() {
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
               <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-4 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-border">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-info-border">
                   Available
                 </div>
                 <div className="mt-1 text-2xl font-semibold">{rolls.length}</div>
               </div>
               <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-4 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-border">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-info-border">
                   Compatible
                 </div>
                 <div className="mt-1 text-2xl font-semibold">
@@ -426,7 +426,7 @@ export default function StockConversionsPage() {
                 </div>
               </div>
               <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-4 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-border">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-info-border">
                   Mode
                 </div>
                 <div className="mt-1 text-sm font-semibold">
@@ -503,7 +503,7 @@ export default function StockConversionsPage() {
                   />
                 </div>
                 <div className="max-h-[540px] overflow-auto rounded-2xl border border-line">
-                  <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr] gap-3 border-b border-line bg-surface-2 px-4 py-3 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                     <div>Roll</div>
                     <div>Form</div>
                     <div>Width</div>
@@ -571,7 +571,7 @@ export default function StockConversionsPage() {
                 {activeOperation?.requires_child_widths ? (
                   <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
                     <div>
-                      <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                      <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                         Child widths (mm)
                       </Label>
                       <Input
@@ -584,7 +584,7 @@ export default function StockConversionsPage() {
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                      <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                         Trim per child
                       </Label>
                       <Input
@@ -596,7 +596,7 @@ export default function StockConversionsPage() {
                   </div>
                 ) : null}
                 <div>
-                  <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                     Reason / operator note
                   </Label>
                   <Textarea

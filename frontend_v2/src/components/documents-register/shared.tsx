@@ -272,7 +272,7 @@ export function VendorPicker({
                     className={cn("flex min-h-[40px] cursor-pointer items-center justify-between gap-2 px-3 text-[13px]", index === active ? "bg-info-bg text-content-1" : "text-content-2")}
                   >
                     <span className="min-w-0 truncate">{vendor.name}</span>
-                    <span className="shrink-0 font-mono text-[11px] text-content-4">{vendor.code}</span>
+                    <span className="shrink-0 font-mono text-caption text-content-4">{vendor.code}</span>
                   </li>
                 ))
               ) : (

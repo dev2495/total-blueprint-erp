@@ -60,7 +60,7 @@ export function GateHistory() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3 px-1 pt-1">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
           <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-content-1">Gate history</h1>
           <p className="text-[14px] text-content-3">Every gate movement and visit, checked against ERP documents. Corrections are append-only.</p>
         </div>
@@ -382,7 +382,7 @@ function GateVsErp({ row }: { row: GateGoodsMovement }) {
     <div>
       <div className="mb-1.5 px-1 text-[12px] font-semibold uppercase tracking-[0.1em] text-content-4">Gate vs ERP</div>
       <div className="gate-ledger overflow-hidden text-[13px]">
-        <div className="grid grid-cols-[80px_1fr_1fr] gap-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4">
+        <div className="grid grid-cols-[80px_1fr_1fr] gap-2 px-3 py-2 text-caption font-semibold uppercase tracking-[0.08em] text-content-4">
           <span />
           <span>Gate</span>
           <span>ERP {snap.reference ? `· ${snap.reference}` : ""}</span>
@@ -696,7 +696,7 @@ function VisitorHistory({ plant, dateFrom, dateTo, search }: { plant: string; da
           <div className="gate-ledger overflow-x-auto">
             <table className="w-full min-w-[820px] text-[13px]">
               <thead>
-                <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4">
+                <tr className="text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-4">
                   <th className="px-3 py-3">Visitor</th>
                   <th className="px-3 py-3">Purpose · company</th>
                   <th className="px-3 py-3">Status</th>
@@ -722,7 +722,7 @@ function VisitorHistory({ plant, dateFrom, dateTo, search }: { plant: string; da
                       </td>
                       <td className="px-3 py-2.5">
                         <TonePill label={meta.label} tone={meta.tone} soft={meta.soft} edge={meta.edge} dot />
-                        {v.source ? <div className="mt-1 text-[11px] text-content-4">{v.source === "WATCHMAN" ? "Walk-in" : "QR"}</div> : null}
+                        {v.source ? <div className="mt-1 text-caption text-content-4">{v.source === "WATCHMAN" ? "Walk-in" : "QR"}</div> : null}
                       </td>
                       <td className="gate-num px-3 py-2.5 text-content-2">{gateDayTime(v.submitted_at)}</td>
                       <td className="gate-num px-3 py-2.5 text-content-2">

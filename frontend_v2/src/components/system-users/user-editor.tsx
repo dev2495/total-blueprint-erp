@@ -467,7 +467,7 @@ export function UserEditor({
                 <h3 className="font-display text-sm font-bold text-content-1">
                   Identity
                 </h3>
-                <p className="text-[11px] text-content-3">
+                <p className="text-caption text-content-3">
                   Login credentials & contact
                 </p>
               </div>
@@ -541,7 +541,7 @@ export function UserEditor({
               <label className="flex items-center justify-between rounded-2xl border border-line px-4 py-3">
                 <div>
                   <div className="text-sm font-bold text-content-2">Active</div>
-                  <div className="text-[11px] text-content-3">
+                  <div className="text-caption text-content-3">
                     Disabling blocks all sign-ins
                   </div>
                 </div>
@@ -563,7 +563,7 @@ export function UserEditor({
                   <div className="flex items-center gap-1.5 text-sm font-bold text-content-2">
                     <Crown className="h-3.5 w-3.5 text-danger-fg" /> Owner flag
                   </div>
-                  <div className="text-[11px] text-content-3">
+                  <div className="text-caption text-content-3">
                     {canEditOwnerToggle
                       ? "Bypasses all permission checks"
                       : "Only an existing OWNER may change this"}
@@ -601,7 +601,7 @@ export function UserEditor({
                 <h3 className="font-display text-sm font-bold text-content-1">
                   Base role
                 </h3>
-                <p className="text-[11px] text-content-3">
+                <p className="text-caption text-content-3">
                   Sets the baseline permission tier. Pick one card.
                 </p>
               </div>
@@ -648,7 +648,7 @@ export function UserEditor({
                     (selectedRole.default_permissions || []).map((p) => (
                       <code
                         key={p}
-                        className="rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-[10px] text-content-2 ring-1 ring-line"
+                        className="rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-caption text-content-2 ring-1 ring-line"
                       >
                         {p}
                       </code>
@@ -700,7 +700,7 @@ export function UserEditor({
                   <h3 className="font-display text-sm font-bold text-content-1">
                     Extra access overrides
                   </h3>
-                  <p className="text-[11px] text-content-3">
+                  <p className="text-caption text-content-3">
                     One editor for user-level exceptions. Role permissions stay
                     locked and clearly labeled.
                   </p>
@@ -741,10 +741,10 @@ export function UserEditor({
                       key={mod.key}
                       className="rounded-2xl border border-line bg-surface-2 p-4"
                     >
-                      <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-content-2">
+                      <div className="mb-2 text-caption font-bold uppercase tracking-wider text-content-2">
                         {mod.label}
                       </div>
-                      <p className="mb-3 text-[10px] font-medium text-content-3">
+                      <p className="mb-3 text-caption font-medium text-content-3">
                         Green chips are active overrides. Muted chips already
                         come from the selected role.
                       </p>
@@ -759,7 +759,7 @@ export function UserEditor({
                               <span
                                 key={e.permission}
                                 title={`Granted by ${selectedRole?.code || "role"}`}
-                                className="cursor-default rounded-md bg-surface-2 px-2 py-1 text-left text-[10px] text-content-3 ring-1 ring-line"
+                                className="cursor-default rounded-md bg-surface-2 px-2 py-1 text-left text-caption text-content-3 ring-1 ring-line"
                               >
                                 <span className="block font-mono font-semibold text-content-2">
                                   {displayLabel}
@@ -779,7 +779,7 @@ export function UserEditor({
                               }
                               disabled={!canManage}
                               className={cn(
-                                "rounded-md px-2 py-1 text-left text-[10px] ring-1 transition",
+                                "rounded-md px-2 py-1 text-left text-caption ring-1 transition",
                                 isOverride
                                   ? "bg-success-bg text-success-fg ring-success-border hover:bg-success-bg"
                                   : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
@@ -821,7 +821,7 @@ export function UserEditor({
                   <h3 className="font-display text-sm font-bold text-content-1">
                     Access summary
                   </h3>
-                  <p className="text-[11px] text-content-3">
+                  <p className="text-caption text-content-3">
                     Review role, extra overrides, and floor scope before saving.
                   </p>
                 </div>
@@ -895,7 +895,7 @@ export function UserEditor({
 
             {/* Save bar */}
             <section className="rounded-3xl bg-surface-1 p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
-              <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-content-3">
+              <div className="mb-2 flex items-center justify-between text-caption uppercase tracking-wider text-content-3">
                 <span>
                   {pendingDirty > 0
                     ? `${pendingDirty} pending changes`
@@ -920,7 +920,7 @@ export function UserEditor({
                 {mode === "new" ? "Create user" : "Save changes"}
               </Button>
               {saveBlocked ? (
-                <div className="mt-2 rounded-xl bg-danger-bg px-3 py-2 text-[10px] font-semibold text-danger-fg ring-1 ring-danger-border">
+                <div className="mt-2 rounded-xl bg-danger-bg px-3 py-2 text-caption font-semibold text-danger-fg ring-1 ring-danger-border">
                   WCM users cannot be saved without a work-center assignment.
                 </div>
               ) : null}
@@ -929,7 +929,7 @@ export function UserEditor({
                   Cancel
                 </Button>
               </Link>
-              <div className="mt-3 text-[10px] text-content-4">
+              <div className="mt-3 text-caption text-content-4">
                 <Link
                   href="/help?topic=roles"
                   className="font-bold text-order-fg hover:underline"
@@ -1004,7 +1004,7 @@ function WorkCenterScopeSection({
             <h3 className="font-display text-sm font-bold text-content-1">
               Work-center scope
             </h3>
-            <p className="text-[11px] text-content-3">
+            <p className="text-caption text-content-3">
               Required for WCM users. Assigned machines are inherited from these work centers.
             </p>
           </div>
@@ -1058,7 +1058,7 @@ function WorkCenterScopeSection({
               type="button"
               onClick={() => canManage && onToggle(wc.id)}
               disabled={!canManage}
-              className="rounded-full bg-order-bg px-3 py-1 text-[10px] font-bold text-order-fg ring-1 ring-order-border transition hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-order-bg px-3 py-1 text-caption font-bold text-order-fg ring-1 ring-order-border transition hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
               title={canManage ? "Click to remove" : undefined}
             >
               {wc.code || wc.name}
@@ -1102,11 +1102,11 @@ function WorkCenterScopeSection({
                     <span className="font-display text-sm font-bold text-content-1">
                       {wc.name}
                     </span>
-                    <code className="rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-[10px] text-content-2 ring-1 ring-line">
+                    <code className="rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-caption text-content-2 ring-1 ring-line">
                       {wc.code}
                     </code>
                   </span>
-                  <span className="mt-1 block text-[11px] font-medium text-content-3">
+                  <span className="mt-1 block text-caption font-medium text-content-3">
                     {wc.plant_name || "Plant not set"}
                     {wc.process_codes?.length ? ` · ${wc.process_codes.join(", ")}` : ""}
                   </span>
@@ -1146,10 +1146,10 @@ function SummaryRow({
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface-1 px-3 py-2 ring-1 ring-line">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+      <span className="text-caption font-bold uppercase tracking-wider text-content-3">
         {label}
       </span>
-      <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-bold ring-1", toneClass)}>
+      <span className={cn("rounded-full px-2.5 py-1 text-caption font-bold ring-1", toneClass)}>
         {value}
       </span>
     </div>
@@ -1200,7 +1200,7 @@ function RoleCard({
           <div className="font-display text-sm font-bold text-content-1">
             {label}
           </div>
-          <div className="font-mono text-[10px] text-content-3">
+          <div className="font-mono text-caption text-content-3">
             {role.code}
           </div>
         </div>
@@ -1219,10 +1219,10 @@ function RoleCard({
           <div className="h-6 w-6 rounded-full border-2 border-line" />
         )}
       </div>
-      <p className="mt-2 line-clamp-2 text-[11px] text-content-3">
+      <p className="mt-2 line-clamp-2 text-caption text-content-3">
         {role.description || "—"}
       </p>
-      <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
+      <div className="mt-3 flex items-center gap-2 text-caption font-bold uppercase tracking-wider">
         <Badge className={cn(palette.bg, palette.text, "ring-1", palette.ring)}>
           {wildcard ? "Full access" : `${count} perms`}
         </Badge>
@@ -1242,7 +1242,7 @@ function PasswordResetBody({
   return (
     <>
       <div className="mt-2">
-        <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
           New password
         </Label>
         <PasswordInput
@@ -1282,7 +1282,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+      <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
         {label}
       </Label>
       <div className="mt-1.5">{children}</div>

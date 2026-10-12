@@ -149,13 +149,13 @@ export default function FactoryHeatmap() {
             className="bg-surface-1/80 backdrop-blur-sm border border-line rounded-3xl p-6 flex items-center justify-between group hover:border-info-border transition-all cursor-default"
           >
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+              <p className="text-caption font-semibold uppercase tracking-widest text-content-4">
                 {stat.label}
               </p>
               <h3 className="text-2xl font-semibold text-content-1">
                 {stat.value}
               </h3>
-              <p className="text-[10px] font-bold text-content-4 italic">
+              <p className="text-caption font-bold text-content-4 italic">
                 {stat.trend}
               </p>
             </div>
@@ -179,7 +179,7 @@ export default function FactoryHeatmap() {
             <CardHeader className="p-8 border-b border-line">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-info-bg text-primary text-[10px] font-semibold uppercase tracking-widest">
+                  <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-info-bg text-primary text-caption font-semibold uppercase tracking-widest">
                     Live capacity feed
                   </div>
                   <CardTitle className="text-2xl font-semibold text-content-1 italic">
@@ -189,7 +189,7 @@ export default function FactoryHeatmap() {
                     Work-center load, active jobs, and route-pressure status
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-4 text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                <div className="flex items-center gap-4 text-caption font-semibold uppercase tracking-widest text-content-4">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-surface-2" />{" "}
                     IDLE
@@ -249,7 +249,7 @@ export default function FactoryHeatmap() {
                             </div>
                             <div
                               className={cn(
-                                "text-[10px] font-semibold italic",
+                                "text-caption font-semibold italic",
                                 utilizationOf(wc) > 60
                                   ? "text-white/80"
                                   : "text-content-4",
@@ -289,10 +289,10 @@ export default function FactoryHeatmap() {
                       </TooltipTrigger>
                       <TooltipContent className="bg-surface-3 text-white border-surface-1/10 p-4 rounded-2xl shadow-2xl backdrop-blur-xl">
                         <div className="space-y-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-info-fg border-b border-surface-1/10 pb-1.5">
+                          <p className="text-caption font-semibold uppercase tracking-widest text-info-fg border-b border-surface-1/10 pb-1.5">
                             {wc.wc_name}
                           </p>
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-tight">
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-caption font-bold uppercase tracking-tight">
                             <span className="text-content-4">Role:</span>{" "}
                             <span className="text-right">
                               {wc?.process_name || wc?.capability || "Work center"}
@@ -332,7 +332,7 @@ export default function FactoryHeatmap() {
                   <h3 className="text-lg font-semibold uppercase tracking-tight">
                     System Alerts
                   </h3>
-                  <p className="text-[10px] font-bold text-content-3 uppercase tracking-widest">
+                  <p className="text-caption font-bold text-content-3 uppercase tracking-widest">
                     Live planner capacity signals
                   </p>
                 </div>
@@ -347,7 +347,7 @@ export default function FactoryHeatmap() {
                     )}
                   >
                     <AlertTriangle className="h-4 w-4" />
-                    <span className="text-[11px] font-semibold uppercase tracking-widest leading-none">
+                    <span className="text-caption font-semibold uppercase tracking-widest leading-none">
                       Critical Contention
                     </span>
                   </div>
@@ -370,7 +370,7 @@ export default function FactoryHeatmap() {
                 <div className="bg-surface-1/5 rounded-2xl p-5 border border-surface-1/5 hover:bg-surface-1/10 transition-colors">
                   <div className="flex items-center gap-3 mb-2 text-info-fg">
                     <Info className="h-4 w-4" />
-                    <span className="text-[11px] font-semibold uppercase tracking-widest leading-none">
+                    <span className="text-caption font-semibold uppercase tracking-widest leading-none">
                       Optimal Slot
                     </span>
                   </div>
@@ -403,7 +403,7 @@ export default function FactoryHeatmap() {
 
           {/* Quick Stats */}
           <Card className="border-none shadow-premium rounded-[2.5rem] bg-surface-1 p-8">
-            <h4 className="text-[11px] font-semibold uppercase tracking-widest text-content-4 mb-6">
+            <h4 className="text-caption font-semibold uppercase tracking-widest text-content-4 mb-6">
               Capacity Health Matrix
             </h4>
             <div className="space-y-8">

@@ -503,12 +503,12 @@ function CylinderArtworkGroupDialog({
         <div className="grid max-h-[76vh] gap-5 overflow-y-auto bg-surface-2 p-6 lg:grid-cols-[320px_1fr]">
           <aside className="space-y-4">
             <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 1. Artwork cylinder spec
               </div>
               <div className="mt-3 grid gap-3">
                 <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                     Circumference / repeat
                   </Label>
                   <Input
@@ -522,7 +522,7 @@ function CylinderArtworkGroupDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                     Cylinder length
                   </Label>
                   <Input
@@ -542,7 +542,7 @@ function CylinderArtworkGroupDialog({
             </div>
 
             <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 2. Finish generated drafts
               </div>
               <div className="mt-3 space-y-3">
@@ -630,7 +630,7 @@ function CylinderArtworkGroupDialog({
             </div>
 
             <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                 Matching reuse pool
               </div>
               <div className="mt-2 text-3xl font-semibold text-content-1">
@@ -1065,7 +1065,7 @@ export default function CylinderManagementPage() {
                       <div className="text-sm font-semibold tracking-tight text-content-1">
                         {group.artwork.name}
                       </div>
-                      <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-content-4">
+                      <div className="mt-1 font-mono text-caption font-bold uppercase tracking-[0.1em] text-content-4">
                         {group.artwork.design_code || "ARTWORK"}
                       </div>
                     </div>
@@ -1101,7 +1101,7 @@ export default function CylinderManagementPage() {
 
                   <div className="grid grid-cols-2 gap-3 rounded-2xl bg-surface-2 p-4 text-sm">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Front / Back
                       </div>
                       <div className="mt-1 font-bold text-content-1">
@@ -1110,7 +1110,7 @@ export default function CylinderManagementPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Empty Slots
                       </div>
                       <div className="mt-1 font-bold text-content-1">
@@ -1118,14 +1118,14 @@ export default function CylinderManagementPage() {
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Slot Colors
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {group.slots.slice(0, 8).map((slot) => (
                           <span
                             key={slot.key}
-                            className={`rounded-full border px-2 py-1 text-[10px] font-bold ${slot.cylinder ? "border-success-border bg-success-bg text-success-fg" : "border-line bg-surface-1 text-content-3"}`}
+                            className={`rounded-full border px-2 py-1 text-caption font-bold ${slot.cylinder ? "border-success-border bg-success-bg text-success-fg" : "border-line bg-surface-1 text-content-3"}`}
                           >
                             {slot.side[0]}
                             {slot.slot} {slot.color}
@@ -1137,7 +1137,7 @@ export default function CylinderManagementPage() {
 
                   <div className="grid grid-cols-3 gap-3 text-sm">
                     <div className="rounded-xl border border-line bg-surface-1 p-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Ready
                       </div>
                       <div className="mt-1 font-semibold text-content-1">
@@ -1145,7 +1145,7 @@ export default function CylinderManagementPage() {
                       </div>
                     </div>
                     <div className="rounded-xl border border-line bg-surface-1 p-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Draft
                       </div>
                       <div className="mt-1 font-semibold text-content-1">
@@ -1153,7 +1153,7 @@ export default function CylinderManagementPage() {
                       </div>
                     </div>
                     <div className="rounded-xl border border-line bg-surface-1 p-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                         Reuse
                       </div>
                       <div className="mt-1 font-semibold text-content-1">

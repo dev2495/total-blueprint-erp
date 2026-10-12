@@ -224,7 +224,7 @@ export default function GangBuilderPage() {
             Could not load combine candidates: {String((error as any)?.message || error)}
           </div>
         ) : (
-          <div className="mt-2 text-[11px] font-semibold text-content-3">
+          <div className="mt-2 text-caption font-semibold text-content-3">
             Showing {visibleGroups.length} of {groups.length} loaded Product Master + route-step groups.
           </div>
         )}
@@ -276,14 +276,14 @@ function FlowSteps() {
           key={s.n}
           className="flex items-center gap-3 rounded-2xl border border-line bg-surface-1 px-3 py-2.5 shadow-sm"
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-order-bg text-[11px] font-semibold text-order-fg">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-order-bg text-caption font-semibold text-order-fg">
             {s.n}
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-[12px] font-bold text-content-1">
               {s.label}
             </div>
-            <div className="truncate text-[10px] text-content-3">{s.sub}</div>
+            <div className="truncate text-caption text-content-3">{s.sub}</div>
           </div>
           {i < steps.length - 1 ? (
             <ChevronRight className="hidden h-4 w-4 shrink-0 text-content-4 sm:block" />
@@ -359,7 +359,7 @@ function GroupListCard({
           <h2 className="font-display text-sm font-bold text-content-1">
             Jumbo-ready groups
           </h2>
-          <p className="text-[10px] text-content-3">
+          <p className="text-caption text-content-3">
             Same Product Master, film recipe, current step, and roll output.
           </p>
         </div>
@@ -374,7 +374,7 @@ function GroupListCard({
           <div className="text-sm font-semibold text-content-2">
             No combinable route groups yet
           </div>
-          <p className="max-w-[260px] text-[11px] leading-relaxed">
+          <p className="max-w-[260px] text-caption leading-relaxed">
             Released roll-output jobs appear when they share Product Master,
             recipe, route step, and target width.
           </p>
@@ -400,14 +400,14 @@ function GroupListCard({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     {eligible ? (
-                      <Badge className="bg-success-bg text-[10px] text-success-fg hover:bg-success-bg">
+                      <Badge className="bg-success-bg text-caption text-success-fg hover:bg-success-bg">
                         <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
                         {g.job_count} orders · combinable
                       </Badge>
                     ) : (
                       <Badge
                         variant="outline"
-                        className="border-line text-[10px] text-content-3"
+                        className="border-line text-caption text-content-3"
                       >
                         {g.job_count} order{g.job_count === 1 ? "" : "s"} ·
                         setup needed
@@ -415,7 +415,7 @@ function GroupListCard({
                     )}
                   </div>
                   <span
-                    className="font-mono text-[10px] text-content-4"
+                    className="font-mono text-caption text-content-4"
                     title="Recipe fingerprint (internal)"
                   >
                     #{g.layer_signature_hash.slice(0, 6)}
@@ -534,13 +534,13 @@ function GangWorkspaceCard({
               <h2 className="font-display text-sm font-bold text-content-1">
                 Pick orders to combine
               </h2>
-              <p className="text-[10px] text-content-3">
+              <p className="text-caption text-content-3">
                 These rows share <b>{group.product_master_label || "one Product Master"}</b> at <b>{stepName}</b>{" "}
                 (step {group.step_index + 1}). Tick 2 or more only when the group is jumbo-ready.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-content-3">
+          <div className="flex items-center gap-2 text-caption text-content-3">
             <span>
               <b className="text-content-2">{selectedIds.length}</b>/
               {group.job_count} ticked
@@ -588,23 +588,23 @@ function GangWorkspaceCard({
                         </span>
                       )}
                       {j.customer_name ? (
-                        <span className="text-[11px] font-semibold text-content-2">
+                        <span className="text-caption font-semibold text-content-2">
                           · {j.customer_name}
                         </span>
                       ) : null}
                       {j.is_generic_stock ? (
-                        <Badge className="bg-order-bg text-[10px] text-order-fg hover:bg-order-bg">
+                        <Badge className="bg-order-bg text-caption text-order-fg hover:bg-order-bg">
                           <Sparkles className="mr-0.5 h-2.5 w-2.5" /> generic
                           stock
                         </Badge>
                       ) : null}
                       {j.product_master_code ? (
-                        <Badge variant="outline" className="border-line text-[10px] text-content-3">
+                        <Badge variant="outline" className="border-line text-caption text-content-3">
                           {j.product_master_code}
                         </Badge>
                       ) : null}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-content-3">
+                    <div className="mt-1 flex flex-wrap gap-2 text-caption text-content-3">
                       {j.target_width_mm ? (
                         <span className="font-mono font-semibold text-content-2">
                           {Math.round(j.target_width_mm)} mm wide
@@ -638,7 +638,7 @@ function GangWorkspaceCard({
                 <div className="text-right">
                   <Badge
                     variant="outline"
-                    className="border-line text-[10px] text-content-3"
+                    className="border-line text-caption text-content-3"
                   >
                     {j.job_state}
                   </Badge>
@@ -758,7 +758,7 @@ function SlitLayoutPreview({
             <h2 className="font-display text-sm font-bold text-content-1">
               Slit layout preview
             </h2>
-            <p className="text-[10px] text-content-3">
+            <p className="text-caption text-content-3">
               {selectedJobs.length > 0
                 ? `Showing ${selectedJobs.length} ticked order${selectedJobs.length === 1 ? "" : "s"}.`
                 : "Showing first 4 orders in this recipe group (tick orders below to lock the layout)."}{" "}
@@ -769,12 +769,12 @@ function SlitLayoutPreview({
         <div className="flex items-center gap-2">
           <Badge
             variant="outline"
-            className="border-order-border bg-order-bg text-[10px] text-order-fg"
+            className="border-order-border bg-order-bg text-caption text-order-fg"
           >
             {stepName} · step {group.step_index + 1}
           </Badge>
           {selectedJobs.length >= 2 && jumboWidthEstimate > 0 ? (
-            <Badge className="bg-success-bg text-[10px] text-success-fg hover:bg-success-bg">
+            <Badge className="bg-success-bg text-caption text-success-fg hover:bg-success-bg">
               jumbo ≥ {jumboWidthEstimate} mm
             </Badge>
           ) : null}
@@ -814,7 +814,7 @@ function SlitLayoutPreview({
                   tone,
                 )}
               >
-                <div className="font-mono text-[10px] font-bold">
+                <div className="font-mono text-caption font-bold">
                   {j.sales_order_number
                     ? j.sales_order_number.slice(-8)
                     : j.job_number.slice(-8)}
@@ -824,15 +824,15 @@ function SlitLayoutPreview({
                     {Math.round(widthMm)} mm
                   </div>
                 ) : (
-                  <div className="mt-1 text-[10px] text-warning-fg">
+                  <div className="mt-1 text-caption text-warning-fg">
                     no width
                   </div>
                 )}
-              <div className="mt-1 text-[10px] opacity-80">
+              <div className="mt-1 text-caption opacity-80">
                   {jobKg(j).toFixed(0)} kg
                 </div>
                 {j.customer_name ? (
-                  <div className="mt-0.5 truncate text-[10px] opacity-70">
+                  <div className="mt-0.5 truncate text-caption opacity-70">
                     {j.customer_name.slice(0, 14)}
                   </div>
                 ) : null}
@@ -841,7 +841,7 @@ function SlitLayoutPreview({
           })
         )}
       </div>
-      <div className="mt-2 flex items-center justify-between text-[10px] text-content-3">
+      <div className="mt-2 flex items-center justify-between text-caption text-content-3">
         <span>← one slit per order →</span>
         <span className="font-mono">5 mm trimmed at each cut</span>
       </div>

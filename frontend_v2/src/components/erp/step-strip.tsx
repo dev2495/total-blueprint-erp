@@ -69,7 +69,7 @@ export function StepStrip({
                     {s.label}
                   </span>
                   {s.description ? (
-                    <span className="block text-[11px] font-medium uppercase tracking-wider text-content-4">
+                    <span className="block text-caption font-medium uppercase tracking-wider text-content-4">
                       {s.description}
                     </span>
                   ) : null}

@@ -86,7 +86,7 @@ export default function CapabilityMatrixPage() {
                     <Icon className="h-5 w-5 text-content-1" />
                   </div>
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                       {sectionStatus.replaceAll("_", " ")}
                     </div>
                     <div className="text-xl font-semibold tracking-tight text-content-1">
@@ -119,7 +119,7 @@ export default function CapabilityMatrixPage() {
                         </CardHeader>
                         <CardContent className="space-y-4 text-sm">
                           <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                               What it means
                             </div>
                             <p className="mt-1 text-content-2">
@@ -130,7 +130,7 @@ export default function CapabilityMatrixPage() {
                             </p>
                           </div>
                           <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                               Why
                             </div>
                             <p className="mt-1 text-content-2">
@@ -138,7 +138,7 @@ export default function CapabilityMatrixPage() {
                             </p>
                           </div>
                           <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                               Examples
                             </div>
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -158,7 +158,7 @@ export default function CapabilityMatrixPage() {
                           </div>
                           <div className="grid gap-4 md:grid-cols-2">
                             <div>
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                                 Needs only config
                               </div>
                               <ul className="mt-2 space-y-1 text-content-2">
@@ -171,7 +171,7 @@ export default function CapabilityMatrixPage() {
                               </ul>
                             </div>
                             <div>
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                                 Needs code / module
                               </div>
                               <ul className="mt-2 space-y-1 text-content-2">
@@ -185,7 +185,7 @@ export default function CapabilityMatrixPage() {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                               Limits
                             </div>
                             <ul className="mt-2 space-y-1 text-content-2">

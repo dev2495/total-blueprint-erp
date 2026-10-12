@@ -293,11 +293,11 @@ function RouteFlowPreview({
             )}
           >
             <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+              <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                 Stage {stagePosition + 1}
               </span>
               {stage.nodes.length > 1 ? (
-                <span className="rounded-full border border-warning-border bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-warning-fg">
+                <span className="rounded-full border border-warning-border bg-surface-1 px-2 py-0.5 text-caption font-semibold text-warning-fg">
                   + parallel
                 </span>
               ) : null}
@@ -312,7 +312,7 @@ function RouteFlowPreview({
                     className={cn(
                       "inline-flex min-h-10 items-center rounded-xl border px-3 py-2 text-xs font-semibold shadow-sm",
                       flowTone(nodeIndex + stagePosition),
-                      compact && "min-h-8 px-2 py-1 text-[11px]",
+                      compact && "min-h-8 px-2 py-1 text-caption",
                     )}
                   >
                     {processName(node.process_code, allProcesses)}
@@ -325,7 +325,7 @@ function RouteFlowPreview({
             <div className="flex flex-col items-center py-1 text-content-4">
               <ArrowDown className="h-4 w-4" />
               {stage.nodes.length > 1 && !compact ? (
-                <span className="text-[10px] font-bold">match all, then continue</span>
+                <span className="text-caption font-bold">match all, then continue</span>
               ) : null}
             </div>
           ) : null}
@@ -413,13 +413,13 @@ function RouteFlowBuilder({
                     : "border-line bg-surface-1",
                 )}
               >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-4">
+                <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-4">
                   Step {index + 1}
                 </div>
                 <div className="mt-1 text-xs font-semibold text-content-1">
                   {processName(node.process_code, allProcesses)}
                 </div>
-                <div className="mt-2 text-[11px] font-semibold text-content-3">
+                <div className="mt-2 text-caption font-semibold text-content-3">
                   {runsTogether ? (
                     <>
                       Runs with {processName(previous.process_code, allProcesses)}
@@ -436,7 +436,7 @@ function RouteFlowBuilder({
                   variant={runsTogether ? "default" : "outline"}
                   onClick={() => setRunsWithPrevious(index, !runsTogether)}
                   className={cn(
-                    "mt-3 h-8 w-full rounded-xl text-[11px] font-semibold",
+                    "mt-3 h-8 w-full rounded-xl text-caption font-semibold",
                     runsTogether
                       ? "bg-warning-fg text-white hover:bg-warning-fg/90"
                       : "bg-surface-1",
@@ -792,7 +792,7 @@ export default function RoutingRulesPage() {
                   setVisibleCount(24);
                 }}
                 className={cn(
-                  "h-9 rounded-xl px-4 text-[10px] font-semibold uppercase tracking-wider",
+                  "h-9 rounded-xl px-4 text-caption font-semibold uppercase tracking-wider",
                   statusFilter === value
                     ? "bg-surface-3 text-white"
                     : "text-content-3 hover:text-content-1",
@@ -844,14 +844,14 @@ export default function RoutingRulesPage() {
                       {rule.name}
                     </CardTitle>
                     {!rule.is_active && (
-                      <Badge variant="destructive" className="text-[10px] h-5">
+                      <Badge variant="destructive" className="text-caption h-5">
                         Inactive
                       </Badge>
                     )}
                     {rule.interplant_required && (
                       <Badge
                         variant="secondary"
-                        className="text-[10px] h-5 bg-warning-bg text-warning-fg border-warning-border"
+                        className="text-caption h-5 bg-warning-bg text-warning-fg border-warning-border"
                       >
                         Interplant
                       </Badge>
@@ -923,7 +923,7 @@ export default function RoutingRulesPage() {
                   compact
                 />
               </CardContent>
-              <CardFooter className="pt-0 pb-4 text-[10px] text-content-4 font-mono">
+              <CardFooter className="pt-0 pb-4 text-caption text-content-4 font-mono">
                 <CheckCircle2 className="h-3 w-3 mr-1.5 text-success-fg" />
                 {rule.ordered_processes?.length || 0} steps · Route Master controls flow only
               </CardFooter>

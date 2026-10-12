@@ -548,7 +548,7 @@ export function AddonsWorkspaceV36() {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <ModeToggle mode={mode} onChange={setMode} />
-        <span className="text-[11px] text-content-3">
+        <span className="text-caption text-content-3">
           {mode === "pulse"
             ? "Pulse · family + colour mix"
             : "Browse · cards / table"}
@@ -746,7 +746,7 @@ export function AddonsWorkspaceV36() {
                 }))}
               />
               <div>
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
                   Location
                 </div>
                 <select
@@ -893,22 +893,22 @@ function AddonsTable({
                         <div className="font-mono font-bold text-content-1">
                           {r.material_code || "—"}
                         </div>
-                        <div className="text-[10px] text-content-3 truncate max-w-[200px]">
+                        <div className="text-caption text-content-3 truncate max-w-[200px]">
                           {r.material_name || ""}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-3 py-2">
-                    <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-[10px] font-bold text-order-fg ring-1 ring-order-border">
+                    <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-caption font-bold text-order-fg ring-1 ring-order-border">
                       {FAMILY_ICON[f]} {f}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-[11px]">
+                  <td className="px-3 py-2 text-caption">
                     <div className="font-bold text-content-2">
                       {displayPlant(r)}
                     </div>
-                    <div className="font-mono text-[10px] text-content-3">
+                    <div className="font-mono text-caption text-content-3">
                       {displayLocation(r)}
                     </div>
                   </td>
@@ -938,7 +938,7 @@ function AddonsTable({
                       </div>
                       <span
                         className={cn(
-                          "rounded-md px-1.5 py-0.5 text-[10px] font-bold",
+                          "rounded-md px-1.5 py-0.5 text-caption font-bold",
                           h.bucket === "HEALTHY"
                             ? "bg-success-bg text-success-fg"
                             : h.bucket === "LOW"
@@ -956,7 +956,7 @@ function AddonsTable({
                         e.stopPropagation();
                         onSelect(r);
                       }}
-                      className="inline-flex items-center gap-0.5 rounded-md bg-order-bg px-1.5 py-0.5 text-[10px] font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+                      className="inline-flex items-center gap-0.5 rounded-md bg-order-bg px-1.5 py-0.5 text-caption font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
                     >
                       <Eye className="h-3 w-3" /> View
                     </button>
@@ -967,14 +967,14 @@ function AddonsTable({
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px]">
+      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption">
         <span className="text-content-3">
           Showing {rows.length} of {total}
         </span>
         <select
           value={pageSize}
           onChange={(e) => onPageSize(Number(e.target.value))}
-          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-[11px]"
+          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-caption"
         >
           {[25, 50, 100, 250].map((n) => (
             <option key={n} value={n}>
@@ -1042,7 +1042,7 @@ function AddonsGrid({
                 )}
                 <span
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                    "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase",
                     h.bucket === "HEALTHY"
                       ? "bg-success-bg text-success-fg"
                       : h.bucket === "LOW"
@@ -1056,12 +1056,12 @@ function AddonsGrid({
               <div className="mt-2 font-mono text-xs font-bold text-content-1 truncate">
                 {r.material_code || "—"}
               </div>
-              <div className="text-[10px] text-content-3 truncate">
+              <div className="text-caption text-content-3 truncate">
                 {r.material_name || ""}
               </div>
               <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg bg-surface-2 p-2 text-center">
                 <div>
-                  <div className="text-[8px] font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold uppercase text-content-3">
                     On hand
                   </div>
                   <div className="font-mono text-sm font-bold text-content-1">
@@ -1069,7 +1069,7 @@ function AddonsGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-[8px] font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold uppercase text-content-3">
                     Free
                   </div>
                   <div className="font-mono text-sm font-bold text-success-fg">
@@ -1077,7 +1077,7 @@ function AddonsGrid({
                   </div>
                 </div>
               </div>
-              <div className="mt-2 text-[10px] text-content-3">
+              <div className="mt-2 text-caption text-content-3">
                 <MapPin className="inline-block h-3 w-3 mr-0.5 -mt-0.5" />
                 {displayLocation(r)}
               </div>
@@ -1085,14 +1085,14 @@ function AddonsGrid({
           );
         })}
       </div>
-      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px]">
+      <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption">
         <span className="text-content-3">
           Showing {rows.length} of {total}
         </span>
         <select
           value={pageSize}
           onChange={(e) => onPageSize(Number(e.target.value))}
-          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-[11px]"
+          className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-caption"
         >
           {[24, 48, 96, 200].map((n) => (
             <option key={n} value={n}>
@@ -1145,13 +1145,13 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 <span className="text-3xl">{FAMILY_ICON[f]}</span>
               )}
               <div className="min-w-0">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                   {FAMILY_ICON[f]} {f}
                 </div>
                 <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
                   {row.material_code || "—"}
                 </div>
-                <div className="text-[11px] text-content-3 truncate">
+                <div className="text-caption text-content-3 truncate">
                   {row.material_name || ""}
                 </div>
               </div>
@@ -1163,7 +1163,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
               <X className="h-4 w-4 text-content-3" />
             </button>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+          <div className="mt-3 grid grid-cols-3 gap-2 text-caption">
             <Stat label="On hand" value={formatStockQty(onhand, row)} />
             <Stat
               label="Reserved"
@@ -1179,10 +1179,10 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
               Lot details
             </div>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="grid grid-cols-2 gap-2 text-caption">
               <Field label="Lot #" value={row.lot_no || "—"} />
               <Field label="Vendor" value={row.vendor_name || "—"} />
               <Field
@@ -1200,7 +1200,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
               Allocations
             </div>
             {rsvQuery.isLoading && (
@@ -1217,14 +1217,14 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 className="rounded-xl border border-order-border bg-order-bg px-3 py-2 mb-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] font-bold text-order-fg">
+                  <span className="font-mono text-caption font-bold text-order-fg">
                     {r.so_no || r.so_id || "—"}
                   </span>
-                  <span className="font-mono text-[11px] font-bold text-content-2">
+                  <span className="font-mono text-caption font-bold text-content-2">
                     {formatStockQty(Number(r.qty || 0), row)}
                   </span>
                 </div>
-                <div className="text-[10px] text-content-3 mt-0.5">
+                <div className="text-caption text-content-3 mt-0.5">
                   {r.customer_name || ""} · {r.promise_date || "—"}
                 </div>
               </div>
@@ -1252,7 +1252,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>
@@ -1271,7 +1271,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

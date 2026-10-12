@@ -137,7 +137,7 @@ export default function PlanningBoard() {
         return (
           <Badge
             variant="outline"
-            className="bg-surface-2 uppercase text-[10px]"
+            className="bg-surface-2 uppercase text-caption"
           >
             Planned
           </Badge>
@@ -146,32 +146,32 @@ export default function PlanningBoard() {
         return (
           <Badge
             variant="secondary"
-            className="bg-info-bg text-primary uppercase text-[10px] font-bold border-info-border"
+            className="bg-info-bg text-primary uppercase text-caption font-bold border-info-border"
           >
             Released
           </Badge>
         );
       case "EXECUTING":
         return (
-          <Badge className="bg-success-fg uppercase text-[10px] font-semibold animate-pulse">
+          <Badge className="bg-success-fg uppercase text-caption font-semibold animate-pulse">
             Running
           </Badge>
         );
       case "PAUSED":
         return (
-          <Badge variant="destructive" className="uppercase text-[10px]">
+          <Badge variant="destructive" className="uppercase text-caption">
             Paused
           </Badge>
         );
       case "COMPLETED":
         return (
-          <Badge className="bg-success-fg uppercase text-[10px] font-semibold">
+          <Badge className="bg-success-fg uppercase text-caption font-semibold">
             Completed
           </Badge>
         );
       case "WAITING":
         return (
-          <Badge variant="outline" className="uppercase text-[10px] opacity-50">
+          <Badge variant="outline" className="uppercase text-caption opacity-50">
             Waiting
           </Badge>
         );
@@ -196,48 +196,48 @@ export default function PlanningBoard() {
           <TabsList className="bg-surface-2 p-1">
             <TabsTrigger
               value="planned"
-              className="uppercase text-[11px] font-bold gap-2"
+              className="uppercase text-caption font-bold gap-2"
             >
               Planned{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[10px] border-line-strong"
+                className="h-4 px-1 text-caption border-line-strong"
               >
                 {PLANNED.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger
               value="released"
-              className="uppercase text-[11px] font-bold gap-2"
+              className="uppercase text-caption font-bold gap-2"
             >
               Released{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[10px] border-line-strong"
+                className="h-4 px-1 text-caption border-line-strong"
               >
                 {RELEASED.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger
               value="in-progress"
-              className="uppercase text-[11px] font-bold gap-2"
+              className="uppercase text-caption font-bold gap-2"
             >
               In Progress{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[10px] border-line-strong"
+                className="h-4 px-1 text-caption border-line-strong"
               >
                 {IN_PROGRESS.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger
               value="completed"
-              className="uppercase text-[11px] font-bold gap-2"
+              className="uppercase text-caption font-bold gap-2"
             >
               Completed{" "}
               <Badge
                 variant="outline"
-                className="h-4 px-1 text-[10px] border-line-strong"
+                className="h-4 px-1 text-caption border-line-strong"
               >
                 {COMPLETED.length}
               </Badge>
@@ -287,7 +287,7 @@ export default function PlanningBoard() {
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="p-3 bg-surface-2 rounded-lg border">
-              <Label className="text-[11px] font-bold uppercase text-content-3">
+              <Label className="text-caption font-bold uppercase text-content-3">
                 Current Quantity
               </Label>
               <p className="text-lg font-semibold">
@@ -295,7 +295,7 @@ export default function PlanningBoard() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label className="uppercase font-bold text-[11px]">
+              <Label className="uppercase font-bold text-caption">
                 New Job Quantity (Split Off)
               </Label>
               <Input
@@ -305,7 +305,7 @@ export default function PlanningBoard() {
                 onChange={(e) => setSplitQty(e.target.value)}
                 className="font-bold h-12 text-lg"
               />
-              <p className="text-[10px] text-muted-foreground italic mt-1 leading-tight">
+              <p className="text-caption text-muted-foreground italic mt-1 leading-tight">
                 Remaining quantity (
                 {selectedJob
                   ? selectedJob.quantity - (parseFloat(splitQty) || 0)
@@ -349,7 +349,7 @@ export default function PlanningBoard() {
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="space-y-2">
-              <Label className="uppercase font-bold text-[11px]">
+              <Label className="uppercase font-bold text-caption">
                 Numeric Priority (Lower is Higher)
               </Label>
               <Input
@@ -387,25 +387,25 @@ export default function PlanningBoard() {
         <Table>
           <TableHeader className="bg-surface-2">
             <TableRow>
-              <TableHead className="uppercase text-[10px] font-semibold w-[150px]">
+              <TableHead className="uppercase text-caption font-semibold w-[150px]">
                 Job ID
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-semibold">
+              <TableHead className="uppercase text-caption font-semibold">
                 Product / Template
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-semibold">
+              <TableHead className="uppercase text-caption font-semibold">
                 Quantity
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-semibold">
+              <TableHead className="uppercase text-caption font-semibold">
                 Process
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-semibold">
+              <TableHead className="uppercase text-caption font-semibold">
                 Priority
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-semibold">
+              <TableHead className="uppercase text-caption font-semibold">
                 State
               </TableHead>
-              <TableHead className="uppercase text-[10px] font-semibold text-right">
+              <TableHead className="uppercase text-caption font-semibold text-right">
                 Actions
               </TableHead>
             </TableRow>
@@ -420,7 +420,7 @@ export default function PlanningBoard() {
                   <div className="font-bold text-content-1">
                     {job.job_number}
                   </div>
-                  <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                  <div className="text-caption text-muted-foreground leading-tight mt-0.5">
                     SO: {job.order_number || "N/A"}
                   </div>
                 </TableCell>
@@ -428,7 +428,7 @@ export default function PlanningBoard() {
                   <div className="font-medium text-content-2">
                     {job.product_name}
                   </div>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
+                  <div className="text-caption text-muted-foreground uppercase tracking-widest mt-0.5">
                     {job.customer_name}
                   </div>
                 </TableCell>
@@ -440,7 +440,7 @@ export default function PlanningBoard() {
                 <TableCell>
                   <Badge
                     variant="outline"
-                    className="text-[10px] font-bold border-line-strong bg-surface-1"
+                    className="text-caption font-bold border-line-strong bg-surface-1"
                   >
                     {job.process_code}
                   </Badge>

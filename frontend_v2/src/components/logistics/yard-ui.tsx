@@ -133,7 +133,7 @@ export function Pill({ children, tone = "neutral", dot, className, title }: { ch
     <span
       title={title}
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-4",
+        "inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-caption font-medium leading-4",
         toneClass[tone],
         className,
       )}
@@ -195,9 +195,9 @@ export function UnitCell({ label, kind, location, sub }: { label: unknown; kind:
       <div title={raw} className="mt-1 break-all font-mono text-[11.5px] font-semibold leading-snug text-content-1">
         {raw || "—"}
       </div>
-      {sub ? <div className="mt-0.5 truncate text-[11px] text-content-3">{sub}</div> : null}
+      {sub ? <div className="mt-0.5 truncate text-caption text-content-3">{sub}</div> : null}
       {!isBlank(location) ? (
-        <div title={clean(location)} className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-content-4">
+        <div title={clean(location)} className="mt-0.5 flex items-center gap-1 truncate text-caption text-content-4">
           <MapPin className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate">{compactLocation(location)}</span>
         </div>
@@ -248,9 +248,9 @@ export function ProductSpecCell({ row, fallbackName, unitLabel }: { row: any; fa
           {layers.map((layer, index) => (
             <span
               key={`${layer.material}-${index}`}
-              className="inline-flex items-center gap-1 rounded-md border border-line bg-surface-1 px-1.5 py-0.5 text-[11px] text-content-2"
+              className="inline-flex items-center gap-1 rounded-md border border-line bg-surface-1 px-1.5 py-0.5 text-caption text-content-2"
             >
-              <span className="grid h-3.5 w-3.5 place-items-center rounded-[4px] bg-surface-2 text-[9px] font-semibold text-content-3">{index + 1}</span>
+              <span className="grid h-3.5 w-3.5 place-items-center rounded-[4px] bg-surface-2 text-caption font-semibold text-content-3">{index + 1}</span>
               <span className="max-w-[160px] truncate">{layer.material}</span>
               {layer.micron ? <span className="font-mono text-content-4">{layer.micron}</span> : null}
             </span>
@@ -258,7 +258,7 @@ export function ProductSpecCell({ row, fallbackName, unitLabel }: { row: any; fa
         </div>
       ) : null}
       {batch || route ? (
-        <div className="flex flex-wrap items-center gap-1 text-[11px] text-content-3">
+        <div className="flex flex-wrap items-center gap-1 text-caption text-content-3">
           {batch ? <span className="rounded bg-info-bg px-1.5 py-0.5 font-mono text-info-fg">{batch}</span> : null}
           {route ? <span className="rounded bg-surface-2 px-1.5 py-0.5">{route}</span> : null}
         </div>
@@ -280,7 +280,7 @@ export function Weight({ value, muted, estimate }: { value: unknown; muted?: boo
     <span className={cn("whitespace-nowrap text-[12.5px] tabular-nums", muted ? "text-content-3" : "font-semibold text-content-1")}>
       {n ? num(n, 2) : "—"}
       {n ? <span className="ml-0.5 text-[10.5px] font-normal text-content-4">kg</span> : null}
-      {estimate && n ? <span className="ml-1 text-[10px] font-normal text-content-4">exp</span> : null}
+      {estimate && n ? <span className="ml-1 text-caption font-normal text-content-4">exp</span> : null}
     </span>
   );
 }
@@ -313,7 +313,7 @@ export function WeightStack({
       {row("Net", net)}
       {row("Tare", tare)}
       {row("Gross", gross, true, grossEstimate)}
-      {note ? <div className="pt-0.5 text-right text-[11px]">{note}</div> : null}
+      {note ? <div className="pt-0.5 text-right text-caption">{note}</div> : null}
     </div>
   );
 }
@@ -363,7 +363,7 @@ export function Th({ children, align = "left", className }: { children?: React.R
     <th
       scope="col"
       className={cn(
-        "sticky top-0 z-[1] border-b border-line bg-surface-2/95 px-3 py-2.5 text-[11px] font-medium text-content-3 backdrop-blur",
+        "sticky top-0 z-[1] border-b border-line bg-surface-2/95 px-3 py-2.5 text-caption font-medium text-content-3 backdrop-blur",
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
         className,
       )}
@@ -467,7 +467,7 @@ export function FilterGroup<T extends string>({
           >
             {option.label}
             {option.count !== undefined ? (
-              <span className={cn("rounded-md px-1 text-[11px] tabular-nums", active ? "bg-surface-2 text-content-2" : "text-content-4")}>{option.count}</span>
+              <span className={cn("rounded-md px-1 text-caption tabular-nums", active ? "bg-surface-2 text-content-2" : "text-content-4")}>{option.count}</span>
             ) : null}
           </button>
         );
@@ -483,11 +483,11 @@ export const toolbarSelectClass =
 export function OrderMetric({ label, value, sub, tone }: { label: React.ReactNode; value: React.ReactNode; sub?: React.ReactNode; tone?: Tone }) {
   return (
     <div className="min-w-0 rounded-xl border border-line bg-surface-1 px-3.5 py-2.5">
-      <div className="truncate text-[11px] font-medium text-content-3">{label}</div>
+      <div className="truncate text-caption font-medium text-content-3">{label}</div>
       <div className={cn("mt-1 truncate text-[17px] font-semibold tracking-[-0.02em] tabular-nums", tone === "good" ? "text-success-fg" : tone === "warn" ? "text-warning-fg" : tone === "bad" ? "text-danger-fg" : "text-content-1")}>
         {value}
       </div>
-      {sub ? <div className="mt-0.5 truncate text-[11px] text-content-3">{sub}</div> : null}
+      {sub ? <div className="mt-0.5 truncate text-caption text-content-3">{sub}</div> : null}
     </div>
   );
 }

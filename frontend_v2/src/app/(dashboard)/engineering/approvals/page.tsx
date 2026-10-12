@@ -58,7 +58,7 @@ export default function EngineeringApprovalsPage() {
     <div className="p-6 lg:p-8 space-y-8 bg-[#f8fafc] min-h-screen">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-warning-bg border border-warning-border text-warning-fg text-[10px] font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-warning-bg border border-warning-border text-warning-fg text-caption font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
             <ShieldCheck className="h-3 w-3" /> QA & Release
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-content-1 flex items-center gap-3">
@@ -95,13 +95,13 @@ export default function EngineeringApprovalsPage() {
           <Table>
             <TableHeader className="bg-surface-2">
               <TableRow className="border-none hover:bg-transparent">
-                <TableHead className="px-6 text-[10px] font-semibold uppercase text-content-4 tracking-widest w-[40%]">
+                <TableHead className="px-6 text-caption font-semibold uppercase text-content-4 tracking-widest w-[40%]">
                   Product Snapshot
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 tracking-widest w-[30%]">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 tracking-widest w-[30%]">
                   Route & Integrity
                 </TableHead>
-                <TableHead className="text-right px-6 text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                <TableHead className="text-right px-6 text-caption font-semibold uppercase text-content-4 tracking-widest">
                   Decision
                 </TableHead>
               </TableRow>
@@ -117,7 +117,7 @@ export default function EngineeringApprovalsPage() {
                 <TableRow>
                   <TableCell
                     colSpan={3}
-                    className="text-center py-24 text-[11px] font-semibold uppercase text-content-4 tracking-[0.12em]"
+                    className="text-center py-24 text-caption font-semibold uppercase text-content-4 tracking-[0.12em]"
                   >
                     No pending approvals
                   </TableCell>
@@ -137,16 +137,16 @@ export default function EngineeringApprovalsPage() {
                             </span>
                             <Badge
                               variant="outline"
-                              className="text-[10px] border-line text-content-3 h-5 px-1"
+                              className="text-caption border-line text-content-3 h-5 px-1"
                             >
                               {t.fg_type}
                             </Badge>
                           </div>
-                          <div className="flex items-center gap-3 text-[10px] text-content-3 font-medium">
+                          <div className="flex items-center gap-3 text-caption text-content-3 font-medium">
                             <span className="flex items-center gap-1 bg-surface-2 px-1.5 py-0.5 rounded-md">
                               Route: {t.routing_rule_name || "Unassigned"}
                             </span>
-                            <span className="font-mono text-[10px] text-content-4">
+                            <span className="font-mono text-caption text-content-4">
                               {t.id.slice(0, 8)}
                             </span>
                           </div>
@@ -158,14 +158,14 @@ export default function EngineeringApprovalsPage() {
                             {t.routing_rule ? (
                               <Badge
                                 variant="default"
-                                className="bg-info-bg hover:bg-info-bg text-primary border border-info-border text-[10px] h-5"
+                                className="bg-info-bg hover:bg-info-bg text-primary border border-info-border text-caption h-5"
                               >
                                 Route Bound
                               </Badge>
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="text-content-4 text-[10px] h-5"
+                                className="text-content-4 text-caption h-5"
                               >
                                 No Route
                               </Badge>
@@ -175,18 +175,18 @@ export default function EngineeringApprovalsPage() {
                           {/* Integrity Check */}
                           <div className="flex items-center gap-2">
                             {t.routing_rule ? (
-                              <span className="text-[10px] text-content-4 flex items-center gap-1">
+                              <span className="text-caption text-content-4 flex items-center gap-1">
                                 <div className="h-1.5 w-1.5 rounded-full bg-success-fg" />{" "}
                                 Routing Info
                               </span>
                             ) : (
-                              <span className="text-[10px] text-danger-fg font-bold flex items-center gap-1">
+                              <span className="text-caption text-danger-fg font-bold flex items-center gap-1">
                                 <div className="h-1.5 w-1.5 rounded-full bg-danger-solid" />{" "}
                                 No Routing Rule
                               </span>
                             )}
                           </div>
-                          <p className="text-[10px] text-content-4">
+                          <p className="text-caption text-content-4">
                             Bulk category mapping and roll policy are maintained
                             in Template Studio.
                           </p>
@@ -198,14 +198,14 @@ export default function EngineeringApprovalsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 text-[10px] uppercase font-bold hover:bg-surface-2"
+                              className="h-8 text-caption uppercase font-bold hover:bg-surface-2"
                             >
                               Review
                             </Button>
                           </Link>
                           <Button
                             size="sm"
-                            className="h-8 bg-surface-3 hover:bg-success-fg text-white text-[10px] uppercase font-semibold tracking-widest shadow-lg"
+                            className="h-8 bg-surface-3 hover:bg-success-fg text-white text-caption uppercase font-semibold tracking-widest shadow-lg"
                             disabled={approveMutation.isPending}
                             onClick={() => approveMutation.mutate(t.id)}
                           >

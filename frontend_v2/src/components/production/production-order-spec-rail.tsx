@@ -311,7 +311,7 @@ export function ProductionOrderSpecRail({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div
           className={cn(
-            "text-[11px] font-semibold uppercase tracking-[0.12em]",
+            "text-caption font-semibold uppercase tracking-[0.12em]",
             dark ? "text-info-border" : "text-content-3",
           )}
         >
@@ -319,7 +319,7 @@ export function ProductionOrderSpecRail({
         </div>
         <span
           className={cn(
-            "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
+            "rounded-full border px-2.5 py-1 text-caption font-semibold uppercase tracking-wider",
             dark
               ? "border-white/20 bg-white/10 text-white"
               : "border-line bg-surface-1 text-content-2",
@@ -343,7 +343,7 @@ export function ProductionOrderSpecRail({
               )}
               data-spec-field={metric.key}
             >
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] opacity-75">
+              <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-[0.1em]">
                 <Icon className="h-3.5 w-3.5 shrink-0" />
                 <span>{metric.label}</span>
               </div>
@@ -362,7 +362,7 @@ export function ProductionOrderSpecRail({
                   ))}
                 </div>
               ) : null}
-              <div className="mt-1 text-[10px] font-bold leading-tight opacity-70">
+              <div className="mt-1 text-caption font-bold leading-tight opacity-70">
                 {metric.note}
               </div>
             </div>
@@ -397,7 +397,7 @@ export function ProductionOrderSpecRail({
                 </div>
                 <div
                   className={cn(
-                    "mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] font-semibold",
+                    "mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-caption font-semibold",
                     dark ? "text-info-border" : "text-order-fg/80",
                   )}
                 >

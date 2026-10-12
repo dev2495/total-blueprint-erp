@@ -287,7 +287,7 @@ export default function ProfilePage() {
     <div className="space-y-6 p-6 lg:p-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-info-fg">
+          <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-widest text-info-fg">
             <UserCircle2 className="h-3 w-3" /> Account Center
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-content-1">

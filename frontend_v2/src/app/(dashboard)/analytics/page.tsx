@@ -272,7 +272,7 @@ export default function AnalyticsPage() {
       <section className="erp-hero rounded-[2rem] border px-6 py-7 text-white">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
+            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
               <ShieldCheck className="h-3.5 w-3.5" />
               Reports Hub
             </div>
@@ -578,7 +578,7 @@ export default function AnalyticsPage() {
                         </div>
                         <Badge
                           variant="outline"
-                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+                          className="rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-[0.1em]"
                         >
                           {signal.severity || "INFO"}
                         </Badge>
@@ -792,7 +792,7 @@ export default function AnalyticsPage() {
                         </div>
                         <Badge
                           variant="outline"
-                          className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+                          className="rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-[0.1em]"
                         >
                           {report.category}
                         </Badge>
@@ -840,7 +840,7 @@ export default function AnalyticsPage() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+                      className="rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-[0.1em]"
                     >
                       {run.status}
                     </Badge>
@@ -928,7 +928,7 @@ export default function AnalyticsPage() {
                         {index === 0 ? "Latest run" : "Recent report runs"} ·{" "}
                         {run.report_date} · {run.created_at}
                       </div>
-                      <div className="mt-1 text-[11px] font-semibold text-content-3">
+                      <div className="mt-1 text-caption font-semibold text-content-3">
                         {run.triggered_manually
                           ? "Manual send"
                           : "Scheduled send"}
@@ -937,7 +937,7 @@ export default function AnalyticsPage() {
                     </div>
                     <Badge
                       variant="outline"
-                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]"
+                      className="rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-[0.1em]"
                     >
                       {run.status}
                     </Badge>
@@ -974,7 +974,7 @@ function SummaryCard({
   return (
     <Card className="rounded-[1.7rem] border border-line bg-surface-1/90 shadow-sm">
       <CardContent className="min-w-0 p-4 md:p-5">
-        <div className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+        <div className="truncate text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
           {label}
         </div>
         <div className="mt-2 break-words text-[1.7rem] font-semibold leading-none text-content-1 md:text-[1.95rem]">

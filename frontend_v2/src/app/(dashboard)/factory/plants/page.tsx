@@ -516,21 +516,21 @@ export default function PlantsPage() {
                       {plant.legal_profile?.legal_name ? (
                         <Badge
                           variant="outline"
-                          className="text-[10px] border-success-border text-success-fg"
+                          className="text-caption border-success-border text-success-fg"
                         >
                           Legal Profile Configured
                         </Badge>
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-[10px] border-warning-border text-warning-fg"
+                          className="text-caption border-warning-border text-warning-fg"
                         >
                           Legal Profile Pending
                         </Badge>
                       )}
                       <Badge
                         variant="outline"
-                        className="text-[10px] border-info-border text-primary"
+                        className="text-caption border-info-border text-primary"
                       >
                         {plant.default_cost_absorption_group_code ||
                           "No cost group"}

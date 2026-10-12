@@ -173,7 +173,7 @@ export default function ShiftTimingPage() {
       <section className="rounded-[22px] border border-line bg-surface-1 p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               <Clock3 className="h-3.5 w-3.5" />
               Admin · Shift Timing
             </div>
@@ -354,7 +354,7 @@ export default function ShiftTimingPage() {
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-surface-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+              <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                 <tr>
                   <th className="px-5 py-3">Shift</th>
                   <th className="px-5 py-3">Window</th>

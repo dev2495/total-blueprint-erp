@@ -266,7 +266,7 @@ function KpiCard({
 }) {
   return (
     <div className="rounded-xl border border-line bg-surface-1 p-3 shadow-sm">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-content-3">
+      <div className="flex items-center gap-2 text-caption uppercase tracking-wider text-content-3">
         {icon}
         <span>{label}</span>
       </div>

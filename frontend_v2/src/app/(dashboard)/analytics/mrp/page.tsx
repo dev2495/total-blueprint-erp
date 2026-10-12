@@ -698,7 +698,7 @@ export default function MRPCenter() {
         <section className="rounded-[2rem] border border-surface-1/70 bg-surface-1/88 p-6 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.42)] backdrop-blur-xl">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                 <BrainCircuit className="h-3.5 w-3.5" />
                 Material Planning Center
               </div>
@@ -722,7 +722,7 @@ export default function MRPCenter() {
             <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end">
               <div className="grid gap-3 md:grid-cols-[minmax(240px,320px)_minmax(180px,240px)]">
                 <div className="space-y-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                     Plan run
                   </div>
                   <Select
@@ -758,7 +758,7 @@ export default function MRPCenter() {
                   </Select>
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                     Active status
                   </div>
                   <div className="flex h-11 items-center justify-between rounded-2xl border border-line bg-surface-1/90 px-4 shadow-sm">
@@ -871,7 +871,7 @@ export default function MRPCenter() {
             <div className="fixed inset-y-0 right-0 z-50 w-full max-w-xl overflow-y-auto border-l border-line bg-surface-1 shadow-2xl">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface-1 px-6 py-4">
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-content-4">
+                  <div className="text-caption font-bold uppercase tracking-[0.12em] text-content-4">
                     Plan diff
                   </div>
                   <div className="text-lg font-semibold text-content-1">
@@ -983,7 +983,7 @@ export default function MRPCenter() {
 
           <div className="mt-5 grid gap-3 xl:grid-cols-[1fr_auto_auto]">
             <div className="flex flex-wrap items-center gap-2 rounded-[1.4rem] border border-line bg-surface-2 px-3 py-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 Action focus
               </span>
               {ACTION_FILTERS.map((value) => {
@@ -1009,7 +1009,7 @@ export default function MRPCenter() {
                 >
                   {actionCopy(value)}
                   <span
-                    className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] ${
+                    className={`ml-2 rounded-full px-1.5 py-0.5 text-caption ${
                       actionFilter === value
                         ? "bg-white/15 text-white"
                         : "bg-surface-2 text-content-4"
@@ -1037,7 +1037,7 @@ export default function MRPCenter() {
               </Select>
             </div>
             <div className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-3 text-right shadow-sm">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 Plan owner
               </div>
               <div className="mt-1 text-sm font-semibold text-content-2">
@@ -1836,7 +1836,7 @@ export default function MRPCenter() {
                             {formatPlanLabel(plan)}
                             {isPlanOperationalOutlier(plan) ? (
                               <span
-                                className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${active ? "bg-warning-bg text-warning-fg" : "bg-warning-bg text-warning-fg"}`}
+                                className={`ml-2 rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-[0.12em] ${active ? "bg-warning-bg text-warning-fg" : "bg-warning-bg text-warning-fg"}`}
                               >
                                 Audit outlier
                               </span>
@@ -1926,7 +1926,7 @@ function MetricCard({
     <div className="rounded-[1.75rem] border border-surface-1/70 bg-surface-1/88 p-5 shadow-[0_18px_55px_-40px_rgba(15,23,42,0.42)] transition hover:-translate-y-0.5 hover:shadow-[0_26px_70px_-45px_rgba(15,23,42,0.45)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
             {label}
           </div>
           <div className="mt-2 text-2xl font-semibold tracking-tight text-content-1">
@@ -1966,7 +1966,7 @@ function PostureTile({
 
   return (
     <div className={`rounded-[1.3rem] border px-4 py-3 ${toneMap[tone]}`}>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em]">
+      <div className="text-caption font-semibold uppercase tracking-[0.12em]">
         {label}
       </div>
       <div className="mt-2 text-xl font-semibold tracking-tight">{value}</div>
@@ -1998,7 +1998,7 @@ function SummaryStrip({
     <div
       className={`rounded-[1.4rem] border border-line bg-gradient-to-br px-4 py-4 ${accentMap[accent]}`}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em]">
+      <div className="text-caption font-semibold uppercase tracking-[0.12em]">
         {title}
       </div>
       <div className="mt-2 break-words text-xl font-semibold tracking-tight">

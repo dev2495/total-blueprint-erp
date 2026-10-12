@@ -87,7 +87,7 @@ export function ProductVisual({
             <div className="absolute left-3 top-3 right-3 flex items-start justify-between">
               <div>
                 {title ? (
-                  <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-3">
+                  <div className="text-caption font-bold uppercase tracking-[0.1em] text-content-3">
                     {title}
                   </div>
                 ) : null}
@@ -97,7 +97,7 @@ export function ProductVisual({
                   </div>
                 ) : null}
               </div>
-              <span className="rounded-full bg-surface-1/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-content-3 ring-1 ring-line">
+              <span className="rounded-full bg-surface-1/80 px-2 py-0.5 text-caption font-bold uppercase tracking-wider text-content-3 ring-1 ring-line">
                 {kind}
               </span>
             </div>
@@ -108,7 +108,7 @@ export function ProductVisual({
           <div
             className={cn("flex flex-col gap-1.5", compact ? "w-32" : "w-40")}
           >
-            <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-content-4">
+            <div className="text-caption font-bold uppercase tracking-[0.1em] text-content-4">
               Layer stack
             </div>
             <div className="flex flex-1 flex-col gap-0.5 rounded-xl bg-surface-1 p-2 ring-1 ring-line">
@@ -127,20 +127,20 @@ export function ProductVisual({
                       paddingInline: 8,
                     }}
                   >
-                    <span className="text-[10px] font-bold uppercase tracking-wider">
+                    <span className="text-caption font-bold uppercase tracking-wider">
                       L{i + 1}
                     </span>
-                    <span className="truncate text-[11px] font-semibold">
+                    <span className="truncate text-caption font-semibold">
                       {l.film_variant_code}
                     </span>
-                    <span className="ml-auto text-[10px] font-bold">
+                    <span className="ml-auto text-caption font-bold">
                       {l.thickness_micron}μ
                     </span>
                   </div>
                 );
               })}
             </div>
-            <div className="text-[10px] font-semibold text-content-3">
+            <div className="text-caption font-semibold text-content-3">
               Total {totalThickness}μ
             </div>
           </div>
@@ -151,7 +151,7 @@ export function ProductVisual({
           {addons.map((a) => (
             <span
               key={a}
-              className="rounded-full bg-order-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-order-fg ring-1 ring-order-border"
+              className="rounded-full bg-order-bg px-2 py-0.5 text-caption font-bold uppercase tracking-wider text-order-fg ring-1 ring-order-border"
             >
               {a}
             </span>
@@ -338,7 +338,7 @@ function Generic({ compact }: { compact?: boolean }) {
       )}
     >
       <div className="h-12 w-12 rounded-2xl bg-surface-2 ring-1 ring-line" />
-      <div className="text-[10px] font-bold uppercase tracking-wider">
+      <div className="text-caption font-bold uppercase tracking-wider">
         Composite
       </div>
     </div>

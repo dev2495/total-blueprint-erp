@@ -61,7 +61,7 @@ export default function LedgerPage() {
 
   const getTypeColor = (type: string) => {
     const base =
-      "font-semibold uppercase tracking-widest text-[10px] border px-2 py-0.5 rounded-md flex items-center gap-1 w-fit";
+      "font-semibold uppercase tracking-widest text-caption border px-2 py-0.5 rounded-md flex items-center gap-1 w-fit";
     switch (type) {
       case "GRN":
         return cn(base, "text-success-fg bg-success-bg border-success-border");
@@ -93,7 +93,7 @@ export default function LedgerPage() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-line text-content-3 text-[10px] font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-line text-content-3 text-caption font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
             <History className="h-3 w-3" /> Audit Trail
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-content-1 flex items-center gap-3">
@@ -161,7 +161,7 @@ export default function LedgerPage() {
               >
                 <stat.icon className="h-4 w-4" />
               </div>
-              <span className="text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+              <span className="text-caption font-semibold uppercase text-content-4 tracking-widest">
                 {stat.label}
               </span>
             </CardHeader>
@@ -239,7 +239,7 @@ export default function LedgerPage() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+              <p className="text-caption font-semibold uppercase tracking-widest text-content-4">
                 Syncing Ledger...
               </p>
             </div>
@@ -247,22 +247,22 @@ export default function LedgerPage() {
             <Table>
               <TableHeader className="bg-surface-2">
                 <TableRow className="border-none hover:bg-transparent">
-                  <TableHead className="px-6 text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                  <TableHead className="px-6 text-caption font-semibold uppercase text-content-4 tracking-widest">
                     Timestamp
                   </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                  <TableHead className="text-caption font-semibold uppercase text-content-4 tracking-widest">
                     Operation
                   </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                  <TableHead className="text-caption font-semibold uppercase text-content-4 tracking-widest">
                     Item / Batch
                   </TableHead>
-                  <TableHead className="text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                  <TableHead className="text-caption font-semibold uppercase text-content-4 tracking-widest">
                     Location
                   </TableHead>
-                  <TableHead className="text-right px-6 text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                  <TableHead className="text-right px-6 text-caption font-semibold uppercase text-content-4 tracking-widest">
                     Quantity
                   </TableHead>
-                  <TableHead className="text-right px-6 text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                  <TableHead className="text-right px-6 text-caption font-semibold uppercase text-content-4 tracking-widest">
                     Reference
                   </TableHead>
                 </TableRow>
@@ -272,7 +272,7 @@ export default function LedgerPage() {
                   <TableRow>
                     <TableCell
                       colSpan={6}
-                      className="text-center py-24 text-[11px] font-semibold uppercase text-content-4 tracking-[0.12em]"
+                      className="text-center py-24 text-caption font-semibold uppercase text-content-4 tracking-[0.12em]"
                     >
                       No matching records
                     </TableCell>
@@ -286,10 +286,10 @@ export default function LedgerPage() {
                         className="hover:bg-surface-2 transition-colors border-b border-line group"
                       >
                         <TableCell className="px-6 py-4">
-                          <div className="font-mono text-[10px] font-semibold text-content-3">
+                          <div className="font-mono text-caption font-semibold text-content-3">
                             {formatDisplayDate(entry.created_at)}
                           </div>
-                          <div className="text-[10px] font-bold text-content-4 uppercase">
+                          <div className="text-caption font-bold text-content-4 uppercase">
                             {new Date(entry.created_at).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -311,25 +311,25 @@ export default function LedgerPage() {
                         </TableCell>
                         <TableCell>
                           {entry.item_label_id ? (
-                            <div className="font-mono font-semibold text-[11px] text-content-1 group-hover:text-primary transition-colors">
+                            <div className="font-mono font-semibold text-caption text-content-1 group-hover:text-primary transition-colors">
                               {entry.item_label_id}
                             </div>
                           ) : (
-                            <div className="text-[11px] font-semibold text-content-2 uppercase">
+                            <div className="text-caption font-semibold text-content-2 uppercase">
                               {entry.material_name}
                             </div>
                           )}
                           {entry.material_name && entry.item_label_id && (
-                            <div className="text-[10px] font-bold text-content-4 uppercase mt-0.5 max-w-[180px] truncate">
+                            <div className="text-caption font-bold text-content-4 uppercase mt-0.5 max-w-[180px] truncate">
                               {entry.material_name}
                             </div>
                           )}
                         </TableCell>
                         <TableCell>
-                          <div className="text-[10px] font-semibold uppercase text-content-3">
+                          <div className="text-caption font-semibold uppercase text-content-3">
                             {entry.to_location_name || entry.from_location_name}
                           </div>
-                          <div className="text-[10px] font-bold text-content-4 uppercase flex items-center gap-1">
+                          <div className="text-caption font-bold text-content-4 uppercase flex items-center gap-1">
                             {entry.plant_name}
                           </div>
                         </TableCell>
@@ -341,13 +341,13 @@ export default function LedgerPage() {
                             )}
                           >
                             {qty.text}{" "}
-                            <span className="text-[10px] text-content-4 font-bold ml-0.5 uppercase">
+                            <span className="text-caption text-content-4 font-bold ml-0.5 uppercase">
                               {entry.uom || "UNITS"}
                             </span>
                           </div>
                         </TableCell>
                         <TableCell className="text-right px-6">
-                          <span className="font-mono text-[10px] font-bold text-content-4 group-hover:text-content-3 transition-colors uppercase">
+                          <span className="font-mono text-caption font-bold text-content-4 group-hover:text-content-3 transition-colors uppercase">
                             {entry.reference || "---"}
                           </span>
                         </TableCell>

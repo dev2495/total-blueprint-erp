@@ -61,7 +61,7 @@ export function GateQrPoster() {
       <style>{`@page { size: A4 portrait; margin: 0; }`}</style>
       <div className="gate-no-print flex flex-wrap items-end justify-between gap-3 px-1 pt-1">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
           <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-content-1">Visitor QR poster</h1>
           <p className="text-[14px] text-content-3">Print and fix at the gate. Each plant has its own link; visitors land straight on that gate&apos;s form.</p>
         </div>

@@ -133,7 +133,7 @@ function dotIfModified(
 function ModChip({ active }: { active: boolean }) {
   if (!active) return null;
   return (
-    <span className="inline-flex items-center h-4 px-1 rounded text-[8px] font-semibold uppercase tracking-widest bg-warning-bg text-warning-fg ring-1 ring-warning-border">
+    <span className="inline-flex items-center h-4 px-1 rounded text-caption font-semibold uppercase tracking-widest bg-warning-bg text-warning-fg ring-1 ring-warning-border">
       mod
     </span>
   );
@@ -147,7 +147,7 @@ function FieldLabel({
   modified?: boolean;
 }) {
   return (
-    <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3 inline-flex items-center gap-1.5">
+    <span className="text-caption font-semibold uppercase tracking-widest text-content-3 inline-flex items-center gap-1.5">
       {children}
       <ModChip active={Boolean(modified)} />
     </span>
@@ -458,7 +458,7 @@ export default function LineSpecBuilder({
               </label>
             </div>
             {selectedPouchStyle ? (
-              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+              <div className="mt-2 flex flex-wrap gap-1.5 text-caption font-semibold uppercase tracking-widest text-content-3">
                 <span className="rounded-full bg-surface-1 px-2 py-1 text-content-2 ring-1 ring-line">
                   {selectedPouchStyle.code}
                 </span>
@@ -473,7 +473,7 @@ export default function LineSpecBuilder({
                 </span>
               </div>
             ) : (
-              <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+              <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-caption font-bold text-warning-fg">
                 Pick a real approved Pouch Style Master before entering the new size. The quotation will not use placeholder geometry.
               </div>
             )}
@@ -512,7 +512,7 @@ export default function LineSpecBuilder({
             );
           })}
         </div>
-        <div className="mt-3 pt-3 border-t border-line flex flex-wrap items-center gap-2 text-[11px] font-bold text-content-3">
+        <div className="mt-3 pt-3 border-t border-line flex flex-wrap items-center gap-2 text-caption font-bold text-content-3">
           {childTarget ? (
             <span>
               Child web ≈{" "}
@@ -569,7 +569,7 @@ export default function LineSpecBuilder({
                 ],
               })
             }
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-order-bg text-order-fg ring-1 ring-order-border text-[11px] font-semibold uppercase tracking-wider hover:bg-order-bg"
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-order-bg text-order-fg ring-1 ring-order-border text-caption font-semibold uppercase tracking-wider hover:bg-order-bg"
           >
             <Plus className="h-3 w-3" strokeWidth={2.5} />
             Layer
@@ -577,12 +577,12 @@ export default function LineSpecBuilder({
         }
       >
         {layers.length === 0 ? (
-          <div className="text-[11px] font-bold text-content-4">
+          <div className="text-caption font-bold text-content-4">
             No layers. Use “Layer” to start the stack.
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="grid grid-cols-[36px_minmax(0,1fr)_78px_86px_92px_auto] gap-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-content-4">
+            <div className="grid grid-cols-[36px_minmax(0,1fr)_78px_86px_92px_auto] gap-2 px-1 text-caption font-semibold uppercase tracking-widest text-content-4">
               <span>L</span>
               <span>Film material</span>
               <span className="text-right">Thickness</span>
@@ -608,7 +608,7 @@ export default function LineSpecBuilder({
                   key={idx}
                   className="grid grid-cols-[36px_minmax(0,1fr)_78px_86px_92px_auto] gap-2 items-center"
                 >
-                  <span className="inline-flex items-center justify-center h-7 w-9 rounded-md bg-order-bg text-order-fg text-[10px] font-semibold uppercase tracking-widest">
+                  <span className="inline-flex items-center justify-center h-7 w-9 rounded-md bg-order-bg text-order-fg text-caption font-semibold uppercase tracking-widest">
                     {l.position || `L${idx + 1}`}
                   </span>
                   <div className="min-w-0">
@@ -632,7 +632,7 @@ export default function LineSpecBuilder({
                         })
                       }
                     />
-                    <div className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-content-4 font-mono">
+                    <div className="mt-0.5 flex items-center gap-1 text-caption font-bold text-content-4 font-mono">
                       {isMatMod ? <ModChip active /> : null}
                       {l.material_code ? <span>{l.material_code}</span> : null}
                       {l.density_gcm3 ? (
@@ -686,7 +686,7 @@ export default function LineSpecBuilder({
                         })
                       }
                       className={cn(
-                        "mt-0.5 w-full text-center text-[8px] font-semibold uppercase tracking-widest",
+                        "mt-0.5 w-full text-center text-caption font-semibold uppercase tracking-widest",
                         l.gsm_auto === false
                           ? "text-warning-fg"
                           : "text-content-4",
@@ -726,7 +726,7 @@ export default function LineSpecBuilder({
           <Totals label="Layers" value={String(layers.length)} />
         </div>
         {layers.some((l) => !Number(l.gsm || 0) || (!Number(l.rate_per_kg || 0) && !l.material_id)) ? (
-          <div className="mt-3 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+          <div className="mt-3 rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-caption font-bold text-warning-fg">
             Every film layer needs GSM and either a material with costing or a manual ₹/kg rate before the quote can be sent.
           </div>
         ) : null}
@@ -740,7 +740,7 @@ export default function LineSpecBuilder({
             title="Adhesive · manual GSM"
             accent="from-info-bg to-surface-1"
           >
-            <div className="mb-2 text-[11px] font-semibold text-content-3">
+            <div className="mb-2 text-caption font-semibold text-content-3">
               Shown because this stack has more than one film layer. Enter GSM
               from the cost sheet; material rate can be corrected for the quote.
             </div>
@@ -817,7 +817,7 @@ export default function LineSpecBuilder({
             title="Adhesive"
             accent="from-surface-2 to-surface-1"
           >
-            <div className="text-[11px] font-bold text-content-4">
+            <div className="text-caption font-bold text-content-4">
               Hidden for single-layer stacks. Adhesive costing starts only when
               the film stack has two or more layers.
             </div>
@@ -830,7 +830,7 @@ export default function LineSpecBuilder({
             title="Solvent · governed RM"
             accent="from-warning-bg to-surface-1"
           >
-            <div className="mb-2 text-[11px] font-semibold text-content-3">
+            <div className="mb-2 text-caption font-semibold text-content-3">
               Select solvent independently from adhesive. Its baseline and any quote-only assumption are controlled in Cost Build.
             </div>
             <MaterialPicker
@@ -865,7 +865,7 @@ export default function LineSpecBuilder({
           </SectionCard>
         ) : (
           <SectionCard icon={<Droplets className="h-4 w-4 text-content-4" />} title="Solvent" accent="from-surface-2 to-surface-1">
-            <div className="text-[11px] font-bold text-content-4">Available for laminated multi-layer structures.</div>
+            <div className="text-caption font-bold text-content-4">Available for laminated multi-layer structures.</div>
           </SectionCard>
         )}
 
@@ -918,10 +918,10 @@ export default function LineSpecBuilder({
             }}
           />
           <div className="my-2 flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex h-6 items-center rounded-full bg-danger-bg px-2 text-[10px] font-semibold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
+            <span className="inline-flex h-6 items-center rounded-full bg-danger-bg px-2 text-caption font-semibold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
               {value.artwork_id ? "Artwork ink GSM" : "Manual GSM fallback"}
             </span>
-            <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-[10px] font-semibold uppercase tracking-widest text-content-3 ring-1 ring-line">
+            <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-caption font-semibold uppercase tracking-widest text-content-3 ring-1 ring-line">
               {value.artwork_id
                 ? `${value.artwork_code || "Artwork"} selected`
                 : "Use manual only for estimate-only quotes"}
@@ -993,7 +993,7 @@ export default function LineSpecBuilder({
             title="Ink"
             accent="from-surface-2 to-surface-1"
           >
-            <div className="text-[11px] font-bold text-content-4">
+            <div className="text-caption font-bold text-content-4">
               {value.origin === "AD_HOC"
                 ? "Printing is off for this ad-hoc quote line. Enable it only when this new pouch should be quoted with artwork/print costing."
                 : "Hidden because the selected Product Master is not print-capable. Pick a print-capable master to enter manual ink GSM for quotation costing."}
@@ -1008,7 +1008,7 @@ export default function LineSpecBuilder({
                     artwork_required: true,
                   })
                 }
-                className="mt-3 h-8 px-3 rounded-lg bg-danger-bg text-[11px] font-semibold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border hover:bg-danger-bg"
+                className="mt-3 h-8 px-3 rounded-lg bg-danger-bg text-caption font-semibold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border hover:bg-danger-bg"
               >
                 Enable print costing
               </button>
@@ -1043,7 +1043,7 @@ export default function LineSpecBuilder({
                     ],
                   })
                 }
-                className="h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-warning-bg text-warning-fg ring-1 ring-warning-border hover:bg-warning-bg"
+                className="h-6 px-2 rounded-full text-caption font-semibold uppercase tracking-wider bg-warning-bg text-warning-fg ring-1 ring-warning-border hover:bg-warning-bg"
               >
                 + {qa.name}
               </button>
@@ -1059,7 +1059,7 @@ export default function LineSpecBuilder({
                   ],
                 })
               }
-              className="h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
+              className="h-6 px-2 rounded-full text-caption font-semibold uppercase tracking-wider bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
             >
               + add row
             </button>
@@ -1067,7 +1067,7 @@ export default function LineSpecBuilder({
         }
       >
         {addons.length === 0 ? (
-          <div className="text-[11px] font-bold text-content-4">
+          <div className="text-caption font-bold text-content-4">
             No add-ons selected. Use Product Master add-ons above or add a real
             material row.
           </div>
@@ -1163,14 +1163,14 @@ export default function LineSpecBuilder({
             <button
               type="button"
               onClick={() => onChange({ ...value, optional_inner_pack: null })}
-              className="h-7 px-2 rounded-lg text-[11px] font-semibold uppercase tracking-wider text-danger-fg hover:bg-danger-bg"
+              className="h-7 px-2 rounded-lg text-caption font-semibold uppercase tracking-wider text-danger-fg hover:bg-danger-bg"
             >
               Clear
             </button>
           ) : null
         }
       >
-        <div className="text-[11px] font-semibold text-content-3 mb-3">
+        <div className="text-caption font-semibold text-content-3 mb-3">
           Quotes can be sent without inner packing. Select it only when the
           customer asks for a pack format or the cost sheet should carry a pack
           assumption.
@@ -1401,14 +1401,14 @@ function ArtworkSelector({
 }) {
   if (!productMasterId) {
     return (
-      <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+      <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-caption font-bold text-warning-fg">
         Pick a base Product Master first so approved artwork can be filtered by print method and film form.
       </div>
     );
   }
   if (data?.needs_size) {
     return (
-      <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-bold text-warning-fg">
+      <div className="rounded-lg border border-warning-border bg-warning-bg px-3 py-2 text-caption font-bold text-warning-fg">
         {data.reason || "Pick a saved size before choosing artwork."}
       </div>
     );
@@ -1419,7 +1419,7 @@ function ArtworkSelector({
     <div className="rounded-lg border border-line bg-surface-2 p-2">
       <div className="mb-1 flex items-center justify-between gap-2">
         <FieldLabel>Approved artwork</FieldLabel>
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+        <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
           {data?.context?.print_type || "PRINT"} · {data?.context?.substrate_mode || sizeCode || "FORM"}
         </span>
       </div>
@@ -1447,7 +1447,7 @@ function ArtworkSelector({
         ))}
       </select>
       {selected ? (
-        <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] font-bold text-content-3">
+        <div className="mt-2 grid grid-cols-3 gap-1 text-caption font-bold text-content-3">
           <span className="rounded bg-surface-1 px-2 py-1 ring-1 ring-line">
             {selected.front_colors_count || 0}F/{selected.back_colors_count || 0}B
           </span>
@@ -1459,7 +1459,7 @@ function ArtworkSelector({
           </span>
         </div>
       ) : rows.length === 0 && !isLoading ? (
-        <div className="mt-2 text-[11px] font-bold text-content-4">
+        <div className="mt-2 text-caption font-bold text-content-4">
           No approved artwork matches this Product Master and size form. Use manual ink GSM for estimate-only pricing.
         </div>
       ) : null}
@@ -1491,7 +1491,7 @@ function SectionCard({
         )}
       >
         {icon}
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-content-2">
+        <span className="text-caption font-semibold uppercase tracking-widest text-content-2">
           {title}
         </span>
         <div className="ml-auto">{action}</div>
@@ -1504,7 +1504,7 @@ function SectionCard({
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-line bg-surface-2 px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
         {label}
       </div>
       <div className="mt-0.5 truncate text-[12px] font-semibold text-content-1">
@@ -1568,7 +1568,7 @@ function roundMm(value: number): number {
 function Totals({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
         {label}
       </div>
       <div className="font-mono text-sm font-semibold text-content-1">

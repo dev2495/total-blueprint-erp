@@ -172,7 +172,7 @@ function KpiTile({
   return (
     <div className="min-h-[132px] rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] p-4 shadow-[0_1px_0_rgba(15,23,42,0.04),0_10px_28px_rgba(15,23,42,0.05)]">
       <div className="flex items-start justify-between gap-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-3)]">{label}</div>
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-[color:var(--text-3)]">{label}</div>
         <div className={cn("grid h-9 w-9 place-items-center rounded-lg ring-1", toneClasses)}>{icon}</div>
       </div>
       <div className="mt-4 font-display text-3xl font-semibold leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{value}</div>
@@ -282,14 +282,14 @@ function CircleBreakdown({
             <div className="absolute inset-[28px] grid place-items-center rounded-full border border-[color:var(--border-soft)] bg-[color:var(--surface-1)] text-center shadow-sm">
               <div>
                 <div className="font-display text-3xl font-semibold leading-none tracking-[-0.05em] text-[color:var(--text-1)]">{centerValue}</div>
-                <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--text-3)]">{centerLabel}</div>
+                <div className="mt-1 text-caption font-semibold uppercase tracking-[0.08em] text-[color:var(--text-3)]">{centerLabel}</div>
               </div>
             </div>
           ) : (
             <div className="absolute inset-0 grid place-items-center rounded-full">
               <div className="rounded-lg border border-[color:rgba(255,255,255,0.3)] bg-[color:rgba(255,255,255,0.78)] px-3 py-1 text-center shadow-sm backdrop-blur dark:border-[color:rgba(255,255,255,0.14)] dark:bg-[color:rgba(36,44,55,0.78)]">
                 <div className="font-display text-xl font-semibold leading-none text-[color:var(--text-1)]">{centerValue}</div>
-                <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-3)]">{centerLabel}</div>
+                <div className="mt-0.5 text-caption font-semibold uppercase tracking-[0.12em] text-[color:var(--text-3)]">{centerLabel}</div>
               </div>
             </div>
           )}
@@ -473,7 +473,7 @@ export default function WorkCenterDashboard() {
       <section className="overflow-hidden rounded-lg border border-[color:rgba(15,23,42,0.1)] bg-[radial-gradient(circle_at_75%_-20%,rgba(37,99,235,0.42),transparent_32%),linear-gradient(135deg,#07111f,#102a50_58%,#17428b)] p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--br-200)]">Execution Command Deck</div>
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-[color:var(--br-200)]">Execution Command Deck</div>
             <h1 className="mt-2 font-display text-[clamp(2rem,3.5vw,3.4rem)] font-semibold leading-none tracking-[-0.05em]">
               Work Center Command Deck
             </h1>
@@ -692,15 +692,15 @@ export default function WorkCenterDashboard() {
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
-                        <div className="text-[10px] font-semibold uppercase text-[color:var(--text-4)]">Run</div>
+                        <div className="text-caption font-semibold uppercase text-[color:var(--text-4)]">Run</div>
                         <div className="mt-1 text-sm font-semibold text-[color:var(--text-1)]">{fmt(wc.running_machines)}/{fmt(wc.machine_count)}</div>
                       </div>
                       <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
-                        <div className="text-[10px] font-semibold uppercase text-[color:var(--text-4)]">Pend</div>
+                        <div className="text-caption font-semibold uppercase text-[color:var(--text-4)]">Pend</div>
                         <div className="mt-1 text-sm font-semibold text-[color:var(--text-1)]">{fmt(wc.pending_jobs)}</div>
                       </div>
                       <div className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-2">
-                        <div className="text-[10px] font-semibold uppercase text-[color:var(--text-4)]">Block</div>
+                        <div className="text-caption font-semibold uppercase text-[color:var(--text-4)]">Block</div>
                         <div className={cn("mt-1 text-sm font-semibold", Number(wc.blocked_jobs || 0) > 0 ? "text-[color:var(--r-700)]" : "text-[color:var(--text-1)]")}>{fmt(wc.blocked_jobs)}</div>
                       </div>
                     </div>

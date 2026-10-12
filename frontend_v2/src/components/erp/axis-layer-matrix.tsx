@@ -44,7 +44,7 @@ export function AxisLayerMatrix({
       className={cn("overflow-hidden rounded-xl border border-line", className)}
     >
       <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-[10px] font-bold uppercase tracking-[0.1em] text-content-3">
+        <thead className="bg-surface-2 text-caption font-bold uppercase tracking-[0.1em] text-content-3">
           <tr>
             <th className="px-4 py-3 text-left">Layer</th>
             <th className="px-4 py-3 text-left">Film / material</th>
@@ -117,7 +117,7 @@ export function AxisLayerMatrix({
                           ))}
                         </datalist>
                       ) : null}
-                      <div className="text-[10px] font-semibold text-content-4">
+                      <div className="text-caption font-semibold text-content-4">
                         type micron
                       </div>
                     </div>
@@ -141,7 +141,7 @@ export function AxisLayerMatrix({
                       </SelectContent>
                     </Select>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1 text-[11px] font-semibold text-content-3 ring-1 ring-line">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1 text-caption font-semibold text-content-3 ring-1 ring-line">
                       Not required
                     </span>
                   )}

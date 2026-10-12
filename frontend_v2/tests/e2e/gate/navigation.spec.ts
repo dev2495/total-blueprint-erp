@@ -138,7 +138,15 @@ for (const role of ROLE_OPTIONS) {
     await page.goto("/dashboard/admin")
     await switchRole(page, role.name, role.landing)
     const actualRoutes = await collectSidebarRoutes(page)
-    const expectedRoutes = getSidebarRoutesForRole(role.code, { baseRoleCode: "ADMIN" }).filter((route) => {
+    // Document links depend on the account's document entitlements, which the backend resolves per role view.
+    const documentEntitlements = await page.evaluate(async () => {
+      const response = await fetch("/api/users/me/", { credentials: "include" })
+      if (!response.ok) return undefined
+      const payload = await response.json()
+      const me = payload?.data ?? payload
+      return (me?.entitlements?.documents ?? undefined) as Record<string, boolean> | undefined
+    })
+    const expectedRoutes = getSidebarRoutesForRole(role.code, { baseRoleCode: "ADMIN", documentEntitlements }).filter((route) => {
       if (role.code === "ADMIN" && route === "/dashboard/owner") return false
       if (role.code === "SALES" && route === "/dashboard/sales") return false
       return true

@@ -998,7 +998,7 @@ export function StockLauncherV3Workspace() {
                 >
                   <Filter className="h-3.5 w-3.5" />
                   {filter.label}
-                  <span className="rounded-full bg-surface-1/15 px-1.5 text-[10px]">
+                  <span className="rounded-full bg-surface-1/15 px-1.5 text-caption">
                     {filter.id === "ALL"
                       ? masters.length
                       : masters.filter((row) => row.product_kind === filter.id)
@@ -1049,13 +1049,13 @@ export function StockLauncherV3Workspace() {
                       <div className="truncate text-sm font-semibold text-content-1">
                         {candidate.name}
                       </div>
-                      <div className="font-mono text-[11px] font-bold text-primary">
+                      <div className="font-mono text-caption font-bold text-primary">
                         {candidate.code}
                       </div>
                     </div>
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
+                        "rounded-full px-2 py-0.5 text-caption font-semibold ring-1",
                         KIND_TONE[candidate.product_kind] || KIND_TONE.OTHER,
                       )}
                     >
@@ -1077,7 +1077,7 @@ export function StockLauncherV3Workspace() {
                         : `${candidate.layer_template.length} layers`}
                     </Pill>
                     {issues.length ? (
-                      <span className="text-[10px] font-bold text-warning-fg">
+                      <span className="text-caption font-bold text-warning-fg">
                         {issues.join(", ")}
                       </span>
                     ) : (
@@ -1102,7 +1102,7 @@ export function StockLauncherV3Workspace() {
                         routeInfo?.template?.name ||
                         "No live route bound"}
                     </div>
-                    <div className="text-[10px] font-semibold text-content-3">
+                    <div className="text-caption font-semibold text-content-3">
                       Locked from Product Master
                     </div>
                   </div>
@@ -1218,7 +1218,7 @@ export function StockLauncherV3Workspace() {
                         {item.label}
                         {item.icon}
                       </div>
-                      <div className="mt-1 text-[10px] font-semibold text-content-3">
+                      <div className="mt-1 text-caption font-semibold text-content-3">
                         {item.text}
                       </div>
                     </button>
@@ -1289,7 +1289,7 @@ export function StockLauncherV3Workspace() {
             actions={
               <span
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset",
+                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-bold ring-1 ring-inset",
                   validation?.valid
                     ? "bg-success-bg text-success-fg ring-success-border"
                     : "bg-warning-bg text-warning-fg ring-warning-border",
@@ -1320,7 +1320,7 @@ export function StockLauncherV3Workspace() {
                   Finished stock
                   <PackageCheck className="h-4 w-4 text-success-fg" />
                 </div>
-                <p className="mt-1 text-[11px] font-semibold leading-5 text-content-3">
+                <p className="mt-1 text-caption font-semibold leading-5 text-content-3">
                   Run through the full route and create final stock.
                   Generic/customer pools cannot cross the first artwork step.
                 </p>
@@ -1353,7 +1353,7 @@ export function StockLauncherV3Workspace() {
                   WIP pool
                   <Zap className="h-4 w-4 text-primary" />
                 </div>
-                <p className="mt-1 text-[11px] font-semibold leading-5 text-content-3">
+                <p className="mt-1 text-caption font-semibold leading-5 text-content-3">
                   Stop mid-route and bank reusable rolls. Orders resume from the
                   saved stop in WCM.
                 </p>
@@ -1412,7 +1412,7 @@ export function StockLauncherV3Workspace() {
             >
               <div className="space-y-4">
                 <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                  <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                     Size / roll math
                   </Label>
                   <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4">
@@ -1431,7 +1431,7 @@ export function StockLauncherV3Workspace() {
                           )}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">
+                            <div className="text-caption font-semibold uppercase tracking-wider text-content-4">
                               {s.code}
                             </div>
                             <span
@@ -1446,10 +1446,10 @@ export function StockLauncherV3Workspace() {
                           <div className="text-sm font-bold text-content-1">
                             {s.width_mm} mm
                           </div>
-                          <div className="text-[10px] text-content-4">
+                          <div className="text-caption text-content-4">
                             {s.label || s.stock_form || "size row"}
                           </div>
-                          <div className="mt-1 text-[10px] font-bold text-primary">
+                          <div className="mt-1 text-caption font-bold text-primary">
                             Roll{" "}
                             {s.roll_width_mm ||
                               s.child_target_width_mm ||
@@ -1525,7 +1525,7 @@ export function StockLauncherV3Workspace() {
                         </div>
                       </Field>
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+                        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                           Product Master roll options
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -1535,7 +1535,7 @@ export function StockLauncherV3Workspace() {
                               type="button"
                               onClick={() => setWipRollWidthMm(option)}
                               className={cn(
-                                "rounded-full px-3 py-1 text-[11px] font-semibold ring-1 transition",
+                                "rounded-full px-3 py-1 text-caption font-semibold ring-1 transition",
                                 Number(wipRollWidthMm || 0) === option
                                   ? "bg-primary text-white ring-primary"
                                   : "bg-surface-1 text-primary ring-info-border hover:bg-info-bg",
@@ -1545,7 +1545,7 @@ export function StockLauncherV3Workspace() {
                             </button>
                           ))}
                         </div>
-                        <div className="mt-2 text-[11px] font-semibold leading-5 text-primary">
+                        <div className="mt-2 text-caption font-semibold leading-5 text-primary">
                           This is the parked WIP roll width. Sales demand can
                           resume from this pool when the required width is the
                           same or lower and the size row allows slitting;
@@ -1557,7 +1557,7 @@ export function StockLauncherV3Workspace() {
                 ) : null}
 
                 <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                  <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                     Per-layer axes
                   </Label>
                   <div className="mt-2">
@@ -1583,11 +1583,11 @@ export function StockLauncherV3Workspace() {
                 </div>
 
                 <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-xs text-success-fg ring-1 ring-success-border">
-                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
+                  <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
                     <SlidersHorizontal className="h-3.5 w-3.5" />
                     Stock form proof
                   </div>
-                  <p className="mt-1 text-[11px] leading-5">
+                  <p className="mt-1 text-caption leading-5">
                     Roll matching uses the physical form, child target width and
                     slit policy from the size row. The operator does not pick a
                     separate roll mode here; the Product Master size row decides
@@ -1738,7 +1738,7 @@ export function StockLauncherV3Workspace() {
                     value={`${requiredMaterial.width_mm ?? 0} mm`}
                   />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-[11px]">
+                <div className="mt-2 flex items-center justify-between text-caption">
                   <span className="font-bold uppercase tracking-wider text-success-fg">
                     Target qty
                   </span>
@@ -1897,7 +1897,7 @@ export function StockLauncherV3Workspace() {
 function HeroDecision({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-3 py-2 text-white shadow-sm ring-1 ring-surface-1/10">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65">
+      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/65">
         {label}
       </div>
       <div className="mt-0.5 truncate text-sm font-semibold">{value}</div>
@@ -1947,7 +1947,7 @@ function LinkedSkuPanel({
             ))}
           </SelectContent>
         </Select>
-        <div className="mt-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-5 text-warning-fg">
+        <div className="mt-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption font-semibold leading-5 text-warning-fg">
           <Layers className="mr-1 inline h-3.5 w-3.5" />
           {selectedPackaging
             ? `Creates ${selectedPackaging.code} as live packaging inventory.`
@@ -1978,7 +1978,7 @@ function LinkedSkuPanel({
             ))}
           </SelectContent>
         </Select>
-        <div className="mt-2 rounded-xl border border-order-border bg-order-bg px-3 py-2 text-[11px] font-semibold leading-5 text-order-fg">
+        <div className="mt-2 rounded-xl border border-order-border bg-order-bg px-3 py-2 text-caption font-semibold leading-5 text-order-fg">
           <Sparkles className="mr-1 inline h-3.5 w-3.5" />
           {selectedPod
             ? `Creates ${selectedPod.code} as in-house POD roll stock.`
@@ -1990,13 +1990,13 @@ function LinkedSkuPanel({
 
   return (
     <div className="rounded-2xl border border-line bg-surface-2 px-3 py-2 shadow-sm">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
         Catalog SKU link
       </div>
       <div className="mt-1 text-sm font-bold text-content-2">
         Not required for this Product Master
       </div>
-      <div className="text-[10px] font-semibold text-content-3">
+      <div className="text-caption font-semibold text-content-3">
         Pouch and roll stock uses the master variant axes and route math.
       </div>
     </div>
@@ -2014,7 +2014,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
       </Label>
       <div className="mt-1">{children}</div>
@@ -2040,7 +2040,7 @@ function Pill({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 ring-inset",
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-caption font-bold ring-1 ring-inset",
         map[tone],
       )}
     >
@@ -2053,7 +2053,7 @@ function IssueList({ title, issues }: { title: string; issues: string[] }) {
   if (!issues.length) return null;
   return (
     <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-fg ring-1 ring-warning-border">
-      <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
+      <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
         <AlertTriangle className="h-3.5 w-3.5" />
         {title}
       </div>
@@ -2079,12 +2079,12 @@ function Mini({
 }) {
   return (
     <div className="rounded-xl border border-line bg-gradient-to-br from-surface-2 to-white px-3 py-2 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">
+      <div className="text-caption font-bold uppercase tracking-wider text-content-4">
         {label}
       </div>
       <div className="text-sm font-bold text-content-2">{value}</div>
       {subtle ? (
-        <div className="text-[10px] text-content-3">{subtle}</div>
+        <div className="text-caption text-content-3">{subtle}</div>
       ) : null}
     </div>
   );
@@ -2102,12 +2102,12 @@ function SafetyRow({
   return (
     <div className="mb-2 flex items-start justify-between rounded-xl border border-line bg-gradient-to-br from-warning-bg to-white px-3 py-2.5 shadow-sm last:mb-0">
       <div>
-        <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">
+        <div className="text-caption font-bold uppercase tracking-wider text-content-4">
           {label}
         </div>
         <div className="text-sm font-bold text-content-2">{value}</div>
       </div>
-      <span className="ml-2 max-w-[120px] text-right text-[10px] font-medium text-content-3">
+      <span className="ml-2 max-w-[120px] text-right text-caption font-medium text-content-3">
         {note}
       </span>
     </div>

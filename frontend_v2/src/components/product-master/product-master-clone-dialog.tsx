@@ -259,7 +259,7 @@ export function ProductMasterCloneDialog({
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[330px_minmax(0,1fr)]">
           <aside className="space-y-4">
             <section className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Source
               </div>
               <div className="mt-2 rounded-xl bg-surface-2 p-3">
@@ -269,7 +269,7 @@ export function ProductMasterCloneDialog({
                 <div className="mt-1 text-sm font-bold text-content-1">
                   {source.name}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase">
+                <div className="mt-2 flex flex-wrap gap-1.5 text-caption font-semibold uppercase">
                   <span className="rounded-full bg-info-bg px-2 py-0.5 text-primary ring-1 ring-info-border">
                     {source.product_kind}
                   </span>
@@ -294,7 +294,7 @@ export function ProductMasterCloneDialog({
 
             <section className="space-y-3 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
               <div className="grid gap-2">
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                   New code
                 </Label>
                 <Input
@@ -306,7 +306,7 @@ export function ProductMasterCloneDialog({
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                   New name
                 </Label>
                 <Input
@@ -315,7 +315,7 @@ export function ProductMasterCloneDialog({
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                   Route at create
                 </Label>
                 <Select value={templateId} onValueChange={setTemplateId}>
@@ -331,13 +331,13 @@ export function ProductMasterCloneDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="inline-flex items-center gap-1.5 rounded-lg bg-info-bg px-2 py-1 text-[10px] font-bold text-primary ring-1 ring-info-border">
+                <div className="inline-flex items-center gap-1.5 rounded-lg bg-info-bg px-2 py-1 text-caption font-bold text-primary ring-1 ring-info-border">
                   <Route className="h-3 w-3" />
                   {routeName}
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                   Note
                 </Label>
                 <Textarea
@@ -355,7 +355,7 @@ export function ProductMasterCloneDialog({
                   <span className="block text-xs font-semibold text-warning-fg">
                     Save as active replacement
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-warning-fg">
+                  <span className="mt-0.5 block text-caption leading-snug text-warning-fg">
                     Disable the active master after creating this one. Existing
                     orders keep their frozen audit record.
                   </span>
@@ -367,7 +367,7 @@ export function ProductMasterCloneDialog({
           <section className="min-w-0 rounded-2xl border border-line bg-surface-1 shadow-sm">
             <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
               <div>
-                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+                <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                   <Layers className="h-3.5 w-3.5" />
                   Layer stack at create
                 </div>
@@ -400,7 +400,7 @@ export function ProductMasterCloneDialog({
                     className="rounded-xl border border-line bg-surface-2 p-3"
                   >
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="rounded-lg bg-order-bg px-2 py-0.5 text-[10px] font-semibold text-order-fg">
+                      <span className="rounded-lg bg-order-bg px-2 py-0.5 text-caption font-semibold text-order-fg">
                         L{index + 1}
                       </span>
                       <button
@@ -417,7 +417,7 @@ export function ProductMasterCloneDialog({
                     </div>
                     <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_120px_120px]">
                       <div className="grid gap-1">
-                        <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                           Role
                         </Label>
                         <Input
@@ -428,7 +428,7 @@ export function ProductMasterCloneDialog({
                         />
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                           Film variant
                         </Label>
                         <Select
@@ -459,13 +459,13 @@ export function ProductMasterCloneDialog({
                           </SelectContent>
                         </Select>
                         {layer.film_variant_code ? (
-                          <div className="mt-1 rounded-lg bg-surface-1 px-2 py-1 font-mono text-[10px] font-bold text-content-2 ring-1 ring-line">
+                          <div className="mt-1 rounded-lg bg-surface-1 px-2 py-1 font-mono text-caption font-bold text-content-2 ring-1 ring-line">
                             Current film · {layer.film_variant_code}
                           </div>
                         ) : null}
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                           Micron
                         </Label>
                         <Input
@@ -479,7 +479,7 @@ export function ProductMasterCloneDialog({
                         />
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                           Grade
                         </Label>
                         <Input
@@ -501,7 +501,7 @@ export function ProductMasterCloneDialog({
         </div>
 
         <DialogFooter className="border-t border-line bg-surface-2 px-5 py-3">
-          <div className="mr-auto hidden items-center gap-1.5 text-[11px] font-bold text-success-fg sm:flex">
+          <div className="mr-auto hidden items-center gap-1.5 text-caption font-bold text-success-fg sm:flex">
             <ShieldCheck className="h-3.5 w-3.5" />
             New record keeps historical orders on the old master.
           </div>

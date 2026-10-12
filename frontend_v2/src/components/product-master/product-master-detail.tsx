@@ -1263,7 +1263,7 @@ export function ProductMasterDetailWorkspace({
           </div>
         }
       >
-        <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold">
+        <div className="mt-3 flex flex-wrap gap-1.5 text-caption font-bold">
           <span className="rounded-md bg-surface-2 px-2 py-0.5 text-content-2 ring-1 ring-line">
             {draft.product_kind}
           </span>
@@ -1356,7 +1356,7 @@ export function ProductMasterDetailWorkspace({
                     {c.icon}
                   </span>
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                    <div className="text-caption font-bold uppercase tracking-wider text-content-3">
                       {c.label}
                     </div>
                     <div className="text-sm font-semibold text-content-1">
@@ -1366,7 +1366,7 @@ export function ProductMasterDetailWorkspace({
                 </div>
                 <span
                   className={cn(
-                    "rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm ring-1 ring-inset",
+                    "rounded-full px-2.5 py-1 text-caption font-bold uppercase tracking-wider shadow-sm ring-1 ring-inset",
                     c.tone === "emerald" &&
                       "bg-success-fg text-white ring-success-border",
                     c.tone === "amber" &&
@@ -1378,7 +1378,7 @@ export function ProductMasterDetailWorkspace({
                   {c.ready ? "Ready" : "Needed"}
                 </span>
               </div>
-              <div className="mt-2 text-[11px] text-content-3">{c.note}</div>
+              <div className="mt-2 text-caption text-content-3">{c.note}</div>
             </div>
           ))}
         </div>
@@ -1585,7 +1585,7 @@ export function ProductMasterDetailWorkspace({
                           <div className="text-sm font-bold text-content-1">
                             Active
                           </div>
-                          <div className="text-[11px] text-content-3">
+                          <div className="text-caption text-content-3">
                             Sales and planner can pick this master right after
                             save.
                           </div>
@@ -1753,7 +1753,7 @@ export function ProductMasterDetailWorkspace({
                                   patchSize(i, { active: v })
                                 }
                               />
-                              <span className="text-[11px] text-content-3">
+                              <span className="text-caption text-content-3">
                                 {row.active
                                   ? "Active — sales can pick"
                                   : "Inactive"}
@@ -1833,7 +1833,7 @@ export function ProductMasterDetailWorkspace({
                         >
                           <div className="mb-3 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-info-bg text-[10px] font-semibold text-primary">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-info-bg text-caption font-semibold text-primary">
                                 L{i + 1}
                               </span>
                               <span className="text-sm font-bold text-content-1">
@@ -1947,7 +1947,7 @@ export function ProductMasterDetailWorkspace({
                         </div>
                       ))
                     )}
-                    <p className="flex items-center gap-1.5 text-[11px] text-content-3">
+                    <p className="flex items-center gap-1.5 text-caption text-content-3">
                       <AlertTriangle className="h-3.5 w-3.5 text-warning-fg" />
                       {hasLayerThicknessAxis ? (
                         <>
@@ -2002,13 +2002,13 @@ export function ProductMasterDetailWorkspace({
                               <div className="text-sm font-bold text-content-1">
                                 {def.label || def.axis}
                               </div>
-                              <div className="text-[11px] text-content-3">
+                              <div className="text-caption text-content-3">
                                 {def.type.replaceAll("_", " ")}
                               </div>
                             </div>
                             <span
                               className={cn(
-                                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
+                                "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset",
                                 mode === "required" &&
                                   "bg-primary text-white ring-primary",
                                 mode === "optional" &&
@@ -2025,7 +2025,7 @@ export function ProductMasterDetailWorkspace({
                               type="button"
                               onClick={() => patchAxis(def.axis, false, false)}
                               className={cn(
-                                "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                                "rounded-full px-2 py-1 text-caption font-bold uppercase",
                                 mode === "off"
                                   ? "bg-surface-1 text-content-1 shadow-sm"
                                   : "text-content-3",
@@ -2037,7 +2037,7 @@ export function ProductMasterDetailWorkspace({
                               type="button"
                               onClick={() => patchAxis(def.axis, false, true)}
                               className={cn(
-                                "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                                "rounded-full px-2 py-1 text-caption font-bold uppercase",
                                 mode === "optional"
                                   ? "bg-surface-1 text-order-fg shadow-sm"
                                   : "text-content-3",
@@ -2049,7 +2049,7 @@ export function ProductMasterDetailWorkspace({
                               type="button"
                               onClick={() => patchAxis(def.axis, true, true)}
                               className={cn(
-                                "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                                "rounded-full px-2 py-1 text-caption font-bold uppercase",
                                 mode === "required"
                                   ? "bg-primary text-white shadow-sm"
                                   : "text-content-3",
@@ -2058,7 +2058,7 @@ export function ProductMasterDetailWorkspace({
                               Required
                             </button>
                           </div>
-                          <div className="mt-2 text-[11px] text-content-3">
+                          <div className="mt-2 text-caption text-content-3">
                             {axisModeCopy(mode)}
                           </div>
                         </div>
@@ -2137,7 +2137,7 @@ export function ProductMasterDetailWorkspace({
                   description="These axes are not free text. Sales picks exact POD, inner-pack, outer-pack, or add-on codes from master data; the BOM consumes that exact inventory material and can auto-demand in-house stock when allowed."
                   accent="violet"
                   actions={
-                    <span className="rounded-full bg-order-bg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-order-fg ring-1 ring-inset ring-order-border">
+                    <span className="rounded-full bg-order-bg px-2.5 py-1 text-caption font-bold uppercase tracking-wider text-order-fg ring-1 ring-inset ring-order-border">
                       {catalogAxes.length}{" "}
                       {catalogAxes.length === 1 ? "axis" : "axes"}
                     </span>
@@ -2153,7 +2153,7 @@ export function ProductMasterDetailWorkspace({
               {/* Summary strip */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="rounded-xl border border-info-border bg-gradient-to-br from-info-bg to-surface-1 px-4 py-3 ring-1 ring-info-border">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                  <div className="text-caption font-bold uppercase tracking-wider text-primary">
                     Variants
                   </div>
                   <div className="mt-0.5 text-lg font-semibold text-primary">
@@ -2161,7 +2161,7 @@ export function ProductMasterDetailWorkspace({
                   </div>
                 </div>
                 <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg to-white px-4 py-3 ring-1 ring-order-border">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-order-fg">
+                  <div className="text-caption font-bold uppercase tracking-wider text-order-fg">
                     Active axes
                   </div>
                   <div className="mt-0.5 text-lg font-semibold text-order-fg">
@@ -2169,7 +2169,7 @@ export function ProductMasterDetailWorkspace({
                   </div>
                 </div>
                 <div className="rounded-xl border border-success-border bg-gradient-to-br from-success-bg to-white px-4 py-3 ring-1 ring-success-border">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-success-fg">
+                  <div className="text-caption font-bold uppercase tracking-wider text-success-fg">
                     Required
                   </div>
                   <div className="mt-0.5 text-lg font-semibold text-success-fg">
@@ -2177,7 +2177,7 @@ export function ProductMasterDetailWorkspace({
                   </div>
                 </div>
                 <div className="rounded-xl border border-line bg-gradient-to-br from-surface-2 to-white px-4 py-3 ring-1 ring-line">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <div className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Sizes
                   </div>
                   <div className="mt-0.5 text-lg font-semibold text-content-1">
@@ -2253,14 +2253,14 @@ export function ProductMasterDetailWorkspace({
                               <div className="text-sm font-bold text-content-1">
                                 {displayLabel}
                               </div>
-                              <div className="text-[10px] text-content-3">
+                              <div className="text-caption text-content-3">
                                 {displayType}
                               </div>
                             </div>
                           </div>
                           <span
                             className={cn(
-                              "rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset",
+                              "rounded-full px-2.5 py-1 text-caption font-bold uppercase tracking-wider ring-1 ring-inset",
                               palette.badge,
                             )}
                           >
@@ -2278,7 +2278,7 @@ export function ProductMasterDetailWorkspace({
                               .map((s) => (
                                 <span
                                   key={s.id}
-                                  className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-2 shadow-sm ring-1 ring-line"
+                                  className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-content-2 shadow-sm ring-1 ring-line"
                                 >
                                   {s.code} · {s.width_mm}×{s.height_mm}
                                 </span>
@@ -2291,7 +2291,7 @@ export function ProductMasterDetailWorkspace({
                               {draft.layer_template.map((l, li) => (
                                 <span
                                   key={li}
-                                  className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-2 shadow-sm ring-1 ring-line"
+                                  className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-content-2 shadow-sm ring-1 ring-line"
                                 >
                                   L{li + 1}:{" "}
                                   {Number(l.thickness_micron || 0) > 0
@@ -2310,7 +2310,7 @@ export function ProductMasterDetailWorkspace({
                                 .map((l, li) => (
                                   <span
                                     key={li}
-                                    className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-2 shadow-sm ring-1 ring-line"
+                                    className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-content-2 shadow-sm ring-1 ring-line"
                                   >
                                     L{li + 1}:{" "}
                                     {(l.grade_options || []).join(", ")}
@@ -2329,7 +2329,7 @@ export function ProductMasterDetailWorkspace({
                             ].map((addon) => (
                               <span
                                 key={addon}
-                                className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-3 shadow-sm ring-1 ring-line"
+                                className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-content-3 shadow-sm ring-1 ring-line"
                               >
                                 {addon}
                               </span>
@@ -2375,7 +2375,7 @@ export function ProductMasterDetailWorkspace({
               {overlays.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <div className="rounded-xl border border-info-border bg-gradient-to-br from-info-bg to-surface-1 px-4 py-3 ring-1 ring-info-border">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                    <div className="text-caption font-bold uppercase tracking-wider text-primary">
                       Customers
                     </div>
                     <div className="mt-0.5 text-lg font-semibold text-primary">
@@ -2383,7 +2383,7 @@ export function ProductMasterDetailWorkspace({
                     </div>
                   </div>
                   <div className="rounded-xl border border-success-border bg-gradient-to-br from-success-bg to-white px-4 py-3 ring-1 ring-success-border">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-success-fg">
+                    <div className="text-caption font-bold uppercase tracking-wider text-success-fg">
                       With item codes
                     </div>
                     <div className="mt-0.5 text-lg font-semibold text-success-fg">
@@ -2391,7 +2391,7 @@ export function ProductMasterDetailWorkspace({
                     </div>
                   </div>
                   <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg to-white px-4 py-3 ring-1 ring-order-border">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-order-fg">
+                    <div className="text-caption font-bold uppercase tracking-wider text-order-fg">
                       With MOQ
                     </div>
                     <div className="mt-0.5 text-lg font-semibold text-order-fg">
@@ -2489,24 +2489,24 @@ export function ProductMasterDetailWorkspace({
                               {artwork.design_code}
                             </div>
                           </div>
-                          <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold uppercase text-success-fg ring-1 ring-success-border">
+                          <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-semibold uppercase text-success-fg ring-1 ring-success-border">
                             {artwork.status}
                           </span>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-1.5">
-                          <span className="rounded-full bg-order-bg px-2 py-0.5 text-[10px] font-bold text-order-fg ring-1 ring-order-border">
+                          <span className="rounded-full bg-order-bg px-2 py-0.5 text-caption font-bold text-order-fg ring-1 ring-order-border">
                             {artworkColorCode(artwork)}
                           </span>
-                          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-2 ring-1 ring-line">
+                          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
                             {artwork.print_type || "PRINT"}
                           </span>
-                          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-2 ring-1 ring-line">
+                          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
                             {artwork.substrate_mode || "FORM"}
                           </span>
                           {artwork.print_type === "ROTO" && (
                             <span
                               className={cn(
-                                "rounded-full px-2 py-0.5 text-[10px] font-bold ring-1",
+                                "rounded-full px-2 py-0.5 text-caption font-bold ring-1",
                                 artwork.cylinder_ready
                                   ? "bg-success-bg text-success-fg ring-success-border"
                                   : "bg-warning-bg text-warning-fg ring-warning-border",
@@ -2520,7 +2520,7 @@ export function ProductMasterDetailWorkspace({
                         </div>
                         {artwork.front_colors?.length ||
                         artwork.back_colors?.length ? (
-                          <div className="mt-3 text-[11px] text-content-3">
+                          <div className="mt-3 text-caption text-content-3">
                             {[
                               ...(artwork.front_colors || []),
                               ...(artwork.back_colors || []),
@@ -2627,7 +2627,7 @@ export function ProductMasterDetailWorkspace({
                   <div className="text-xs font-semibold text-content-3">
                     No consumers yet
                   </div>
-                  <div className="mt-1 text-[11px] text-content-3">
+                  <div className="mt-1 text-caption text-content-3">
                     When another master adds this as a BOM input, it appears
                     here.
                   </div>
@@ -2662,7 +2662,7 @@ export function ProductMasterDetailWorkspace({
               accent="violet"
             >
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="grid grid-cols-2 gap-2 text-caption">
                   <div className="rounded-lg bg-surface-2 px-2 py-1.5">
                     <div className="text-content-3">Source</div>
                     <div className="font-bold text-content-2">
@@ -2696,7 +2696,7 @@ export function ProductMasterDetailWorkspace({
                     <div className="font-bold text-content-1">
                       {artwork.design_code}
                     </div>
-                    <div className="mt-0.5 text-[11px] text-content-3">
+                    <div className="mt-0.5 text-caption text-content-3">
                       {artworkColorCode(artwork)} · {artwork.name}
                     </div>
                   </div>
@@ -2840,7 +2840,7 @@ export function ProductMasterDetailWorkspace({
                           <div className="text-sm font-bold text-content-1">
                             Roll width override
                           </div>
-                          <div className="text-[11px] text-content-3">
+                          <div className="text-caption text-content-3">
                             Optional. Blank uses the selected size override or
                             the size geometry rule.
                           </div>
@@ -2863,7 +2863,7 @@ export function ProductMasterDetailWorkspace({
                           }
                         />
                       </EditField>
-                      <div className="mt-2 rounded-lg bg-surface-1 px-3 py-2 text-[11px] text-content-3 ring-1 ring-line">
+                      <div className="mt-2 rounded-lg bg-surface-1 px-3 py-2 text-caption text-content-3 ring-1 ring-line">
                         Applied to every layer for consumption width. Layer
                         material identity stays fixed by the Product Master.
                       </div>
@@ -2882,7 +2882,7 @@ export function ProductMasterDetailWorkspace({
                             {label}
                             {axis.required ? " *" : ""}
                           </div>
-                          <div className="text-[11px] text-content-3">
+                          <div className="text-caption text-content-3">
                             {axisModeCopy(
                               axis.required ? "required" : "optional",
                             )}
@@ -3020,7 +3020,7 @@ export function ProductMasterDetailWorkspace({
                                 patchVariantAxis("addons", Array.from(next));
                               }}
                               className={cn(
-                                "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset transition",
+                                "rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset transition",
                                 selected
                                   ? "bg-order-fg text-white ring-order-border"
                                   : "bg-surface-2 text-content-3 ring-line hover:ring-order-border",
@@ -3432,7 +3432,7 @@ export function ProductMasterDetailWorkspace({
                         key={layerKey}
                         className="rounded-lg border border-line bg-surface-2 px-3 py-2"
                       >
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                        <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                           L{layerKey}
                         </div>
                         <div className="mt-1 text-xs font-semibold text-content-3">
@@ -3443,7 +3443,7 @@ export function ProductMasterDetailWorkspace({
                   }
                   return (
                     <div key={layerKey} className="space-y-1">
-                      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                      <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                         L{layerKey}
                       </Label>
                       <Select
@@ -3537,7 +3537,7 @@ export function ProductMasterDetailWorkspace({
                 <div className="text-sm font-bold text-content-1">
                   Active overlay
                 </div>
-                <div className="text-[11px] text-content-3">
+                <div className="text-caption text-content-3">
                   Sales can auto-apply these defaults.
                 </div>
               </div>
@@ -3629,12 +3629,12 @@ function EditField({
 }) {
   return (
     <div className={span === 2 ? "sm:col-span-2" : ""}>
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
       </Label>
       <div className="mt-1">{children}</div>
       {hint ? (
-        <div className="mt-1 text-[11px] leading-snug text-content-3">
+        <div className="mt-1 text-caption leading-snug text-content-3">
           {hint}
         </div>
       ) : null}
@@ -3675,7 +3675,7 @@ function CustomerOverlayPicker({
             <div className="truncate text-xs font-bold text-primary">
               {selected.name}
             </div>
-            <div className="font-mono text-[10px] font-semibold text-primary">
+            <div className="font-mono text-caption font-semibold text-primary">
               {selected.code}
             </div>
           </div>
@@ -3683,7 +3683,7 @@ function CustomerOverlayPicker({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 rounded-lg px-2 text-[11px]"
+            className="h-7 rounded-lg px-2 text-caption"
             onClick={() => onChange("")}
           >
             Change
@@ -3720,7 +3720,7 @@ function CustomerOverlayPicker({
                 </span>
                 <span
                   className={cn(
-                    "block font-mono text-[10px]",
+                    "block font-mono text-caption",
                     active ? "text-info-border" : "text-content-4",
                   )}
                 >
@@ -3756,7 +3756,7 @@ function ReadField({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">
+      <div className="text-caption font-bold uppercase tracking-wider text-content-4">
         {label}
       </div>
       <div
@@ -3789,7 +3789,7 @@ function ToggleRow({
       <div>
         <div className="text-sm font-bold text-content-1">{label}</div>
         {description && (
-          <div className="text-[11px] text-content-3">{description}</div>
+          <div className="text-caption text-content-3">{description}</div>
         )}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
@@ -3856,7 +3856,7 @@ function SizeTable({
                   <span className="text-xs text-content-3">{r.label}</span>
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ring-1 ring-inset",
+                      "rounded-full px-2 py-0.5 text-caption font-bold uppercase ring-1 ring-inset",
                       r.active
                         ? "bg-success-bg text-success-fg ring-success-border"
                         : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -3865,7 +3865,7 @@ function SizeTable({
                     {r.active ? "Active" : "Inactive"}
                   </span>
                 </div>
-                <div className="mt-0.5 text-[11px] text-content-3">
+                <div className="mt-0.5 text-caption text-content-3">
                   {isRollOutput ? r.roll_form || "ROLL" : r.pouch_style || kind}
                   {r.standard_qty
                     ? ` · Std qty: ${r.standard_qty} ${r.qty_uom}`
@@ -3877,20 +3877,20 @@ function SizeTable({
           <div className="border-t border-line px-4 py-2.5">
             <div className="flex flex-wrap gap-2">
               {isRollOutput ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-caption font-semibold text-success-fg ring-1 ring-success-border">
                   Roll width: {r.width_mm} mm
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-caption font-semibold text-success-fg ring-1 ring-success-border">
                   W×H: {r.width_mm}×{r.height_mm} mm
                 </span>
               )}
               {r.gusset_mm > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-1 text-[10px] font-semibold text-primary ring-1 ring-info-border">
+                <span className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-1 text-caption font-semibold text-primary ring-1 ring-info-border">
                   Gusset: {r.gusset_mm} mm
                 </span>
               )}
-              <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2.5 py-1 text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
+              <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2.5 py-1 text-caption font-semibold text-order-fg ring-1 ring-order-border">
                 Roll W:{" "}
                 {r.roll_width_mm
                   ? `${r.roll_width_mm} mm`
@@ -3898,7 +3898,7 @@ function SizeTable({
               </span>
               {!isRollOutput &&
                 Number((r as any).film_area_width_mm || 0) > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-1 text-[10px] font-semibold text-info-fg ring-1 ring-info-border">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-1 text-caption font-semibold text-info-fg ring-1 ring-info-border">
                     Area W:{" "}
                     {Number((r as any).film_area_width_mm).toLocaleString(
                       "en-IN",
@@ -3907,17 +3907,17 @@ function SizeTable({
                   </span>
                 )}
               {r.trim_loss_mm > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-warning-fg ring-1 ring-warning-border">
+                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-1 text-caption font-semibold text-warning-fg ring-1 ring-warning-border">
                   Trim: {r.trim_loss_mm} mm
                 </span>
               )}
               {r.flap_tape_mm > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-warning-fg ring-1 ring-warning-border">
+                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-1 text-caption font-semibold text-warning-fg ring-1 ring-warning-border">
                   Flap: {r.flap_tape_mm} mm
                 </span>
               )}
               {Array.isArray(r.adjustments) && r.adjustments.length > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-1 text-[10px] font-semibold text-info-fg ring-1 ring-info-border">
+                <span className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-1 text-caption font-semibold text-info-fg ring-1 ring-info-border">
                   Adjustments: {r.adjustments.length}
                 </span>
               )}
@@ -3944,7 +3944,7 @@ function LayerTemplateTable({ rows }: { rows: any[] }) {
           key={i}
           className="flex items-center gap-3 rounded-xl border border-line bg-surface-1 px-4 py-3"
         >
-          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-info-bg text-[10px] font-semibold text-primary ring-1 ring-info-border">
+          <span className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-info-bg text-caption font-semibold text-primary ring-1 ring-info-border">
             L{i + 1}
           </span>
           <div className="min-w-0 flex-1">
@@ -3953,7 +3953,7 @@ function LayerTemplateTable({ rows }: { rows: any[] }) {
                 {row.film_variant_code}
               </span>
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-3 text-[11px] text-content-3">
+            <div className="mt-0.5 flex flex-wrap items-center gap-3 text-caption text-content-3">
               <span className="font-semibold text-content-2">
                 {row.thickness_micron} μ
               </span>
@@ -3965,7 +3965,7 @@ function LayerTemplateTable({ rows }: { rows: any[] }) {
                     <span
                       key={g}
                       className={cn(
-                        "rounded px-1 py-0.5 text-[10px] font-semibold ring-1",
+                        "rounded px-1 py-0.5 text-caption font-semibold ring-1",
                         g === row.default_grade
                           ? "bg-success-bg text-success-fg ring-success-border"
                           : "bg-surface-2 text-content-3 ring-line",
@@ -4072,12 +4072,12 @@ function VariantAxisChips({ axes }: { axes: any[] }) {
                     <div className="text-sm font-bold text-content-1">
                       {label}
                     </div>
-                    <div className="text-[10px] text-content-3">{type}</div>
+                    <div className="text-caption text-content-3">{type}</div>
                   </div>
                 </div>
                 <span
                   className={cn(
-                    "rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset",
+                    "rounded-full px-2.5 py-1 text-caption font-bold uppercase tracking-wider ring-1 ring-inset",
                     requiredForUi
                       ? "bg-primary text-white ring-primary"
                       : "bg-order-bg text-order-fg ring-order-border",
@@ -4159,7 +4159,7 @@ function PackagingView({
               key={String(axis.axis)}
               className="rounded-xl border border-success-border bg-success-bg px-3 py-2.5 ring-1 ring-success-border"
             >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success-fg">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-success-fg">
                 {axis.master_data_source === "pod_sku_variant"
                   ? "POD catalog"
                   : "Packaging catalog"}
@@ -4167,14 +4167,14 @@ function PackagingView({
               <div className="mt-1 text-sm font-bold text-content-1">
                 {axis.label || String(axis.axis).replace(/_/g, " ")}
               </div>
-              <div className="mt-1 text-[11px] text-content-3">
+              <div className="mt-1 text-caption text-content-3">
                 {axis.qty_formula ||
                   (axis.qty_per_pcs === 0
                     ? "Counted at packing yard"
                     : `${axis.qty_per_pcs ?? 1} x pouch qty`)}
               </div>
               {axis.auto_demand_in_house && (
-                <span className="mt-2 inline-flex rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+                <span className="mt-2 inline-flex rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
                   auto-demand
                 </span>
               )}
@@ -4200,7 +4200,7 @@ function PackagingView({
               className="flex items-center justify-between rounded-xl border border-line bg-surface-1 px-4 py-3"
             >
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold text-success-fg ring-1 ring-success-border">
+                <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
                   {line.role}
                 </span>
                 <span className="text-sm font-semibold text-content-2">
@@ -4398,13 +4398,13 @@ function PackagingEditor({
                   }
                 />
               ) : (
-                <div className="flex h-8 items-center rounded-lg border border-line bg-surface-2 px-2 text-[11px] font-bold text-content-3">
+                <div className="flex h-8 items-center rounded-lg border border-line bg-surface-2 px-2 text-caption font-bold text-content-3">
                   {packagingRuleForRole(line.role).label}
                 </div>
               )}
             </EditField>
             <EditField label="Rule">
-              <div className="rounded-lg border border-success-border bg-success-bg px-2 py-1.5 text-[11px] font-semibold leading-4 text-success-fg">
+              <div className="rounded-lg border border-success-border bg-success-bg px-2 py-1.5 text-caption font-semibold leading-4 text-success-fg">
                 {packagingRuleForRole(line.role).hint}
               </div>
             </EditField>
@@ -4531,7 +4531,7 @@ function VariantTable({ rows, axes }: { rows: any[]; axes: VariantAxisDef[] }) {
         </div>
         {axes.length > 0 && (
           <div className="rounded-xl border border-info-border bg-info-bg px-4 py-3">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-primary">
+            <div className="text-caption font-bold uppercase tracking-wider text-primary">
               Active axes that will drive variant creation
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -4541,7 +4541,7 @@ function VariantTable({ rows, axes }: { rows: any[]; axes: VariantAxisDef[] }) {
                   <span
                     key={a.axis}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset",
+                      "rounded-full px-2.5 py-1 text-caption font-bold ring-1 ring-inset",
                       p.bg,
                       p.text,
                       p.ring,
@@ -4590,7 +4590,7 @@ function VariantTable({ rows, axes }: { rows: any[]; axes: VariantAxisDef[] }) {
                     </span>
                     <span
                       className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ring-1 ring-inset",
+                        "rounded-full px-2 py-0.5 text-caption font-bold uppercase ring-1 ring-inset",
                         v.active
                           ? "bg-success-bg text-success-fg ring-success-border"
                           : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -4600,13 +4600,13 @@ function VariantTable({ rows, axes }: { rows: any[]; axes: VariantAxisDef[] }) {
                     </span>
                   </div>
                   {v.invariant_signature && (
-                    <div className="mt-0.5 font-mono text-[10px] text-content-4">
+                    <div className="mt-0.5 font-mono text-caption text-content-4">
                       {v.invariant_signature}
                     </div>
                   )}
                 </div>
               </div>
-              <div className="text-right text-[10px] text-content-4">
+              <div className="text-right text-caption text-content-4">
                 {v.used_count ? `${v.used_count} orders` : "Unused"}
               </div>
             </div>
@@ -4624,7 +4624,7 @@ function VariantTable({ rows, axes }: { rows: any[]; axes: VariantAxisDef[] }) {
                       <span
                         key={k}
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ring-inset",
+                          "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-semibold ring-1 ring-inset",
                           p.bg,
                           p.text,
                           p.ring,
@@ -4679,7 +4679,7 @@ function VariantLayerMicroBar({ layers }: { layers?: any[] }) {
   };
   return (
     <div className="border-t border-line px-4 py-2">
-      <div className="flex items-center justify-between text-[10px] font-bold text-content-3 uppercase tracking-wider mb-1">
+      <div className="flex items-center justify-between text-caption font-bold text-content-3 uppercase tracking-wider mb-1">
         <span>Layer stack</span>
         <span className="font-mono">{total} μ total</span>
       </div>
@@ -4702,7 +4702,7 @@ function VariantLayerMicroBar({ layers }: { layers?: any[] }) {
         {layers.map((l: any, i: number) => (
           <span
             key={i}
-            className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono font-bold text-content-2 ring-1 ring-line"
+            className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-caption font-mono font-bold text-content-2 ring-1 ring-line"
           >
             <span
               className={cn(
@@ -4743,10 +4743,10 @@ function VariantStatsRow({ variant }: { variant: any }) {
           key={s.k}
           className="rounded-md bg-surface-2 px-2 py-1 ring-1 ring-line"
         >
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
             {s.k}
           </div>
-          <div className="font-mono text-[11px] font-bold text-content-2 tabular-nums">
+          <div className="font-mono text-caption font-bold text-content-2 tabular-nums">
             {s.v}
           </div>
         </div>
@@ -4806,19 +4806,19 @@ function OverlayTable({ rows }: { rows: any[] }) {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-info-bg text-[10px] font-semibold text-primary">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-info-bg text-caption font-semibold text-primary">
                 {(o.customer_name || "C")[0]}
               </div>
               <div>
                 <div className="text-sm font-bold text-content-2">
                   {o.customer_name || o.customer}
                 </div>
-                <div className="text-[11px] text-primary">
+                <div className="text-caption text-primary">
                   {o.customer_item_code}
                 </div>
               </div>
             </div>
-            <div className="text-right text-[11px] text-content-3">
+            <div className="text-right text-caption text-content-3">
               <div>{o.default_price_basis || "—"} pricing</div>
               {o.moq_kg ? <div>MOQ: {o.moq_kg} kg</div> : null}
             </div>
@@ -4829,7 +4829,7 @@ function OverlayTable({ rows }: { rows: any[] }) {
             </div>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-content-3 ring-1 ring-line">
+            <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption text-content-3 ring-1 ring-line">
               {o.axis_values && Object.keys(o.axis_values).length
                 ? Object.entries(o.axis_values)
                     .filter(([, v]) => !isAxisValueEmpty(v))
@@ -4841,7 +4841,7 @@ function OverlayTable({ rows }: { rows: any[] }) {
                 : "Generic"}
             </span>
             {o.default_packing_recipe?.packaging_lines?.length ? (
-              <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
+              <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-semibold text-success-fg ring-1 ring-success-border">
                 {o.default_packing_recipe.packaging_lines.length} BOM packing
                 line(s)
               </span>
@@ -4977,7 +4977,7 @@ function ProductSpecCard(props: {
                 <span
                   key={s.id || i}
                   className={cn(
-                    "rounded-md px-2 py-0.5 text-[10px] font-bold ring-1",
+                    "rounded-md px-2 py-0.5 text-caption font-bold ring-1",
                     s.active
                       ? "bg-success-bg text-success-fg ring-success-border"
                       : "bg-surface-2 text-content-3 ring-line",
@@ -4987,7 +4987,7 @@ function ProductSpecCard(props: {
                 </span>
               ))}
               {sizes.length > 4 && (
-                <span className="text-[10px] text-content-4 self-center">
+                <span className="text-caption text-content-4 self-center">
                   +{sizes.length - 4}
                 </span>
               )}
@@ -4999,7 +4999,7 @@ function ProductSpecCard(props: {
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 Product spec · what is this?
               </div>
               <div className="font-display mt-1 text-2xl font-bold text-content-1">
@@ -5011,16 +5011,16 @@ function ProductSpecCard(props: {
             </div>
             <div className="flex flex-col items-end gap-1">
               {active ? (
-                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+                <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
                   ● Active
                 </span>
               ) : (
-                <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger-fg ring-1 ring-danger-border">
+                <span className="rounded-full bg-danger-bg px-2 py-0.5 text-caption font-semibold uppercase tracking-wider text-danger-fg ring-1 ring-danger-border">
                   ● Inactive
                 </span>
               )}
               {invariant && (
-                <span className="text-[10px] mono text-content-4">
+                <span className="text-caption mono text-content-4">
                   {invariant}
                 </span>
               )}
@@ -5072,7 +5072,7 @@ function ProductSpecCard(props: {
           {/* Layer summary chips */}
           {layers.length > 0 && (
             <div className="mt-4">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 Layer stack (top → bottom)
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -5093,7 +5093,7 @@ function ProductSpecCard(props: {
                     <React.Fragment key={i}>
                       <span
                         className={cn(
-                          "rounded-full px-2.5 py-0.5 text-[11px] font-bold ring-1 ring-inset",
+                          "rounded-full px-2.5 py-0.5 text-caption font-bold ring-1 ring-inset",
                           TONE_CLS[tone],
                         )}
                       >
@@ -5148,7 +5148,7 @@ function SpecCell({
         tone ? TONE[tone] : "border-line",
       )}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 text-sm font-bold text-content-1">{value}</div>
@@ -5585,11 +5585,11 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
               {String(def.axis)}
             </span>
             {def.label && (
-              <span className="text-[11px] text-content-3">{def.label}</span>
+              <span className="text-caption text-content-3">{def.label}</span>
             )}
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset",
+                "rounded-full px-2 py-0.5 text-caption font-bold uppercase tracking-wider ring-1 ring-inset",
                 meta.bg,
                 meta.color,
                 meta.ring,
@@ -5598,18 +5598,18 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
               {meta.label}
             </span>
             {def.required && (
-              <span className="rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-bold uppercase text-danger-fg ring-1 ring-danger-border">
+              <span className="rounded-full bg-danger-bg px-2 py-0.5 text-caption font-bold uppercase text-danger-fg ring-1 ring-danger-border">
                 Required
               </span>
             )}
             {def.auto_demand_in_house && (
-              <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold uppercase text-success-fg ring-1 ring-success-border">
+              <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold uppercase text-success-fg ring-1 ring-success-border">
                 Auto-demand
               </span>
             )}
           </div>
           {Object.keys(filter).length > 0 && (
-            <div className="mt-1 text-[10px] text-content-3">
+            <div className="mt-1 text-caption text-content-3">
               Filter:{" "}
               {Object.entries(filter)
                 .map(([k, v]) => `${k}=${v}`)
@@ -5618,10 +5618,10 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
           )}
         </div>
         <div className="flex flex-col items-end gap-1 text-right">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+          <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
             Qty per order
           </span>
-          <span className="rounded-lg bg-surface-3 px-2 py-1 font-mono text-[11px] text-success-border ring-1 ring-line-strong">
+          <span className="rounded-lg bg-surface-3 px-2 py-1 font-mono text-caption text-success-border ring-1 ring-line-strong">
             {def.qty_formula
               ? def.qty_formula
               : def.qty_per_pcs != null
@@ -5631,14 +5631,14 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
         </div>
       </div>
       <div className="mt-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
           {isLoading
             ? "Loading catalog options…"
             : `Available catalog options${options.length ? ` (${options.length})` : ""}`}
         </div>
         <div className="mt-1 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
           {options.length === 0 && !isLoading && (
-            <span className="text-[10px] italic text-content-4">
+            <span className="text-caption italic text-content-4">
               No catalog rows match this filter. Add some in master-data.
             </span>
           )}
@@ -5646,7 +5646,7 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
             <span
               key={o.id}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-content-2 ring-1 ring-line",
+                "inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-2 ring-1 ring-line",
                 def.default_value === o.code &&
                   "bg-success-bg text-success-fg ring-success-border",
               )}
@@ -5659,7 +5659,7 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
             </span>
           ))}
           {options.length > 30 && (
-            <span className="text-[10px] text-content-4">
+            <span className="text-caption text-content-4">
               + {options.length - 30} more
             </span>
           )}

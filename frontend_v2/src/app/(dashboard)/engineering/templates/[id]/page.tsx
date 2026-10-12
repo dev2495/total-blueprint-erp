@@ -62,7 +62,7 @@ function hasDispatchBlocker(step: TemplateProcessStep) {
 function StatusPill({ label, active }: { label: string; active: boolean }) {
   return (
     <span
-      className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${active ? "bg-success-bg text-success-fg" : "bg-surface-2 text-content-3"}`}
+      className={`rounded-full px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] ${active ? "bg-success-bg text-success-fg" : "bg-surface-2 text-content-3"}`}
     >
       {label}
     </span>
@@ -127,7 +127,7 @@ function StudioStepper({
           </div>
           <div>
             <div
-              className={`text-[10px] font-semibold uppercase tracking-[0.08em] ${done ? "text-success-fg" : index === 1 ? "text-primary" : "text-content-4"}`}
+              className={`text-caption font-semibold uppercase tracking-[0.08em] ${done ? "text-success-fg" : index === 1 ? "text-primary" : "text-content-4"}`}
             >
               {done
                 ? `Step ${index + 1} · Complete`
@@ -179,7 +179,7 @@ function ReadinessDashboard({
     <section className="rounded-[20px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
         <div className="min-w-[260px] flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             Template readiness
           </div>
           <div className="mt-2 flex items-baseline gap-3">
@@ -216,7 +216,7 @@ function ReadinessDashboard({
         </div>
         <div className="hidden w-px self-stretch bg-surface-2 xl:block" />
         <div className="min-w-[320px] flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             Blocking checks
           </div>
           <div className="mt-3 space-y-2 text-sm">
@@ -245,7 +245,7 @@ function ReadinessDashboard({
         </div>
         <div className="hidden w-px self-stretch bg-surface-2 xl:block" />
         <div className="min-w-[230px]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             What is next
           </div>
           <p className="mt-2 text-sm font-medium text-content-3">
@@ -277,10 +277,10 @@ function LifecycleRail({ status }: { status: string }) {
   return (
     <section className="rounded-[20px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
           Lifecycle
         </div>
-        <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+        <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-primary">
           Currently: {String(status || "Draft").replace("_", " ")}
         </span>
       </div>
@@ -295,7 +295,7 @@ function LifecycleRail({ status }: { status: string }) {
             <div className="mt-2 text-sm font-semibold text-content-1">
               {stage.replace("_", " ")}
             </div>
-            <div className="text-[11px] font-medium text-content-3">
+            <div className="text-caption font-medium text-content-3">
               {descriptions[index]}
             </div>
           </div>
@@ -314,7 +314,7 @@ function ReadinessPanel({ readiness }: { readiness: any }) {
       <CardContent className="p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Review gate
             </div>
             <div
@@ -366,7 +366,7 @@ function StepCard({ step }: { step: TemplateProcessStep }) {
     <div className="rounded-3xl border border-line bg-surface-1 p-4 shadow-sm">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
             Step {step.sequence_number}
           </div>
           <h3 className="mt-1 text-lg font-semibold text-content-1">
@@ -445,7 +445,7 @@ function StepCard({ step }: { step: TemplateProcessStep }) {
         {(step.materials || []).map((material) => (
           <span
             key={material.id}
-            className="rounded-full bg-surface-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3"
+            className="rounded-full bg-surface-2 px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
           >
             {material.category_code}
           </span>
@@ -529,7 +529,7 @@ function DispatchStepEditor({
     <div className="rounded-3xl border border-line bg-surface-1 p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
             Stage {step.sequence_number}
           </div>
           <h3 className="mt-1 text-base font-semibold text-content-1">
@@ -539,7 +539,7 @@ function DispatchStepEditor({
             {candidates.length} capable work center{candidates.length === 1 ? "" : "s"}
           </p>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${dispatchStatusClass(status?.status)}`}>
+        <span className={`rounded-full border px-3 py-1 text-caption font-semibold uppercase tracking-[0.08em] ${dispatchStatusClass(status?.status)}`}>
           {dispatchStatusLabel(status?.status)}
         </span>
       </div>
@@ -553,7 +553,7 @@ function DispatchStepEditor({
           <div className="rounded-2xl border border-line bg-surface-2 p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                   Allowed centers
                 </div>
                 <div className="text-xs font-semibold text-content-3">
@@ -671,7 +671,7 @@ function DispatchStepEditor({
               />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-3">
-              <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+              <div className="mb-3 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                 Route behavior
               </div>
               <div className="space-y-3">
@@ -749,7 +749,7 @@ function WorkCenterDispatchPanel({
             </p>
           </div>
           {template.status === "LIVE" ? (
-            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-success-fg">
+            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.08em] text-success-fg">
               Safe edit required
             </span>
           ) : null}
@@ -879,10 +879,10 @@ function BatchExecutionPolicyCard({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+            <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.08em] text-primary">
               template policy
             </span>
-            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-success-fg">
+            <span className="rounded-full border border-success-border bg-success-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.08em] text-success-fg">
               one sales line stays one demand
             </span>
           </div>
@@ -891,7 +891,7 @@ function BatchExecutionPolicyCard({
         <div className="rounded-[1.5rem] border border-line bg-surface-1 p-4">
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                 Selected route flow · read only
               </div>
               <div className="mt-1 text-sm font-semibold text-content-1">
@@ -899,11 +899,11 @@ function BatchExecutionPolicyCard({
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-[10px] font-semibold text-primary">
+              <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-caption font-semibold text-primary">
                 {routeStages.length} stages
               </span>
               {parallelGroups ? (
-                <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-[10px] font-semibold text-warning-fg">
+                <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-caption font-semibold text-warning-fg">
                   {parallelGroups} + branch{parallelGroups === 1 ? "" : "es"}
                 </span>
               ) : null}
@@ -916,7 +916,7 @@ function BatchExecutionPolicyCard({
                   <div
                     className={`w-full rounded-2xl border p-3 ${stage.nodes.length > 1 ? "border-warning-border bg-warning-bg/50" : "border-line bg-surface-2"}`}
                   >
-                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="mb-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                       Stage {stagePosition + 1}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -950,7 +950,7 @@ function BatchExecutionPolicyCard({
         </div>
 
         <div className="space-y-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
             Batch creation
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -993,7 +993,7 @@ function BatchExecutionPolicyCard({
         </div>
 
         <div className="space-y-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
             Release behavior
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -1025,7 +1025,7 @@ function BatchExecutionPolicyCard({
               >
                 <div>
                   <div className="text-xs font-semibold text-content-1">{label}</div>
-                  <div className="mt-1 text-[11px] font-semibold leading-4 text-content-3">
+                  <div className="mt-1 text-caption font-semibold leading-4 text-content-3">
                     {help}
                   </div>
                 </div>
@@ -1362,7 +1362,7 @@ export default function TemplateStudioPage() {
               T
             </div>
             <div className="min-w-0">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 Template Studio · execution rules
               </div>
               <div className="truncate text-[15px] font-semibold text-content-1">
@@ -1374,14 +1374,14 @@ export default function TemplateStudioPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-line bg-surface-2 px-3 py-1 text-[11px] font-bold text-content-3">
+            <span className="rounded-full border border-line bg-surface-2 px-3 py-1 text-caption font-bold text-content-3">
               {template.fg_type || "Template"}
             </span>
-            <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-[11px] font-bold text-primary">
+            <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-bold text-primary">
               {template.commercial_family_name || "Family unlinked"}
             </span>
             <span
-              className={`rounded-full border px-3 py-1 text-[11px] font-bold ${isDisabled ? "border-line bg-surface-2 text-content-3" : isReadOnly ? "border-success-border bg-success-bg text-success-fg" : "border-warning-border bg-warning-bg text-warning-fg"}`}
+              className={`rounded-full border px-3 py-1 text-caption font-bold ${isDisabled ? "border-line bg-surface-2 text-content-3" : isReadOnly ? "border-success-border bg-success-bg text-success-fg" : "border-warning-border bg-warning-bg text-warning-fg"}`}
             >
               {isDisabled
                 ? "Disabled"
@@ -1588,13 +1588,13 @@ export default function TemplateStudioPage() {
                       <div
                         className={`rounded-2xl border px-4 py-3 ${String(step.process_roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE" ? "border-warning-border bg-warning-bg" : "border-info-border bg-surface-1"}`}
                       >
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                           Stage {step.sequence_number}
                         </div>
                         <div className="mt-1 text-sm font-semibold text-content-1">
                           {step.process_name}
                         </div>
-                        <div className="mt-1 text-[10px] font-semibold text-content-3">
+                        <div className="mt-1 text-caption font-semibold text-content-3">
                           {plainBehaviour(step.process_roll_behavior)}
                         </div>
                       </div>

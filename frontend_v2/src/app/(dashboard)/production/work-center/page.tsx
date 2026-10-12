@@ -14,6 +14,7 @@ import {
   Search,
 } from "lucide-react";
 import Link from "next/link";
+import { PageHero } from "@/components/premium/page-hero";
 
 export default function WorkCenterListPage() {
   const [query, setQuery] = useState("");
@@ -68,7 +69,7 @@ export default function WorkCenterListPage() {
       <div className="flex h-screen items-center justify-center bg-[#f8fafc]">
         <div className="text-center space-y-4">
           <Activity className="h-12 w-12 animate-pulse text-primary mx-auto" />
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+          <p className="text-caption font-semibold uppercase tracking-widest text-content-4">
             Accessing Station Topology...
           </p>
         </div>
@@ -77,19 +78,16 @@ export default function WorkCenterListPage() {
   }
 
   return (
-    <div className="min-h-screen space-y-8 bg-[#f8fafc] p-4 sm:p-6 lg:p-10">
+    <div className="min-h-screen space-y-8 bg-surface-2 p-4 sm:p-6 lg:p-10">
       {/* Header Section */}
-      <div className="mx-auto max-w-5xl space-y-4 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
-          <ShieldCheck className="h-3 w-3" /> Station Access
-        </div>
-        <h1 className="text-3xl font-semibold tracking-tighter text-content-1 sm:text-5xl">
-          Floor <span className="text-primary italic">Access</span> Point
-        </h1>
-        <p className="mx-auto flex max-w-2xl items-center justify-center gap-2 text-sm font-semibold uppercase tracking-widest text-content-3">
-          Open the WCM terminal directly or choose a station below{" "}
-          <Activity className="h-4 w-4 text-info-fg" />
-        </p>
+      <div className="mx-auto max-w-5xl space-y-4">
+        <PageHero
+          compact
+          icon={<ShieldCheck />}
+          eyebrow="Production · Work-centre terminal"
+          title="Choose your machine group"
+          description="Open the terminal for the machine group you run. Your last one is remembered."
+        />
         {primaryWorkCenter ? (
           <Link
             href={`/production/work-center/${primaryWorkCenter.id}`}
@@ -101,7 +99,7 @@ export default function WorkCenterListPage() {
             }}
           >
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                 {lastWorkCenter ? "Resume last WCM terminal" : "Open first available WCM terminal"}
               </div>
               <div className="mt-1 truncate text-lg font-semibold text-content-1">
@@ -154,7 +152,7 @@ export default function WorkCenterListPage() {
               >
                 <CardHeader className="flex flex-row items-start justify-between gap-4 p-5 pb-3">
                   <div className="min-w-0">
-                    <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                    <h3 className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                       WCM terminal
                     </h3>
                     <CardTitle className="mt-2 text-xl font-semibold tracking-tight text-content-1 transition-colors group-hover:text-primary">
@@ -168,7 +166,7 @@ export default function WorkCenterListPage() {
                 <CardContent className="p-5 pt-0">
                   <div className="rounded-2xl border border-line bg-surface-2 p-4 transition-all duration-300 group-hover:border-info-border group-hover:bg-surface-1">
                     <div className="flex min-w-0 flex-col">
-                      <span className="text-[10px] font-semibold text-content-4 uppercase tracking-widest">
+                      <span className="text-caption font-semibold text-content-4 uppercase tracking-widest">
                         Station Protocol
                       </span>
                       <span className="mt-0.5 truncate text-xs font-semibold text-content-1">
@@ -176,7 +174,7 @@ export default function WorkCenterListPage() {
                       </span>
                     </div>
                     <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-info-border bg-surface-1 px-3 py-2 text-primary">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest">
+                      <span className="text-caption font-semibold uppercase tracking-widest">
                         Open terminal
                       </span>
                       <ArrowRight className="h-4 w-4" />
@@ -187,7 +185,7 @@ export default function WorkCenterListPage() {
                   <Zap className="h-16 w-16 -rotate-12 text-primary transition-transform duration-700 group-hover:rotate-0" />
                 </div>
                 {isLastUsed ? (
-                  <div className="absolute right-5 top-5 rounded-full bg-success-fg px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+                  <div className="absolute right-5 top-5 rounded-full bg-success-fg px-2 py-1 text-caption font-semibold uppercase tracking-widest text-white">
                     Last Used
                   </div>
                 ) : null}

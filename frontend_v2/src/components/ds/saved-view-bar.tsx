@@ -122,7 +122,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
         title="Saved on this device"
         {...props}
       >
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-content-3">
+        <span className="inline-flex items-center gap-1 text-caption font-semibold uppercase tracking-wide text-content-3">
           <Star className="h-3 w-3 text-primary" />
           Views
         </span>
@@ -167,7 +167,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
                 type="button"
                 aria-label={`Save saved view name ${v.name}`}
                 onClick={rename}
-                className="inline-flex h-7 items-center border border-l-0 border-line bg-surface-1 px-2 text-[11px] font-bold text-primary transition hover:bg-info-bg"
+                className="inline-flex h-7 items-center border border-l-0 border-line bg-surface-1 px-2 text-caption font-bold text-primary transition hover:bg-info-bg"
               >
                 <Check className="h-3 w-3" />
               </button>
@@ -179,7 +179,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
                   setEditingId(v.id);
                   setEditName(v.name);
                 }}
-                className="inline-flex h-7 items-center border border-l-0 border-line bg-surface-1 px-2 text-[11px] font-bold text-content-4 transition hover:bg-surface-2 hover:text-primary"
+                className="inline-flex h-7 items-center border border-l-0 border-line bg-surface-1 px-2 text-caption font-bold text-content-4 transition hover:bg-surface-2 hover:text-primary"
               >
                 <Edit3 className="h-3 w-3" />
               </button>
@@ -188,7 +188,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
               type="button"
               aria-label={`Update saved view ${v.name} to current filters`}
               onClick={() => update(v.id)}
-              className="inline-flex h-7 items-center border border-l-0 border-line bg-surface-1 px-2 text-[11px] font-bold text-content-4 transition hover:bg-info-bg hover:text-primary"
+              className="inline-flex h-7 items-center border border-l-0 border-line bg-surface-1 px-2 text-caption font-bold text-content-4 transition hover:bg-info-bg hover:text-primary"
             >
               <RefreshCw className="h-3 w-3" />
             </button>
@@ -196,7 +196,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
               type="button"
               aria-label={`Delete saved view ${v.name}`}
               onClick={() => remove(v.id)}
-              className="inline-flex h-7 items-center rounded-r-full border border-l-0 border-line bg-surface-1 px-2 text-[11px] text-content-4 transition hover:bg-danger-bg hover:text-danger-fg"
+              className="inline-flex h-7 items-center rounded-r-full border border-l-0 border-line bg-surface-1 px-2 text-caption text-content-4 transition hover:bg-danger-bg hover:text-danger-fg"
             >
               <Trash2 className="h-3 w-3" />
             </button>
@@ -221,7 +221,7 @@ export const SavedViewBar = React.forwardRef<HTMLDivElement, SavedViewBarProps>(
             <button
               type="button"
               onClick={save}
-              className="inline-flex h-7 items-center gap-1 rounded-full bg-primary px-3 text-[11px] font-bold text-white hover:bg-primary"
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-primary px-3 text-caption font-bold text-white hover:bg-primary"
             >
               <Check className="h-3 w-3" />
               Save

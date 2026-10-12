@@ -525,7 +525,7 @@ export default function WorkCentersPage() {
                               <Badge
                                 key={p.id}
                                 variant="secondary"
-                                className="bg-surface-2 text-content-3 text-[10px] hover:bg-line"
+                                className="bg-surface-2 text-content-3 text-caption hover:bg-line"
                               >
                                 {p.name}
                               </Badge>
@@ -538,7 +538,7 @@ export default function WorkCentersPage() {
                           {wcProcesses.length > 3 && (
                             <Badge
                               variant="secondary"
-                              className="bg-surface-2 text-content-3 text-[10px]"
+                              className="bg-surface-2 text-content-3 text-caption"
                             >
                               +{wcProcesses.length - 3}
                             </Badge>
@@ -546,7 +546,7 @@ export default function WorkCentersPage() {
                         </div>
                       </div>
                       <div className="mt-4 rounded-2xl border border-line bg-surface-2 px-3 py-3">
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                           Default cost group
                         </div>
                         <div className="mt-1 text-sm font-semibold text-content-2">
@@ -597,7 +597,7 @@ export default function WorkCentersPage() {
                               <Badge
                                 key={p.id}
                                 variant="outline"
-                                className="text-[10px] h-5"
+                                className="text-caption h-5"
                               >
                                 {p.name}
                               </Badge>
@@ -605,7 +605,7 @@ export default function WorkCentersPage() {
                             {wcProcesses.length > 2 && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] h-5"
+                                className="text-caption h-5"
                               >
                                 +{wcProcesses.length - 2}
                               </Badge>

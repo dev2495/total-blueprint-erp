@@ -128,7 +128,7 @@ export default function RollMovementsPage() {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-primary via-info-fg to-success-fg" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+            <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-primary">
               <History className="h-3.5 w-3.5" />
               Movement Ledger
             </div>

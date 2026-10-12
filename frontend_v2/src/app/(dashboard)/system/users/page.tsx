@@ -113,7 +113,7 @@ export default function UsersPage() {
           </h2>
           <p className="mt-1 text-sm text-content-3">
             You need{" "}
-            <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[11px]">
+            <code className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-caption">
               rbac.view
             </code>{" "}
             to see the user registry.
@@ -274,7 +274,7 @@ function KpiTile({
         >
           <Icon className="h-4 w-4" />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-content-3">
+        <span className="text-caption font-bold uppercase tracking-widest text-content-3">
           {label}
         </span>
       </div>
@@ -302,7 +302,7 @@ function RolePill({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full px-3 py-1 text-[11px] font-bold ring-1 transition",
+        "rounded-full px-3 py-1 text-caption font-bold ring-1 transition",
         active
           ? cn(palette.bg, palette.text, palette.ring)
           : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",
@@ -350,7 +350,7 @@ function UserCard({ user, canManage }: { user: User; canManage: boolean }) {
               </span>
             ) : null}
           </div>
-          <div className="truncate font-mono text-[11px] text-content-3">
+          <div className="truncate font-mono text-caption text-content-3">
             {user.email || "no email"}
           </div>
         </div>
@@ -379,7 +379,7 @@ function UserCard({ user, canManage }: { user: User; canManage: boolean }) {
         ) : null}
       </div>
 
-      <div className="mt-4 flex items-center justify-end text-[11px] font-bold text-order-fg">
+      <div className="mt-4 flex items-center justify-end text-caption font-bold text-order-fg">
         {canManage ? "Edit →" : "View →"}
       </div>
     </Link>

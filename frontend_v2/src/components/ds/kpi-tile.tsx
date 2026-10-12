@@ -62,7 +62,7 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
       )}
       {...props}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
         {label}
       </div>
       <div
@@ -78,7 +78,7 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
         )}
       </div>
       {(hint || trend) && (
-        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-content-3">
+        <div className="mt-0.5 flex items-center gap-2 text-caption text-content-3">
           {trend && (
             <span className={cn("font-semibold", trendColor[trend.direction])}>
               {trend.direction === "up"

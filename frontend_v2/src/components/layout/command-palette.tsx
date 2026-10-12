@@ -107,7 +107,7 @@ function StatusBadge({ status }: { status?: string }) {
   return (
     <Badge
       variant={variant}
-      className="ml-auto h-4 px-1 text-[10px] font-bold uppercase tracking-wider"
+      className="ml-auto h-4 px-1 text-caption font-bold uppercase tracking-wider"
     >
       {value}
     </Badge>
@@ -346,7 +346,7 @@ export function CommandPalette({
           )}
         </span>
         {!compact ? (
-          <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.4rem] hidden h-5 select-none items-center gap-1 rounded border bg-surface-1 px-1.5 font-mono text-[10px] font-medium sm:flex">
+          <kbd className="pointer-events-none absolute right-[0.3rem] top-[0.4rem] hidden h-5 select-none items-center gap-1 rounded border bg-surface-1 px-1.5 font-mono text-caption font-medium sm:flex">
             <span className="text-xs">⌘</span>K
           </kbd>
         ) : null}
@@ -362,7 +362,7 @@ export function CommandPalette({
             className="h-12 border-none ring-0 focus:ring-0"
           />
           {meta ? (
-            <div className="flex flex-wrap items-center gap-2 px-2 pt-1 text-[10px] text-content-3">
+            <div className="flex flex-wrap items-center gap-2 px-2 pt-1 text-caption text-content-3">
               <Badge variant="outline">{mergedResults.length} results</Badge>
               <Badge variant="outline">{meta.took_ms} ms</Badge>
               {Object.entries(meta.counts_by_type || {}).map(
@@ -389,7 +389,7 @@ export function CommandPalette({
               <p className="text-xs font-semibold uppercase tracking-widest">
                 Quick Launch
               </p>
-              <p className="mt-1 text-[10px]">
+              <p className="mt-1 text-caption">
                 Type at least 2 characters for full scoped search
               </p>
             </div>
@@ -420,7 +420,7 @@ export function CommandPalette({
                         <span className="truncate font-medium text-content-2">
                           {item.label}
                         </span>
-                        <span className="truncate text-[10px] tracking-tight text-content-4">
+                        <span className="truncate text-caption tracking-tight text-content-4">
                           {item.subtitle || item.type}
                         </span>
                       </div>

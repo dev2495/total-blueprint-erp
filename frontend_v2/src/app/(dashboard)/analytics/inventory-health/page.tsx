@@ -326,7 +326,7 @@ export default function InventoryHealthPage() {
         <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden flex flex-col items-center justify-center p-6 relative">
           <div className="absolute top-4 left-4 flex items-center gap-2">
             <Gauge className="h-4 w-4 text-content-4" strokeWidth={1.5} />
-            <span className="text-[11px] font-bold uppercase tracking-widest text-content-4">
+            <span className="text-caption font-bold uppercase tracking-widest text-content-4">
               System Integrity
             </span>
           </div>
@@ -352,7 +352,7 @@ export default function InventoryHealthPage() {
               <div className="text-5xl font-semibold tracking-tighter text-content-1">
                 {integrityScore === null ? "—" : `${integrityScore}%`}
               </div>
-              <div className="text-[11px] font-bold uppercase tracking-widest text-content-3 mt-1">
+              <div className="text-caption font-bold uppercase tracking-widest text-content-3 mt-1">
                 Network State
               </div>
             </div>
@@ -367,7 +367,7 @@ export default function InventoryHealthPage() {
                 className="h-6 w-6 text-danger-fg mb-4"
                 strokeWidth={1.5}
               />
-              <p className="text-[11px] font-bold uppercase tracking-widest text-content-3 mb-1">
+              <p className="text-caption font-bold uppercase tracking-widest text-content-3 mb-1">
                 Critical Anomalies
               </p>
               <p className="text-4xl font-semibold tracking-tight text-content-1">
@@ -387,7 +387,7 @@ export default function InventoryHealthPage() {
                 className="h-6 w-6 text-warm mb-4"
                 strokeWidth={1.5}
               />
-              <p className="text-[11px] font-bold uppercase tracking-widest text-content-3 mb-1">
+              <p className="text-caption font-bold uppercase tracking-widest text-content-3 mb-1">
                 High Priority
               </p>
               <p className="text-4xl font-semibold tracking-tight text-content-1">
@@ -411,7 +411,7 @@ export default function InventoryHealthPage() {
                 } mb-4`}
                 strokeWidth={1.5}
               />
-              <p className="text-[11px] font-bold uppercase tracking-widest text-content-3 mb-1">
+              <p className="text-caption font-bold uppercase tracking-widest text-content-3 mb-1">
                 Total Outstanding
               </p>
               <p className="text-4xl font-semibold tracking-tight text-content-1">
@@ -483,7 +483,7 @@ export default function InventoryHealthPage() {
                     <div className="flex items-start gap-4">
                       <Badge
                         variant="outline"
-                        className={`mt-1 border-0 shadow-sm text-[10px] font-semibold uppercase tracking-widest ${isAccel ? "text-danger-fg bg-danger-bg" : "text-warning-fg bg-warning-bg"}`}
+                        className={`mt-1 border-0 shadow-sm text-caption font-semibold uppercase tracking-widest ${isAccel ? "text-danger-fg bg-danger-bg" : "text-warning-fg bg-warning-bg"}`}
                       >
                         {alert.severity}
                       </Badge>
@@ -497,7 +497,7 @@ export default function InventoryHealthPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-3 min-w-32">
-                      <span className="text-[11px] font-bold text-content-4 uppercase tracking-widest">
+                      <span className="text-caption font-bold text-content-4 uppercase tracking-widest">
                         {formatDisplayDate(alert.created_at)}
                       </span>
                       <Button

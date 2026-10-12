@@ -50,7 +50,7 @@ export function AlertStream({ alerts = [] }: { alerts: AlertItem[] }) {
                     <p className="text-sm font-medium text-content-2">
                       {alert.message}
                     </p>
-                    <span className="text-[10px] text-content-4 font-mono flex-shrink-0 ml-2">
+                    <span className="text-caption text-content-4 font-mono flex-shrink-0 ml-2">
                       {new Date(alert.timestamp).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -59,7 +59,7 @@ export function AlertStream({ alerts = [] }: { alerts: AlertItem[] }) {
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wide
+                      className={`text-caption px-1.5 py-0.5 rounded font-bold uppercase tracking-wide
  ${
    alert.severity === "CRITICAL"
      ? "bg-danger-bg text-danger-fg"
@@ -70,7 +70,7 @@ export function AlertStream({ alerts = [] }: { alerts: AlertItem[] }) {
                     >
                       {alert.severity}
                     </span>
-                    <span className="text-[10px] text-content-4 uppercase tracking-wide">
+                    <span className="text-caption text-content-4 uppercase tracking-wide">
                       {alert.type}
                     </span>
                   </div>

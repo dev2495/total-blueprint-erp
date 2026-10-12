@@ -134,7 +134,7 @@ export function GranuleCodeSourcePicker({
                         <span className="font-semibold text-content-1">{option.code}</span>
                         <span
                           className={cn(
-                            "rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                            "rounded-full px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wider",
                             exactStore
                               ? "bg-success-bg text-success-fg"
                               : "bg-info-bg text-primary",
@@ -143,7 +143,7 @@ export function GranuleCodeSourcePicker({
                           {exactStore ? "Issue store" : "Same plant"}
                         </span>
                       </span>
-                      <span className="mt-1 flex items-center gap-1 truncate text-[11px] font-medium text-content-3">
+                      <span className="mt-1 flex items-center gap-1 truncate text-caption font-medium text-content-3">
                         {exactStore ? <MapPin className="size-3" /> : <Warehouse className="size-3" />}
                         {option.plant_name} / {option.location_name}
                       </span>

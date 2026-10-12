@@ -146,7 +146,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
           <h3 className="font-display text-base font-bold text-content-1">
             Lines
           </h3>
-          <p className="text-[11px] text-content-3">
+          <p className="text-caption text-content-3">
             {adj.lines.length} line{adj.lines.length === 1 ? "" : "s"} —
             read-only.
           </p>
@@ -157,7 +157,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-surface-2 text-[10px] uppercase tracking-wider text-content-3">
+            <thead className="bg-surface-2 text-caption uppercase tracking-wider text-content-3">
               <tr>
                 <th className="px-4 py-2 text-left font-bold">#</th>
                 <th className="px-4 py-2 text-left font-bold">Class</th>
@@ -186,13 +186,13 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                       : `${line.inventory_material_code || "—"} · ${line.inventory_material_name || ""}`;
                 return (
                   <tr key={line.id}>
-                    <td className="px-4 py-3 font-mono text-[11px] text-content-3">
+                    <td className="px-4 py-3 font-mono text-caption text-content-3">
                       {line.line_no}
                     </td>
                     <td className="px-4 py-3">
                       <Badge
                         variant="outline"
-                        className="border-line bg-surface-2 text-[10px] text-content-2"
+                        className="border-line bg-surface-2 text-caption text-content-2"
                       >
                         {line.stock_class}
                       </Badge>
@@ -200,7 +200,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
                     <td className="px-4 py-3 text-[12px] text-content-2">
                       {itemLabel}
                     </td>
-                    <td className="px-4 py-3 text-[11px] text-content-3">
+                    <td className="px-4 py-3 text-caption text-content-3">
                       {line.location_name || "—"}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-content-2">
@@ -294,7 +294,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
     return (
       <Badge
         variant="outline"
-        className="border-success-border bg-success-bg text-[11px] text-success-fg"
+        className="border-success-border bg-success-bg text-caption text-success-fg"
       >
         posted
       </Badge>
@@ -303,7 +303,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
     return (
       <Badge
         variant="outline"
-        className="border-line bg-surface-2 text-[11px] text-content-3"
+        className="border-line bg-surface-2 text-caption text-content-3"
       >
         voided
       </Badge>
@@ -311,7 +311,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
   return (
     <Badge
       variant="outline"
-      className="border-warning-border bg-warning-bg text-[11px] text-warning-fg"
+      className="border-warning-border bg-warning-bg text-caption text-warning-fg"
     >
       draft
     </Badge>

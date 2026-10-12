@@ -76,7 +76,7 @@ export function InboxTab() {
                 )}
               >
                 {c.label}
-                <span className={cn("rounded-full px-2 py-0.5 text-[11px] tabular-nums", on ? "bg-white/15" : "bg-surface-2")}>{n ?? "–"}</span>
+                <span className={cn("rounded-full px-2 py-0.5 text-caption tabular-nums", on ? "bg-white/15" : "bg-surface-2")}>{n ?? "–"}</span>
               </button>
             );
           })}

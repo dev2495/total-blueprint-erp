@@ -1,7 +1,9 @@
 import { test } from "../support/base"
 import { annotate, assertHealthyPage, assertNoHorizontalOverflow, getExactStaticAppRoutes, gotoWithServerRetry, loginViaUi } from "../support/test-helpers"
 
-const routes = getExactStaticAppRoutes().filter((route) => route !== "/login")
+// The gate app and the public visitor page use their own shell (no sidebar or role switcher).
+const isOwnShellRoute = (route: string) => route === "/gate" || route.startsWith("/gate/") || route === "/visit" || route.startsWith("/visit/")
+const routes = getExactStaticAppRoutes().filter((route) => route !== "/login" && !isOwnShellRoute(route))
 const ROUTES_PER_BATCH = 8
 
 function chunkRoutes(list: string[], size: number) {

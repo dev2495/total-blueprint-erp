@@ -85,7 +85,7 @@ export function PrintColorRevisionDialog({
     <div className="rounded-2xl border border-line bg-surface-2 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-2">{label}</div>
-        <span className="rounded-full border border-line bg-surface-1 px-2 py-1 font-mono text-[10px] font-semibold tabular-nums text-content-3">{values.length} fixed position{values.length === 1 ? "" : "s"}</span>
+        <span className="rounded-full border border-line bg-surface-1 px-2 py-1 font-mono text-caption font-semibold tabular-nums text-content-3">{values.length} fixed position{values.length === 1 ? "" : "s"}</span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         {values.map((value, index) => (
@@ -137,7 +137,7 @@ export function PrintColorRevisionDialog({
           <div>
             <label className="text-xs font-semibold uppercase tracking-[0.08em] text-content-2">Reason visible to WCM and machine</label>
             <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Example: Customer approved sample with NAVY instead of ROYAL BLUE" className="mt-2 min-h-24 text-sm font-semibold" />
-            <div className="mt-1 text-[11px] font-semibold text-content-3">Minimum 5 characters. This becomes immutable audit history.</div>
+            <div className="mt-1 text-caption font-semibold text-content-3">Minimum 5 characters. This becomes immutable audit history.</div>
           </div>
         </div>
         <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-surface-2 px-6 py-4">

@@ -1127,7 +1127,7 @@ export default function PackingYardPage() {
                           style={{ width: `${readyPct}%` }}
                         />
                       </div>
-                      <span className="w-12 text-right text-[11px] tabular-nums text-content-3">
+                      <span className="w-12 text-right text-caption tabular-nums text-content-3">
                         {readyUnits}/{total}
                       </span>
                     </div>
@@ -1366,7 +1366,7 @@ export default function PackingYardPage() {
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[12.5px] font-semibold text-content-1">{title}</span>
                             {recommendedRoute === route ? (
-                              <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-[10px] font-semibold text-success-fg">
+                              <span className="rounded-full bg-success-bg px-1.5 py-0.5 text-caption font-semibold text-success-fg">
                                 Suggested
                               </span>
                             ) : null}
@@ -1497,7 +1497,7 @@ export default function PackingYardPage() {
                                     {n(gonny.qty_pcs, 0)}
                                     <span className="ml-0.5 text-[10.5px] font-normal text-content-4">pcs</span>
                                   </div>
-                                  <div className="mt-0.5 text-[11px] text-content-3">
+                                  <div className="mt-0.5 text-caption text-content-3">
                                     {gonny.primary_pack_count
                                       ? `${n(gonny.primary_pack_count, 0)} inner packs`
                                       : gonny.content_mode === "PRIMARY_PACKS"

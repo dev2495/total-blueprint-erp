@@ -196,7 +196,7 @@ export function NotificationBell({
         >
           <Bell className="h-5 w-5 text-content-3" />
           {typeof unreadCount === "number" && unreadCount > 0 ? (
-            <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-danger-solid text-[10px] font-bold text-white">
+            <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-danger-solid text-caption font-bold text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           ) : refreshIssue ? (
@@ -214,7 +214,7 @@ export function NotificationBell({
           <div>
             <h3 className="text-sm font-bold text-content-1">Notifications</h3>
             {typeof unreadCount === "number" && unreadCount > 0 && (
-              <p className="text-[11px] text-content-4 font-medium mt-0.5">
+              <p className="text-caption text-content-4 font-medium mt-0.5">
                 {unreadCount} unread
               </p>
             )}
@@ -225,7 +225,7 @@ export function NotificationBell({
               size="sm"
               onClick={() => markAll.mutate()}
               disabled={markAll.isPending}
-              className="min-h-11 rounded-lg text-[11px] font-semibold text-primary hover:text-primary hover:bg-info-bg"
+              className="min-h-11 rounded-lg text-caption font-semibold text-primary hover:text-primary hover:bg-info-bg"
             >
               <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
               Mark all read
@@ -248,7 +248,7 @@ export function NotificationBell({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-semibold text-content-1">Gate bills waiting for GRN</span>
-              <span className="block text-[11px] text-content-3">
+              <span className="block text-caption text-content-3">
                 {billQ.isError ? "Could not refresh — count may be out of date" : "Stays until inventory receives or resolves each bill"}
               </span>
             </span>
@@ -257,7 +257,7 @@ export function NotificationBell({
         ) : null}
 
         {refreshIssue || actionError ? (
-          <div role="status" className="flex items-center justify-between gap-2 border-b border-line bg-warning-bg px-5 py-2 text-[11px] text-warning-fg">
+          <div role="status" className="flex items-center justify-between gap-2 border-b border-line bg-warning-bg px-5 py-2 text-caption text-warning-fg">
             <span>{actionError ?? "Notifications could not refresh. Counts may be out of date."}</span>
             <button
               type="button"
@@ -293,7 +293,7 @@ export function NotificationBell({
                 <Bell className="h-5 w-5 text-content-4" />
               </div>
               <span className="text-sm font-medium">All caught up</span>
-              <span className="text-[11px] mt-1">No notifications to show</span>
+              <span className="text-caption mt-1">No notifications to show</span>
             </div>
           ) : (
             <div className="divide-y divide-line">
@@ -334,19 +334,19 @@ export function NotificationBell({
                         {notification.message}
                       </span>
                       <span className="flex items-center gap-2 mt-2">
-                        <span className="text-[10px] text-content-4 font-medium">
+                        <span className="text-caption text-content-4 font-medium">
                           {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                         </span>
                         <span className="text-content-4">·</span>
                         <span
-                          className="h-[18px] text-[10px] font-semibold px-1.5 rounded-md border-line text-content-3"
+                          className="h-[18px] text-caption font-semibold px-1.5 rounded-md border-line text-content-3"
                         >
                           {bill ? "GATE BILL" : notification.type.replace(/_/g, " ")}
                         </span>
                         {href ? (
                           <>
                             <span className="text-content-4">·</span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary">
+                            <span className="inline-flex items-center gap-1 text-caption font-semibold text-primary">
                               Open
                               <ExternalLink className="h-3 w-3" />
                             </span>

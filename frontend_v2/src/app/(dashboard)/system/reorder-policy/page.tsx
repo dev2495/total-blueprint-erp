@@ -113,13 +113,13 @@ function ReorderRow({
           <span className="font-mono text-xs font-semibold text-content-1">
             {row.code}
           </span>
-          <span className="text-[11px] text-content-3">{row.name}</span>
+          <span className="text-caption text-content-3">{row.name}</span>
         </div>
       </td>
       <td className="px-4 py-3 align-middle">
         <Badge
           variant="outline"
-          className="rounded-full text-[10px] font-semibold uppercase tracking-wide"
+          className="rounded-full text-caption font-semibold uppercase tracking-wide"
         >
           {row.category_label}
         </Badge>
@@ -137,15 +137,15 @@ function ReorderRow({
           >
             {stock.toFixed(2)}
           </span>
-          <span className="text-[10px] uppercase text-content-4">
+          <span className="text-caption uppercase text-content-4">
             {row.base_uom}
           </span>
           {critical ? (
-            <Badge className="rounded-full bg-danger-bg text-[10px] font-bold uppercase text-danger-fg">
+            <Badge className="rounded-full bg-danger-bg text-caption font-bold uppercase text-danger-fg">
               CRITICAL
             </Badge>
           ) : below ? (
-            <Badge className="rounded-full bg-warning-bg text-[10px] font-bold uppercase text-warning-fg">
+            <Badge className="rounded-full bg-warning-bg text-caption font-bold uppercase text-warning-fg">
               LOW
             </Badge>
           ) : null}
@@ -178,7 +178,7 @@ function ReorderRow({
           placeholder="—"
         />
       </td>
-      <td className="px-4 py-3 align-middle text-[11px] text-content-3">
+      <td className="px-4 py-3 align-middle text-caption text-content-3">
         {row.last_alert_at
           ? formatDisplayDate(row.last_alert_at)
           : "—"}
@@ -261,7 +261,7 @@ export default function ReorderPolicyPage() {
       <section className="erp-hero rounded-[2rem] border px-8 py-7 text-white shadow-lg">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/90">
+            <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-white/90">
               <ShieldCheck className="h-3.5 w-3.5" />
               System Settings
             </div>
@@ -394,7 +394,7 @@ export default function ReorderPolicyPage() {
           ) : (
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-surface-2 text-left text-[10px] font-bold uppercase tracking-wide text-content-3">
+                <tr className="border-b border-line bg-surface-2 text-left text-caption font-bold uppercase tracking-wide text-content-3">
                   <th className="px-4 py-3">Material</th>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Stock</th>
@@ -452,7 +452,7 @@ function StatCard({
   return (
     <Card className={`rounded-2xl ${toneClasses}`}>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.1em] text-content-3">
+        <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-[0.1em] text-content-3">
           {icon}
           {label}
         </div>

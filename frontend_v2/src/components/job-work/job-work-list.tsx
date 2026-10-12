@@ -117,7 +117,7 @@ export function JobWorkList() {
               )}
             >
               {t.label}
-              {t.count !== undefined ? <span className={cn("rounded-full px-2 py-0.5 text-[11px] tabular-nums", active ? "bg-white/15" : "bg-surface-2")}>{t.count}</span> : null}
+              {t.count !== undefined ? <span className={cn("rounded-full px-2 py-0.5 text-caption tabular-nums", active ? "bg-white/15" : "bg-surface-2")}>{t.count}</span> : null}
             </button>
           );
         })}
@@ -232,7 +232,7 @@ function OrderRow({ row, href }: { row: JobWorkOrderRow; href?: string }) {
         </div>
         <div className="shrink-0 text-right">
           <div className="text-[15px] font-semibold tabular-nums text-content-1">{row.open_lines ? fmtKg(row.at_vendor_kg) : "—"}</div>
-          <div className="text-[11px] text-content-4">{row.open_lines ? `at vendor${row.oldest_open_days !== null ? ` · ${row.oldest_open_days}d` : ""}` : row.status === "DRAFT" ? "not sent" : "none at vendor"}</div>
+          <div className="text-caption text-content-4">{row.open_lines ? `at vendor${row.oldest_open_days !== null ? ` · ${row.oldest_open_days}d` : ""}` : row.status === "DRAFT" ? "not sent" : "none at vendor"}</div>
         </div>
         <ChevronRight className="hidden h-5 w-5 shrink-0 text-content-4 sm:block" aria-hidden />
       </Link>

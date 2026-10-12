@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import {
   SidebarBrand,
   SidebarFooterProfile,
@@ -14,6 +16,14 @@ export function Sidebar() {
   const { user } = useAuth();
   const { isPinned, isExpanded, setHovering, togglePinned } =
     useDashboardChrome();
+  // React 18 drops the `inert` attribute, so the hidden sidebar variant is made
+  // unreachable (keyboard and assistive tech) through the DOM directly.
+  const compactPanelRef = useRef<HTMLDivElement | null>(null);
+  const expandedPanelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    compactPanelRef.current?.toggleAttribute("inert", isExpanded);
+    expandedPanelRef.current?.toggleAttribute("inert", !isExpanded);
+  }, [isExpanded]);
 
   if (!user) return null;
 
@@ -74,6 +84,7 @@ export function Sidebar() {
                 : "translate-x-0 opacity-100 blur-0 delay-100",
             )}
             aria-hidden={isExpanded}
+            ref={compactPanelRef}
           >
             <SidebarNavContent compact />
           </div>
@@ -86,6 +97,7 @@ export function Sidebar() {
                 : "pointer-events-none -translate-x-3 opacity-0 blur-[1px]",
             )}
             aria-hidden={!isExpanded}
+            ref={expandedPanelRef}
           >
             <SidebarNavContent />
           </div>

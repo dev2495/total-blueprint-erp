@@ -2,7 +2,10 @@ import { test } from "../support/base"
 import { annotate, assertHealthyPage, getExactStaticAppRoutes, gotoWithServerRetry } from "../support/test-helpers"
 
 const excludedRoutes = new Set(["/login"])
-const routes = getExactStaticAppRoutes().filter((route) => !excludedRoutes.has(route))
+// The gate app (/gate/*) and the public visitor page (/visit) have their own shell
+// without the dashboard sidebar or role switcher; they are covered by the gate specs.
+const isOwnShellRoute = (route: string) => route === "/gate" || route.startsWith("/gate/") || route === "/visit" || route.startsWith("/visit/")
+const routes = getExactStaticAppRoutes().filter((route) => !excludedRoutes.has(route) && !isOwnShellRoute(route))
 
 for (const route of routes) {
   test(`static route loads: ${route}`, async ({ page }, testInfo) => {

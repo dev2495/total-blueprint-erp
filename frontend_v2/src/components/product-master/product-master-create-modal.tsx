@@ -310,7 +310,7 @@ export function ProductMasterCreateModal({
       <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-3xl border-none p-0 shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
         <div className="shrink-0 bg-gradient-to-br from-primary via-order-fg to-order-fg px-6 py-5 text-white">
           <DialogHeader className="space-y-1 border-none pb-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/70">
               Master · Product
             </div>
             <DialogTitle className="font-display text-2xl font-bold leading-tight text-white">
@@ -325,7 +325,7 @@ export function ProductMasterCreateModal({
         </div>
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6">
           <div className="space-y-2">
-            <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Product kind
             </Label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -357,7 +357,7 @@ export function ProductMasterCreateModal({
                       <div className="text-sm font-bold text-content-1">
                         {k.label}
                       </div>
-                      <div className="text-[11px] leading-4 text-content-3">
+                      <div className="text-caption leading-4 text-content-3">
                         {k.summary}
                       </div>
                     </div>
@@ -406,7 +406,7 @@ export function ProductMasterCreateModal({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Master code
               </Label>
               <Input
@@ -417,7 +417,7 @@ export function ProductMasterCreateModal({
               />
             </div>
             <div>
-              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Reporting group
               </Label>
               <Select
@@ -437,7 +437,7 @@ export function ProductMasterCreateModal({
               </Select>
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Master name
               </Label>
               <Input
@@ -448,7 +448,7 @@ export function ProductMasterCreateModal({
               />
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Live route / template
               </Label>
               <Select
@@ -467,7 +467,7 @@ export function ProductMasterCreateModal({
                 </SelectContent>
               </Select>
               {!templateId && (
-                <div className="mt-1 text-[11px] font-semibold text-warning-fg">
+                <div className="mt-1 text-caption font-semibold text-warning-fg">
                   Required. Sales/planner BOM and WCM steps come from this
                   template.
                 </div>
@@ -496,16 +496,16 @@ export function ProductMasterCreateModal({
             <div className="space-y-3 rounded-2xl border border-info-border bg-info-bg p-3 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+                  <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                     Number of layers
                   </Label>
-                  <div className="mt-0.5 text-[11px] text-primary">
+                  <div className="mt-0.5 text-caption text-primary">
                     This creates blank layer slots only. The edit workspace
                     selects the real film, allowed grades, thickness options,
                     and layer axes.
                   </div>
                 </div>
-                <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-primary ring-1 ring-info-border">
+                <span className="rounded-full bg-surface-1 px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-primary ring-1 ring-info-border">
                   workspace setup
                 </span>
               </div>
@@ -523,7 +523,7 @@ export function ProductMasterCreateModal({
                   <div className="font-display text-3xl font-semibold text-content-1">
                     {layerCount}
                   </div>
-                  <div className="text-[11px] font-semibold text-content-3">
+                  <div className="text-caption font-semibold text-content-3">
                     layer slot{layerCount === 1 ? "" : "s"} opened in edit
                   </div>
                 </div>
@@ -536,14 +536,14 @@ export function ProductMasterCreateModal({
                   +
                 </Button>
               </div>
-              <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold text-warning-fg">
+              <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption font-semibold text-warning-fg">
                 New masters stay inactive until the layer materials and
                 required axes are configured. Sales and planner only see active
                 active masters.
               </div>
             </div>
             <div className="sm:col-span-2">
-              <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Description (optional)
               </Label>
               <Textarea
@@ -558,12 +558,12 @@ export function ProductMasterCreateModal({
                 <div className="text-sm font-bold text-warning-fg">
                   Created inactive until configured
                 </div>
-                <div className="text-[11px] text-warning-fg">
+                <div className="text-caption text-warning-fg">
                   Activate from the edit workspace after films, axes, sizes and
                   policies pass validation.
                 </div>
               </div>
-              <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg ring-1 ring-warning-border">
+              <span className="rounded-full bg-surface-1 px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg ring-1 ring-warning-border">
                 hidden
               </span>
             </div>

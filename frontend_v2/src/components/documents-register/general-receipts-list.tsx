@@ -186,7 +186,7 @@ function ReceiptRow({ receipt }: { receipt: GeneralReceipt }) {
         </span>
         <span className="shrink-0 text-right">
           <span className="block text-[14px] font-semibold tabular-nums text-content-1">{inr(receipt.total_with_gst)}</span>
-          <span className="block text-[11px] text-content-4">incl. GST</span>
+          <span className="block text-caption text-content-4">incl. GST</span>
         </span>
       </Link>
     </li>

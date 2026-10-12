@@ -11,7 +11,7 @@ function names(value: unknown): string[] {
 function ColorLine({ label, colors, muted = false }: { label: string; colors: string[]; muted?: boolean }) {
   return (
     <div className={cn("min-w-0 flex-1 rounded-xl border px-3 py-2", muted ? "border-line bg-surface-2" : "border-warning-border bg-surface-1")}>
-      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">{label}</div>
+      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">{label}</div>
       <div className={cn("mt-1 break-words text-lg font-semibold leading-tight", muted ? "text-content-3 line-through decoration-danger-fg/50" : "text-content-1")}>
         {colors.join(" · ") || "None"}
       </div>
@@ -39,11 +39,11 @@ export function PrintColorRevisionNotice({ source, className }: { source: any; c
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-warning-fg text-white"><TriangleAlert className="h-5 w-5" /></span>
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-warning-fg">Print colors changed after release · v{revisionNo}</div>
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">Print colors changed after release · v{revisionNo}</div>
             <div className="mt-1 text-sm font-semibold text-content-1">Use the CURRENT colors below for this job.</div>
           </div>
         </div>
-        <div className="text-right text-[10px] font-bold text-content-3">
+        <div className="text-right text-caption font-bold text-content-3">
           <div>{changedBy}</div>
           <div>{changedAt ? formatDisplayDateTime(changedAt) : "Live revision"}</div>
         </div>

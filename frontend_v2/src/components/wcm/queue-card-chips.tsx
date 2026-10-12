@@ -41,7 +41,7 @@ export function InkColorSwatches({
       className={cn("flex items-center gap-1.5", className)}
       aria-label={`Ink colors: ${list.join(", ")}`}
     >
-      <span className="text-[10px] font-bold uppercase tracking-wider text-content-4">
+      <span className="text-caption font-bold uppercase tracking-wider text-content-4">
         Colors
       </span>
       <div className="flex max-w-[340px] flex-wrap items-center gap-1">
@@ -49,14 +49,14 @@ export function InkColorSwatches({
           <span
             key={`${color}-${idx}`}
             title={color}
-            className="max-w-[120px] truncate rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-content-2"
+            className="max-w-[120px] truncate rounded-full border border-line bg-surface-2 px-2 py-0.5 text-caption font-semibold uppercase tracking-wider text-content-2"
           >
             {color}
           </span>
         ))}
       </div>
       {overflow > 0 ? (
-        <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold text-content-3">
+        <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 font-mono text-caption font-bold text-content-3">
           +{overflow}
         </span>
       ) : null}
@@ -218,7 +218,7 @@ export function MachineStateBadge({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-[11px] font-bold text-info-fg ring-1 ring-info-border",
+          "inline-flex items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-caption font-bold text-info-fg ring-1 ring-info-border",
           className,
         )}
       >
@@ -231,7 +231,7 @@ export function MachineStateBadge({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-[11px] font-bold text-danger-fg ring-1 ring-danger-border",
+          "inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-caption font-bold text-danger-fg ring-1 ring-danger-border",
           className,
         )}
       >
@@ -243,7 +243,7 @@ export function MachineStateBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-[11px] font-bold text-success-fg ring-1 ring-success-border",
+        "inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border",
         className,
       )}
     >

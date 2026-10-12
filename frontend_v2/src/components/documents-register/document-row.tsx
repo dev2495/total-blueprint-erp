@@ -63,7 +63,7 @@ export function DocumentRow({ bill, now }: { bill: InwardBill; now: number }) {
           <div className={cn("text-[15px] font-semibold tabular-nums", open ? "text-content-1" : "text-content-3")}>
             {waitingLabel(bill.arrival_at, now, open ? null : bill.resolved_at)}
           </div>
-          <div className="text-[11px] text-content-4">{open ? "waiting" : "to close"}</div>
+          <div className="text-caption text-content-4">{open ? "waiting" : "to close"}</div>
         </div>
         <ChevronRight className="hidden h-5 w-5 shrink-0 text-content-4 sm:block" aria-hidden />
       </Link>

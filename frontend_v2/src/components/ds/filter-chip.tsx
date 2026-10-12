@@ -39,11 +39,11 @@ export const FilterChip = React.forwardRef<HTMLButtonElement, FilterChipProps>(
             <span aria-hidden className="text-content-4">
               ·
             </span>
-            <span className="font-mono-token text-[11px]">{value}</span>
+            <span className="font-mono-token text-caption">{value}</span>
           </>
         )}
         {typeof count === "number" && count > 0 && (
-          <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
+          <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-caption font-bold text-white">
             {count}
           </span>
         )}

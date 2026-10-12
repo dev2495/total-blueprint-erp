@@ -219,7 +219,7 @@ export default function QuotationListPage() {
         <div className="absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-order-fg blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-order-border">
+            <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-border">
               <span className="h-2 w-2 rounded-full bg-success-fg" />
               Quotations · Workspace
             </div>
@@ -254,7 +254,7 @@ export default function QuotationListPage() {
                 key={s}
                 className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]"
               >
-                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+                <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-content-3">
                   <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                   {style.label}
                 </div>
@@ -292,7 +292,7 @@ export default function QuotationListPage() {
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className={`h-8 px-3 rounded-full text-[11px] font-semibold uppercase tracking-wider ring-1 transition ${
+                  className={`h-8 px-3 rounded-full text-caption font-semibold uppercase tracking-wider ring-1 transition ${
                     active
                       ? "bg-surface-3 text-white ring-line-strong"
                       : "bg-surface-2 text-content-3 ring-line hover:bg-surface-2"
@@ -309,7 +309,7 @@ export default function QuotationListPage() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-content-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+            <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
               Date
             </span>
           </div>
@@ -325,7 +325,7 @@ export default function QuotationListPage() {
               <button
                 key={id}
                 onClick={() => setDateFilter(id)}
-                className={`h-7 px-2.5 rounded-full text-[11px] font-semibold uppercase tracking-wider ring-1 transition ${
+                className={`h-7 px-2.5 rounded-full text-caption font-semibold uppercase tracking-wider ring-1 transition ${
                   active
                     ? "bg-brand-navy text-white ring-brand-navy"
                     : "bg-surface-2 text-content-3 ring-line hover:bg-surface-2"
@@ -337,13 +337,13 @@ export default function QuotationListPage() {
           })}
           {selected.size > 0 ? (
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-content-2">
+              <span className="text-caption font-semibold uppercase tracking-widest text-content-2">
                 {selected.size} selected
               </span>
               <button
                 onClick={() => bulkCloneMut.mutate(Array.from(selected))}
                 disabled={bulkCloneMut.isPending}
-                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-order-bg text-order-fg ring-1 ring-order-border font-semibold text-[11px] uppercase hover:bg-order-bg disabled:opacity-60"
+                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-order-bg text-order-fg ring-1 ring-order-border font-semibold text-caption uppercase hover:bg-order-bg disabled:opacity-60"
               >
                 {bulkCloneMut.isPending ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -355,7 +355,7 @@ export default function QuotationListPage() {
               <button
                 onClick={() => bulkExpireMut.mutate(Array.from(selected))}
                 disabled={bulkExpireMut.isPending}
-                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-warning-bg text-warning-fg ring-1 ring-warning-border font-semibold text-[11px] uppercase hover:bg-warning-bg disabled:opacity-60"
+                className="h-8 px-3 inline-flex items-center gap-1.5 rounded-full bg-warning-bg text-warning-fg ring-1 ring-warning-border font-semibold text-caption uppercase hover:bg-warning-bg disabled:opacity-60"
               >
                 {bulkExpireMut.isPending ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -364,7 +364,7 @@ export default function QuotationListPage() {
               </button>
               <button
                 onClick={() => setSelected(new Set())}
-                className="h-8 px-3 rounded-full text-content-3 hover:bg-surface-2 text-[11px] font-bold uppercase"
+                className="h-8 px-3 rounded-full text-content-3 hover:bg-surface-2 text-caption font-bold uppercase"
               >
                 Clear
               </button>
@@ -479,7 +479,7 @@ export default function QuotationListPage() {
                           {q.quote_number}
                         </span>
                         <span
-                          className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider ${style.chip}`}
+                          className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-caption font-semibold uppercase tracking-wider ${style.chip}`}
                         >
                           <span
                             className={`h-1.5 w-1.5 rounded-full ${style.dot}`}
@@ -492,7 +492,7 @@ export default function QuotationListPage() {
                             : null;
                           if (cnt === null) return null;
                           return (
-                            <span className="inline-flex items-center h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-order-bg text-order-fg ring-1 ring-order-border">
+                            <span className="inline-flex items-center h-6 px-2 rounded-full text-caption font-semibold uppercase tracking-wider bg-order-bg text-order-fg ring-1 ring-order-border">
                               {cnt} lines
                             </span>
                           );
@@ -518,7 +518,7 @@ export default function QuotationListPage() {
                                 : `${days}d left`;
                           return (
                             <span
-                              className={`inline-flex items-center h-6 px-2 rounded-full text-[10px] font-semibold uppercase tracking-wider ring-1 ${color}`}
+                              className={`inline-flex items-center h-6 px-2 rounded-full text-caption font-semibold uppercase tracking-wider ring-1 ${color}`}
                             >
                               {label}
                             </span>
@@ -528,7 +528,7 @@ export default function QuotationListPage() {
                       <div className="text-sm font-bold text-content-2 truncate">
                         {q.customer_name}
                       </div>
-                      <div className="text-[11px] font-semibold text-content-3 font-mono">
+                      <div className="text-caption font-semibold text-content-3 font-mono">
                         Valid until {q.valid_until || "—"} · Updated{" "}
                         {formatDisplayDate(q.updated_at)}
                       </div>
@@ -548,7 +548,7 @@ export default function QuotationListPage() {
                     className="flex items-center gap-3"
                   >
                     <div className="text-right">
-                      <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+                      <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
                         Total
                       </div>
                       <div className="font-mono text-lg font-semibold text-content-1">

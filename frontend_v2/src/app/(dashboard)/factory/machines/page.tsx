@@ -612,7 +612,7 @@ export default function MachinesPage() {
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="secondary"
-                          className="h-6 bg-surface-3 px-2.5 text-[11px] font-bold tracking-[0.1em] text-white"
+                          className="h-6 bg-surface-3 px-2.5 text-caption font-bold tracking-[0.1em] text-white"
                         >
                           {machine.code}
                         </Badge>

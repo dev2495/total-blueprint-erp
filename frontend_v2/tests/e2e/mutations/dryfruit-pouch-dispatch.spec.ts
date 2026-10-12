@@ -127,7 +127,7 @@ test("direct FG pouch batch can move from packing yard to dispatch bay through g
     await vehicleInput.fill("MH14CD5678")
   }
   await page.getByPlaceholder("Transporter or company vehicle").fill("UAT Dryfruit Transport")
-  await page.getByPlaceholder("Enter city, destination or delivery address").fill("UAT Dryfruit Dispatch Location")
+  await page.getByPlaceholder("City, destination or delivery address").fill("UAT Dryfruit Dispatch Location")
   const challanCreateResponse = page.waitForResponse((response) => response.url().includes("/api/production/challans/create_challan/") && response.request().method() === "POST")
   await page.getByTestId("dispatch-create-submit").click()
   expect((await challanCreateResponse).status()).toBe(201)

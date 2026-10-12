@@ -117,7 +117,7 @@ export function OutwardQueue() {
               )}
             >
               {t.label}
-              <span className={cn("rounded-full px-2 py-0.5 text-[11px] tabular-nums", active ? "bg-white/15" : "bg-surface-2")}>{n ?? "–"}</span>
+              <span className={cn("rounded-full px-2 py-0.5 text-caption tabular-nums", active ? "bg-white/15" : "bg-surface-2")}>{n ?? "–"}</span>
             </button>
           );
         })}
@@ -243,7 +243,7 @@ function OutwardRow({ row, now }: { row: OutwardDocument; now: number }) {
         </div>
         <div className="shrink-0 text-right">
           <div className={cn("text-[15px] font-semibold tabular-nums", open ? "text-content-1" : "text-content-3")}>{open ? waitingSince(row.departed_at, now) : row.link_count}</div>
-          <div className="text-[11px] text-content-4">{open ? "waiting" : row.link_count === 1 ? "document" : "documents"}</div>
+          <div className="text-caption text-content-4">{open ? "waiting" : row.link_count === 1 ? "document" : "documents"}</div>
         </div>
         <ChevronRight className="hidden h-5 w-5 shrink-0 text-content-4 sm:block" aria-hidden />
       </Link>

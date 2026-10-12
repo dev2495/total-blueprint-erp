@@ -105,7 +105,7 @@ export function StockAdjustmentsList() {
           >
             {f.label}
             {f.value !== "ALL" ? (
-              <span className="ml-1.5 font-mono text-[10px] opacity-80">
+              <span className="ml-1.5 font-mono text-caption opacity-80">
                 {counts[f.value as StockAdjustmentStatus] || 0}
               </span>
             ) : null}
@@ -144,7 +144,7 @@ function EmptyState({ empty }: { empty: boolean }) {
             ? "No stock adjustments yet"
             : "No adjustments match this filter"}
         </div>
-        <p className="mt-1 max-w-[420px] text-[11px] text-content-3">
+        <p className="mt-1 max-w-[420px] text-caption text-content-3">
           Stock adjustments capture damage, write-offs, count corrections, and
           reclassifications — all in one auditable log.
         </p>
@@ -165,7 +165,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
     return (
       <Badge
         variant="outline"
-        className="border-success-border bg-success-bg text-[10px] text-success-fg"
+        className="border-success-border bg-success-bg text-caption text-success-fg"
       >
         posted
       </Badge>
@@ -174,7 +174,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
     return (
       <Badge
         variant="outline"
-        className="border-line bg-surface-2 text-[10px] text-content-3"
+        className="border-line bg-surface-2 text-caption text-content-3"
       >
         voided
       </Badge>
@@ -182,7 +182,7 @@ function StatusBadge({ status }: { status: StockAdjustmentStatus }) {
   return (
     <Badge
       variant="outline"
-      className="border-warning-border bg-warning-bg text-[10px] text-warning-fg"
+      className="border-warning-border bg-warning-bg text-caption text-warning-fg"
     >
       draft
     </Badge>
@@ -206,7 +206,7 @@ function AdjustmentCard({ a }: { a: StockAdjustment }) {
             <h3 className="mt-0.5 text-sm font-bold text-content-1 group-hover:text-order-fg">
               {a.plant_name || "—"}
             </h3>
-            <p className="mt-1 text-[11px] text-content-3">
+            <p className="mt-1 text-caption text-content-3">
               {a.reason.replace(/_/g, " ").toLowerCase()}
             </p>
           </div>
@@ -230,7 +230,7 @@ function AdjustmentCard({ a }: { a: StockAdjustment }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-surface-2 px-2 py-2">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-bold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold text-content-1">

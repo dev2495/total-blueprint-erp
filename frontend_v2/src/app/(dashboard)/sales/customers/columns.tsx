@@ -16,7 +16,7 @@ export const getColumns = ({
   {
     accessorKey: "code",
     header: () => (
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-content-4 px-2">
+      <span className="text-caption font-semibold uppercase tracking-widest text-content-4 px-2">
         Client Code
       </span>
     ),
@@ -31,7 +31,7 @@ export const getColumns = ({
   {
     accessorKey: "name",
     header: () => (
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Corporate Entity
       </span>
     ),
@@ -40,7 +40,7 @@ export const getColumns = ({
         <span className="text-sm font-semibold text-content-2 uppercase tracking-tight">
           {row.getValue("name")}
         </span>
-        <span className="text-[10px] font-bold text-content-4 uppercase tracking-tighter">
+        <span className="text-caption font-bold text-content-4 uppercase tracking-tighter">
           {row.original.contact_person ||
             row.original.under_group ||
             "PRIMARY CONTACT PENDING"}
@@ -51,16 +51,16 @@ export const getColumns = ({
   {
     id: "tax_identity",
     header: () => (
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Tax Identity
       </span>
     ),
     cell: ({ row }) => (
       <div className="flex flex-col">
-        <span className="font-mono text-[11px] font-bold text-content-3">
+        <span className="font-mono text-caption font-bold text-content-3">
           {row.original.gst_no || "NON-GST"}
         </span>
-        <span className="text-[10px] font-bold text-content-4 uppercase">
+        <span className="text-caption font-bold text-content-4 uppercase">
           {row.original.pan_no || "PAN pending"}
         </span>
       </div>
@@ -69,7 +69,7 @@ export const getColumns = ({
   {
     accessorKey: "status",
     header: () => (
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Account Status
       </span>
     ),
@@ -78,16 +78,16 @@ export const getColumns = ({
   {
     id: "credit",
     header: () => (
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Credit Exposure
       </span>
     ),
     cell: ({ row }) => (
       <div className="flex flex-col">
-        <span className="text-[11px] font-semibold text-primary">
+        <span className="text-caption font-semibold text-primary">
           LIMIT: ₹{Number(row.original.credit_limit || 0).toLocaleString()}
         </span>
-        <span className="text-[10px] font-bold text-content-4 uppercase">
+        <span className="text-caption font-bold text-content-4 uppercase">
           {row.original.credit_days || 0} DAYS TERM ·{" "}
           {row.original.interest_calculation || "NO INTEREST RULE"}
         </span>
@@ -97,18 +97,18 @@ export const getColumns = ({
   {
     id: "address_book",
     header: () => (
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
         Address Book
       </span>
     ),
     cell: ({ row }) => (
       <div className="flex flex-col">
-        <span className="text-[11px] font-semibold text-content-2">
+        <span className="text-caption font-semibold text-content-2">
           {row.original.mailing_state ||
             row.original.mailing_country ||
             "Primary address only"}
         </span>
-        <span className="text-[10px] font-bold text-content-4 uppercase">
+        <span className="text-caption font-bold text-content-4 uppercase">
           {(row.original.additional_addresses?.length || 0) > 0
             ? `${row.original.additional_addresses?.length || 0} extra addresses`
             : "No extra addresses"}

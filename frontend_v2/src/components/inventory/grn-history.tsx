@@ -531,7 +531,7 @@ export function GrnHistoryV36() {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <ModeToggle mode={mode} onChange={setMode} />
-        <span className="text-[11px] text-content-3">
+        <span className="text-caption text-content-3">
           {mode === "pulse"
             ? "Vendor / plant / source mix"
             : `${sorted.length} rows in window`}
@@ -747,7 +747,7 @@ export function GrnHistoryV36() {
               />
 
               <div>
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
                   Vendor
                 </div>
                 <select
@@ -766,10 +766,10 @@ export function GrnHistoryV36() {
               </div>
 
               <div className="rounded-xl border border-order-border bg-order-bg p-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-order-fg">
+                <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-order-fg">
                   <ShieldCheck className="h-3 w-3" /> Correction policy
                 </div>
-                <p className="mt-1 text-[10px] leading-snug text-order-fg">
+                <p className="mt-1 text-caption leading-snug text-order-fg">
                   Original GRN stays locked. Corrections post an audited entry
                   with before / after / delta and reason. Year-closed GRNs are
                   read-only; corrections must be posted only in an open
@@ -789,7 +789,7 @@ export function GrnHistoryV36() {
                     onClick={() =>
                       setSortDir((d) => (d === "asc" ? "desc" : "asc"))
                     }
-                    className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1 text-[10px] font-bold text-content-2 hover:bg-line"
+                    className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-1 text-caption font-bold text-content-2 hover:bg-line"
                   >
                     Date {sortDir === "asc" ? "▲" : "▼"}
                   </button>
@@ -843,13 +843,13 @@ export function GrnHistoryV36() {
                               key={`${row.source_type}-${row.source_id}`}
                               className="hover:bg-surface-2"
                             >
-                              <td className="px-3 py-2 whitespace-nowrap font-mono text-[10px] text-content-3">
+                              <td className="px-3 py-2 whitespace-nowrap font-mono text-caption text-content-3">
                                 {fmtDate(row.created_at)}
                               </td>
                               <td className="px-3 py-2">
                                 <span
                                   className={cn(
-                                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1",
+                                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
                                     SOURCE_TONE[row.source_type] || "",
                                   )}
                                 >
@@ -864,29 +864,29 @@ export function GrnHistoryV36() {
                                     row.material_code ||
                                     "—"}
                                 </div>
-                                <div className="text-[10px] text-content-3 truncate max-w-[260px]">
+                                <div className="text-caption text-content-3 truncate max-w-[260px]">
                                   {row.reference || row.batch_no || "—"}
                                 </div>
                                 {row.has_correction ? (
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-success-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-success-bg px-1.5 py-0.5 text-caption font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
                                     <ShieldCheck className="h-3 w-3" />
                                     corrected effective
                                   </div>
                                 ) : null}
                                 {row.manual_po_ref ? (
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
+                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-caption font-bold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
                                     Manual-PO · {row.manual_po_ref}
                                   </div>
                                 ) : null}
                               </td>
-                              <td className="px-3 py-2 text-[11px] text-content-2">
+                              <td className="px-3 py-2 text-caption text-content-2">
                                 {row.vendor_name || row.vendor_code || "—"}
                               </td>
-                              <td className="px-3 py-2 text-[11px]">
+                              <td className="px-3 py-2 text-caption">
                                 <div className="font-bold text-content-2">
                                   {row.plant_name || "—"}
                                 </div>
-                                <div className="font-mono text-[10px] text-content-3">
+                                <div className="font-mono text-caption text-content-3">
                                   {row.location_name || "—"}
                                 </div>
                               </td>
@@ -896,7 +896,7 @@ export function GrnHistoryV36() {
                                 </div>
                                 {row.has_correction &&
                                 row.original_quantity !== undefined ? (
-                                  <div className="font-mono text-[10px] text-content-4 line-through">
+                                  <div className="font-mono text-caption text-content-4 line-through">
                                     {fmtQty(
                                       Number(row.original_quantity),
                                       row.uom,
@@ -906,18 +906,18 @@ export function GrnHistoryV36() {
                               </td>
                               <td className="px-3 py-2 text-right">
                                 {yc ? (
-                                  <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-content-3 ring-1 ring-line">
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-bold text-content-3 ring-1 ring-line">
                                     <Lock className="h-3 w-3" /> Year-closed
                                   </span>
                                 ) : row.source_type === "TRADING" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-[10px] font-bold text-warning-fg ring-1 ring-warning-border">
+                                  <span className="inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
                                     <ShieldCheck className="h-3 w-3" /> Direct
                                     receipt
                                   </span>
                                 ) : (
                                   <button
                                     onClick={() => setSelected(row)}
-                                    className="inline-flex items-center gap-1 rounded-md bg-order-bg px-2 py-0.5 text-[10px] font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+                                    className="inline-flex items-center gap-1 rounded-md bg-order-bg px-2 py-0.5 text-caption font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
                                   >
                                     <Edit3 className="h-3 w-3" /> Correct
                                   </button>
@@ -928,7 +928,7 @@ export function GrnHistoryV36() {
                         })}
                       </tbody>
                     </table>
-                    <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-[11px]">
+                    <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-2 text-caption">
                       <span className="text-content-3">
                         Showing {Math.min(sorted.length, pageSize)} of{" "}
                         {sorted.length}
@@ -936,7 +936,7 @@ export function GrnHistoryV36() {
                       <select
                         value={pageSize}
                         onChange={(e) => setPageSize(Number(e.target.value))}
-                        className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-[11px]"
+                        className="rounded-md border border-line bg-surface-1 px-2 py-0.5 font-mono text-caption"
                       >
                         {[25, 50, 100, 250, 500].map((n) => (
                           <option key={n} value={n}>
@@ -1087,13 +1087,13 @@ function CorrectionDrawer({
         <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Correct GRN row
               </div>
               <div className="font-display text-base font-bold text-content-1">
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ring-1 align-middle mr-2",
+                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1 align-middle mr-2",
                     SOURCE_TONE[row.source_type],
                   )}
                 >
@@ -1101,7 +1101,7 @@ function CorrectionDrawer({
                 </span>
                 {row.label_id || row.material_name || row.material_code}
               </div>
-              <div className="text-[11px] text-content-3 mt-0.5">
+              <div className="text-caption text-content-3 mt-0.5">
                 {fmtDate(row.created_at)} · {row.vendor_name || "—"}
               </div>
             </div>
@@ -1114,7 +1114,7 @@ function CorrectionDrawer({
           </div>
         </div>
         <div className="px-5 py-4 space-y-4">
-          <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-[11px] font-medium text-warning-fg flex items-start gap-2">
+          <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-caption font-medium text-warning-fg flex items-start gap-2">
             <AlertTriangle className="h-3.5 w-3.5 flex-none mt-0.5" />
             <span>
               The original GRN remains locked. This action posts a correction
@@ -1123,48 +1123,48 @@ function CorrectionDrawer({
           </div>
 
           {row.has_correction ? (
-            <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-[11px] font-medium text-success-fg">
+            <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-caption font-medium text-success-fg">
               This row already has an audit correction. Values below are the
               latest effective corrected values; original values stay locked in
               the audit trail.
             </div>
           ) : null}
 
-          <div className="grid grid-cols-3 gap-2 text-[11px] rounded-xl bg-surface-2 p-3 ring-1 ring-line">
+          <div className="grid grid-cols-3 gap-2 text-caption rounded-xl bg-surface-2 p-3 ring-1 ring-line">
             <div>
-              <div className="text-[10px] font-semibold uppercase text-content-3">
+              <div className="text-caption font-semibold uppercase text-content-3">
                 Effective qty
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">
                 {fmtQty(Number(row.quantity), row.uom)}
               </div>
               {row.has_correction && row.original_quantity !== undefined ? (
-                <div className="mt-0.5 font-mono text-[10px] text-content-4 line-through">
+                <div className="mt-0.5 font-mono text-caption text-content-4 line-through">
                   {fmtQty(Number(row.original_quantity), row.uom)}
                 </div>
               ) : null}
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase text-content-3">
+              <div className="text-caption font-semibold uppercase text-content-3">
                 Effective unit rate
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">
                 {row.avg_cost ? row.avg_cost.toFixed(2) : "—"}
               </div>
               {row.has_correction && row.original_avg_cost !== undefined ? (
-                <div className="mt-0.5 font-mono text-[10px] text-content-4 line-through">
+                <div className="mt-0.5 font-mono text-caption text-content-4 line-through">
                   {Number(row.original_avg_cost).toFixed(2)}
                 </div>
               ) : null}
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase text-content-3">
+              <div className="text-caption font-semibold uppercase text-content-3">
                 Line value
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">
                 {fmtMoney(effectiveLineValue)}
               </div>
-              <div className="mt-0.5 truncate font-mono text-[10px] text-content-3">
+              <div className="mt-0.5 truncate font-mono text-caption text-content-3">
                 {row.reference || row.batch_no || "—"}
               </div>
             </div>
@@ -1172,7 +1172,7 @@ function CorrectionDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Corrected quantity
               </Label>
               <Input
@@ -1185,7 +1185,7 @@ function CorrectionDrawer({
               />
             </div>
             <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Corrected unit rate
               </Label>
               <Input
@@ -1197,12 +1197,12 @@ function CorrectionDrawer({
                 disabled={row.source_type === "ROLL"}
                 className="mt-1 h-9 text-sm"
               />
-              <div className="mt-1 text-[10px] font-medium text-content-3">
+              <div className="mt-1 text-caption font-medium text-content-3">
                 Per {row.uom || "unit"} rate, not total invoice value.
               </div>
             </div>
             <div className="col-span-2">
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Reference
               </Label>
               <Input
@@ -1214,7 +1214,7 @@ function CorrectionDrawer({
             </div>
             {row.source_type === "TRADING" ? (
               <div className="col-span-2">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                   Corrected plant
                 </Label>
                 <select
@@ -1232,7 +1232,7 @@ function CorrectionDrawer({
               </div>
             ) : (
               <div className="col-span-2">
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                   Corrected location
                 </Label>
                 <select
@@ -1250,7 +1250,7 @@ function CorrectionDrawer({
                       </option>
                     ))}
                 </select>
-                <div className="mt-1 text-[10px] font-medium text-content-3">
+                <div className="mt-1 text-caption font-medium text-content-3">
                   Changing location posts an audited stock transfer; it does not
                   rewrite the original GRN.
                 </div>
@@ -1259,7 +1259,7 @@ function CorrectionDrawer({
             {row.source_type === "ROLL" && (
               <>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Label ID
                   </Label>
                   <Input
@@ -1270,7 +1270,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Batch No
                   </Label>
                   <Input
@@ -1281,7 +1281,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Width mm
                   </Label>
                   <Input
@@ -1294,7 +1294,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Micron
                   </Label>
                   <Input
@@ -1307,7 +1307,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Length m
                   </Label>
                   <Input
@@ -1320,7 +1320,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Roll form
                   </Label>
                   <select
@@ -1338,7 +1338,7 @@ function CorrectionDrawer({
             )}
           </div>
           <div>
-            <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
               Reason code · required
             </Label>
             <select
@@ -1354,7 +1354,7 @@ function CorrectionDrawer({
             </select>
           </div>
           <div>
-            <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
               Reason · required
             </Label>
             <Textarea
@@ -1365,7 +1365,7 @@ function CorrectionDrawer({
               rows={3}
             />
             {!reason.trim() ? (
-              <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-warning-fg">
+              <div className="mt-1 flex items-center gap-1 text-caption font-semibold text-warning-fg">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Reason is required before this correction can post.
               </div>

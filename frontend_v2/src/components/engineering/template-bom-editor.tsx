@@ -621,7 +621,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             ) : (
               <Button
                 size="sm"
-                className="h-9 rounded-xl bg-surface-3 px-4 text-[11px] font-semibold text-white hover:bg-primary"
+                className="h-9 rounded-xl bg-surface-3 px-4 text-caption font-semibold text-white hover:bg-primary"
                 onClick={handleSync}
                 disabled={isReadOnly || isSyncing || !hasRoute}
               >
@@ -633,7 +633,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 rounded-xl text-[11px] font-bold"
+                className="h-9 rounded-xl text-caption font-bold"
                 onClick={() => rebuildMutation.mutate()}
                 disabled={isReadOnly || rebuildMutation.isPending || !hasRoute}
               >
@@ -712,7 +712,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                 </div>
                 <Badge
                   variant="outline"
-                  className="rounded-full border-line bg-surface-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3"
+                  className="rounded-full border-line bg-surface-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
                 >
                   {stepsList.length} stages · {mappedByCategoryList.size}{" "}
                   categories mapped
@@ -769,7 +769,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 </p>
                                 <Badge
                                   variant="outline"
-                                  className="border-line text-[10px]"
+                                  className="border-line text-caption"
                                 >
                                   {step.process_input_form} to{" "}
                                   {step.process_output_form}
@@ -777,13 +777,13 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 {behavior !== "NONE" ? (
                                   <Badge
                                     variant="outline"
-                                    className="border-info-border text-[10px] text-primary"
+                                    className="border-info-border text-caption text-primary"
                                   >
                                     {behavior.replaceAll("_", " ")}
                                   </Badge>
                                 ) : null}
                               </div>
-                              <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-content-3">
+                              <div className="mt-1 flex flex-wrap gap-2 text-caption font-semibold text-content-3">
                                 <span>Width · auto from order size</span>
                                 <span>·</span>
                                 <span>
@@ -799,7 +799,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                               {stepMaterials.length > 0 ? (
-                                <Badge className="bg-success-bg text-[10px] text-success-fg">
+                                <Badge className="bg-success-bg text-caption text-success-fg">
                                   mapped
                                 </Badge>
                               ) : null}
@@ -817,10 +817,10 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                               <div className="rounded-2xl border border-info-border bg-surface-1 p-4">
                                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                                   <div>
-                                    <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+                                    <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
                                       Output handling
                                     </Label>
-                                    <p className="mt-1 text-[11px] font-semibold text-content-3">
+                                    <p className="mt-1 text-caption font-semibold text-content-3">
                                       {step.is_removed_from_route
                                         ? "This stage is marked removed from the active route."
                                         : "Only tune input count, size rules, and machine entry shape here."}
@@ -828,7 +828,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                   </div>
                                   <Button
                                     size="sm"
-                                    className="h-8 rounded-xl bg-primary px-4 text-[11px] font-semibold hover:bg-surface-3"
+                                    className="h-8 rounded-xl bg-primary px-4 text-caption font-semibold hover:bg-surface-3"
                                     disabled={isReadOnly || isSaving}
                                     onClick={() =>
                                       saveStepPolicy(step.id, draft)
@@ -837,7 +837,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     {isSaving ? "Saving..." : "Save policy"}
                                   </Button>
                                 </div>
-                                <div className="mb-3 rounded-xl border border-order-border bg-order-bg p-3 text-[11px] text-order-fg">
+                                <div className="mb-3 rounded-xl border border-order-border bg-order-bg p-3 text-caption text-order-fg">
                                   <b>Width is derived automatically.</b> The
                                   final pouching feed comes from the order
                                   size&apos;s roll-width axis; upstream steps
@@ -847,7 +847,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                                   <div>
-                                    <Label className="text-[10px] text-content-3">
+                                    <Label className="text-caption text-content-3">
                                       Input rolls
                                     </Label>
                                     <Input
@@ -867,7 +867,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     />
                                   </div>
                                   <div>
-                                    <Label className="text-[10px] text-content-3">
+                                    <Label className="text-caption text-content-3">
                                       Thickness
                                     </Label>
                                     <Select
@@ -901,7 +901,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     </Select>
                                   </div>
                                   <div>
-                                    <Label className="text-[10px] text-content-3">
+                                    <Label className="text-caption text-content-3">
                                       Output capture
                                     </Label>
                                     <Select
@@ -945,7 +945,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                   </div>
                                 </div>
                                 <div className="mt-3">
-                                  <Label className="text-[10px] text-content-3">
+                                  <Label className="text-caption text-content-3">
                                     Notes
                                   </Label>
                                   <Input
@@ -963,16 +963,16 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 {isLamination ? (
                                   <div className="mt-3 rounded-2xl border border-info-border bg-info-bg p-3">
                                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                                      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+                                      <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
                                         Lamination lanes
                                       </Label>
-                                      <Badge className="border border-info-border bg-surface-1 text-[10px] text-primary">
+                                      <Badge className="border border-info-border bg-surface-1 text-caption text-primary">
                                         Lane A + Lane B
                                       </Badge>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
                                       <div>
-                                        <Label className="text-[10px] text-content-3">
+                                        <Label className="text-caption text-content-3">
                                           Pass
                                         </Label>
                                         <Input
@@ -992,7 +992,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         />
                                       </div>
                                       <div>
-                                        <Label className="text-[10px] text-content-3">
+                                        <Label className="text-caption text-content-3">
                                           Active from
                                         </Label>
                                         <Input
@@ -1012,7 +1012,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         />
                                       </div>
                                       <div>
-                                        <Label className="text-[10px] text-content-3">
+                                        <Label className="text-caption text-content-3">
                                           Input lanes
                                         </Label>
                                         <Input
@@ -1034,7 +1034,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         />
                                       </div>
                                       <div>
-                                        <Label className="text-[10px] text-content-3">
+                                        <Label className="text-caption text-content-3">
                                           Adhesive %
                                         </Label>
                                         <Input
@@ -1056,7 +1056,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         />
                                       </div>
                                       <div>
-                                        <Label className="text-[10px] text-content-3">
+                                        <Label className="text-caption text-content-3">
                                           Solvent %
                                         </Label>
                                         <Input
@@ -1080,7 +1080,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     </div>
                                     <div className="mt-2 grid gap-2 md:grid-cols-2">
                                       <div className="rounded-xl border border-info-border bg-surface-1 px-3 py-2">
-                                        <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                                        <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
                                           Lane A
                                         </div>
                                         <div className="mt-1 text-xs font-bold text-content-2">
@@ -1092,7 +1092,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         </div>
                                       </div>
                                       <div className="rounded-xl border border-info-border bg-surface-1 px-3 py-2">
-                                        <div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">
+                                        <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
                                           Lane B
                                         </div>
                                         <div className="mt-1 text-xs font-bold text-content-2">
@@ -1112,7 +1112,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                               </div>
 
                               <div className="rounded-2xl border border-line bg-surface-1 p-4">
-                                <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                                <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                                   Mapped inputs
                                 </Label>
                                 {stepMaterials.length === 0 ? (
@@ -1136,7 +1136,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                                 "",
                                             ).toUpperCase() || "CATEGORY"}
                                           </div>
-                                          <div className="mt-1 text-[11px] font-semibold text-content-3">
+                                          <div className="mt-1 text-caption font-semibold text-content-3">
                                             {basisLabel(
                                               material.consumption_basis,
                                             )}{" "}
@@ -1155,7 +1155,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     )}
                                   </div>
                                 )}
-                                <p className="mt-3 text-[11px] font-semibold text-content-3">
+                                <p className="mt-3 text-caption font-semibold text-content-3">
                                   Use Material mapping below to change stage
                                   assignment, issue uplift, and capture mode.
                                 </p>
@@ -1173,7 +1173,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             <section className="rounded-3xl border border-line bg-surface-2 p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                     Material mapping
                   </Label>
                   <p className="mt-1 text-xs font-semibold text-content-3">
@@ -1183,7 +1183,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                 </div>
                 <Badge
                   variant="outline"
-                  className="rounded-full border-line bg-surface-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3"
+                  className="rounded-full border-line bg-surface-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
                 >
                   {categoryOptions.length} categories
                 </Badge>
@@ -1244,13 +1244,13 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                             <p className="truncate text-sm font-bold text-content-2">
                               {categoryCode}
                             </p>
-                            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-tight text-content-4">
+                            <p className="mt-0.5 text-caption font-semibold uppercase tracking-tight text-content-4">
                               {reqMeta
                                 ? `${reqMeta.count} rows · ${reqMeta.totalWeightKg.toFixed(3)} kg theory`
                                 : "Sales BOM category"}
                             </p>
                             {mappedEntry ? (
-                              <p className="mt-1 text-[10px] font-bold text-success-fg">
+                              <p className="mt-1 text-caption font-bold text-success-fg">
                                 Step {mappedEntry.step.sequence_number}:{" "}
                                 {mappedEntry.step.process_name}
                               </p>
@@ -1261,10 +1261,10 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                         <div>
                           {isInkLegacy ? (
                             <div className="rounded-xl border border-warning-border bg-warning-bg p-3">
-                              <div className="text-[11px] font-bold text-warning-fg">
+                              <div className="text-caption font-bold text-warning-fg">
                                 Legacy ink mapping
                               </div>
-                              <p className="mt-1 text-[10px] font-semibold leading-4 text-warning-fg">
+                              <p className="mt-1 text-caption font-semibold leading-4 text-warning-fg">
                                 Ink theory now comes from artwork GSM and floor
                                 reconciliation. This template row should be
                                 removed, not reassigned.
@@ -1274,7 +1274,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  className="mt-2 h-8 rounded-xl border-warning-border bg-surface-1 px-3 text-[11px] font-bold text-warning-fg"
+                                  className="mt-2 h-8 rounded-xl border-warning-border bg-surface-1 px-3 text-caption font-bold text-warning-fg"
                                   disabled={isReadOnly || isRowPending}
                                   onClick={() =>
                                     void handleAssignCategory(
@@ -1290,7 +1290,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                           ) : !hasSteps ? (
                             <Badge
                               variant="outline"
-                              className="border-line text-[10px]"
+                              className="border-line text-caption"
                             >
                               Sync route first
                             </Badge>
@@ -1308,7 +1308,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     variant="outline"
                                     size="sm"
                                     className={cn(
-                                      "h-8 rounded-xl px-3 text-[11px] font-bold",
+                                      "h-8 rounded-xl px-3 text-caption font-bold",
                                       isMappedHere
                                         ? "border-info-border bg-info-bg text-primary"
                                         : "border-line bg-surface-1 text-content-3",
@@ -1392,7 +1392,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                               </div>
                             ) : null}
                             {isMultiStep ? (
-                              <span className="text-[10px] font-bold text-content-3">
+                              <span className="text-caption font-bold text-content-3">
                                 {mappedList.length} mapped pass
                                 {mappedList.length === 1 ? "" : "es"}
                               </span>
@@ -1401,7 +1401,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                         </div>
 
                         {isInkLegacy ? (
-                          <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-5 text-warning-fg">
+                          <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg px-3 py-2 text-caption font-semibold leading-5 text-warning-fg">
                             No issue policy, capture mode, or auto-consumption
                             is configurable for ink here. Printing ink theory is
                             read from artwork GSM and reconciled against floor
@@ -1417,7 +1417,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                             )}
                           >
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-content-3">
+                            <Label className="text-caption text-content-3">
                               Basis
                             </Label>
                             {mappedMat ? (
@@ -1460,14 +1460,14 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 </SelectContent>
                               </Select>
                             ) : (
-                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-[11px] text-content-4">
+                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-caption text-content-4">
                                 Assign first
                               </div>
                             )}
                           </div>
                           {showFormulaDriver ? (
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-content-3">
+                              <Label className="text-caption text-content-3">
                                 Formula
                               </Label>
                               <Select
@@ -1512,7 +1512,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                             </div>
                           ) : null}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-content-3">
+                            <Label className="text-caption text-content-3">
                               Issue
                             </Label>
                             {mappedMat ? (
@@ -1549,13 +1549,13 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 </SelectContent>
                               </Select>
                             ) : (
-                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-[11px] text-content-4">
+                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-caption text-content-4">
                                 Not mapped
                               </div>
                             )}
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-content-3">
+                            <Label className="text-caption text-content-3">
                               Value
                             </Label>
                             {mappedMat ? (
@@ -1581,13 +1581,13 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 }
                               />
                             ) : (
-                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-[11px] text-content-4">
+                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-caption text-content-4">
                                 Not mapped
                               </div>
                             )}
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-content-3">
+                            <Label className="text-caption text-content-3">
                               Close
                             </Label>
                             {mappedMat ? (
@@ -1621,7 +1621,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                 </SelectContent>
                               </Select>
                             ) : (
-                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-[11px] text-content-4">
+                              <div className="flex h-9 items-center rounded-xl border border-dashed border-line bg-surface-2 px-3 text-caption text-content-4">
                                 Not mapped
                               </div>
                             )}
@@ -1630,7 +1630,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                         )}
                       </div>
                       {rowError ? (
-                        <div className="mt-3 rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-[11px] font-semibold text-danger-fg">
+                        <div className="mt-3 rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-caption font-semibold text-danger-fg">
                           {rowError}
                         </div>
                       ) : null}

@@ -147,7 +147,7 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
       }
     >
       <StepStrip steps={stepDefs} currentId={step} compact />
-      <p className="text-[11px] text-content-3">{meta.subtitle}</p>
+      <p className="text-caption text-content-3">{meta.subtitle}</p>
 
       {error ? (
         <div className="rounded-lg border border-danger-border bg-danger-bg px-3 py-2 text-xs text-danger-fg">
@@ -186,7 +186,7 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
                       <span className="font-mono-token text-[13px] font-semibold text-content-1">
                         {v.code}
                       </span>
-                      <span className="font-mono-token text-[11px] text-content-3">
+                      <span className="font-mono-token text-caption text-content-3">
                         {Number(v.default_qty || 0).toFixed(0)} {v.quantity_uom}
                       </span>
                     </div>
@@ -246,7 +246,7 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
 
       {step === "confirm" && selected ? (
         <section className="space-y-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
             Review
           </h3>
           <div className="rounded-lg border border-line bg-surface-1 p-3 text-[12px]">

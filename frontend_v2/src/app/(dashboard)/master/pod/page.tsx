@@ -283,7 +283,7 @@ function PODForm({
             <FormItem className="flex items-center justify-between rounded-lg border px-3 py-2">
               <div>
                 <FormLabel>In-house capable</FormLabel>
-                <div className="mt-0.5 text-[11px] text-content-3">
+                <div className="mt-0.5 text-caption text-content-3">
                   Manual Product Master link supplies the production contract.
                 </div>
               </div>
@@ -455,7 +455,7 @@ export default function PODPage() {
         <div className="flex items-center gap-2">
           <Link
             href="/master/products?kind=POD"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-order-border bg-gradient-to-r from-order-bg to-order-bg px-3 text-[11px] font-bold text-order-fg hover:from-order-bg hover:to-order-bg transition"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-order-border bg-gradient-to-r from-order-bg to-order-bg px-3 text-caption font-bold text-order-fg hover:from-order-bg hover:to-order-bg transition"
             title="Create a POD Product Master variant, then manually link it to an existing fixed POD SKU"
           >
             <Plus className="h-3.5 w-3.5" /> Build production master
@@ -521,18 +521,18 @@ export default function PODPage() {
                     <div className="text-sm font-semibold tracking-tight text-content-1">
                       {row.name}
                     </div>
-                    <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.1em] text-content-4">
+                    <div className="mt-1 font-mono text-caption font-bold uppercase tracking-[0.1em] text-content-4">
                       {row.code}
                     </div>
                   </div>
-                  <span className="inline-flex rounded-full bg-order-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border">
+                  <span className="inline-flex rounded-full bg-order-bg px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-order-fg ring-1 ring-order-border">
                     POD roll
                   </span>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ${
+                    className={`inline-flex rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-wider ring-1 ${
                       row.pod_is_inhouse_produced
                         ? "bg-success-bg text-success-fg ring-success-border"
                         : "bg-surface-2 text-content-3 ring-line"
@@ -543,7 +543,7 @@ export default function PODPage() {
                       : "Catalog only"}
                   </span>
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ${
+                    className={`inline-flex rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-wider ring-1 ${
                       link
                         ? "bg-success-bg text-success-fg ring-success-border"
                         : unlinkedInHouse
@@ -558,7 +558,7 @@ export default function PODPage() {
                         : "Unlinked"}
                   </span>
                   <span
-                    className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ${
+                    className={`inline-flex rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-wider ring-1 ${
                       row.status === "ACTIVE"
                         ? "bg-info-bg text-primary ring-info-border"
                         : "bg-danger-bg text-danger-fg ring-danger-border"
@@ -570,7 +570,7 @@ export default function PODPage() {
 
                 <div className="grid grid-cols-2 gap-3 rounded-2xl bg-surface-2 p-4 text-sm">
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                       Base UOM
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -578,7 +578,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                       Roll profile
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -587,7 +587,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                       Fixed height
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -598,7 +598,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                       Thickness
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -609,7 +609,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                       Product Master Link
                     </div>
                     <div
@@ -626,7 +626,7 @@ export default function PODPage() {
                           <div className="font-semibold">
                             {link.master_code} · {link.master_name}
                           </div>
-                          <div className="mt-0.5 font-mono text-[11px] font-bold">
+                          <div className="mt-0.5 font-mono text-caption font-bold">
                             {link.variant_code}
                           </div>
                         </>
@@ -641,7 +641,7 @@ export default function PODPage() {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                       POD SKU Variants
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1.5">
@@ -649,7 +649,7 @@ export default function PODPage() {
                         skuRows.map((sku) => (
                           <span
                             key={sku.id}
-                            className="inline-flex rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-bold text-content-2 ring-1 ring-line"
+                            className="inline-flex rounded-full bg-surface-1 px-2 py-1 font-mono text-caption font-bold text-content-2 ring-1 ring-line"
                           >
                             {sku.pod_sku_code} · {sku.code}
                           </span>

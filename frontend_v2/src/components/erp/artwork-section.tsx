@@ -197,29 +197,29 @@ export function ArtworkSection({
     <div className={cn("space-y-5", className)}>
       <div className="flex flex-wrap items-center gap-2">
         {cylinderRequired ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2.5 py-1 text-[11px] font-bold text-order-fg ring-1 ring-order-border">
+          <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2.5 py-1 text-caption font-bold text-order-fg ring-1 ring-order-border">
             <Disc className="h-3.5 w-3.5" />
             Artwork cylinder required
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-[11px] font-bold text-success-fg ring-1 ring-success-border">
+          <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-caption font-bold text-success-fg ring-1 ring-success-border">
             <CheckCircle2 className="h-3.5 w-3.5" />
             FLEXO / non-ROTO · no cylinder required
           </span>
         )}
         {assignment ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-content-2 ring-1 ring-line">
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-caption font-bold text-content-2 ring-1 ring-line">
             {effectivePrintType || "PRINT"} ·{" "}
             {effectiveFilmType || "FORM FROM ARTWORK"}
           </span>
         ) : null}
         {inkBaseFamily ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2.5 py-1 text-[11px] font-bold text-order-fg ring-1 ring-order-border">
+          <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2.5 py-1 text-caption font-bold text-order-fg ring-1 ring-order-border">
             Ink family · {inkBaseFamily}
           </span>
         ) : null}
         {filterSummary ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-content-3 ring-1 ring-line">
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-caption font-bold text-content-3 ring-1 ring-line">
             {filterSummary}
           </span>
         ) : null}
@@ -252,7 +252,7 @@ export function ArtworkSection({
                 <div className="text-sm font-bold text-content-1">
                   {m.label}
                 </div>
-                <div className="text-[11px] leading-4 text-content-3">
+                <div className="text-caption leading-4 text-content-3">
                   {m.helper}
                 </div>
               </div>
@@ -268,7 +268,7 @@ export function ArtworkSection({
             <div className="font-bold">
               Planner must assign approved artwork before release.
             </div>
-            <div className="mt-0.5 text-[11px]">
+            <div className="mt-0.5 text-caption">
               {deferReason ||
                 "Order can be created without an artwork. Print release will be blocked until approved artwork is assigned; cylinders are checked only for ROTO."}
             </div>
@@ -336,11 +336,11 @@ function CompactArtworkPreview({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1 px-4 py-3">
         <ArtworkThumb url={assignment.cover_url} accent={assignment.accent_hex} size={52} />
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">Selected artwork</div>
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Selected artwork</div>
           <div className="truncate text-sm font-semibold text-content-1">
             {assignment.colorway_name || assignment.design_family_name || assignment.artwork_id}
           </div>
-          <div className="mt-1 truncate text-[11px] font-semibold text-content-3">
+          <div className="mt-1 truncate text-caption font-semibold text-content-3">
             {colors.map((color) => color.name || color.pantone).filter(Boolean).join(" · ") || "Color contract pending"}
           </div>
         </div>
@@ -389,14 +389,14 @@ function OverlayDefaultPanel({
         <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
         <div className="text-xs">
           <div className="font-bold">No overlay default for this customer</div>
-          <div className="mt-0.5 text-[11px]">
+          <div className="mt-0.5 text-caption">
             Pick an approved artwork instead.
           </div>
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={onSwitchToApproved}
-              className="rounded-full bg-surface-1 px-3 py-1 text-[11px] font-bold text-primary ring-1 ring-info-border hover:bg-info-bg"
+              className="rounded-full bg-surface-1 px-3 py-1 text-caption font-bold text-primary ring-1 ring-info-border hover:bg-info-bg"
             >
               Pick approved artwork
             </button>
@@ -413,7 +413,7 @@ function OverlayDefaultPanel({
         size={56}
       />
       <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
           Customer overlay default
         </div>
         <div className="truncate text-sm font-bold text-content-1">
@@ -464,7 +464,7 @@ function ArtworkPickerPanel({
             <div className="text-sm font-bold text-content-1">
               Pick an approved artwork
             </div>
-            <div className="text-[11px] text-content-3">
+            <div className="text-caption text-content-3">
               Browse design families and colorways bound to this master.
             </div>
           </div>
@@ -495,13 +495,13 @@ function ArtworkPickerPanel({
             </div>
           )}
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
               Approved artwork
             </div>
             <div className="truncate text-sm font-bold text-content-1">
               {selected?.name || assignment?.colorway_name || "Not selected"}
             </div>
-            <div className="truncate text-[11px] text-content-3">
+            <div className="truncate text-caption text-content-3">
               {selected?.family ||
                 assignment?.design_family_name ||
                 `${options.length} approved option${options.length === 1 ? "" : "s"}`}
@@ -585,10 +585,10 @@ function ArtworkPickerPanel({
                       <div className="truncate text-sm font-bold text-content-1">
                         {cw.name}
                       </div>
-                      <div className="truncate text-[11px] text-content-3">
+                      <div className="truncate text-caption text-content-3">
                         {cw.family}
                       </div>
-                      <div className="mt-1 text-[10px] font-semibold text-content-3">
+                      <div className="mt-1 text-caption font-semibold text-content-3">
                         {cw.color_count} colors · Approved
                       </div>
                     </div>
@@ -605,7 +605,7 @@ function ArtworkPickerPanel({
               </div>
             ) : null}
           </ScrollArea>
-          <div className="shrink-0 border-t border-line bg-surface-2 px-5 py-3 text-[11px] text-content-3">
+          <div className="shrink-0 border-t border-line bg-surface-2 px-5 py-3 text-caption text-content-3">
             {filteredOptions.length} of {options.length} approved artworks shown
           </div>
         </DialogContent>
@@ -615,7 +615,7 @@ function ArtworkPickerPanel({
           <button
             type="button"
             onClick={onPickArtwork}
-            className="inline-flex items-center gap-1.5 rounded-full bg-order-bg px-3 py-1.5 text-[11px] font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+            className="inline-flex items-center gap-1.5 rounded-full bg-order-bg px-3 py-1.5 text-caption font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
           >
             <Wand2 className="h-3 w-3" /> Replace entire artwork
           </button>
@@ -649,7 +649,7 @@ function ArtworkPreviewPanel({
           size={88}
         />
         <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
             Selected artwork
           </div>
           <div className="truncate text-base font-bold text-content-1">
@@ -736,7 +736,7 @@ function ColorSlots({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 hover:bg-surface-2"
+        className="flex w-full items-center justify-between px-4 py-2 text-left text-caption font-semibold uppercase tracking-[0.12em] text-content-3 hover:bg-surface-2"
       >
         {title}
         <ChevronDown
@@ -784,7 +784,7 @@ function ColorSlot({
     >
       <span
         className={cn(
-          "flex h-9 w-9 flex-none items-center justify-center rounded-lg border text-[11px] font-semibold",
+          "flex h-9 w-9 flex-none items-center justify-center rounded-lg border text-caption font-semibold",
           missingName
             ? "border-danger-border bg-danger-bg text-danger-fg"
             : "border-line bg-surface-2 text-content-2",
@@ -793,10 +793,10 @@ function ColorSlot({
         C{slot.index}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[11px] font-bold text-content-1">
+        <div className="truncate text-caption font-bold text-content-1">
           {colorName || pantone || "Color name missing"}
         </div>
-        <div className="truncate text-[10px] font-medium text-content-3">
+        <div className="truncate text-caption font-medium text-content-3">
           {pantone || "Artwork color text"}
           {slot.role ? ` · ${slot.role}` : ""}
         </div>
@@ -873,7 +873,7 @@ function Pill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-bold ring-1",
         tones[tone],
       )}
     >

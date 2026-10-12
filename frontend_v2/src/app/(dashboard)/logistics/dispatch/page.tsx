@@ -98,14 +98,14 @@ function Lifecycle({ status }: { status: string }) {
         <li key={stage} className="flex items-center gap-1.5">
           <span
             className={cn(
-              "grid h-5 w-5 place-items-center rounded-full text-[10px] font-semibold",
+              "grid h-5 w-5 place-items-center rounded-full text-caption font-semibold",
               index <= active ? "bg-success-fg text-white" : "bg-surface-2 text-content-4 ring-1 ring-line",
             )}
             title={titleCase(stage)}
           >
             {index < active || current === "DELIVERED" ? <Check className="h-3 w-3" strokeWidth={3} /> : index + 1}
           </span>
-          <span className={cn("hidden text-[11px] 2xl:inline", index <= active ? "text-content-2" : "text-content-4")}>
+          <span className={cn("hidden text-caption 2xl:inline", index <= active ? "text-content-2" : "text-content-4")}>
             {titleCase(stage)}
           </span>
           {index < LIFECYCLE.length - 1 ? (
@@ -1023,7 +1023,7 @@ export default function DispatchBayPage() {
                             ) : (
                               <div className="text-[12.5px] text-content-2">1 roll</div>
                             )}
-                            <div className="mt-0.5 text-[11px] text-content-3">
+                            <div className="mt-0.5 text-caption text-content-3">
                               {unit.packs ? `${n(unit.packs, 0)} inner packs` : titleCase(unit.contentMode || (unit.kind === "ROLL" ? "Packed" : "Loose pouches"))}
                             </div>
                           </Td>

@@ -4,7 +4,7 @@ import * as React from "react"
 import { Check, Delete, Minus, Plus, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 
 export interface NumPadProps {
   value: number | string
@@ -364,9 +364,15 @@ export function NumPadPopover({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <div className={cn("relative", className)}>
+      <PopoverAnchor asChild>
+        <div
+          className={cn("relative", className)}
+          onClick={() => {
+            if (!disabled) setOpen(true)
+          }}
+        >
           <input
+            aria-label={label}
             {...inputProps}
             type="text"
             inputMode="decimal"
@@ -390,7 +396,7 @@ export function NumPadPopover({
             </span>
           ) : null}
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent align="start" className="w-auto border-none bg-transparent p-0 shadow-none ring-0">
         <NumPad
           value={value}

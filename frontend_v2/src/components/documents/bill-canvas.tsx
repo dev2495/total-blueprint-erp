@@ -366,7 +366,7 @@ export function ShortcutsPopover({ includeToggle = true }: { includeToggle?: boo
           {rows.map(([keys, label]) => (
             <div key={keys} className="flex items-center justify-between gap-3">
               <dt>
-                <kbd className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-content-1">{keys}</kbd>
+                <kbd className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-caption text-content-1">{keys}</kbd>
               </dt>
               <dd className="text-right text-content-3">{label}</dd>
             </div>
@@ -427,11 +427,11 @@ function Thumb({
           }
         />
       ) : img.status === "error" ? (
-        <span className="text-[10px] text-danger-fg">!</span>
+        <span className="text-caption text-danger-fg">!</span>
       ) : (
         <Loader2 className="h-3.5 w-3.5 animate-spin text-content-4 motion-reduce:animate-none" aria-hidden />
       )}
-      <span className="absolute bottom-0.5 right-0.5 rounded bg-surface-1 px-1 text-[10px] font-semibold tabular-nums text-content-1">{index + 1}</span>
+      <span className="absolute bottom-0.5 right-0.5 rounded bg-surface-1 px-1 text-caption font-semibold tabular-nums text-content-1">{index + 1}</span>
     </button>
   );
 }
@@ -868,7 +868,7 @@ export const BillCanvas = forwardRef<BillCanvasHandle, BillCanvasProps>(function
           <ZoomOut className="h-4 w-4" />
         </ViewerButton>
         <span
-          className="min-w-[42px] text-center text-[12px] font-semibold tabular-nums text-content-2 max-md:min-w-[36px] max-md:text-[11px]"
+          className="min-w-[42px] text-center text-[12px] font-semibold tabular-nums text-content-2 max-md:min-w-[36px] max-md:text-caption"
           aria-live="polite"
           data-testid="bill-zoom-level"
         >
@@ -1042,7 +1042,7 @@ export const BillCanvas = forwardRef<BillCanvasHandle, BillCanvasProps>(function
         </div>
       ) : null}
       {showHints ? (
-        <div className="hidden border-t border-line px-3 py-1 text-[11px] text-content-4 md:block">
+        <div className="hidden border-t border-line px-3 py-1 text-caption text-content-4 md:block">
           Drag to move · Ctrl/⌘ + scroll to zoom · double-click to zoom in · Shift-drag to pin an area
         </div>
       ) : null}

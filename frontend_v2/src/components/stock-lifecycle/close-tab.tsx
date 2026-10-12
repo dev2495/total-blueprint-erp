@@ -246,7 +246,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
             <div className="flex items-center gap-2 rounded-2xl bg-surface-1/15 px-3 py-2 ring-1 ring-surface-1/20">
               <Wallet className="h-4 w-4" />
               <div>
-                <div className="text-[11px] uppercase tracking-wide text-white/80">
+                <div className="text-caption uppercase tracking-wide text-white/80">
                   Total value
                 </div>
                 <div className="font-display text-xl font-semibold">
@@ -361,7 +361,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-content-3">
+            <thead className="bg-surface-2 text-caption uppercase tracking-wide text-content-3">
               <tr>
                 <th className="px-4 py-2 text-left">Class</th>
                 <th className="px-4 py-2 text-right">Opening</th>
@@ -381,7 +381,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
                       <div className="font-display font-semibold text-content-2">
                         {cls}
                       </div>
-                      <div className="text-[11px] text-content-3">
+                      <div className="text-caption text-content-3">
                         {byClass[cls]?.count || 0} row(s)
                       </div>
                     </td>

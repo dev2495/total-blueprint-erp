@@ -145,7 +145,7 @@ export default function ProductionJobPage() {
                 {layers.map((layer: any, index: number) => (
                   <li key={index} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[12.5px]">
                     <span className="flex items-center gap-2">
-                      <span className="grid h-5 w-5 place-items-center rounded-md bg-surface-1 text-[10px] font-semibold text-content-3">{index + 1}</span>
+                      <span className="grid h-5 w-5 place-items-center rounded-md bg-surface-1 text-caption font-semibold text-content-3">{index + 1}</span>
                       <span className="text-content-1">{layer.material_code || layer.material_name || layer.name || `Layer ${index + 1}`}</span>
                     </span>
                     <span className="tabular-nums text-content-3">

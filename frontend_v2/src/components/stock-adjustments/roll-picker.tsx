@@ -136,10 +136,10 @@ export function RollPicker({
                       className="flex items-center justify-between gap-2"
                     >
                       <div className="flex min-w-0 flex-col">
-                        <span className="font-mono text-[11px] font-bold text-content-1">
+                        <span className="font-mono text-caption font-bold text-content-1">
                           {r.label_id}
                         </span>
-                        <span className="truncate text-[10px] text-content-3">
+                        <span className="truncate text-caption text-content-3">
                           {r.width_mm} mm × {r.thickness_micron} µ ·{" "}
                           <b>{r.weight_kg.toFixed(3)}</b> kg · {r.status}
                         </span>
@@ -154,7 +154,7 @@ export function RollPicker({
                   ))}
                 </CommandGroup>
                 {filtered.length > 60 ? (
-                  <div className="px-2 py-1 text-[10px] text-content-4">
+                  <div className="px-2 py-1 text-caption text-content-4">
                     Showing 60 of {filtered.length}.
                   </div>
                 ) : null}

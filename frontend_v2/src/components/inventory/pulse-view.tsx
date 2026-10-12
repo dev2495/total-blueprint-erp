@@ -295,16 +295,16 @@ function PulseMatrixCard({ matrix }: { matrix: PulseMatrix }) {
       }
     >
       <div className="overflow-x-auto">
-        <table className="min-w-full text-[11px]">
+        <table className="min-w-full text-caption">
           <thead>
             <tr className="text-content-3">
-              <th className="sticky left-0 bg-surface-1 pr-2 py-1 text-left font-bold uppercase tracking-wider text-[10px]">
+              <th className="sticky left-0 bg-surface-1 pr-2 py-1 text-left font-bold uppercase tracking-wider text-caption">
                 {matrix.rowLabel} \\ {matrix.colLabel}
               </th>
               {showCols.map((c) => (
                 <th
                   key={c}
-                  className="px-1.5 py-1 text-center font-mono font-bold text-[10px]"
+                  className="px-1.5 py-1 text-center font-mono font-bold text-caption"
                 >
                   {c}
                 </th>
@@ -315,7 +315,7 @@ function PulseMatrixCard({ matrix }: { matrix: PulseMatrix }) {
             {showRows.map((row) => (
               <tr key={row}>
                 <td
-                  className="sticky left-0 bg-surface-1 pr-2 py-0.5 text-[10px] font-medium text-content-2 truncate max-w-[160px]"
+                  className="sticky left-0 bg-surface-1 pr-2 py-0.5 text-caption font-medium text-content-2 truncate max-w-[160px]"
                   title={row}
                 >
                   {row}
@@ -326,7 +326,7 @@ function PulseMatrixCard({ matrix }: { matrix: PulseMatrix }) {
                     <td key={col} className="px-0.5 py-0.5 text-center">
                       <span
                         className={cn(
-                          "inline-flex h-6 w-12 items-center justify-center rounded-md font-mono font-bold tabular-nums text-[10px]",
+                          "inline-flex h-6 w-12 items-center justify-center rounded-md font-mono font-bold tabular-nums text-caption",
                           intensity(v),
                         )}
                         title={`${row} × ${col} · ${fmt(v, 0)} ${matrix.unit || ""}`}
@@ -341,7 +341,7 @@ function PulseMatrixCard({ matrix }: { matrix: PulseMatrix }) {
           </tbody>
         </table>
         {(matrix.rows.length > 12 || matrix.cols.length > 10) && (
-          <div className="mt-2 text-[10px] text-content-4">
+          <div className="mt-2 text-caption text-content-4">
             Showing {showRows.length}/{matrix.rows.length} {matrix.rowLabel} ×{" "}
             {showCols.length}/{matrix.cols.length} {matrix.colLabel}
           </div>
@@ -398,7 +398,7 @@ function PulseTopList({
               className="flex items-center justify-between gap-2 py-2"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <span className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full bg-surface-2 text-[10px] font-bold text-content-3 tabular-nums">
+                <span className="inline-flex h-5 w-5 flex-none items-center justify-center rounded-full bg-surface-2 text-caption font-bold text-content-3 tabular-nums">
                   {i + 1}
                 </span>
                 <div className="min-w-0">
@@ -409,7 +409,7 @@ function PulseTopList({
                     {r.label}
                   </div>
                   {r.sub && (
-                    <div className="text-[10px] text-content-3 truncate">
+                    <div className="text-caption text-content-3 truncate">
                       {r.sub}
                     </div>
                   )}
@@ -473,7 +473,7 @@ function PulseKpiTile({
         )}
       />
       <div className="flex items-start justify-between gap-2 pl-1">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 truncate">
+        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 truncate">
           {label}
         </div>
         {icon && (
@@ -494,7 +494,7 @@ function PulseKpiTile({
         {delta && (
           <span
             className={cn(
-              "rounded px-1 py-0.5 text-[10px] font-semibold",
+              "rounded px-1 py-0.5 text-caption font-semibold",
               delta.positive
                 ? "bg-success-bg text-success-fg"
                 : "bg-danger-bg text-danger-fg",
@@ -505,7 +505,7 @@ function PulseKpiTile({
         )}
       </div>
       {sub && (
-        <div className="mt-0.5 text-[10px] text-content-3 truncate pl-1">
+        <div className="mt-0.5 text-caption text-content-3 truncate pl-1">
           {sub}
         </div>
       )}
@@ -571,7 +571,7 @@ function MicroStat({ label, value, sub, tone = "default" }: PulseStat) {
   }[tone];
   return (
     <div className="border-l-2 border-line pl-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div
@@ -579,7 +579,7 @@ function MicroStat({ label, value, sub, tone = "default" }: PulseStat) {
       >
         {value}
       </div>
-      {sub && <div className="text-[10px] text-content-3 truncate">{sub}</div>}
+      {sub && <div className="text-caption text-content-3 truncate">{sub}</div>}
     </div>
   );
 }
@@ -612,7 +612,7 @@ function PulseCard({
               {title}
             </h3>
             {subtitle && (
-              <div className="text-[10px] text-content-3">{subtitle}</div>
+              <div className="text-caption text-content-3">{subtitle}</div>
             )}
           </div>
         </div>
@@ -626,7 +626,7 @@ function PulseCard({
 function TotalChip({ total, unit }: { total: number; unit: string }) {
   if (!Number.isFinite(total) || total <= 0) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-2">
+    <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-2">
       Σ <span className="font-mono">{fmt(total, 0)}</span> {unit}
     </span>
   );
@@ -657,7 +657,7 @@ function HorizontalBars({
         const color = e.color || SOFT_COLORS[i % SOFT_COLORS.length];
         return (
           <div key={i}>
-            <div className="flex items-center justify-between text-[11px]">
+            <div className="flex items-center justify-between text-caption">
               <span
                 className="flex items-center gap-1.5 font-bold text-content-2 truncate max-w-[55%]"
                 title={e.label}
@@ -672,7 +672,7 @@ function HorizontalBars({
                 <span className="font-mono text-content-2 tabular-nums">
                   {fmt(e.value, 0)} {unit}
                 </span>
-                <span className="font-mono text-[10px] font-bold text-content-4 tabular-nums w-9 text-right">
+                <span className="font-mono text-caption font-bold text-content-4 tabular-nums w-9 text-right">
                   {sharePct.toFixed(1)}%
                 </span>
               </span>
@@ -763,7 +763,7 @@ function Donut({
           TOTAL {unit}
         </text>
       </svg>
-      <div className="flex-1 space-y-1.5 text-[11px] max-h-32 overflow-y-auto">
+      <div className="flex-1 space-y-1.5 text-caption max-h-32 overflow-y-auto">
         {entries.map((e, i) => {
           const color = e.color || SOFT_COLORS[i % SOFT_COLORS.length];
           const pct = (e.value / total) * 100;
@@ -821,12 +821,12 @@ function AgeingChart({ ageing }: { ageing: PulseAgeing }) {
           title={`Old ${o.toFixed(0)}%`}
         />
       </div>
-      <div className="grid grid-cols-3 gap-2 text-[11px]">
+      <div className="grid grid-cols-3 gap-2 text-caption">
         <AgeBucket color="emerald" label="≤30 d" n={ageing.fresh} pct={f} />
         <AgeBucket color="amber" label="31–90 d" n={ageing.aged} pct={a} />
         <AgeBucket color="rose" label="90+ d" n={ageing.old} pct={o} />
       </div>
-      <div className="rounded-lg bg-surface-2 px-3 py-2 text-[10px] text-content-3 ring-1 ring-line">
+      <div className="rounded-lg bg-surface-2 px-3 py-2 text-caption text-content-3 ring-1 ring-line">
         <span className="font-bold text-content-1">{total}</span> items in
         window · <span className="font-bold text-danger-fg">{ageing.old}</span>{" "}
         need attention
@@ -853,11 +853,11 @@ function AgeBucket({
   }[color];
   return (
     <div className={cn("rounded-lg px-2 py-1.5 ring-1", TONE)}>
-      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold uppercase tracking-wider">
         {label}
       </div>
       <div className="font-mono text-sm font-bold tabular-nums">{fmt(n)}</div>
-      <div className="text-[10px] opacity-60 tabular-nums">
+      <div className="text-caption tabular-nums">
         {pct.toFixed(0)}%
       </div>
     </div>
@@ -879,7 +879,7 @@ function LocationTile({
   const pct = (entry.value / Math.max(max, 1)) * 100;
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-      <div className="flex items-center gap-1.5 text-[10px] font-bold text-content-3 uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 text-caption font-bold text-content-3 uppercase tracking-wider">
         <span
           className="inline-block h-2 w-2 rounded-sm"
           style={{ backgroundColor: color }}
@@ -941,7 +941,7 @@ export function ClassTabBar({
               {typeof t.badge !== "undefined" && (
                 <span
                   className={cn(
-                    "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                    "ml-1 rounded-full px-1.5 py-0.5 text-caption font-semibold",
                     active
                       ? "bg-surface-1/20 text-white"
                       : "bg-surface-2 text-content-3",
@@ -1014,7 +1014,7 @@ export function ModeToggle({
       <button
         onClick={() => onChange("pulse")}
         className={cn(
-          "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[11px] font-bold",
+          "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-caption font-bold",
           mode === "pulse"
             ? "bg-surface-1 text-success-fg shadow-sm ring-1 ring-success-border"
             : "text-content-3 hover:text-content-1",
@@ -1025,7 +1025,7 @@ export function ModeToggle({
       <button
         onClick={() => onChange("browse")}
         className={cn(
-          "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-[11px] font-bold",
+          "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-caption font-bold",
           mode === "browse"
             ? "bg-surface-1 text-content-1 shadow-sm ring-1 ring-line"
             : "text-content-3 hover:text-content-1",
@@ -1062,7 +1062,7 @@ export function SubtleHero({
       <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-order-fg via-order-fg to-order-fg" />
       <div className="flex flex-wrap items-start justify-between gap-3 pl-2">
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             {eyebrow}
           </div>
           <h1 className="font-display text-2xl font-semibold text-content-1 mt-0.5 tracking-tight">
@@ -1083,7 +1083,7 @@ export function SubtleHero({
                   <span
                     key={i}
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ring-1",
+                      "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-caption font-bold ring-1",
                       TONE,
                     )}
                   >

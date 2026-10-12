@@ -88,7 +88,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
           <h3 className="font-display text-sm font-bold text-content-1">
             {customerName || "Customer"} · context
           </h3>
-          <p className="text-[10px] text-content-3">
+          <p className="text-caption text-content-3">
             Past orders, overlays + repeat-lane hints — pulled live for this
             customer.
           </p>
@@ -98,17 +98,17 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
       <div className="grid gap-2">
         {/* Previous orders */}
         <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-widest text-content-3">
             <History className="h-3 w-3" /> Recent orders
           </div>
           {ordersQuery.isLoading ? (
-            <div className="mt-2 text-[11px] text-content-4">Loading…</div>
+            <div className="mt-2 text-caption text-content-4">Loading…</div>
           ) : customerOrders.length === 0 ? (
-            <div className="mt-2 text-[11px] text-content-3">
+            <div className="mt-2 text-caption text-content-3">
               No prior orders — first time for this customer.
             </div>
           ) : (
-            <ul className="mt-2 space-y-1.5 text-[11px]">
+            <ul className="mt-2 space-y-1.5 text-caption">
               {customerOrders.map((o: any) => (
                 <li
                   key={o.id}
@@ -117,11 +117,11 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                   <div className="min-w-0">
                     <Link
                       href={`/sales/orders/${o.id}`}
-                      className="font-mono text-[11px] font-bold text-order-fg hover:underline"
+                      className="font-mono text-caption font-bold text-order-fg hover:underline"
                     >
                       {o.order_number || o.id?.slice(0, 8)}
                     </Link>
-                    <div className="truncate text-[10px] text-content-3">
+                    <div className="truncate text-caption text-content-3">
                       {Number(o.item_summary?.line_count || (o.items || []).length || 0)} line
                       {Number(o.item_summary?.line_count || (o.items || []).length || 0) === 1 ? "" : "s"} ·{" "}
                       {String(o.status || "").toLowerCase()}
@@ -129,7 +129,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-line text-[10px] text-content-3"
+                    className="border-line text-caption text-content-3"
                   >
                     {o.status}
                   </Badge>
@@ -141,21 +141,21 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
 
         {/* Overlays */}
         <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-widest text-content-3">
             <Layers className="h-3 w-3" /> Customer overlays
           </div>
           {overlaysQuery.isLoading ? (
-            <div className="mt-2 text-[11px] text-content-4">Loading…</div>
+            <div className="mt-2 text-caption text-content-4">Loading…</div>
           ) : overlays.length === 0 ? (
-            <div className="mt-2 text-[11px] text-content-3">
+            <div className="mt-2 text-caption text-content-3">
               No overlays defined for this customer.
             </div>
           ) : (
-            <ul className="mt-2 space-y-1 text-[11px]">
+            <ul className="mt-2 space-y-1 text-caption">
               {overlays.slice(0, 4).map((ov: any, i: number) => (
                 <li
                   key={i}
-                  className="flex items-center gap-1 rounded-md bg-order-bg px-2 py-1 font-mono text-[10px] text-order-fg ring-1 ring-order-border"
+                  className="flex items-center gap-1 rounded-md bg-order-bg px-2 py-1 font-mono text-caption text-order-fg ring-1 ring-order-border"
                 >
                   {ov.product_master_code ||
                     ov.product_master_name ||
@@ -163,7 +163,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
                 </li>
               ))}
               {overlays.length > 4 ? (
-                <div className="text-[10px] text-content-3">
+                <div className="text-caption text-content-3">
                   +{overlays.length - 4} more
                 </div>
               ) : null}
@@ -180,7 +180,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
               : "border-line bg-surface-2 ring-line",
           )}
         >
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-order-fg">
+          <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-widest text-order-fg">
             <Sparkles className="h-3 w-3" /> Repeat-lane hint
           </div>
           {lastLaneCount ? (
@@ -189,12 +189,12 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
               picker on each line will default to this.
             </div>
           ) : (
-            <div className="mt-2 text-[11px] text-content-3">
+            <div className="mt-2 text-caption text-content-3">
               No prior production for this customer · lane will default to{" "}
               <b>1-up</b>.
             </div>
           )}
-          <div className="mt-2 text-[10px] text-content-4">
+          <div className="mt-2 text-caption text-content-4">
             Lane is captured per-line at the bottom of each line editor.
             Validated against the effective{" "}
             <Link

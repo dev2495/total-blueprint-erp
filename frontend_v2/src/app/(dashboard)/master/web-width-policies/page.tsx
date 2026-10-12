@@ -104,7 +104,7 @@ export default function WebWidthPolicyListPage() {
           </div>
         ) : (
           <table className="w-full text-[12px]">
-            <thead className="bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <thead className="bg-surface-2 text-left text-caption font-semibold uppercase tracking-wider text-content-3">
               <tr>
                 <th className="px-4 py-2">Code</th>
                 <th className="px-4 py-2">Name</th>
@@ -140,11 +140,11 @@ function Row({ p }: { p: WebWidthPolicy }) {
       <td className="px-4 py-2 font-mono font-bold text-order-fg">{p.code}</td>
       <td className="px-4 py-2">{p.name}</td>
       <td className="px-4 py-2">
-        <div className="font-mono text-[10px] font-bold text-content-2">
+        <div className="font-mono text-caption font-bold text-content-2">
           {p.scope_type || "GLOBAL"}
         </div>
         {p.scope_ref ? (
-          <div className="max-w-[130px] truncate font-mono text-[10px] text-content-4">
+          <div className="max-w-[130px] truncate font-mono text-caption text-content-4">
             {p.scope_ref}
           </div>
         ) : null}
@@ -154,7 +154,7 @@ function Row({ p }: { p: WebWidthPolicy }) {
           {(p.allowed_lanes || []).map((l) => (
             <span
               key={l}
-              className="rounded-md bg-order-bg px-1.5 py-0.5 font-mono text-[10px] font-bold text-order-fg"
+              className="rounded-md bg-order-bg px-1.5 py-0.5 font-mono text-caption font-bold text-order-fg"
             >
               {l}-up
             </span>
@@ -162,40 +162,40 @@ function Row({ p }: { p: WebWidthPolicy }) {
         </div>
       </td>
       <td className="px-4 py-2">
-        <div className="font-mono text-[10px] font-bold text-content-2">
+        <div className="font-mono text-caption font-bold text-content-2">
           {p.parent_width_strategy || "CALCULATED"}
         </div>
-        <div className="font-mono text-[10px] text-content-3">
+        <div className="font-mono text-caption text-content-3">
           {trim.inter_cut_mm ?? 5} cut · {trim.edge_trim_mm ?? 2} edge
         </div>
       </td>
       <td className="px-4 py-2">
-        <div className="font-mono text-[11px] font-bold text-content-1">
+        <div className="font-mono text-caption font-bold text-content-1">
           {lane}-up → {Math.round(plan.planned_parent_width_mm)} mm
         </div>
         {plan.selected_standard_parent_width_mm ? (
-          <div className="text-[10px] text-order-fg">std width selected</div>
+          <div className="text-caption text-order-fg">std width selected</div>
         ) : (
-          <div className="text-[10px] text-content-4">calculated parent</div>
+          <div className="text-caption text-content-4">calculated parent</div>
         )}
       </td>
-      <td className="px-4 py-2 font-mono text-[10px]">
+      <td className="px-4 py-2 font-mono text-caption">
         {p.min_remainder_mm} mm min ·{" "}
         {p.prefer_remainder_first ? "prefer rem" : "fresh first"}
       </td>
       <td className="px-4 py-2">
         <div className="flex flex-wrap gap-1">
           {p.is_default ? (
-            <Badge className="bg-success-bg text-[10px] text-success-fg hover:bg-success-bg">
+            <Badge className="bg-success-bg text-caption text-success-fg hover:bg-success-bg">
               default
             </Badge>
           ) : null}
           {p.deprecated ? (
-            <Badge className="bg-danger-bg text-[10px] text-danger-fg hover:bg-danger-bg">
+            <Badge className="bg-danger-bg text-caption text-danger-fg hover:bg-danger-bg">
               disabled
             </Badge>
           ) : (
-            <Badge className="bg-surface-2 text-[10px] text-content-2 hover:bg-surface-2">
+            <Badge className="bg-surface-2 text-caption text-content-2 hover:bg-surface-2">
               active
             </Badge>
           )}
@@ -205,7 +205,7 @@ function Row({ p }: { p: WebWidthPolicy }) {
         <Link
           href={`/master/web-width-policies/${p.id}`}
           className={cn(
-            "inline-flex items-center rounded-lg px-2.5 py-1 text-[11px] font-bold",
+            "inline-flex items-center rounded-lg px-2.5 py-1 text-caption font-bold",
             "bg-order-fg text-white hover:bg-order-fg",
           )}
         >

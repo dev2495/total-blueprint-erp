@@ -57,9 +57,9 @@ const config = {
         // bg-success-bg, border-danger-border, text-info-fg, etc. instead of raw palette.
         surface: {
           0: "var(--surface-0)",
-          1: "var(--surface-1)",
-          2: "var(--surface-2)",
-          3: "var(--surface-3)",
+          1: "rgb(var(--surface-1-rgb) / <alpha-value>)",
+          2: "rgb(var(--surface-2-rgb) / <alpha-value>)",
+          3: "rgb(var(--surface-3-rgb) / <alpha-value>)",
           glass: "var(--surface-glass)",
         },
         content: {
@@ -73,20 +73,20 @@ const config = {
           strong: "var(--border-strong)",
         },
         success: {
-          DEFAULT: "var(--success-fg)",
-          fg: "var(--success-fg)",
+          DEFAULT: "rgb(var(--success-fg-rgb) / <alpha-value>)",
+          fg: "rgb(var(--success-fg-rgb) / <alpha-value>)",
           bg: "var(--success-bg)",
           border: "var(--success-border)",
         },
         warning: {
-          DEFAULT: "var(--warning-fg)",
-          fg: "var(--warning-fg)",
+          DEFAULT: "rgb(var(--warning-fg-rgb) / <alpha-value>)",
+          fg: "rgb(var(--warning-fg-rgb) / <alpha-value>)",
           bg: "var(--warning-bg)",
           border: "var(--warning-border)",
         },
         danger: {
-          DEFAULT: "var(--danger-fg)",
-          fg: "var(--danger-fg)",
+          DEFAULT: "rgb(var(--danger-fg-rgb) / <alpha-value>)",
+          fg: "rgb(var(--danger-fg-rgb) / <alpha-value>)",
           bg: "var(--danger-bg)",
           border: "var(--danger-border)",
           solid: "var(--danger-solid)",
@@ -98,8 +98,8 @@ const config = {
           border: "var(--info-border)",
         },
         order: {
-          DEFAULT: "var(--accent-order-fg)",
-          fg: "var(--accent-order-fg)",
+          DEFAULT: "rgb(var(--order-fg-rgb) / <alpha-value>)",
+          fg: "rgb(var(--order-fg-rgb) / <alpha-value>)",
           bg: "var(--accent-order-bg)",
           border: "var(--accent-order-border)",
         },
@@ -112,6 +112,25 @@ const config = {
           blue: { DEFAULT: '#1068A9', 500: '#1068A9', 600: '#0A5388' },
           ink: '#4B4B4D',
         },
+      },
+      // Opacity steps used by token colours (bg-surface-1/88 etc.) that are not in
+      // Tailwind's default scale; without them the class is silently dropped.
+      opacity: {
+        12: "0.12",
+        14: "0.14",
+        58: "0.58",
+        72: "0.72",
+        76: "0.76",
+        78: "0.78",
+        88: "0.88",
+        92: "0.92",
+        94: "0.94",
+        96: "0.96",
+      },
+      // Readable floor-screen minimums: captions never go below 12px.
+      fontSize: {
+        caption: ["12px", { lineHeight: "1.35" }],
+        label: ["13px", { lineHeight: "1.4" }],
       },
       borderRadius: {
         lg: "var(--radius)",

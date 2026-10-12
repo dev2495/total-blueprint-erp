@@ -991,7 +991,7 @@ function ReportViewInner({ tab, title, description }: ReportViewProps) {
                       return (
                         <td key={c} className={cn("border-b border-line px-3 py-2.5", f === "text" ? "text-left text-content-2" : "text-right tabular-nums text-content-1")}>
                           {isStatus ? (
-                            <span className="inline-flex rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-content-2">{formatValue(v, "text")}</span>
+                            <span className="inline-flex rounded-full border border-line bg-surface-2 px-2 py-0.5 text-caption font-medium text-content-2">{formatValue(v, "text")}</span>
                           ) : (
                             formatValue(v, f)
                           )}

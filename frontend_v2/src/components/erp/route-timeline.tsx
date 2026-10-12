@@ -96,11 +96,11 @@ export function RouteTimeline({
                 )}
               >
                 <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-content-4">
+                  <span className="font-mono text-caption font-semibold uppercase tracking-wider text-content-4">
                     Stage {stage.index}
                   </span>
                   {isParallel ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2 py-0.5 text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-2 py-0.5 text-caption font-semibold text-order-fg ring-1 ring-order-border">
                       <GitBranch className="h-3 w-3" /> + parallel
                     </span>
                   ) : null}
@@ -128,7 +128,7 @@ export function RouteTimeline({
         {showStartEnd ? <RouteEndCap label="End" /> : null}
       </div>
       {helperText ? (
-        <p className="mt-3 text-[11px] font-medium text-content-3">
+        <p className="mt-3 text-caption font-medium text-content-3">
           {helperText}
         </p>
       ) : null}
@@ -181,7 +181,7 @@ function RouteGraphSvg({
             <text
               x="2"
               y={yFor(branch) + 4}
-              className="fill-current font-mono text-[10px] font-semibold uppercase"
+              className="fill-current font-mono text-caption font-semibold uppercase"
             >
               {branch}
             </text>
@@ -249,7 +249,7 @@ function RouteGraphSvg({
                   y={y + 4}
                   textAnchor="middle"
                   className={cn(
-                    "font-mono text-[10px] font-semibold",
+                    "font-mono text-caption font-semibold",
                     isSpecial
                       ? "fill-[var(--text-on-brand)]"
                       : "fill-[var(--content-1)]",
@@ -261,7 +261,7 @@ function RouteGraphSvg({
                   x={x}
                   y={y + 28}
                   textAnchor="middle"
-                  className="fill-[var(--content-2)] text-[10px] font-semibold"
+                  className="fill-[var(--content-2)] text-caption font-semibold"
                 >
                   {shortStepLabel(step)}
                 </text>
@@ -315,7 +315,7 @@ function RouteStepButton({
       <span className="flex w-full min-w-0 items-start gap-1.5 text-xs font-bold">
         <span
           className={cn(
-            "mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full font-mono text-[10px]",
+            "mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full font-mono text-caption",
             isStop
               ? "bg-primary text-white"
               : isStart
@@ -329,22 +329,22 @@ function RouteStepButton({
           <span className="line-clamp-2 text-content-1">{step.label}</span>
           <span className="mt-1 flex flex-wrap gap-1">
             {branch !== "MAIN" ? (
-              <span className="rounded-full bg-info-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary ring-1 ring-info-border">
+              <span className="rounded-full bg-info-bg px-1.5 py-0.5 text-caption font-semibold uppercase text-primary ring-1 ring-info-border">
                 {branch}
               </span>
             ) : null}
             {step.parallelGroup ? (
-              <span className="rounded-full bg-order-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-order-fg ring-1 ring-order-border">
+              <span className="rounded-full bg-order-bg px-1.5 py-0.5 text-caption font-semibold uppercase text-order-fg ring-1 ring-order-border">
                 {step.parallelGroup}
               </span>
             ) : null}
             {step.isJoin || step.joinKey ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-success-fg ring-1 ring-success-border">
+              <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-1.5 py-0.5 text-caption font-semibold uppercase text-success-fg ring-1 ring-success-border">
                 <GitMerge className="h-2.5 w-2.5" /> {step.joinKey || "Join"}
               </span>
             ) : null}
             {step.artwork_step ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-order-fg ring-1 ring-order-border">
+              <span className="inline-flex items-center gap-1 rounded-full bg-order-bg px-1.5 py-0.5 text-caption font-semibold uppercase text-order-fg ring-1 ring-order-border">
                 <Palette className="h-2.5 w-2.5" /> Art
               </span>
             ) : null}
@@ -352,12 +352,12 @@ function RouteStepButton({
         </span>
       </span>
       {step.transition || step.tag ? (
-        <span className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-content-4">
+        <span className="mt-2 text-caption font-semibold uppercase tracking-wider text-content-4">
           {step.transition || step.tag}
         </span>
       ) : null}
       {isStop ? (
-        <span className="mt-auto inline-flex items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-[10px] font-bold text-primary">
+        <span className="mt-auto inline-flex items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-caption font-bold text-primary">
           <MapPin className="h-3 w-3" /> Stop
         </span>
       ) : null}
@@ -373,7 +373,7 @@ function RouteEndCap({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex w-16 flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-content-4">
+    <div className="flex w-16 flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface-2 py-2 text-caption font-semibold uppercase tracking-wider text-content-4">
       {icon}
       {label}
     </div>

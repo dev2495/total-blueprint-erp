@@ -635,7 +635,7 @@ export function LineEditor({
               {(lineIndex ?? 0) + 1}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-semibold uppercase text-warning-fg">
+              <div className="text-caption font-semibold uppercase text-warning-fg">
                 Line label used across sales, planner, WCM, packing and dispatch
               </div>
               <div className="mt-0.5 truncate font-mono text-[12px] font-semibold text-content-1">
@@ -643,7 +643,7 @@ export function LineEditor({
               </div>
             </div>
             {master ? (
-              <span className="rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
+              <span className="rounded-full bg-success-bg px-2.5 py-1 text-caption font-semibold text-success-fg ring-1 ring-success-border">
                 order-ready master
               </span>
             ) : null}
@@ -712,8 +712,8 @@ export function LineEditor({
 
         {/* Overlay match banner (when customer has an overlay for this master) */}
         {selectedOverlay ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-success-border bg-success-bg px-4 py-2.5 text-[11px] shadow-sm">
-            <span className="rounded-full bg-success-fg px-2 py-0.5 text-[10px] font-bold text-white">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-success-border bg-success-bg px-4 py-2.5 text-caption shadow-sm">
+            <span className="rounded-full bg-success-fg px-2 py-0.5 text-caption font-bold text-white">
               overlay applied
             </span>
             <span className="font-mono font-bold text-success-fg">
@@ -738,14 +738,14 @@ export function LineEditor({
             ) : null}
             <button
               onClick={() => onPatch({ customer_product_overlay: undefined })}
-              className="ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-bold text-success-fg hover:bg-success-bg"
+              className="ml-auto rounded-md px-1.5 py-0.5 text-caption font-bold text-success-fg hover:bg-success-bg"
             >
               Clear
             </button>
           </div>
         ) : availableOverlays.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-order-border bg-order-bg px-4 py-2.5 text-[11px] shadow-sm">
-            <span className="rounded-full bg-order-fg px-2 py-0.5 text-[10px] font-bold text-white">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-order-border bg-order-bg px-4 py-2.5 text-caption shadow-sm">
+            <span className="rounded-full bg-order-fg px-2 py-0.5 text-caption font-bold text-white">
               customer overlay available
             </span>
             <span className="text-order-fg">
@@ -755,7 +755,7 @@ export function LineEditor({
             </span>
             <button
               onClick={() => applyOverlay(availableOverlays[0], onPatch)}
-              className="ml-auto rounded-md bg-order-fg px-2 py-1 text-[10px] font-bold text-white hover:bg-order-fg"
+              className="ml-auto rounded-md bg-order-fg px-2 py-1 text-caption font-bold text-white hover:bg-order-fg"
             >
               Apply overlay
             </button>
@@ -769,11 +769,11 @@ export function LineEditor({
           title="2. Current Product Master"
           badge={
             master ? (
-              <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 font-mono text-[10px] font-bold text-content-3">
+              <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 font-mono text-caption font-bold text-content-3">
                 {master.code}
               </span>
             ) : (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-danger-fg">
+              <span className="text-caption font-semibold uppercase tracking-wider text-danger-fg">
                 required
               </span>
             )
@@ -795,7 +795,7 @@ export function LineEditor({
             }
           />
           {master ? (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-content-3">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption font-bold text-content-3">
               <span>
                 {master.layer_template.length} layers ·{" "}
                 {(master.variant_axes || []).length} axes
@@ -841,7 +841,7 @@ export function LineEditor({
                   }
                   onPatch={onPatch}
                 />
-                <div className="mt-2 rounded-xl bg-order-bg px-3 py-2 text-[11px] font-semibold leading-5 text-order-fg ring-1 ring-order-border">
+                <div className="mt-2 rounded-xl bg-order-bg px-3 py-2 text-caption font-semibold leading-5 text-order-fg ring-1 ring-order-border">
                   The real axes are <b>Size</b>, the <b>per-layer</b> stack and{" "}
                   <b>add-ons</b> — generated from the template&rsquo;s layer
                   structure and constrained to the values this master allows.
@@ -903,7 +903,7 @@ export function LineEditor({
                       >
                         <span
                           className={cn(
-                            "inline-flex h-6 items-center justify-center rounded-full px-2 text-[10px] font-semibold text-white",
+                            "inline-flex h-6 items-center justify-center rounded-full px-2 text-caption font-semibold text-white",
                             toneBadge,
                           )}
                         >
@@ -930,7 +930,7 @@ export function LineEditor({
                                 },
                               })
                             }
-                            className="h-[32px] rounded-lg font-mono text-[11px]"
+                            className="h-[32px] rounded-lg font-mono text-caption"
                           >
                             {allowedFilms.map((code) => (
                               <option key={code} value={code}>
@@ -939,7 +939,7 @@ export function LineEditor({
                             ))}
                           </SoSelect>
                         ) : (
-                          <span className="inline-flex w-fit items-center rounded-md bg-info-bg px-2 py-1 font-mono text-[11px] font-bold text-primary ring-1 ring-info-border">
+                          <span className="inline-flex w-fit items-center rounded-md bg-info-bg px-2 py-1 font-mono text-caption font-bold text-primary ring-1 ring-info-border">
                             {selectedFilmCode || "—"}
                           </span>
                         )}
@@ -988,7 +988,7 @@ export function LineEditor({
                             ))}
                           </SoSelect>
                         ) : (
-                          <span className="text-center text-[11px] font-bold text-content-4">
+                          <span className="text-center text-caption font-bold text-content-4">
                             n/a
                           </span>
                         )}
@@ -996,7 +996,7 @@ export function LineEditor({
                     );
                   })}
                 </div>
-                <div className="mt-2 text-[11px] font-semibold leading-5 text-content-3">
+                <div className="mt-2 text-caption font-semibold leading-5 text-content-3">
                   Per-layer axes are <b>film variant · thickness · grade</b>.
                   A film dropdown appears only when that layer has more than
                   one PM-approved film; grade options stay visible for
@@ -1012,7 +1012,7 @@ export function LineEditor({
               tone="blue"
               title="Production lane"
               badge={
-                <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-[10px] font-bold text-content-3">
+                <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-caption font-bold text-content-3">
                   policy {webWidthPolicy?.code || "default"}
                 </span>
               }
@@ -1047,7 +1047,7 @@ export function LineEditor({
                       </div>
                       <div
                         className={cn(
-                          "text-[10px]",
+                          "text-caption",
                           MONO,
                           on ? "text-order-fg" : "text-content-3",
                         )}
@@ -1101,7 +1101,7 @@ export function LineEditor({
                 </SoField>
               </div>
               {webWidthPlan.warnings.length ? (
-                <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-2 py-1.5 text-[11px] font-semibold text-warning-fg">
+                <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-2 py-1.5 text-caption font-semibold text-warning-fg">
                   {webWidthPlan.warnings.join(" ")}
                 </div>
               ) : null}
@@ -1180,7 +1180,7 @@ export function LineEditor({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className={LABEL}>PM chemistry · read only</div>
-                      <div className="mt-1 text-[11px] font-semibold leading-5 text-primary">
+                      <div className="mt-1 text-caption font-semibold leading-5 text-primary">
                         Ink GSM comes from linked artwork. Adhesive + solvent
                         comes from the selected Product Master and is condensed
                         into the line label.
@@ -1191,18 +1191,18 @@ export function LineEditor({
                         masterChemistry.parts.map((part) => (
                           <span
                             key={part.label}
-                            className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-semibold text-primary ring-1 ring-info-border"
+                            className="rounded-full bg-surface-1 px-2 py-1 font-mono text-caption font-semibold text-primary ring-1 ring-info-border"
                           >
                             {part.label}
                           </span>
                         ))
                       ) : (
-                        <span className="rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-content-3 ring-1 ring-line">
+                        <span className="rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-content-3 ring-1 ring-line">
                           no PM chemistry
                         </span>
                       )}
                       {masterChemistry.label ? (
-                        <span className="rounded-full bg-primary px-2 py-1 font-mono text-[10px] font-semibold text-white">
+                        <span className="rounded-full bg-primary px-2 py-1 font-mono text-caption font-semibold text-white">
                           {masterChemistry.label}
                         </span>
                       ) : null}
@@ -1283,7 +1283,7 @@ export function LineEditor({
                         className={cn(INP, MONO)}
                       />
                     </SoField>
-                    <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] leading-5 text-warning-fg">
+                    <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption leading-5 text-warning-fg">
                       <span className="font-semibold uppercase tracking-wider text-warning-fg">
                         BOM rule
                       </span>
@@ -1298,7 +1298,7 @@ export function LineEditor({
                     </div>
                   </div>
                 ) : isPouchOutput(master) ? (
-                  <div className="rounded-xl border border-line bg-surface-2 px-3 py-2 text-[11px] font-semibold text-content-3">
+                  <div className="rounded-xl border border-line bg-surface-2 px-3 py-2 text-caption font-semibold text-content-3">
                     Inner pouch packing is not declared on this Product Master,
                     so no inner-pouch axis or pcs/inner override is shown.
                   </div>
@@ -1329,7 +1329,7 @@ export function LineEditor({
                 variant="outline"
                 size="sm"
                 onClick={onCollapse}
-                className="rounded-lg gap-1 border-line text-[11px] font-bold"
+                className="rounded-lg gap-1 border-line text-caption font-bold"
               >
                 Cancel line
               </Button>
@@ -1466,7 +1466,7 @@ function SectionCard({
         {badge ? (
           <span className="ml-auto">{badge}</span>
         ) : hint ? (
-          <span className="ml-auto text-[10px] font-bold text-content-4">
+          <span className="ml-auto text-caption font-bold text-content-4">
             {hint}
           </span>
         ) : null}
@@ -1485,7 +1485,7 @@ function Field({
 }) {
   return (
     <div>
-      <Label className="text-[10px] font-bold text-content-3">{label}</Label>
+      <Label className="text-caption font-bold text-content-3">{label}</Label>
       <div className="mt-1">{children}</div>
     </div>
   );
@@ -1555,7 +1555,7 @@ function IssuePolicyCard({
       title="9. Wastage / issue policy"
       hint="material row override"
     >
-      <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-5 text-warning-fg">
+      <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption font-semibold leading-5 text-warning-fg">
         Template rows set the normal over-issue. Override only the material row
         that needs extra issue for this order; planner/WCM will see theory,
         planned issue and override source.
@@ -1581,14 +1581,14 @@ function IssuePolicyCard({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-semibold uppercase text-warning-fg ring-1 ring-warning-border">
+                      <span className="rounded-full bg-warning-bg px-2 py-0.5 text-caption font-semibold uppercase text-warning-fg ring-1 ring-warning-border">
                         {policyRow.category || "material"}
                       </span>
-                      <span className="font-mono text-[11px] font-semibold text-content-1">
+                      <span className="font-mono text-caption font-semibold text-content-1">
                         {policyRow.materialCode || policyRow.policyKey}
                       </span>
                       {policyRow.stepName ? (
-                        <span className="text-[10px] font-bold text-content-3">
+                        <span className="text-caption font-bold text-content-3">
                           {policyRow.stepName}
                         </span>
                       ) : null}
@@ -1602,7 +1602,7 @@ function IssuePolicyCard({
                     onClick={() => resetOverride(policyRow.policyKey)}
                     disabled={!overrideActive}
                     className={cn(
-                      "rounded-lg px-2 py-1 text-[10px] font-semibold uppercase ring-1",
+                      "rounded-lg px-2 py-1 text-caption font-semibold uppercase ring-1",
                       overrideActive
                         ? "bg-surface-1 text-warning-fg ring-warning-border hover:bg-warning-bg"
                         : "cursor-not-allowed bg-surface-2 text-content-4 ring-line",
@@ -1711,10 +1711,10 @@ function PolicyReadout({
           : "bg-surface-2 text-content-2 ring-line",
       )}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
-      <div className="font-mono text-[11px] font-semibold">{value}</div>
+      <div className="font-mono text-caption font-semibold">{value}</div>
     </div>
   );
 }
@@ -1851,7 +1851,7 @@ function MasterPicker({
             <div className="truncate font-display text-sm font-semibold text-content-1">
               {m.name}
             </div>
-            <div className="truncate font-mono text-[11px] font-bold text-content-3">
+            <div className="truncate font-mono text-caption font-bold text-content-3">
               {m.code} · {m.layer_template.length} layers ·{" "}
               {(m.variant_axes || []).length} axes
             </div>
@@ -1859,7 +1859,7 @@ function MasterPicker({
           <button
             type="button"
             onClick={() => onChange("")}
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-line bg-surface-1 px-2.5 py-1.5 text-[11px] font-bold text-content-3 hover:border-order-border hover:text-order-fg"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-line bg-surface-1 px-2.5 py-1.5 text-caption font-bold text-content-3 hover:border-order-border hover:text-order-fg"
           >
             <X className="h-3 w-3" /> Change
           </button>
@@ -1873,7 +1873,7 @@ function MasterPicker({
           <div className="text-sm font-semibold text-warning-fg">
             Product Master is no longer selectable
           </div>
-          <div className="text-[11px] font-semibold text-warning-fg">
+          <div className="text-caption font-semibold text-warning-fg">
             This line points to a master that is unavailable for order placement.
             Pick an order-ready Product Master before placing the order.
           </div>
@@ -1881,7 +1881,7 @@ function MasterPicker({
         <button
           type="button"
           onClick={() => onChange("")}
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-warning-border bg-surface-1 px-2.5 py-1.5 text-[11px] font-bold text-warning-fg hover:border-warning-border"
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-warning-border bg-surface-1 px-2.5 py-1.5 text-caption font-bold text-warning-fg hover:border-warning-border"
         >
           <X className="h-3 w-3" /> Pick order-ready
         </button>
@@ -1904,7 +1904,7 @@ function MasterPicker({
       <div className="overflow-hidden rounded-xl ring-1 ring-line">
         <div className="flex items-center justify-between bg-surface-2 px-3 py-1.5">
           <span className={LABEL}>Catalog masters</span>
-          <span className="text-[10px] font-bold text-content-4">
+          <span className="text-caption font-bold text-content-4">
             {filtered.length}
             {search ? " match" : " active shown · type to search"}
           </span>
@@ -1926,18 +1926,18 @@ function MasterPicker({
                 <span className="block truncate text-sm font-semibold text-content-1">
                   {m.name}
                 </span>
-                <span className="block truncate font-mono text-[10px] font-bold text-content-3">
+                <span className="block truncate font-mono text-caption font-bold text-content-3">
                   {m.code}
                 </span>
               </span>
               <span className="hidden shrink-0 items-center gap-1 sm:flex">
-                <span className="rounded-md bg-info-bg px-1.5 py-0.5 text-[10px] font-semibold text-primary ring-1 ring-info-border">
+                <span className="rounded-md bg-info-bg px-1.5 py-0.5 text-caption font-semibold text-primary ring-1 ring-info-border">
                   {kind}
                 </span>
-                <span className="rounded-md bg-success-bg px-1.5 py-0.5 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
+                <span className="rounded-md bg-success-bg px-1.5 py-0.5 text-caption font-semibold text-success-fg ring-1 ring-success-border">
                   {m.layer_template.length}L
                 </span>
-                <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
+                <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-caption font-semibold text-order-fg ring-1 ring-order-border">
                   {(m.variant_axes || []).length} axes
                 </span>
               </span>
@@ -2004,7 +2004,7 @@ function SizeAxis({
             <option value="__adhoc__">+ New size under this Product Master</option>
           ) : null}
         </SoSelect>
-        <div className="mt-1 text-[10px] font-semibold text-content-3">
+        <div className="mt-1 text-caption font-semibold text-content-3">
           {sizes.length} saved size{sizes.length === 1 ? "" : "s"}
           {allowAdHoc ? " · ad-hoc allowed by PM" : " · ad-hoc blocked by PM"}
         </div>
@@ -2018,7 +2018,7 @@ function SizeAxis({
               buildAdHocSizePatch(line, adHoc || defaultAdHocSize(sizes[0])),
             )
           }
-          className="flex w-full items-center justify-between gap-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-left text-[11px] font-bold text-primary transition hover:bg-info-bg/80"
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-left text-caption font-bold text-primary transition hover:bg-info-bg/80"
         >
           <span>
             Ad-hoc pouch size is allowed on this Product Master. Open width,
@@ -2048,7 +2048,7 @@ function SizeAxis({
                 <div className="font-mono text-[12px] font-semibold text-content-1">
                   {compactSizeCode(s)}
                 </div>
-                <div className="mt-0.5 text-[10px] font-bold text-content-3">
+                <div className="mt-0.5 text-caption font-bold text-content-3">
                   {s.stock_form || "open web"}
                 </div>
               </button>
@@ -2079,7 +2079,7 @@ function SizeAxis({
             <div className="font-mono text-[12px] font-semibold">
               {allowAdHoc ? "+ New size" : "Ad-hoc blocked"}
             </div>
-            <div className="mt-0.5 text-[10px] font-bold">
+            <div className="mt-0.5 text-caption font-bold">
               {allowAdHoc ? "bounded by PM axis" : "enable in Product Master"}
             </div>
           </button>
@@ -2090,11 +2090,11 @@ function SizeAxis({
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className={LABEL}>Ad-hoc pouch size</div>
-              <div className="text-[11px] font-semibold text-primary">
+              <div className="text-caption font-semibold text-primary">
                 New size is allowed only inside this Product Master; preview and submit carry the geometry.
               </div>
             </div>
-            <span className="rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-semibold text-primary ring-1 ring-info-border">
+            <span className="rounded-full bg-surface-1 px-2 py-1 font-mono text-caption font-semibold text-primary ring-1 ring-info-border">
               {adHoc?.code || value}
             </span>
           </div>
@@ -2384,7 +2384,7 @@ function InnerPouchSelect({
         ))}
       </SoSelect>
       {innerAxis?.required ? (
-        <div className="mt-1 text-[10px] font-bold text-danger-fg">
+        <div className="mt-1 text-caption font-bold text-danger-fg">
           required
         </div>
       ) : null}
@@ -2523,12 +2523,12 @@ function CatalogAxisField({
         ))}
       </SoSelect>
       {axis.required ? (
-        <div className="mt-1 text-[10px] font-bold text-danger-fg">
+        <div className="mt-1 text-caption font-bold text-danger-fg">
           required
         </div>
       ) : null}
       {axis.auto_demand_in_house ? (
-        <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-order-fg">
+        <div className="mt-1 flex items-center gap-1 text-caption font-bold text-order-fg">
           <PackageCheck className="h-3 w-3" /> in-house produced · auto-demand
           if shortage
         </div>
@@ -2577,7 +2577,7 @@ function AddonPicker({
                 )
               }
               className={cn(
-                "rounded-full px-3 py-1.5 text-left text-[11px] font-bold ring-1 ring-inset",
+                "rounded-full px-3 py-1.5 text-left text-caption font-bold ring-1 ring-inset",
                 active
                   ? "bg-warning-fg text-white ring-warning-border shadow-sm"
                   : "bg-surface-1 text-content-2 ring-line hover:bg-warning-bg hover:text-warning-fg hover:ring-warning-border",
@@ -2586,7 +2586,7 @@ function AddonPicker({
               <span>{a.name || a.code}</span>
               <span
                 className={cn(
-                  "ml-1 font-mono text-[10px] uppercase",
+                  "ml-1 font-mono text-caption uppercase",
                   active ? "text-warning-border" : "text-content-4",
                 )}
               >
@@ -2598,14 +2598,14 @@ function AddonPicker({
       </div>
       {selectedRows.length ? (
         <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">
             Add-on usage preview
           </div>
           <div className="mt-1 space-y-1">
             {selectedRows.map((addon) => (
               <div
                 key={`addon-preview-${addon.id}`}
-                className="text-[11px] font-semibold text-warning-fg"
+                className="text-caption font-semibold text-warning-fg"
               >
                 <span className="font-bold">{addon.name || addon.code}</span>
                 <span className="text-warning-fg">

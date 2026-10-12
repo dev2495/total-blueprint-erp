@@ -125,7 +125,7 @@ export function VisitorPass({ visitor: incoming, now }: { visitor: GateVisitor; 
             {visitor.status === "PENDING" && isOwner ? (
               <>
                 <div className="gate-num text-[20px] font-semibold leading-none text-content-1">{gateElapsed(visitor.submitted_at, null, now)}</div>
-                <div className="mt-1 text-[11px] leading-tight text-content-4">waiting<br />since {gateTime(visitor.submitted_at)}</div>
+                <div className="mt-1 text-caption leading-tight text-content-4">waiting<br />since {gateTime(visitor.submitted_at)}</div>
               </>
             ) : visitor.status === "INSIDE" ? (
               <>
@@ -135,12 +135,12 @@ export function VisitorPass({ visitor: incoming, now }: { visitor: GateVisitor; 
                 >
                   {gateElapsed(visitor.entry_at, null, now)}
                 </div>
-                <div className="mt-1 text-[11px] leading-tight text-content-4">inside<br />since {gateTime(visitor.entry_at)}</div>
+                <div className="mt-1 text-caption leading-tight text-content-4">inside<br />since {gateTime(visitor.entry_at)}</div>
               </>
             ) : (
               <>
                 <div className="gate-num text-[15px] font-semibold text-content-2">{gateTime(visitor.exit_at || visitor.entry_at)}</div>
-                <div className="mt-1 text-[11px] text-content-4">{gateElapsed(visitor.entry_at, visitor.exit_at, now)} inside</div>
+                <div className="mt-1 text-caption text-content-4">{gateElapsed(visitor.entry_at, visitor.exit_at, now)} inside</div>
               </>
             )}
           </div>

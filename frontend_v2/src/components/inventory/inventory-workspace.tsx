@@ -1238,7 +1238,7 @@ export function InventoryWorkspaceShell() {
               T
             </div>
             <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-caption font-bold uppercase tracking-[0.1em] text-content-3">
                 Total Poly Print ERP
               </div>
               <div className="text-sm font-semibold text-content-1">Inventory</div>
@@ -1276,7 +1276,7 @@ export function InventoryWorkspaceShell() {
 
         <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="mb-1 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Inventory · {tab === "grn" ? "Audit" : title}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-content-1">
@@ -2094,7 +2094,7 @@ export function InventoryFilterBar({
               <Bookmark className="mr-2 h-3.5 w-3.5" />
               Saved views
               {savedViews.length ? (
-                <span className="ml-2 rounded-full bg-surface-1 px-1.5 py-0.5 text-[10px] text-success-fg ring-1 ring-success-border">
+                <span className="ml-2 rounded-full bg-surface-1 px-1.5 py-0.5 text-caption text-success-fg ring-1 ring-success-border">
                   {savedViews.length}
                 </span>
               ) : null}
@@ -2108,7 +2108,7 @@ export function InventoryFilterBar({
             <div className="rounded-xl bg-surface-2 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                     My saved views
                   </div>
                   <div className="mt-0.5 text-xs font-semibold text-content-3">
@@ -2127,13 +2127,13 @@ export function InventoryFilterBar({
                   {currentFilterBadges.slice(0, 4).map((badge) => (
                     <span
                       key={badge}
-                      className="max-w-full truncate rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-content-3 ring-1 ring-line"
+                      className="max-w-full truncate rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-content-3 ring-1 ring-line"
                     >
                       {badge}
                     </span>
                   ))}
                   {currentFilterBadges.length > 4 ? (
-                    <span className="rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-content-3 ring-1 ring-line">
+                    <span className="rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-content-3 ring-1 ring-line">
                       +{currentFilterBadges.length - 4}
                     </span>
                   ) : null}
@@ -2189,12 +2189,12 @@ export function InventoryFilterBar({
                               {view.name}
                             </span>
                             {isCurrent ? (
-                              <span className="shrink-0 rounded-full bg-surface-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg ring-1 ring-success-border">
+                              <span className="shrink-0 rounded-full bg-surface-1 px-1.5 py-0.5 text-caption font-semibold uppercase tracking-[0.12em] text-success-fg ring-1 ring-success-border">
                                 Current
                               </span>
                             ) : null}
                           </span>
-                          <span className="mt-0.5 block truncate text-[11px] font-semibold text-content-3">
+                          <span className="mt-0.5 block truncate text-caption font-semibold text-content-3">
                             {compactFilterSummary(view.filters, 2)}
                           </span>
                         </span>
@@ -2226,7 +2226,7 @@ export function InventoryFilterBar({
               <BookmarkPlus className="h-4 w-4" />
               Save current filters as view
             </button>
-            <div className="px-3 pb-1 pt-1 text-[11px] font-semibold leading-5 text-content-3">
+            <div className="px-3 pb-1 pt-1 text-caption font-semibold leading-5 text-content-3">
               Views are saved in this browser for {savedViewScopeTitle}.
               Applying a view replaces the current filters.
             </div>
@@ -2275,7 +2275,7 @@ export function InventoryFilterBar({
               />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-3">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 Current filter snapshot
               </div>
               <div className="mt-1 text-sm font-bold leading-6 text-content-2">
@@ -2286,7 +2286,7 @@ export function InventoryFilterBar({
                   {currentFilterBadges.map((badge) => (
                     <span
                       key={badge}
-                      className="rounded-full bg-surface-1 px-2 py-1 text-[11px] font-bold text-content-3 ring-1 ring-line"
+                      className="rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-content-3 ring-1 ring-line"
                     >
                       {badge}
                     </span>
@@ -2748,7 +2748,7 @@ function InventoryKpiCard({
       <div className={cn("absolute left-0 top-0 h-full w-1", accent)} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             {label}
           </div>
           <div className="mt-2 text-2xl font-semibold tracking-tight text-content-1">
@@ -2797,7 +2797,7 @@ function FreshnessBandCard({
   return (
     <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Freshness Bands
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -2843,7 +2843,7 @@ function StageDistributionCard({
   return (
     <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Stage Distribution
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -2872,7 +2872,7 @@ function StageDistributionCard({
                     opacity: 0.92 - index * 0.03,
                   }}
                 />
-                <div className="w-full truncate text-center text-[11px] font-semibold text-content-3">
+                <div className="w-full truncate text-center text-caption font-semibold text-content-3">
                   {row.name.replaceAll("_", " ")}
                 </div>
               </div>
@@ -2920,7 +2920,7 @@ function LargestPositionsCard({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Largest Positions
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -3041,7 +3041,7 @@ function CssBarChart({
             className="absolute left-12 right-0 border-t border-dashed border-line"
             style={{ top: `${(1 - line) * 100}%` }}
           >
-            <span className="absolute -left-12 -top-2 text-[11px] font-semibold text-content-3">
+            <span className="absolute -left-12 -top-2 text-caption font-semibold text-content-3">
               {formatShort(max * line)}
             </span>
           </div>
@@ -3061,7 +3061,7 @@ function CssBarChart({
               }}
               title={`${entry.name}: ${formatShort(entry.value)}`}
             />
-            <div className="w-full truncate text-center text-[11px] font-semibold text-content-3">
+            <div className="w-full truncate text-center text-caption font-semibold text-content-3">
               {entry.name.replaceAll("_", " ")}
             </div>
           </div>
@@ -3088,7 +3088,7 @@ function CssDonut({ data }: { data: Array<{ name: string; value: number }> }) {
       >
         <div className="grid h-28 w-28 place-items-center rounded-full bg-surface-1 shadow-inner">
           <div className="text-center">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               Total
             </div>
             <div className="text-2xl font-semibold text-content-1">
@@ -3150,7 +3150,7 @@ export function AgeHeatmap({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Age Heatmap
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -3165,7 +3165,7 @@ export function AgeHeatmap({
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[560px] space-y-2">
-              <div className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2 text-[11px] font-semibold text-content-3">
+              <div className="grid grid-cols-[128px_repeat(4,minmax(92px,1fr))] gap-2 text-caption font-semibold text-content-3">
                 <div />
                 {AGE_COLUMNS.map((col) => (
                   <div key={col} className="text-center">
@@ -3222,7 +3222,7 @@ export function AgeHeatmap({
                   })}
                 </div>
               ))}
-              <div className="flex gap-3 pt-3 text-[11px] font-semibold text-content-3">
+              <div className="flex gap-3 pt-3 text-caption font-semibold text-content-3">
                 <span className="inline-flex items-center gap-1">
                   <span className="h-3 w-3 rounded bg-success-bg" /> low
                 </span>
@@ -3319,7 +3319,7 @@ export function InventoryHeatmap({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           <Thermometer className="h-4 w-4 text-danger-fg" />
           Size / Variant Matrix
         </div>
@@ -3335,7 +3335,7 @@ export function InventoryHeatmap({
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[620px] space-y-2">
-              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 <div>Variant</div>
                 {matrix.cols.map((col) => (
                   <div key={col} className="truncate text-center">
@@ -3486,12 +3486,12 @@ function InventoryRow({
         {kind === "rolls" && (productionBatchLabel(row) || routeNodeLabel(row)) ? (
           <div className="mt-1 flex flex-wrap gap-1">
             {productionBatchLabel(row) ? (
-              <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-semibold text-primary">
+              <span className="rounded-full border border-info-border bg-info-bg px-2 py-0.5 text-caption font-semibold text-primary">
                 {productionBatchLabel(row)}
               </span>
             ) : null}
             {routeNodeLabel(row) ? (
-              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3">
+              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-3">
                 {routeNodeLabel(row)}
               </span>
             ) : null}
@@ -3601,7 +3601,7 @@ function AgePill({ date }: { date?: string | null }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-1 text-[11px] font-semibold",
+        "rounded-full px-2 py-1 text-caption font-semibold",
         band === "Fresh"
           ? "bg-success-bg text-success-fg"
           : band === "Watch"

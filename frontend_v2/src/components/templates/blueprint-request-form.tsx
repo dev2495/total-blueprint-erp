@@ -104,7 +104,7 @@ export function BlueprintRequestForm({
             name="product_name"
             render={({ field }) => (
               <FormItem className="col-span-4">
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Product Name
                 </FormLabel>
                 <FormControl>
@@ -123,7 +123,7 @@ export function BlueprintRequestForm({
             name="order_qty"
             render={({ field }) => (
               <FormItem className="col-span-2">
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Est. Qty
                 </FormLabel>
                 <FormControl>
@@ -135,7 +135,7 @@ export function BlueprintRequestForm({
         </div>
 
         <div className="grid grid-cols-3 gap-4 p-4 bg-surface-2 rounded-xl border border-line relative">
-          <span className="absolute -top-2 left-3 bg-surface-1 px-2 text-[10px] font-semibold uppercase text-primary tracking-widest border border-info-border rounded-md">
+          <span className="absolute -top-2 left-3 bg-surface-1 px-2 text-caption font-semibold uppercase text-primary tracking-widest border border-info-border rounded-md">
             Geometry
           </span>
           <FormField
@@ -143,7 +143,7 @@ export function BlueprintRequestForm({
             name="geometry.width_mm"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] uppercase text-content-4 font-bold">
+                <FormLabel className="text-caption uppercase text-content-4 font-bold">
                   Width (mm)
                 </FormLabel>
                 <FormControl>
@@ -162,7 +162,7 @@ export function BlueprintRequestForm({
             name="geometry.height_mm"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] uppercase text-content-4 font-bold">
+                <FormLabel className="text-caption uppercase text-content-4 font-bold">
                   Height (mm)
                 </FormLabel>
                 <FormControl>
@@ -181,7 +181,7 @@ export function BlueprintRequestForm({
             name="geometry.gusset_mm"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] uppercase text-content-4 font-bold">
+                <FormLabel className="text-caption uppercase text-content-4 font-bold">
                   Gusset (mm)
                 </FormLabel>
                 <FormControl>
@@ -202,7 +202,7 @@ export function BlueprintRequestForm({
           name="film_layers"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+              <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                 Material Structure (Short-hand)
               </FormLabel>
               <FormControl>
@@ -223,7 +223,7 @@ export function BlueprintRequestForm({
             name="printing.type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Print Tech
                 </FormLabel>
                 <Select
@@ -251,7 +251,7 @@ export function BlueprintRequestForm({
             name="printing.colors_count"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Colors
                 </FormLabel>
                 <FormControl>
@@ -266,7 +266,7 @@ export function BlueprintRequestForm({
           <Button
             type="submit"
             disabled={isLoading}
-            className="bg-primary hover:bg-surface-3 text-white font-semibold uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale"
+            className="bg-primary hover:bg-surface-3 text-white font-semibold uppercase text-caption tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale"
           >
             {initialValues ? (
               "SAVE CHANGES"

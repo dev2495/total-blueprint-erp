@@ -88,7 +88,7 @@ export default function PouchStylesListPage() {
           />
         </div>
         <div className="flex items-center gap-3 text-[12px] text-content-3">
-          <label className="flex items-center gap-1.5 text-[11px] font-bold">
+          <label className="flex items-center gap-1.5 text-caption font-bold">
             <input
               type="checkbox"
               checked={showDisabled}
@@ -117,7 +117,7 @@ export default function PouchStylesListPage() {
                   ? "No pouch styles yet"
                   : "No styles match your search"}
               </div>
-              <p className="mt-1 max-w-[420px] text-[11px] text-content-3">
+              <p className="mt-1 max-w-[420px] text-caption text-content-3">
                 {styles.length === 0
                   ? "Build your first pouch style from scratch — pick the fields you need (W, H, gusset, flap…), set how each affects the roll width, save."
                   : "Try a different search term or clear the filter."}
@@ -133,7 +133,7 @@ export default function PouchStylesListPage() {
           </div>
         ) : (
           <table className="w-full text-[12px]">
-            <thead className="bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <thead className="bg-surface-2 text-left text-caption font-semibold uppercase tracking-wider text-content-3">
               <tr>
                 <th className="px-4 py-2">Code</th>
                 <th className="px-4 py-2">Name</th>
@@ -167,25 +167,25 @@ function PouchRow({ s }: { s: PouchStyle }) {
       </td>
       <td className="px-4 py-2">{s.name}</td>
       <td className="px-4 py-2">
-        <span className="font-mono text-[10px] text-content-2">
+        <span className="font-mono text-caption text-content-2">
           {s.formula_kind}
         </span>
-        <div className="text-[10px] text-content-4">
+        <div className="text-caption text-content-4">
           {s.formula_expression || FORMULA_KIND_LABELS[s.formula_kind]}
         </div>
       </td>
       <td className="px-4 py-2">
         <Badge
           variant="outline"
-          className="border-info-border bg-info-bg text-[10px] text-primary"
+          className="border-info-border bg-info-bg text-caption text-primary"
         >
           {stockFormLabel(s.default_stock_form)}
         </Badge>
       </td>
-      <td className="px-4 py-2 text-[11px] text-content-3">
+      <td className="px-4 py-2 text-caption text-content-3">
         {areaFormulaLabel(s)}
       </td>
-      <td className="px-4 py-2 text-[11px] font-bold text-content-3">
+      <td className="px-4 py-2 text-caption font-bold text-content-3">
         {s.default_slit_policy === "EXACT_ONLY" ? "Exact only" : "Allowed"}
       </td>
       <td className="px-4 py-2">{s.sizes_count ?? 0}</td>
@@ -194,21 +194,21 @@ function PouchRow({ s }: { s: PouchStyle }) {
           {s.deprecated ? (
             <Badge
               variant="outline"
-              className="border-danger-border bg-danger-bg text-[10px] text-danger-fg"
+              className="border-danger-border bg-danger-bg text-caption text-danger-fg"
             >
               disabled
             </Badge>
           ) : s.locked ? (
             <Badge
               variant="outline"
-              className="border-success-border bg-success-bg text-[10px] text-success-fg"
+              className="border-success-border bg-success-bg text-caption text-success-fg"
             >
               <Lock className="mr-0.5 h-2.5 w-2.5" /> locked
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="border-warning-border bg-warning-bg text-[10px] text-warning-fg"
+              className="border-warning-border bg-warning-bg text-caption text-warning-fg"
             >
               draft
             </Badge>
@@ -219,7 +219,7 @@ function PouchRow({ s }: { s: PouchStyle }) {
         <Link
           href={`/master/pouch-styles/${s.id}`}
           className={cn(
-            "inline-flex items-center rounded-lg px-2.5 py-1 text-[11px] font-bold",
+            "inline-flex items-center rounded-lg px-2.5 py-1 text-caption font-bold",
             "bg-order-fg text-white hover:bg-order-fg",
           )}
         >

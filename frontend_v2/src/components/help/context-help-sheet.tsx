@@ -196,7 +196,7 @@ export function ContextHelpSheet() {
                       className="rounded-xl border border-line bg-surface-1 p-2"
                     >
                       <HelpScreenshotImage imageKey={key} compact />
-                      <div className="mt-1 truncate text-[10px] font-semibold text-content-3">
+                      <div className="mt-1 truncate text-caption font-semibold text-content-3">
                         {key}
                       </div>
                     </div>

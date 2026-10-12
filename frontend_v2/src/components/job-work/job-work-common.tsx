@@ -89,7 +89,7 @@ export function JobWorkStatusPill({ status, className }: { status: JobWorkStatus
 
 export function Chip({ tone = "neutral", children, title }: { tone?: keyof typeof TONE_CLASS; children: React.ReactNode; title?: string }) {
   return (
-    <span title={title} className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold", TONE_CLASS[tone])}>
+    <span title={title} className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-caption font-semibold", TONE_CLASS[tone])}>
       {children}
     </span>
   );

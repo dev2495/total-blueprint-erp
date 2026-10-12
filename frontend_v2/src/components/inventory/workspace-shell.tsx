@@ -152,7 +152,7 @@ export function SavedViewsBar<T>({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
+      <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
         Views
       </span>
       {views.map((v) => (
@@ -160,7 +160,7 @@ export function SavedViewsBar<T>({
           <button
             onClick={() => onSelect(v)}
             className={cn(
-              "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition",
+              "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-caption font-bold transition",
               activeId === v.id
                 ? "bg-primary text-white shadow-sm"
                 : "bg-surface-2 text-content-2 ring-1 ring-line hover:bg-info-bg hover:text-primary",
@@ -178,7 +178,7 @@ export function SavedViewsBar<T>({
                     e.stopPropagation();
                     onTogglePin(v.id);
                   }}
-                  className="text-[10px] text-content-2 hover:bg-surface-2 px-2 py-0.5 rounded text-left whitespace-nowrap"
+                  className="text-caption text-content-2 hover:bg-surface-2 px-2 py-0.5 rounded text-left whitespace-nowrap"
                 >
                   {v.pinned ? "Unpin" : "Pin"}
                 </button>
@@ -189,7 +189,7 @@ export function SavedViewsBar<T>({
                     e.stopPropagation();
                     onDelete(v.id);
                   }}
-                  className="text-[10px] text-danger-fg hover:bg-danger-bg px-2 py-0.5 rounded text-left whitespace-nowrap"
+                  className="text-caption text-danger-fg hover:bg-danger-bg px-2 py-0.5 rounded text-left whitespace-nowrap"
                 >
                   Delete
                 </button>
@@ -205,7 +205,7 @@ export function SavedViewsBar<T>({
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="View name"
-            className="h-7 w-[140px] rounded-md text-[11px]"
+            className="h-7 w-[140px] rounded-md text-caption"
             onKeyDown={(e) => {
               if (e.key === "Enter" && newName.trim()) {
                 onSave(newName.trim());
@@ -226,7 +226,7 @@ export function SavedViewsBar<T>({
                 setShowNew(false);
               }
             }}
-            className="rounded-md bg-primary px-2 py-1 text-[10px] font-bold text-white hover:bg-primary"
+            className="rounded-md bg-primary px-2 py-1 text-caption font-bold text-white hover:bg-primary"
           >
             Save
           </button>
@@ -235,7 +235,7 @@ export function SavedViewsBar<T>({
               setShowNew(false);
               setNewName("");
             }}
-            className="rounded-md bg-surface-2 px-2 py-1 text-[10px] font-bold text-content-3 hover:bg-line"
+            className="rounded-md bg-surface-2 px-2 py-1 text-caption font-bold text-content-3 hover:bg-line"
           >
             Cancel
           </button>
@@ -243,7 +243,7 @@ export function SavedViewsBar<T>({
       ) : (
         <button
           onClick={() => setShowNew(true)}
-          className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2.5 py-1 text-[11px] font-bold text-success-fg ring-1 ring-success-border hover:bg-success-bg"
+          className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2.5 py-1 text-caption font-bold text-success-fg ring-1 ring-success-border hover:bg-success-bg"
         >
           <BookmarkPlus className="h-3 w-3" /> Save current
         </button>
@@ -307,7 +307,7 @@ export function FilterBar({
                 key={m}
                 onClick={() => onViewModeChange(m)}
                 className={cn(
-                  "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold capitalize transition",
+                  "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-caption font-bold capitalize transition",
                   viewMode === m
                     ? "bg-surface-1 text-content-1 shadow-sm ring-1 ring-line"
                     : "text-content-3 hover:text-content-1",
@@ -324,7 +324,7 @@ export function FilterBar({
         {onConfigureColumns && (
           <button
             onClick={onConfigureColumns}
-            className="inline-flex h-9 items-center gap-1 rounded-xl bg-surface-2 px-3 text-[11px] font-bold text-content-2 ring-1 ring-line hover:bg-surface-2"
+            className="inline-flex h-9 items-center gap-1 rounded-xl bg-surface-2 px-3 text-caption font-bold text-content-2 ring-1 ring-line hover:bg-surface-2"
           >
             <Columns3 className="h-3.5 w-3.5" /> Columns
           </button>
@@ -332,7 +332,7 @@ export function FilterBar({
         {onExport && (
           <button
             onClick={onExport}
-            className="inline-flex h-9 items-center gap-1 rounded-xl bg-surface-2 px-3 text-[11px] font-bold text-content-2 ring-1 ring-line hover:bg-surface-2"
+            className="inline-flex h-9 items-center gap-1 rounded-xl bg-surface-2 px-3 text-caption font-bold text-content-2 ring-1 ring-line hover:bg-surface-2"
           >
             <Download className="h-3.5 w-3.5" /> Export
           </button>
@@ -342,7 +342,7 @@ export function FilterBar({
 
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
+          <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
             <Filter className="inline-block h-3 w-3 mr-1 -mt-0.5" />
             Active
           </span>
@@ -350,7 +350,7 @@ export function FilterBar({
             <button
               key={c.key}
               onClick={c.onClear}
-              className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-0.5 text-[11px] font-bold text-primary ring-1 ring-info-border hover:bg-danger-bg hover:text-danger-fg hover:ring-danger-border transition"
+              className="inline-flex items-center gap-1 rounded-full bg-info-bg px-2.5 py-0.5 text-caption font-bold text-primary ring-1 ring-info-border hover:bg-danger-bg hover:text-danger-fg hover:ring-danger-border transition"
             >
               {c.label} <X className="h-3 w-3" />
             </button>
@@ -358,7 +358,7 @@ export function FilterBar({
           {chips.length > 0 && onClearAll && (
             <button
               onClick={onClearAll}
-              className="text-[10px] font-bold text-content-3 hover:text-danger-fg ml-1"
+              className="text-caption font-bold text-content-3 hover:text-danger-fg ml-1"
             >
               Clear all
             </button>
@@ -393,7 +393,7 @@ export function FilterGroup({
 }: FilterGroupProps) {
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+      <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div
@@ -418,7 +418,7 @@ export function FilterGroup({
             {typeof opt.count === "number" && (
               <span
                 className={cn(
-                  "ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                  "ml-2 rounded px-1.5 py-0.5 text-caption font-semibold",
                   value === opt.id ? "bg-surface-1/20" : "bg-surface-2",
                 )}
               >
@@ -467,13 +467,13 @@ export function MultiSelectPills({
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-2.5">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
           {label}
         </span>
         {selected.length > 0 && (
           <button
             onClick={() => onChange([])}
-            className="text-[10px] font-bold text-primary hover:underline"
+            className="text-caption font-bold text-primary hover:underline"
           >
             Clear ({selected.length})
           </button>
@@ -487,7 +487,7 @@ export function MultiSelectPills({
               <button
                 key={id}
                 onClick={() => toggle(id)}
-                className="inline-flex max-w-full items-center gap-1 rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm"
+                className="inline-flex max-w-full items-center gap-1 rounded-full bg-surface-3 px-2 py-0.5 text-caption font-bold text-white shadow-sm"
               >
                 <span className="truncate">{option?.label || id}</span>
                 <X className="h-3 w-3" />
@@ -495,7 +495,7 @@ export function MultiSelectPills({
             );
           })}
           {selected.length > 8 && (
-            <span className="rounded-full bg-line px-2 py-0.5 text-[10px] font-bold text-content-2">
+            <span className="rounded-full bg-line px-2 py-0.5 text-caption font-bold text-content-2">
               +{selected.length - 8}
             </span>
           )}
@@ -528,7 +528,7 @@ export function MultiSelectPills({
               key={o.id}
               onClick={() => toggle(o.id)}
               className={cn(
-                "inline-flex min-h-7 max-w-full items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold transition",
+                "inline-flex min-h-7 max-w-full items-center gap-1 rounded-full px-2.5 py-0.5 text-caption font-bold transition",
                 active
                   ? "bg-order-fg text-white shadow-sm"
                   : "bg-surface-1 text-order-fg ring-1 ring-order-border hover:bg-order-bg",
@@ -538,7 +538,7 @@ export function MultiSelectPills({
               {typeof o.count === "number" && (
                 <span
                   className={cn(
-                    "rounded px-1 text-[10px] font-semibold",
+                    "rounded px-1 text-caption font-semibold",
                     active ? "bg-surface-1/20" : "bg-order-bg",
                   )}
                 >
@@ -549,7 +549,7 @@ export function MultiSelectPills({
           );
         })}
         {visibleOptions.length === 0 && (
-          <div className="rounded-lg border border-dashed border-line bg-surface-1 px-2.5 py-2 text-[11px] font-semibold text-content-3">
+          <div className="rounded-lg border border-dashed border-line bg-surface-1 px-2.5 py-2 text-caption font-semibold text-content-3">
             No matching filter options.
           </div>
         )}
@@ -580,10 +580,10 @@ export function RangeFilter({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
           {label}
         </span>
-        <span className="font-mono text-[10px] text-content-2">
+        <span className="font-mono text-caption text-content-2">
           {value[0]}–{value[1]}
           {suffix}
         </span>
@@ -624,7 +624,7 @@ export function FilterRail({
   return (
     <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-line bg-surface-1 p-4 shadow-sm space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           <Sparkles className="inline-block h-3 w-3 mr-1 -mt-0.5" />
           Smart filters
         </span>
@@ -708,7 +708,7 @@ export function WorkspaceSection({
           )}
           <div>
             {eyebrow && (
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 {eyebrow}
               </div>
             )}
@@ -761,7 +761,7 @@ export function KpiTileV36({
       )}
     >
       <div className="flex items-start justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
           {label}
         </div>
         <span className="text-xl">{icon}</span>
@@ -772,11 +772,11 @@ export function KpiTileV36({
           <span className="text-xs font-bold text-white/80">{unit}</span>
         )}
       </div>
-      {sub && <div className="mt-0.5 text-[11px] text-white/80">{sub}</div>}
+      {sub && <div className="mt-0.5 text-caption text-white/80">{sub}</div>}
       {delta && (
         <div
           className={cn(
-            "mt-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-bold",
+            "mt-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-caption font-bold",
             delta.positive
               ? "bg-surface-1/20 text-white"
               : "bg-danger-bg text-danger-border",

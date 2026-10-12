@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Menu } from "lucide-react";
@@ -33,6 +33,13 @@ export function Header() {
   const { user, effectiveRole } = useAuth();
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // The missing-email reminder shows once per browser session, not on every page.
+  const [emailReminderDismissed, setEmailReminderDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem("erp.emailReminderDismissed") === "1") setEmailReminderDismissed(true);
+    } catch {}
+  }, []);
 
   const getRoleDisplayName = () => {
     return getCanonicalRoleLabel(
@@ -53,6 +60,7 @@ export function Header() {
                   size="icon"
                   className="h-11 w-11 rounded-xl border-line bg-surface-1/95 shadow-sm"
                   data-testid="mobile-nav-trigger"
+                  aria-label="Open navigation"
                 >
                   <Menu className="h-5 w-5" />
                 </Button>
@@ -86,10 +94,10 @@ export function Header() {
               </SheetContent>
             </Sheet>
             <div className="min-w-0 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
-              <div className="truncate text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="truncate text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 Role
               </div>
-              <div className="truncate text-[11px] font-bold text-content-2">
+              <div className="truncate text-caption font-bold text-content-2">
                 {getRoleDisplayName()}
               </div>
             </div>
@@ -153,7 +161,7 @@ export function Header() {
           </div>
           <div className="hidden items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm 2xl:flex">
             <div aria-hidden="true" className="h-2 w-2 rounded-full bg-success-fg shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 lg:text-[11px]">
+            <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 lg:text-caption">
               {getRoleDisplayName()}
             </span>
           </div>
@@ -162,17 +170,32 @@ export function Header() {
             <ThemeToggle />
             <ContextHelpSheet />
             <NotificationBell />
-            {Boolean(user?.email_missing) && pathname !== "/profile" ? (
-              <Button
-                asChild
-                variant="outline"
-                className="hidden h-10 rounded-xl border-warning-border bg-warning-bg text-warning-fg hover:bg-warning-bg lg:inline-flex"
-              >
-                <Link href="/profile">
-                  <AlertTriangle className="mr-1.5 h-4 w-4" />
-                  Update email
-                </Link>
-              </Button>
+            {Boolean(user?.email_missing) && pathname !== "/profile" && !emailReminderDismissed ? (
+              <div className="hidden items-center gap-1 lg:flex">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-10 rounded-xl border-warning-border bg-warning-bg text-warning-fg hover:bg-warning-bg"
+                >
+                  <Link href="/profile">
+                    <AlertTriangle className="mr-1.5 h-4 w-4" />
+                    Add your email
+                  </Link>
+                </Button>
+                <button
+                  type="button"
+                  aria-label="Hide the email reminder for this session"
+                  className="h-8 w-8 rounded-lg text-content-3 hover:bg-surface-2 hover:text-content-1"
+                  onClick={() => {
+                    setEmailReminderDismissed(true);
+                    try {
+                      window.sessionStorage.setItem("erp.emailReminderDismissed", "1");
+                    } catch {}
+                  }}
+                >
+                  ×
+                </button>
+              </div>
             ) : null}
             <UserProfileMenu />
           </div>

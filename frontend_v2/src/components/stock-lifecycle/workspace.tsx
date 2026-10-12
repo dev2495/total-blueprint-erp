@@ -941,7 +941,7 @@ function Hero({
       <div className="absolute -right-16 -top-16 h-60 w-60 rounded-full bg-surface-1/10 blur-3xl" />
       <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-order-border dark:text-white/80">
+          <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-border dark:text-white/80">
             <span className="h-2 w-2 rounded-full bg-success-fg" />
             Stock Lifecycle · Inventory Control Cockpit
           </div>
@@ -1024,7 +1024,7 @@ function HeroMetric({
 }) {
   return (
     <div className="rounded-2xl bg-surface-1/12 p-3 ring-1 ring-surface-1/15">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-order-border dark:text-white/76">
+      <div className="text-caption font-bold uppercase tracking-widest text-order-border dark:text-white/76">
         {label}
       </div>
       <div
@@ -1036,7 +1036,7 @@ function HeroMetric({
         {loading ? "..." : value}
       </div>
       {sub ? (
-        <div className="mt-1 text-[11px] font-bold text-order-border dark:text-white/72">
+        <div className="mt-1 text-caption font-bold text-order-border dark:text-white/72">
           {sub}
         </div>
       ) : null}
@@ -1062,7 +1062,7 @@ function StatusChip({
   return (
     <span
       className={cn(
-        "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold ring-1",
+        "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-caption font-semibold ring-1",
         className,
       )}
     >
@@ -1241,7 +1241,7 @@ function KpiCard({
     >
       <div
         className={cn(
-          "text-[10px] font-semibold uppercase tracking-[0.08em]",
+          "text-caption font-semibold uppercase tracking-[0.08em]",
           tone === "amber" ? "text-warning-fg" : "text-content-3",
         )}
       >
@@ -1258,7 +1258,7 @@ function KpiCard({
       {sub ? (
         <div
           className={cn(
-            "mt-1 text-[11px] font-bold",
+            "mt-1 text-caption font-bold",
             tone === "amber" ? "text-warning-fg" : "text-content-3",
           )}
         >
@@ -1303,7 +1303,7 @@ function ValueMix({
               <div className="font-mono text-base font-semibold">
                 {money(total, true)}
               </div>
-              <div className="text-[10px] font-bold uppercase text-content-4">
+              <div className="text-caption font-bold uppercase text-content-4">
                 Total
               </div>
             </div>
@@ -1422,7 +1422,7 @@ function TrendCard({ rows }: { rows: Array<Record<string, any>> }) {
               );
             })}
           </div>
-          <div className="mt-2 flex justify-between text-[10px] font-bold text-content-4">
+          <div className="mt-2 flex justify-between text-caption font-bold text-content-4">
             <span>
               {monthShort(visible[0]?.as_of || visible[0]?.created_at)}
             </span>
@@ -1443,7 +1443,7 @@ function TrendCard({ rows }: { rows: Array<Record<string, any>> }) {
           compact
         />
       )}
-      <div className="mt-3 text-[11px] font-bold leading-5 text-content-3">
+      <div className="mt-3 text-caption font-bold leading-5 text-content-3">
         Uses real InventorySnapshot trend rows; empty trend means no captured
         snapshots yet.
       </div>
@@ -1509,10 +1509,10 @@ function MovementWaterfall({
   return (
     <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
           Movement this period · opening + ins - outs +/- adjustments = closing
         </div>
-        <span className="inline-flex h-7 items-center rounded-full bg-surface-2 px-3 text-[11px] font-semibold text-content-3">
+        <span className="inline-flex h-7 items-center rounded-full bg-surface-2 px-3 text-caption font-semibold text-content-3">
           {financialYear} · {plantLabel}
         </span>
       </div>
@@ -1529,11 +1529,11 @@ function MovementWaterfall({
                 style={{ height }}
               />
               <div
-                className={cn("truncate text-[10px] font-semibold", row.text)}
+                className={cn("truncate text-caption font-semibold", row.text)}
               >
                 {row.label}
               </div>
-              <div className="font-mono text-[11px] font-bold text-content-2">
+              <div className="font-mono text-caption font-bold text-content-2">
                 {qty(row.value)}
               </div>
             </div>
@@ -1594,7 +1594,7 @@ function DeadStock({
 }) {
   return (
     <div className="rounded-[18px] border border-warning-border bg-warning-bg p-4 shadow-sm">
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-warning-fg">
+      <div className="mb-3 text-caption font-semibold uppercase tracking-[0.08em] text-warning-fg">
         Dead stock · no movement 90d+
       </div>
       {rows.length ? (
@@ -1607,7 +1607,7 @@ function DeadStock({
               >
                 <td className="py-2 pr-2">
                   <div className="text-content-2">{row.name}</div>
-                  <div className="text-[10px] text-warning-fg">
+                  <div className="text-caption text-warning-fg">
                     {row.code} · {row.stockClass}
                   </div>
                 </td>
@@ -1640,7 +1640,7 @@ function Panel({
 }) {
   return (
     <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+      <div className="mb-3 text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
         {title}
       </div>
       {children}
@@ -1675,7 +1675,7 @@ function LifecycleTabShell({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-success-border bg-success-bg px-3 py-1.5 text-[11px] font-semibold text-success-fg">
+        <div className="flex items-center gap-2 rounded-full border border-success-border bg-success-bg px-3 py-1.5 text-caption font-semibold text-success-fg">
           <CheckCircle2 className="h-3.5 w-3.5" />
           Live backend workflow
         </div>
@@ -1896,7 +1896,7 @@ function SnapshotsPanel({
                 <div className="mt-2 text-xs font-bold opacity-80">
                   {period.status.replace(/_/g, " ")}
                 </div>
-                <div className="mt-3 text-[11px] font-semibold opacity-75">
+                <div className="mt-3 text-caption font-semibold opacity-75">
                   Close:{" "}
                   {period.closed_at
                     ? formatDisplayDate(period.closed_at)
@@ -1934,7 +1934,7 @@ function SnapshotsPanel({
                 </div>
                 <div
                   className={cn(
-                    "mt-1 text-[10px] font-semibold uppercase",
+                    "mt-1 text-caption font-semibold uppercase",
                     month.counted
                       ? "text-success-fg"
                       : month.snapshot
@@ -1948,7 +1948,7 @@ function SnapshotsPanel({
                       ? "Snapshot"
                       : "Pending"}
                 </div>
-                <div className="mt-1 font-mono text-[11px] font-bold text-content-3">
+                <div className="mt-1 font-mono text-caption font-bold text-content-3">
                   {month.count || 0} sheet(s)
                 </div>
               </button>
@@ -2047,7 +2047,7 @@ function SnapshotsPanel({
                       <div className="truncate text-sm font-semibold text-content-1">
                         {batch.batch_no || batchLabel(batch)}
                       </div>
-                      <div className="mt-1 text-[11px] font-bold text-warning-fg">
+                      <div className="mt-1 text-caption font-bold text-warning-fg">
                         {batch.type?.replace(/_/g, " ")} · {batch.status} ·{" "}
                         {batch.line_count || batch.lines?.length || 0} lines
                       </div>
@@ -2091,15 +2091,15 @@ function SnapshotsPanel({
                       <div className="truncate text-sm font-semibold text-content-1">
                         {batchLabel(batch)}
                       </div>
-                      <div className="mt-1 line-clamp-2 text-[11px] font-bold leading-4 text-order-fg">
+                      <div className="mt-1 line-clamp-2 text-caption font-bold leading-4 text-order-fg">
                         {batchScopeText(batch)}
                       </div>
                     </div>
-                    <span className="shrink-0 rounded-full bg-surface-1 px-2 py-1 font-mono text-[10px] font-semibold text-order-fg">
+                    <span className="shrink-0 rounded-full bg-surface-1 px-2 py-1 font-mono text-caption font-semibold text-order-fg">
                       {batch.line_count || batch.lines?.length || 0} lines
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.12em] text-content-3">
+                  <div className="mt-2 flex items-center justify-between gap-2 text-caption font-bold uppercase tracking-[0.12em] text-content-3">
                     <span>{batch.batch_no || batch.id}</span>
                     <span>
                       {batch.posted_at
@@ -2116,7 +2116,7 @@ function SnapshotsPanel({
           ) : (
             <div className="max-h-[460px] overflow-auto">
               <table className="w-full min-w-[620px] text-sm">
-                <thead className="sticky top-0 bg-surface-1 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+                <thead className="sticky top-0 bg-surface-1 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
                   <tr>
                     <th className="py-2">Sheet</th>
                     <th>Label</th>
@@ -2143,11 +2143,11 @@ function SnapshotsPanel({
                       <td className="pr-2 text-xs font-bold text-content-2">
                         {batchLabel(batch)}
                       </td>
-                      <td className="max-w-[240px] pr-2 text-[11px] font-semibold text-content-3">
+                      <td className="max-w-[240px] pr-2 text-caption font-semibold text-content-3">
                         {batchScopeText(batch)}
                       </td>
                       <td className="pr-2">
-                        <span className="rounded-full border border-line bg-surface-2 px-2 py-1 text-[10px] font-semibold text-content-3">
+                        <span className="rounded-full border border-line bg-surface-2 px-2 py-1 text-caption font-semibold text-content-3">
                           {batch.status}
                         </span>
                       </td>
@@ -2654,12 +2654,12 @@ function AuditBatchDrawer({
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-mono text-xs font-semibold text-content-1">{row.materialCode}</span>
                                 {row.stockClass ? (
-                                  <span className="rounded-full border border-line bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-3">
+                                  <span className="rounded-full border border-line bg-surface-1 px-2 py-0.5 text-caption font-semibold text-content-3">
                                     {row.stockClass}
                                   </span>
                                 ) : null}
                                 {row.rowErrors?.length ? (
-                                  <span className="rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-semibold text-danger-fg">
+                                  <span className="rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-caption font-semibold text-danger-fg">
                                     {row.rowErrors.length} issue{row.rowErrors.length === 1 ? "" : "s"}
                                   </span>
                                 ) : null}
@@ -2668,7 +2668,7 @@ function AuditBatchDrawer({
                                 {row.materialName || row.materialCode}
                               </div>
                               <div className="mt-1 text-xs font-semibold text-content-3">{row.locationName}</div>
-                              <div className="mt-2 max-w-full truncate font-mono text-[11px] font-semibold text-content-4" title={JSON.stringify(ref)}>
+                              <div className="mt-2 max-w-full truncate font-mono text-caption font-semibold text-content-4" title={JSON.stringify(ref)}>
                                 Ref: {refLabel}
                               </div>
                             </div>
@@ -2747,7 +2747,7 @@ function AuditBatchDrawer({
 function ProofMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
+      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
       <div className="mt-1 truncate text-sm font-semibold text-content-1">{value || "-"}</div>
     </div>
   );
@@ -2766,7 +2766,7 @@ function ProofMiniMetric({
 }) {
   return (
     <div className="rounded-xl border border-line bg-surface-1 px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-4">{label}</div>
+      <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-4">{label}</div>
       <div
         className={cn(
           "mt-1 truncate font-mono text-xs font-semibold",
@@ -2818,7 +2818,7 @@ function MonthProofDialog({
         </div>
         <div className="max-h-[420px] overflow-auto rounded-2xl border border-line">
           <table className="w-full min-w-[620px] text-xs">
-            <thead className="bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+            <thead className="bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
               <tr>
                 <th className="px-3 py-2">Sheet</th>
                 <th>Scope</th>
@@ -2883,7 +2883,7 @@ function LedgerSourceDialog({
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-4">
               <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-4">Source metadata</div>
-              <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl bg-surface-1 p-3 text-[11px] font-semibold text-content-3">
+              <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl bg-surface-1 p-3 text-caption font-semibold text-content-3">
                 {JSON.stringify(row.meta || row, null, 2)}
               </pre>
             </div>
@@ -2943,7 +2943,7 @@ function EodPackingProofPanel({
       ) : (
       <div className="mt-3 max-h-[360px] overflow-auto rounded-2xl border border-line">
         <table className="w-full min-w-[900px] text-xs">
-          <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+          <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
             <tr>
               <th className="px-3 py-2">Time</th>
               <th>Material</th>
@@ -2961,7 +2961,7 @@ function EodPackingProofPanel({
                 <td className="px-3 py-2 text-content-3">{row.created_at ? formatDisplayDate(row.created_at) : "-"}</td>
                 <td>
                   <div className="font-mono text-content-1">{row.material_code}</div>
-                  <div className="max-w-[240px] truncate text-[11px] text-content-3">{row.material_name}</div>
+                  <div className="max-w-[240px] truncate text-caption text-content-3">{row.material_name}</div>
                 </td>
                 <td className="text-content-3">{row.location_name}</td>
                 <td>{String(row.type || "").replace(/_/g, " ")}</td>
@@ -3052,7 +3052,7 @@ function InkFloorProofPanel({
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
             <table className="w-full min-w-[620px] text-xs">
-              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+              <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Count</th>
                   <th>Location</th>
@@ -3067,7 +3067,7 @@ function InkFloorProofPanel({
                       <div className="font-mono text-content-1">
                         {session.reference || session.id.slice(0, 8)}
                       </div>
-                      <div className="text-[11px] text-content-3">
+                      <div className="text-caption text-content-3">
                         {session.counted_at ? formatDisplayDate(session.counted_at) : "-"}
                       </div>
                     </td>
@@ -3081,7 +3081,7 @@ function InkFloorProofPanel({
           </div>
           <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
             <table className="w-full min-w-[760px] text-xs">
-              <thead className="sticky top-0 bg-surface-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-content-3">
+              <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Time</th>
                   <th>Type</th>
@@ -3097,7 +3097,7 @@ function InkFloorProofPanel({
                     <td>{String(row.type || "").replace(/_/g, " ")}</td>
                     <td>
                       <div className="font-mono text-content-1">{row.material_code}</div>
-                      <div className="max-w-[220px] truncate text-[11px] text-content-3">
+                      <div className="max-w-[220px] truncate text-caption text-content-3">
                         {row.target_material_code || row.material_name || "-"}
                       </div>
                     </td>
@@ -3208,7 +3208,7 @@ function CategoryRail({
           type="button"
           onClick={() => onChange(null)}
           className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold ring-1",
+            "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-caption font-semibold ring-1",
             active === null
               ? "bg-surface-3 text-white ring-line-strong"
               : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",
@@ -3226,7 +3226,7 @@ function CategoryRail({
               type="button"
               onClick={() => onChange(selected ? null : category.key)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[11px] font-semibold ring-1",
+                "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-caption font-semibold ring-1",
                 selected
                   ? "bg-surface-3 text-white ring-line-strong"
                   : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",

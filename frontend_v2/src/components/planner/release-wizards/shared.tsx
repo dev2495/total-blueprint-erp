@@ -94,7 +94,7 @@ export function DemandLineList({
               <span className="font-mono-token text-[12px] font-semibold text-content-1">
                 {order.order_number}
               </span>
-              <span className="font-mono-token text-[11px] text-content-3">
+              <span className="font-mono-token text-caption text-content-3">
                 {Math.round(Number(order.required_qty_kg || 0))} kg
               </span>
             </div>
@@ -146,11 +146,11 @@ export function FieldRow({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+      <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
         {label}
       </span>
       {children}
-      {hint ? <span className="text-[11px] text-content-3">{hint}</span> : null}
+      {hint ? <span className="text-caption text-content-3">{hint}</span> : null}
     </label>
   );
 }
@@ -173,7 +173,7 @@ export function SummaryStat({
   };
   return (
     <div className={cn("rounded-lg border px-3 py-2", toneCls[tone])}>
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono-token text-[13px] text-content-1">

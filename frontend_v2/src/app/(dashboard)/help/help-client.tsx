@@ -175,7 +175,7 @@ export default function HelpCenterPage() {
                   <div className="font-semibold">
                     {localize(page.title, locale)}
                   </div>
-                  <div className="text-[10px] text-content-3 mt-0.5">
+                  <div className="text-caption text-content-3 mt-0.5">
                     {page.routePattern}
                   </div>
                 </button>
@@ -324,7 +324,7 @@ export default function HelpCenterPage() {
                             className="rounded-lg border border-line p-2 bg-surface-1"
                           >
                             <HelpScreenshotImage imageKey={key} />
-                            <p className="text-[10px] text-content-3 mt-1">
+                            <p className="text-caption text-content-3 mt-1">
                               {key}
                             </p>
                           </div>

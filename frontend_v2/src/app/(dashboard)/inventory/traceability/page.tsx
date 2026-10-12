@@ -121,7 +121,7 @@ function NodeCard({
               <div className="font-semibold text-content-1 text-[15px] truncate flex items-center gap-2">
                 {node.label_id}
                 {node.job_number && (
-                  <span className="text-[10px] bg-info-bg text-primary px-1.5 py-0.5 rounded-md uppercase font-bold tracking-wider">
+                  <span className="text-caption bg-info-bg text-primary px-1.5 py-0.5 rounded-md uppercase font-bold tracking-wider">
                     Job {node.job_number}
                   </span>
                 )}
@@ -131,7 +131,7 @@ function NodeCard({
                 <span className="text-content-4">•</span>
                 <span
                   className={cn(
-                    "px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold tracking-widest",
+                    "px-1.5 py-0.5 rounded text-caption uppercase font-semibold tracking-widest",
                     node.stage_index === 0
                       ? "bg-warning-bg text-warning-fg"
                       : "bg-success-bg text-success-fg",
@@ -146,7 +146,7 @@ function NodeCard({
             <Badge
               variant="outline"
               className={cn(
-                "text-[10px] font-semibold tracking-wider uppercase",
+                "text-caption font-semibold tracking-wider uppercase",
                 roleTone((node as any).roll_role),
               )}
             >
@@ -154,7 +154,7 @@ function NodeCard({
             </Badge>
             <Badge
               variant={statusTone(node.status)}
-              className="text-[10px] font-semibold tracking-wider uppercase"
+              className="text-caption font-semibold tracking-wider uppercase"
             >
               {node.status || "—"}
             </Badge>
@@ -163,20 +163,20 @@ function NodeCard({
 
         <div className="bg-surface-2 rounded-xl p-3 grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs mt-3 border border-line">
           <div>
-            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-caption font-semibold mb-1">
               Orig Weight
             </div>
             <div className="font-semibold text-content-2 text-sm flex items-center gap-1.5">
               {fmtKg(node.original_weight_kg)}
               {node.weight_kg !== node.original_weight_kg && (
-                <span className="text-[10px] text-content-4 font-semibold bg-surface-1 border px-1 rounded">
+                <span className="text-caption text-content-4 font-semibold bg-surface-1 border px-1 rounded">
                   now {fmtKg(node.weight_kg)}
                 </span>
               )}
             </div>
           </div>
           <div>
-            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-caption font-semibold mb-1">
               Dimensions
             </div>
             <div className="font-semibold text-content-2 text-sm">
@@ -190,7 +190,7 @@ function NodeCard({
             </div>
           </div>
           <div>
-            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-caption font-semibold mb-1">
               Location
             </div>
             <div className="font-semibold text-content-2 truncate">
@@ -198,7 +198,7 @@ function NodeCard({
             </div>
           </div>
           <div>
-            <div className="text-content-4 uppercase tracking-[0.1em] text-[10px] font-semibold mb-1">
+            <div className="text-content-4 uppercase tracking-[0.1em] text-caption font-semibold mb-1">
               Created
             </div>
             <div className="font-semibold text-content-2 truncate">
@@ -308,7 +308,7 @@ export default function RollTraceabilityPage() {
               {result?.matched_by && (
                 <Badge
                   variant="outline"
-                  className="font-bold uppercase text-[10px]"
+                  className="font-bold uppercase text-caption"
                 >
                   Match: {result.matched_by.replace("_", " ")}
                 </Badge>
@@ -390,7 +390,7 @@ export default function RollTraceabilityPage() {
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
+                  <div className="text-caption uppercase tracking-[0.1em] font-semibold text-content-4">
                     Current Weight
                   </div>
                   <div className="text-2xl font-semibold text-content-1 mt-1">
@@ -400,7 +400,7 @@ export default function RollTraceabilityPage() {
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
+                  <div className="text-caption uppercase tracking-[0.1em] font-semibold text-content-4">
                     Original Weight
                   </div>
                   <div className="text-2xl font-semibold text-content-1 mt-1">
@@ -410,7 +410,7 @@ export default function RollTraceabilityPage() {
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
+                  <div className="text-caption uppercase tracking-[0.1em] font-semibold text-content-4">
                     Lineage Children
                   </div>
                   <div className="text-2xl font-semibold text-content-1 mt-1">
@@ -420,7 +420,7 @@ export default function RollTraceabilityPage() {
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
+                  <div className="text-caption uppercase tracking-[0.1em] font-semibold text-content-4">
                     Timeline Events
                   </div>
                   <div className="text-2xl font-semibold text-content-1 mt-1">
@@ -430,7 +430,7 @@ export default function RollTraceabilityPage() {
               </Card>
               <Card className="rounded-2xl border-line">
                 <CardContent className="p-4">
-                  <div className="text-[10px] uppercase tracking-[0.1em] font-semibold text-content-4">
+                  <div className="text-caption uppercase tracking-[0.1em] font-semibold text-content-4">
                     Current Stage
                   </div>
                   <div className="text-lg font-semibold text-content-1 mt-2">
@@ -444,7 +444,7 @@ export default function RollTraceabilityPage() {
               <CardContent className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
+                    <div className="text-caption text-content-4 font-semibold uppercase tracking-widest">
                       Roll
                     </div>
                     <div className="text-sm font-semibold text-content-1 mt-1">
@@ -454,7 +454,7 @@ export default function RollTraceabilityPage() {
                     {result?.identity?.batch && <div className="text-xs text-content-3">Batch: {result.identity.batch}</div>}
                   </div>
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
+                    <div className="text-caption text-content-4 font-semibold uppercase tracking-widest">
                       Material / Grade
                     </div>
                     <div className="text-sm font-semibold text-content-1 mt-1">
@@ -465,7 +465,7 @@ export default function RollTraceabilityPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
+                    <div className="text-caption text-content-4 font-semibold uppercase tracking-widest">
                       Location
                     </div>
                     <div className="text-sm font-semibold text-content-1 mt-1 flex items-center gap-1">
@@ -477,14 +477,14 @@ export default function RollTraceabilityPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-surface-2 border border-line p-3">
-                    <div className="text-[10px] text-content-4 font-semibold uppercase tracking-widest">
+                    <div className="text-caption text-content-4 font-semibold uppercase tracking-widest">
                       Role / Status
                     </div>
                     <div className="mt-1 flex items-center gap-2">
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[10px] font-bold uppercase",
+                          "text-caption font-bold uppercase",
                           roleTone(currentRoll.roll_role),
                         )}
                       >
@@ -492,7 +492,7 @@ export default function RollTraceabilityPage() {
                       </Badge>
                       <Badge
                         variant={statusTone(currentRoll.status)}
-                        className="text-[10px] font-bold uppercase"
+                        className="text-caption font-bold uppercase"
                       >
                         {currentRoll.status}
                       </Badge>
@@ -543,11 +543,11 @@ export default function RollTraceabilityPage() {
                       <div className="flex items-center justify-between gap-2">
                         <Badge
                           variant="outline"
-                          className="text-[10px] font-bold uppercase"
+                          className="text-caption font-bold uppercase"
                         >
                           {event.type || "EVENT"}
                         </Badge>
-                        <span className="text-[11px] text-content-3 font-semibold">
+                        <span className="text-caption text-content-3 font-semibold">
                           {fmtDate(event.timestamp)}
                         </span>
                       </div>
@@ -596,7 +596,7 @@ export default function RollTraceabilityPage() {
                       key={`move-${idx}`}
                       className="rounded-xl border border-line p-3 bg-surface-2"
                     >
-                      <div className="text-[11px] text-content-3 font-semibold">
+                      <div className="text-caption text-content-3 font-semibold">
                         {fmtDate(m.timestamp)}
                       </div>
                       <div className="text-sm font-bold text-content-2 mt-1">

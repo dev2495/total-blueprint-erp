@@ -131,22 +131,22 @@ export default function LoginPage() {
                 className="auth-mark-logo"
               />
               <div className="auth-mark-copy">
-                <div className="auth-mark-title">ERP control plane</div>
-                <div className="auth-mark-subtitle">Role based access</div>
+                <div className="auth-mark-title">Total Poly Print ERP</div>
+                <div className="auth-mark-subtitle">Factory workspace</div>
               </div>
             </div>
             <div className="auth-badge">
-              <ShieldCheck size={16} /> ERP access
+              <ShieldCheck size={16} /> Staff sign-in
             </div>
             <div className="auth-kicker">
-              Sales, planning, production, inventory
+              Sales · Planning · Production · Stock · Dispatch
             </div>
             <h1 className="auth-title">
-              One secure door into the factory stack.
+              Sign in to your factory workspace.
             </h1>
             <p className="auth-copy">
-              Sign in once, land in the right workspace, and keep every order,
-              roll, dispatch, and audit trail under role-based control.
+              Each person lands on the screens for their job: orders, planning,
+              machines, stock, gate or dispatch. Every change is recorded.
             </p>
             <div className="auth-stats">
               {loginProof.map((item) => (
@@ -188,6 +188,8 @@ export default function LoginPage() {
               <label>
                 <span className="auth-label">Work email or username</span>
                 <input
+                  id="login-identifier"
+                  aria-label="Work email or username"
                   data-testid="login-identifier"
                   className="auth-input"
                   value={identifier}
@@ -201,15 +203,14 @@ export default function LoginPage() {
               <label>
                 <span className="auth-label-line">
                   <span className="auth-label">Password</span>
-                  <a
-                    className="auth-link"
-                    href="mailto:admin@totalpolyprint.local"
-                  >
-                    Forgot?
-                  </a>
+                  <span className="auth-link" title="Ask your ERP administrator to reset it">
+                    Forgot? Ask your administrator
+                  </span>
                 </span>
                 <span className="auth-password-field">
                   <input
+                    id="login-password"
+                    aria-label="Password"
                     data-testid="login-password"
                     className="auth-input auth-password-input"
                     value={password}

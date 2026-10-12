@@ -222,7 +222,7 @@ function GateTopBar() {
         <Link href="/gate" className="flex min-h-[44px] items-center gap-2.5" aria-label="Gate home">
           <GateMark className="h-7 w-8" />
           <div className="whitespace-nowrap leading-tight">
-            <div className="hidden text-[11px] font-semibold uppercase tracking-[0.14em] sm:block" style={{ color: "var(--gate-ink-muted)" }}>
+            <div className="hidden text-caption font-semibold uppercase tracking-[0.14em] sm:block" style={{ color: "var(--gate-ink-muted)" }}>
               Total Poly Print
             </div>
             <div className="text-[15px] font-semibold tracking-[-0.01em]">Gate</div>
@@ -249,7 +249,7 @@ function GateTopBar() {
                 {plants.map((p) => (
                   <DropdownMenuItem key={p.id} className="min-h-[44px]" onSelect={() => setPlantId(p.id)}>
                     <span className="flex-1">{p.name}</span>
-                    <span className="font-mono text-[11px] text-content-4">{p.code}</span>
+                    <span className="font-mono text-caption text-content-4">{p.code}</span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

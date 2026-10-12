@@ -194,7 +194,7 @@ export function TradingGoodEditor({ mode, id }: Props) {
                 <h3 className="text-sm font-bold text-content-1">
                   Item identity
                 </h3>
-                <p className="text-[11px] text-content-3">
+                <p className="text-caption text-content-3">
                   Code, name and stocking unit
                 </p>
               </div>
@@ -275,7 +275,7 @@ export function TradingGoodEditor({ mode, id }: Props) {
               <h3 className="text-sm font-bold text-content-1">
                 Pricing defaults
               </h3>
-              <p className="text-[11px] text-content-3">
+              <p className="text-caption text-content-3">
                 Used to prefill Trade Order lines
               </p>
             </header>
@@ -327,7 +327,7 @@ export function TradingGoodEditor({ mode, id }: Props) {
           <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line lg:col-span-2">
             <header className="mb-4">
               <h3 className="text-sm font-bold text-content-1">Notes</h3>
-              <p className="text-[11px] text-content-3">
+              <p className="text-caption text-content-3">
                 Internal notes — not visible to the customer
               </p>
             </header>
@@ -342,14 +342,14 @@ export function TradingGoodEditor({ mode, id }: Props) {
           <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
             <header className="mb-4">
               <h3 className="text-sm font-bold text-content-1">Status</h3>
-              <p className="text-[11px] text-content-3">
+              <p className="text-caption text-content-3">
                 Inactive items are hidden from trade order pickers
               </p>
             </header>
             <label className="flex items-center justify-between rounded-2xl border border-line px-4 py-3">
               <div>
                 <div className="text-sm font-bold text-content-2">Active</div>
-                <div className="text-[11px] text-content-3">
+                <div className="text-caption text-content-3">
                   Toggle off to retire
                 </div>
               </div>
@@ -418,7 +418,7 @@ function StockBreakdownCard({
             <h3 className="font-display text-base font-bold text-content-1">
               Stock by plant
             </h3>
-            <p className="text-[11px] text-content-3">
+            <p className="text-caption text-content-3">
               Total{" "}
               <span className="font-mono font-bold text-content-2">
                 {total.toLocaleString()}
@@ -439,7 +439,7 @@ function StockBreakdownCard({
           <div className="mt-2 text-sm font-bold text-content-2">
             No stock recorded yet
           </div>
-          <p className="mt-1 text-[11px] text-content-3">
+          <p className="mt-1 text-caption text-content-3">
             Seed opening stock via a Stock Adjustment in the inventory
             workspace.
           </p>
@@ -448,7 +448,7 @@ function StockBreakdownCard({
         <>
           <div className="hidden overflow-hidden rounded-2xl border border-line sm:block">
             <table className="w-full text-sm">
-              <thead className="bg-surface-2 text-[10px] uppercase tracking-wider text-content-3">
+              <thead className="bg-surface-2 text-caption uppercase tracking-wider text-content-3">
                 <tr>
                   <th className="px-4 py-2 text-left font-bold">Plant</th>
                   <th className="px-4 py-2 text-right font-bold">Qty</th>
@@ -472,7 +472,7 @@ function StockBreakdownCard({
                           {s.plant_name || "—"}
                         </div>
                         {s.plant_code ? (
-                          <div className="font-mono text-[10px] text-content-3">
+                          <div className="font-mono text-caption text-content-3">
                             {s.plant_code}
                           </div>
                         ) : null}
@@ -481,14 +481,14 @@ function StockBreakdownCard({
                         className={`px-4 py-3 text-right font-mono font-bold ${colorClass}`}
                       >
                         {qty.toLocaleString()}{" "}
-                        <span className="text-[10px] text-content-4">
+                        <span className="text-caption text-content-4">
                           {baseUom}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-content-2">
                         ₹ {Number(s.avg_cost || 0).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-[11px] text-content-3">
+                      <td className="px-4 py-3 text-caption text-content-3">
                         {s.updated_at
                           ? formatDisplayDateTime(s.updated_at)
                           : "—"}
@@ -521,7 +521,7 @@ function StockBreakdownCard({
                         {s.plant_name || "—"}
                       </div>
                       {s.plant_code ? (
-                        <div className="font-mono text-[10px] text-content-3">
+                        <div className="font-mono text-caption text-content-3">
                           {s.plant_code}
                         </div>
                       ) : null}
@@ -530,12 +530,12 @@ function StockBreakdownCard({
                       className={`font-mono text-base font-bold ${colorClass}`}
                     >
                       {qty.toLocaleString()}{" "}
-                      <span className="text-[10px] text-content-4">
+                      <span className="text-caption text-content-4">
                         {baseUom}
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2 text-[11px] text-content-3">
+                  <div className="mt-2 text-caption text-content-3">
                     Avg ₹ {Number(s.avg_cost || 0).toLocaleString()}
                   </div>
                 </article>
@@ -549,13 +549,13 @@ function StockBreakdownCard({
       <div className="mt-6 rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-order-fg">
+            <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-widest text-order-fg">
               <SlidersHorizontal className="h-3.5 w-3.5" /> Stock adjustments
             </div>
             <h4 className="mt-1 font-display text-sm font-bold text-content-1">
               Adjust stock from the inventory workspace
             </h4>
-            <p className="mt-1 max-w-xl text-[11px] text-content-3">
+            <p className="mt-1 max-w-xl text-caption text-content-3">
               Stock changes here would skip the unified audit log. To correct
               quantities, create a Stock Adjustment from the inventory
               team&apos;s workspace — same audit trail as bulk, packaging and
@@ -585,7 +585,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+      <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
         {label}
       </Label>
       <div className="mt-1.5">{children}</div>

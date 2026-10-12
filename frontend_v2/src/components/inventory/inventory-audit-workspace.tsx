@@ -334,7 +334,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
           <span>{children}</span>
           <ArrowDownUp className="h-3 w-3" />
           {active ? (
-            <span className="text-[10px]">
+            <span className="text-caption">
               {lineSortDirection === "asc" ? "ASC" : "DESC"}
             </span>
           ) : null}
@@ -505,7 +505,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
       <section className="erp-hero rounded-[2rem] border p-6 text-white">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
-            <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
+            <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-caption font-semibold uppercase tracking-[0.12em] text-white">
               Inventory Audit
             </Badge>
             <div>
@@ -528,7 +528,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                 key={label}
                 className="rounded-2xl border border-surface-1/10 bg-surface-1/10 p-3"
               >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
+                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
                   {label}
                 </div>
                 <div className="mt-2 text-xl font-semibold">
@@ -944,7 +944,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
             <div className="overflow-x-auto rounded-2xl border border-line">
               <table className="min-w-[940px] w-full text-left text-sm">
-                <thead className="bg-surface-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                   <tr>
                     <LineSortHeader id="class">Class</LineSortHeader>
                     <LineSortHeader id="material">Material</LineSortHeader>
@@ -1111,7 +1111,7 @@ export function InventoryYearCloseWorkspace() {
   return (
     <div className="space-y-6 pb-10">
       <section className="rounded-[2rem] border border-line bg-gradient-to-br from-warm via-surface-3 to-surface-3 p-6 text-white">
-        <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
+        <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-caption font-semibold uppercase tracking-[0.12em] text-white">
           Year-End Lock
         </Badge>
         <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -1157,7 +1157,7 @@ export function InventoryYearCloseWorkspace() {
             Export Preview
           </Button>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               Period status
             </div>
             <div className="mt-2 text-xl font-semibold">
@@ -1189,7 +1189,7 @@ export function InventoryYearCloseWorkspace() {
         ].map(([label, value]) => (
           <Card key={label} className="rounded-[1.25rem]">
             <CardContent className="p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 {label}
               </div>
               <div className="mt-2 text-2xl font-semibold">
@@ -1209,7 +1209,7 @@ export function InventoryYearCloseWorkspace() {
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-sm">
-              <thead className="text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <thead className="text-left text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Class</th>
                   <th>Material</th>
@@ -1402,7 +1402,7 @@ export function InventoryStockCardWorkspace() {
         ].map(([label, value]) => (
           <Card key={label} className="rounded-[1.25rem]">
             <CardContent className="p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                 {label}
               </div>
               <div className="mt-2 text-2xl font-semibold">
@@ -1421,7 +1421,7 @@ export function InventoryStockCardWorkspace() {
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="min-w-[980px] w-full text-sm">
-            <thead className="text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <thead className="text-left text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               <tr>
                 <th className="px-3 py-2">Date</th>
                 <th>Source</th>

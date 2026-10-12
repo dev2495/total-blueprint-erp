@@ -263,7 +263,7 @@ export function RecipeForm({
           <div className="overflow-hidden rounded-2xl border border-primary/20 bg-info-bg/40">
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-primary/10 px-4 py-3">
               <div>
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+                <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.1em] text-primary">
                   <GitCompareArrows className="h-3.5 w-3.5" /> Exact recipe contract
                 </div>
                 <div className="mt-1 text-base font-semibold text-content-1">
@@ -274,7 +274,7 @@ export function RecipeForm({
                 </p>
               </div>
               <div className="rounded-xl border border-primary/15 bg-surface-1 px-3 py-2 text-right">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">Current revision</div>
+                <div className="text-caption font-semibold uppercase tracking-wider text-content-4">Current revision</div>
                 <div className="font-mono text-lg font-semibold tabular-nums text-primary">v{initialData.revision_no || 1}</div>
               </div>
             </div>
@@ -286,7 +286,7 @@ export function RecipeForm({
                 { label: "Released", value: impact?.released ?? "—", icon: ShieldCheck },
               ].map((metric) => (
                 <div key={metric.label} className="bg-surface-1 px-3 py-2.5">
-                  <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-4">
+                  <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-content-4">
                     <metric.icon className="h-3.5 w-3.5" /> {metric.label}
                   </div>
                   <div className="mt-1 font-mono text-lg font-semibold tabular-nums text-content-1">
@@ -297,15 +297,15 @@ export function RecipeForm({
             </div>
             {impact?.samples?.length ? (
               <div className="border-t border-primary/10 bg-surface-1 px-4 py-3">
-                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-content-4">Recent matching order lines</div>
+                <div className="mb-2 text-caption font-semibold uppercase tracking-wider text-content-4">Recent matching order lines</div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {impact.samples.slice(0, 4).map((sample) => (
                     <div key={sample.line_id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2">
                       <div>
                         <div className="font-mono text-xs font-semibold text-content-1">{sample.order_number}</div>
-                        <div className="text-[10px] font-semibold text-content-4">{sample.line_status || sample.order_status}</div>
+                        <div className="text-caption font-semibold text-content-4">{sample.line_status || sample.order_status}</div>
                       </div>
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${sample.outcome === "FROZEN" ? "bg-info-bg text-primary" : "bg-success-bg text-success-fg"}`}>
+                      <span className={`rounded-full px-2 py-1 text-caption font-semibold uppercase tracking-wider ${sample.outcome === "FROZEN" ? "bg-info-bg text-primary" : "bg-success-bg text-success-fg"}`}>
                         {sample.outcome === "FROZEN" ? "Keeps old recipe" : "Will refresh"}
                       </span>
                     </div>
@@ -430,7 +430,7 @@ export function RecipeForm({
                 Define consumption by granule family. WCM chooses one or more internal grade codes and source stores before machine release.
               </p>
               {initialData ? (
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
+                <div className="mt-2 flex flex-wrap gap-1.5 text-caption font-semibold uppercase tracking-wider">
                   <span className="rounded-full bg-success-bg px-2 py-1 text-success-fg">{addedFamilies} added</span>
                   <span className="rounded-full bg-warning-bg px-2 py-1 text-warning-fg">{changedFamilies} changed</span>
                   <span className="rounded-full bg-surface-3 px-2 py-1 text-content-3">{removedFamilies} removed</span>
@@ -490,7 +490,7 @@ export function RecipeForm({
                       const selected = granules?.find((item) => String(item.id) === String(field.value));
                       const codeCount = selected?.quality_code_count ?? selected?.quality_codes?.filter((code) => code.status === "ACTIVE").length ?? 0;
                       return selected ? (
-                        <div className="flex flex-wrap items-center gap-2 px-1 text-[11px] font-semibold text-content-3">
+                        <div className="flex flex-wrap items-center gap-2 px-1 text-caption font-semibold text-content-3">
                           <span>{selected.code} · {codeCount} active internal grade code{codeCount === 1 ? "" : "s"} available for WCM allocation</span>
                           {initialData ? (() => {
                             const previous = initialData.components.find((component) => String(component.granule) === String(field.value));

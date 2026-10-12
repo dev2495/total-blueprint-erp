@@ -170,6 +170,8 @@ trimIdleDbConnections(strictEnv)
 runOrThrow(path.join(repoRoot, "start_all.sh"), ["clean-restart"], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "manage.py"), "migrate", "--noinput"], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "manage.py"), "migrate", "--check"], strictEnv)
+// A fresh database has no admin account; the UI tests sign in as admin/admin123.
+runOrThrow(pythonBin, [path.join(repoRoot, "scripts/ensure_superuser.py")], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/seed_ui_e2e.py")], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/seed_ui_e2e_quotations.py")], strictEnv)
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/seed_ui_e2e_sales.py")], strictEnv)
@@ -185,12 +187,13 @@ runOrThrow(
 )
 runOrThrow(
   pythonBin,
-  [path.join(repoRoot, "manage.py"), "seed_controlled_telemetry", "--apply"],
+  [path.join(repoRoot, "manage.py"), "run_tagged_acceptance", "--report-dir", path.join(runtimeRoot, "acceptance")],
   strictEnv,
 )
+// Telemetry needs production jobs, which the tagged acceptance creates on a fresh database.
 runOrThrow(
   pythonBin,
-  [path.join(repoRoot, "manage.py"), "run_tagged_acceptance", "--report-dir", path.join(runtimeRoot, "acceptance")],
+  [path.join(repoRoot, "manage.py"), "seed_controlled_telemetry", "--apply"],
   strictEnv,
 )
 runOrThrow(pythonBin, [path.join(repoRoot, "scripts/verify_uat_business_truth.py")], strictEnv)

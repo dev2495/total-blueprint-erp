@@ -263,7 +263,7 @@ export function LayerThicknessSelect({
           })
         }
       >
-        <SelectTrigger className="h-8 rounded-xl border-line bg-surface-2 text-[11px]">
+        <SelectTrigger className="h-8 rounded-xl border-line bg-surface-2 text-caption">
           <SelectValue placeholder="Use recipe preset" />
         </SelectTrigger>
         <SelectContent>
@@ -274,7 +274,7 @@ export function LayerThicknessSelect({
           ))}
         </SelectContent>
       </Select>
-      <div className="text-[10px] font-semibold text-content-3">
+      <div className="text-caption font-semibold text-content-3">
         Presets guide entry; any valid micron can be typed. Recipe range selects
         extrusion BOM.
       </div>
@@ -369,7 +369,7 @@ export function LayerAllowedGradePicker({
   );
   if (isPurchasedOnlyFilm(film) && !options.length) {
     return (
-      <div className="text-[11px] font-semibold text-content-3">
+      <div className="text-caption font-semibold text-content-3">
         Purchased-only film: no grade selection appears in sales.
       </div>
     );
@@ -380,14 +380,14 @@ export function LayerAllowedGradePicker({
   ]);
   if (!options.length) {
     return (
-      <div className="text-[11px] font-semibold text-warning-fg">
+      <div className="text-caption font-semibold text-warning-fg">
         No active grade choices found for this film.
       </div>
     );
   }
   return (
     <div className="space-y-1.5">
-      <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+      <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
         Allowed grades
       </Label>
       <div className="flex flex-wrap gap-1.5">
@@ -408,7 +408,7 @@ export function LayerAllowedGradePicker({
                 });
               }}
               className={cn(
-                "rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset transition",
+                "rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset transition",
                 active
                   ? "bg-order-fg text-white ring-order-border"
                   : "bg-surface-1 text-content-3 ring-line hover:ring-order-border",

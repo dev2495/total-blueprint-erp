@@ -98,13 +98,13 @@ export default function AdhesivesSolventsPage() {
               key={item.id}
               className="rounded-2xl border border-line bg-surface-2 p-5 shadow-sm"
             >
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                 {item.category}
               </div>
               <div className="mt-2 text-lg font-semibold tracking-tight text-content-1">
                 {item.name}
               </div>
-              <div className="mt-1 font-mono text-[11px] font-bold uppercase tracking-[0.12em] text-content-3">
+              <div className="mt-1 font-mono text-caption font-bold uppercase tracking-[0.12em] text-content-3">
                 {item.code}
               </div>
               <div className="mt-4 text-xs text-content-3">

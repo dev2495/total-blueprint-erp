@@ -172,7 +172,7 @@ export default function PackingAuditPage() {
                 <ArrowLeft className="h-4 w-4" />
               </Link>
               <div className="min-w-0">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-2">
+                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-2">
                   Logistics › Packing › Audit
                 </div>
                 <h1 className="font-display text-2xl font-semibold text-content-1 tracking-tight">
@@ -189,7 +189,7 @@ export default function PackingAuditPage() {
               {salesOrderId ? (
                 <Link
                   href="/logistics/packing/audit"
-                  className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-danger-bg px-3.5 text-[11px] font-bold text-danger-fg ring-1 ring-danger-border hover:bg-danger-bg"
+                  className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-danger-bg px-3.5 text-caption font-bold text-danger-fg ring-1 ring-danger-border hover:bg-danger-bg"
                 >
                   Clear order filter
                 </Link>
@@ -222,13 +222,13 @@ export default function PackingAuditPage() {
         <section className="rounded-2xl border border-line bg-surface-1 shadow-sm p-3 sm:p-4 ring-1 ring-surface-1/40">
           <div className="flex items-center gap-2 mb-3">
             <Filter className="h-3.5 w-3.5 text-content-3" />
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Filter
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Date from
               </Label>
               <Input
@@ -239,7 +239,7 @@ export default function PackingAuditPage() {
               />
             </div>
             <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Date to
               </Label>
               <Input
@@ -250,7 +250,7 @@ export default function PackingAuditPage() {
               />
             </div>
             <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Customer
               </Label>
               <Select
@@ -271,7 +271,7 @@ export default function PackingAuditPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Material
               </Label>
               <Select
@@ -293,7 +293,7 @@ export default function PackingAuditPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Order #
               </Label>
               <div className="relative mt-1">
@@ -314,7 +314,7 @@ export default function PackingAuditPage() {
           <header className="flex items-center justify-between border-b border-line bg-gradient-to-r from-surface-2 via-white to-order-bg px-5 py-2.5">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-content-3" />
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 Audit records · {data?.count ?? 0}
               </div>
             </div>
@@ -375,12 +375,12 @@ export default function PackingAuditPage() {
                         {r.material_code}
                         {r.material_name &&
                         r.material_name !== r.material_code ? (
-                          <span className="ml-1 text-[10px] font-medium text-content-3">
+                          <span className="ml-1 text-caption font-medium text-content-3">
                             · {r.material_name}
                           </span>
                         ) : null}
                       </td>
-                      <td className="px-3 py-2 text-[10px]">
+                      <td className="px-3 py-2 text-caption">
                         <span className="inline-flex items-center rounded-md bg-order-bg px-1.5 py-0.5 font-bold text-order-fg ring-1 ring-order-border">
                           {r.packaging_kind || "—"}
                         </span>
@@ -388,7 +388,7 @@ export default function PackingAuditPage() {
                       <td className="px-3 py-2 text-right font-mono font-semibold text-content-1">
                         {Math.abs(r.qty).toLocaleString()}
                       </td>
-                      <td className="px-3 py-2 font-mono text-[10px] text-content-3">
+                      <td className="px-3 py-2 font-mono text-caption text-content-3">
                         {r.uom}
                       </td>
                       <td className="px-3 py-2 text-content-2 truncate max-w-[160px]">
@@ -397,7 +397,7 @@ export default function PackingAuditPage() {
                       <td className="px-3 py-2 text-content-2">
                         {r.ticked_by || "—"}
                       </td>
-                      <td className="px-3 py-2 text-content-3 italic text-[11px] truncate max-w-[200px]">
+                      <td className="px-3 py-2 text-content-3 italic text-caption truncate max-w-[200px]">
                         {r.notes || "—"}
                       </td>
                     </tr>
@@ -422,7 +422,7 @@ function Th({
   return (
     <th
       className={cn(
-        "px-3 py-2 font-semibold uppercase tracking-wider text-[10px]",
+        "px-3 py-2 font-semibold uppercase tracking-wider text-caption",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -483,7 +483,7 @@ function KpiTile({
       <div className={cn("absolute inset-x-0 top-0 h-1", t.stripe)} />
       <div
         className={cn(
-          "text-[10px] font-semibold uppercase tracking-[0.1em]",
+          "text-caption font-semibold uppercase tracking-[0.1em]",
           t.label,
         )}
       >

@@ -97,19 +97,19 @@ export function CylinderSetCard({
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-order-fg" />
-          <div className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+          <div className="text-caption font-bold uppercase tracking-wider text-content-3">
             Cylinder set
           </div>
           {artworkCode ? (
             <Badge
               variant="outline"
-              className="border-order-border bg-order-bg text-[10px] font-semibold text-order-fg"
+              className="border-order-border bg-order-bg text-caption font-semibold text-order-fg"
             >
               {artworkCode}
             </Badge>
           ) : null}
           {artworkName ? (
-            <span className="text-[11px] text-content-3">{artworkName}</span>
+            <span className="text-caption text-content-3">{artworkName}</span>
           ) : null}
         </div>
         {isLoading ? (
@@ -118,11 +118,11 @@ export function CylinderSetCard({
       </div>
 
       {!artworkId ? (
-        <div className="rounded-xl border border-dashed border-line bg-surface-2 p-3 text-[11px] text-content-3">
+        <div className="rounded-xl border border-dashed border-line bg-surface-2 p-3 text-caption text-content-3">
           No artwork committed for this job — no cylinder set to mount.
         </div>
       ) : assignments.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg p-3 text-[11px] text-warning-fg">
+        <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg p-3 text-caption text-warning-fg">
           No cylinder slot assignments found for this artwork. Engineering must
           finalize cylinders before printing.
         </div>
@@ -148,7 +148,7 @@ function SidePanel({
   if (assignments.length === 0) return null;
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-2">
-      <div className="px-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-content-3">
+      <div className="px-1 pb-1.5 text-caption font-bold uppercase tracking-wider text-content-3">
         {title}
       </div>
       <div className="space-y-1">
@@ -157,16 +157,16 @@ function SidePanel({
             key={a.id}
             className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-1 px-2.5 py-1.5"
           >
-            <span className="font-mono text-[10px] font-bold text-content-3">
+            <span className="font-mono text-caption font-bold text-content-3">
               {String(a.side).slice(0, 1)}-{a.side_slot_index}
             </span>
-            <span className="rounded-md bg-surface-3 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning-border">
+            <span className="rounded-md bg-surface-3 px-1.5 py-0.5 text-caption font-bold uppercase tracking-wider text-warning-border">
               {a.color_name || "—"}
             </span>
-            <span className="font-mono text-[11px] font-semibold text-content-2">
+            <span className="font-mono text-caption font-semibold text-content-2">
               {a.cylinder_code || "—"}
             </span>
-            <span className="ml-auto rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] text-content-3">
+            <span className="ml-auto rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-caption text-content-3">
               {a.cylinder_location_name || "no rack"}
             </span>
           </div>

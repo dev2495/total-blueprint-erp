@@ -44,7 +44,7 @@ export const getColumns = ({
             key={code}
             status={code}
             variant="outline"
-            className="text-[10px] px-1"
+            className="text-caption px-1"
           />
         ))}
       </div>

@@ -46,12 +46,12 @@ export default function VarianceRibbon({
               strokeWidth={2.5}
             />
             <div className="min-w-0">
-              <div className="text-[11px] font-semibold uppercase tracking-widest text-warning-fg">
+              <div className="text-caption font-semibold uppercase tracking-widest text-warning-fg">
                 Modified · {modifiedFields.length} field
                 {modifiedFields.length === 1 ? "" : "s"} changed
               </div>
               {masterCode ? (
-                <div className="text-[10px] font-bold text-warning-fg font-mono truncate">
+                <div className="text-caption font-bold text-warning-fg font-mono truncate">
                   vs master {masterCode}
                 </div>
               ) : null}
@@ -60,7 +60,7 @@ export default function VarianceRibbon({
           <button
             type="button"
             onClick={() => setShowDetails((v) => !v)}
-            className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10px] font-semibold uppercase tracking-widest text-warning-fg hover:bg-warning-bg"
+            className="ml-auto inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-semibold uppercase tracking-widest text-warning-fg hover:bg-warning-bg"
           >
             Details
             <ChevronDown
@@ -74,7 +74,7 @@ export default function VarianceRibbon({
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10px] font-semibold uppercase tracking-widest bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
+            className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-semibold uppercase tracking-widest bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
             title="Reset all fields to master"
           >
             <RotateCcw className="h-3 w-3" strokeWidth={2.5} />
@@ -84,7 +84,7 @@ export default function VarianceRibbon({
             <button
               type="button"
               onClick={onPromote}
-              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[10px] font-semibold uppercase tracking-widest bg-order-fg text-white hover:bg-order-fg"
+              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-caption font-semibold uppercase tracking-widest bg-order-fg text-white hover:bg-order-fg"
               title="Save these changes back to the master (affects future orders)"
             >
               <Send className="h-3 w-3" strokeWidth={2.5} />
@@ -93,7 +93,7 @@ export default function VarianceRibbon({
           ) : null}
           {showDetails ? (
             <div className="w-full rounded-lg bg-surface-1 ring-1 ring-warning-border mt-2 overflow-hidden">
-              <table className="w-full text-[11px]">
+              <table className="w-full text-caption">
                 <thead className="bg-warning-bg">
                   <tr>
                     <th className="text-left px-2 py-1 font-semibold text-warning-fg uppercase tracking-wider">
@@ -135,11 +135,11 @@ export default function VarianceRibbon({
             className="h-4 w-4 text-success-fg shrink-0"
             strokeWidth={2.5}
           />
-          <div className="text-[11px] font-semibold uppercase tracking-widest text-success-fg">
+          <div className="text-caption font-semibold uppercase tracking-widest text-success-fg">
             Matches master
           </div>
           {masterCode ? (
-            <div className="text-[10px] font-bold text-success-fg font-mono">
+            <div className="text-caption font-bold text-success-fg font-mono">
               {masterCode}
             </div>
           ) : null}

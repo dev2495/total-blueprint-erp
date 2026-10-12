@@ -80,11 +80,11 @@ export default function ProductionPreviewCard({
   if (!data && !previewMut.isPending) {
     return (
       <div className="rounded-xl border border-dashed border-line-strong p-4 bg-surface-2">
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-content-3">
+        <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-content-3">
           <Factory className="h-3.5 w-3.5" />
           Production preview
         </div>
-        <p className="mt-2 text-[11px] font-bold text-content-4">
+        <p className="mt-2 text-caption font-bold text-content-4">
           Add geometry + at least one layer to estimate yields.
         </p>
       </div>
@@ -95,7 +95,7 @@ export default function ProductionPreviewCard({
     <div className="rounded-xl border border-line bg-gradient-to-br from-white to-info-bg p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Factory className="h-3.5 w-3.5 text-info-fg" />
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
           Production preview
         </span>
         {previewMut.isPending ? (
@@ -104,7 +104,7 @@ export default function ProductionPreviewCard({
       </div>
       {data ? (
         <>
-          <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-content-3">
+          <div className="grid grid-cols-2 gap-2 text-caption font-bold text-content-3">
             <Cell
               icon={<Layers className="h-3 w-3" />}
               label="Pouches/parent roll"
@@ -138,13 +138,13 @@ export default function ProductionPreviewCard({
           </div>
           {data.material_availability.length > 0 ? (
             <div className="border-t border-line pt-3 space-y-1">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
                 Material availability
               </div>
               {data.material_availability.map((row) => (
                 <div
                   key={row.material_id}
-                  className="flex items-center justify-between gap-2 text-[11px] font-semibold"
+                  className="flex items-center justify-between gap-2 text-caption font-semibold"
                 >
                   <span className="truncate min-w-0 flex items-center gap-1.5">
                     {row.ok ? (
@@ -152,7 +152,7 @@ export default function ProductionPreviewCard({
                     ) : (
                       <ShieldAlert className="h-3 w-3 text-danger-fg shrink-0" />
                     )}
-                    <span className="font-mono text-[10px] text-content-3">
+                    <span className="font-mono text-caption text-content-3">
                       {row.material_code}
                     </span>
                     <span className="truncate text-content-2">
@@ -167,13 +167,13 @@ export default function ProductionPreviewCard({
             </div>
           ) : null}
           {data.note ? (
-            <div className="text-[10px] font-bold italic text-content-4 border-t border-line pt-2">
+            <div className="text-caption font-bold italic text-content-4 border-t border-line pt-2">
               {data.note}
             </div>
           ) : null}
         </>
       ) : (
-        <div className="text-[11px] font-bold text-content-4">Estimating…</div>
+        <div className="text-caption font-bold text-content-4">Estimating…</div>
       )}
     </div>
   );
@@ -190,7 +190,7 @@ function Cell({
 }) {
   return (
     <div className="rounded-lg bg-surface-1 ring-1 ring-line px-2 py-1.5">
-      <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+      <div className="flex items-center gap-1 text-caption font-semibold uppercase tracking-widest text-content-3">
         {icon}
         {label}
       </div>

@@ -324,15 +324,15 @@ export default function MasterDataPage() {
                   </p>
                   <div className="flex items-center justify-between gap-2 text-xs font-bold text-content-4 uppercase tracking-wider">
                     {master.count !== null ? (
-                      <span className="bg-surface-2 px-2.5 py-1 rounded-lg text-content-3 text-[11px] font-bold tabular-nums">
+                      <span className="bg-surface-2 px-2.5 py-1 rounded-lg text-content-3 text-caption font-bold tabular-nums">
                         {master.count} Records
                       </span>
                     ) : master.status === "error" ? (
-                      <span className="bg-danger-bg px-2.5 py-1 rounded-lg text-danger-fg text-[11px] font-bold">
+                      <span className="bg-danger-bg px-2.5 py-1 rounded-lg text-danger-fg text-caption font-bold">
                         Access error
                       </span>
                     ) : (
-                      <span className="flex items-center gap-1.5 bg-surface-2 px-2.5 py-1 rounded-lg text-content-4 text-[11px]">
+                      <span className="flex items-center gap-1.5 bg-surface-2 px-2.5 py-1 rounded-lg text-content-4 text-caption">
                         <Loader2 className="h-3 w-3 animate-spin" /> Loading
                       </span>
                     )}
@@ -340,7 +340,7 @@ export default function MasterDataPage() {
                       kind="approval"
                       value="APPROVED"
                       label="Live"
-                      className="text-[10px]"
+                      className="text-caption"
                     />
                   </div>
                 </div>

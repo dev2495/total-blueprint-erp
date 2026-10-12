@@ -38,7 +38,7 @@ function PreviewMetric({
 }) {
   return (
     <div className="rounded-[1.4rem] border border-line bg-surface-1/92 px-4 py-4 shadow-[0_14px_40px_-38px_rgba(15,23,42,0.4)]">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
         {label}
       </div>
       <div className="mt-2 text-[1.45rem] font-semibold tracking-tight text-content-1">
@@ -91,7 +91,7 @@ export function SkuVariantStudioRail({
     <aside className="space-y-4 xl:sticky xl:top-6">
       <section className="overflow-hidden rounded-[1.9rem] border border-line bg-[linear-gradient(180deg,rgba(15,23,42,0.97),rgba(30,41,59,0.96))] text-white shadow-[0_32px_90px_-48px_rgba(15,23,42,0.6)]">
         <div className="border-b border-surface-1/10 px-5 py-5">
-          <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
+          <div className="inline-flex items-center gap-2 rounded-full border border-surface-1/15 bg-surface-1/10 px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
             <Sparkles className="h-3.5 w-3.5" />
             Preview Studio
           </div>
@@ -109,7 +109,7 @@ export function SkuVariantStudioRail({
         <div className="space-y-4 px-5 py-5">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1.3fr)_110px]">
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 Preview quantity
               </Label>
               <Input
@@ -123,7 +123,7 @@ export function SkuVariantStudioRail({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 UOM
               </Label>
               {isRoll ? (
@@ -150,7 +150,7 @@ export function SkuVariantStudioRail({
           </div>
 
           <div className="rounded-[1.5rem] border border-surface-1/10 bg-surface-1/10 px-4 py-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-info-border">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
               Previewing for
             </div>
             <div className="mt-2 text-lg font-semibold text-white">

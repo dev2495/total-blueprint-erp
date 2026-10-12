@@ -60,7 +60,7 @@ function Kpi({
 }) {
   return (
     <div className="rounded-[14px] border border-surface-1/15 bg-surface-1/10 p-4 text-white shadow-sm backdrop-blur">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/65">
+      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/65">
         {label}
       </div>
       <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
@@ -241,7 +241,7 @@ export default function PackingConsumptionPage() {
       <section className="overflow-hidden rounded-[22px] border border-success-border bg-gradient-to-br from-success-fg via-info-fg to-primary p-5 text-white shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/70">
               Logistics · Packing materials
             </div>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">
@@ -362,7 +362,7 @@ export default function PackingConsumptionPage() {
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg">
+                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
                   Closing stock
                 </div>
                 <h2 className="text-lg font-semibold text-content-1">
@@ -398,7 +398,7 @@ export default function PackingConsumptionPage() {
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-y-2">
                 <thead>
-                  <tr className="text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <tr className="text-left text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                     <th className="px-3 py-2">Material</th>
                     <th className="px-3 py-2">Location</th>
                     <th className="px-3 py-2 text-right">Book</th>
@@ -428,12 +428,12 @@ export default function PackingConsumptionPage() {
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             <span
-                              className={`inline-flex rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase ${kindTone(row.packaging_kind)}`}
+                              className={`inline-flex rounded-md border px-2 py-0.5 text-caption font-semibold uppercase ${kindTone(row.packaging_kind)}`}
                             >
                               {row.packaging_kind || "PACKING"}
                             </span>
                             {row.is_virtual ? (
-                              <span className="inline-flex rounded-md border border-order-border bg-order-bg px-2 py-0.5 text-[10px] font-semibold uppercase text-order-fg">
+                              <span className="inline-flex rounded-md border border-order-border bg-order-bg px-2 py-0.5 text-caption font-semibold uppercase text-order-fg">
                                 no stock row yet
                               </span>
                             ) : null}
@@ -490,7 +490,7 @@ export default function PackingConsumptionPage() {
           </div>
 
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
               Count note
             </div>
             <Textarea
@@ -523,13 +523,13 @@ export default function PackingConsumptionPage() {
                     {row.customer_name || "Customer"} · {row.location_name}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className="rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                    <span className="rounded-md border border-info-border bg-info-bg px-2 py-0.5 text-caption font-semibold uppercase text-primary">
                       {n(row.units, 0)} units
                     </span>
                     {row.sources.slice(0, 3).map((source) => (
                       <span
                         key={`${source.source}-${source.label}`}
-                        className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-[10px] font-semibold uppercase text-content-3"
+                        className="rounded-md border border-line bg-surface-2 px-2 py-0.5 text-caption font-semibold uppercase text-content-3"
                       >
                         {source.source}
                       </span>
@@ -558,7 +558,7 @@ export default function PackingConsumptionPage() {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                     Rows
                   </div>
                   <div className="text-xl font-semibold">
@@ -566,7 +566,7 @@ export default function PackingConsumptionPage() {
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                     Txns
                   </div>
                   <div className="text-xl font-semibold">
@@ -574,7 +574,7 @@ export default function PackingConsumptionPage() {
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                     Consumed
                   </div>
                   <div className="text-xl font-semibold">
@@ -582,7 +582,7 @@ export default function PackingConsumptionPage() {
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                     Mapped SO
                   </div>
                   <div className="text-xl font-semibold">

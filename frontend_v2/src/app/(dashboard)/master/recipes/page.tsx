@@ -228,7 +228,7 @@ export default function RecipesPage() {
               { label: "Needs review", value: (lastSave.bom_refresh?.failed || 0) + (lastSave.bom_refresh?.still_blocked || 0), icon: ShieldCheck },
             ].map((metric) => (
               <div key={metric.label} className="bg-surface-1 px-4 py-3">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-content-4"><metric.icon className="h-3.5 w-3.5" />{metric.label}</div>
+                <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-content-4"><metric.icon className="h-3.5 w-3.5" />{metric.label}</div>
                 <div className="mt-1 font-mono text-xl font-semibold tabular-nums text-content-1">{metric.value}</div>
               </div>
             ))}

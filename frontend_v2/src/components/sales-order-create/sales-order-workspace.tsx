@@ -262,15 +262,15 @@ export function SalesOrderV34Workspace() {
       {draft.customer ? (
         <details className="group rounded-[18px] border border-line bg-surface-1 shadow-sm">
           <summary
-            className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-[11px] font-bold text-content-3"
+            className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-caption font-bold text-content-3"
             data-testid="sales-quick-start-toggle"
           >
             <Sparkles className="h-3.5 w-3.5 text-order-fg" />
             Quick start · repeat orders · customer overlays
-            <span className="ml-auto text-[10px] font-bold text-content-4 group-open:hidden">
+            <span className="ml-auto text-caption font-bold text-content-4 group-open:hidden">
               expand
             </span>
-            <span className="ml-auto hidden text-[10px] font-bold text-content-4 group-open:inline">
+            <span className="ml-auto hidden text-caption font-bold text-content-4 group-open:inline">
               collapse
             </span>
           </summary>
@@ -305,7 +305,7 @@ export function SalesOrderV34Workspace() {
       {draft.lines.length > 0 ? (
         <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-            <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Order remarks (optional)
             </Label>
             <Textarea
@@ -361,21 +361,21 @@ function SubtleHero({
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_24rem)]" />
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-order-border">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-border">
             <span className="mr-2 inline-block h-2 w-2 rounded-full bg-success-fg" />
-            Sales Order · Create · Full Line Workspace
+            Sales · New order
           </div>
           <h1 className="mt-1 font-display text-xl font-semibold tracking-tight md:text-2xl">
             {customer
               ? `${customer.name} order workspace`
-              : "Every field, organised for fast order entry"}
+              : "New sales order"}
           </h1>
           <p className="mt-1 max-w-4xl text-xs font-semibold text-white/72 md:text-sm">
             {customer
-              ? "Customer header, overlay shortcuts, repeat lines, full product-master axes, artwork, packing, quantity and live BOM now sit in one tabbed build surface."
-              : `Pick one of ${customerCount} customers to unlock overlays, repeat orders, and the line workspace.`}
+              ? "Add the lines for this customer. Each line carries its product, artwork, packing and quantity; the material list updates as you go."
+              : `Choose the customer first (${customerCount} on file), then add the lines.`}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
+          <div className="mt-3 flex flex-wrap gap-2 text-caption font-semibold">
             <span
               className={cn(
                 "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
@@ -424,7 +424,7 @@ function SubtleHero({
           </div>
         </div>
         <div className="hidden rounded-2xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur md:block">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/58">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/58">
             Flow
           </div>
           <div className="mt-2 grid gap-1 text-xs font-bold">
@@ -497,7 +497,7 @@ function CustomerHeaderStrip({
             </svg>
           </div>
           {customer ? (
-            <div className="mt-1 truncate font-mono text-[10px] font-bold text-content-3">
+            <div className="mt-1 truncate font-mono text-caption font-bold text-content-3">
               {customer.code || "—"}
               {customer.gst_no ? ` · GST ${customer.gst_no}` : ""}
             </div>
@@ -561,7 +561,7 @@ function CustomerHeaderStrip({
               "h-[66px] resize-none py-2 text-[12px] font-semibold leading-5",
             )}
           />
-          <div className="mt-1 truncate text-[10px] font-semibold text-content-3">
+          <div className="mt-1 truncate text-caption font-semibold text-content-3">
             Saved ship address:{" "}
             {savedShipAddress || "not set for selected customer"}
           </div>
@@ -569,7 +569,7 @@ function CustomerHeaderStrip({
       </div>
 
       {customer ? (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-caption font-bold">
           <span className="rounded-full bg-success-bg px-2 py-0.5 text-success-fg ring-1 ring-success-border">
             customer · {customer.name}
           </span>
@@ -694,7 +694,7 @@ function BlockerPanel({
         <div>
           <div
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-[0.12em]",
+              "text-caption font-semibold uppercase tracking-[0.12em]",
               isReady ? "text-success-fg" : "text-danger-fg",
             )}
           >
@@ -718,7 +718,7 @@ function BlockerPanel({
             </li>
           ))}
           {blockingIssues.length > 5 ? (
-            <li className="px-2.5 text-[11px] text-danger-fg">
+            <li className="px-2.5 text-caption text-danger-fg">
               + {blockingIssues.length - 5} more blockers in the sticky bar
             </li>
           ) : null}
@@ -764,7 +764,7 @@ function StickyCartBar({
       <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               Cart
             </span>
             <span className="rounded-full bg-info-bg px-2.5 py-0.5 text-xs font-bold text-primary">
@@ -782,7 +782,7 @@ function StickyCartBar({
             ) : null}
           </div>
           {blockingIssues.length > 0 || warnings.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <div className="flex flex-wrap items-center gap-1.5 text-caption">
               {blockingIssues.slice(0, 2).map((b, i) => (
                 <span
                   key={i}
@@ -827,7 +827,7 @@ function StickyCartBar({
               <ClipboardCheck className="h-4 w-4" />
             )}
             Create + send to planner
-            <span className="hidden rounded bg-surface-1/15 px-1.5 py-0.5 text-[10px] font-semibold sm:inline">
+            <span className="hidden rounded bg-surface-1/15 px-1.5 py-0.5 text-caption font-semibold sm:inline">
               ⌘↵
             </span>
             <ArrowRight className="h-4 w-4" />

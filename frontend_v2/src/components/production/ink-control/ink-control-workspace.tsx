@@ -754,7 +754,7 @@ export function InkControlWorkspace() {
             </TabsList>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end lg:justify-end">
               <div className="rounded-md border border-line bg-surface-2 px-3 py-2">
-                <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase text-content-3">
+                <div className="mb-1 flex items-center gap-1.5 text-caption font-semibold uppercase text-content-3">
                   <Clock className="h-3.5 w-3.5" />
                   Analysis from
                 </div>
@@ -766,7 +766,7 @@ export function InkControlWorkspace() {
                 />
               </div>
               <div className="rounded-md border border-line bg-surface-2 px-3 py-2">
-                <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase text-content-3">
+                <div className="mb-1 flex items-center gap-1.5 text-caption font-semibold uppercase text-content-3">
                   <Clock className="h-3.5 w-3.5" />
                   Analysis to
                 </div>
@@ -1416,7 +1416,7 @@ function ShiftBadge({
       <div className="text-xs font-semibold text-content-3">{label}</div>
       <div className="mt-1 flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-content-1">{shiftLabel(shift, loading)}</span>
-        <Badge variant="outline" className="rounded-md text-[11px]">
+        <Badge variant="outline" className="rounded-md text-caption">
           Auto
         </Badge>
       </div>

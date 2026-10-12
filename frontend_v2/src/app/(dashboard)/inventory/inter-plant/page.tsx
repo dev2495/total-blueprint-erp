@@ -262,7 +262,7 @@ function LifecycleColumn({
                     {(challan as any).is_system_generated && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] border-info-border text-primary"
+                        className="text-caption border-info-border text-primary"
                       >
                         AUTO
                       </Badge>
@@ -307,40 +307,40 @@ function LifecycleColumn({
                   return (
                     <>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-caption">
                           ROLL {rollLines}
                         </Badge>
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-caption">
                           BULK {bulkLines}
                         </Badge>
                         <Badge
                           variant="outline"
-                          className="text-[10px] border-info-border text-primary bg-info-bg"
+                          className="text-caption border-info-border text-primary bg-info-bg"
                         >
                           OUT {outputLines}
                         </Badge>
                         <Badge
                           variant="outline"
-                          className="text-[10px] border-warning-border text-warning-fg bg-warning-bg"
+                          className="text-caption border-warning-border text-warning-fg bg-warning-bg"
                           title="Remainder/Balance = unconsumed parent roll returned to reusable stock."
                         >
                           REMAINDER {remainderLines}
                         </Badge>
                         <Badge
                           variant="secondary"
-                          className="text-[10px] bg-surface-2 text-content-2"
+                          className="text-caption bg-surface-2 text-content-2"
                         >
                           Out {dispatchedTotal.toFixed(3)} kg
                         </Badge>
                         <Badge
                           variant="secondary"
-                          className="text-[10px] bg-success-bg text-success-fg"
+                          className="text-caption bg-success-bg text-success-fg"
                         >
                           In {receivedTotal.toFixed(3)} kg
                         </Badge>
                       </div>
                       {(outputLines > 0 || remainderLines > 0) && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-caption">
                           <div className="rounded-md border border-info-border bg-info-bg px-2 py-1.5 text-primary">
                             Output: {outputOut.toFixed(3)} out /{" "}
                             {outputIn.toFixed(3)} in kg
@@ -362,7 +362,7 @@ function LifecycleColumn({
                 {(challan.vehicle_no ||
                   challan.driver_name ||
                   challan.transporter_name) && (
-                  <div className="text-[11px] text-content-3">
+                  <div className="text-caption text-content-3">
                     Vehicle: {challan.vehicle_no || "—"} | Driver:{" "}
                     {challan.driver_name || "—"} | Transporter:{" "}
                     {challan.transporter_name || "—"}
@@ -374,7 +374,7 @@ function LifecycleColumn({
                       {challan.item_preview.map((line, idx) => (
                         <div
                           key={`${challan.id}-line-${idx}`}
-                          className="text-[11px] text-content-2 flex items-center justify-between gap-2"
+                          className="text-caption text-content-2 flex items-center justify-between gap-2"
                         >
                           <span className="truncate">
                             {line.line_type}
@@ -390,7 +390,7 @@ function LifecycleColumn({
                       ))}
                     </div>
                   )}
-                <div className="grid grid-cols-3 gap-2 text-[10px] text-content-3">
+                <div className="grid grid-cols-3 gap-2 text-caption text-content-3">
                   <div>
                     <div className="font-semibold uppercase tracking-wide text-content-4">
                       Created

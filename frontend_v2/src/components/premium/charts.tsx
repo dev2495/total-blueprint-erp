@@ -255,7 +255,7 @@ export function Donut({
       {centerValue !== undefined ? (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
           <div className="text-[20px] font-semibold tracking-[-0.03em] text-content-1 tabular-nums">{centerValue}</div>
-          {centerLabel ? <div className="mt-0.5 text-[11px] text-content-3">{centerLabel}</div> : null}
+          {centerLabel ? <div className="mt-0.5 text-caption text-content-3">{centerLabel}</div> : null}
         </div>
       ) : null}
     </div>

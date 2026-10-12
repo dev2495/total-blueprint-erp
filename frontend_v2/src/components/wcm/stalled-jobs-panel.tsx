@@ -123,7 +123,7 @@ export function StalledJobsPanel({
                 <div className="font-mono text-xl font-bold tabular-nums text-warning-fg">
                   {formatIdle(job.idle_minutes)}
                 </div>
-                <div className="text-[10px] font-bold uppercase tracking-wider text-warning-fg">
+                <div className="text-caption font-bold uppercase tracking-wider text-warning-fg">
                   Idle
                 </div>
               </div>

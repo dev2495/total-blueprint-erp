@@ -122,7 +122,7 @@ export default function TradeOrdersListPage() {
               type="button"
               onClick={() => setStatus(s.value)}
               className={cn(
-                "rounded-full px-3 py-1 text-[11px] font-bold ring-1",
+                "rounded-full px-3 py-1 text-caption font-bold ring-1",
                 status === s.value
                   ? "bg-danger-solid text-white ring-danger-border"
                   : "bg-surface-1 text-content-2 ring-line hover:bg-danger-bg",
@@ -150,7 +150,7 @@ export default function TradeOrdersListPage() {
                   ? "No trade orders yet"
                   : "No orders match your filters"}
               </div>
-              <p className="mt-1 max-w-[420px] text-[11px] text-content-3">
+              <p className="mt-1 max-w-[420px] text-caption text-content-3">
                 {orders.length === 0
                   ? "Create your first trade order — pick a customer, add lines, confirm, dispatch."
                   : "Try a different search term or status filter."}
@@ -188,7 +188,7 @@ function OrderCard({ o }: { o: TradeOrder }) {
             <h3 className="mt-0.5 text-sm font-bold text-content-1 group-hover:text-danger-fg">
               {o.customer_name || "—"}
             </h3>
-            <div className="mt-0.5 text-[11px] text-content-3">
+            <div className="mt-0.5 text-caption text-content-3">
               {o.order_date} · {o.plant_name || "no plant"} ·{" "}
               {o.items?.length || 0}{" "}
               {(o.items?.length || 0) === 1 ? "line" : "lines"}
@@ -196,13 +196,13 @@ function OrderCard({ o }: { o: TradeOrder }) {
           </div>
           <Badge
             variant="outline"
-            className={cn("text-[10px]", STATUS_TONE[o.status])}
+            className={cn("text-caption", STATUS_TONE[o.status])}
           >
             {o.status.toLowerCase()}
           </Badge>
         </header>
         <div className="mt-4 flex items-baseline justify-between rounded-2xl bg-surface-2 px-3 py-2">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+          <div className="text-caption font-bold uppercase tracking-wider text-content-3">
             Grand total
           </div>
           <div className="font-mono text-base font-bold text-content-1">

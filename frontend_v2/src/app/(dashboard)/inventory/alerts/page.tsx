@@ -157,7 +157,7 @@ export default function AlertsCenterPage() {
         <div className="pointer-events-none absolute -right-10 -top-8 h-36 w-36 rounded-full bg-danger-solid blur-3xl" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-danger-border bg-danger-bg px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-danger-fg">
+            <div className="inline-flex items-center gap-2 rounded-full border border-danger-border bg-danger-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-danger-fg">
               <ShieldAlert className="h-3.5 w-3.5" />
               Inventory Alert Console
             </div>
@@ -452,7 +452,7 @@ export default function AlertsCenterPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                 Alert
               </div>
               <div className="mt-1 text-sm font-bold text-content-1">

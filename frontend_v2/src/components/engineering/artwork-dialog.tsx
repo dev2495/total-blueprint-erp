@@ -855,7 +855,7 @@ export function ArtworkDialog({
                   name="design_code"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                      <FormLabel className="text-caption font-bold uppercase text-content-3">
                         Code
                       </FormLabel>
                       <FormControl>
@@ -874,7 +874,7 @@ export function ArtworkDialog({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                      <FormLabel className="text-caption font-bold uppercase text-content-3">
                         Name
                       </FormLabel>
                       <FormControl>
@@ -894,7 +894,7 @@ export function ArtworkDialog({
                 name="image"
                 render={({ field: { value, onChange, ...field } }) => (
                   <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                    <FormLabel className="text-caption font-bold uppercase text-content-3">
                       Artwork Images (max 3)
                     </FormLabel>
                     <FormControl>
@@ -962,7 +962,7 @@ export function ArtworkDialog({
                                 ? "Replace artwork assets"
                                 : "Select artwork image/PDF"}
                             </span>
-                            <span className="text-[10px] text-content-4">
+                            <span className="text-caption text-content-4">
                               JPG, PNG, or PDF supported. Maximum 3.
                             </span>
                           </div>
@@ -984,7 +984,7 @@ export function ArtworkDialog({
                         )}
                       </div>
                     </FormControl>
-                    <FormDescription className="text-[10px]">
+                    <FormDescription className="text-caption">
                       Actual production asset required for approval.
                     </FormDescription>
                   </FormItem>
@@ -996,7 +996,7 @@ export function ArtworkDialog({
                   name="print_type"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                      <FormLabel className="text-caption font-bold uppercase text-content-3">
                         Print Type
                       </FormLabel>
                       <Select
@@ -1025,7 +1025,7 @@ export function ArtworkDialog({
                   name="substrate_mode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                      <FormLabel className="text-caption font-bold uppercase text-content-3">
                         Film Type
                       </FormLabel>
                       <Select
@@ -1045,7 +1045,7 @@ export function ArtworkDialog({
                           <SelectItem value="TUBING">TUBING</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormDescription className="text-[10px]">
+                      <FormDescription className="text-caption">
                         Sheet uses front colors only. Tubing enables front and
                         back colors.
                       </FormDescription>
@@ -1058,7 +1058,7 @@ export function ArtworkDialog({
                 name="front_colors"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                    <FormLabel className="text-caption font-bold uppercase text-content-3">
                       Front Colors
                     </FormLabel>
                     <div className="space-y-2">
@@ -1099,7 +1099,7 @@ export function ArtworkDialog({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-8 text-[10px] font-bold uppercase"
+                        className="h-8 text-caption font-bold uppercase"
                         data-testid="artwork-add-front-color"
                         onClick={() => {
                           field.onChange([
@@ -1121,7 +1121,7 @@ export function ArtworkDialog({
                   name="back_colors"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                      <FormLabel className="text-caption font-bold uppercase text-content-3">
                         Back Colors
                       </FormLabel>
                       <div className="space-y-2">
@@ -1163,7 +1163,7 @@ export function ArtworkDialog({
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-8 text-[10px] font-bold uppercase"
+                          className="h-8 text-caption font-bold uppercase"
                           data-testid="artwork-add-back-color"
                           onClick={() => {
                             field.onChange([
@@ -1176,7 +1176,7 @@ export function ArtworkDialog({
                           Add Back Color
                         </Button>
                       </div>
-                      <FormDescription className="text-[10px]">
+                      <FormDescription className="text-caption">
                         Auto counts: Front {frontColors.length} / Back{" "}
                         {backColors.length}.
                       </FormDescription>
@@ -1187,10 +1187,10 @@ export function ArtworkDialog({
               <div className="rounded-xl border border-danger-border bg-danger-bg p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+                    <p className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
                       Ink GSM
                     </p>
-                    <p className="mt-1 text-[10px] text-primary">
+                    <p className="mt-1 text-caption text-primary">
                       Artwork-level total ink laydown for theory BOM.
                     </p>
                   </div>
@@ -1206,7 +1206,7 @@ export function ArtworkDialog({
                     name="ink_gsm_total"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                        <FormLabel className="text-caption font-bold uppercase text-content-3">
                           Total ink GSM
                         </FormLabel>
                         <FormControl>
@@ -1238,10 +1238,10 @@ export function ArtworkDialog({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+                      <p className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
                         Cylinder specs
                       </p>
-                      <p className="mt-1 text-[10px] text-content-3">
+                      <p className="mt-1 text-caption text-content-3">
                         One repeat and one length for this artwork. Reuse only
                         matches both specs.
                       </p>
@@ -1258,7 +1258,7 @@ export function ArtworkDialog({
                       name="cylinder_circumference_mm"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                          <FormLabel className="text-caption font-bold uppercase text-content-3">
                             Circumference / repeat (mm)
                           </FormLabel>
                           <FormControl>
@@ -1283,7 +1283,7 @@ export function ArtworkDialog({
                       name="cylinder_length_mm"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-[10px] font-bold uppercase text-content-3">
+                          <FormLabel className="text-caption font-bold uppercase text-content-3">
                             Cylinder length (mm)
                           </FormLabel>
                           <FormControl>
@@ -1305,12 +1305,12 @@ export function ArtworkDialog({
                     />
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold uppercase text-content-3">
+                    <p className="text-caption font-bold uppercase text-content-3">
                       ROTO Readiness Checklist
                     </p>
                     <div className="mt-2 space-y-1.5">
                       {rotoChecklist.map((item) => (
-                        <div key={item.id} className="text-[11px]">
+                        <div key={item.id} className="text-caption">
                           <span
                             className={
                               item.ok
@@ -1337,10 +1337,10 @@ export function ArtworkDialog({
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[10px] font-bold uppercase text-content-3">
+                        <p className="text-caption font-bold uppercase text-content-3">
                           Cylinder generation by color
                         </p>
-                        <p className="mt-1 text-[10px] text-content-3">
+                        <p className="mt-1 text-caption text-content-3">
                           Each button covers only that color slot. A covered
                           slot cannot generate another cylinder.
                         </p>
@@ -1368,7 +1368,7 @@ export function ArtworkDialog({
                                   {slot.side} {slot.slot} ·{" "}
                                   {slot.color || "Color pending"}
                                 </div>
-                                <div className="mt-0.5 text-[10px] text-content-3">
+                                <div className="mt-0.5 text-caption text-content-3">
                                   {coverage
                                     ? `${coverage.state === "ready" ? "Ready" : "Draft"}: ${coverage.label} · ${coverage.repeat || cylinderCircumference}×${coverage.length || cylinderLength} mm`
                                     : "No cylinder assigned yet"}
@@ -1424,10 +1424,10 @@ export function ArtworkDialog({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+                            <p className="text-caption font-semibold uppercase tracking-[0.08em] text-primary">
                               Finish generated drafts in Cylinder Catalog
                             </p>
-                            <p className="mt-1 text-[10px] text-primary">
+                            <p className="mt-1 text-caption text-primary">
                               {Math.max(
                                 generatedDraftCylinders.length,
                                 draftSlotCoverageCount,
@@ -1458,10 +1458,10 @@ export function ArtworkDialog({
                   className="rounded-md border border-warning-border bg-warning-bg p-3"
                   data-testid="artwork-approval-blockers"
                 >
-                  <p className="text-[10px] font-bold uppercase text-warning-fg">
+                  <p className="text-caption font-bold uppercase text-warning-fg">
                     Approval Blockers
                   </p>
-                  <ul className="mt-1 list-disc pl-4 text-[10px] text-warning-fg space-y-0.5">
+                  <ul className="mt-1 list-disc pl-4 text-caption text-warning-fg space-y-0.5">
                     {approvalBlockers.map((blocker) => (
                       <li key={blocker}>{blocker}</li>
                     ))}

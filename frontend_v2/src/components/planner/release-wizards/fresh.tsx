@@ -133,7 +133,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
 
       {step === "pick-line" ? (
         <section className="space-y-2">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
             Sales lines awaiting plan
           </h3>
           <DemandLineList
@@ -196,7 +196,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
             />
           </div>
           <div className="space-y-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+            <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
               Stock strategy
             </span>
             <div className="grid grid-cols-2 gap-2">
@@ -213,7 +213,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
                 <span className="font-display text-sm font-semibold">
                   Final stock
                 </span>
-                <span className="text-[11px] text-content-3">
+                <span className="text-caption text-content-3">
                   Run the full route to FG.
                 </span>
               </button>
@@ -230,7 +230,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
                 <span className="font-display text-sm font-semibold">
                   Intermediate pool
                 </span>
-                <span className="text-[11px] text-content-3">
+                <span className="text-caption text-content-3">
                   Stop at WIP for shared use.
                 </span>
               </button>
@@ -241,7 +241,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
 
       {step === "confirm" && selected ? (
         <section className="space-y-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+          <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
             Review
           </h3>
           <div className="rounded-lg border border-line bg-surface-1 p-3 text-[12px]">
@@ -269,7 +269,7 @@ export function FreshWizard({ seedOrderKey, onClose }: FreshWizardProps) {
               will be queued behind these.
             </div>
           ) : null}
-          <div className="rounded-lg border border-line bg-surface-2 p-3 text-[11px] text-content-3">
+          <div className="rounded-lg border border-line bg-surface-2 p-3 text-caption text-content-3">
             Confirms a Fresh release on the control-hub planner. Server
             validates the stop-step before persisting.
           </div>

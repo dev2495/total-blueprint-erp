@@ -232,13 +232,13 @@ export default function EngineeringTemplatesPage() {
             <div className="mb-2 flex items-center gap-2">
               <Badge
                 variant="outline"
-                className="border-line-strong bg-surface-3 px-2 py-0.5 text-[10px] font-semibold tracking-[0.1em] text-white"
+                className="border-line-strong bg-surface-3 px-2 py-0.5 text-caption font-semibold tracking-[0.1em] text-white"
               >
                 ENGINEERING HUB
               </Badge>
               <Badge
                 variant="outline"
-                className="border-info-border bg-info-bg px-2 py-0.5 text-[10px] font-semibold tracking-[0.1em] text-primary"
+                className="border-info-border bg-info-bg px-2 py-0.5 text-caption font-semibold tracking-[0.1em] text-primary"
               >
                 ROUTE CONTRACTS
               </Badge>
@@ -262,7 +262,7 @@ export default function EngineeringTemplatesPage() {
                 key={String(label)}
                 className="rounded-2xl border border-line bg-surface-2 px-4 py-3"
               >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                   {label}
                 </div>
                 <div className="mt-1 text-2xl font-semibold text-content-1">
@@ -274,7 +274,7 @@ export default function EngineeringTemplatesPage() {
         </div>
         <div className="flex flex-col gap-3 border-t border-line bg-surface-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <Button
-            className="h-11 rounded-xl bg-primary px-7 text-[11px] font-semibold uppercase tracking-[0.1em] text-white shadow-lg hover:bg-surface-3"
+            className="h-11 rounded-xl bg-primary px-7 text-caption font-semibold uppercase tracking-[0.1em] text-white shadow-lg hover:bg-surface-3"
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="mr-2 h-4 w-4" /> New Template
@@ -282,7 +282,7 @@ export default function EngineeringTemplatesPage() {
           {canManageTemplates ? (
             <Button
               variant="outline"
-              className="h-11 rounded-xl border-danger-border bg-surface-1 px-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-danger-fg hover:bg-danger-bg"
+              className="h-11 rounded-xl border-danger-border bg-surface-1 px-5 text-caption font-semibold uppercase tracking-[0.08em] text-danger-fg hover:bg-danger-bg"
               disabled={purgeDraftsMutation.isPending}
               onClick={() => {
                 if (
@@ -453,7 +453,7 @@ export default function EngineeringTemplatesPage() {
                   size="sm"
                   onClick={() => setStatusFilter(status)}
                   className={cn(
-                    "h-9 rounded-xl px-4 text-[10px] font-semibold uppercase tracking-wider",
+                    "h-9 rounded-xl px-4 text-caption font-semibold uppercase tracking-wider",
                     statusFilter === status
                       ? "bg-surface-3 text-white"
                       : "text-content-3 hover:text-content-1",
@@ -468,7 +468,7 @@ export default function EngineeringTemplatesPage() {
 
       {schemaHealth && schemaHealth.healthy === false ? (
         <div className="rounded-2xl border border-warning-border bg-warning-bg px-5 py-4 text-sm text-warning-fg">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
             Template Schema Warning
           </div>
           <div className="mt-1 font-semibold">{schemaHealth.message}</div>
@@ -497,19 +497,19 @@ export default function EngineeringTemplatesPage() {
           <Table>
             <TableHeader className="bg-surface-2">
               <TableRow className="border-none hover:bg-transparent">
-                <TableHead className="px-6 text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                <TableHead className="px-6 text-caption font-semibold uppercase text-content-4 tracking-widest">
                   Template
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 tracking-widest">
                   Type
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 tracking-widest">
                   Business Family
                 </TableHead>
-                <TableHead className="text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                <TableHead className="text-caption font-semibold uppercase text-content-4 tracking-widest">
                   Status
                 </TableHead>
-                <TableHead className="text-right px-6 text-[10px] font-semibold uppercase text-content-4 tracking-widest">
+                <TableHead className="text-right px-6 text-caption font-semibold uppercase text-content-4 tracking-widest">
                   Actions
                 </TableHead>
               </TableRow>
@@ -540,7 +540,7 @@ export default function EngineeringTemplatesPage() {
                 <TableRow>
                   <TableCell
                     colSpan={5}
-                    className="text-center py-24 text-[11px] font-semibold uppercase text-content-4 tracking-[0.12em]"
+                    className="text-center py-24 text-caption font-semibold uppercase text-content-4 tracking-[0.12em]"
                   >
                     No templates found
                   </TableCell>
@@ -557,14 +557,14 @@ export default function EngineeringTemplatesPage() {
                           <span className="text-sm font-semibold tracking-tight text-content-1 transition-colors group-hover:text-primary">
                             {t.name}
                           </span>
-                          <span className="mt-1 text-[10px] font-semibold text-content-4">
+                          <span className="mt-1 text-caption font-semibold text-content-4">
                             ID {t.id.slice(0, 8)} · route{" "}
                             {t.routing_rule_name || "not linked"}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="rounded-lg border border-line bg-surface-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+                        <span className="rounded-lg border border-line bg-surface-2 px-2 py-1 text-caption font-semibold uppercase tracking-widest text-content-3">
                           {t.fg_type}
                         </span>
                       </TableCell>

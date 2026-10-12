@@ -54,12 +54,12 @@ interface FieldProps {
 function Field({ label, helper, children }: FieldProps) {
   return (
     <div className="space-y-1">
-      <Label className="text-[11px] font-semibold uppercase tracking-wider text-content-3">
+      <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
         {label}
       </Label>
       {children}
       {helper ? (
-        <p className="text-[11px] leading-4 text-content-3">{helper}</p>
+        <p className="text-caption leading-4 text-content-3">{helper}</p>
       ) : null}
     </div>
   );

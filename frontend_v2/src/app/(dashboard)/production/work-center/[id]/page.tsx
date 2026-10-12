@@ -3350,7 +3350,7 @@ export default function WCMTerminal() {
       <section className="order-1 overflow-hidden rounded-[18px] border border-primary bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-3 text-white shadow-[0_22px_56px_-40px_rgba(15,23,42,.7)]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-info-border">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
               Current order
             </div>
             <h2 className="mt-1 text-lg font-semibold leading-tight tracking-tight text-white">
@@ -3376,12 +3376,12 @@ export default function WCMTerminal() {
             {selectedProductionBatchLabel || selectedRouteNodeLabel ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {selectedProductionBatchLabel ? (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white">
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-caption font-semibold text-white">
                     {selectedProductionBatchLabel}
                   </span>
                 ) : null}
                 {selectedRouteNodeLabel ? (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white">
+                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-caption font-semibold text-white">
                     {selectedRouteNodeLabel}
                   </span>
                 ) : null}
@@ -3425,7 +3425,7 @@ export default function WCMTerminal() {
         <div className="mt-3 rounded-xl border border-surface-1/10 bg-surface-1/10 p-2.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-border">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-info-border">
                 Current step
               </div>
               <div className="mt-1 text-base font-semibold leading-tight text-white">
@@ -3438,7 +3438,7 @@ export default function WCMTerminal() {
           </div>
           <div className="mt-2 grid gap-px overflow-hidden rounded-lg border border-surface-1/10 bg-surface-1/10 sm:grid-cols-3">
             <div className="bg-[#0e2e58]/45 px-3 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-info-border">
+              <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
                 Step target
               </div>
               <div className="mt-0.5 text-sm font-semibold leading-tight text-white">
@@ -3446,7 +3446,7 @@ export default function WCMTerminal() {
               </div>
             </div>
             <div className="bg-[#0e2e58]/45 px-3 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-info-border">
+              <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
                 Step remaining
               </div>
               <div className="mt-0.5 text-sm font-semibold leading-tight text-white">
@@ -3454,7 +3454,7 @@ export default function WCMTerminal() {
               </div>
             </div>
             <div className="bg-[#0e2e58]/45 px-3 py-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-info-border">
+              <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
                 Issue plan
               </div>
               <div className="mt-0.5 text-sm font-semibold leading-tight text-white">
@@ -3463,13 +3463,13 @@ export default function WCMTerminal() {
             </div>
           </div>
           <div className="mt-2 rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-info-border">
+            <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
               Step stock contract
             </div>
             <div className="mt-1 text-sm font-semibold text-white">
               {selectedContractDetailLabel || stockFormLabel(selectedTargetStockForm)}
             </div>
-            <div className="mt-1 text-[11px] font-semibold text-info-border">
+            <div className="mt-1 text-caption font-semibold text-info-border">
               Input {stockFormListLabel(selectedAllowedInputForms)} · Output{" "}
               {stockFormListLabel(selectedAllowedOutputForms)} ·{" "}
               {stockFormConversionLabel}
@@ -3478,7 +3478,7 @@ export default function WCMTerminal() {
         </div>
 
         <details className="group mt-2 rounded-lg border border-white/15 bg-white/5">
-          <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-info-border marker:hidden">
+          <summary className="cursor-pointer list-none px-3 py-2 text-caption font-semibold uppercase tracking-[0.08em] text-info-border marker:hidden">
             Production spec · click to expand
           </summary>
           <ProductionOrderSpecRail
@@ -3494,7 +3494,7 @@ export default function WCMTerminal() {
         <section className="order-2 rounded-2xl border border-success-border bg-success-bg p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-success-fg">
+              <div className="text-caption uppercase tracking-wider text-success-fg">
                 Sent to machine
               </div>
               <div className="mt-1 text-lg font-semibold text-content-1">
@@ -3528,7 +3528,7 @@ export default function WCMTerminal() {
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-surface-1 bg-surface-1/80 p-3">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                 Machine
               </div>
               <div className="mt-1 text-sm font-semibold text-content-1">
@@ -3536,7 +3536,7 @@ export default function WCMTerminal() {
               </div>
             </div>
             <div className="rounded-xl border border-surface-1 bg-surface-1/80 p-3">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                 Rolls locked
               </div>
               <div className="mt-1 text-sm font-semibold text-content-1">
@@ -3544,7 +3544,7 @@ export default function WCMTerminal() {
               </div>
             </div>
             <div className="rounded-xl border border-surface-1 bg-surface-1/80 p-3">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                 Material policy
               </div>
               <div className="mt-1 text-sm font-semibold text-content-1">
@@ -3587,7 +3587,7 @@ export default function WCMTerminal() {
             <section className="order-3 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-content-3">
+                  <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                     Roll allocation detail
                   </div>
                   <div className="mt-1 text-lg font-semibold text-content-1">
@@ -3616,7 +3616,7 @@ export default function WCMTerminal() {
                   ["Fallback", fallbackRollsAvailable, "text-warning-fg"],
                 ].map(([label, value, tone]) => (
                   <div key={String(label)} className="flex items-center justify-between bg-surface-1 px-3 py-2 sm:block">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-content-4">
+                    <div className="text-caption font-semibold uppercase tracking-wider text-content-4">
                       {label}
                     </div>
                     <div className={cn("font-semibold sm:mt-0.5 sm:text-base", String(tone))}>
@@ -3625,7 +3625,7 @@ export default function WCMTerminal() {
                   </div>
                 ))}
               </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-order-border bg-order-bg px-3 py-2 text-[11px] font-semibold text-order-fg">
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-order-border bg-order-bg px-3 py-2 text-caption font-semibold text-order-fg">
                 <span>
                   Required stock form · {stockFormLabel(selectedTargetStockForm)}
                 </span>
@@ -3754,7 +3754,7 @@ export default function WCMTerminal() {
                         disabled={isReleasedToMachine}
                         onClick={() => setOverrideReason(reason)}
                         className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-bold",
+                          "rounded-full border px-2.5 py-1 text-caption font-bold",
                           overrideReason === reason
                             ? "border-warning-border bg-warning-fg text-white"
                             : "border-warning-border bg-surface-1 text-warning-fg",
@@ -3776,10 +3776,10 @@ export default function WCMTerminal() {
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-xl border border-line bg-surface-2 p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                    <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                       Allocated now
                     </div>
-                    <span className="text-[11px] font-semibold text-content-3">
+                    <span className="text-caption font-semibold text-content-3">
                       {assignedRollsForDisplay.length} rolls
                     </span>
                   </div>
@@ -3795,12 +3795,12 @@ export default function WCMTerminal() {
                             <div className="truncate text-xs font-semibold text-content-1">
                               {roll.label_id}
                             </div>
-                            <div className="truncate text-[11px] font-medium text-content-3">
+                            <div className="truncate text-caption font-medium text-content-3">
                               {roll.material_name} ·{" "}
                               {roll.width_mm ? `${roll.width_mm}mm` : "—"} ·{" "}
                               {Number(roll.weight_kg || 0).toFixed(3)} kg
                             </div>
-                            <div className="truncate text-[10px] font-bold uppercase text-content-4">
+                            <div className="truncate text-caption font-bold uppercase text-content-4">
                               Pick from{" "}
                               {firstNonEmpty(
                                 roll.location_code,
@@ -3839,10 +3839,10 @@ export default function WCMTerminal() {
                 </div>
                 <div className="rounded-xl border border-line bg-surface-2 p-3">
                   <div className="mb-2 flex items-center justify-between">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                    <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                       Available choices
                     </div>
-                    <span className="text-[11px] font-semibold text-content-3">
+                    <span className="text-caption font-semibold text-content-3">
                       {rollAllocationCandidates.length} candidates
                     </span>
                   </div>
@@ -3855,7 +3855,7 @@ export default function WCMTerminal() {
                         <div className="text-xs font-semibold text-content-1">
                           {roll.label_id || "Roll"}
                         </div>
-                        <div className="text-[11px] font-medium text-content-3">
+                        <div className="text-caption font-medium text-content-3">
                           {roll.material_name ||
                             roll.material_code ||
                             "Material"}{" "}
@@ -3865,7 +3865,7 @@ export default function WCMTerminal() {
                             : "—"}{" "}
                           · {roll.width_mm ? `${roll.width_mm}mm` : "—"}
                         </div>
-                        <div className="text-[10px] font-bold uppercase text-content-4">
+                        <div className="text-caption font-bold uppercase text-content-4">
                           Pick from{" "}
                           {firstNonEmpty(
                             roll.location_code,
@@ -3889,7 +3889,7 @@ export default function WCMTerminal() {
           <section className="order-2 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-3">
+                <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                   Machine assignment
                 </div>
                 <div className="text-lg font-semibold text-content-1">
@@ -4009,7 +4009,7 @@ export default function WCMTerminal() {
           <section className="order-4 flex flex-col rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-3">
+                <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                   Current-step issue
                 </div>
                 <div className="text-lg font-semibold text-content-1">
@@ -4022,7 +4022,7 @@ export default function WCMTerminal() {
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {materialIssueDirty ? (
-                  <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                  <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-primary">
                     Unsaved entries protected
                   </span>
                 ) : null}
@@ -4042,7 +4042,7 @@ export default function WCMTerminal() {
               <div className="order-4 mt-3 rounded-2xl border border-info-border bg-info-bg p-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                    <div className="text-caption font-semibold uppercase tracking-wider text-primary">
                       Template policy and WCM override
                     </div>
                     <p className="mt-1 text-xs font-semibold text-primary">
@@ -4097,7 +4097,7 @@ export default function WCMTerminal() {
                             <div className="text-sm font-semibold text-content-1">
                               {item.material_name}
                             </div>
-                            <div className="mt-0.5 text-[11px] font-semibold text-content-3">
+                            <div className="mt-0.5 text-caption font-semibold text-content-3">
                               {item.category_code || "Material"} · Theory{" "}
                               {Number(item.theoretical_qty || 0).toFixed(3)} kg
                               · Issue plan{" "}
@@ -4107,7 +4107,7 @@ export default function WCMTerminal() {
                           </div>
                           <span
                             className={cn(
-                              "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
+                              "rounded-full border px-2.5 py-1 text-caption font-semibold uppercase tracking-wider",
                               source.includes("OVERRIDE")
                                 ? "border-warning-border bg-warning-bg text-warning-fg"
                                 : "border-success-border bg-success-bg text-success-fg",
@@ -4172,7 +4172,7 @@ export default function WCMTerminal() {
                         </div>
                         <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_1fr_132px_1fr]">
                           <div className="rounded-lg border border-line bg-surface-2 px-3 py-2">
-                            <div className="text-[10px] font-semibold uppercase tracking-wide text-content-3">
+                            <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
                               Template rule
                             </div>
                             <div className="mt-1 text-xs font-bold text-content-1">
@@ -4355,7 +4355,7 @@ export default function WCMTerminal() {
                             </div>
                             <span
                               className={cn(
-                                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                                "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
                                 isGranule
                                   ? "bg-success-bg text-success-fg"
                                   : "bg-info-bg text-primary",
@@ -4364,7 +4364,7 @@ export default function WCMTerminal() {
                               {materialIssueKindLabel(row)}
                             </span>
                           </div>
-                          <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-semibold text-content-3">
+                          <div className="mt-1 flex flex-wrap gap-1.5 text-caption font-semibold text-content-3">
                             <span>
                               Recipe {materialIssueQtyLabel(theoreticalQty, row)}
                             </span>
@@ -4386,7 +4386,7 @@ export default function WCMTerminal() {
                           </div>
                         </div>
                         <label className="block">
-                          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                          <span className="mb-1 block text-caption font-semibold uppercase tracking-wider text-content-3">
                             Issued {issueUom.toLowerCase()}
                           </span>
                           <Input
@@ -4529,7 +4529,7 @@ export default function WCMTerminal() {
                               </button>
                             ) : (
                               <div className="space-y-2">
-                                <div className="hidden grid-cols-[minmax(0,1fr)_112px_74px_34px] gap-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-content-3 md:grid">
+                                <div className="hidden grid-cols-[minmax(0,1fr)_112px_74px_34px] gap-2 px-1 text-caption font-semibold uppercase tracking-wider text-content-3 md:grid">
                                   <span>Grade/code · plant · source store</span>
                                   <span className="text-right">Issue kg</span>
                                   <span />
@@ -4600,7 +4600,7 @@ export default function WCMTerminal() {
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        className="h-10 rounded-lg px-2 text-[11px] font-bold"
+                                        className="h-10 rounded-lg px-2 text-caption font-bold"
                                         onClick={() =>
                                           updateMaterialIssueDraft(requirementId, {
                                             granule_code_allocations: allocations.map(
@@ -4748,7 +4748,7 @@ export default function WCMTerminal() {
                                       <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                           <span className="font-semibold text-content-1">{option.code}</span>
-                                          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning-fg">
+                                          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-caption font-semibold uppercase tracking-wider text-warning-fg">
                                             {String(option.eligibility_status || "UNAVAILABLE").replaceAll("_", " ")}
                                           </span>
                                         </div>
@@ -4762,7 +4762,7 @@ export default function WCMTerminal() {
                                       {option.eligibility_status === "ZERO_STOCK" ? (
                                         <a
                                           href="/inventory/grn"
-                                          className="inline-flex h-8 items-center rounded-lg border border-warning-border bg-surface-1 px-2.5 text-[11px] font-semibold text-warning-fg hover:bg-warning-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                          className="inline-flex h-8 items-center rounded-lg border border-warning-border bg-surface-1 px-2.5 text-caption font-semibold text-warning-fg hover:bg-warning-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                         >
                                           Receive exact code
                                         </a>
@@ -4811,12 +4811,12 @@ export default function WCMTerminal() {
             {granuleIssueRows.length ? (
               <div className="order-3 mt-3 rounded-xl border border-success-border bg-success-bg px-3 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+                  <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
                     Granule split status
                   </div>
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                      "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
                       materialIssueErrors.some((error) =>
                         granuleIssueRows.some((row: any) =>
                           error.startsWith(
@@ -4889,7 +4889,7 @@ export default function WCMTerminal() {
           <section className="order-5 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-content-3">
+                <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                   Current-step materials
                 </div>
                 <div className="mt-1 text-lg font-semibold text-content-1">
@@ -4943,7 +4943,7 @@ export default function WCMTerminal() {
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-content-3">
+                  <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                     Cylinders & artwork
                   </div>
                   <div className="mt-1 text-lg font-semibold text-content-1">
@@ -4988,7 +4988,7 @@ export default function WCMTerminal() {
       <section className="order-last rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur xl:sticky xl:bottom-0 xl:z-10">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[240px] flex-1">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               Release bar
             </div>
             <div
@@ -5015,7 +5015,7 @@ export default function WCMTerminal() {
                 <span
                   key={`release-bar-gate-${gate.key}`}
                   className={cn(
-                    "rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                    "rounded-full border px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
                     gate.ok
                       ? "border-success-border bg-success-bg text-success-fg"
                       : "border-warning-border bg-warning-bg text-warning-fg",
@@ -5029,7 +5029,7 @@ export default function WCMTerminal() {
                 <TooltipProvider delayDuration={100}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="cursor-help rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-danger-fg">
+                      <span className="cursor-help rounded-full border border-danger-border bg-danger-bg px-2 py-0.5 text-caption font-semibold uppercase tracking-wider text-danger-fg">
                         +{pushBlockingReasons.length - 1} more
                       </span>
                     </TooltipTrigger>
@@ -5152,7 +5152,7 @@ export default function WCMTerminal() {
             type="button"
             variant="outline"
             size="sm"
-            className="h-7 border-warning-border bg-surface-1 px-2 text-[11px] font-bold"
+            className="h-7 border-warning-border bg-surface-1 px-2 text-caption font-bold"
             onClick={() => refetchQueue()}
           >
             Retry
@@ -5168,7 +5168,7 @@ export default function WCMTerminal() {
             <div className="text-sm font-semibold tracking-tight">
               ERP · Production
             </div>
-            <div className="text-[11px] text-info-border">
+            <div className="text-caption text-info-border">
               Work Center Terminal
             </div>
           </div>
@@ -5213,7 +5213,7 @@ export default function WCMTerminal() {
               {stalledJobsList.length > 0 ? (
                 <span
                   className={cn(
-                    "rounded-full px-1.5 font-mono text-[10px] font-bold tabular-nums",
+                    "rounded-full px-1.5 font-mono text-caption font-bold tabular-nums",
                     activeMainTab === "stalled"
                       ? "bg-surface-1/25 text-white"
                       : "bg-warning-bg text-warning-fg",
@@ -5330,7 +5330,7 @@ export default function WCMTerminal() {
                   key={String(label)}
                   className="rounded-xl border border-surface-1/10 bg-surface-1/10 px-3 py-2 shadow-sm"
                 >
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-info-border">
+                  <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
                     {label}
                   </div>
                   {showStatsSkeleton ? (
@@ -5367,10 +5367,10 @@ export default function WCMTerminal() {
                     className="h-11 rounded-xl border-line bg-surface-2 pl-10 pr-20 text-sm"
                   />
                   <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-1 md:flex">
-                    <span className="rounded-md border border-line bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-content-3">
+                    <span className="rounded-md border border-line bg-surface-1 px-1.5 py-0.5 font-mono text-caption text-content-3">
                       ⌘
                     </span>
-                    <span className="rounded-md border border-line bg-surface-1 px-1.5 py-0.5 font-mono text-[11px] text-content-3">
+                    <span className="rounded-md border border-line bg-surface-1 px-1.5 py-0.5 font-mono text-caption text-content-3">
                       K
                     </span>
                   </div>
@@ -5431,7 +5431,7 @@ export default function WCMTerminal() {
                       setQueueSortKey(value as typeof queueSortKey)
                     }
                   >
-                    <SelectTrigger className="h-9 w-[200px] rounded-lg border border-line bg-surface-1 text-sm font-medium text-content-2">
+                    <SelectTrigger aria-label="Sort the queue" className="h-9 w-[200px] rounded-lg border border-line bg-surface-1 text-sm font-medium text-content-2">
                       <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
@@ -5581,7 +5581,7 @@ export default function WCMTerminal() {
                   <div className="rounded-2xl border border-line bg-surface-1 p-6 shadow-sm">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
-                        <div className="text-[11px] uppercase tracking-wider text-content-3">
+                        <div className="text-caption uppercase tracking-wider text-content-3">
                           History
                         </div>
                         <div className="text-lg font-semibold text-content-1">
@@ -5683,7 +5683,7 @@ export default function WCMTerminal() {
                                   {spec.layers.slice(0, 4).map((layer) => (
                                     <span
                                       key={`${assignment.id}-${layer.index}`}
-                                      className="rounded-full border border-line bg-surface-1 px-2 py-0.5 text-[11px] font-semibold text-content-2"
+                                      className="rounded-full border border-line bg-surface-1 px-2 py-0.5 text-caption font-semibold text-content-2"
                                     >
                                       {layerQueueLabel(layer)}
                                     </span>
@@ -5691,7 +5691,7 @@ export default function WCMTerminal() {
                                   {spec.podLabels.map((label) => (
                                     <span
                                       key={`${assignment.id}-pod-${label}`}
-                                      className="rounded-full border border-info-border bg-surface-1 px-2 py-0.5 text-[11px] font-semibold text-info-fg"
+                                      className="rounded-full border border-info-border bg-surface-1 px-2 py-0.5 text-caption font-semibold text-info-fg"
                                     >
                                       PoD · {label}
                                     </span>
@@ -5699,7 +5699,7 @@ export default function WCMTerminal() {
                                   {spec.addonLabels.map((label) => (
                                     <span
                                       key={`${assignment.id}-addon-${label}`}
-                                      className="rounded-full border border-warning-border bg-surface-1 px-2 py-0.5 text-[11px] font-semibold text-warm"
+                                      className="rounded-full border border-warning-border bg-surface-1 px-2 py-0.5 text-caption font-semibold text-warm"
                                     >
                                       + {label}
                                     </span>
@@ -6214,7 +6214,7 @@ export default function WCMTerminal() {
                           <div className="flex-1 p-5">
                             <div className="flex flex-wrap items-start gap-3">
                               <div className="min-w-[240px] flex-1">
-                                <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-content-3">
+                                <div className="flex items-center gap-2 text-caption uppercase tracking-wider text-content-3">
                                   <span>Sales order line</span>
                                 </div>
                                 <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -6243,7 +6243,7 @@ export default function WCMTerminal() {
                                     </span>
                                   ) : null}
                                 </div>
-                                <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-semibold">
+                                <div className="mt-2 flex flex-wrap gap-1.5 text-caption font-semibold">
                                   <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
                                     Job {job.job_number || "—"}
                                   </span>
@@ -6415,7 +6415,7 @@ export default function WCMTerminal() {
 
                             <div className="mt-4 grid items-center gap-4">
                               <div className="rounded-2xl border border-info-border bg-info-bg px-3 py-3">
-                                <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-content-3">
+                                <div className="flex items-center justify-between text-caption uppercase tracking-wider text-content-3">
                                   <span>Sales order output</span>
                                   <span>{Math.round(queueFinalPercent)}%</span>
                                 </div>
@@ -6430,7 +6430,7 @@ export default function WCMTerminal() {
                                     <div className="text-lg font-semibold tabular-nums">
                                       {queueFinalQtyReq}
                                     </div>
-                                    <div className="text-[11px] uppercase tracking-wider text-content-3">
+                                    <div className="text-caption uppercase tracking-wider text-content-3">
                                       Ordered
                                     </div>
                                   </div>
@@ -6438,7 +6438,7 @@ export default function WCMTerminal() {
                                     <div className="text-lg font-semibold tabular-nums">
                                       {queueFinalProducedLabel}
                                     </div>
-                                    <div className="text-[11px] uppercase tracking-wider text-content-3">
+                                    <div className="text-caption uppercase tracking-wider text-content-3">
                                       Produced
                                     </div>
                                   </div>
@@ -6446,7 +6446,7 @@ export default function WCMTerminal() {
                                     <div className="text-lg font-semibold tabular-nums text-primary">
                                       {queueFinalRemainingLabel}
                                     </div>
-                                    <div className="text-[11px] uppercase tracking-wider text-content-3">
+                                    <div className="text-caption uppercase tracking-wider text-content-3">
                                       Remaining
                                     </div>
                                   </div>
@@ -6461,7 +6461,7 @@ export default function WCMTerminal() {
                                     >
                                       {queueBlockers.length || "Clear"}
                                     </div>
-                                    <div className="text-[11px] uppercase tracking-wider text-content-3">
+                                    <div className="text-caption uppercase tracking-wider text-content-3">
                                       Blockers
                                     </div>
                                   </div>
@@ -6497,7 +6497,7 @@ export default function WCMTerminal() {
                                       side="top"
                                       className="max-w-[320px] rounded-xl border-line bg-surface-1 p-3 text-content-2 shadow-xl"
                                     >
-                                      <div className="text-[11px] font-semibold uppercase tracking-wider text-content-3">
+                                      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                                         WIP rolls in this flow
                                       </div>
                                       <div className="mt-2 space-y-1">
@@ -6729,7 +6729,7 @@ export default function WCMTerminal() {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <label className="text-caption font-semibold uppercase tracking-wider text-content-3">
                 Reason master
               </label>
               <Select
@@ -6767,7 +6767,7 @@ export default function WCMTerminal() {
                       setCloseJobReason(reason);
                     }}
                     className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11px] font-bold",
+                      "rounded-full border px-2.5 py-1 text-caption font-bold",
                       closeJobReasonPreset === reason
                         ? "border-[#10233f] bg-[#10233f] text-white"
                         : "border-line bg-surface-2 text-content-2",
@@ -7492,7 +7492,7 @@ function RollAssignmentModal({
         <DialogHeader className="p-6 bg-surface-2 border-b shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Resource Discovery & Allocation
-            <Badge variant="secondary" className="font-mono text-[10px]">
+            <Badge variant="secondary" className="font-mono text-caption">
               {activeAssignment?.job_details?.job_number}
             </Badge>
           </DialogTitle>
@@ -7500,7 +7500,7 @@ function RollAssignmentModal({
             Select roll inputs matching BOM specs. Allocation persists as WCM
             reservation.
           </DialogDescription>
-          <div className="mt-2 text-[11px] text-content-3">
+          <div className="mt-2 text-caption text-content-3">
             Spec:{" "}
             {normalizedSpecs.length > 0
               ? normalizedSpecs
@@ -7526,7 +7526,7 @@ function RollAssignmentModal({
               : ""}
           </div>
           {required && filtered.length === 0 && externalEligibleCount > 0 && (
-            <div className="mt-2 rounded-md border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-medium text-warning-fg">
+            <div className="mt-2 rounded-md border border-warning-border bg-warning-bg px-3 py-2 text-caption font-medium text-warning-fg">
               No eligible roll in current plant. Open{" "}
               <span className="font-bold">Other Plants / Transfer</span> tab to
               raise transfer request.
@@ -7577,13 +7577,13 @@ function RollAssignmentModal({
                 },
               ].map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-3 px-3 py-2 sm:block">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-4">
                     {item.label}
                   </div>
                   <div className={cn("text-lg font-semibold", item.tone)}>
                     {item.value}
                   </div>
-                  <div className="text-[10px] font-medium text-content-3">
+                  <div className="text-caption font-medium text-content-3">
                     {item.help}
                   </div>
                 </div>
@@ -7592,7 +7592,7 @@ function RollAssignmentModal({
           </div>
           <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-6">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-content-3 uppercase">
+              <label className="text-caption font-semibold text-content-3 uppercase">
                 Search
               </label>
               <div className="relative">
@@ -7606,7 +7606,7 @@ function RollAssignmentModal({
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-content-3 uppercase">
+              <label className="text-caption font-semibold text-content-3 uppercase">
                 Variant
               </label>
               <Select value={filterVariant} onValueChange={setFilterVariant}>
@@ -7623,7 +7623,7 @@ function RollAssignmentModal({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-content-3 uppercase">
+              <label className="text-caption font-semibold text-content-3 uppercase">
                 Thickness
               </label>
               <Select
@@ -7643,7 +7643,7 @@ function RollAssignmentModal({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-content-3 uppercase">
+              <label className="text-caption font-semibold text-content-3 uppercase">
                 Grade
               </label>
               <Select value={filterGrade} onValueChange={setFilterGrade}>
@@ -7660,7 +7660,7 @@ function RollAssignmentModal({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-content-3 uppercase">
+              <label className="text-caption font-semibold text-content-3 uppercase">
                 Width
               </label>
               <Select value={filterWidth} onValueChange={setFilterWidth}>
@@ -7677,7 +7677,7 @@ function RollAssignmentModal({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-content-3 uppercase">
+              <label className="text-caption font-semibold text-content-3 uppercase">
                 Stock form
               </label>
               <Select
@@ -7749,50 +7749,50 @@ function RollAssignmentModal({
                             {roll.label_id}
                           </span>
                           {roll.spec_exact && (
-                            <Badge className="bg-success-bg text-success-fg text-[10px] font-bold">
+                            <Badge className="bg-success-bg text-success-fg text-caption font-bold">
                               EXACT MATCH
                             </Badge>
                           )}
                           {!roll.spec_exact &&
                             String(roll.width_match_mode || "").toUpperCase() ===
                               "WIDER_SLITTABLE" && (
-                              <Badge className="bg-warning-bg text-warning-fg text-[10px] font-bold">
+                              <Badge className="bg-warning-bg text-warning-fg text-caption font-bold">
                                 WIDER · SLIT REQUIRED
                               </Badge>
                             )}
                           {String(roll.roll_source || "").toUpperCase() ===
                             "LINEAGE" && (
-                            <Badge className="bg-[#10233f] text-white text-[10px] font-bold">
+                            <Badge className="bg-[#10233f] text-white text-caption font-bold">
                               TRUE WIP
                             </Badge>
                           )}
                           {String(roll.roll_source || "").toUpperCase() ===
                             "PURCHASED_FALLBACK" && (
-                            <Badge className="bg-warning-bg text-warning-fg text-[10px] font-bold">
+                            <Badge className="bg-warning-bg text-warning-fg text-caption font-bold">
                               PURCHASED FALLBACK
                             </Badge>
                           )}
                           {String(roll.roll_source || "").toUpperCase() ===
                             "COMPATIBLE_FALLBACK" && (
-                            <Badge className="bg-info-bg text-primary text-[10px] font-bold">
+                            <Badge className="bg-info-bg text-primary text-caption font-bold">
                               COMPATIBLE FALLBACK
                             </Badge>
                           )}
-                          <Badge className="border-info-border bg-info-bg text-info-fg text-[10px] font-bold">
+                          <Badge className="border-info-border bg-info-bg text-info-fg text-caption font-bold">
                             {stockFormLabel(roll.stock_form)}
                           </Badge>
                         </div>
-                        <div className="text-[11px] font-medium text-content-3">
+                        <div className="text-caption font-medium text-content-3">
                           {roll.material_name} • {roll.thickness_micron}μ •{" "}
                           {roll.width_mm}mm ({widthBasisLabel(roll.width_basis)}
                           ) • Grade: {roll.grade_name || "—"}
                         </div>
                         {rollWidthPlanLabel(roll) ? (
-                          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-info-fg">
+                          <div className="mt-1 text-caption font-semibold uppercase tracking-[0.08em] text-info-fg">
                             {rollWidthPlanLabel(roll)}
                           </div>
                         ) : null}
-                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold text-success-fg">
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption font-bold text-success-fg">
                           <span>✓ Material</span>
                           <span>✓ Gauge</span>
                           <span>✓ Width</span>
@@ -7801,7 +7801,7 @@ function RollAssignmentModal({
                             <span>✓ Grade</span>
                           ) : null}
                         </div>
-                        <div className="text-[10px] text-content-4 font-bold uppercase mt-1">
+                        <div className="text-caption text-content-4 font-bold uppercase mt-1">
                           Loc: {roll.location || roll.location_name}{" "}
                           {roll.location_type ? `(${roll.location_type})` : ""}
                         </div>
@@ -7809,11 +7809,11 @@ function RollAssignmentModal({
                       <div className="flex shrink-0 flex-col items-end gap-2 text-right">
                         <div className="text-lg font-semibold text-content-1 leading-none">
                           {roll.weight_kg}{" "}
-                          <span className="text-[10px] text-content-3">KG</span>
+                          <span className="text-caption text-content-3">KG</span>
                         </div>
                         <div className="text-xs font-bold text-content-3">
                           {roll.width_mm}{" "}
-                          <span className="text-[10px]">MM</span> ·{" "}
+                          <span className="text-caption">MM</span> ·{" "}
                           {stockFormLabel(roll.stock_form)}
                         </div>
                         <Button
@@ -7824,7 +7824,7 @@ function RollAssignmentModal({
                               : "outline"
                           }
                           className={cn(
-                            "relative z-10 h-7 shrink-0 px-4 text-[10px] font-semibold uppercase tracking-tighter",
+                            "relative z-10 h-7 shrink-0 px-4 text-caption font-semibold uppercase tracking-tighter",
                             selectedRollIds.includes(rollId)
                               ? "bg-primary"
                               : "text-primary border-info-border",
@@ -7861,7 +7861,7 @@ function RollAssignmentModal({
                         {normalizedSpecs.slice(0, 4).map((spec: any, index: number) => (
                           <span
                             key={`${String(spec?.variant_id || spec?.family_id || "roll")}-${index}`}
-                            className="rounded-md border border-line bg-surface-2 px-2.5 py-1 text-[10px] font-bold text-content-2"
+                            className="rounded-md border border-line bg-surface-2 px-2.5 py-1 text-caption font-bold text-content-2"
                           >
                             {spec?.variant_name || spec?.family_name || "Roll"}
                             {spec?.thickness_micron != null
@@ -7894,7 +7894,7 @@ function RollAssignmentModal({
             <TabsContent value="external" className="space-y-3">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[10px] font-semibold uppercase text-content-3">
+                  <label className="text-caption font-semibold uppercase text-content-3">
                     From Plant
                   </label>
                   <Select
@@ -7918,7 +7918,7 @@ function RollAssignmentModal({
                   </Select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase text-content-3">
+                  <label className="text-caption font-semibold uppercase text-content-3">
                     From Location
                   </label>
                   <Select
@@ -7939,7 +7939,7 @@ function RollAssignmentModal({
                   </Select>
                 </div>
                 <div>
-                  <label className="text-[10px] font-semibold uppercase text-content-3">
+                  <label className="text-caption font-semibold uppercase text-content-3">
                     To Location
                   </label>
                   <Select
@@ -7959,7 +7959,7 @@ function RollAssignmentModal({
                   </Select>
                 </div>
               </div>
-              <div className="text-[11px] text-content-3">
+              <div className="text-caption text-content-3">
                 Destination plant:{" "}
                 <span className="font-bold text-content-2">
                   {targetPlantName || targetPlantId || "—"}
@@ -7998,17 +7998,17 @@ function RollAssignmentModal({
                           <div className="text-xs font-semibold text-content-1 uppercase">
                             {roll.label_id}
                           </div>
-                          <div className="text-[11px] text-content-3">
+                          <div className="text-caption text-content-3">
                             {roll.material_name} • {roll.thickness_micron}μ •{" "}
                             {roll.width_mm}mm ({stockFormLabel(roll.stock_form)}
                             ) • {roll.grade_name || "—"}
                           </div>
                           {rollWidthPlanLabel(roll) ? (
-                            <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-info-fg">
+                            <div className="text-caption font-bold uppercase tracking-[0.06em] text-info-fg">
                               {rollWidthPlanLabel(roll)}
                             </div>
                           ) : null}
-                          <div className="text-[10px] font-medium text-content-3">
+                          <div className="text-caption font-medium text-content-3">
                             {roll.location_name || "—"}
                           </div>
                         </div>
@@ -8340,7 +8340,7 @@ function RollTransferModal({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 text-[10px] font-semibold text-warning-fg border-warning-border bg-warning-bg hover:bg-warning-bg"
+          className="h-7 text-caption font-semibold text-warning-fg border-warning-border bg-warning-bg hover:bg-warning-bg"
         >
           TRANSFER
         </Button>
@@ -8382,7 +8382,7 @@ function RollTransferModal({
           </div>
 
           <div>
-            <label className="text-[10px] font-semibold uppercase text-content-3">
+            <label className="text-caption font-semibold uppercase text-content-3">
               From Plant
             </label>
             <Select
@@ -8406,7 +8406,7 @@ function RollTransferModal({
             </Select>
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase text-content-3">
+            <label className="text-caption font-semibold uppercase text-content-3">
               From Location
             </label>
             <Select
@@ -8427,7 +8427,7 @@ function RollTransferModal({
             </Select>
           </div>
           <div>
-            <label className="text-[10px] font-semibold uppercase text-content-3">
+            <label className="text-caption font-semibold uppercase text-content-3">
               To Location
             </label>
             {normalizedTargetLocations.length > 0 ? (
@@ -8487,14 +8487,14 @@ function RollTransferModal({
                       <div className="text-xs font-bold text-content-2">
                         {r.label_id}
                       </div>
-                      <div className="text-[10px] text-content-3">
+                      <div className="text-caption text-content-3">
                         {r.thickness_micron}μ • {r.width_mm}mm (
                         {stockFormLabel(r.stock_form)}) • {r.weight_kg}kg •{" "}
                         {r.grade_name || "—"}
                       </div>
                     </div>
                   </div>
-                  <div className="text-[10px] text-content-4">
+                  <div className="text-caption text-content-4">
                     {r.location_name}
                   </div>
                 </div>

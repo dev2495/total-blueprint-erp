@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { machineService } from "@/services/machine";
+import { HeroStat, HeroStats, PageHero } from "@/components/premium/page-hero";
 
 export default function MachineSelectorPage() {
   const router = useRouter();
@@ -201,48 +202,21 @@ export default function MachineSelectorPage() {
       data-testid="machine-selector-page"
     >
       <div className="mx-auto max-w-[1600px] px-5 py-6 lg:px-8">
-        <section className="rounded-lg border border-line bg-surface-1 p-5 shadow-[0_18px_50px_-38px_rgba(15,23,42,0.75)]">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
-                Production floor terminal
-              </div>
-              <h1 className="mt-1 text-3xl font-semibold tracking-tight text-content-1">
-                Machine Selector
-              </h1>
-              <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-content-3">
-                Choose an assigned machine, inspect queue load, and enter the
-                terminal for live production logging.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-              {[
-                ["Active", machineStats.active, "text-success-fg"],
-                ["Running", machineStats.running, "text-primary"],
-                ["Queued jobs", machineStats.queued, "text-warning-fg"],
-                ["Work centers", machineStats.workCenters, "text-content-1"],
-              ].map(([label, value, tone]) => (
-                <div
-                  key={String(label)}
-                  className="min-w-[120px] rounded-lg border border-line bg-surface-2 px-3 py-2"
-                >
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
-                    {label}
-                  </div>
-                  <div
-                    className={cn(
-                      "mt-1 text-xl font-semibold tabular-nums",
-                      String(tone),
-                    )}
-                  >
-                    {value}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-2 lg:grid-cols-[minmax(280px,1.6fr)_170px_220px_190px_auto]">
+        <PageHero
+          compact
+          eyebrow="Production · Machine terminal"
+          title="Choose your machine"
+          description="Pick the machine you are running. The queue shows what is waiting on it."
+        >
+          <HeroStats columns={4}>
+            <HeroStat label="Active machines" value={machineStats.active} tone="good" />
+            <HeroStat label="Running now" value={machineStats.running} tone="info" />
+            <HeroStat label="Jobs waiting" value={machineStats.queued} tone="warn" />
+            <HeroStat label="Machine groups" value={machineStats.workCenters} />
+          </HeroStats>
+        </PageHero>
+        <section className="mt-4 rounded-lg border border-line bg-surface-1 p-5 shadow-[0_18px_50px_-38px_rgba(15,23,42,0.75)]">
+          <div className="grid gap-2 lg:grid-cols-[minmax(280px,1.6fr)_170px_220px_190px_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
               <Input
@@ -387,14 +361,14 @@ export default function MachineSelectorPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1.5">
                         {isLastUsed ? (
-                          <Badge className="rounded-full bg-success-fg px-2 py-0.5 text-[10px] font-bold">
+                          <Badge className="rounded-full bg-success-fg px-2 py-0.5 text-caption font-bold">
                             Last Used
                           </Badge>
                         ) : null}
                         <Badge
                           variant={isActive ? "default" : "secondary"}
                           className={cn(
-                            "rounded-full border px-2.5 py-0.5 text-[10px] font-bold shadow-sm",
+                            "rounded-full border px-2.5 py-0.5 text-caption font-bold shadow-sm",
                             isActive
                               ? "bg-success-bg text-success-fg border-success-border"
                               : "bg-surface-2 text-content-3 border-line",
@@ -410,7 +384,7 @@ export default function MachineSelectorPage() {
                   </CardHeader>
 
                   <CardContent className="flex flex-1 flex-col gap-4 px-5 pb-5">
-                    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-content-3">
+                    <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-wide text-content-3">
                       <Package className="h-3.5 w-3.5 text-content-4" />
                       <span>{machine.work_center_name}</span>
                       <span className="mx-0.5 text-content-4">|</span>
@@ -425,21 +399,21 @@ export default function MachineSelectorPage() {
                               <div className="absolute inset-0 animate-ping rounded-full bg-info-fg opacity-20"></div>
                               <Play className="relative h-3.5 w-3.5 text-primary" />
                             </div>
-                            <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">
+                            <span className="text-caption font-semibold text-primary uppercase tracking-widest">
                               Active Execution
                             </span>
                           </div>
                           <p className="text-sm font-semibold text-content-2 line-clamp-1 mb-1">
                             {machine.current_job?.job_number}
                           </p>
-                          <p className="text-[11px] font-medium text-content-3 line-clamp-1">
+                          <p className="text-caption font-medium text-content-3 line-clamp-1">
                             {machine.current_job?.product_name}
                           </p>
                         </div>
                       ) : (
                         <div className="flex h-full min-h-[96px] flex-col items-center justify-center rounded-lg border border-dashed border-line bg-surface-2 p-4 text-center">
                           <Pause className="mb-2 h-5 w-5 text-content-4" />
-                          <p className="text-[11px] font-bold text-content-4 uppercase tracking-widest leading-none">
+                          <p className="text-caption font-bold text-content-4 uppercase tracking-widest leading-none">
                             Idle Terminal
                           </p>
                         </div>
@@ -459,7 +433,7 @@ export default function MachineSelectorPage() {
                         <span className="text-lg font-semibold text-content-1 leading-none">
                           {machine.queue_count}
                         </span>
-                        <div className="px-1.5 py-0.5 rounded bg-info-bg text-primary text-[10px] font-semibold uppercase">
+                        <div className="px-1.5 py-0.5 rounded bg-info-bg text-primary text-caption font-semibold uppercase">
                           Queue
                         </div>
                       </div>

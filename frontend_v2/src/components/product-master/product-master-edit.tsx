@@ -1199,7 +1199,7 @@ export function ProductMasterEditWorkspace({
                     frozen on their original snapshot for audit.
                   </div>
                 </div>
-                <span className="rounded-full bg-surface-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary ring-1 ring-info-border">
+                <span className="rounded-full bg-surface-1 px-3 py-1 text-caption font-semibold uppercase tracking-wider text-primary ring-1 ring-info-border">
                   active on save
                 </span>
               </div>
@@ -1214,14 +1214,14 @@ export function ProductMasterEditWorkspace({
                     <Workflow className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                       Production master · stock launcher only
                     </div>
                     <div className="font-display text-sm font-semibold text-content-1 mt-0.5">
                       Sales doesn&apos;t pick this · planner launches in-house
                       production after manual SKU link
                     </div>
-                    <div className="mt-1 text-[11px] text-content-2 leading-relaxed">
+                    <div className="mt-1 text-caption text-content-2 leading-relaxed">
                       Each variant of this {kind} master is a production
                       contract. It does not create a SKU. Link it manually to an
                       existing fixed row in{" "}
@@ -1242,7 +1242,7 @@ export function ProductMasterEditWorkspace({
                   </div>
                   <a
                     href={`/master/${kind === "PACKAGING" ? "packaging" : "pod"}`}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface-1 px-3 text-[11px] font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface-1 px-3 text-caption font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
                   >
                     Open catalog <ArrowRight className="h-3.5 w-3.5" />
                   </a>
@@ -1437,14 +1437,14 @@ export function ProductMasterEditWorkspace({
                               {opt.label}
                             </span>
                             {active ? (
-                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-warning-fg text-[10px] font-semibold text-white shadow ring-2 ring-surface-1">
+                              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-warning-fg text-caption font-semibold text-white shadow ring-2 ring-surface-1">
                                 ✓
                               </span>
                             ) : null}
                           </div>
                           <div
                             className={cn(
-                              "text-[11px] leading-snug",
+                              "text-caption leading-snug",
                               active ? "text-warning-fg" : "text-content-3",
                             )}
                           >
@@ -1500,7 +1500,7 @@ export function ProductMasterEditWorkspace({
                         ? "Active — sales & planner can pick"
                         : "Inactive — hidden from sales & planner"}
                     </div>
-                    <div className="text-[11px] text-content-3">
+                    <div className="text-caption text-content-3">
                       Saved as part of the master record.
                     </div>
                   </div>
@@ -1514,10 +1514,10 @@ export function ProductMasterEditWorkspace({
 
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between">
-                <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                   Live route preview
                 </Label>
-                <span className="text-[11px] text-content-3">
+                <span className="text-caption text-content-3">
                   Process names come from the live template.
                 </span>
               </div>
@@ -1550,12 +1550,12 @@ export function ProductMasterEditWorkspace({
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
               <div className="rounded-2xl border border-info-border bg-gradient-to-br from-info-bg to-white p-3 shadow-sm">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase text-primary">
+                  <span className="text-caption font-semibold uppercase text-primary">
                     Layer contract
                   </span>
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1",
+                      "rounded-full px-2 py-0.5 text-caption font-semibold ring-1",
                       pendingLayerCount
                         ? "bg-warning-bg text-warning-fg ring-warning-border"
                         : "bg-success-bg text-success-fg ring-success-border",
@@ -1568,10 +1568,10 @@ export function ProductMasterEditWorkspace({
                   {draft.layer_template.length} layer
                   {draft.layer_template.length === 1 ? "" : "s"}
                 </div>
-                <div className="mt-1 font-mono text-[11px] font-bold text-content-2">
+                <div className="mt-1 font-mono text-caption font-bold text-content-2">
                   {layerMaterialStack || "No layers yet"}
                 </div>
-                <div className="mt-2 text-[11px] leading-5 text-content-3">
+                <div className="mt-2 text-caption leading-5 text-content-3">
                   Thickness and grade are per-layer axes only. Sales labels show
                   thickness separately from layer material codes.
                 </div>
@@ -1579,10 +1579,10 @@ export function ProductMasterEditWorkspace({
 
               <div className="rounded-2xl border border-order-border bg-gradient-to-br from-order-bg to-white p-3 shadow-sm">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase text-order-fg">
+                  <span className="text-caption font-semibold uppercase text-order-fg">
                     Order axes
                   </span>
-                  <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-order-fg ring-1 ring-order-border">
+                  <span className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-order-fg ring-1 ring-order-border">
                     {enabledAxisLabels.length || 0} enabled
                   </span>
                 </div>
@@ -1591,14 +1591,14 @@ export function ProductMasterEditWorkspace({
                     (label) => (
                       <span
                         key={label}
-                        className="rounded-full bg-surface-1 px-2 py-1 text-[10px] font-bold text-content-2 ring-1 ring-line"
+                        className="rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-content-2 ring-1 ring-line"
                       >
                         {label}
                       </span>
                     ),
                   )}
                 </div>
-                <div className="mt-3 rounded-xl border border-dashed border-order-border bg-surface-1/70 px-2 py-2 text-[11px] text-content-3">
+                <div className="mt-3 rounded-xl border border-dashed border-order-border bg-surface-1/70 px-2 py-2 text-caption text-content-3">
                   Ad-hoc is bounded to PM axes:
                   <strong className="ml-1 text-order-fg">
                     {adHocAxisLabels.length ? adHocAxisLabels.join(", ") : "none"}
@@ -1608,14 +1608,14 @@ export function ProductMasterEditWorkspace({
 
               <div className="rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg to-white p-3 shadow-sm">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase text-warning-fg">
+                  <span className="text-caption font-semibold uppercase text-warning-fg">
                     BOM source policy
                   </span>
-                  <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-warning-fg ring-1 ring-warning-border">
+                  <span className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-warning-fg ring-1 ring-warning-border">
                     backend managed
                   </span>
                 </div>
-                <div className="space-y-2 text-[11px] leading-5 text-content-2">
+                <div className="space-y-2 text-caption leading-5 text-content-2">
                   <div>
                     <strong className="text-content-1">Film:</strong>{" "}
                     {routeSourceCopy}
@@ -1655,13 +1655,13 @@ export function ProductMasterEditWorkspace({
               const kind = String(draft.product_kind || "").toUpperCase();
               if (kind === "POUCH") {
                 return (
-                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-warning-border bg-gradient-to-r from-warning-bg via-white to-warm px-3 py-2 text-[11px] text-warning-fg">
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-warning-border bg-gradient-to-r from-warning-bg via-white to-warm px-3 py-2 text-caption text-warning-fg">
                     <Package className="mt-0.5 h-4 w-4 flex-none text-warning-fg" />
                     <span>
                       <strong>Inner pouch axis</strong> below lets sales pick
                       which inner-pouch SKU goes with this pouch. Customer
                       overlay can override{" "}
-                      <code className="rounded bg-warning-bg px-1 font-mono text-[10px] text-warning-fg">
+                      <code className="rounded bg-warning-bg px-1 font-mono text-caption text-warning-fg">
                         pcs_per_inner
                       </code>
                       . All other packing (gunny, sheet, tape, label, tag) is
@@ -1679,7 +1679,7 @@ export function ProductMasterEditWorkspace({
               }
               if (kind === "PACKAGING" || kind === "POD") {
                 return (
-                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-order-border bg-gradient-to-r from-order-bg via-white to-order-bg px-3 py-2 text-[11px] text-order-fg">
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-order-border bg-gradient-to-r from-order-bg via-white to-order-bg px-3 py-2 text-caption text-order-fg">
                     <Workflow className="mt-0.5 h-4 w-4 flex-none text-order-fg" />
                     <span>
                       This is a <strong>{kind}</strong> production master. It
@@ -1696,14 +1696,14 @@ export function ProductMasterEditWorkspace({
             <div className="mb-3 rounded-2xl border border-info-border bg-gradient-to-r from-info-bg via-surface-1 to-success-bg p-3 shadow-sm">
               <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
                     Sales ad-hoc permissions
                   </div>
-                  <div className="mt-0.5 text-[11px] font-semibold text-content-3">
+                  <div className="mt-0.5 text-caption font-semibold text-content-3">
                     These switches decide whether sales can add a new value inside this Product Master. Off axes stay blocked.
                   </div>
                 </div>
-                <span className="rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-success-fg ring-1 ring-success-border">
+                <span className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-success-fg ring-1 ring-success-border">
                   {adHocAxisLabels.length ? `${adHocAxisLabels.length} allowed` : "none allowed"}
                 </span>
               </div>
@@ -1729,7 +1729,7 @@ export function ProductMasterEditWorkspace({
                         })
                       }
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ring-1 transition",
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-wide ring-1 transition",
                         adHocAllowed
                           ? "bg-success-bg text-success-fg ring-success-border"
                           : "bg-surface-1 text-content-3 ring-line hover:bg-surface-2",
@@ -1783,13 +1783,13 @@ export function ProductMasterEditWorkspace({
                           <div className="text-sm font-bold text-content-1">
                             {def.label || def.axis}
                           </div>
-                          <div className="text-[11px] text-content-3">
+                          <div className="text-caption text-content-3">
                             {def.type.replaceAll("_", " ")}
                           </div>
                         </div>
                         <span
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
+                            "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset",
                             mode === "required" &&
                               "bg-primary text-white ring-primary",
                             mode === "optional" &&
@@ -1806,7 +1806,7 @@ export function ProductMasterEditWorkspace({
                           type="button"
                           onClick={() => patchAxis(def.axis, false, false)}
                           className={cn(
-                            "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                            "rounded-full px-2 py-1 text-caption font-bold uppercase",
                             mode === "off"
                               ? "bg-surface-1 text-content-1 shadow-sm"
                               : "text-content-3",
@@ -1818,7 +1818,7 @@ export function ProductMasterEditWorkspace({
                           type="button"
                           onClick={() => patchAxis(def.axis, false, true)}
                           className={cn(
-                            "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                            "rounded-full px-2 py-1 text-caption font-bold uppercase",
                             mode === "optional"
                               ? "bg-surface-1 text-order-fg shadow-sm"
                               : "text-content-3",
@@ -1830,7 +1830,7 @@ export function ProductMasterEditWorkspace({
                           type="button"
                           onClick={() => patchAxis(def.axis, true, true)}
                           className={cn(
-                            "rounded-full px-2 py-1 text-[10px] font-bold uppercase",
+                            "rounded-full px-2 py-1 text-caption font-bold uppercase",
                             mode === "required"
                               ? "bg-primary text-white shadow-sm"
                               : "text-content-3",
@@ -1839,18 +1839,18 @@ export function ProductMasterEditWorkspace({
                           Required
                         </button>
                       </div>
-                      <div className="mt-2 text-[11px] text-content-3">
+                      <div className="mt-2 text-caption text-content-3">
                         {axisModeCopy(mode as "off" | "optional" | "required")}
                       </div>
                       {def.axis === "size" ? (
-                        <div className="mt-2 rounded-lg border border-info-border bg-info-bg px-2 py-2 text-[11px] font-semibold leading-5 text-primary">
+                        <div className="mt-2 rounded-lg border border-info-border bg-info-bg px-2 py-2 text-caption font-semibold leading-5 text-primary">
                           When allowed, sales can add a new pouch size inside
                           this Product Master. It still resolves through this
                           master&apos;s route, layers, BOM and approval rules.
                         </div>
                       ) : null}
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-2 px-2 py-1.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                        <span className="text-caption font-bold uppercase tracking-wider text-content-3">
                           {def.axis === "size" ? "Ad-hoc size in sales" : "Ad-hoc value"}
                         </span>
                         <button
@@ -1863,7 +1863,7 @@ export function ProductMasterEditWorkspace({
                             })
                           }
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1",
+                            "rounded-full px-2 py-0.5 text-caption font-semibold uppercase ring-1",
                             adHocAllowed
                               ? "bg-success-bg text-success-fg ring-success-border"
                               : "bg-surface-1 text-content-3 ring-line",
@@ -1924,7 +1924,7 @@ export function ProductMasterEditWorkspace({
                 </div>
               ) : null}
             </div>
-            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-content-3">
+            <p className="mt-3 flex items-center gap-1.5 text-caption text-content-3">
               <AlertTriangle className="h-3.5 w-3.5 text-warning-fg" />
               Total default thickness{" "}
               <strong className="ml-1 text-content-2">
@@ -2006,14 +2006,14 @@ export function ProductMasterEditWorkspace({
                       <div className="text-sm font-semibold text-content-1">
                         Adhesive
                       </div>
-                      <div className="text-[11px] text-content-3">
+                      <div className="text-caption text-content-3">
                         Consumed from selected adhesive master by GSM × area.
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
                     <div>
-                      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                         Material
                       </Label>
                       <Select
@@ -2045,7 +2045,7 @@ export function ProductMasterEditWorkspace({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                         GSM
                       </Label>
                       <Input
@@ -2066,7 +2066,7 @@ export function ProductMasterEditWorkspace({
                     </div>
                   </div>
                   {draft.fixed_attributes?.adhesive_material_code ? (
-                    <div className="mt-2 rounded-lg bg-success-bg px-2 py-1.5 text-[11px] font-semibold text-success-fg">
+                    <div className="mt-2 rounded-lg bg-success-bg px-2 py-1.5 text-caption font-semibold text-success-fg">
                       {draft.fixed_attributes.adhesive_material_code} ·{" "}
                       {draft.fixed_attributes.adhesive_gsm || 0} GSM
                     </div>
@@ -2080,14 +2080,14 @@ export function ProductMasterEditWorkspace({
                       <div className="text-sm font-semibold text-content-1">
                         Solvent
                       </div>
-                      <div className="text-[11px] text-content-3">
+                      <div className="text-caption text-content-3">
                         Consumed from selected solvent master by GSM × area.
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
                     <div>
-                      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                         Material
                       </Label>
                       <Select
@@ -2119,7 +2119,7 @@ export function ProductMasterEditWorkspace({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                         GSM
                       </Label>
                       <Input
@@ -2140,7 +2140,7 @@ export function ProductMasterEditWorkspace({
                     </div>
                   </div>
                   {draft.fixed_attributes?.solvent_material_code ? (
-                    <div className="mt-2 rounded-lg bg-info-bg px-2 py-1.5 text-[11px] font-semibold text-info-fg">
+                    <div className="mt-2 rounded-lg bg-info-bg px-2 py-1.5 text-caption font-semibold text-info-fg">
                       {draft.fixed_attributes.solvent_material_code} ·{" "}
                       {draft.fixed_attributes.solvent_gsm || 0} GSM
                     </div>
@@ -2244,7 +2244,7 @@ export function ProductMasterEditWorkspace({
             }}
             badge={
               livePreviewError ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-fg ring-1 ring-warning-border">
+                <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
                   <AlertTriangle className="h-3 w-3" /> preview needs save/axes
                 </span>
               ) : undefined
@@ -2402,7 +2402,7 @@ function FormField({
         <span className={cn("inline-block h-1.5 w-1.5 rounded-full", t.dot)} />
         <Label
           className={cn(
-            "text-[10px] font-semibold uppercase tracking-[0.12em]",
+            "text-caption font-semibold uppercase tracking-[0.12em]",
             t.label,
           )}
         >
@@ -2440,7 +2440,7 @@ function FlatFilmVisual({
   return (
     <div className="space-y-3">
       <div className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg p-4">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success-fg mb-2">
+        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-success-fg mb-2">
           Flat film stack · {kind}
         </div>
         {/* Layer stack — proportional thickness bars */}
@@ -2457,7 +2457,7 @@ function FlatFilmVisual({
                   : 100 / layers.length;
               return (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] font-semibold text-content-3 w-6">
+                  <span className="font-mono text-caption font-semibold text-content-3 w-6">
                     L{i + 1}
                   </span>
                   <div className="flex-1 h-5 rounded-md bg-surface-2 overflow-hidden ring-1 ring-line">
@@ -2469,10 +2469,10 @@ function FlatFilmVisual({
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="font-mono text-[10px] font-bold text-content-2 w-14 text-right">
+                  <span className="font-mono text-caption font-bold text-content-2 w-14 text-right">
                     {l.thickness_micron || 0}μ
                   </span>
-                  <span className="font-mono text-[10px] text-content-3 w-20 truncate">
+                  <span className="font-mono text-caption text-content-3 w-20 truncate">
                     {l.film_variant_code || "—"}
                   </span>
                 </div>
@@ -2481,7 +2481,7 @@ function FlatFilmVisual({
           </div>
         )}
         <div className="mt-3 flex items-center justify-between rounded-lg bg-surface-1 px-3 py-1.5 ring-1 ring-success-border">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             Total thickness
           </span>
           <span className="font-mono font-semibold text-success-fg">
@@ -2489,7 +2489,7 @@ function FlatFilmVisual({
           </span>
         </div>
         {sizeRow ? (
-          <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+          <div className="mt-2 grid grid-cols-2 gap-2 text-caption">
             <div className="rounded-lg bg-surface-1 px-2 py-1 ring-1 ring-success-border">
               <div className="font-semibold uppercase tracking-wider text-content-3">
                 Width
@@ -2625,7 +2625,7 @@ function LayerCard({
               L{index + 1}
             </span>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
                 Layer {index + 1}
               </div>
               <div className="font-display text-sm font-semibold text-content-1">
@@ -2635,13 +2635,13 @@ function LayerCard({
           </div>
           <div className="flex items-center gap-1.5">
             {isSetupPending ? (
-              <span className="rounded-full bg-warning-bg px-2 py-1 text-[10px] font-semibold uppercase text-warning-fg ring-1 ring-warning-border">
+              <span className="rounded-full bg-warning-bg px-2 py-1 text-caption font-semibold uppercase text-warning-fg ring-1 ring-warning-border">
                 setup needed
               </span>
             ) : null}
             <span
               className={cn(
-                "rounded-full px-2 py-1 text-[10px] font-semibold uppercase ring-1",
+                "rounded-full px-2 py-1 text-caption font-semibold uppercase ring-1",
                 allowedFilmCodes.length > 1
                   ? "bg-info-bg text-primary ring-info-border"
                   : "bg-surface-1 text-content-3 ring-line",
@@ -2664,7 +2664,7 @@ function LayerCard({
 
         {/* Film picker */}
         <div className="mb-3">
-          <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+          <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
             Default film variant · Product Master owned
           </Label>
           {filmVariants.length ? (
@@ -2693,11 +2693,11 @@ function LayerCard({
                 </SelectContent>
               </Select>
               {layer.film_variant_code ? (
-                <div className="mt-1 rounded-lg bg-surface-1 px-2 py-1 font-mono text-[10px] font-bold text-content-2 ring-1 ring-line">
+                <div className="mt-1 rounded-lg bg-surface-1 px-2 py-1 font-mono text-caption font-bold text-content-2 ring-1 ring-line">
                   Default film · {layer.film_variant_code}
                 </div>
               ) : (
-                <div className="mt-1 rounded-lg bg-warning-bg px-2 py-1 text-[10px] font-bold text-warning-fg ring-1 ring-warning-border">
+                <div className="mt-1 rounded-lg bg-warning-bg px-2 py-1 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
                   Pick the film variant for this layer slot. Grade and thickness
                   presets follow the selected film/recipe.
                 </div>
@@ -2705,10 +2705,10 @@ function LayerCard({
               <div className="mt-3 rounded-xl border border-info-border bg-surface-1/80 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
                       Allowed film variants · {allowedFilmRows.length}
                     </div>
-                    <div className="text-[11px] font-semibold text-content-3">
+                    <div className="text-caption font-semibold text-content-3">
                       Sales/planner can switch this layer only to these PM-approved
                       variants.
                     </div>
@@ -2749,7 +2749,7 @@ function LayerCard({
                       <span
                         key={film.code}
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-[10px] font-semibold ring-1",
+                          "inline-flex items-center gap-1 rounded-md px-2 py-1 font-mono text-caption font-semibold ring-1",
                           isDefault
                             ? "bg-info-bg text-primary ring-info-border"
                             : "bg-surface-2 text-content-2 ring-line",
@@ -2779,7 +2779,7 @@ function LayerCard({
                     );
                   })}
                   {allowedFilmRows.length <= 1 ? (
-                    <span className="rounded-md bg-surface-2 px-2 py-1 text-[10px] font-bold text-content-3 ring-1 ring-line">
+                    <span className="rounded-md bg-surface-2 px-2 py-1 text-caption font-bold text-content-3 ring-1 ring-line">
                       No alternates approved yet
                     </span>
                   ) : null}
@@ -2895,7 +2895,7 @@ function LayerCard({
           <button
             type="button"
             onClick={() => setShowRollOverride((v) => !v)}
-            className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3 hover:text-content-1"
+            className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-[0.1em] text-content-3 hover:text-content-1"
           >
             <span
               className={cn(
@@ -2904,13 +2904,13 @@ function LayerCard({
               )}
             />
             Advanced · per-layer roll-width override
-            <span className="text-[10px] text-content-3 normal-case font-normal">
+            <span className="text-caption text-content-3 normal-case font-normal">
               {showRollOverride ? "(hide)" : "(rare — click to show)"}
             </span>
           </button>
           {showRollOverride ? (
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)_140px] gap-2 items-end">
-              <div className="text-[11px] text-content-3">
+              <div className="text-caption text-content-3">
                 Fallback input roll width for BOM, used when no size-level
                 override is set on the order.
               </div>
@@ -2971,13 +2971,13 @@ function LayerAxisBlock({
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-[0.1em]",
+              "text-caption font-semibold uppercase tracking-[0.1em]",
               axisColor === "blue" ? "text-primary" : "text-success-fg",
             )}
           >
             {title}
           </span>
-          <span className="text-[10px] text-content-3">
+          <span className="text-caption text-content-3">
             {variable ? helperVariable : helperFixed}
           </span>
         </div>
@@ -2986,7 +2986,7 @@ function LayerAxisBlock({
             type="button"
             onClick={() => onToggle(false)}
             className={cn(
-              "rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset transition",
+              "rounded-full px-2.5 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset transition",
               !variable ? toneActive : toneInactive,
             )}
           >
@@ -2996,7 +2996,7 @@ function LayerAxisBlock({
             type="button"
             onClick={() => onToggle(true)}
             className={cn(
-              "rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset transition",
+              "rounded-full px-2.5 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset transition",
               variable ? toneActive : toneInactive,
             )}
           >
@@ -3006,14 +3006,14 @@ function LayerAxisBlock({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3 mb-1">
+          <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-1">
             Default {variable ? "(required)" : ""}
           </div>
           {defaultEditor}
         </div>
         {variable && allowedEditor ? (
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg mb-1">
+            <div className="text-caption font-semibold uppercase tracking-wider text-success-fg mb-1">
               Allowed list · sales/planner picks one per variant
             </div>
             {allowedEditor}
@@ -3040,7 +3040,7 @@ function ToggleRow({
       <div>
         <div className="text-sm font-bold text-content-1">{label}</div>
         {description ? (
-          <div className="text-[11px] text-content-3">{description}</div>
+          <div className="text-caption text-content-3">{description}</div>
         ) : null}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
@@ -3194,20 +3194,20 @@ function PrintingTwoKnob({
             <Palette className="h-4 w-4" />
           </span>
           <div className="flex-1">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
               Knob 1
             </div>
             <div className="text-sm font-semibold text-content-1">
               Print capable
             </div>
-            <div className="text-[11px] text-content-3">
+            <div className="text-caption text-content-3">
               Can this master carry artwork at all? Off = plain unprinted
               master.
             </div>
           </div>
           <span
             className={cn(
-              "ml-2 inline-flex h-6 items-center rounded-full px-2 text-[10px] font-semibold uppercase tracking-wider ring-1",
+              "ml-2 inline-flex h-6 items-center rounded-full px-2 text-caption font-semibold uppercase tracking-wider ring-1",
               printCapable
                 ? "bg-order-fg text-white ring-order-border shadow-sm"
                 : "bg-surface-2 text-content-3 ring-line",
@@ -3241,13 +3241,13 @@ function PrintingTwoKnob({
             <CheckCircle2 className="h-4 w-4" />
           </span>
           <div className="flex-1">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
               Knob 2
             </div>
             <div className="text-sm font-semibold text-content-1">
               Artwork compulsory
             </div>
-            <div className="text-[11px] text-content-3">
+            <div className="text-caption text-content-3">
               {printCapable
                 ? "Block release until artwork is on the line. Off = can dispatch unprinted."
                 : "Enable Knob 1 first."}
@@ -3255,7 +3255,7 @@ function PrintingTwoKnob({
           </div>
           <span
             className={cn(
-              "ml-2 inline-flex h-6 items-center rounded-full px-2 text-[10px] font-semibold uppercase tracking-wider ring-1",
+              "ml-2 inline-flex h-6 items-center rounded-full px-2 text-caption font-semibold uppercase tracking-wider ring-1",
               printCapable && artworkRequired
                 ? "bg-order-fg text-white ring-order-border shadow-sm"
                 : "bg-surface-2 text-content-3 ring-line",
@@ -3269,7 +3269,7 @@ function PrintingTwoKnob({
       {printCapable ? (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <div className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
-            <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
               Allowed print method
             </Label>
             <Select
@@ -3287,7 +3287,7 @@ function PrintingTwoKnob({
                 <SelectItem value="ROTO">ROTO · cylinders required</SelectItem>
               </SelectContent>
             </Select>
-            <p className="mt-2 text-[11px] leading-4 text-content-3">
+            <p className="mt-2 text-caption leading-4 text-content-3">
               This must match the printing process on the route. Sales,
               planner, and artwork pickers use this value to reject the wrong
               artwork method.
@@ -3295,14 +3295,14 @@ function PrintingTwoKnob({
           </div>
 
           <div className="rounded-2xl border border-info-border bg-info-bg p-3 shadow-sm">
-            <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+            <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
               Artwork form from pouch style
             </Label>
             <div className="mt-2 flex h-10 items-center justify-between rounded-xl bg-surface-1 px-3 ring-1 ring-info-border">
               <span className="text-sm font-semibold text-content-1">
                 {mixedSubstrateModes ? "MIXED" : substrateMode}
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+              <span className="text-caption font-bold uppercase tracking-wider text-content-3">
                 {mixedSubstrateModes
                   ? "fallback disabled"
                   : substrateMode === "TUBING"
@@ -3310,7 +3310,7 @@ function PrintingTwoKnob({
                   : "open web / sheet"}
               </span>
             </div>
-            <p className="mt-2 text-[11px] leading-4 text-content-3">
+            <p className="mt-2 text-caption leading-4 text-content-3">
               {mixedSubstrateModes
                 ? "Sizes on this master include both SHEET and TUBING forms, so artwork must be selected per order size."
                 : "Not a free toggle. Size/pouch-style stock form decides whether approved artwork must be SHEET or TUBING."}
@@ -3323,7 +3323,7 @@ function PrintingTwoKnob({
         <div className="flex items-start justify-between gap-3 rounded-xl border border-danger-border bg-danger-bg px-4 py-3 text-danger-fg">
           <div className="min-w-0 text-xs">
             <div className="font-bold">Saved fallback artwork is incompatible</div>
-            <div className="mt-0.5 text-[11px]">
+            <div className="mt-0.5 text-caption">
               {(incompatibleDefaultArtwork as any).design_code ||
                 incompatibleDefaultArtwork.id}{" "}
               is not {printType} ·{" "}
@@ -3334,7 +3334,7 @@ function PrintingTwoKnob({
           <button
             type="button"
             onClick={() => onChangeDefaultArtwork("")}
-            className="rounded-full bg-surface-1 px-3 py-1 text-[11px] font-semibold text-danger-fg ring-1 ring-danger-border"
+            className="rounded-full bg-surface-1 px-3 py-1 text-caption font-semibold text-danger-fg ring-1 ring-danger-border"
           >
             Clear
           </button>
@@ -3364,15 +3364,15 @@ function PrintingTwoKnob({
             <Disc className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
               {meta.eyebrow}
             </div>
             <div className="font-display text-sm font-semibold text-content-1">
               {meta.title}
             </div>
             <div className="mt-1 text-[12px] text-content-2">{meta.body}</div>
-            <div className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-surface-1/80 px-2.5 py-1.5 text-[11px] font-semibold text-content-2 ring-1 ring-surface-1/40">
-              <span className="font-semibold uppercase text-[10px] tracking-wider text-content-3">
+            <div className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-surface-1/80 px-2.5 py-1.5 text-caption font-semibold text-content-2 ring-1 ring-surface-1/40">
+              <span className="font-semibold uppercase text-caption tracking-wider text-content-3">
                 BOM
               </span>
               <span>{meta.bom}</span>
@@ -3390,10 +3390,10 @@ function PrintingTwoKnob({
       {printCapable && artworkRequired ? (
         <div className="rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-danger-bg p-3 shadow-sm ring-1 ring-order-border">
           <div className="flex items-center justify-between gap-2 mb-1.5">
-            <Label className="text-[10px] font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
               Default fallback artwork (optional pre-fill)
             </Label>
-            <span className="text-[10px] font-bold text-content-3">
+            <span className="text-caption font-bold text-content-3">
               {artworks.length} compatible approved artworks
             </span>
           </div>
@@ -3428,7 +3428,7 @@ function PrintingTwoKnob({
               ))}
             </SelectContent>
           </Select>
-          <div className="mt-1.5 text-[10px] text-content-3">
+          <div className="mt-1.5 text-caption text-content-3">
             Pre-fills the sales line so the packer/planner sees an artwork as
             soon as the order is created. Sales can override per order. Customer
             overlay also overrides this. <strong>BOM ink stays at zero</strong>{" "}
@@ -3441,7 +3441,7 @@ function PrintingTwoKnob({
  surface a master-level default artwork. Tell the admin why so
  they don't go hunting for it. */}
       {printCapable && !artworkRequired ? (
-        <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] text-warning-fg">
+        <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption text-warning-fg">
           <Disc className="mt-0.5 h-3.5 w-3.5 flex-none text-warning-fg" />
           <span>
             No master-level default artwork because artwork is{" "}
@@ -3678,20 +3678,20 @@ function AxisAllowedCard({
         <div className="min-w-0">
           <div
             className={cn(
-              "text-[10px] font-semibold uppercase tracking-[0.1em]",
+              "text-caption font-semibold uppercase tracking-[0.1em]",
               entry.tone.text,
             )}
           >
             {entry.label}
           </div>
-          <div className="mt-0.5 text-[11px] font-bold text-content-2">
+          <div className="mt-0.5 text-caption font-bold text-content-2">
             {entry.multiplicityCopy}
             <span className="ml-1 text-content-3 font-medium">
               · {entry.consumption}
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+        <div className="flex flex-wrap items-center gap-1.5 text-caption">
           <span
             className={cn(
               "inline-flex items-center rounded-full px-2 py-0.5 font-bold ring-1",
@@ -3757,11 +3757,11 @@ function AxisAllowedCard({
 
       {/* Allowed code chips */}
       <div className="mt-3">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-content-3 mb-1">
+        <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-1">
           Allowed codes · {uniqueAllowedCodes.length}
         </div>
         {uniqueAllowedCodes.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-line-strong bg-surface-1/40 px-3 py-2 text-[11px] italic text-content-3">
+          <div className="rounded-lg border border-dashed border-line-strong bg-surface-1/40 px-3 py-2 text-caption italic text-content-3">
             No allowed codes yet — add at least one so sales can pick this{" "}
             {entry.label.toLowerCase()} on an order.
           </div>
@@ -3772,11 +3772,11 @@ function AxisAllowedCard({
               return (
                 <span
                   key={code}
-                  className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-2 py-0.5 text-[11px] font-mono font-bold text-content-2 ring-1 ring-line"
+                  className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-2 py-0.5 text-caption font-mono font-bold text-content-2 ring-1 ring-line"
                 >
                   {code}
                   {meta?.name && meta.name !== code ? (
-                    <span className="text-[10px] font-medium text-content-3">
+                    <span className="text-caption font-medium text-content-3">
                       {" "}
                       · {meta.name}
                     </span>
@@ -3800,7 +3800,7 @@ function AxisAllowedCard({
         <div className="mt-3 rounded-xl border border-warning-border bg-surface-1/70 px-3 py-2">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[180px]">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-warning-fg">
+              <div className="text-caption font-bold uppercase tracking-wider text-warning-fg">
                 Default pcs / inner
               </div>
               <Input
@@ -3822,7 +3822,7 @@ function AxisAllowedCard({
                 className="mt-1 h-9 rounded-lg border-warning-border bg-surface-1 font-mono text-xs font-bold"
               />
             </div>
-            <div className="max-w-xl text-[11px] leading-5 text-warning-fg">
+            <div className="max-w-xl text-caption leading-5 text-warning-fg">
               Sales can override per order; customer overlay can override per
               customer. Blank uses the selected inner-pouch catalog row default.
             </div>
@@ -3832,11 +3832,11 @@ function AxisAllowedCard({
 
       {/* Add picker */}
       <div className="mt-3">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-content-3 mb-1">
+        <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-1">
           Add from catalog · {pickable.length} available
         </div>
         {pickable.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-line bg-surface-1/40 px-3 py-2 text-[11px] italic text-content-3">
+          <div className="rounded-lg border border-dashed border-line bg-surface-1/40 px-3 py-2 text-caption italic text-content-3">
             All matching catalog rows are already allowed.
           </div>
         ) : (

@@ -17,9 +17,10 @@ test("planner shows sales-first facts and truthful source labels", async ({ page
   const queueRows = page.locator("[data-testid^='planner-queue-row-']")
   if (await queueRows.count()) {
     await queueRows.first().click()
-    await expect(page.locator("body")).toContainText("Source path")
-    await expect(page.locator("body")).toContainText("Layers")
-    await expect(page.locator("body")).toContainText("Geometry")
+    // The queue passport shows the sourcing decision (FG / WIP / stock), the production route and the release checklist.
+    await expect(page.locator("body")).toContainText(/Sourcing/i)
+    await expect(page.locator("body")).toContainText(/Production route/i)
+    await expect(page.locator("body")).toContainText(/Release checklist/i)
     await expect(page.locator("body")).toContainText("Route span")
   }
 })

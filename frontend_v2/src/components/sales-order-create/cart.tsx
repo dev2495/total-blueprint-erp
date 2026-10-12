@@ -49,7 +49,7 @@ export function Cart({
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <div>
             <div className="text-sm font-semibold text-content-1">Lines</div>
-            <div className="text-[11px] font-semibold text-content-3">
+            <div className="text-caption font-semibold text-content-3">
               The same label carries into planner, WCM, packing and dispatch.
             </div>
           </div>
@@ -117,7 +117,7 @@ export function Cart({
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
           <div>
             <div className="text-sm font-semibold text-content-1">Lines</div>
-            <div className="text-[11px] font-semibold text-content-3">
+            <div className="text-caption font-semibold text-content-3">
               The same label carries into planner, WCM, packing and dispatch.
             </div>
           </div>
@@ -126,7 +126,7 @@ export function Cart({
               variant="outline"
               size="sm"
               onClick={onAddLine}
-              className="h-8 rounded-lg border-line text-[11px] font-bold"
+              className="h-8 rounded-lg border-line text-caption font-bold"
             >
               <Plus className="h-3.5 w-3.5" /> Add line
             </Button>
@@ -135,7 +135,7 @@ export function Cart({
                 variant="outline"
                 size="sm"
                 onClick={() => onDuplicateLine(activeLine.id)}
-                className="h-8 rounded-lg border-line text-[11px] font-bold"
+                className="h-8 rounded-lg border-line text-caption font-bold"
               >
                 Duplicate
               </Button>
@@ -146,7 +146,7 @@ export function Cart({
           <div className="min-w-[1120px]">
             <div
               className={cn(
-                "grid bg-surface-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-content-4",
+                "grid bg-surface-2 text-caption font-semibold uppercase tracking-[0.08em] text-content-4",
                 LINE_TABLE_GRID,
               )}
             >
@@ -197,7 +197,7 @@ export function Cart({
                       <div className="truncate text-sm font-semibold text-content-1">
                         {line.line_label || master?.name || "New sales product"}
                       </div>
-                      <div className="truncate font-mono text-[10px] font-bold text-content-3">
+                      <div className="truncate font-mono text-caption font-bold text-content-3">
                         {master?.code || "Pick Product Master"}
                       </div>
                     </div>
@@ -208,7 +208,7 @@ export function Cart({
                   <LineCell isActive={isActive}>
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ring-1",
+                        "inline-flex rounded-full px-2 py-1 text-caption font-semibold ring-1",
                         line.artwork_mode === "DEFER"
                           ? "bg-warning-bg text-warning-fg ring-warning-border"
                           : line.artwork_assignment?.artwork_id
@@ -240,7 +240,7 @@ export function Cart({
                   <LineCell isActive={isActive}>
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ring-1",
+                        "inline-flex items-center gap-1 rounded-full px-2 py-1 text-caption font-semibold ring-1",
                         issues.length
                           ? "bg-danger-bg text-danger-fg ring-danger-border"
                           : "bg-success-bg text-success-fg ring-success-border",
@@ -257,7 +257,7 @@ export function Cart({
             })}
           </div>
         </div>
-        <div className="border-t border-line px-4 py-2 text-right text-[11px] font-bold text-content-4">
+        <div className="border-t border-line px-4 py-2 text-right text-caption font-bold text-content-4">
           {draft.lines.length} line{draft.lines.length === 1 ? "" : "s"}
           {totalKg > 0 ? ` · ${totalKg.toLocaleString()} KG` : ""} · sends to
           planner
@@ -269,7 +269,7 @@ export function Cart({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-[18px] border border-line bg-surface-1 px-4 py-2.5 shadow-sm">
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                 Line {activeIndex + 1} · build
               </div>
               <div className="truncate text-sm font-semibold text-content-1">
@@ -283,7 +283,7 @@ export function Cart({
                 variant="outline"
                 size="sm"
                 onClick={() => onDuplicateLine(activeLine.id)}
-                className="h-8 rounded-lg border-line text-[11px] font-bold"
+                className="h-8 rounded-lg border-line text-caption font-bold"
               >
                 Duplicate
               </Button>
@@ -291,7 +291,7 @@ export function Cart({
                 variant="outline"
                 size="sm"
                 onClick={() => onRemoveLine(activeLine.id)}
-                className="h-8 rounded-lg border-danger-border text-[11px] font-bold text-danger-fg hover:bg-danger-bg"
+                className="h-8 rounded-lg border-danger-border text-caption font-bold text-danger-fg hover:bg-danger-bg"
               >
                 Remove
               </Button>
@@ -378,7 +378,7 @@ function SpecSpine({
 
   if (!tokens.length) {
     return (
-      <div className="text-[11px] font-semibold text-content-4">
+      <div className="text-caption font-semibold text-content-4">
         Pick Product Master axes
       </div>
     );
@@ -390,7 +390,7 @@ function SpecSpine({
         <span
           key={`${token.tone}-${token.label}`}
           className={cn(
-            "max-w-[180px] truncate rounded-full px-2 py-1 font-mono text-[10px] font-semibold ring-1",
+            "max-w-[180px] truncate rounded-full px-2 py-1 font-mono text-caption font-semibold ring-1",
             token.tone === "blue" &&
               "bg-info-bg text-primary ring-info-border",
             token.tone === "green" &&

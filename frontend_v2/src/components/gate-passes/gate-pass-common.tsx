@@ -35,7 +35,7 @@ export function KindBadge({ kind, className }: { kind: GatePassKind; className?:
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-bold tracking-[0.04em]",
+        "inline-flex items-center rounded-md border px-1.5 py-0.5 text-caption font-bold tracking-[0.04em]",
         kind === "RETURNABLE" ? "border-info-border bg-info-bg text-info-fg" : "border-line bg-surface-2 text-content-2",
         className,
       )}

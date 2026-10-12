@@ -147,7 +147,7 @@ export default function LineBomCostEditor({
         <Database className="h-4 w-4 text-order-fg" />
         <div className="flex-1">
           <div className="text-xs font-semibold text-content-1">BOM material cost</div>
-          <div className="text-[10px] font-semibold text-content-4">
+          <div className="text-caption font-semibold text-content-4">
             {rows.length} governed component(s) · baseline stays read-only · quote assumption is revision-only
           </div>
         </div>
@@ -162,7 +162,7 @@ export default function LineBomCostEditor({
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-[1040px] w-full text-xs">
-                <thead className="bg-surface-2 text-[10px] font-semibold uppercase tracking-wider text-content-4">
+                <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-wider text-content-4">
                   <tr>
                     <th className="px-3 py-2 text-left">BOM item</th>
                     <th className="px-3 py-2 text-left">Qty basis</th>
@@ -181,13 +181,13 @@ export default function LineBomCostEditor({
                       <tr key={`${row.role}-${row.sequence}-${row.material_id}`} className="align-top">
                         <td className="px-3 py-2.5">
                           <div className="font-semibold text-content-1">{row.code || row.name}</div>
-                          <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">{row.role} · {row.name}</div>
+                          <div className="text-caption font-bold uppercase tracking-wider text-content-4">{row.role} · {row.name}</div>
                         </td>
                         <td className="px-3 py-2.5 font-mono font-bold">{money(row.qty)} {row.uom}</td>
                         <td className="px-3 py-2.5">
                           <div className={`font-mono font-bold ${missing ? "text-warning-fg" : "text-content-2"}`}>{row.source}</div>
-                          <div className="text-[10px] text-content-4">{row.sourceRef || "Source required"}</div>
-                          <div className="text-[10px] text-content-4">
+                          <div className="text-caption text-content-4">{row.sourceRef || "Source required"}</div>
+                          <div className="text-caption text-content-4">
                             {row.effectiveAt ? new Date(row.effectiveAt).toLocaleDateString("en-IN") : "Effective date required"}
                             {row.available > 0 ? ` · avail ${money(row.available)}` : ""}
                           </div>
@@ -202,7 +202,7 @@ export default function LineBomCostEditor({
                           <input disabled={!editable} aria-label={`${row.name} override reason`} value={override?.reason || ""} onChange={(event) => update(row, { reason: event.target.value })} placeholder={override?.rate ? "Required" : "—"} className="h-9 w-full rounded-lg border border-line px-2 disabled:bg-surface-2" />
                         </td>
                         <td className="px-3 py-2.5">
-                          <input disabled={!editable} aria-label={`${row.name} override expiry`} type="datetime-local" value={override?.expires_at || ""} onChange={(event) => update(row, { expires_at: event.target.value })} className="h-9 w-full rounded-lg border border-line px-2 text-[10px] disabled:bg-surface-2" />
+                          <input disabled={!editable} aria-label={`${row.name} override expiry`} type="datetime-local" value={override?.expires_at || ""} onChange={(event) => update(row, { expires_at: event.target.value })} className="h-9 w-full rounded-lg border border-line px-2 text-caption disabled:bg-surface-2" />
                         </td>
                       </tr>
                     );
@@ -211,7 +211,7 @@ export default function LineBomCostEditor({
               </table>
             </div>
           )}
-          <div className="flex items-start gap-2 border-t border-line bg-info-bg px-3 py-2 text-[10px] font-semibold text-info-fg">
+          <div className="flex items-start gap-2 border-t border-line bg-info-bg px-3 py-2 text-caption font-semibold text-info-fg">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Any quote cost needs reason, actor, validity and approval. It never updates Material Master, FIFO lots or inventory costing.
           </div>

@@ -138,7 +138,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
   return (
     <div className="flex flex-col">
       <PlannerReadFeedStatus feeds={[{ ...jobsQ, label: "Job queue" }]} onRetry={() => { void jobsQ.refetch(); }} />
-      <div className="flex flex-wrap gap-2 border-b border-line px-5 py-3 text-[11px] text-content-3">
+      <div className="flex flex-wrap gap-2 border-b border-line px-5 py-3 text-caption text-content-3">
         <span className="font-semibold uppercase tracking-wide">Queue</span>
         {BANDS.map((band) => (
           <Chip key={band.id} kind={band.tone} size="sm">
@@ -161,7 +161,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                   <div className="font-display text-sm font-semibold text-content-1">
                     {band.label}
                   </div>
-                  <div className="text-[10px] text-content-3">{band.hint}</div>
+                  <div className="text-caption text-content-3">{band.hint}</div>
                 </div>
                 <Chip kind={band.tone} size="sm">
                   {list.length}
@@ -169,11 +169,11 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
               </header>
 
               {isLoading ? (
-                <div className="rounded-lg border border-dashed border-line bg-surface-1 p-3 text-[11px] italic text-content-3">
+                <div className="rounded-lg border border-dashed border-line bg-surface-1 p-3 text-caption italic text-content-3">
                   Loading…
                 </div>
               ) : jobsQ.isError && !data ? null : list.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-line bg-surface-1 p-3 text-[11px] italic text-content-4">
+                <div className="rounded-lg border border-dashed border-line bg-surface-1 p-3 text-caption italic text-content-4">
                   Nothing in this band.
                 </div>
               ) : (
@@ -203,7 +203,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                       <div className="truncate text-[12px] text-content-2">
                         {jobLineLabel(job)}
                       </div>
-                      <div className="text-[10px] text-content-3">
+                      <div className="text-caption text-content-3">
                         {job.order_number || "—"} ·{" "}
                         {job.work_center_name || "WC pending"}
                       </div>
@@ -318,7 +318,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-line bg-surface-1 px-3 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-content-3">
+      <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono-token text-[13px] text-content-1">

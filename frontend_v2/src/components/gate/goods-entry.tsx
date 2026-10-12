@@ -389,7 +389,7 @@ export function GoodsEntry({ initialDirection }: { initialDirection: GateDirecti
           <section className="space-y-3">
             <div className="flex items-end justify-between px-1">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                   {candidate ? "Observed at gate" : "Goods on vehicle"}
                 </div>
                 <h2 className="text-[17px] font-semibold text-content-1">Items</h2>

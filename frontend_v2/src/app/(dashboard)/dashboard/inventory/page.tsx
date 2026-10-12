@@ -243,7 +243,7 @@ export default function InventoryDashboard() {
                       {a.material_code ? <span className="ml-1.5 font-mono text-[11.5px] text-content-3">{a.material_code}</span> : null}
                     </div>
                     <div className="mt-0.5 line-clamp-2 text-[12px] text-content-3">{a.message}</div>
-                    <div className="mt-0.5 text-[11px] text-content-4">
+                    <div className="mt-0.5 text-caption text-content-4">
                       {a.plant_name ? `${a.plant_name} · ` : ""}
                       {relativeTime(a.created_at)}
                     </div>

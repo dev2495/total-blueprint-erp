@@ -109,7 +109,7 @@ export function LineCard({
               {masterCode || "—"}
             </span>
             {masterName && (
-              <span className="truncate text-[11px] text-content-3">
+              <span className="truncate text-caption text-content-3">
                 {masterName}
               </span>
             )}
@@ -124,7 +124,7 @@ export function LineCard({
             </div>
           )}
           {hasIssue && (
-            <div className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-danger-fg">
+            <div className="mt-1.5 flex items-center gap-1 text-caption font-bold text-danger-fg">
               <AlertCircle className="h-3 w-3" />
               {issues[0]}
             </div>
@@ -134,12 +134,12 @@ export function LineCard({
         <div className="flex flex-none flex-col items-end gap-0.5 text-right">
           <div className="font-display text-base font-bold text-content-1">
             {formatNumber(line.qty_value)}
-            <span className="ml-0.5 text-[10px] font-bold uppercase tracking-wider text-content-4">
+            <span className="ml-0.5 text-caption font-bold uppercase tracking-wider text-content-4">
               {line.qty_uom}
             </span>
           </div>
           {lineTotal > 0 && (
-            <div className="text-[11px] font-semibold text-content-3">
+            <div className="text-caption font-semibold text-content-3">
               ₹{formatNumber(lineTotal, 0)}
             </div>
           )}
@@ -156,7 +156,7 @@ export function LineCard({
               e.stopPropagation();
               onExpand();
             }}
-            className="h-7 gap-1 rounded-lg text-[11px] font-bold text-primary hover:bg-info-bg"
+            className="h-7 gap-1 rounded-lg text-caption font-bold text-primary hover:bg-info-bg"
           >
             <Pencil className="h-3 w-3" /> Edit
           </Button>
@@ -167,7 +167,7 @@ export function LineCard({
               e.stopPropagation();
               onDuplicate();
             }}
-            className="h-7 gap-1 rounded-lg text-[11px] font-bold text-content-2 hover:bg-surface-2"
+            className="h-7 gap-1 rounded-lg text-caption font-bold text-content-2 hover:bg-surface-2"
           >
             <Copy className="h-3 w-3" /> Duplicate
           </Button>
@@ -179,7 +179,7 @@ export function LineCard({
             e.stopPropagation();
             onRemove();
           }}
-          className="h-7 gap-1 rounded-lg text-[11px] font-bold text-danger-fg hover:bg-danger-bg"
+          className="h-7 gap-1 rounded-lg text-caption font-bold text-danger-fg hover:bg-danger-bg"
         >
           <Trash2 className="h-3 w-3" /> Remove
         </Button>
@@ -218,7 +218,7 @@ function Chip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset shadow-sm",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-bold ring-1 ring-inset shadow-sm",
         map[tone],
       )}
     >

@@ -168,12 +168,12 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
       <div className="border-b border-line bg-gradient-to-r from-brand-navy to-order-fg px-5 py-4 text-white">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-order-border"><Calculator className="h-4 w-4" /> Quote-level Cost Build</div>
+            <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.1em] text-order-border"><Calculator className="h-4 w-4" /> Quote-level Cost Build</div>
             <h3 className="mt-1 text-lg font-semibold">Every cost has a source, owner and validity</h3>
             <p className="mt-1 max-w-3xl text-xs font-semibold leading-5 text-order-border">RM baselines remain intact. Quote assumptions are separate, reasoned and approved. Conversion Cost is one transparent block, and approval freezes this exact checksum.</p>
           </div>
           <div className="rounded-lg bg-white/10 px-3 py-2 text-right ring-1 ring-white/15">
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-order-border">Snapshot</div>
+            <div className="text-caption font-semibold uppercase tracking-widest text-order-border">Snapshot</div>
             <div className="font-mono text-xs font-semibold">{result?.checksum?.slice(0, 14) || "NOT SAVED"}</div>
           </div>
         </div>
@@ -196,12 +196,12 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
             <div className="rounded-xl border border-dashed border-line p-4 text-xs font-semibold text-content-3">Save quotation lines, then save Cost Build to resolve layer, ink, adhesive, solvent, additive and packing sources. No value is assumed.</div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-line"><table className="min-w-[980px] w-full text-xs">
-              <thead className="bg-surface-2 text-[10px] uppercase tracking-wider text-content-3"><tr><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Source / lot / date</th><th className="px-3 py-2 text-right">Baseline</th><th className="px-3 py-2 text-right">Qty / available</th><th className="px-3 py-2 text-left">Quote assumption</th><th className="px-3 py-2 text-left">State</th></tr></thead>
+              <thead className="bg-surface-2 text-caption uppercase tracking-wider text-content-3"><tr><th className="px-3 py-2 text-left">Component</th><th className="px-3 py-2 text-left">Source / lot / date</th><th className="px-3 py-2 text-right">Baseline</th><th className="px-3 py-2 text-right">Qty / available</th><th className="px-3 py-2 text-left">Quote assumption</th><th className="px-3 py-2 text-left">State</th></tr></thead>
               <tbody className="divide-y divide-line">{materials.map((row) => {
                 const overrideKey = row.component_key || `${row.quotation_item_id}-${row.role}-${row.material_id}`;
                 const override = overrides[overrideKey];
                 return <tr key={`${row.quotation_item_id}-${row.material_id}-${row.role}`} className="align-top">
-                  <td className="px-3 py-3"><div className="font-semibold text-content-1">{row.material_code || row.label}</div><div className="text-[10px] font-bold text-content-3">{lineName(row.quotation_item_id)}</div><div className="text-[10px] font-bold uppercase tracking-wider text-content-4">{row.role}</div></td>
+                  <td className="px-3 py-3"><div className="font-semibold text-content-1">{row.material_code || row.label}</div><div className="text-caption font-bold text-content-3">{lineName(row.quotation_item_id)}</div><div className="text-caption font-bold uppercase tracking-wider text-content-4">{row.role}</div></td>
                   <td className="px-3 py-3"><div className="font-mono font-bold">{row.source_type}</div><div className="text-content-3">{row.source_lot_ref || row.source_ref || "Source required"}</div><div className="text-content-4">{row.source_effective_at ? new Date(row.source_effective_at).toLocaleDateString("en-IN") : "No effective date"}</div></td>
                   <td className="px-3 py-3 text-right font-mono font-semibold">₹ {money(row.baseline_rate)} / {row.baseline_uom || "—"}</td>
                   <td className="px-3 py-3 text-right font-mono"><b>{money(row.quote_quantity)} {row.quote_uom}</b><div className="text-content-4">avail {money(row.baseline_available_qty)} {row.baseline_uom}</div></td>
@@ -210,19 +210,19 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
                     <input aria-label={`${row.label} override reason`} placeholder="Reason" value={override?.reason || ""} onChange={(event) => setOverrides((all) => ({ ...all, [overrideKey]: { rate: all[overrideKey]?.rate || 0, reason: event.target.value, expires_at: all[overrideKey]?.expires_at || "" } }))} className="h-8 rounded-md border border-line px-2" />
                     <input aria-label={`${row.label} override expiry`} type="datetime-local" value={override?.expires_at || ""} onChange={(event) => setOverrides((all) => ({ ...all, [overrideKey]: { rate: all[overrideKey]?.rate || 0, reason: all[overrideKey]?.reason || "", expires_at: event.target.value } }))} className="h-8 rounded-md border border-line px-2" />
                   </div> : <span className="font-mono">{row.override_rate ? `₹ ${money(row.override_rate)}` : "No override"}</span>}</td>
-                  <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${row.readiness_status === "READY" ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg"}`}>{row.override_status !== "NOT_REQUIRED" ? row.override_status : row.readiness_status}</span></td>
+                  <td className="px-3 py-3"><span className={`rounded-full px-2 py-1 text-caption font-semibold uppercase tracking-wider ${row.readiness_status === "READY" ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg"}`}>{row.override_status !== "NOT_REQUIRED" ? row.override_status : row.readiness_status}</span></td>
                 </tr>;
               })}</tbody>
             </table></div>
           )}
-          <p className="mt-2 text-[11px] font-semibold text-content-4">Quote assumptions never rewrite FIFO, inventory, RM or Material Cost Snapshot records.</p>
+          <p className="mt-2 text-caption font-semibold text-content-4">Quote assumptions never rewrite FIFO, inventory, RM or Material Cost Snapshot records.</p>
         </div>
 
         <div>
           <div className="mb-3">
             <div>
               <h4 className="text-sm font-semibold">Conversion Cost</h4>
-              <p className="text-[11px] font-semibold text-content-4">Choose one calculation path. Direct conversion is the default; every quote-only value remains editable, reasoned and approval-controlled.</p>
+              <p className="text-caption font-semibold text-content-4">Choose one calculation path. Direct conversion is the default; every quote-only value remains editable, reasoned and approval-controlled.</p>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-3" aria-label="Cost calculation method">
               <CostModeButton active={costEntryMode === "CONVERSION_TOTAL"} disabled={!editable} icon={<Gauge className="h-4 w-4" />} title="1. Direct conversion" caption="Editable conversion ₹/kg per quote line" onClick={() => setFastCostMode("CONVERSION_TOTAL")} />
@@ -230,7 +230,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
               <CostModeButton active={costEntryMode === "STEPWISE"} disabled={!editable} icon={<Layers3 className="h-4 w-4" />} title="3. Step-wise" caption="Process, labour, overhead and additions" onClick={() => setCostEntryMode("STEPWISE")} />
             </div>
           </div>
-          {costEntryMode === "MARGIN_LED" ? <div className="mb-3 rounded-lg bg-info-bg px-3 py-2 text-[11px] font-semibold text-info-fg">Enter the conversion assumption below, then set the pricing definition and target. The target price is calculated transparently; quote line selling rates remain explicit.</div> : null}
+          {costEntryMode === "MARGIN_LED" ? <div className="mb-3 rounded-lg bg-info-bg px-3 py-2 text-caption font-semibold text-info-fg">Enter the conversion assumption below, then set the pricing definition and target. The target price is calculated transparently; quote line selling rates remain explicit.</div> : null}
           <div className="space-y-2">
             {conversion.map((row) => (
               <div key={row.localId} className={`grid grid-cols-2 gap-2 rounded-xl border border-line p-3 ${costEntryMode !== "STEPWISE" ? "md:grid-cols-[1.3fr_110px_1fr_34px]" : "md:grid-cols-[150px_130px_1.1fr_1.1fr_90px_90px_1fr_34px]"}`}>
@@ -245,7 +245,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
                   <input disabled={!editable} aria-label={`${row.label} quantity`} type="number" placeholder="Qty" value={row.quantity || ""} onChange={(event) => updateConversion(row.localId, { quantity: Number(event.target.value) })} className="h-9 rounded-lg border border-line px-2 text-right font-mono text-xs" />
                 </> : null}
                 <input disabled={!editable || (costEntryMode === "STEPWISE" && row.source_type === "PROCESS_RATE")} aria-label={`${row.label} rate`} type="number" placeholder={costEntryMode !== "STEPWISE" ? "₹ / kg" : "Rate"} value={row.rate || ""} onChange={(event) => updateConversion(row.localId, { rate: Number(event.target.value), basis: costEntryMode !== "STEPWISE" ? "PER_KG" : row.basis, uom: costEntryMode !== "STEPWISE" ? "KG" : row.uom, source_type: costEntryMode !== "STEPWISE" ? "QUOTE_OVERRIDE" : row.source_type })} className="h-9 rounded-lg border border-line px-2 text-right font-mono text-xs" />
-                {costEntryMode === "STEPWISE" && row.source_type === "PROCESS_RATE" ? <select disabled={!editable} value={row.process_cost_rate_id || ""} onChange={(event) => updateConversion(row.localId, { process_cost_rate_id: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs font-semibold"><option value="">Select rate source</option>{(ratesQuery.data || []).filter((rate) => rate.is_active).map((rate) => <option key={rate.id} value={rate.id}>{rate.process_code} · {rate.machine_code || "all machines"} · ₹{money(rate.cost_per_hour)}/hr</option>)}</select> : <div className="grid grid-cols-2 gap-1"><input disabled={!editable} placeholder="Reason" value={row.override_reason || ""} onChange={(event) => updateConversion(row.localId, { override_reason: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs" /><input disabled={!editable} type="datetime-local" value={row.override_expires_at || ""} onChange={(event) => updateConversion(row.localId, { override_expires_at: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-[10px]" /></div>}
+                {costEntryMode === "STEPWISE" && row.source_type === "PROCESS_RATE" ? <select disabled={!editable} value={row.process_cost_rate_id || ""} onChange={(event) => updateConversion(row.localId, { process_cost_rate_id: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs font-semibold"><option value="">Select rate source</option>{(ratesQuery.data || []).filter((rate) => rate.is_active).map((rate) => <option key={rate.id} value={rate.id}>{rate.process_code} · {rate.machine_code || "all machines"} · ₹{money(rate.cost_per_hour)}/hr</option>)}</select> : <div className="grid grid-cols-2 gap-1"><input disabled={!editable} placeholder="Reason" value={row.override_reason || ""} onChange={(event) => updateConversion(row.localId, { override_reason: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-xs" /><input disabled={!editable} type="datetime-local" value={row.override_expires_at || ""} onChange={(event) => updateConversion(row.localId, { override_expires_at: event.target.value })} className="h-9 rounded-lg border border-line px-2 text-caption" /></div>}
                 {editable ? <button aria-label={`Remove ${row.label || "component"}`} type="button" onClick={() => setConversion((rows) => rows.filter((item) => item.localId !== row.localId))} className="inline-flex h-9 items-center justify-center rounded-lg text-danger-fg hover:bg-danger-bg"><Trash2 className="h-4 w-4" /></button> : <span />}
               </div>
             ))}
@@ -254,8 +254,8 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
         </div>
 
         <div className="grid gap-3 rounded-xl border border-line bg-surface-2 p-4 md:grid-cols-4">
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">Pricing method<select disabled={!editable} value={definition} onChange={(event) => setDefinition(event.target.value as typeof definition)} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-2 text-xs font-bold"><option value="GROSS_MARGIN_ON_SALES">Gross margin on net sales</option><option value="MARKUP_ON_COST">Markup on cost</option></select></label>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-content-3">Target %<input disabled={!editable} type="number" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-3 text-right font-mono text-sm" /></label>
+          <label className="text-caption font-semibold uppercase tracking-wider text-content-3">Pricing method<select disabled={!editable} value={definition} onChange={(event) => setDefinition(event.target.value as typeof definition)} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-2 text-xs font-bold"><option value="GROSS_MARGIN_ON_SALES">Gross margin on net sales</option><option value="MARKUP_ON_COST">Markup on cost</option></select></label>
+          <label className="text-caption font-semibold uppercase tracking-wider text-content-3">Target %<input disabled={!editable} type="number" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-3 text-right font-mono text-sm" /></label>
           <Metric label="Target price" value={`₹ ${money(result?.target_price)}`} />
           <Metric label="Actual line price" value={`₹ ${money(result?.list_price)}`} />
         </div>
@@ -293,9 +293,9 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg border border-line bg-surface-1 p-3"><div className="text-[10px] font-semibold uppercase tracking-widest text-content-4">{label}</div><div className="mt-1 font-mono text-sm font-semibold text-content-1">{value}</div></div>;
+  return <div className="rounded-lg border border-line bg-surface-1 p-3"><div className="text-caption font-semibold uppercase tracking-widest text-content-4">{label}</div><div className="mt-1 font-mono text-sm font-semibold text-content-1">{value}</div></div>;
 }
 
 function CostModeButton({ active, disabled, icon, title, caption, onClick }: { active: boolean; disabled: boolean; icon: ReactNode; title: string; caption: string; onClick: () => void }) {
-  return <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} className={`min-h-16 rounded-xl px-3 py-2.5 text-left transition-[background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-order-fg disabled:opacity-60 ${active ? "bg-order-fg text-white shadow-sm" : "bg-surface-2 text-content-2 ring-1 ring-line hover:bg-surface-3"}`}><span className="flex items-center gap-2 text-xs font-semibold">{icon}{title}</span><span className={`mt-1 block text-[10px] font-semibold ${active ? "text-order-border" : "text-content-4"}`}>{caption}</span></button>;
+  return <button type="button" aria-pressed={active} disabled={disabled} onClick={onClick} className={`min-h-16 rounded-xl px-3 py-2.5 text-left transition-[background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-order-fg disabled:opacity-60 ${active ? "bg-order-fg text-white shadow-sm" : "bg-surface-2 text-content-2 ring-1 ring-line hover:bg-surface-3"}`}><span className="flex items-center gap-2 text-xs font-semibold">{icon}{title}</span><span className={`mt-1 block text-caption font-semibold ${active ? "text-order-border" : "text-content-4"}`}>{caption}</span></button>;
 }

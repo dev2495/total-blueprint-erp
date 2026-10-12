@@ -166,11 +166,11 @@ export function QuickStartBand({
         className="rounded-2xl border border-line bg-gradient-to-br from-surface-2 to-white p-4 shadow-sm"
         data-testid="sales-quick-start-band"
       >
-        <div className="flex items-center gap-2 text-[11px] font-bold text-content-2">
+        <div className="flex items-center gap-2 text-caption font-bold text-content-2">
           <Sparkles className="h-3.5 w-3.5 text-content-3" />
           Quick Start
           <span
-            className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3"
+            className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-3"
             data-testid="sales-quick-start-empty"
           >
             no overlays or recent activity
@@ -191,18 +191,18 @@ export function QuickStartBand({
     <div className="space-y-3" data-testid="sales-quick-start-band">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg ring-1 ring-order-border">
+          <span className="rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-0.5 text-caption font-semibold uppercase tracking-[0.12em] text-order-fg ring-1 ring-order-border">
             <Zap className="-mt-0.5 mr-1 inline h-2.5 w-2.5" />
             Quick Start
           </span>
           {customerName && (
-            <span className="text-[11px] font-medium text-content-3">
+            <span className="text-caption font-medium text-content-3">
               for{" "}
               <span className="font-bold text-content-2">{customerName}</span>
             </span>
           )}
         </div>
-        <span className="text-[10px] font-bold text-content-3">
+        <span className="text-caption font-bold text-content-3">
           {cards.length} suggestion{cards.length === 1 ? "" : "s"}
         </span>
       </div>
@@ -272,7 +272,7 @@ function QuickStartCardView({
           </span>
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset",
+              "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset",
               tone.badgeBg,
               tone.badgeText,
             )}
@@ -289,17 +289,17 @@ function QuickStartCardView({
           {card.title}
         </div>
         {card.subtitle && (
-          <div className="mt-0.5 truncate text-[11px] text-content-3">
+          <div className="mt-0.5 truncate text-caption text-content-3">
             {card.subtitle}
           </div>
         )}
       </div>
       {card.metric && (
-        <div className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-content-2">
+        <div className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-2">
           {card.metric}
         </div>
       )}
-      <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-content-4 group-hover:text-primary">
+      <div className="mt-1 text-caption font-bold uppercase tracking-wider text-content-4 group-hover:text-primary">
         + Add to cart
       </div>
     </button>

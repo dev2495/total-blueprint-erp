@@ -38,7 +38,7 @@ export const getColumns = ({
       return (
         <div className="flex max-w-[580px] flex-wrap gap-1.5">
           {recipe.components.map((c) => (
-            <span key={c.id} className="rounded-lg border border-line bg-surface-2 px-2 py-1 text-[11px] font-bold text-content-2">
+            <span key={c.id} className="rounded-lg border border-line bg-surface-2 px-2 py-1 text-caption font-bold text-content-2">
               {c.granule_name} <span className="font-mono tabular-nums text-content-1">{Number(c.percentage).toFixed(2)}%</span>
             </span>
           ))}
@@ -54,10 +54,10 @@ export const getColumns = ({
       return (
         <div className="min-w-[130px]">
           <div className="flex items-center gap-1.5 text-sm font-semibold text-content-1"><History className="h-3.5 w-3.5 text-primary" />v{recipe.revision_no || 1}</div>
-          <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${recipe.is_active ? "bg-success-bg text-success-fg" : "bg-surface-3 text-content-3"}`}>
+          <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ${recipe.is_active ? "bg-success-bg text-success-fg" : "bg-surface-3 text-content-3"}`}>
             {recipe.is_active ? "Active" : "Disabled"}
           </div>
-          <div className="mt-1 text-[10px] font-semibold text-content-4">
+          <div className="mt-1 text-caption font-semibold text-content-4">
             {recipe.updated_at ? new Date(recipe.updated_at).toLocaleDateString("en-IN") : "Legacy recipe"}
           </div>
         </div>

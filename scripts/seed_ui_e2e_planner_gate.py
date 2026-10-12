@@ -18,7 +18,7 @@ from django.utils import timezone
 from apps.artwork.models import Artwork
 from apps.artwork.print_contract import resolve_ink_base_from_layers
 from apps.inventory.models import InkMaterial
-from apps.sales.models import Customer, SalesOrder, SalesSkuVariant
+from apps.sales.models import Customer, SalesOrder, SalesSkuVariant, SalesOrderItem
 from apps.sales.services.order_service import SalesOrderService
 from apps.users.models import User
 
@@ -239,6 +239,23 @@ def _find_seed_variant() -> SalesSkuVariant:
     raise RuntimeError("Could not find an active LIVE pouch SKU variant with valid geometry for planner gate seeding.")
 
 
+def _ensure_axis_values(order: SalesOrder) -> None:
+    """Carry the SKU's axis values (size, ...) on every seeded line.
+
+    A later template edit (the dry-fruit proof) revises open lines on that
+    template; a line without its required axes makes that edit fail closed.
+    Applies to earlier seeded gate orders too, so a re-run never leaves one behind.
+    """
+    seeded = SalesOrderItem.objects.filter(sales_order__order_name__startswith=ORDER_PREFIX).select_related("sku_variant__sku")
+    for item in seeded:
+        current = item.axis_values if isinstance(item.axis_values, dict) else {}
+        template_values = getattr(getattr(item.sku_variant, "sku", None), "axis_values_template", None) or {}
+        merged = {**template_values, **current}
+        if merged != current:
+            item.axis_values = merged
+            item.save(update_fields=["axis_values"])
+
+
 def build_gate_order() -> SalesOrder:
     variant = _find_seed_variant()
     customer = Customer.objects.order_by("name", "created_at").first()
@@ -268,6 +285,7 @@ def build_gate_order() -> SalesOrder:
     payload = {key: value for key, value in payload.items() if value is not None}
 
     order = SalesOrderService.create_sales_order(payload)
+    _ensure_axis_values(order)
     SalesOrderService.confirm_sales_order(str(order.id))
     order.refresh_from_db()
     order = force_artwork_gate(order)

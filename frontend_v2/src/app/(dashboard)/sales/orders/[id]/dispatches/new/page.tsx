@@ -237,7 +237,7 @@ export default function NewCustomerDispatchPage() {
           <div>
             <Link
               href={`/sales/orders/${orderId}/dispatches`}
-              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/90 hover:bg-surface-1/20"
+              className="inline-flex items-center gap-1 rounded-full border border-surface-1/20 bg-surface-1/10 px-3 py-1 text-caption font-bold uppercase tracking-[0.12em] text-white/90 hover:bg-surface-1/20"
             >
               <ArrowLeft className="h-3 w-3" /> Back to dispatches
             </Link>
@@ -251,7 +251,7 @@ export default function NewCustomerDispatchPage() {
             </p>
           </div>
           <div className="text-right">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-success-border">
+            <div className="text-caption font-bold uppercase tracking-wider text-success-border">
               Total qty
             </div>
             <div className="font-mono text-3xl font-semibold">
@@ -330,7 +330,7 @@ export default function NewCustomerDispatchPage() {
         <CardContent className="overflow-x-auto p-0">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-surface-2 text-left text-[10px] font-bold uppercase tracking-wide text-content-3">
+              <tr className="border-b border-line bg-surface-2 text-left text-caption font-bold uppercase tracking-wide text-content-3">
                 <th className="px-4 py-3">Item</th>
                 <th className="px-4 py-3 text-right">Ordered</th>
                 <th className="px-4 py-3 text-right">Already shipped</th>
@@ -354,11 +354,11 @@ export default function NewCustomerDispatchPage() {
                       <div className="font-semibold text-content-1">
                         {lineLabel(item, index)}
                       </div>
-                      <div className="text-[11px] text-content-3">
+                      <div className="text-caption text-content-3">
                         {item.line_status_display || item.line_status || "Line status"} · UoM {item.qty_uom || "KG"}
                       </div>
                       {isPartial ? (
-                        <div className="mt-2 inline-flex rounded-full border border-warning-border bg-warning-bg px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-warning-fg">
+                        <div className="mt-2 inline-flex rounded-full border border-warning-border bg-warning-bg px-2 py-1 text-caption font-bold uppercase tracking-wide text-warning-fg">
                           Final output: dispatch {formatQty(dispatchable)} now · planner replan {formatQty(replanRemaining)}
                         </div>
                       ) : null}
@@ -440,7 +440,7 @@ function Field({
 }) {
   return (
     <div className={wide ? "md:col-span-2 lg:col-span-3" : ""}>
-      <Label className="text-[10px] font-bold uppercase tracking-wide text-content-3">
+      <Label className="text-caption font-bold uppercase tracking-wide text-content-3">
         {label}
       </Label>
       <div className="mt-1">{children}</div>

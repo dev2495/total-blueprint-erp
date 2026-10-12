@@ -576,7 +576,7 @@ export function TradingReportPage() {
                           <div className="font-medium text-content-2">
                             {item.name}
                           </div>
-                          <Badge variant="outline" className="mt-1 text-[10px]">
+                          <Badge variant="outline" className="mt-1 text-caption">
                             {item.kind === "TRADING_GOOD"
                               ? "Trading Good"
                               : "Inventory Material"}

@@ -354,7 +354,7 @@ export default function GovernancePage() {
     <div className="p-6 lg:p-8 space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-info-bg border border-info-border text-primary text-[10px] font-semibold uppercase tracking-widest">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-info-bg border border-info-border text-primary text-caption font-semibold uppercase tracking-widest">
             <ShieldCheck className="h-3 w-3" /> P0 Governance Console
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-content-1">

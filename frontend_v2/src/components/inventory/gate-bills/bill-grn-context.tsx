@@ -233,7 +233,7 @@ export function GrnBillBanner({ ctx, viewer = true }: { ctx: GrnBillContext; vie
           )}
           {(bill.receipt_refs || []).length ? (
             <div>
-              <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4">Already linked to this bill</div>
+              <div className="mb-1 text-caption font-semibold uppercase tracking-[0.08em] text-content-4">Already linked to this bill</div>
               <ReceiptList refs={bill.receipt_refs} />
             </div>
           ) : null}

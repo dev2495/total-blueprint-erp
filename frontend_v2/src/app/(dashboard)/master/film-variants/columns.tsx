@@ -63,11 +63,11 @@ export const getColumns = ({
         <div className="space-y-1">
           <Badge
             variant="outline"
-            className="border-success-border bg-success-bg text-[10px] font-bold text-success-fg"
+            className="border-success-border bg-success-bg text-caption font-bold text-success-fg"
           >
             Sellable
           </Badge>
-          <div className="font-mono text-[10px] text-content-3">
+          <div className="font-mono text-caption text-content-3">
             GST {row.original.default_gst_pct ?? 0}%
           </div>
         </div>

@@ -102,7 +102,7 @@ export default function TradingGoodsListPage() {
           />
         </div>
         <div className="flex items-center gap-3 text-[12px] text-content-3">
-          <label className="flex items-center gap-1.5 text-[11px] font-bold">
+          <label className="flex items-center gap-1.5 text-caption font-bold">
             <input
               type="checkbox"
               checked={showInactive}
@@ -148,7 +148,7 @@ function EmptyState({ empty }: { empty: boolean }) {
             ? "No trading goods yet"
             : "No trading goods match your search"}
         </div>
-        <p className="mt-1 max-w-[420px] text-[11px] text-content-3">
+        <p className="mt-1 max-w-[420px] text-caption text-content-3">
           {empty
             ? "Add ready-made packaging items, resold films, or any item you trade as-is."
             : "Try a different search term or clear the filter."}
@@ -178,7 +178,7 @@ function TradingGoodCard({ g }: { g: TradingGood }) {
               {g.name}
             </h3>
             {g.description ? (
-              <p className="mt-1 line-clamp-2 text-[11px] text-content-3">
+              <p className="mt-1 line-clamp-2 text-caption text-content-3">
                 {g.description}
               </p>
             ) : null}
@@ -186,14 +186,14 @@ function TradingGoodCard({ g }: { g: TradingGood }) {
           {g.is_active ? (
             <Badge
               variant="outline"
-              className="border-success-border bg-success-bg text-[10px] text-success-fg"
+              className="border-success-border bg-success-bg text-caption text-success-fg"
             >
               active
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="border-line bg-surface-2 text-[10px] text-content-3"
+              className="border-line bg-surface-2 text-caption text-content-3"
             >
               inactive
             </Badge>
@@ -202,7 +202,7 @@ function TradingGoodCard({ g }: { g: TradingGood }) {
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Badge
             variant="outline"
-            className="border-success-border bg-success-bg text-[10px] font-bold text-success-fg"
+            className="border-success-border bg-success-bg text-caption font-bold text-success-fg"
           >
             {TRADE_TYPE_LABELS[g.trade_type || "OTHER"] ||
               g.trade_type ||
@@ -210,7 +210,7 @@ function TradingGoodCard({ g }: { g: TradingGood }) {
           </Badge>
           <Badge
             variant="outline"
-            className="border-line bg-surface-1 text-[10px] font-bold text-content-3"
+            className="border-line bg-surface-1 text-caption font-bold text-content-3"
           >
             {g.hsn_code ? `HSN ${g.hsn_code}` : "No HSN"}
           </Badge>
@@ -253,14 +253,14 @@ function Stat({
 }) {
   return (
     <div className="rounded-2xl bg-surface-2 px-2 py-2">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-bold uppercase tracking-wider text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center justify-center gap-1 font-mono text-sm font-bold text-content-1">
         {icon}
         {value}
       </div>
-      {hint ? <div className="text-[10px] text-content-4">{hint}</div> : null}
+      {hint ? <div className="text-caption text-content-4">{hint}</div> : null}
     </div>
   );
 }

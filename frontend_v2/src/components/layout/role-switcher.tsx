@@ -60,17 +60,18 @@ export function RoleSwitcher({
       {!compact ? (
         <div className="flex items-center gap-1.5 rounded-lg border border-warning-border bg-warning-bg px-2 py-1">
           <ShieldCheck className="h-3.5 w-3.5 text-warning-fg" />
-          <span className="text-[10px] font-bold uppercase tracking-tight text-warning-fg">
+          <span className="text-caption font-bold uppercase tracking-tight text-warning-fg">
             Master View
           </span>
         </div>
       ) : null}
       <Select value={currentRole} onValueChange={handleRoleChange}>
         <SelectTrigger
+          aria-label="Role view"
           className={cn(
             "border-line bg-surface-1 text-content-2 transition-colors hover:bg-surface-2",
             compact
-              ? "h-10 w-[132px] rounded-2xl px-3 text-[11px] font-semibold uppercase tracking-[0.08em]"
+              ? "h-10 w-[132px] rounded-2xl px-3 text-caption font-semibold uppercase tracking-[0.08em]"
               : "h-8 w-[160px] text-xs font-bold",
           )}
           data-testid={triggerTestId}

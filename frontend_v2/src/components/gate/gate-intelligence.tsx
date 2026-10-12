@@ -40,7 +40,7 @@ export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary
     >
       <div className="grid gap-4 md:grid-cols-[1.1fr_1fr_1fr]">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">Movements this period</div>
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Movements this period</div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-line bg-surface-2/60 px-3 py-2.5">
               <div className="flex items-center gap-1 text-[11.5px] text-content-3">
@@ -70,7 +70,7 @@ export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary
         </div>
 
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">At the gate now</div>
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">At the gate now</div>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-line bg-surface-2/60 px-3 py-2.5">
               <div className="text-[11.5px] text-content-3">Inside</div>
@@ -84,7 +84,7 @@ export function GateIntelligencePanel({ gate, periodLabel }: { gate: GateSummary
         </div>
 
         <div>
-          <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.1em] text-content-4">
+          <div className="flex items-center justify-between text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
             Exceptions
             <span className={openExceptions ? "text-danger-fg" : "text-success-fg"}>{openExceptions ? `${openExceptions} open` : "clear"}</span>
           </div>

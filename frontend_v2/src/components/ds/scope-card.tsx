@@ -85,7 +85,7 @@ export const ScopeCard = React.forwardRef<HTMLButtonElement, ScopeCardProps>(
         <dl className="mt-2 grid w-full grid-cols-2 gap-2">
           {meta.map((m) => (
             <div key={m.label} className="flex flex-col gap-0.5">
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-content-4">
+              <dt className="text-caption font-semibold uppercase tracking-wide text-content-4">
                 {m.label}
               </dt>
               <dd className="font-mono-token text-[12px] text-content-2">

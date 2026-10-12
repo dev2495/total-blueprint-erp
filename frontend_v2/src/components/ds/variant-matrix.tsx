@@ -195,7 +195,7 @@ export function VariantMatrix({
     <div className={cn("flex flex-col gap-3", className)}>
       {/* Axis pickers */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1/70 p-2 backdrop-blur-sm">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
           Rows
         </span>
         <ChipGroup spacing="tight">
@@ -212,7 +212,7 @@ export function VariantMatrix({
             </Chip>
           ))}
         </ChipGroup>
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
           Cols
         </span>
         <ChipGroup spacing="tight">
@@ -234,14 +234,14 @@ export function VariantMatrix({
       {/* Filter row for non-axis dims */}
       {otherAxes.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 p-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+          <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
             Filter
           </span>
           {otherAxes.map((a) => {
             const opts = uniqueAxisValues(a, variants);
             return (
               <span key={a.axis} className="inline-flex items-center gap-1">
-                <span className="text-[11px] text-content-3">{a.axis}</span>
+                <span className="text-caption text-content-3">{a.axis}</span>
                 <select
                   value={filters[a.axis] ?? ""}
                   onChange={(e) =>
@@ -274,7 +274,7 @@ export function VariantMatrix({
         >
           <div
             role="columnheader"
-            className="sticky left-0 top-0 z-10 border-b border-r border-line bg-surface-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-content-3"
+            className="sticky left-0 top-0 z-10 border-b border-r border-line bg-surface-2 px-2 py-1 text-caption font-semibold uppercase tracking-wide text-content-3"
           >
             {rowAxis} ↓ / {colAxis} →
           </div>
@@ -282,7 +282,7 @@ export function VariantMatrix({
             <div
               key={c}
               role="columnheader"
-              className="sticky top-0 z-10 border-b border-line bg-surface-2 px-2 py-1 text-center text-[11px] font-semibold text-content-2"
+              className="sticky top-0 z-10 border-b border-line bg-surface-2 px-2 py-1 text-center text-caption font-semibold text-content-2"
             >
               {c}
             </div>
@@ -292,7 +292,7 @@ export function VariantMatrix({
             <React.Fragment key={r}>
               <div
                 role="rowheader"
-                className="sticky left-0 z-[1] border-r border-line bg-surface-2 px-2 py-1 text-[11px] font-semibold text-content-2"
+                className="sticky left-0 z-[1] border-r border-line bg-surface-2 px-2 py-1 text-caption font-semibold text-content-2"
               >
                 {r}
               </div>
@@ -385,7 +385,7 @@ function CellButton({
       <span className="truncate">{axisLabel}</span>
       {variant && inUse && (
         <span
-          className="ml-1 hidden rounded-full bg-primary px-1 text-[10px] font-bold text-white sm:inline"
+          className="ml-1 hidden rounded-full bg-primary px-1 text-caption font-bold text-white sm:inline"
           aria-hidden
         >
           •
@@ -417,7 +417,7 @@ function Drawer({
       >
         <header className="flex items-start justify-between gap-2">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-content-4">
+            <div className="text-caption font-semibold uppercase tracking-wide text-content-4">
               {cell.variant ? "Variant" : "Create variant"}
             </div>
             <div className="font-display text-xl text-content-1">
@@ -452,10 +452,10 @@ function Drawer({
 
         {cell.variant?.geometry_snapshot && (
           <section className="rounded-lg border border-line bg-surface-1 p-3">
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-content-3">
+            <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-content-3">
               Geometry
             </h3>
-            <pre className="overflow-x-auto whitespace-pre-wrap font-mono-token text-[11px] text-content-2">
+            <pre className="overflow-x-auto whitespace-pre-wrap font-mono-token text-caption text-content-2">
               {JSON.stringify(cell.variant.geometry_snapshot, null, 2)}
             </pre>
           </section>

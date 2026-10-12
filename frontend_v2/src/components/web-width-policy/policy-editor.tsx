@@ -229,7 +229,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
         <div className="mt-3">
           <Link
             href="/master/web-width-policies"
-            className="inline-flex items-center gap-1 rounded-full bg-surface-1/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur ring-1 ring-surface-1/20 hover:bg-surface-1/25"
+            className="inline-flex items-center gap-1 rounded-full bg-surface-1/15 px-3 py-1 text-caption font-bold text-white backdrop-blur ring-1 ring-surface-1/20 hover:bg-surface-1/25"
           >
             <ArrowLeft className="h-3 w-3" /> back to list
           </Link>
@@ -272,7 +272,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                   onChange={(e) => set("is_default", e.target.checked as any)}
                 />
                 <span className="font-bold">Default policy</span>
-                <span className="text-[10px] text-content-3">
+                <span className="text-caption text-content-3">
                   (fallback when no scoped policy matches)
                 </span>
               </label>
@@ -318,7 +318,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                       </option>
                     ))}
                   </select>
-                  <div className="mt-1 min-h-4 text-[10px] text-content-3">
+                  <div className="mt-1 min-h-4 text-caption text-content-3">
                     {selectedScopeOption?.detail ||
                       "Only listed master records can be selected for this scope."}
                   </div>
@@ -329,7 +329,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
 
           {/* Allowed lanes */}
           <Card title="Allowed lane counts">
-            <p className="-mt-1 mb-3 text-[11px] text-content-3">
+            <p className="-mt-1 mb-3 text-caption text-content-3">
               Which N-up runs production can do for this policy scope.
               Sales-order lane picker shows only these.
             </p>
@@ -401,7 +401,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                 />
               </Field>
             </div>
-            <p className="mt-3 text-[11px] text-content-3">
+            <p className="mt-3 text-caption text-content-3">
               Calculated mode keeps exact math. Nearest standard snaps to the
               next configured parent width. Strict standard blocks the order if
               no configured width fits.
@@ -409,7 +409,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
           </Card>
 
           <Card title="Standard parent widths">
-            <p className="-mt-1 mb-3 text-[11px] text-content-3">
+            <p className="-mt-1 mb-3 text-caption text-content-3">
               Use for standard jumbo/slit widths such as 880, 1320, 1500. Leave
               empty if this policy should only use calculated widths.
             </p>
@@ -417,7 +417,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
               {allowedParents.map((w, i) => (
                 <span
                   key={i}
-                  className="flex items-center gap-1 rounded-full bg-order-bg px-2 py-1 font-mono text-[11px] font-bold text-order-fg"
+                  className="flex items-center gap-1 rounded-full bg-order-bg px-2 py-1 font-mono text-caption font-bold text-order-fg"
                 >
                   {w} mm
                   <button
@@ -495,12 +495,12 @@ export function PolicyEditor({ id, initialMode }: Props) {
                     set("min_remainder_mm", Number(e.target.value || 0) as any)
                   }
                 />
-                <div className="mt-1 text-[10px] text-content-3">
+                <div className="mt-1 text-caption text-content-3">
                   Remainders narrower than this go to scrap.
                 </div>
               </Field>
               <label className="flex flex-col gap-1 self-end">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+                <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
                   Allocation preference
                 </div>
                 <label className="mt-1 flex items-center gap-2 text-[12px]">
@@ -576,13 +576,13 @@ export function PolicyEditor({ id, initialMode }: Props) {
                 </Field>
               </div>
               <div className="rounded-xl bg-order-fg p-3 text-white">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-order-border">
+                <div className="text-caption font-semibold uppercase tracking-widest text-order-border">
                   planned parent
                 </div>
                 <div className="mt-1 font-display text-2xl font-semibold">
                   {Math.round(previewPlan.planned_parent_width_mm)} mm
                 </div>
-                <div className="mt-1 text-[10px] text-order-border">
+                <div className="mt-1 text-caption text-order-border">
                   run {Math.round(previewPlan.computed_run_width_mm)} · trim{" "}
                   {Math.round(previewPlan.trim_mm)} · rem{" "}
                   {Math.round(previewPlan.remainder_mm)}{" "}
@@ -590,7 +590,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                 </div>
               </div>
               {previewPlan.warnings.length ? (
-                <div className="rounded-lg bg-warning-bg px-2 py-1 text-[11px] font-bold text-warning-fg">
+                <div className="rounded-lg bg-warning-bg px-2 py-1 text-caption font-bold text-warning-fg">
                   {previewPlan.warnings.join(" ")}
                 </div>
               ) : null}
@@ -733,7 +733,7 @@ function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+      <div className="mb-1 text-caption font-semibold uppercase tracking-widest text-content-3">
         {label}
       </div>
       {children}

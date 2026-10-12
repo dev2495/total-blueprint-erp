@@ -534,12 +534,12 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
           <button
             type="button"
             onClick={() => router.push("/master/pouch-styles")}
-            className="inline-flex items-center gap-1 rounded-full bg-surface-1/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur ring-1 ring-surface-1/20 hover:bg-surface-1/25"
+            className="inline-flex items-center gap-1 rounded-full bg-surface-1/15 px-3 py-1 text-caption font-bold text-white backdrop-blur ring-1 ring-surface-1/20 hover:bg-surface-1/25"
           >
             <ArrowLeft className="h-3 w-3" /> back to pouch styles
           </button>
           {versions.length > 1 ? (
-            <div className="inline-flex items-center gap-1 rounded-full bg-surface-1/15 px-3 py-1 text-[11px] font-bold text-white backdrop-blur ring-1 ring-surface-1/20">
+            <div className="inline-flex items-center gap-1 rounded-full bg-surface-1/15 px-3 py-1 text-caption font-bold text-white backdrop-blur ring-1 ring-surface-1/20">
               <History className="h-3 w-3" />
               <select
                 className="bg-transparent text-white outline-none"
@@ -569,7 +569,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
             <Lock className="h-3.5 w-3.5" /> This configuration is locked because
             product sizes are using it.
           </div>
-          <p className="mt-1 text-[11px]">
+          <p className="mt-1 text-caption">
             Saving real changes creates a <b>new draft</b> for new pickers.
             Existing sizes keep their saved snapshot until the approved change
             is propagated safely.
@@ -582,7 +582,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
             <ShieldCheck className="h-3.5 w-3.5" /> Draft style · not selectable
             yet.
           </div>
-          <p className="mt-1 text-[11px]">
+          <p className="mt-1 text-caption">
             Save the draft, then approve + lock it before Product Master sizes
             can use it.
           </p>
@@ -593,7 +593,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
           <div className="flex items-center gap-2 font-bold">
             <EyeOff className="h-3.5 w-3.5" /> This style is disabled.
           </div>
-          <p className="mt-1 text-[11px]">
+          <p className="mt-1 text-caption">
             Hidden from pickers, historical references preserved. Click
             Reactivate to bring it back.
           </p>
@@ -617,7 +617,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                   disabled={!isNew && isLocked}
                 />
                 {!isNew && isLocked ? (
-                  <div className="mt-1 text-[10px] text-warning-fg">
+                  <div className="mt-1 text-caption text-warning-fg">
                     Code stays fixed through configuration history.
                   </div>
                 ) : null}
@@ -659,7 +659,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
           {/* Allowed fields */}
           <Card index={2} title="Allowed input fields" tone="violet">
-            <p className="-mt-1 mb-3 text-[11px] text-content-3">
+            <p className="-mt-1 mb-3 text-caption text-content-3">
               Choose which fields this pouch needs. W and H are the dimensions
               the operator types on the size editor; gusset / flap / etc. are
               extras that further shape the roll width.
@@ -712,7 +712,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                   ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-line-strong bg-surface-2 px-3 py-3 text-[11px] text-content-3">
+              <div className="rounded-xl border border-dashed border-line-strong bg-surface-2 px-3 py-3 text-caption text-content-3">
                 No extras yet. Add gusset / flap / overlap / etc. from below if
                 your pouch needs them.
               </div>
@@ -720,7 +720,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
             {extraFieldsAvailable.length > 0 ? (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-order-border bg-order-bg p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
+                <span className="text-caption font-semibold uppercase tracking-widest text-order-fg">
                   Add a field
                 </span>
                 {extraFieldsAvailable.map((p) => (
@@ -736,7 +736,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                         default: p.suggested_default,
                       })
                     }
-                    className="rounded-md bg-surface-1 px-2 py-1 text-[11px] font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+                    className="rounded-md bg-surface-1 px-2 py-1 text-caption font-bold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
                   >
                     <Plus className="mr-0.5 inline h-3 w-3" />
                     {p.label}
@@ -758,7 +758,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
           {/* Formula builder — VISUAL */}
           <Card index={3} title="Child-width formula builder" tone="emerald">
-            <p className="-mt-1 mb-2 text-[11px] text-content-3">
+            <p className="-mt-1 mb-2 text-caption text-content-3">
               <b>Child stock width = sum of (coefficient × field) + trim.</b>{" "}
               Click <b>+ Add</b> to drop in a field. Set its coefficient —
               that&apos;s how many times it contributes to the physical stocked
@@ -879,14 +879,14 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
             <button
               type="button"
               onClick={() => setShowAdvanced((s) => !s)}
-              className="mt-4 text-[11px] font-bold text-success-fg hover:underline"
+              className="mt-4 text-caption font-bold text-success-fg hover:underline"
             >
               {showAdvanced
                 ? "Hide advanced options ▴"
                 : "Show advanced options ▾"}
             </button>
             {showAdvanced ? (
-              <div className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-3 py-3 text-[11px] text-warning-fg">
+              <div className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-3 py-3 text-caption text-warning-fg">
                 <div className="font-bold">
                   Switch formula kind (most pouches don&apos;t need this)
                 </div>
@@ -895,7 +895,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                     type="button"
                     onClick={() => set("formula_kind", "LINEAR")}
                     className={cn(
-                      "rounded-md px-2 py-1 text-[11px] font-bold ring-1",
+                      "rounded-md px-2 py-1 text-caption font-bold ring-1",
                       (draft.formula_kind || "LINEAR") === "LINEAR"
                         ? "bg-success-fg text-white ring-success-border"
                         : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
@@ -907,7 +907,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                     type="button"
                     onClick={() => set("formula_kind", "SHAPED_OVERRIDE")}
                     className={cn(
-                      "rounded-md px-2 py-1 text-[11px] font-bold ring-1",
+                      "rounded-md px-2 py-1 text-caption font-bold ring-1",
                       draft.formula_kind === "SHAPED_OVERRIDE"
                         ? "bg-warning-fg text-white ring-warning-border"
                         : "bg-surface-1 text-content-2 ring-line hover:bg-surface-2",
@@ -931,7 +931,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
         {/* RIGHT */}
         <div className="space-y-5">
           <Card index={4} title="Live preview" tone="amber">
-            <p className="-mt-1 mb-3 text-[11px] text-content-3">
+            <p className="-mt-1 mb-3 text-caption text-content-3">
               Sample values only. This shows the physical child stock width, the
               pitch side, and the exact film area used for BOM/costing.
             </p>
@@ -1316,7 +1316,7 @@ function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-content-3">
+      <div className="mb-1 text-caption font-semibold uppercase tracking-widest text-content-3">
         {label}
       </div>
       {children}
@@ -1354,7 +1354,7 @@ function Card({
       <header className="mb-3 flex items-center gap-2">
         <span
           className={cn(
-            "grid h-5 w-5 place-items-center rounded text-[10px] font-semibold",
+            "grid h-5 w-5 place-items-center rounded text-caption font-semibold",
             TONE[tone],
           )}
         >
@@ -1401,7 +1401,7 @@ function FieldChip({
       </span>
       <div className="flex items-center gap-2">
         {pinned ? (
-          <Badge variant="outline" className="border-line-strong text-[10px]">
+          <Badge variant="outline" className="border-line-strong text-caption">
             always shown
           </Badge>
         ) : null}
@@ -1421,7 +1421,7 @@ function FieldChip({
           <button
             type="button"
             onClick={onAdd}
-            className="rounded-md bg-success-fg px-2 py-0.5 text-[10px] font-bold text-white hover:bg-success-fg"
+            className="rounded-md bg-success-fg px-2 py-0.5 text-caption font-bold text-white hover:bg-success-fg"
           >
             + Add
           </button>
@@ -1446,7 +1446,7 @@ function ExtraFieldRow({
     <div className="grid items-center gap-2 rounded-xl border border-line bg-surface-1 p-2.5 sm:grid-cols-[120px_minmax(0,1fr)_120px_140px_100px_auto]">
       <span
         className={cn(
-          "rounded-md px-2 py-0.5 text-center font-mono text-[11px] font-bold ring-1",
+          "rounded-md px-2 py-0.5 text-center font-mono text-caption font-bold ring-1",
           toneFor(fieldKey),
         )}
       >
@@ -1458,7 +1458,7 @@ function ExtraFieldRow({
         className="h-8 text-[12px]"
         placeholder="Field label"
       />
-      <label className="flex items-center gap-1 text-[11px] font-bold">
+      <label className="flex items-center gap-1 text-caption font-bold">
         <input
           type="checkbox"
           checked={!!def.required}
@@ -1470,7 +1470,7 @@ function ExtraFieldRow({
         value={String(def.applies_to || "WIDTH")}
         onValueChange={(v) => onPatch({ applies_to: v as any })}
       >
-        <SelectTrigger className="h-8 text-[11px]">
+        <SelectTrigger className="h-8 text-caption">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -1490,7 +1490,7 @@ function ExtraFieldRow({
             default: e.target.value === "" ? undefined : Number(e.target.value),
           })
         }
-        className="h-8 text-[11px]"
+        className="h-8 text-caption"
         placeholder="default"
       />
       <button
@@ -1739,10 +1739,10 @@ function VisualLinearBuilder({
       {/* Preset bar */}
       <div className="mb-3 rounded-xl border border-success-border bg-surface-1 px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-success-fg">
+          <div className="text-caption font-semibold uppercase tracking-widest text-success-fg">
             Quick presets
           </div>
-          <div className="text-[10px] text-content-3">
+          <div className="text-caption text-content-3">
             click to fill the formula in one go
           </div>
         </div>
@@ -1752,12 +1752,12 @@ function VisualLinearBuilder({
               key={p.code}
               type="button"
               onClick={() => onApplyPreset(p)}
-              className="group flex items-center gap-1.5 rounded-lg border border-success-border bg-success-bg px-2 py-1 text-[11px] font-bold text-success-fg hover:bg-success-bg"
+              className="group flex items-center gap-1.5 rounded-lg border border-success-border bg-success-bg px-2 py-1 text-caption font-bold text-success-fg hover:bg-success-bg"
               title={p.formula}
             >
               <span>{p.emoji}</span>
               <span>{p.label}</span>
-              <span className="hidden font-mono text-[10px] text-success-fg opacity-70 group-hover:inline">
+              <span className="hidden font-mono text-caption text-success-fg opacity-70 group-hover:inline">
                 {p.formula}
               </span>
             </button>
@@ -1765,14 +1765,14 @@ function VisualLinearBuilder({
         </div>
       </div>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-success-fg">
+      <div className="mb-3 text-caption font-semibold uppercase tracking-widest text-success-fg">
         Child stock width =
       </div>
 
       {/* Term list, stacked vertically each as a product chain */}
       <div className="space-y-2">
         {terms.length === 0 ? (
-          <div className="rounded-xl border-2 border-dashed border-success-border bg-surface-1 px-3 py-4 text-center text-[11px] text-success-fg">
+          <div className="rounded-xl border-2 border-dashed border-success-border bg-surface-1 px-3 py-4 text-center text-caption text-success-fg">
             No terms yet — pick a field below to start the formula.
           </div>
         ) : (
@@ -1798,7 +1798,7 @@ function VisualLinearBuilder({
 
         {/* Trim row */}
         <div className="flex items-center gap-2 rounded-2xl bg-surface-2 px-3 py-2 ring-1 ring-line-strong">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-content-3">
+          <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
             trim constant
           </span>
           <input
@@ -1808,14 +1808,14 @@ function VisualLinearBuilder({
             onChange={(e) => onSetTrim(Number(e.target.value || 0))}
             className="h-8 w-20 rounded-md border border-surface-1 bg-surface-1 px-1.5 text-center font-mono text-sm font-bold"
           />
-          <span className="text-[10px] font-bold text-content-3">mm</span>
+          <span className="text-caption font-bold text-content-3">mm</span>
         </div>
       </div>
 
       {/* Add-term tray */}
       {allFieldKeys.length > 0 ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-success-border bg-surface-1 px-3 py-2">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-success-fg">
+          <span className="text-caption font-semibold uppercase tracking-widest text-success-fg">
             + Add term
           </span>
           {allFieldKeys.map((k) => (
@@ -1824,7 +1824,7 @@ function VisualLinearBuilder({
               type="button"
               onClick={() => onAddTerm(k)}
               className={cn(
-                "rounded-lg px-2.5 py-1 text-[11px] font-bold ring-1 hover:opacity-90",
+                "rounded-lg px-2.5 py-1 text-caption font-bold ring-1 hover:opacity-90",
                 toneFor(k),
               )}
             >
@@ -1834,7 +1834,7 @@ function VisualLinearBuilder({
           <button
             type="button"
             onClick={onAddEmptyTerm}
-            className="rounded-lg bg-surface-2 px-2.5 py-1 text-[11px] font-bold text-content-2 ring-1 ring-line-strong hover:bg-line"
+            className="rounded-lg bg-surface-2 px-2.5 py-1 text-caption font-bold text-content-2 ring-1 ring-line-strong hover:bg-line"
           >
             <Plus className="mr-0.5 inline h-3 w-3" /> blank
           </button>
@@ -1843,7 +1843,7 @@ function VisualLinearBuilder({
 
       {/* Help + reset */}
       <div className="mt-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-[10px] text-content-3">
+        <span className="text-caption text-content-3">
           Each term is a <b>product chain</b> · 2 × W, W × bottom_factor, gusset
           × 2, etc. Click the <b>×</b> between chips to add another factor.
         </span>
@@ -1867,7 +1867,7 @@ function FormulaPolicyPanel({
   return (
     <div className="mt-3 grid gap-3 rounded-2xl border border-info-border bg-gradient-to-br from-info-bg via-white to-info-bg p-3 lg:grid-cols-[1.2fr_1fr]">
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-info-fg">
+        <div className="text-caption font-semibold uppercase tracking-widest text-info-fg">
           Roll axis policy
         </div>
         <div className="mt-2 grid grid-cols-3 gap-1.5">
@@ -1877,7 +1877,7 @@ function FormulaPolicyPanel({
               type="button"
               onClick={() => onPatch({ default_roll_axis: axis })}
               className={cn(
-                "rounded-lg px-2 py-2 text-[11px] font-semibold ring-1 transition",
+                "rounded-lg px-2 py-2 text-caption font-semibold ring-1 transition",
                 rollAxis === axis
                   ? "bg-info-fg text-white ring-info-border"
                   : "bg-surface-1 text-info-fg ring-info-border hover:bg-info-bg",
@@ -1889,13 +1889,13 @@ function FormulaPolicyPanel({
             </button>
           ))}
         </div>
-        <div className="mt-1 text-[10px] text-info-fg">
+        <div className="mt-1 text-caption text-info-fg">
           Choose the axis that the child-width formula represents. The other
           side becomes the film-area pitch.
         </div>
       </div>
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-info-fg">
+        <div className="text-caption font-semibold uppercase tracking-widest text-info-fg">
           Trim rule
         </div>
         <Select
@@ -1913,7 +1913,7 @@ function FormulaPolicyPanel({
             ))}
           </SelectContent>
         </Select>
-        <div className="mt-1 text-[10px] text-info-fg">
+        <div className="mt-1 text-caption text-info-fg">
           Use this to document whether trim belongs to W, H, both, or neither.
         </div>
       </div>
@@ -1940,7 +1940,7 @@ function StockAreaPolicyPanel({
     <div className="mt-3 rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
+          <div className="text-caption font-semibold uppercase tracking-widest text-order-fg">
             Area formula builder
           </div>
           <p className="mt-1 max-w-[620px] text-[10.5px] text-order-fg">
@@ -1951,7 +1951,7 @@ function StockAreaPolicyPanel({
         </div>
         <Badge
           variant="outline"
-          className="border-order-border bg-surface-1 text-[10px] font-semibold text-order-fg"
+          className="border-order-border bg-surface-1 text-caption font-semibold text-order-fg"
         >
           film area = child × {formatNumber(filmAreaFactor)} × pitch
         </Badge>
@@ -2058,16 +2058,16 @@ function AreaPreviewCard({
     <div className="mt-3 rounded-2xl border-2 border-order-border bg-surface-1 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-order-fg">
+          <div className="text-caption font-semibold uppercase tracking-widest text-order-fg">
             Width + film area preview
           </div>
-          <div className="mt-1 font-mono text-[11px] font-bold text-order-fg">
+          <div className="mt-1 font-mono text-caption font-bold text-order-fg">
             {expression}
           </div>
         </div>
         <Badge
           variant="outline"
-          className="border-order-border bg-order-bg text-[10px] font-semibold text-order-fg"
+          className="border-order-border bg-order-bg text-caption font-semibold text-order-fg"
         >
           {stockFormLabel(stockForm)}
         </Badge>
@@ -2093,7 +2093,7 @@ function AreaPreviewCard({
           tone="violet"
         />
       </div>
-      <div className="mt-3 rounded-xl bg-order-bg px-3 py-2 font-mono text-[11px] leading-5 text-order-fg">
+      <div className="mt-3 rounded-xl bg-order-bg px-3 py-2 font-mono text-caption leading-5 text-order-fg">
         <div>
           stock form: {stockFormLabel(stockForm)} · width basis:{" "}
           {WIDTH_BASIS_LABEL[widthBasis] || widthBasis}
@@ -2131,7 +2131,7 @@ function PreviewMetric({
             : "bg-surface-2 text-content-1 ring-line",
       )}
     >
-      <div className="text-[10px] font-semibold uppercase tracking-widest opacity-60">
+      <div className="text-caption font-semibold uppercase tracking-widest opacity-60">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-[14px] font-semibold">{value}</div>
@@ -2157,7 +2157,7 @@ function FormulaEquation({
           : "bg-order-fg text-order-border ring-order-border",
       )}
     >
-      <div className="mb-1 font-sans text-[10px] font-semibold uppercase tracking-widest opacity-70">
+      <div className="mb-1 font-sans text-caption font-semibold uppercase tracking-widest opacity-70">
         {label}
       </div>
       {value}
@@ -2224,7 +2224,7 @@ function TermRow({
       </button>
       <div className="flex flex-wrap items-center gap-1.5">
         {factors.length === 0 ? (
-          <span className="text-[11px] text-content-4">empty term</span>
+          <span className="text-caption text-content-4">empty term</span>
         ) : null}
         {factors.map((f, idx) => (
           <React.Fragment key={idx}>
@@ -2299,7 +2299,7 @@ function FactorChip({
     >
       <span>{fieldKey || "?"}</span>
       {def.applies_to ? (
-        <span className="rounded-full bg-surface-1/70 px-1 py-0.5 text-[8px] font-bold uppercase tracking-widest opacity-80">
+        <span className="rounded-full bg-surface-1/70 px-1 py-0.5 text-caption font-bold uppercase tracking-widest opacity-80">
           {def.applies_to}
         </span>
       ) : null}
@@ -2345,7 +2345,7 @@ function FactorAdder({
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          "inline-flex items-center gap-1 rounded-lg border-2 border-dashed px-2.5 py-1.5 text-[11px] font-bold transition",
+          "inline-flex items-center gap-1 rounded-lg border-2 border-dashed px-2.5 py-1.5 text-caption font-bold transition",
           open
             ? "border-success-border bg-success-bg text-success-fg"
             : "border-success-border bg-surface-1 text-success-fg hover:bg-success-bg",
@@ -2360,7 +2360,7 @@ function FactorAdder({
           {/* MULTIPLY (in this term) */}
           <div className="rounded-lg border-2 border-success-border bg-success-bg p-2">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-success-fg">
+              <span className="text-caption font-semibold uppercase tracking-widest text-success-fg">
                 × multiply this term by…
               </span>
             </div>
@@ -2371,7 +2371,7 @@ function FactorAdder({
                   onAddNumber();
                   setOpen(false);
                 }}
-                className="rounded-md bg-[#10233f] px-2 py-1 text-[11px] font-bold text-success-border hover:bg-[#18375f]"
+                className="rounded-md bg-[#10233f] px-2 py-1 text-caption font-bold text-success-border hover:bg-[#18375f]"
                 title="Multiply by a constant number"
               >
                 a number
@@ -2385,7 +2385,7 @@ function FactorAdder({
                     setOpen(false);
                   }}
                   className={cn(
-                    "rounded-md px-2 py-1 text-[11px] font-bold ring-1",
+                    "rounded-md px-2 py-1 text-caption font-bold ring-1",
                     toneFor(k),
                   )}
                   title={`Multiply this term by ${k}`}
@@ -2399,7 +2399,7 @@ function FactorAdder({
           {/* ADD (new term) */}
           <div className="mt-2 rounded-lg border-2 border-warning-border bg-warning-bg p-2">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-warning-fg">
+              <span className="text-caption font-semibold uppercase tracking-widest text-warning-fg">
                 + add a NEW term with…
               </span>
             </div>
@@ -2410,7 +2410,7 @@ function FactorAdder({
                   onAddTermNumber();
                   setOpen(false);
                 }}
-                className="rounded-md bg-[#10233f] px-2 py-1 text-[11px] font-bold text-warning-border hover:bg-[#18375f]"
+                className="rounded-md bg-[#10233f] px-2 py-1 text-caption font-bold text-warning-border hover:bg-[#18375f]"
                 title="Add a new constant term"
               >
                 a number
@@ -2424,7 +2424,7 @@ function FactorAdder({
                     setOpen(false);
                   }}
                   className={cn(
-                    "rounded-md px-2 py-1 text-[11px] font-bold ring-1",
+                    "rounded-md px-2 py-1 text-caption font-bold ring-1",
                     toneFor(k),
                   )}
                   title={`Add ${k} as a new term`}
@@ -2433,7 +2433,7 @@ function FactorAdder({
                 </button>
               ))}
             </div>
-            <div className="mt-1 text-[10px] text-warning-fg">
+            <div className="mt-1 text-caption text-warning-fg">
               Use this when you want <b>W + H</b>, <b>2W + flap</b>, etc. —
               separate term that adds to the formula.
             </div>

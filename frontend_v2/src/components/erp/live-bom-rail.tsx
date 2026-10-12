@@ -181,7 +181,7 @@ export function LiveBomRail({
             ⚡
           </span>
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
               {effectiveTitle}
             </div>
             <div className="font-display text-sm font-bold text-content-1 leading-tight">
@@ -196,19 +196,19 @@ export function LiveBomRail({
                     : "All checks pass · new variant on submit"}
             </div>
             {subtitle ? (
-              <div className="text-[10px] text-content-3">{subtitle}</div>
+              <div className="text-caption text-content-3">{subtitle}</div>
             ) : null}
           </div>
         </div>
         {badge ??
           (preview ? (
             blockers === 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold text-success-fg ring-1 ring-success-border">
+              <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-fg animate-pulse" />{" "}
                 live
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-[10px] font-bold text-danger-fg ring-1 ring-danger-border">
+              <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 text-caption font-bold text-danger-fg ring-1 ring-danger-border">
                 <AlertTriangle className="h-3 w-3" /> blocked
               </span>
             )
@@ -278,10 +278,10 @@ function RouteRibbon({
   return (
     <section className="rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-3 shadow-sm">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-order-fg">
+        <div className="text-caption font-bold uppercase tracking-wider text-order-fg">
           Live route{templateName ? ` · ${templateName}` : ""}
         </div>
-        <span className="text-[10px] font-bold text-content-3">
+        <span className="text-caption font-bold text-content-3">
           {steps.length} steps
         </span>
       </div>
@@ -297,16 +297,16 @@ function RouteRibbon({
             <React.Fragment key={`r-${s.index ?? i}`}>
               <span
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold ring-1 capitalize",
+                  "inline-flex items-center gap-1 rounded-lg px-2 py-1 text-caption font-bold ring-1 capitalize",
                   tone,
                 )}
               >
-                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-surface-1/80 text-[10px] font-semibold">
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-surface-1/80 text-caption font-semibold">
                   {s.index ?? i + 1}
                 </span>
                 {label}
                 {s.has_artwork ? (
-                  <span className="inline-flex h-4 items-center rounded-full bg-order-fg px-1 text-[10px] font-semibold text-white">
+                  <span className="inline-flex h-4 items-center rounded-full bg-order-fg px-1 text-caption font-semibold text-white">
                     art
                   </span>
                 ) : null}
@@ -336,7 +336,7 @@ function ScopeChipRow({
   if (!podLocked) deferred.push("POD");
   deferred.push("qty");
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border-b border-order-border bg-order-bg px-5 py-2 text-[10px]">
+    <div className="flex flex-wrap items-center gap-1.5 border-b border-order-border bg-order-bg px-5 py-2 text-caption">
       <span className="font-semibold uppercase tracking-[0.1em] text-order-fg">
         Resolved on order
       </span>
@@ -427,17 +427,17 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
   if (fgType === "ROLL") {
     return (
       <section className="rounded-2xl border border-line bg-surface-1 p-3">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-content-3 mb-2">
+        <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
           Quantity conversion
         </div>
         <div className="rounded-xl bg-surface-2 px-3 py-2 ring-1 ring-line">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
             Roll order
           </div>
           <div className="font-mono text-sm font-semibold text-content-1">
             {fmtQty(totalKg)} kg
           </div>
-          <div className="mt-1 text-[10px] font-semibold text-content-3">
+          <div className="mt-1 text-caption font-semibold text-content-3">
             Roll masters are planned and issued in KG only.
           </div>
         </div>
@@ -474,11 +474,11 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+        <div className="text-caption font-bold uppercase tracking-wider text-content-3">
           Quantity conversion
         </div>
         {primary.material_code ? (
-          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
+          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-caption font-semibold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
             {primary.material_code}
           </span>
         ) : null}
@@ -489,7 +489,7 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
             key={cell.label}
             className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line"
           >
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
               {cell.label}
             </div>
             <div className="font-mono text-sm font-bold tabular-nums text-content-1">
@@ -498,7 +498,7 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
           </div>
         ))}
       </div>
-      <div className="mt-2 text-[10px] font-semibold text-content-3">
+      <div className="mt-2 text-caption font-semibold text-content-3">
         Pouches use unit weight for KG ↔ pieces conversion. Inner-pouch demand
         is ceil(pieces / pcs per inner).
       </div>
@@ -512,13 +512,13 @@ function IdentityCard({ preview }: { preview: PreviewBomResult }) {
   const tuple = summariseTuple(preview);
   return (
     <section className="rounded-2xl bg-gradient-to-br from-order-bg via-order-bg to-white ring-1 ring-order-border px-3 py-2.5 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-order-fg">
+      <div className="text-caption font-bold uppercase tracking-[0.1em] text-order-fg">
         Selected tuple
       </div>
       <div className="mt-1 font-mono text-[12px] font-bold leading-snug text-order-fg break-words">
         {tuple}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption">
         <span
           className={cn(
             "rounded px-1.5 py-0.5 font-bold ring-1",
@@ -616,7 +616,7 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
     .slice(0, 4);
   return (
     <section className="rounded-2xl border border-line bg-surface-1 px-3 py-3">
-      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-content-3 mb-2">
+      <div className="flex items-center justify-between text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
         <span>Visual</span>
         <span className="font-mono">{kind}</span>
       </div>
@@ -904,7 +904,7 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
           {featureTags.map((tag) => (
             <span
               key={String(tag)}
-              className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border"
+              className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border"
             >
               {tag}
             </span>
@@ -997,7 +997,7 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
     });
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-content-3 mb-2">
+      <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
         Geometry
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -1011,7 +1011,7 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
                 : "bg-surface-2 ring-line",
             )}
           >
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
               {c.label}
             </div>
             <div
@@ -1071,19 +1071,19 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
   };
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
-      <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-content-3 mb-2">
+      <div className="flex items-center justify-between text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
         <span>Layer stack</span>
         <span className="font-mono text-success-fg font-semibold">
           total {total} μ
         </span>
       </div>
-      <div className="space-y-2 text-[11px]">
+      <div className="space-y-2 text-caption">
         {preview.layer_snapshot.map((l: any, i: number) => {
           const t = Number(l?.thickness_micron || 0);
           const pct = total > 0 ? (t / total) * 100 : 0;
           return (
             <div key={i} className="flex items-center gap-2">
-              <span className="w-14 font-bold text-content-3 text-[10px] uppercase tracking-wider truncate">
+              <span className="w-14 font-bold text-content-3 text-caption uppercase tracking-wider truncate">
                 {l.role || `L${i + 1}`}
               </span>
               <div className="flex-1 h-6 rounded-md bg-surface-2 ring-1 ring-line overflow-hidden flex items-center">
@@ -1095,7 +1095,7 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
                   style={{ width: `${Math.max(pct, 4)}%` }}
                 />
               </div>
-              <span className="w-32 font-mono text-content-2 text-right text-[11px] tabular-nums">
+              <span className="w-32 font-mono text-content-2 text-right text-caption tabular-nums">
                 <span className="font-bold">{l.film_variant_code || "—"}</span>
                 <span className="text-content-3"> · </span>
                 <span className="font-bold">{t} μ</span>
@@ -1352,10 +1352,10 @@ function MaterialBreakdown({
   return (
     <section className="rounded-2xl border border-line bg-surface-1 overflow-hidden">
       <header className="flex items-center justify-between border-b border-line px-3 py-2">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+        <div className="text-caption font-bold uppercase tracking-wider text-content-3">
           Material breakdown
         </div>
-        <span className="text-[10px] text-content-4">
+        <span className="text-caption text-content-4">
           {rows.length} line{rows.length === 1 ? "" : "s"}
         </span>
       </header>
@@ -1366,12 +1366,12 @@ function MaterialBreakdown({
           const weightNeutral = WEIGHT_NEUTRAL_KEYS.has(g.key);
           return (
             <section key={g.key} className={cn("px-3 py-2", g.tile)}>
-              <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider mb-1">
+              <div className="flex items-center justify-between text-caption font-semibold uppercase tracking-wider mb-1">
                 <span className={cn("flex items-center gap-1.5", g.eyebrow)}>
                   {g.label} · {list.length}{" "}
                   {list.length === 1 ? "line" : "lines"}
                   {g.note ? (
-                    <span className="rounded-full bg-surface-1/70 px-1.5 py-0.5 text-[8px] font-bold normal-case tracking-normal opacity-80 ring-1 ring-surface-1/40">
+                    <span className="rounded-full bg-surface-1/70 px-1.5 py-0.5 text-caption font-bold normal-case tracking-normal opacity-80 ring-1 ring-surface-1/40">
                       {g.note}
                     </span>
                   ) : null}
@@ -1388,14 +1388,14 @@ function MaterialBreakdown({
                   </span>
                 ) : null}
               </div>
-              <table className="w-full text-[11px]">
+              <table className="w-full text-caption">
                 <tbody className="divide-y divide-line">
                   {list.slice(0, 8).map((r, i) => (
                     <tr key={i} className={cn(r.placeholder && "opacity-70")}>
                       <td className="py-1 pr-2 align-top">
                         {r.placeholder ? (
                           <span
-                            className="inline-block rounded px-1.5 py-0.5 text-[10px] font-mono font-bold text-content-3 bg-surface-1/60"
+                            className="inline-block rounded px-1.5 py-0.5 text-caption font-mono font-bold text-content-3 bg-surface-1/60"
                             style={{
                               borderStyle: "dashed",
                               borderWidth: 1,
@@ -1405,14 +1405,14 @@ function MaterialBreakdown({
                             {r.code}
                           </span>
                         ) : (
-                          <span className="font-mono text-[11px] font-bold text-content-1">
+                          <span className="font-mono text-caption font-bold text-content-1">
                             {r.code}
                           </span>
                         )}
                         {r.name ? (
                           <div
                             className={cn(
-                              "mt-0.5 text-[10px] truncate max-w-[180px]",
+                              "mt-0.5 text-caption truncate max-w-[180px]",
                               r.placeholder
                                 ? "text-content-4 italic"
                                 : "text-content-3",
@@ -1437,7 +1437,7 @@ function MaterialBreakdown({
                     <tr>
                       <td
                         colSpan={3}
-                        className="py-1 text-center text-[10px] text-content-4"
+                        className="py-1 text-center text-caption text-content-4"
                       >
                         + {list.length - 8} more in {g.label.toLowerCase()}
                       </td>
@@ -1489,10 +1489,10 @@ function StockSourceBar({ preview }: { preview: PreviewBomResult }) {
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+        <div className="text-caption font-bold uppercase tracking-wider text-content-3">
           Where will it ship from
         </div>
-        <span className="text-[10px] text-content-4">
+        <span className="text-caption text-content-4">
           total {total > 0 ? total : "—"}
         </span>
       </div>
@@ -1510,25 +1510,25 @@ function StockSourceBar({ preview }: { preview: PreviewBomResult }) {
             )
           : null}
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-[10px]">
+      <div className="mt-2 grid grid-cols-3 gap-2 text-caption">
         {tiles.map((t) => (
           <div
             key={t.label}
             className={cn("rounded-lg px-2 py-1.5 ring-1", t.tile)}
           >
-            <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
+            <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
               {t.label}
             </div>
             <div className="font-mono text-sm font-bold tabular-nums">
               {t.value || 0}
             </div>
-            <div className="text-[10px] opacity-60 tabular-nums">
+            <div className="text-caption tabular-nums">
               {t.pct.toFixed(0)}%
             </div>
           </div>
         ))}
       </div>
-      <div className="mt-2 text-[10px] text-content-3">
+      <div className="mt-2 text-caption text-content-3">
         FG ships first · WIP next · Fresh route only when no stock found.
       </div>
     </section>
@@ -1544,14 +1544,14 @@ function ChecksList({ preview }: { preview: PreviewBomResult }) {
   if (!checks.length && !warnings.length && !blockers.length) return null;
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3 space-y-1.5">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+      <div className="text-caption font-bold uppercase tracking-wider text-content-3">
         Checks
       </div>
       {checks.map((c, i) => (
-        <div key={`c-${i}`} className="flex items-start gap-2 text-[11px]">
+        <div key={`c-${i}`} className="flex items-start gap-2 text-caption">
           <span
             className={cn(
-              "mt-0.5 flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-[8px] font-semibold",
+              "mt-0.5 flex h-3.5 w-3.5 flex-none items-center justify-center rounded-full text-caption font-semibold",
               c.ok
                 ? "bg-success-bg text-success-fg"
                 : c.tone === "error"
@@ -1565,13 +1565,13 @@ function ChecksList({ preview }: { preview: PreviewBomResult }) {
         </div>
       ))}
       {warnings.map((w, i) => (
-        <div key={`w-${i}`} className="flex items-start gap-2 text-[11px]">
+        <div key={`w-${i}`} className="flex items-start gap-2 text-caption">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none text-warning-fg" />
           <span className="text-warning-fg">{w}</span>
         </div>
       ))}
       {blockers.map((b, i) => (
-        <div key={`b-${i}`} className="flex items-start gap-2 text-[11px]">
+        <div key={`b-${i}`} className="flex items-start gap-2 text-caption">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none text-danger-fg" />
           <span className="text-danger-fg font-bold">{b}</span>
         </div>
@@ -1600,7 +1600,7 @@ function LineFooter({
     <footer className="bg-success-fg px-5 py-3 text-white sticky bottom-0">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-success-border">
+          <div className="text-caption font-bold uppercase tracking-[0.1em] text-success-border">
             This line · ready to add
           </div>
           <div className="font-display text-base font-semibold tabular-nums">
@@ -1609,7 +1609,7 @@ function LineFooter({
               <span className="ml-2">· {fmtCurrency(subtotal)}</span>
             ) : null}
           </div>
-          <div className="text-[10px] font-bold text-success-border">
+          <div className="text-caption font-bold text-success-border">
             {pouches > 0
               ? `${fmtNum(pouches)} pouches · ${fmtQty(totalKg)} kg total`
               : "—"}
@@ -1628,7 +1628,7 @@ function LineFooter({
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
         ) : (
-          <span className="inline-flex items-center gap-1 rounded-xl bg-surface-1/15 px-3 py-1.5 text-[11px] font-bold text-white ring-1 ring-surface-1/30">
+          <span className="inline-flex items-center gap-1 rounded-xl bg-surface-1/15 px-3 py-1.5 text-caption font-bold text-white ring-1 ring-surface-1/30">
             <CheckCircle2 className="h-3.5 w-3.5" /> Saved on cart
           </span>
         )}

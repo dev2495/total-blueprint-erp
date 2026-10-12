@@ -52,7 +52,7 @@ export function GateSetup() {
   return (
     <div className="mx-auto max-w-[920px] space-y-6 pb-6">
       <header className="px-1 pt-1">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
         <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-content-1">Gate setup</h1>
         <p className="mt-1 max-w-[680px] text-[15px] leading-relaxed text-content-2 [text-wrap:pretty]">
           Every factory in the plant master already has its gate and its own visitor QR — created automatically with the plant. There is
@@ -79,7 +79,7 @@ export function GateSetup() {
               >
                 {active ? <Check className="h-4 w-4" /> : <Building2 className="h-4 w-4 text-content-4" />}
                 <span>{p.name}</span>
-                <span className={cn("font-mono text-[11px]", active ? "text-white/70" : "text-content-4")}>{p.code}</span>
+                <span className={cn("font-mono text-caption", active ? "text-white/70" : "text-content-4")}>{p.code}</span>
               </button>
             );
           })}
@@ -93,7 +93,7 @@ export function GateSetup() {
         body="Fix it at the gate. A visitor scans it, fills the form, and their entry is recorded immediately — no watchman action needed to come in."
       >
         <div className="rounded-2xl bg-surface-2 px-4 py-3 text-[13px]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4">Visitor link</div>
+          <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-4">Visitor link</div>
           <div className="mt-0.5 break-all font-mono text-content-2">
             {qr.isLoading ? "Loading…" : qr.isError ? "Could not load the QR link — open the poster to retry." : qr.data?.public_url}
           </div>

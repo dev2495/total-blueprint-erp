@@ -174,14 +174,14 @@ function StockFormChecklist({
               <div className="text-xs font-semibold uppercase tracking-[0.12em]">
                 {option.label}
               </div>
-              <div className="mt-1 text-[11px] leading-snug text-content-3">
+              <div className="mt-1 text-caption leading-snug text-content-3">
                 {option.hint}
               </div>
             </button>
           );
         })}
       </div>
-      <div className="mt-2 text-[11px] font-semibold text-content-3">
+      <div className="mt-2 text-caption font-semibold text-content-3">
         Leave all unchecked to keep legacy unrestricted behavior.
       </div>
     </div>
@@ -789,7 +789,7 @@ export default function ProcessesPage() {
                         {process.roll_behavior && (
                           <Badge
                             variant="secondary"
-                            className="text-[10px] h-5 px-1.5 bg-info-bg text-primary"
+                            className="text-caption h-5 px-1.5 bg-info-bg text-primary"
                           >
                             {process.roll_behavior.replace(/_/g, " ")}
                           </Badge>
@@ -798,8 +798,8 @@ export default function ProcessesPage() {
                           variant="outline"
                           className={
                             !isActive
-                              ? "text-[10px] h-5 px-1.5 border-danger-border text-danger-fg bg-danger-bg"
-                              : "text-[10px] h-5 px-1.5 border-success-border text-success-fg bg-success-bg"
+                              ? "text-caption h-5 px-1.5 border-danger-border text-danger-fg bg-danger-bg"
+                              : "text-caption h-5 px-1.5 border-success-border text-success-fg bg-success-bg"
                           }
                         >
                           {!isActive ? "INACTIVE" : "ACTIVE"}
@@ -807,7 +807,7 @@ export default function ProcessesPage() {
                         {needsStockFormReview ? (
                           <Badge
                             variant="outline"
-                            className="text-[10px] h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
+                            className="text-caption h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
                           >
                             REVIEW STOCK FORMS
                           </Badge>
@@ -815,7 +815,7 @@ export default function ProcessesPage() {
                         {process.allows_optional_at_planning ? (
                           <Badge
                             variant="outline"
-                            className="text-[10px] h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
+                            className="text-caption h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
                           >
                             PLANNER OPTIONAL
                           </Badge>
@@ -823,7 +823,7 @@ export default function ProcessesPage() {
                         {process.allows_skip_after_previous_output ? (
                           <Badge
                             variant="outline"
-                            className="text-[10px] h-5 px-1.5 border-info-border bg-info-bg text-primary"
+                            className="text-caption h-5 px-1.5 border-info-border bg-info-bg text-primary"
                           >
                             WCM SKIPPABLE
                           </Badge>
@@ -836,14 +836,14 @@ export default function ProcessesPage() {
                 <div className="flex items-center justify-between gap-2 mt-4 pt-4 border-t border-line text-xs text-content-3">
                   <div className="flex items-center gap-1">
                     <span className="font-medium">In:</span>
-                    <Badge variant="outline" className="text-[10px] h-4 px-1">
+                    <Badge variant="outline" className="text-caption h-4 px-1">
                       {process.input_form}
                     </Badge>
                   </div>
                   <ArrowRight className="h-3 w-3 text-content-4" />
                   <div className="flex items-center gap-1">
                     <span className="font-medium">Out:</span>
-                    <Badge variant="outline" className="text-[10px] h-4 px-1">
+                    <Badge variant="outline" className="text-caption h-4 px-1">
                       {process.output_form}
                     </Badge>
                   </div>
@@ -859,7 +859,7 @@ export default function ProcessesPage() {
                         <Badge
                           key={`in-${form}`}
                           variant="outline"
-                          className="border-info-border bg-surface-1 text-[10px] text-primary"
+                          className="border-info-border bg-surface-1 text-caption text-primary"
                         >
                           In {String(form).replace(/_/g, " ")}
                         </Badge>
@@ -873,13 +873,13 @@ export default function ProcessesPage() {
                         <Badge
                           key={`out-${form}`}
                           variant="outline"
-                          className="border-success-border bg-surface-1 text-[10px] text-success-fg"
+                          className="border-success-border bg-surface-1 text-caption text-success-fg"
                         >
                           Out {String(form).replace(/_/g, " ")}
                         </Badge>
                       ))}
                     </div>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                       Mode{" "}
                       {(process.stock_form_output_mode || "PRESERVE").replace(
                         /_/g,
@@ -887,7 +887,7 @@ export default function ProcessesPage() {
                       )}
                     </div>
                     {needsStockFormReview ? (
-                      <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[11px] font-semibold leading-snug text-warning-fg">
+                      <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption font-semibold leading-snug text-warning-fg">
                         Capability review pending. Until reviewed, this process
                         stays unrestricted so existing routes keep running.
                       </div>

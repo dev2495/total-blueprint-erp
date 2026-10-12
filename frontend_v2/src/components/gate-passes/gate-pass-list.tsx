@@ -116,7 +116,7 @@ export function GatePassList() {
               )}
             >
               {t.label}
-              <span className={cn("rounded-full px-2 py-0.5 text-[11px] tabular-nums", active ? "bg-white/15" : "bg-surface-2")}>{counts?.[t.key] ?? "–"}</span>
+              <span className={cn("rounded-full px-2 py-0.5 text-caption tabular-nums", active ? "bg-white/15" : "bg-surface-2")}>{counts?.[t.key] ?? "–"}</span>
             </button>
           );
         })}
@@ -230,12 +230,12 @@ function GatePassRow({ row }: { row: GatePass }) {
           {row.kind === "RETURNABLE" && row.expected_return_date ? (
             <>
               <div className={cn("font-semibold tabular-nums", row.is_overdue ? "text-danger-fg" : "text-content-1")}>{docDate(row.expected_return_date)}</div>
-              <div className="text-[11px] text-content-4">due back</div>
+              <div className="text-caption text-content-4">due back</div>
             </>
           ) : (
             <>
               <div className="font-semibold tabular-nums text-content-1">{docDateTime(row.out_at ?? row.issued_at ?? row.created_at)}</div>
-              <div className="text-[11px] text-content-4">{row.out_at ? "left" : row.issued_at ? "issued" : "drafted"}</div>
+              <div className="text-caption text-content-4">{row.out_at ? "left" : row.issued_at ? "issued" : "drafted"}</div>
             </>
           )}
         </div>

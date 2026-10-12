@@ -391,7 +391,7 @@ export function DemandTab({ context }: DemandTabProps) {
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
           Filters
         </span>
         <FilterChip
@@ -441,7 +441,7 @@ export function DemandTab({ context }: DemandTabProps) {
           onClear={dueFilter !== "all" ? () => setDueFilter("all") : undefined}
           active={dueFilter !== "all"}
         />
-        <span className="ml-auto text-[11px] text-content-3">
+        <span className="ml-auto text-caption text-content-3">
           {filtered.length} of {salesOrders.length} sales lines
         </span>
       </div>
@@ -449,7 +449,7 @@ export function DemandTab({ context }: DemandTabProps) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
-            <tr className="border-b border-line bg-surface-2 text-[11px] uppercase tracking-wide text-content-3">
+            <tr className="border-b border-line bg-surface-2 text-caption uppercase tracking-wide text-content-3">
               <th className="px-5 py-2 text-left font-semibold">SO</th>
               <th className="px-3 py-2 text-left font-semibold">Customer</th>
               <th className="px-3 py-2 text-left font-semibold">Variant</th>
@@ -497,7 +497,7 @@ export function DemandTab({ context }: DemandTabProps) {
                         {order.order_number || "—"}
                       </div>
                       {order.action_recommendation && (
-                        <div className="text-[10px] text-content-3">
+                        <div className="text-caption text-content-3">
                           {order.action_recommendation.label}
                         </div>
                       )}
@@ -611,7 +611,7 @@ export function DemandTab({ context }: DemandTabProps) {
               </SheetHeader>
 
               <section className="space-y-2">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+                <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
                   Spec
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -620,7 +620,7 @@ export function DemandTab({ context }: DemandTabProps) {
               </section>
 
               <section className="space-y-2">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+                <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
                   BOM
                 </h3>
                 <BomPreviewPanel
@@ -632,7 +632,7 @@ export function DemandTab({ context }: DemandTabProps) {
               </section>
 
               <section className="space-y-2">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-content-3">
+                <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
                   Release
                 </h3>
                 {selected.release_checklist?.blocked_count ? (

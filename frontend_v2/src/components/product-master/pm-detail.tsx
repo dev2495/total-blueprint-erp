@@ -455,7 +455,7 @@ function TopBar({
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="min-w-0">
-          <div className="text-[10px] font-semibold tracking-[0.12em] text-order-fg uppercase">
+          <div className="text-caption font-semibold tracking-[0.12em] text-order-fg uppercase">
             Master data › Product master
           </div>
           <div className="font-display text-base font-semibold text-content-1 truncate tracking-tight">
@@ -466,7 +466,7 @@ function TopBar({
       <div className="relative flex items-center gap-2 flex-wrap">
         <span
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wide ring-1 shadow-sm",
+            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tracking-wide ring-1 shadow-sm",
             master.active
               ? "bg-gradient-to-r from-success-bg to-success-bg text-success-fg ring-success-border"
               : "bg-gradient-to-r from-danger-bg to-danger-bg text-danger-fg ring-danger-border",
@@ -482,7 +482,7 @@ function TopBar({
         </span>
         <button
           onClick={onClone}
-          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface-1/80 px-3 text-[11px] font-bold text-content-2 ring-1 ring-line hover:bg-surface-1 hover:ring-order-border hover:text-order-fg transition"
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface-1/80 px-3 text-caption font-bold text-content-2 ring-1 ring-line hover:bg-surface-1 hover:ring-order-border hover:text-order-fg transition"
         >
           <Copy className="h-3.5 w-3.5" /> Duplicate
         </button>
@@ -490,7 +490,7 @@ function TopBar({
           onClick={onToggleActive}
           disabled={isToggling}
           className={cn(
-            "inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface-1/80 px-3 text-[11px] font-bold ring-1 transition disabled:opacity-60",
+            "inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface-1/80 px-3 text-caption font-bold ring-1 transition disabled:opacity-60",
             master.active
               ? "text-warning-fg ring-warning-border hover:bg-surface-1 hover:ring-warning-border"
               : "text-success-fg ring-success-border hover:bg-surface-1 hover:ring-success-border",
@@ -505,7 +505,7 @@ function TopBar({
         </button>
         <button
           onClick={onEdit}
-          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-order-fg via-order-fg to-order-fg px-3.5 text-[11px] font-semibold text-white shadow-md hover:shadow-lg hover:from-order-fg hover:via-order-fg hover:to-order-fg transition"
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-order-fg via-order-fg to-order-fg px-3.5 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-order-fg hover:via-order-fg hover:to-order-fg transition"
         >
           <Edit3 className="h-3.5 w-3.5" /> Edit
         </button>
@@ -612,7 +612,7 @@ function Tabs({
               {typeof count === "number" ? (
                 <span
                   className={cn(
-                    "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ring-1 ring-inset",
+                    "ml-1 rounded-full px-1.5 py-0.5 text-caption font-semibold tabular-nums ring-1 ring-inset",
                     active
                       ? `${tone.chip} ring-surface-1/30`
                       : "bg-surface-2 text-content-3 ring-line",
@@ -691,11 +691,11 @@ function OverviewTab({
           <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-b from-order-fg via-order-fg to-order-fg shadow-[0_0_18px_2px_rgba(139,92,246,0.45)]" />
           <div className="relative pl-3">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg ring-1 ring-order-border shadow-sm">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-order-fg ring-1 ring-order-border shadow-sm">
                 <Sparkles className="h-3 w-3" />
                 {master.product_kind}
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-content-3">
+              <span className="text-caption font-bold uppercase tracking-[0.1em] text-content-3">
                 · Product master
               </span>
             </div>
@@ -707,7 +707,7 @@ function OverviewTab({
                 {master.description}
               </p>
             ) : null}
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-caption">
               <FactCell
                 label="Master code"
                 tone="indigo"
@@ -899,7 +899,7 @@ function PrintingContractSummaryCard({
             <h3 className="font-display text-sm font-bold text-content-1">
               Printing contract
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               Sales, planner, and artwork pickers use this active master rule.
             </div>
           </div>
@@ -907,7 +907,7 @@ function PrintingContractSummaryCard({
         <Badge
           variant={printCapable ? "default" : "outline"}
           className={cn(
-            "rounded-full text-[10px] uppercase tracking-wider",
+            "rounded-full text-caption uppercase tracking-wider",
             printCapable
               ? "bg-success-bg text-success-fg"
               : "bg-surface-2 text-content-3",
@@ -955,7 +955,7 @@ function PrintingContractSummaryCard({
           value={
             <span
               className={cn(
-                "truncate text-[11px] font-bold",
+                "truncate text-caption font-bold",
                 defaultArtworkId && !defaultArtwork
                   ? "text-warning-fg"
                   : "text-success-fg",
@@ -966,7 +966,7 @@ function PrintingContractSummaryCard({
           }
         />
       </div>
-      <div className="border-t border-line bg-surface-2 px-5 py-3 text-[11px] leading-5 text-content-3">
+      <div className="border-t border-line bg-surface-2 px-5 py-3 text-caption leading-5 text-content-3">
         {printCapable
           ? `Compatible artwork is filtered to ${printMethod} plus ${formLabel}. ROTO requires cylinder readiness downstream; FLEXO does not require cylinder mapping.`
           : "This master is configured as plain/unprinted, so artwork should not appear in sales or planner pickers."}
@@ -1024,7 +1024,7 @@ function FactCell({
     >
       <div
         className={cn(
-          "text-[10px] font-semibold uppercase tracking-[0.1em]",
+          "text-caption font-semibold uppercase tracking-[0.1em]",
           t.label,
         )}
       >
@@ -1116,7 +1116,7 @@ function KpiTile({
       <div className="flex items-start justify-between">
         <div
           className={cn(
-            "text-[10px] font-semibold uppercase tracking-[0.1em]",
+            "text-caption font-semibold uppercase tracking-[0.1em]",
             t.label,
           )}
         >
@@ -1142,7 +1142,7 @@ function KpiTile({
         {value}
       </div>
       {sub ? (
-        <div className={cn("text-[10px] font-bold truncate", t.sub)}>{sub}</div>
+        <div className={cn("text-caption font-bold truncate", t.sub)}>{sub}</div>
       ) : null}
     </div>
   );
@@ -1163,7 +1163,7 @@ function LayerTemplateCard({ master }: { master: ProductMaster }) {
             <h3 className="font-display text-sm font-bold text-content-1">
               Layer template
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               {layers.length} layer{layers.length === 1 ? "" : "s"} · identity
               fixed · thickness/grade configurable per variant
             </div>
@@ -1196,7 +1196,7 @@ function LayerTemplateCard({ master }: { master: ProductMaster }) {
                   <div className="flex items-center gap-2">
                     <span
                       className={cn(
-                        "rounded-md px-2 py-0.5 text-[10px] font-semibold",
+                        "rounded-md px-2 py-0.5 text-caption font-semibold",
                         variable
                           ? "bg-success-bg text-success-fg"
                           : "bg-info-bg text-primary",
@@ -1204,21 +1204,21 @@ function LayerTemplateCard({ master }: { master: ProductMaster }) {
                     >
                       L{i + 1}
                     </span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+                    <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
                       {l.role || `layer-${i + 1}`}
                       {variable ? " · variable" : ""}
                     </span>
                   </div>
                   <span
                     className={cn(
-                      "font-mono text-[11px]",
+                      "font-mono text-caption",
                       variable ? "text-success-fg" : "text-content-3",
                     )}
                   >
                     {variable ? "apportioned per variant" : "fixed"}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-[11px]">
+                <div className="grid grid-cols-3 gap-2 text-caption">
                   <FieldSlot label="Film">
                     <span className="font-mono font-bold text-content-1">
                       {l.film_variant_code || "—"}
@@ -1244,7 +1244,7 @@ function LayerTemplateCard({ master }: { master: ProductMaster }) {
                           <span
                             key={g}
                             className={cn(
-                              "rounded px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                              "rounded px-1.5 py-0.5 text-caption font-bold ring-1",
                               g === l.default_grade
                                 ? "bg-success-bg text-success-fg ring-success-border"
                                 : "bg-surface-2 text-content-2 ring-line",
@@ -1299,7 +1299,7 @@ function ChemistryDefaultsCard({ master }: { master: ProductMaster }) {
             <h3 className="font-display text-sm font-bold text-content-1">
               Adhesive & solvent defaults
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               Fixed master chemistry · one selected material each · GSM included
               in live BOM
             </div>
@@ -1323,16 +1323,16 @@ function ChemistryDefaultsCard({ master }: { master: ProductMaster }) {
                 !configured && "border-line bg-surface-2",
               )}
             >
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                 {row.label}
               </div>
               <div className="mt-1 font-mono text-sm font-semibold text-content-1">
                 {row.code || "Not set"}
               </div>
-              <div className="mt-0.5 truncate text-[11px] text-content-3">
+              <div className="mt-0.5 truncate text-caption text-content-3">
                 {row.name || "No material selected"}
               </div>
-              <div className="mt-2 inline-flex rounded-full bg-surface-1 px-2 py-0.5 text-[10px] font-semibold text-content-2 ring-1 ring-line">
+              <div className="mt-2 inline-flex rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-content-2 ring-1 ring-line">
                 {Number(row.gsm || 0) > 0 ? `${row.gsm} GSM` : "No GSM"}
               </div>
             </div>
@@ -1352,7 +1352,7 @@ function FieldSlot({
 }) {
   return (
     <div>
-      <div className="text-[10px] font-bold uppercase text-content-3">
+      <div className="text-caption font-bold uppercase text-content-3">
         {label}
       </div>
       <div className="mt-0.5">{children}</div>
@@ -1406,7 +1406,7 @@ function VariantAxesCard({
             <h3 className="font-display text-sm font-bold text-content-1">
               Variant axes · {axes.length} axes
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               {isProductionMaster
                 ? "These axes define produced variants; catalog SKU is linked manually after variant creation"
                 : "Each axis becomes one dropdown sales/planner sees while configuring"}
@@ -1632,14 +1632,14 @@ function AxisCard({
         <div className="font-bold text-sm text-content-1">
           {axis.label || axis.axis}
           <span
-            className={cn("text-[10px] font-bold uppercase ml-1", eyebrowTone)}
+            className={cn("text-caption font-bold uppercase ml-1", eyebrowTone)}
           >
             {prettyAxisType(axis)}
           </span>
         </div>
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-bold ring-1",
+            "rounded-full px-2 py-0.5 text-caption font-bold ring-1",
             isRequired
               ? "bg-success-bg text-success-fg ring-success-border"
               : "bg-surface-2 text-content-2 ring-line",
@@ -1651,7 +1651,7 @@ function AxisCard({
       {description ? (
         <div
           className={cn(
-            "text-[11px]",
+            "text-caption",
             isCatalog ? "text-order-fg" : "text-content-3",
           )}
         >
@@ -1659,12 +1659,12 @@ function AxisCard({
         </div>
       ) : null}
       {axis.default_value ? (
-        <div className="mt-1 text-[10px] font-mono font-bold text-success-fg">
+        <div className="mt-1 text-caption font-mono font-bold text-success-fg">
           default · {axis.default_value}
         </div>
       ) : null}
       {axis.qty_per_pcs ? (
-        <div className="mt-1 text-[10px] font-mono text-content-3">
+        <div className="mt-1 text-caption font-mono text-content-3">
           qty · {axis.qty_per_pcs} per pc
         </div>
       ) : null}
@@ -1675,7 +1675,7 @@ function AxisCard({
             <span
               key={opt.code}
               className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-mono font-bold ring-1",
+                "rounded px-1.5 py-0.5 text-caption font-mono font-bold ring-1",
                 chipTone,
               )}
               title={opt.label}
@@ -1686,7 +1686,7 @@ function AxisCard({
           {more > 0 ? (
             <span
               className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-mono font-bold ring-1",
+                "rounded px-1.5 py-0.5 text-caption font-mono font-bold ring-1",
                 chipTone,
               )}
             >
@@ -1695,12 +1695,12 @@ function AxisCard({
           ) : null}
         </div>
       ) : isCatalog || isSize || axis.axis === "addons" ? (
-        <div className="mt-2 text-[10px] italic text-content-4">
+        <div className="mt-2 text-caption italic text-content-4">
           No allowed values configured yet.
         </div>
       ) : null}
       {isCatalog && allowed.length > 0 ? (
-        <div className="mt-2 text-[10px] font-bold text-order-fg">
+        <div className="mt-2 text-caption font-bold text-order-fg">
           {allowed.length} allowed · auto-demand on shortage
         </div>
       ) : null}
@@ -2077,13 +2077,13 @@ function RoutePreviewCard({
               Live route ·{" "}
               {templateName || master.template_name || "live template"}
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               Process names come from the live template · highlights the
               artwork-bearing step
             </div>
           </div>
         </div>
-        <span className="text-[10px] font-bold text-content-3">
+        <span className="text-caption font-bold text-content-3">
           {steps.length} step{steps.length === 1 ? "" : "s"}
         </span>
       </header>
@@ -2095,7 +2095,7 @@ function RoutePreviewCard({
           </div>
         ) : (
           <div className="flex flex-wrap items-stretch gap-2">
-            <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-line-strong px-3 text-[10px] font-semibold uppercase tracking-wider text-content-3">
+            <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-line-strong px-3 text-caption font-semibold uppercase tracking-wider text-content-3">
               <span>🚩</span>
               <span className="mt-0.5">Start</span>
             </div>
@@ -2116,7 +2116,7 @@ function RoutePreviewCard({
                     <div className="flex items-center gap-1.5">
                       <span
                         className={cn(
-                          "inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-semibold text-white",
+                          "inline-flex h-4 w-4 items-center justify-center rounded-full text-caption font-semibold text-white",
                           tone.dot,
                         )}
                       >
@@ -2135,12 +2135,12 @@ function RoutePreviewCard({
                         ).toLowerCase()}
                       </span>
                       {s.has_artwork ? (
-                        <span className="ml-0.5 inline-flex h-4 items-center rounded-full bg-order-fg px-1 text-[10px] font-semibold text-white">
+                        <span className="ml-0.5 inline-flex h-4 items-center rounded-full bg-order-fg px-1 text-caption font-semibold text-white">
                           art
                         </span>
                       ) : null}
                     </div>
-                    <div className="mt-0.5 text-[10px] font-mono text-content-3">
+                    <div className="mt-0.5 text-caption font-mono text-content-3">
                       {s.transition || "—"}
                     </div>
                   </div>
@@ -2150,7 +2150,7 @@ function RoutePreviewCard({
             <span className="flex items-center text-content-4 font-bold text-[14px]">
               ›
             </span>
-            <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-success-border bg-success-bg px-3 text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+            <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-success-border bg-success-bg px-3 text-caption font-semibold uppercase tracking-wider text-success-fg">
               <span>🏁</span>
               <span className="mt-0.5">End</span>
             </div>
@@ -2192,13 +2192,13 @@ function RecentVariantsCard({
               Recent variants · {Math.min(recent.length, variants.length)} of{" "}
               {variants.length} shown
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               Open Variants tab for matrix / cards / table views
             </div>
           </div>
         </div>
         {isPackOrPod ? (
-          <div className="flex items-center gap-2 text-[10px]">
+          <div className="flex items-center gap-2 text-caption">
             <span className="rounded-full bg-success-bg px-2 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
               {linkedVariants}/{variants.length} linked
             </span>
@@ -2251,12 +2251,12 @@ function VariantPeekCard({
   return (
     <div className="rounded-xl border border-line bg-surface-1 p-3 hover:border-order-border hover:shadow-md">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[11px] font-bold text-order-fg truncate">
+        <span className="font-mono text-caption font-bold text-order-fg truncate">
           {variant.code}
         </span>
         <span
           className={cn(
-            "rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1",
+            "rounded-full px-1.5 py-0.5 text-caption font-bold ring-1",
             variant.active
               ? "bg-success-bg text-success-fg ring-success-border"
               : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -2274,14 +2274,14 @@ function VariantPeekCard({
           return (
             <span
               key={k}
-              className="rounded bg-info-bg text-primary ring-1 ring-info-border px-1.5 py-0.5 text-[10px] font-mono"
+              className="rounded bg-info-bg text-primary ring-1 ring-info-border px-1.5 py-0.5 text-caption font-mono"
             >
               {val}
             </span>
           );
         })}
       </div>
-      <div className="mt-2 font-mono text-[10px] text-content-2">
+      <div className="mt-2 font-mono text-caption text-content-2">
         {unitG > 0 ? (
           <>
             <span className="font-bold">{unitG}g</span> per pouch
@@ -2438,27 +2438,27 @@ function VariantInventoryLinkPanel({
       {link ? (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-success-bg via-white to-success-bg px-2 py-1.5 ring-1 ring-success-border">
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+            <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
               Catalog SKU
             </div>
-            <div className="font-mono text-[10px] font-bold text-success-fg truncate">
+            <div className="font-mono text-caption font-bold text-success-fg truncate">
               {link.pod_sku_variant_code || link.code}
             </div>
             {link.pod_sku_variant_code ? (
-              <div className="font-mono text-[10px] text-success-fg truncate">
+              <div className="font-mono text-caption text-success-fg truncate">
                 {link.code}
               </div>
             ) : null}
           </div>
           <div className="text-right">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+            <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
               In stock
             </div>
-            <div className="font-mono text-[11px] font-semibold text-success-fg tabular-nums">
+            <div className="font-mono text-caption font-semibold text-success-fg tabular-nums">
               {Number(link.stock_qty || 0).toLocaleString("en-IN", {
                 maximumFractionDigits: 0,
               })}
-              <span className="ml-0.5 text-[10px] font-medium text-success-fg">
+              <span className="ml-0.5 text-caption font-medium text-success-fg">
                 {link.base_uom || ""}
               </span>
             </div>
@@ -2466,14 +2466,14 @@ function VariantInventoryLinkPanel({
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg hover:bg-success-bg"
+            className="ml-1 rounded px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wider text-success-fg hover:bg-success-bg"
             title="Change which catalog SKU this variant maps to"
           >
             Change
           </button>
         </div>
       ) : (
-        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-warning-bg px-2 py-1.5 ring-1 ring-warning-border text-[10px] text-warning-fg">
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-warning-bg px-2 py-1.5 ring-1 ring-warning-border text-caption text-warning-fg">
           <span>
             <span className="font-bold">No catalog link.</span> Pick an existing
             fixed SKU.
@@ -2481,7 +2481,7 @@ function VariantInventoryLinkPanel({
           <button
             type="button"
             onClick={() => setPickerOpen(true)}
-            className="rounded bg-warning-fg px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white hover:bg-warning-fg"
+            className="rounded bg-warning-fg px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wider text-white hover:bg-warning-fg"
           >
             Link SKU
           </button>
@@ -2495,7 +2495,7 @@ function VariantInventoryLinkPanel({
               Link variant{" "}
               <span className="font-mono text-order-fg">{variant.code}</span>
             </DialogTitle>
-            <DialogDescription className="text-[11px]">
+            <DialogDescription className="text-caption">
               Pick an unlinked fixed SKU in{" "}
               <strong>
                 {expectedCategory === "PACKAGING"
@@ -2549,12 +2549,12 @@ function VariantInventoryLinkPanel({
                       {m.code}
                     </div>
                     {m.name && m.name !== m.code ? (
-                      <div className="text-[10px] text-content-3 truncate">
+                      <div className="text-caption text-content-3 truncate">
                         {m.name}
                       </div>
                     ) : null}
                   </div>
-                  <div className="text-right text-[10px] text-content-3">
+                  <div className="text-right text-caption text-content-3">
                     {m.packaging_kind || m.pod_sku_code || m.pod_type || ""}
                     <br />
                     {m.material_code ? `${m.material_code} · ` : ""}
@@ -2629,19 +2629,19 @@ function RecentActivityCard({
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
       <header className="border-b border-line px-4 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Recent activity
         </div>
         <h3 className="font-display text-sm font-bold text-content-1">
           Latest changes
         </h3>
       </header>
-      <ol className="p-4 space-y-3 text-[11px]">
+      <ol className="p-4 space-y-3 text-caption">
         {items.map((it, i) => (
           <li key={i} className="flex gap-2">
             <span
               className={cn(
-                "flex h-5 w-5 flex-none items-center justify-center rounded-full text-[10px] font-bold",
+                "flex h-5 w-5 flex-none items-center justify-center rounded-full text-caption font-bold",
                 it.bg,
               )}
             >
@@ -2649,7 +2649,7 @@ function RecentActivityCard({
             </span>
             <div>
               <div className="font-bold text-content-2">{it.title}</div>
-              <div className="text-[10px] text-content-3">{it.sub}</div>
+              <div className="text-caption text-content-3">{it.sub}</div>
             </div>
           </li>
         ))}
@@ -2684,11 +2684,11 @@ function QuickLinksCard({ master }: { master: ProductMaster }) {
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
       <header className="border-b border-line px-4 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Quick links
         </div>
       </header>
-      <div className="p-4 space-y-2 text-[11px]">
+      <div className="p-4 space-y-2 text-caption">
         {!isProductionMaster ? (
           <Link
             href={`/sales/orders/create?master=${master.id}`}
@@ -2743,11 +2743,11 @@ function OwnershipCard({
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
       <header className="border-b border-line px-4 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
           Ownership
         </div>
       </header>
-      <div className="p-4 space-y-2 text-[11px]">
+      <div className="p-4 space-y-2 text-caption">
         <Row label="Reusable" value={master.reusable_policy} />
         <Row label="Reporting group" value={master.default_reporting_group} />
         <Row
@@ -2774,7 +2774,7 @@ function OwnershipCard({
           label="Invariant"
           value={
             master.invariant_signature ? (
-              <span className="font-mono text-[10px] text-content-2 truncate">
+              <span className="font-mono text-caption text-content-2 truncate">
                 {master.invariant_signature.slice(0, 12)}…
               </span>
             ) : (
@@ -2949,7 +2949,7 @@ function TabBanner({
           <div className="min-w-0">
             <div
               className={cn(
-                "text-[10px] font-semibold uppercase tracking-[0.12em]",
+                "text-caption font-semibold uppercase tracking-[0.12em]",
                 t.eyebrow,
               )}
             >
@@ -2959,7 +2959,7 @@ function TabBanner({
               {title}
             </div>
             {subtitle ? (
-              <div className={cn("mt-0.5 text-[11px]", t.subtitle)}>
+              <div className={cn("mt-0.5 text-caption", t.subtitle)}>
                 {subtitle}
               </div>
             ) : null}
@@ -3000,7 +3000,7 @@ function VariantsTab({
         right={
           <Link
             href={`/master/products/${master.id}/variants/new`}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-purple-600 px-3.5 text-[11px] font-semibold text-white shadow-md hover:shadow-lg hover:from-order-fg hover:to-purple-700 transition"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-purple-600 px-3.5 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-order-fg hover:to-purple-700 transition"
           >
             <Plus className="h-3.5 w-3.5" /> Create variant
           </Link>
@@ -3013,7 +3013,7 @@ function VariantsTab({
       />
       <section className="rounded-2xl border border-order-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
         <header className="flex items-center justify-end gap-2 border-b border-order-border bg-gradient-to-r from-white via-order-bg to-purple-50/30 px-5 py-2.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-fg animate-pulse" />{" "}
             live preview
           </span>
@@ -3089,7 +3089,7 @@ function MaterialBreakdownSection({
               Material breakdown · top {top.length} variant
               {top.length === 1 ? "" : "s"}
             </h3>
-            <p className="text-[10px] text-content-3">
+            <p className="text-caption text-content-3">
               Per-variant layer table · pouch math · roll math · live stock chip
             </p>
           </div>
@@ -3097,7 +3097,7 @@ function MaterialBreakdownSection({
         {variants.length > top.length ? (
           <Badge
             variant="outline"
-            className="border-success-border bg-success-bg text-[10px] text-success-fg"
+            className="border-success-border bg-success-bg text-caption text-success-fg"
           >
             +{variants.length - top.length} more in matrix
           </Badge>
@@ -3178,12 +3178,12 @@ function MaterialBreakdownCard({
     <div className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
       <header className="flex items-center justify-between border-b border-line bg-surface-2 px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[11px] font-bold text-order-fg">
+          <span className="font-mono text-caption font-bold text-order-fg">
             {variant.code}
           </span>
           <span
             className={cn(
-              "rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1",
+              "rounded-full px-1.5 py-0.5 text-caption font-bold ring-1",
               variant.active
                 ? "bg-success-bg text-success-fg ring-success-border"
                 : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -3192,7 +3192,7 @@ function MaterialBreakdownCard({
             {variant.active ? "active" : "inactive"}
           </span>
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-content-3">
+        <div className="flex items-center gap-1 text-caption text-content-3">
           <span>{totalThickness} µ total</span>
           {unitG > 0 ? (
             <>
@@ -3205,7 +3205,7 @@ function MaterialBreakdownCard({
 
       {/* Layer table */}
       <div className="px-4 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3 mb-2">
+        <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-2">
           Layer stack (top → bottom)
         </div>
         <div className="space-y-1.5">
@@ -3224,15 +3224,15 @@ function MaterialBreakdownCard({
                   tone,
                 )}
               >
-                <span className="font-mono text-[10px] font-bold">
+                <span className="font-mono text-caption font-bold">
                   L{l.layer_index || idx + 1}
                 </span>
-                <span className="font-mono text-[10px]">
+                <span className="font-mono text-caption">
                   {l.film_variant_code || l.role || "?"}
                 </span>
-                <span className="text-[10px] opacity-70">{l.role}</span>
+                <span className="text-caption opacity-70">{l.role}</span>
                 {l.grade ? (
-                  <span className="text-[10px] opacity-70">· {l.grade}</span>
+                  <span className="text-caption opacity-70">· {l.grade}</span>
                 ) : null}
                 <div className="ml-auto flex items-center gap-2">
                   <div className="h-1 w-16 overflow-hidden rounded-full bg-surface-1/70">
@@ -3241,7 +3241,7 @@ function MaterialBreakdownCard({
                       style={{ width: `${widthPct}%` }}
                     />
                   </div>
-                  <span className="font-mono text-[10px] font-bold">
+                  <span className="font-mono text-caption font-bold">
                     {thk} µ
                   </span>
                 </div>
@@ -3253,7 +3253,7 @@ function MaterialBreakdownCard({
 
       {/* Geometry */}
       <div className="border-t border-line bg-surface-2 px-4 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3 mb-2">
+        <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-2">
           Geometry preview
         </div>
         <div className="flex items-center gap-3">
@@ -3267,10 +3267,10 @@ function MaterialBreakdownCard({
                 }}
               />
             ) : (
-              <span className="text-[10px] text-content-4">—</span>
+              <span className="text-caption text-content-4">—</span>
             )}
           </div>
-          <div className="grid flex-1 grid-cols-2 gap-1 text-[10px]">
+          <div className="grid flex-1 grid-cols-2 gap-1 text-caption">
             <div className="rounded bg-surface-1 px-2 py-1 ring-1 ring-line">
               <div className="font-bold text-content-2">W × H</div>
               <div className="font-mono">
@@ -3298,21 +3298,21 @@ function MaterialBreakdownCard({
       {/* Stock linkage */}
       {showLink ? (
         <div className="border-t border-line bg-success-bg px-4 py-2.5">
-          <div className="flex items-center justify-between text-[11px]">
+          <div className="flex items-center justify-between text-caption">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+              <span className="text-caption font-semibold uppercase tracking-wider text-success-fg">
                 Catalog link
               </span>
               {link ? (
-                <span className="font-mono text-[11px] font-bold text-success-fg">
+                <span className="font-mono text-caption font-bold text-success-fg">
                   {link.code}
                 </span>
               ) : (
-                <span className="text-[10px] text-warning-fg">unlinked</span>
+                <span className="text-caption text-warning-fg">unlinked</span>
               )}
             </div>
             {link?.stock_qty != null ? (
-              <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-bold text-success-fg">
+              <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg">
                 {Number(link.stock_qty).toLocaleString()} in stock
               </span>
             ) : null}
@@ -3320,7 +3320,7 @@ function MaterialBreakdownCard({
         </div>
       ) : (
         <div className="border-t border-line bg-order-bg px-4 py-2.5">
-          <div className="text-[11px] text-order-fg">
+          <div className="text-caption text-order-fg">
             <span className="font-bold">Auto-generated</span> on order confirm —
             InventoryMaterial code derived from variant
           </div>
@@ -3374,28 +3374,28 @@ function SizesTab({
             <table className="min-w-full text-xs">
               <thead className="border-b border-success-border bg-gradient-to-r from-success-bg via-success-bg to-info-bg text-success-fg">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.08em] text-caption">
                     Code
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.08em] text-caption">
                     Label
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-caption">
                     W (mm)
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-caption">
                     H (mm)
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-caption">
                     Gusset
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-caption">
                     Roll W
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.08em] text-caption">
                     {isRoll ? "Form" : "Style"}
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-[10px]">
+                  <th className="px-4 py-3 text-right font-semibold uppercase tracking-[0.08em] text-caption">
                     Status
                   </th>
                 </tr>
@@ -3427,7 +3427,7 @@ function SizesTab({
                         <span className="italic text-content-4">auto</span>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-[10px]">
+                    <td className="px-4 py-2.5 text-caption">
                       <span className="rounded-md bg-gradient-to-r from-success-bg to-info-bg px-2 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
                         {isRoll ? s.roll_form || "—" : s.pouch_style || "—"}
                       </span>
@@ -3435,7 +3435,7 @@ function SizesTab({
                     <td className="px-4 py-2.5 text-right">
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
+                          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1",
                           s.active
                             ? "bg-success-bg text-success-fg ring-success-border"
                             : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -3507,7 +3507,7 @@ function OverlaysTab({
         right={
           <button
             onClick={onAdd}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-warning-fg to-warm px-3.5 text-[11px] font-semibold text-white shadow-md hover:shadow-lg hover:from-warning-fg hover:to-warm transition"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-warning-fg to-warm px-3.5 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-warning-fg hover:to-warm transition"
           >
             <Plus className="h-3.5 w-3.5" /> Add overlay
           </button>
@@ -3516,12 +3516,12 @@ function OverlaysTab({
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section className="rounded-2xl border border-warning-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
           <header className="flex items-center justify-between border-b border-warning-border bg-gradient-to-r from-warning-bg via-white to-warm px-5 py-2.5">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">
               Cards · click for live BOM preview
             </div>
             <button
               onClick={onAdd}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-warning-fg to-warm px-3 text-[11px] font-bold text-white shadow-sm hover:shadow-md transition"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-warning-fg to-warm px-3 text-caption font-bold text-white shadow-sm hover:shadow-md transition"
             >
               <Plus className="h-3.5 w-3.5" /> Add overlay
             </button>
@@ -3538,7 +3538,7 @@ function OverlaysTab({
               </div>
               <button
                 onClick={onAdd}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-bold text-white hover:bg-primary"
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-caption font-bold text-white hover:bg-primary"
               >
                 <Plus className="h-3.5 w-3.5" /> Add overlay
               </button>
@@ -3566,14 +3566,14 @@ function OverlaysTab({
                           {o.customer_name || "Unnamed customer"}
                         </div>
                         {o.customer_item_code ? (
-                          <div className="font-mono text-[10px] text-content-3">
+                          <div className="font-mono text-caption text-content-3">
                             {o.customer_item_code}
                           </div>
                         ) : null}
                       </div>
                       <span
                         className={cn(
-                          "rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                          "rounded-full px-1.5 py-0.5 text-caption font-bold ring-1",
                           o.active
                             ? "bg-success-bg text-success-fg ring-success-border"
                             : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -3582,7 +3582,7 @@ function OverlaysTab({
                         {o.active ? "active" : "inactive"}
                       </span>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+                    <div className="mt-2 flex flex-wrap gap-1 text-caption">
                       {o.default_price_basis ? (
                         <span className="rounded bg-surface-2 px-1.5 py-0.5 font-bold text-content-2">
                           basis · {o.default_price_basis}
@@ -3605,7 +3605,7 @@ function OverlaysTab({
                       ) : null}
                     </div>
                     {o.notes ? (
-                      <div className="mt-2 text-[10px] text-content-3 truncate">
+                      <div className="mt-2 text-caption text-content-3 truncate">
                         {o.notes}
                       </div>
                     ) : null}
@@ -3724,7 +3724,7 @@ function ArtworksTab({
                   <span className="font-mono text-xs font-semibold text-order-fg truncate">
                     {(a as any).design_code || a.id}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-success-bg text-success-fg ring-1 ring-success-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-success-bg text-success-fg ring-1 ring-success-border px-2 py-0.5 text-caption font-semibold uppercase tracking-wider">
                     <span className="inline-block h-1 w-1 rounded-full bg-success-fg" />{" "}
                     approved
                   </span>
@@ -3734,12 +3734,12 @@ function ArtworksTab({
                 </div>
                 <div className="relative mt-2 flex flex-wrap gap-1">
                   {(a as any).print_type ? (
-                    <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-[10px] font-bold text-order-fg ring-1 ring-order-border">
+                    <span className="rounded-md bg-order-bg px-1.5 py-0.5 text-caption font-bold text-order-fg ring-1 ring-order-border">
                       {(a as any).print_type}
                     </span>
                   ) : null}
                   {(a as any).substrate_mode ? (
-                    <span className="rounded-md bg-danger-bg px-1.5 py-0.5 text-[10px] font-bold text-danger-fg ring-1 ring-danger-border">
+                    <span className="rounded-md bg-danger-bg px-1.5 py-0.5 text-caption font-bold text-danger-fg ring-1 ring-danger-border">
                       {(a as any).substrate_mode}
                     </span>
                   ) : null}
@@ -3790,7 +3790,7 @@ function AuditPlaceholder({ masterId }: { masterId: string }) {
           </p>
           <Link
             href={`/system/audit?ref=product-master&id=${masterId}`}
-            className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-surface-3 to-surface-3 px-4 py-2 text-[11px] font-semibold text-white shadow-md hover:shadow-lg hover:from-surface-3 hover:to-black transition"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-surface-3 to-surface-3 px-4 py-2 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-surface-3 hover:to-black transition"
           >
             Open audit centre <ArrowRight className="h-3.5 w-3.5" />
           </Link>
@@ -3854,7 +3854,7 @@ function ProductionCatalogMapCard({
             <h3 className="font-display text-sm font-bold text-content-1">
               Catalog map · variant ↔ SKU
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               Every variant of this {kind} master must be manually linked to one
               fixed catalog row in{" "}
               <Link
@@ -3869,7 +3869,7 @@ function ProductionCatalogMapCard({
         </div>
         <Link
           href={catalogHref}
-          className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-[10px] font-semibold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+          className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-caption font-semibold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
         >
           Open catalog <ArrowRight className="h-3 w-3" />
         </Link>
@@ -3878,7 +3878,7 @@ function ProductionCatalogMapCard({
         {/* KPI strip */}
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg to-white px-3 py-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-order-fg">
+            <div className="text-caption font-semibold uppercase tracking-wider text-order-fg">
               Variants
             </div>
             <div className="mt-0.5 font-display text-lg font-semibold text-content-1 tabular-nums">
@@ -3886,7 +3886,7 @@ function ProductionCatalogMapCard({
             </div>
           </div>
           <div className="rounded-xl border border-success-border bg-gradient-to-br from-success-bg to-white px-3 py-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+            <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
               Linked SKUs
             </div>
             <div className="mt-0.5 font-display text-lg font-semibold text-content-1 tabular-nums">
@@ -3894,7 +3894,7 @@ function ProductionCatalogMapCard({
             </div>
           </div>
           <div className="rounded-xl border border-warning-border bg-gradient-to-br from-warning-bg to-white px-3 py-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-warning-fg">
+            <div className="text-caption font-semibold uppercase tracking-wider text-warning-fg">
               Total stock
             </div>
             <div className="mt-0.5 font-display text-sm font-semibold text-content-1 tabular-nums">
@@ -3906,7 +3906,7 @@ function ProductionCatalogMapCard({
         {/* Sample of linked variants */}
         {sample.length > 0 ? (
           <div className="space-y-1.5">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               Sample · first {sample.length} of {linked.length}
             </div>
             {sample.map((v) => (
@@ -3915,17 +3915,17 @@ function ProductionCatalogMapCard({
                 className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-1 px-3 py-1.5 hover:border-order-border hover:bg-order-bg"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono text-[11px] font-semibold text-order-fg truncate">
+                  <div className="font-mono text-caption font-semibold text-order-fg truncate">
                     {v.code}
                   </div>
                 </div>
                 <ArrowRight className="h-3 w-3 text-content-4 flex-none" />
                 <div className="min-w-0 text-right">
-                  <div className="font-mono text-[11px] font-semibold text-success-fg truncate">
+                  <div className="font-mono text-caption font-semibold text-success-fg truncate">
                     {v.inventory_link?.pod_sku_variant_code ||
                       v.inventory_link?.code}
                   </div>
-                  <div className="text-[10px] font-mono text-content-3">
+                  <div className="text-caption font-mono text-content-3">
                     {Number(v.inventory_link?.stock_qty || 0).toLocaleString(
                       "en-IN",
                       { maximumFractionDigits: 0 },
@@ -3937,7 +3937,7 @@ function ProductionCatalogMapCard({
             ))}
           </div>
         ) : variants.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-2.5 text-[11px] text-content-3">
+          <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-2.5 text-caption text-content-3">
             No variants yet. Create the production variants first, then link
             each one to an existing fixed SKU in{" "}
             <Link
@@ -3949,14 +3949,14 @@ function ProductionCatalogMapCard({
             .
           </div>
         ) : (
-          <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg px-3 py-2.5 text-[11px] text-warning-fg">
+          <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg px-3 py-2.5 text-caption text-warning-fg">
             Variants exist but are not linked to catalog SKUs yet. Use the
             variant card&apos;s Link SKU action and choose an existing unlinked
             row.
           </div>
         )}
 
-        <div className="rounded-xl bg-surface-2 px-3 py-2 text-[10px] text-content-3">
+        <div className="rounded-xl bg-surface-2 px-3 py-2 text-caption text-content-3">
           <strong>How it works:</strong> The Product Master variant is the
           in-house production contract. The catalog SKU is created and
           maintained separately in{" "}
@@ -4024,7 +4024,7 @@ function PackagingContractCard({
             <h3 className="font-display text-sm font-bold text-content-1">
               Inner pouch &amp; POD · sales-pickable
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               All outer packing (gunny / sheet / tape / label / tag) is tagged
               per order at EOD — not on this master.
             </div>
@@ -4032,7 +4032,7 @@ function PackagingContractCard({
         </div>
         <div className="flex items-center gap-1.5">
           {printCapable ? (
-            <span className="rounded-full bg-order-bg px-2 py-0.5 text-[10px] font-bold text-order-fg ring-1 ring-order-border">
+            <span className="rounded-full bg-order-bg px-2 py-0.5 text-caption font-bold text-order-fg ring-1 ring-order-border">
               print capable
             </span>
           ) : null}
@@ -4044,10 +4044,10 @@ function PackagingContractCard({
           innerCodes.length > 0 ? (
             <div className="rounded-xl border border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm px-3 py-2.5 ring-1 ring-warning-border">
               <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-warning-fg">
+                <div className="text-caption font-semibold uppercase tracking-wider text-warning-fg">
                   Inner pouch · axis-pickable
                 </div>
-                <span className="text-[10px] font-bold text-warning-fg">
+                <span className="text-caption font-bold text-warning-fg">
                   {innerAxis?.required ? "required" : "optional"}
                   {(innerAxis as any)?.auto_demand_in_house
                     ? " · auto-demand"
@@ -4064,11 +4064,11 @@ function PackagingContractCard({
                   return (
                     <span
                       key={code}
-                      className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-[10px] font-mono font-bold text-warning-fg ring-1 ring-warning-border"
+                      className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-caption font-mono font-bold text-warning-fg ring-1 ring-warning-border"
                     >
                       {code}
                       {material?.name && material.name !== code ? (
-                        <span className="text-[10px] font-medium text-warning-fg">
+                        <span className="text-caption font-medium text-warning-fg">
                           · {material.name}
                         </span>
                       ) : null}
@@ -4076,13 +4076,13 @@ function PackagingContractCard({
                   );
                 })}
               </div>
-              <div className="mt-1.5 text-[10px] text-warning-fg">
+              <div className="mt-1.5 text-caption text-warning-fg">
                 Sales picks 1 per order · BOM = ceil(total_pouches /
                 pcs_per_inner) · customer overlay can override pcs_per_inner.
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg px-3 py-2 text-[11px] text-warning-fg">
+            <div className="rounded-xl border border-dashed border-warning-border bg-warning-bg px-3 py-2 text-caption text-warning-fg">
               Inner pouch axis not configured on this POUCH master. Open{" "}
               <strong>Edit → Sales-pickable menu</strong> to allow inner-pouch
               SKUs.
@@ -4094,10 +4094,10 @@ function PackagingContractCard({
         {podCodes.length > 0 ? (
           <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg via-white to-danger-bg px-3 py-2.5 ring-1 ring-order-border">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-order-fg">
+              <div className="text-caption font-semibold uppercase tracking-wider text-order-fg">
                 POD · axis-pickable · sales picks per order
               </div>
-              <span className="text-[10px] font-bold text-order-fg">
+              <span className="text-caption font-bold text-order-fg">
                 {podAxis?.required ? "required" : "optional"}
                 {(podAxis as any)?.auto_demand_in_house ? " · auto-demand" : ""}
                 {" · "}
@@ -4112,11 +4112,11 @@ function PackagingContractCard({
                 return (
                   <span
                     key={code}
-                    className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-[10px] font-mono font-bold text-order-fg ring-1 ring-order-border"
+                    className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-caption font-mono font-bold text-order-fg ring-1 ring-order-border"
                   >
                     {code}
                     {meta?.name && meta.name !== code ? (
-                      <span className="text-[10px] font-medium text-order-fg">
+                      <span className="text-caption font-medium text-order-fg">
                         · {meta.name}
                       </span>
                     ) : null}
@@ -4134,10 +4134,10 @@ function PackagingContractCard({
               <Package className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-content-3">
+              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
                 Outer + EOD extras · packing yard tags per order
               </div>
-              <div className="mt-0.5 text-[11px] text-content-3">
+              <div className="mt-0.5 text-caption text-content-3">
                 Gunny / sheet / tape / label / tag are not on the master. Each
                 order&apos;s actual consumption is captured at end of day via
                 the{" "}
@@ -4161,7 +4161,7 @@ function PackagingContractCard({
         </div>
 
         {kind !== "POUCH" && podCodes.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-line bg-surface-2 p-3 text-center text-[11px] text-content-3">
+          <div className="rounded-xl border border-dashed border-line bg-surface-2 p-3 text-center text-caption text-content-3">
             No sales-pickable inner-pouch or POD options on this master.
           </div>
         ) : null}
@@ -4207,13 +4207,13 @@ function AddonsContractCard({
             <h3 className="font-display text-sm font-bold text-content-1">
               Add-ons contract
             </h3>
-            <div className="text-[10px] text-content-3">
+            <div className="text-caption text-content-3">
               Optional per-piece add-ons (zipper, valve, spout, etc.) sales can
               attach to a line
             </div>
           </div>
         </div>
-        <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold text-warning-fg ring-1 ring-warning-border">
+        <span className="rounded-full bg-warning-bg px-2 py-0.5 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
           {addonAxes.some((a) => a.required)
             ? "required axis"
             : "optional axis"}
@@ -4234,10 +4234,10 @@ function AddonsContractCard({
               className="rounded-xl bg-warning-bg ring-1 ring-warning-border px-3 py-2.5"
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-warning-fg">
+                <div className="text-caption font-semibold uppercase tracking-wider text-warning-fg">
                   {axis.label || axis.axis}
                 </div>
-                <span className="text-[10px] font-bold text-warning-fg">
+                <span className="text-caption font-bold text-warning-fg">
                   {axis.required
                     ? "required · sales must pick"
                     : "optional · sales may skip"}
@@ -4254,11 +4254,11 @@ function AddonsContractCard({
                     return (
                       <span
                         key={code}
-                        className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-[10px] font-mono font-bold text-warning-fg ring-1 ring-warning-border"
+                        className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-caption font-mono font-bold text-warning-fg ring-1 ring-warning-border"
                       >
                         {code}
                         {meta?.name && meta.name !== code ? (
-                          <span className="text-[10px] font-medium text-warning-fg">
+                          <span className="text-caption font-medium text-warning-fg">
                             · {meta.name}
                           </span>
                         ) : null}
@@ -4266,7 +4266,7 @@ function AddonsContractCard({
                     );
                   })
                 ) : (
-                  <span className="text-[10px] italic text-warning-fg">
+                  <span className="text-caption italic text-warning-fg">
                     No allowed codes locked — all active catalog add-ons are
                     pickable.
                   </span>
@@ -4722,7 +4722,7 @@ function CreateOverlayDialog({
                 <Users className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                   Customer overlay
                 </div>
                 <DialogTitle className="font-display text-lg font-bold text-content-1">
@@ -4730,7 +4730,7 @@ function CreateOverlayDialog({
                     ? `Defaults for ${customerMeta.name}`
                     : "Add customer overlay"}
                 </DialogTitle>
-                <DialogDescription className="text-[11px] text-content-3 mt-0.5">
+                <DialogDescription className="text-caption text-content-3 mt-0.5">
                   Customer-specific item code, price basis, axis defaults &amp;
                   packing. The live BOM rail on the right shows the exact math
                   sales gets when this customer orders this master.
@@ -4751,7 +4751,7 @@ function CreateOverlayDialog({
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Customer <span className="text-danger-fg">*</span>
                   </Label>
                   <Select value={customer} onValueChange={setCustomer}>
@@ -4769,7 +4769,7 @@ function CreateOverlayDialog({
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Customer item code
                   </Label>
                   <Input
@@ -4782,7 +4782,7 @@ function CreateOverlayDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Display name (customer-facing)
                   </Label>
                   <Input
@@ -4793,7 +4793,7 @@ function CreateOverlayDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Price basis
                   </Label>
                   <Select
@@ -4810,7 +4810,7 @@ function CreateOverlayDialog({
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Minimum order (kg)
                   </Label>
                   <Input
@@ -4827,10 +4827,10 @@ function CreateOverlayDialog({
                       {customerInitials}
                     </span>
                     <div className="min-w-0">
-                      <div className="text-[11px] font-bold text-content-1 truncate">
+                      <div className="text-caption font-bold text-content-1 truncate">
                         {customerMeta.name}
                       </div>
-                      <div className="font-mono text-[10px] text-content-3 truncate">
+                      <div className="font-mono text-caption text-content-3 truncate">
                         {customerMeta.code || "—"}
                         {customerMeta.gst_no
                           ? ` · GST ${customerMeta.gst_no}`
@@ -4849,7 +4849,7 @@ function CreateOverlayDialog({
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                     Default size lock
                   </Label>
                   <Select
@@ -4875,7 +4875,7 @@ function CreateOverlayDialog({
                 </div>
                 {podAllowed.length > 0 ? (
                   <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                    <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                       Default POD
                     </Label>
                     <Select
@@ -4904,10 +4904,10 @@ function CreateOverlayDialog({
               {packagingAxes.length > 0 ? (
                 <div className="mt-3 rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm p-3 shadow-sm">
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">
                       Inner pouch (only packing on master)
                     </div>
-                    <span className="text-[10px] text-content-3">
+                    <span className="text-caption text-content-3">
                       Outer / sheet / tape / label / tag → packing yard EOD
                       ticks
                     </span>
@@ -4938,7 +4938,7 @@ function CreateOverlayDialog({
                     return (
                       <div key={key} className="space-y-2">
                         <div>
-                          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                             Default inner pouch SKU
                           </Label>
                           <Select
@@ -4963,17 +4963,17 @@ function CreateOverlayDialog({
                               ))}
                             </SelectContent>
                           </Select>
-                          <div className="mt-1 text-[10px] text-content-3">
+                          <div className="mt-1 text-caption text-content-3">
                             {allowed.length} allowed from this master
                           </div>
                         </div>
                         {value ? (
                           <div className="rounded-xl border border-warning-border bg-surface-1 px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
-                              <Label className="text-[10px] font-bold uppercase tracking-wider text-warning-fg">
+                              <Label className="text-caption font-bold uppercase tracking-wider text-warning-fg">
                                 pcs_per_inner override for this customer
                               </Label>
-                              <span className="text-[10px] text-content-3 font-mono">
+                              <span className="text-caption text-content-3 font-mono">
                                 master default ·{" "}
                                 {masterPcsPerInner > 0
                                   ? `${masterPcsPerInner} pcs`
@@ -4997,16 +4997,16 @@ function CreateOverlayDialog({
                               />
                               {pcsPerInnerOverride &&
                               Number(pcsPerInnerOverride) > 0 ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-warning-fg px-2.5 py-1 text-[10px] font-semibold text-white shadow-sm">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-warning-fg px-2.5 py-1 text-caption font-semibold text-white shadow-sm">
                                   OVERRIDE WINS
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-[10px] font-semibold text-content-3 ring-1 ring-line">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-caption font-semibold text-content-3 ring-1 ring-line">
                                   USING MASTER
                                 </span>
                               )}
                             </div>
-                            <div className="mt-1 text-[10px] text-content-3">
+                            <div className="mt-1 text-caption text-content-3">
                               BOM uses{" "}
                               <strong>
                                 ceil(total_pouches / pcs_per_inner)
@@ -5023,10 +5023,10 @@ function CreateOverlayDialog({
               {addonsAxis ? (
                 <div className="mt-3">
                   <div className="flex items-center justify-between mb-1.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg">
+                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">
                       Default add-ons
                     </div>
-                    <span className="text-[10px] text-content-3">
+                    <span className="text-caption text-content-3">
                       {addonsAllowed.length} allowed ·{" "}
                       {addonsAxis.required ? "required" : "optional"} · sales
                       picks any number per order
@@ -5042,7 +5042,7 @@ function CreateOverlayDialog({
                             type="button"
                             onClick={() => toggleAddon(opt.code)}
                             className={cn(
-                              "rounded-full px-3 py-1.5 text-[11px] font-bold ring-1 ring-inset",
+                              "rounded-full px-3 py-1.5 text-caption font-bold ring-1 ring-inset",
                               active
                                 ? "bg-warning-fg text-white ring-warning-border shadow-sm"
                                 : "bg-surface-1 text-content-2 ring-line hover:bg-warning-bg hover:text-warning-fg hover:ring-warning-border",
@@ -5054,7 +5054,7 @@ function CreateOverlayDialog({
                       })}
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-2 text-[11px] text-content-3">
+                    <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-2 text-caption text-content-3">
                       No allowed add-ons curated for this master yet. Add
                       allowed codes in PM Edit Section 7.
                     </div>
@@ -5063,7 +5063,7 @@ function CreateOverlayDialog({
               ) : null}
               {overrideAxes.length > 0 ? (
                 <div className="mt-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-order-fg mb-1.5">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg mb-1.5">
                     Other axis defaults
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -5080,7 +5080,7 @@ function CreateOverlayDialog({
                       const value = overrideValues[key] || "";
                       return (
                         <div key={key}>
-                          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                             {ax.label || key}
                           </Label>
                           {allowed.length > 0 ? (
@@ -5121,7 +5121,7 @@ function CreateOverlayDialog({
                 </div>
               ) : null}
               {perLayerAxes.length > 0 ? (
-                <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-[10px]">
+                <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-caption">
                   <span className="font-semibold uppercase tracking-[0.1em] text-content-3">
                     Per-layer axes
                   </span>
@@ -5140,7 +5140,7 @@ function CreateOverlayDialog({
                 eyebrow="3 · Artwork"
                 title="Customer-facing approved artwork"
               >
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                   Default approved artwork
                 </Label>
                 <Select
@@ -5162,7 +5162,7 @@ function CreateOverlayDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="mt-1 text-[10px] text-content-3">
+                <div className="mt-1 text-caption text-content-3">
                   {overlayArtworks.length} compatible approved artwork
                   {overlayArtworks.length === 1 ? "" : "s"} available
                   {overlayArtworkData?.needs_size
@@ -5199,7 +5199,7 @@ function CreateOverlayDialog({
 
           {/* ─── RIGHT: live BOM rail ─── */}
           <div className="border-t xl:border-t-0 xl:border-l border-line bg-surface-2 px-4 py-4 overflow-y-auto">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-success-fg mb-2 px-1">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg mb-2 px-1">
               Preview · sample {sampleQty.toLocaleString("en-IN")} {priceBasis}{" "}
               order
             </div>
@@ -5216,7 +5216,7 @@ function CreateOverlayDialog({
 
         {/* Footer — always visible, never scrolled past */}
         <div className="flex-none border-t border-line bg-surface-1 px-6 py-3 flex items-center justify-between gap-3">
-          <div className="text-[11px] text-content-3">
+          <div className="text-caption text-content-3">
             {customer ? (
               <span className="inline-flex items-center gap-1.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-fg animate-pulse" />
@@ -5273,13 +5273,13 @@ function OverlaySection({
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
       <header className="border-b border-line bg-gradient-to-r from-surface-2 via-white to-white px-4 py-2.5 flex items-center justify-between">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-order-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             {eyebrow}
           </div>
           <div className="text-sm font-bold text-content-1">{title}</div>
         </div>
         {optional ? (
-          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-bold text-content-3 ring-1 ring-line">
+          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-3 ring-1 ring-line">
             optional
           </span>
         ) : null}

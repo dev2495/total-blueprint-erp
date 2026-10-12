@@ -53,7 +53,7 @@ export function PageHero({
       <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 max-w-3xl">
           {eyebrow ? (
-            <div className="mb-2 inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-white/60">
+            <div className="mb-2 inline-flex items-center gap-1.5 text-caption font-semibold uppercase tracking-[0.1em] text-white/75">
               {icon ? <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span> : null}
               {eyebrow}
             </div>
@@ -67,7 +67,7 @@ export function PageHero({
             {title}
           </h1>
           {description ? (
-            <p className="mt-1.5 max-w-2xl text-[13.5px] leading-relaxed text-white/65">{description}</p>
+            <p className="mt-1.5 max-w-2xl text-[14px] leading-relaxed text-white/80">{description}</p>
           ) : null}
           {meta ? <div className="mt-3 flex flex-wrap items-center gap-1.5">{meta}</div> : null}
         </div>
@@ -131,21 +131,21 @@ export function HeroStat({
         onClick && "hover:border-white/25 hover:bg-white/[0.1] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40",
       )}
     >
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-white/60">
+      <div className="flex items-center gap-1.5 text-caption font-semibold text-white/80">
         {tone ? <span className={cn("h-1.5 w-1.5 rounded-full", toneDot[tone])} aria-hidden /> : null}
         <span className="truncate">{label}</span>
       </div>
       <div className="mt-1.5 truncate text-[22px] font-semibold leading-none tracking-[-0.025em] text-white tabular-nums">
         {value}
       </div>
-      {hint ? <div className="mt-1.5 truncate text-[11.5px] text-white/55">{hint}</div> : null}
+      {hint ? <div className="mt-1.5 truncate text-caption text-white/70">{hint}</div> : null}
     </Comp>
   );
 }
 
 export function HeroChip({ children, tone = "neutral" }: { children: React.ReactNode; tone?: Tone }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.07] px-2.5 py-1 text-[11.5px] font-medium text-white/80">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.07] px-2.5 py-1 text-caption font-medium text-white/90">
       <span className={cn("h-1.5 w-1.5 rounded-full", toneDot[tone])} aria-hidden />
       {children}
     </span>

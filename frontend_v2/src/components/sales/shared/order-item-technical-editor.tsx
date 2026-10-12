@@ -256,7 +256,7 @@ export default function OrderItemTechnicalEditor({
     <div className="grid gap-4 2xl:grid-cols-2">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-line bg-surface-1 px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5 2xl:col-span-2">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
             Builder Flow
           </div>
           <div className="mt-1 text-sm font-bold text-content-1">
@@ -328,7 +328,7 @@ export default function OrderItemTechnicalEditor({
                       ? lockedPouchStyle.replaceAll("_", " ")
                       : "Template style pending"}
                   </div>
-                  <p className="text-[11px] text-content-3">
+                  <p className="text-caption text-content-3">
                     {activeTemplate
                       ? "Template is linked. Add the missing pouch style in the LIVE template contract if this is pending."
                       : "Select a LIVE template to lock style and route context."}
@@ -391,7 +391,7 @@ export default function OrderItemTechnicalEditor({
                         }))
                       }
                     />
-                    <p className="text-[11px] text-content-3">
+                    <p className="text-caption text-content-3">
                       Required for gusseted styles and used directly in
                       effective width math.
                     </p>
@@ -406,7 +406,7 @@ export default function OrderItemTechnicalEditor({
               <div
                 className={`rounded-2xl border px-4 py-3 text-sm ${showGussetField && (item.geometry.gusset_mm || 0) <= 0 ? "border-warning-border bg-warning-bg text-warning-fg" : "border-line bg-surface-2 text-content-3"}`}
               >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em]">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em]">
                   Rule
                 </div>
                 <div className="mt-1 font-semibold">
@@ -418,7 +418,7 @@ export default function OrderItemTechnicalEditor({
               <div
                 className={`rounded-2xl border px-4 py-3 text-sm ${spoutStyle && !hasSpoutAddon ? "border-warning-border bg-warning-bg text-warning-fg" : "border-line bg-surface-2 text-content-3"}`}
               >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em]">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em]">
                   Add-on Rule
                 </div>
                 <div className="mt-1 font-semibold">
@@ -430,7 +430,7 @@ export default function OrderItemTechnicalEditor({
                 </div>
               </div>
               <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-content-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em]">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em]">
                   Geometry Note
                 </div>
                 <div className="mt-1 font-semibold">
@@ -478,7 +478,7 @@ export default function OrderItemTechnicalEditor({
                 />
               </div>
               <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-content-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                   Effective Contract
                 </div>
                 <div className="mt-2 font-semibold">
@@ -662,7 +662,7 @@ export default function OrderItemTechnicalEditor({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                         Layer {index + 1}
                       </div>
                       <div className="mt-1 text-sm font-semibold text-content-2">
@@ -1737,7 +1737,7 @@ export default function OrderItemTechnicalEditor({
               </div>
               <div className="flex items-end">
                 <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
                     Previewing for
                   </div>
                   <div className="mt-1 text-sm font-semibold text-content-1">
@@ -1751,7 +1751,7 @@ export default function OrderItemTechnicalEditor({
             </div>
             <div className="flex flex-col gap-3 rounded-[1.45rem] border border-line bg-surface-2 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="space-y-2">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                   Preview context
                 </div>
                 <div className="text-sm font-semibold text-content-2">

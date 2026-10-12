@@ -579,7 +579,7 @@ export function ExecutiveDeck({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-[12.5px] leading-snug text-content-1">{a.message}</div>
-                    <div className="mt-0.5 text-[11px] text-content-3">
+                    <div className="mt-0.5 text-caption text-content-3">
                       {sentence(a.type)} · {sentence(sev)}
                       {a.timestamp ? ` · ${relativeTime(a.timestamp)}` : ""}
                     </div>

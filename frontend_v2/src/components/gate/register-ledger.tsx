@@ -32,7 +32,7 @@ export function RegisterLedger({
       <div className="gate-ledger hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[1040px] border-collapse text-[13px]">
           <thead>
-            <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-content-4">
+            <tr className="text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-4">
               <th className="px-3 py-3">Date · time</th>
               <th className="px-3 py-3">Invoice no · date</th>
               <th className="px-3 py-3">Party</th>
@@ -107,12 +107,12 @@ function LedgerCard({ row, onOpen, showPlant }: { row: GateGoodsMovement; onOpen
     <div className="flex gap-3 px-4 py-3.5">
       <div className="w-[54px] shrink-0">
         <div className="gate-num text-[15px] font-semibold leading-tight text-content-1">{gateTime(row.logged_at).replace(/\s(AM|PM)$/, "")}</div>
-        <div className="text-[11px] font-semibold text-content-4">{gateTime(row.logged_at).slice(-2)}</div>
-        <div className="mt-1 text-[11px] text-content-4">{gateDay(row.logged_at)}</div>
+        <div className="text-caption font-semibold text-content-4">{gateTime(row.logged_at).slice(-2)}</div>
+        <div className="mt-1 text-caption text-content-4">{gateDay(row.logged_at)}</div>
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.06em]" style={{ color: meta.tone }}>
+          <span className="inline-flex items-center gap-1 text-caption font-semibold uppercase tracking-[0.06em]" style={{ color: meta.tone }}>
             <DirectionGlyph direction={row.direction} className="h-3.5 w-3.5" />
             {meta.label}
           </span>

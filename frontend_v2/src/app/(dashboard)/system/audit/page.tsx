@@ -733,7 +733,7 @@ export default function AuditCenterPage() {
     return (
       <div className="max-w-2xl space-y-6">
         <section className="rounded-[28px] border border-warning-border bg-warning-bg p-8 shadow-sm">
-          <Badge className="rounded-full border border-warning-border bg-surface-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-warning-fg">
+          <Badge className="rounded-full border border-warning-border bg-surface-1 text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
             Audit Access
           </Badge>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight text-content-1">
@@ -771,7 +771,7 @@ export default function AuditCenterPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/60">
+                  <span className="text-caption font-semibold uppercase tracking-[0.12em] text-white/60">
                     System · Audit
                   </span>
                   <span className={cn(styles.chip, styles.chipLive)}>
@@ -982,7 +982,7 @@ export default function AuditCenterPage() {
                     <div className="mt-1 text-2xl font-semibold text-content-1">
                       {streamCount.toLocaleString()}
                     </div>
-                    <div className="mt-1 text-[11px] font-semibold text-content-3">
+                    <div className="mt-1 text-caption font-semibold text-content-3">
                       {streamRows[0]
                         ? `${relativeTime(streamRows[0].timestamp)} · ${streamRows[0].actor}`
                         : streamCount
@@ -1041,7 +1041,7 @@ export default function AuditCenterPage() {
                 onClick={setView}
               />
               <div className="flex-1" />
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="flex flex-wrap items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
                 <span>
                   Page {page.toLocaleString()} of {pageCount.toLocaleString()}
                 </span>
@@ -1242,7 +1242,7 @@ function ActivityHeatmap({ events }: { events: AuditEvent[] }) {
         </span>
       </div>
       <div className="flex gap-1.5">
-        <div className="grid gap-1 pt-5 text-[10px] font-bold text-content-3">
+        <div className="grid gap-1 pt-5 text-caption font-bold text-content-3">
           {DAY_LABELS.map((day) => (
             <span key={day} className="h-3.5">
               {day}
@@ -1440,7 +1440,7 @@ function ConsoleTab({
       <Icon className="h-4 w-4" />
       {label}
       {typeof count === "number" ? (
-        <span className="text-[10px] opacity-70">{count.toLocaleString()}</span>
+        <span className="text-caption opacity-70">{count.toLocaleString()}</span>
       ) : null}
     </button>
   );
@@ -1490,14 +1490,14 @@ function TimelineView({
                       >
                         {event.severity}
                       </span>
-                      <span className="font-mono text-[11px] text-content-3">
+                      <span className="font-mono text-caption text-content-3">
                         {timestampText(event.timestamp, true)}
                       </span>
                     </div>
                     <div className="mt-2 text-left text-sm font-bold text-content-1">
                       {event.summary}
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-left text-[11px] font-medium text-content-3">
+                    <div className="mt-1 flex flex-wrap gap-3 text-left text-caption font-medium text-content-3">
                       <span>
                         {event.actor} · {event.role}
                       </span>
@@ -1550,7 +1550,7 @@ function TableView({
             const stream = streamMeta(event.stream);
             return (
               <tr key={event.id} onClick={() => onOpen(event)}>
-                <td className="font-mono text-[11px]">
+                <td className="font-mono text-caption">
                   {timestampText(event.timestamp)}
                 </td>
                 <td>
@@ -1811,7 +1811,7 @@ function InvestigationPanel({
                       <div className="truncate text-xs font-semibold text-content-1">
                         {label}
                       </div>
-                      <div className="mt-1 text-[11px] font-semibold text-content-3">
+                      <div className="mt-1 text-caption font-semibold text-content-3">
                         {asString(line.lifecycle_decision, "Lifecycle pending")}
                       </div>
                     </div>
@@ -1825,7 +1825,7 @@ function InvestigationPanel({
                       {status}
                     </span>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] md:grid-cols-3">
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-caption md:grid-cols-3">
                     <div className={styles.summaryCell}>
                       <span>Open</span>
                       <b>{formatQty(line.qty_open, uom)}</b>

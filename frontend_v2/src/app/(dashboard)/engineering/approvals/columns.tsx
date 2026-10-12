@@ -20,19 +20,19 @@ export const columns: ColumnDef<TemplateBlueprint>[] = [
           {row.original.created_from === "CUSTOM_ORDER" ? (
             <Badge
               variant="destructive"
-              className="text-[10px] py-0 h-4 px-1.5 uppercase font-semibold tracking-tighter"
+              className="text-caption py-0 h-4 px-1.5 uppercase font-semibold tracking-tighter"
             >
               Custom Order
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="text-[10px] py-0 h-4 px-1.5 uppercase font-bold"
+              className="text-caption py-0 h-4 px-1.5 uppercase font-bold"
             >
               Standard
             </Badge>
           )}
-          <span className="text-[10px] text-muted-foreground font-mono">
+          <span className="text-caption text-muted-foreground font-mono">
             {row.original.id.slice(0, 8)}
           </span>
         </div>
@@ -53,7 +53,7 @@ export const columns: ColumnDef<TemplateBlueprint>[] = [
       <div className="flex flex-col gap-1">
         <StatusBadge status={row.getValue("status")} />
         {row.original.status === "DRAFT" && (
-          <div className="flex items-center gap-1 text-[10px] text-warning-fg font-medium">
+          <div className="flex items-center gap-1 text-caption text-warning-fg font-medium">
             <Clock className="h-3 w-3" /> PENDING REVIEW
           </div>
         )}

@@ -15,7 +15,7 @@ test("sales create page and Product Master expose the new product-master lanes",
 
   await page.goto("/sales/orders/create")
   await assertHealthyPage(page)
-  await expect(page.locator("body")).toContainText(/Sales Order\s*.\s*Create\s*.\s*Full Line Workspace/i)
+  await expect(page.locator("body")).toContainText(/Sales\s*.\s*New order/i)
   await expect(page.locator("body")).toContainText(/Bill to\s*.\s*customer/i)
   await expect(page.locator("body")).toContainText(/Ship to/i)
   await expect(page.locator("body")).toContainText(/Start the first production line/i)

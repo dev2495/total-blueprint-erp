@@ -521,7 +521,7 @@ export function SalesSpecChip({
   return (
     <span
       className={cn(
-        "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[11px] font-semibold leading-none",
+        "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-caption font-semibold leading-none",
         CHIP_CLASS[tone],
         className,
       )}
@@ -603,7 +603,7 @@ export function SalesOverflowChipGroup({
         {typeof option?.count === "number" ? (
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px]",
+              "rounded-full px-2 py-0.5 text-caption",
               active
                 ? "bg-surface-1/20 text-white"
                 : "bg-surface-1/70 text-content-3",
@@ -618,7 +618,7 @@ export function SalesOverflowChipGroup({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="inline-flex h-9 shrink-0 items-center text-[10px] font-semibold uppercase tracking-[0.12em] text-content-3">
+      <span className="inline-flex h-9 shrink-0 items-center text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
         {label}
       </span>
       {renderButton(null)}
@@ -640,7 +640,7 @@ export function SalesOverflowChipGroup({
             align="start"
             className="max-h-[22rem] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-line p-2"
           >
-            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               {label} options
             </DropdownMenuLabel>
             {hiddenOptions.length > 8 ? (
@@ -671,7 +671,7 @@ export function SalesOverflowChipGroup({
                     {option.label}
                   </span>
                   {typeof option.count === "number" ? (
-                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-content-3">
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-3">
                       {option.count}
                     </span>
                   ) : null}
@@ -719,7 +719,7 @@ export function SalesSmartRangeFilter({
         className,
       )}
     >
-      <span className="shrink-0 text-[10px] uppercase tracking-[0.1em] text-content-4">
+      <span className="shrink-0 text-caption uppercase tracking-[0.1em] text-content-4">
         {label}
       </span>
       <Input
@@ -729,7 +729,7 @@ export function SalesSmartRangeFilter({
         className="h-6 min-w-0 flex-1 border-0 bg-transparent p-0 text-center text-xs font-semibold shadow-none focus-visible:ring-0"
       />
       {suffix ? (
-        <span className="shrink-0 text-[10px] text-content-4">{suffix}</span>
+        <span className="shrink-0 text-caption text-content-4">{suffix}</span>
       ) : null}
       {cleanPresets.length ? (
         <DropdownMenu>
@@ -746,7 +746,7 @@ export function SalesSmartRangeFilter({
             align="start"
             className="max-h-[20rem] w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-line p-2"
           >
-            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               {label} presets
             </DropdownMenuLabel>
             <DropdownMenuItem
@@ -768,7 +768,7 @@ export function SalesSmartRangeFilter({
                     {preset.label}
                   </span>
                   {typeof preset.count === "number" ? (
-                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-semibold text-content-3">
+                    <span className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-3">
                       {preset.count}
                     </span>
                   ) : null}
@@ -818,7 +818,7 @@ export function SalesSpecChips({
       {resolvedFgType ? (
         <span
           className={cn(
-            "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-[11px] font-semibold leading-none",
+            "inline-flex min-h-7 items-center rounded-full border px-3 py-1 text-caption font-semibold leading-none",
             fgChipClass(resolvedFgType),
           )}
         >
@@ -904,7 +904,7 @@ export function SalesLayerTable({
         className,
       )}
     >
-      <div className="grid grid-cols-[3rem_minmax(0,1.35fr)_0.7fr_0.85fr_0.7fr] border-b border-line bg-surface-2 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+      <div className="grid grid-cols-[3rem_minmax(0,1.35fr)_0.7fr_0.85fr_0.7fr] border-b border-line bg-surface-2 px-3 py-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
         <div>#</div>
         <div>Layer variant</div>
         <div>Grade</div>
@@ -928,7 +928,7 @@ export function SalesLayerTable({
                   `Layer ${layer.index}`}
               </div>
               {layer.variantCode && layer.variantCode !== layer.variantName ? (
-                <div className="mt-0.5 truncate text-[11px] font-semibold text-content-3">
+                <div className="mt-0.5 truncate text-caption font-semibold text-content-3">
                   {layer.variantCode}
                 </div>
               ) : null}
@@ -979,7 +979,7 @@ export function SalesProductSpecCard({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             {title}
           </div>
           <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight text-content-1">
@@ -1008,7 +1008,7 @@ export function SalesProductSpecCard({
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-info-border bg-info-bg px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-info-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-info-fg">
             Final product size
           </div>
           <div className="mt-2 text-xl font-semibold text-content-1">
@@ -1016,7 +1016,7 @@ export function SalesProductSpecCard({
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             Order context
           </div>
           <div className="mt-2 text-sm font-semibold text-content-1">
@@ -1053,7 +1053,7 @@ export function SalesOutputSummaryCard({
     <section className="rounded-[1.75rem] border border-line bg-surface-1 p-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
             {title}
           </div>
           <h3 className="mt-1 text-xl font-semibold tracking-tight text-content-1">
@@ -1064,13 +1064,13 @@ export function SalesOutputSummaryCard({
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-info-border bg-info-bg px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
             Step target
           </div>
           <div className="mt-2 text-lg font-semibold text-content-1">{target}</div>
         </div>
         <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-success-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-success-fg">
             Produced
           </div>
           <div className="mt-2 text-lg font-semibold text-content-1">
@@ -1078,7 +1078,7 @@ export function SalesOutputSummaryCard({
           </div>
         </div>
         <div className="rounded-2xl border border-warning-border bg-warning-bg px-4 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-warning-fg">
+          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">
             Remaining
           </div>
           <div className="mt-2 text-lg font-semibold text-content-1">
@@ -1197,10 +1197,10 @@ export function SalesSavedViewsBar({
       data-testid={`sales-saved-views-${scope}`}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
           Saved views
         </div>
-        <div className="text-[10px] font-semibold text-content-4">
+        <div className="text-caption font-semibold text-content-4">
           click a view to load · save the current filter lens
         </div>
       </div>
@@ -1240,7 +1240,7 @@ export function SalesSavedViewsBar({
               {typeof count === "number" ? (
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px]",
+                    "rounded-full px-2 py-0.5 text-caption",
                     isActive
                       ? "bg-surface-1/25 text-white"
                       : "bg-surface-2 text-content-3",
@@ -1309,7 +1309,7 @@ export function SalesSavedViewsBar({
             align="end"
             className="w-[min(28rem,calc(100vw-2rem))] rounded-2xl border-line p-2 shadow-[0_24px_58px_-28px_rgba(15,23,42,0.38)]"
           >
-            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               Starter views
             </DropdownMenuLabel>
             {starters.map((view) => (
@@ -1330,7 +1330,7 @@ export function SalesSavedViewsBar({
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
               My saved views
             </DropdownMenuLabel>
             {!savedViews.length ? (

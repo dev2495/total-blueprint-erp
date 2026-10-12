@@ -248,7 +248,7 @@ export function PurchaseOrderDetailWorkspace({ poId }: { poId: string }) {
                         {it.material_name}
                       </div>
                       {it.is_closed && (
-                        <div className="mt-1 text-[10px] uppercase text-danger-fg">
+                        <div className="mt-1 text-caption uppercase text-danger-fg">
                           Closed Short: {it.close_reason}
                         </div>
                       )}

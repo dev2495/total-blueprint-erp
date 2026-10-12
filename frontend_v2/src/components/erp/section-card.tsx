@@ -100,7 +100,7 @@ export function SectionCardV3({
             {eyebrow ? (
               <div
                 className={cn(
-                  "text-[10px] font-semibold uppercase tracking-[0.12em]",
+                  "text-caption font-semibold uppercase tracking-[0.12em]",
                   ACCENT_EYEBROW[accent],
                 )}
               >
@@ -111,7 +111,7 @@ export function SectionCardV3({
               {title}
             </h2>
             {description ? (
-              <p className="mt-0.5 text-[11px] leading-5 text-content-3">
+              <p className="mt-0.5 text-caption leading-5 text-content-3">
                 {description}
               </p>
             ) : null}

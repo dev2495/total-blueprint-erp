@@ -35,7 +35,7 @@ export function GatePlantScopeSection({
           </div>
           <div>
             <h3 className="font-display text-sm font-bold text-content-1">Gate assignment</h3>
-            <p className="text-[11px] text-content-3">
+            <p className="text-caption text-content-3">
               Plants whose gate this watchman can log. Watchman access is limited to the gate terminal.
             </p>
           </div>
@@ -91,7 +91,7 @@ export function GatePlantScopeSection({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-content-1">{plant.name}</span>
-                  <span className="block font-mono text-[11px] text-content-4">{plant.code}</span>
+                  <span className="block font-mono text-caption text-content-4">{plant.code}</span>
                 </span>
               </button>
             );

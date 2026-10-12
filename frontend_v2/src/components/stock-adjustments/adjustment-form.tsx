@@ -209,13 +209,13 @@ export function StockAdjustmentForm() {
             <h3 className="font-display text-base font-bold text-content-1">
               Header
             </h3>
-            <p className="text-[11px] text-content-3">
+            <p className="text-caption text-content-3">
               Plant, reason, and notes apply to all lines.
             </p>
           </header>
           <div className="grid gap-4 md:grid-cols-3">
             <div>
-              <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Plant
               </Label>
               <Select value={plantId} onValueChange={setPlantId}>
@@ -232,7 +232,7 @@ export function StockAdjustmentForm() {
               </Select>
             </div>
             <div>
-              <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Reason
               </Label>
               <Select
@@ -252,7 +252,7 @@ export function StockAdjustmentForm() {
               </Select>
             </div>
             <div className="md:col-span-1">
-              <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                 Notes
               </Label>
               <Textarea
@@ -272,7 +272,7 @@ export function StockAdjustmentForm() {
               <h3 className="font-display text-base font-bold text-content-1">
                 Lines
               </h3>
-              <p className="text-[11px] text-content-3">
+              <p className="text-caption text-content-3">
                 Pick a stock class per line, choose the item and enter the
                 delta.
               </p>
@@ -370,7 +370,7 @@ function LineRow({
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-4">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[11px] font-bold text-content-3">
+        <span className="font-mono text-caption font-bold text-content-3">
           Line #{idx + 1}
         </span>
         {canRemove ? (
@@ -387,7 +387,7 @@ function LineRow({
       </div>
       <div className="mt-2 grid gap-3 md:grid-cols-4">
         <div>
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
             Stock class
           </Label>
           <Select
@@ -418,7 +418,7 @@ function LineRow({
         </div>
 
         <div className="md:col-span-3">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
             {line.stock_class === "TRADING_GOOD" ? "Trading good" : "Material"}
           </Label>
           <div className="mt-1">
@@ -453,7 +453,7 @@ function LineRow({
 
         {needsRoll ? (
           <div className="md:col-span-3 md:col-start-2">
-            <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
               Roll
             </Label>
             <div className="mt-1">
@@ -476,7 +476,7 @@ function LineRow({
 
         {needsLocation ? (
           <div className="md:col-span-3 md:col-start-2">
-            <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
               Location
             </Label>
             <Select
@@ -500,7 +500,7 @@ function LineRow({
         ) : null}
 
         <div>
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
             Delta qty
           </Label>
           <Input
@@ -514,7 +514,7 @@ function LineRow({
         </div>
 
         <div>
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
             UOM
           </Label>
           <Input
@@ -526,10 +526,10 @@ function LineRow({
         </div>
 
         <div className="md:col-span-2">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
             Preview
           </Label>
-          <div className="mt-1 flex h-9 items-center rounded-md border border-line bg-surface-1 px-3 font-mono text-[11px] text-content-2">
+          <div className="mt-1 flex h-9 items-center rounded-md border border-line bg-surface-1 px-3 font-mono text-caption text-content-2">
             {before === null ? (
               <span className="text-content-4">
                 Pick a roll or material to preview qty
@@ -551,7 +551,7 @@ function LineRow({
         </div>
 
         <div className="md:col-span-4">
-          <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
             Line notes
           </Label>
           <Input

@@ -173,7 +173,7 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
     await vehicleInput.fill("MH12AB1234")
   }
   await page.getByPlaceholder("Transporter or company vehicle").fill("UAT E2E Transport")
-  await page.getByPlaceholder("Enter city, destination or delivery address").fill("UAT E2E Delivery Location")
+  await page.getByPlaceholder("City, destination or delivery address").fill("UAT E2E Delivery Location")
   const createResponse = page.waitForResponse((response) => response.url().includes("/api/production/challans/create_challan/") && response.request().method() === "POST")
   await page.getByTestId("dispatch-create-submit").click()
   const createdResponse = await createResponse

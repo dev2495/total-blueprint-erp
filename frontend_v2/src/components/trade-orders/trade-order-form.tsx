@@ -357,7 +357,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
         <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line lg:col-span-2">
           <header className="mb-4">
             <h3 className="text-sm font-bold text-content-1">Order header</h3>
-            <p className="text-[11px] text-content-3">
+            <p className="text-caption text-content-3">
               The dispatch stock plant controls item availability and where
               stock is consumed from.
             </p>
@@ -391,7 +391,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                 </SelectContent>
               </Select>
               {selectedPlant ? (
-                <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-success-fg">
+                <div className="mt-1 flex items-center gap-1.5 text-caption font-semibold text-success-fg">
                   <MapPin className="h-3 w-3" /> Picker will show only stock
                   available at {selectedPlant.name}.
                 </div>
@@ -417,7 +417,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
 
         <section className="rounded-3xl bg-gradient-to-br from-danger-solid via-warm to-warning-fg p-6 text-white shadow-[0_20px_60px_-30px_rgba(244,63,94,0.45)]">
           <header className="mb-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80">
+            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
               Totals
             </div>
             <div className="text-sm font-bold">Live summary</div>
@@ -445,7 +445,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
           <header className="mb-4 flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold text-content-1">Line items</h3>
-              <p className="text-[11px] text-content-3">
+              <p className="text-caption text-content-3">
                 Add trading goods or sellable materials — qty × rate × GST
               </p>
             </div>
@@ -503,7 +503,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                   >
                     <div className="grid gap-3 lg:grid-cols-12">
                       <div className="lg:col-span-4">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                           Line #{l.line_no} · Item
                         </Label>
                         <ItemPicker
@@ -528,7 +528,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                       </div>
 
                       <div className="lg:col-span-1">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                           Qty
                         </Label>
                         <Input
@@ -544,7 +544,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         />
                         {selectedOption ? (
                           <div
-                            className={`mt-1 text-[10px] font-semibold ${qtyTooHigh ? "text-danger-fg" : "text-success-fg"}`}
+                            className={`mt-1 text-caption font-semibold ${qtyTooHigh ? "text-danger-fg" : "text-success-fg"}`}
                           >
                             Available {availableQty.toLocaleString()}{" "}
                             {selectedOption.base_uom}
@@ -552,7 +552,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         ) : null}
                       </div>
                       <div className="lg:col-span-1">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                           UOM
                         </Label>
                         <Input
@@ -566,7 +566,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         />
                       </div>
                       <div className="lg:col-span-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                           Rate (₹)
                         </Label>
                         <Input
@@ -580,7 +580,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         />
                       </div>
                       <div className="lg:col-span-1">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                           GST %
                         </Label>
                         <Input
@@ -596,7 +596,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         />
                       </div>
                       <div className="lg:col-span-2 text-right">
-                        <Label className="text-[10px] font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
                           Line total
                         </Label>
                         <div className="mt-1 font-mono text-sm font-bold text-content-1">
@@ -605,7 +605,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                             maximumFractionDigits: 2,
                           })}
                         </div>
-                        <div className="text-[10px] text-content-4">
+                        <div className="text-caption text-content-4">
                           sub ₹{lineSub.toFixed(2)} · gst ₹{lineGst.toFixed(2)}
                         </div>
                       </div>
@@ -689,7 +689,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-[11px] font-bold uppercase tracking-wider text-content-3">
+      <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
         {label}
       </Label>
       <div className="mt-1.5">{children}</div>
@@ -708,7 +708,7 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between">
-      <dt className="text-[11px] uppercase tracking-wider text-white/80">
+      <dt className="text-caption uppercase tracking-wider text-white/80">
         {label}
       </dt>
       <dd
@@ -768,7 +768,7 @@ function ItemPicker({
               <span className="block truncate text-[13px] font-bold text-content-1">
                 {selected.code} · {selected.name}
               </span>
-              <span className="block truncate text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+              <span className="block truncate text-caption font-semibold uppercase tracking-wider text-success-fg">
                 {formatQty(selected.available_qty)} {selected.base_uom}{" "}
                 available · {selected.category_label || selected.category}
               </span>
@@ -827,7 +827,7 @@ function ItemPicker({
                             {option.name}
                           </span>
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-semibold text-content-3">
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-caption font-semibold text-content-3">
                           <span>
                             {option.item_type === "TRADING_GOOD"
                               ? "Trading good"
@@ -847,7 +847,7 @@ function ItemPicker({
                         <div className="font-mono text-sm font-semibold text-success-fg">
                           {formatQty(option.available_qty)}
                         </div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-content-4">
+                        <div className="text-caption font-bold uppercase tracking-wider text-content-4">
                           {option.base_uom}
                         </div>
                       </div>
@@ -876,7 +876,7 @@ function SelectedStockPanel({
   if (!option) {
     if (!fallbackDescription) return null;
     return (
-      <div className="mt-2 rounded-xl border border-line bg-surface-1 px-3 py-2 text-[11px] text-content-3">
+      <div className="mt-2 rounded-xl border border-line bg-surface-1 px-3 py-2 text-caption text-content-3">
         Saved item: {fallbackDescription}
       </div>
     );
@@ -885,10 +885,10 @@ function SelectedStockPanel({
   return (
     <div className="mt-2 rounded-xl border border-success-border bg-success-bg px-3 py-2">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-success-fg">
+        <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-success-fg">
           <Boxes className="h-3.5 w-3.5" /> Stock truth
         </div>
-        <div className="font-mono text-[11px] font-semibold text-success-fg">
+        <div className="font-mono text-caption font-semibold text-success-fg">
           {formatQty(option.available_qty)} {option.base_uom} at{" "}
           {option.plant_code || "plant"}
         </div>
@@ -898,7 +898,7 @@ function SelectedStockPanel({
           {rows.slice(0, 3).map((row) => (
             <div
               key={`${row.plant}-${row.stock_class}`}
-              className="flex justify-between gap-3 rounded-lg bg-surface-1/75 px-2 py-1 text-[10px]"
+              className="flex justify-between gap-3 rounded-lg bg-surface-1/75 px-2 py-1 text-caption"
             >
               <span className="truncate font-semibold text-content-3">
                 {row.plant_name || "Plant"} ·{" "}

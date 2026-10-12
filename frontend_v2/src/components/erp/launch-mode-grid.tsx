@@ -114,20 +114,20 @@ export function LaunchModeGrid({
               <div className="text-sm font-bold leading-tight text-content-1">
                 {m.label}
               </div>
-              <p className="mt-1 text-[11px] leading-4 text-content-3">
+              <p className="mt-1 text-caption leading-4 text-content-3">
                 {m.description}
               </p>
             </div>
             <span
               className={cn(
-                "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset",
+                "mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-caption font-bold ring-1 ring-inset",
                 m.accent,
               )}
             >
               {m.scope}
             </span>
             {active ? (
-              <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+              <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-caption font-bold text-white">
                 ✓
               </span>
             ) : null}

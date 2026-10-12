@@ -99,7 +99,7 @@ function VendorForm({
             name="code"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Code
                 </FormLabel>
                 <FormControl>
@@ -118,7 +118,7 @@ function VendorForm({
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Name
                 </FormLabel>
                 <FormControl>
@@ -140,7 +140,7 @@ function VendorForm({
             name="type"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Type
                 </FormLabel>
                 <Select
@@ -168,7 +168,7 @@ function VendorForm({
             name="gst_no"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   GST No
                 </FormLabel>
                 <FormControl>
@@ -186,7 +186,7 @@ function VendorForm({
             name="payment_terms"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Payment Terms
                 </FormLabel>
                 <FormControl>
@@ -205,7 +205,7 @@ function VendorForm({
             name="lead_time_days"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+                <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                   Lead Time (Days)
                 </FormLabel>
                 <FormControl>
@@ -227,7 +227,7 @@ function VendorForm({
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-[10px] font-semibold uppercase text-content-3 tracking-widest">
+              <FormLabel className="text-caption font-semibold uppercase text-content-3 tracking-widest">
                 Address
               </FormLabel>
               <FormControl>
@@ -242,7 +242,7 @@ function VendorForm({
           <Button
             type="submit"
             disabled={isLoading}
-            className="bg-primary hover:bg-surface-3 text-white font-semibold uppercase text-[10px] tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale"
+            className="bg-primary hover:bg-surface-3 text-white font-semibold uppercase text-caption tracking-widest h-10 px-6 rounded-lg shadow-lg active-scale"
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Entity
@@ -323,7 +323,7 @@ export default function VendorsPage() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-line text-content-3 text-[10px] font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-line text-content-3 text-caption font-semibold uppercase tracking-widest shadow-sm translate-y-[-4px]">
             <Factory className="h-3 w-3" /> Supply Chain
           </div>
           <h1 className="text-3xl font-semibold tracking-tight text-content-1 flex items-center gap-3">
@@ -340,7 +340,7 @@ export default function VendorsPage() {
         <div className="flex items-center gap-3">
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
-              <Button className="h-11 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-[10px] tracking-widest shadow-xl transition-all active-scale">
+              <Button className="h-11 px-8 rounded-xl bg-surface-3 hover:bg-primary text-white font-semibold uppercase text-caption tracking-widest shadow-xl transition-all active-scale">
                 <Plus className="h-4 w-4 mr-2" /> Onboard Entity
               </Button>
             </DialogTrigger>
@@ -404,7 +404,7 @@ export default function VendorsPage() {
               <div className="text-2xl font-semibold text-content-1 tracking-tighter">
                 {stat.value}
               </div>
-              <p className="text-[10px] font-bold text-content-4 mt-1 uppercase tracking-widest">
+              <p className="text-caption font-bold text-content-4 mt-1 uppercase tracking-widest">
                 {stat.label}
               </p>
             </CardContent>

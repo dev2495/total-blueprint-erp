@@ -120,7 +120,7 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
         />
       </div>
       <div className="flex min-w-0 flex-col overflow-hidden leading-none transition-[opacity,transform] duration-300 ease-out">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-content-3">
+        <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
           ERP System
         </span>
       </div>
@@ -140,6 +140,8 @@ export function SidebarNavContent({
   const { user, pathname, userRoleCode, authorizedItems, isAuthorized } =
     useSidebarAuth();
   const navRef = useRef<HTMLElement>(null);
+  // Explicit open/closed state of child groups ("section|group"); unset = open when it holds the current page.
+  const [groupState, setGroupState] = useState<Record<string, boolean>>({});
   const [openSections, setOpenSections] = useState<Set<string>>(() => new Set());
   const [compactOpenSection, setCompactOpenSection] = useState<string | null>(
     null,
@@ -287,7 +289,7 @@ export function SidebarNavContent({
                 strokeWidth={linkActive ? 2.1 : 1.8}
               />
               {childLinks.some((link) => link.badge) ? (
-                <span className="absolute -right-1 -top-1 rounded-full bg-surface-3 px-1 py-0.5 text-[8px] font-bold text-white">
+                <span className="absolute -right-1 -top-1 rounded-full bg-surface-3 px-1 py-0.5 text-caption font-bold text-white">
                   {childLinks.find((link) => link.badge)?.badge}
                 </span>
               ) : null}
@@ -353,7 +355,7 @@ export function SidebarNavContent({
                     flyoutPlacement,
                   )}
                 >
-                  <div className="px-2 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <div className="px-2 pb-2 pt-1 text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
                     {item.title}
                   </div>
                   <div className="space-y-1">
@@ -391,7 +393,7 @@ export function SidebarNavContent({
                         {link.badge ? (
                           <span
                             className={cn(
-                              "rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                              "rounded-full px-1.5 py-0.5 text-caption font-bold uppercase",
                               link.active
                                 ? "bg-surface-1/15 text-white"
                                 : "border border-line bg-surface-2 text-content-3",
@@ -444,9 +446,9 @@ export function SidebarNavContent({
               <>
                 <div
                   className={cn(
-                    "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-content-4",
+                    "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-caption font-bold uppercase tracking-[0.12em] text-content-4",
                     isActive ? "text-primary" : "",
-                    mobile ? "mt-4 px-3 text-[10px]" : "",
+                    mobile ? "mt-4 px-3 text-caption" : "",
                   )}
                   data-testid={`sidebar-section-${navTestId(sectionTitle)}`}
                 >
@@ -487,7 +489,7 @@ export function SidebarNavContent({
                   {childCount > 0 ? (
                     <span
                       className={cn(
-                        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                        "rounded-full px-1.5 py-0.5 text-caption font-semibold",
                         isActive
                           ? "bg-primary/10 text-primary"
                           : "bg-surface-2 text-content-4",
@@ -515,7 +517,8 @@ export function SidebarNavContent({
                   )}
                 >
                   <div className="min-h-0 space-y-1">
-                    {authorizedChildren?.map((child) => {
+                    {(() => {
+                      const renderChild = (child: NonNullable<typeof authorizedChildren>[number]) => {
                       const isChildActive =
                         normalizeSidebarRoute(child.href) ===
                         normalizeSidebarRoute(activeChildHref || "");
@@ -555,7 +558,7 @@ export function SidebarNavContent({
                           {child.badge ? (
                             <span
                               className={cn(
-                                "rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                                "rounded-full px-1.5 py-0.5 text-caption font-bold uppercase",
                                 isChildActive
                                   ? "bg-surface-1/15 text-white"
                                   : "border border-line bg-surface-2 text-content-3",
@@ -566,7 +569,49 @@ export function SidebarNavContent({
                           ) : null}
                         </Link>
                       );
-                    })}
+                    };
+                      const grouped: Array<{ name: string; items: NonNullable<typeof authorizedChildren> }> = [];
+                      (authorizedChildren || []).forEach((child) => {
+                        const name = child.group || "";
+                        const last = grouped[grouped.length - 1];
+                        if (last && last.name === name) last.items.push(child);
+                        else grouped.push({ name, items: [child] });
+                      });
+                      const hasGroups = grouped.some((group) => group.name);
+                      if (!hasGroups) return (authorizedChildren || []).map(renderChild);
+                      return grouped.map((group) => {
+                        if (!group.name) return group.items.map(renderChild);
+                        const groupKey = `${sectionKey}|${group.name}`;
+                        const holdsCurrent = group.items.some((child) => normalizeSidebarRoute(child.href) === normalizeSidebarRoute(activeChildHref || ""));
+                        const open = groupState[groupKey] ?? holdsCurrent;
+                        return (
+                          <div key={groupKey} className="pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setGroupState((current) => ({ ...current, [groupKey]: !open }))}
+                              aria-expanded={open}
+                              data-testid={`sidebar-group-${navTestId(group.name)}`}
+                              className={cn(
+                                "group/g flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-caption font-bold uppercase tracking-[0.08em] transition-colors",
+                                holdsCurrent ? "text-primary" : "text-content-4 hover:text-content-2",
+                              )}
+                            >
+                              <span className="flex-1 truncate">{group.name}</span>
+                              <span className="rounded-full bg-surface-2 px-1.5 text-caption font-semibold normal-case tracking-normal text-content-4">{group.items.length}</span>
+                              <ChevronDown className={cn("h-3 w-3 shrink-0 transition-transform duration-200", open ? "rotate-180" : "")} strokeWidth={2} />
+                            </button>
+                            <div
+                              className={cn(
+                                "grid transition-[grid-template-rows,opacity,visibility] duration-200 ease-out",
+                                open ? "visible grid-rows-[1fr] opacity-100" : "invisible pointer-events-none grid-rows-[0fr] opacity-0",
+                              )}
+                            >
+                              <div className="min-h-0 space-y-1 overflow-hidden pb-1">{group.items.map(renderChild)}</div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               </>
@@ -615,7 +660,7 @@ export function SidebarFooterProfile({
         </span>
         <div className="flex items-center gap-1.5">
           <div className="h-1.5 w-1.5 rounded-full bg-success-fg" />
-          <span className="truncate text-[10px] font-medium text-content-3">
+          <span className="truncate text-caption font-medium text-content-3">
             {user.role_info?.name || "System User"}
           </span>
         </div>
