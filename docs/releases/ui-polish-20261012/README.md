@@ -45,3 +45,8 @@
 
 ## Deploy
 Frontend-only change plus the seed-script fix. Build and activate with the usual scripts; no migration; no env change.
+
+## Go-live (14 Oct 2026, 12:34 IST / 07:04 UTC)
+- Live: `e1bed53d6539` on https://erp.totalpolyprint.com (release dir `/opt/tpp-erp/releases/e1bed53d6539`, previous app symlink kept at `releases/rollback-app-ui-e1bed53d6539`, rollback images `tpp-erp-{backend,frontend}:rollback-ui-e1bed53d6539` = `94866005cc7b`). Scripts: `.runtime/release-ui-polish/{build,activate}-ui-release.sh`.
+- Pre-flight: all 2,364 source files of the live release matched the local parent commit byte-for-byte; verified managed backup + restore drill passed; `check --deploy` passed; migration plan empty; restart window 62 s.
+- Post-cutover: health ready; all 172 static routes return 200; live CSS carries the alpha tokens, `text-caption`, the darker caption grey, the 96 % header alpha and the focus ring; login and visitor pages render with no console errors; no error lines in frontend, backend, worker or beat logs since cutover.
