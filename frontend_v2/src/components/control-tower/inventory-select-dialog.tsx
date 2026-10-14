@@ -545,7 +545,9 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                     </div>
                 </div>
 
-                <fieldset disabled={phase !== "editing" || planMutation.isPending} style={{ padding: 24, overflowY: "auto", flex: 1, border: 0, margin: 0, minWidth: 0 }}>
+                {/* The scroller is a div: Chrome does not scroll a fieldset's own overflow, and a fieldset flex item will not shrink. */}
+                <div style={{ overflowY: "auto", flex: 1, minHeight: 0, minWidth: 0 }}>
+                <fieldset disabled={phase !== "editing" || planMutation.isPending} style={{ padding: 24, border: 0, margin: 0, minWidth: 0 }}>
                     {/* Mode picker */}
                     <div style={{ marginBottom: 18 }}>
                         <div
@@ -1154,6 +1156,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                         </div>
                     </label>
                 </fieldset>
+                </div>
 
                 {/* Footer */}
                 <div

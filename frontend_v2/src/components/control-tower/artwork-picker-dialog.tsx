@@ -182,7 +182,7 @@ export function ArtworkPickerDialog({ order, onClose }: ArtworkPickerDialogProps
                     </div>
                 </div>
 
-                <div style={{ padding: 20, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ padding: 20, overflowY: "auto", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 16 }}>
                     {pendingItems.length > 1 && (
                         <div>
                             <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginBottom: 6 }}>
