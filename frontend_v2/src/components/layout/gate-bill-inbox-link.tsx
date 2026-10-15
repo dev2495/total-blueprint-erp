@@ -15,7 +15,7 @@ export function GateBillInboxLink() {
     queryKey: ["notifications", "inward-bill-summary", user?.id, effectiveRole, allowed],
     queryFn: () => gateBillsApi.summary(),
     enabled: allowed,
-    refetchInterval: 5_000,
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

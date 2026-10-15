@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { BILL_STATUS_META, CATEGORY_META, gateBillsApi, type BillStatus, type DocumentCategory, type InwardBill } from "@/services/gate-bills";
 
 /** Inventory bill queue polling: 5 s while visible (contract), quiet when hidden. */
-export const BILL_POLL_MS = 5_000;
+export const BILL_POLL_MS = 15_000;
 
 /**
  * Bill & document rights from the real account (`entitlements.documents`).

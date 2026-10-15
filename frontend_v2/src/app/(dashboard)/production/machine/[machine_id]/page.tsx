@@ -146,8 +146,10 @@ type QualityDraft = {
   in_spec: boolean;
 };
 
-const POLL_MS = 8000;
-const EVENTS_POLL_MS = 5000;
+// Every action invalidates what it changes, so polling only catches changes made
+// elsewhere (WCM, another operator). 15 s keeps the floor current without churn.
+const POLL_MS = 15000;
+const EVENTS_POLL_MS = 15000;
 const DEFAULT_REMAINDER = "__DEFAULT__";
 const SELECT_NONE = "__NONE__";
 

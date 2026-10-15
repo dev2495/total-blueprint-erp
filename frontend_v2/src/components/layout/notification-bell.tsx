@@ -54,7 +54,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 /** General unread poll (all users). Gate-bill reviewers additionally poll the bill summary at 5 s. */
 const GENERAL_POLL_MS = 120_000;
-const BILL_POLL_MS = 5_000;
+// Header bell: a new gate bill shows within 30 s, and at once on window focus.
+const BILL_POLL_MS = 30_000;
 
 const isBillAlert = (n: Notification) =>
   n.related_object_type === "GateInwardBill" || n.event_key === "gate.inward_bill_uploaded";
