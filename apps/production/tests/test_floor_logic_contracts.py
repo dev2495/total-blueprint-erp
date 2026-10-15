@@ -362,3 +362,37 @@ class AddonMasterPropagationTests(FloorFixtureMixin, TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.assertNotIn("open_lines_refresh", response.data)
         refresh.assert_not_called()
+
+
+class RecalculateFromMastersTests(FloorFixtureMixin, TestCase):
+    """The released line takes the current master weights; jobs get their requirements rebuilt."""
+
+    def setUp(self):
+        self.build_floor()
+        self.item.unit_weight_g = Decimal("16.000000")
+        self.item.total_weight_kg = Decimal("0.160000")
+        self.item.save(update_fields=["unit_weight_g", "total_weight_kg"])
+        self.job = self.make_job("JOB-RECALC-OK", self.pouching)
+
+    def test_recalculation_saves_new_weights_and_rebuilds_requirements(self):
+        from unittest.mock import patch
+        preview = {"unit_weight_g": 16.73, "total_weight_kg": 0.1673, "bom": {"films": [], "addons": [], "planning_lines": []}}
+        with patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item", return_value=preview), \
+             patch("apps.production.services.services_execution.ExecutionService.calculate_requirements") as calc:
+            out = SalesOrderService.recalculate_line_bom_from_masters(self.item)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.unit_weight_g, Decimal("16.730000"))
+        self.assertEqual(self.item.total_weight_kg, Decimal("0.167300"))
+        self.assertEqual(out["before"]["unit_weight_g"], 16.0)
+        self.assertEqual(out["jobs_recalculated"], 1)
+        calc.assert_called_once()
+
+    def test_preview_failure_is_refused_with_a_plain_message(self):
+        from unittest.mock import patch
+        from django.core.exceptions import ValidationError
+        with patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item", side_effect=ValidationError("bad artwork")):
+            with self.assertRaises(ValidationError) as ctx:
+                SalesOrderService.recalculate_line_bom_from_masters(self.item)
+        self.assertIn("Could not rebuild this line's BOM", ctx.exception.messages[0])
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.unit_weight_g, Decimal("16.000000"))

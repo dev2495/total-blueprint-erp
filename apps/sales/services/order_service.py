@@ -2552,23 +2552,38 @@ class SalesOrderService:
             reason = SalesOrderService.released_line_recalc_block_reason(item)
             if reason:
                 raise ValidationError(f"Cannot recalculate this line: {reason}.")
-            geometry_snapshot = dict(item.geometry_snapshot or {})
-            fg_type = str(geometry_snapshot.get("finished_good_type") or ("ROLL" if str(item.qty_uom or "").upper() == "KG" and not item.layer_snapshot else "POUCH"))
-            printing_snapshot = dict(item.printing_snapshot or {})
+            # Same inputs as the master-edit refresh path for a line without a
+            # product master: the frozen specification, normalised. Only master
+            # values (add-on weights, film densities) can change the result.
+            template = item.template
+            geometry_snapshot = deepcopy(item.geometry_snapshot or {})
+            layer_snapshot = _normalize_layer_snapshot(item.layer_snapshot or [], strict=False)
+            printing_snapshot = _normalize_printing_snapshot(item.printing_snapshot or {})
+            addons_snapshot = deepcopy(item.addons_snapshot or [])
+            packaging_snapshot = _normalize_packaging_snapshot(item.packaging_snapshot or {})
+            fg_type = str(getattr(template, "fg_type", "") or geometry_snapshot.get("finished_good_type") or "POUCH").upper()
+            geometry_snapshot["finished_good_type"] = fg_type if fg_type in {"POUCH", "ROLL"} else "POUCH"
             preview_payload = {
-                "template_id": str(item.template_id) if item.template_id else None,
-                "finished_good_type": fg_type,
+                "template_id": str(template.id) if template else None,
+                "finished_good_type": geometry_snapshot["finished_good_type"],
                 "geometry": geometry_snapshot,
-                "film_layers": list(item.layer_snapshot or []),
+                "film_layers": layer_snapshot,
                 "printing": printing_snapshot,
                 "chemicals": printing_snapshot.get("chemicals") or {},
-                "addons": list(item.addons_snapshot or []),
-                "packaging_snapshot": dict(item.packaging_snapshot or {}),
+                "addons": addons_snapshot,
+                "packaging_snapshot": packaging_snapshot,
                 "roll_form": geometry_snapshot.get("roll_form"),
                 "order_qty": float(item.qty_value or 0),
-                "uom": "KG" if fg_type == "ROLL" else item.qty_uom,
+                "uom": "KG" if geometry_snapshot["finished_good_type"] == "ROLL" else item.qty_uom,
             }
-            preview = SalesOrderService.preview_sales_item(preview_payload)
+            try:
+                preview = SalesOrderService.preview_sales_item(preview_payload)
+            except (ValidationError, ValueError) as exc:
+                detail = "; ".join(getattr(exc, "messages", []) or [str(exc)]).rstrip(".")
+                raise ValidationError(
+                    f"Could not rebuild this line's BOM from the current masters: {detail}. "
+                    "Check the line's artwork and specification on the sales order."
+                )
             before = {
                 "unit_weight_g": float(item.unit_weight_g or 0),
                 "total_weight_kg": float(item.total_weight_kg or 0),
@@ -2583,9 +2598,9 @@ class SalesOrderService:
             item.unit_weight_g = unit_weight_g
             item.total_weight_kg = total_weight_kg
             item.packaging_snapshot = _materialize_packaging_snapshot_quantities(
-                dict(item.packaging_snapshot or {}), preview_payload, unit_weight_g, total_weight_kg
+                packaging_snapshot, preview_payload, unit_weight_g, total_weight_kg
             )
-            item.save(update_fields=["bom_snapshot", "unit_weight_g", "total_weight_kg", "packaging_snapshot", "updated_at"])
+            item.save(update_fields=["bom_snapshot", "unit_weight_g", "total_weight_kg", "packaging_snapshot"])
             jobs = list(ProductionJob.objects.select_for_update(of=("self",)).filter(sales_order_item=item).exclude(job_state="CANCELLED").order_by("current_step_index", "created_at"))
             for job in jobs:
                 ExecutionService.calculate_requirements(job.id, persist=True, job=job)
