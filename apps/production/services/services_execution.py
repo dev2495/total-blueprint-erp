@@ -4484,12 +4484,11 @@ class ExecutionService:
                     if code and code not in category_to_step:
                         category_to_step[code] = step
 
-        # Add-ons (tape, zipper, spout) and packaging are consumed where the finished
-        # good is made: the last step of the route, unless the template maps a step.
+        # Add-ons (tape, zipper, spout) are applied where the finished good is made:
+        # the last step of the route, unless the template maps them to a step.
+        # Packaging is not a plan line here; the packing flow consumes it.
         if steps:
-            last_step = list(steps)[-1]
-            for consumable_code in ("ADDON", "PACKAGING"):
-                category_to_step.setdefault(consumable_code, last_step)
+            category_to_step.setdefault("ADDON", list(steps)[-1])
         if "GRANULE" not in category_to_step:
             fallback_step = next(
                 (
@@ -6378,6 +6377,8 @@ class ExecutionService:
             'inputs': {
                 'rolls_required': int(satisfaction_status.get('rolls_required') or 0),
                 'roll_mode': satisfaction_status.get('roll_mode'),
+                'addon_shortages': satisfaction_status.get('addon_shortages') or [],
+                'addon_shortage_blocks': satisfaction_status.get('addon_shortage_blocks'),
                 'roll_max_count': satisfaction_status.get('roll_max_count'),
                 'roll_target_kg': satisfaction_status.get('roll_target_kg'),
                 'rolls_reserved_kg': satisfaction_status.get('rolls_reserved_kg'),
@@ -6871,12 +6872,27 @@ class ExecutionService:
         # Bulk consumption preview (step-aware)
         bulk_preview = cls.get_bulk_consumption_preview(job, requirements=requirements)
         bulk_satisfied = True
+        # Add-ons (tape, zipper) are shown, issued and consumed at their step. A
+        # shortage blocks release/start only when ADDON_SHORTAGE_BLOCKS is on, so a
+        # plant whose add-on stock is not yet received into the ERP keeps running.
+        from django.conf import settings as dj_settings
+        addon_shortage_blocks = bool(getattr(dj_settings, "ADDON_SHORTAGE_BLOCKS", False))
+        addon_shortages = []
         for item in bulk_preview:
             required = Decimal(str(item.get('required_qty_kg') or 0))
             available = Decimal(str(item.get('available_qty_kg') or 0))
+            is_addon = str(item.get('category') or '').upper() == 'ADDON'
+            item['blocking'] = (not is_addon) or addon_shortage_blocks
             if required > 0 and available < required:
-                bulk_satisfied = False
-                break
+                if item['blocking']:
+                    bulk_satisfied = False
+                else:
+                    addon_shortages.append({
+                        'material_id': item.get('material_id'),
+                        'material_name': item.get('material_name'),
+                        'uom': item.get('uom'),
+                        'short_qty': float(required - available),
+                    })
 
         is_satisfied = roll_satisfied and bulk_satisfied
         auto_assignment_result = {
@@ -6887,6 +6903,8 @@ class ExecutionService:
             'auto_first': True,
         }
         roll_mass_status = {
+            'addon_shortages': addon_shortages,
+            'addon_shortage_blocks': addon_shortage_blocks,
             'roll_mode': roll_requirement.get('mode'),
             'roll_max_count': int(roll_requirement.get('max_count') or 0),
             'roll_target_kg': float(roll_target_kg),

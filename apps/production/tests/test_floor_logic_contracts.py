@@ -155,8 +155,8 @@ class PauseDowntimeTests(FloorFixtureMixin, TestCase):
         self.job = self.make_job("JOB-PAUSE-1", self.pouching, running=True)
 
     def test_pause_records_downtime_and_resume_closes_it(self):
-        power = DowntimeReason.objects.create(code="POWER", label="Power failure")
-        cut = DowntimeReason.objects.create(code="POWER_GRID", label="Grid cut", parent=power)
+        power, _ = DowntimeReason.objects.get_or_create(code="POWER", defaults={"label": "Power failure"})
+        cut = DowntimeReason.objects.create(code="POWER_GRID_E2E", label="Grid cut", parent=power)
         JobService.pause_job(self.job.id, "Grid went down", reason_code_id=str(cut.id))
         log = DowntimeLog.objects.get(production_job=self.job)
         self.assertEqual(log.source, "PAUSE")
@@ -207,6 +207,17 @@ class MachineConcurrencyTests(FloorFixtureMixin, TestCase):
         self.machine.save(update_fields=["concurrency_policy"])
         waiting = self.make_job("JOB-WAIT-2", self.pouching)
         self.assertIsNone(JobService.machine_concurrency_block(waiting))
+
+    def test_resume_respects_the_policy(self):
+        # A paused order cannot be resumed while another order runs on a one-at-a-time machine.
+        paused = self.make_job("JOB-PAUSED-1", self.pouching)
+        paused.status = "RUNNING"
+        paused.job_state = "PAUSED"
+        paused.save(update_fields=["status", "job_state"])
+        with self.assertRaises(MachineBusyError):
+            JobService.resume_job(paused.id)
+        paused.refresh_from_db()
+        self.assertEqual(paused.job_state, "PAUSED")
 
     def test_deny_policy_blocks_even_extrusion(self):
         extruder = Machine.objects.create(work_center=self.work_center, name="Extruder D", code="EX-02", concurrency_policy="DENY")
@@ -267,3 +278,45 @@ class RecalculateFromMastersGuardTests(FloorFixtureMixin, TestCase):
         JobExecutionLog.objects.create(production_job=self.job, quantity=Decimal("1"), uom="PCS")
         reason = SalesOrderService.released_line_recalc_block_reason(self.item)
         self.assertIn("logged", reason)
+
+
+class AddonShortageSwitchTests(FloorFixtureMixin, TestCase):
+    """Add-on shortage at the current step is flagged, and blocks only when switched on."""
+
+    def setUp(self):
+        self.build_floor()
+        self.tape = InventoryMaterial.objects.create(
+            code="TAPE-SHORT", name="Tape short", category="ADDON", base_uom="METER",
+            weight_mode="PER_MM", weight_value=0.01, addon_is_purchased=True, addon_purchase_uom="METER",
+        )
+        self.item.bom_snapshot = {
+            "planning_lines": [
+                {"category_code": "ADDON", "material_id": str(self.tape.id), "material_code": self.tape.code,
+                 "material_name": self.tape.name, "uom": "METER", "step_id": str(self.step.id),
+                 "theoretical_qty": 5.0, "planned_issue_qty": 5.0}
+            ]
+        }
+        self.item.save(update_fields=["bom_snapshot"])
+        self.job = self.make_job("JOB-ADDON-SHORT", self.pouching)
+
+    def _status(self):
+        return ExecutionService.get_satisfaction_status(str(self.job.id))
+
+    def test_shortage_is_flagged_but_not_blocking_by_default(self):
+        from django.test import override_settings
+        with override_settings(ADDON_SHORTAGE_BLOCKS=False):
+            status = self._status()
+        tape_rows = [row for row in status["bulk_consumption"] if row.get("material_id") == str(self.tape.id)]
+        self.assertEqual(len(tape_rows), 1)
+        self.assertFalse(tape_rows[0]["blocking"])
+        self.assertEqual(status["addon_shortages"][0]["material_id"], str(self.tape.id))
+        self.assertAlmostEqual(status["addon_shortages"][0]["short_qty"], 5.0, places=3)
+
+    def test_switch_on_makes_shortage_block(self):
+        from django.test import override_settings
+        with override_settings(ADDON_SHORTAGE_BLOCKS=True):
+            status = self._status()
+        tape_rows = [row for row in status["bulk_consumption"] if row.get("material_id") == str(self.tape.id)]
+        self.assertTrue(tape_rows[0]["blocking"])
+        self.assertEqual(status["addon_shortages"], [])
+        self.assertFalse(status["is_satisfied"])

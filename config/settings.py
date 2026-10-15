@@ -406,6 +406,11 @@ CELERY_RESULT_SERIALIZER = "json"
 # Beat schedules below are factory local time (IST), not UTC.
 CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "Asia/Kolkata")
 CELERY_ENABLE_UTC = True
+# Add-on (tape, zipper) shortages at a step: shown and flagged always; they block
+# WCM release and machine start only when this is on. Turn on once add-on stock
+# is received into the ERP at the plant.
+ADDON_SHORTAGE_BLOCKS = os.getenv("ADDON_SHORTAGE_BLOCKS", "False").strip().lower() in {"1", "true", "yes"}
+
 CELERY_BEAT_SCHEDULE = {
     "maintenance-due-jobs-daily": {
         "task": "apps.maintenance.tasks.generate_due_maintenance_jobs",

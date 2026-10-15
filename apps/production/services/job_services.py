@@ -1895,6 +1895,14 @@ class JobService:
             raise ValueError("Can only resume PAUSED jobs.")
         with transaction.atomic():
             now = timezone.now()
+            if job.status == 'RUNNING':
+                conflicting = cls.machine_concurrency_block(job)
+                if conflicting:
+                    raise MachineBusyError(
+                        f"{job.machine.name} is running {conflicting}. Pause or finish it before resuming this order, "
+                        f"or allow several orders on this machine in the machine master.",
+                        conflicting_job_number=conflicting,
+                    )
             cls.close_open_downtime(job, ts=now, source='PAUSE')
             if job.status == 'RUNNING':
                 job.job_state = 'EXECUTING'

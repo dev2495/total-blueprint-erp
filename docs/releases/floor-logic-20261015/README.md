@@ -9,7 +9,7 @@
 | # | Symptom | Cause | Now |
 |---|---|---|---|
 | 1 | "65000 kg required", "Output now 65000.005 kg" | A pieces figure went through a kg formatter; job-level PCS fields were used as kg fallbacks | Terminal figures are unit-safe: kg from kg fields only; piece jobs show pieces and kg; the output seed is capped by the step target |
-| 2 | BOPP tape missing from the machine issue area | Add-ons without a template step mapping never got a requirement row for any step | Add-ons and packaging default to the last route step; they appear in the issue area in their own unit (meters) |
+| 2 | BOPP tape missing from the machine issue area | Add-ons without a template step mapping never got a requirement row for any step | Add-ons default to the last route step (packaging stays with the packing flow); they appear in the issue area in their own unit (meters) |
 | 3 | Tape plan 18,200 m; "per 10 mm" weight in the master | The master had no basis field; the coefficient was read as per 1 mm | `addon_weight_basis_mm` (1 or 10) on the add-on master, used by the resolver; live example on the master page; master edits re-resolve open lines; released lines get "Recalculate from masters" on the WCM terminal (refused once output exists) |
 | 4 | 300 + 700 kg rolls could not both be allocated | Roll readiness and allocation were a count; roll→bulk NONE was hard-set to exactly one roll | Roll contract per step: MASS (any number of rolls until the step mass is covered, capped at target + tolerance) or COUNT (combine lanes, laminate layers, split/modify). WCM shows "N rolls · X of Y kg" |
 | 5 | Batch progress lagged the job | Simple log path never synced the batch | Both log paths sync batch progress |

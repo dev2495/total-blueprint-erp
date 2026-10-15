@@ -2032,16 +2032,20 @@ export default function WCMTerminal() {
       const localAvailable = currentPlantAvailable;
       const shortfall = Math.max(0, required - localAvailable);
       const hasNonLocalStock = otherPlantsAvailable > 0.0001;
-      const isOk = shortfall <= 0;
+      // Add-on shortages are flagged but not blocking unless the plant turned that on.
+      const nonBlockingShort = shortfall > 0 && bulk.blocking === false;
+      const isOk = shortfall <= 0 || nonBlockingShort;
       const needsTransfer =
         shortfall > 0 &&
         hasNonLocalStock &&
         Boolean(bulk.material_id || bulk.materialId);
-      const statusText = isOk
-        ? "READY"
-        : hasNonLocalStock
-          ? "INSUFFICIENT"
-          : "NO STOCK";
+      const statusText = nonBlockingShort
+        ? `SHORT ${shortfall.toFixed(1)} ${String(bulk.uom || "").toLowerCase()} · not blocking`
+        : isOk
+          ? "READY"
+          : hasNonLocalStock
+            ? "INSUFFICIENT"
+            : "NO STOCK";
 
       return {
         material: bulk.material_name || bulk.category_display || bulk.category,
@@ -5056,6 +5060,15 @@ export default function WCMTerminal() {
                   : pushBlockingReasons[0] ||
                     "Pick a job and clear the readiness gates."}
             </div>
+            {Array.isArray((satisfactionStatus as any)?.addon_shortages) && (satisfactionStatus as any).addon_shortages.length ? (
+              <div className="mt-1 text-caption font-semibold text-warning-fg" data-testid="wcm-addon-shortage">
+                Add-on stock short (not blocking):{" "}
+                {(satisfactionStatus as any).addon_shortages
+                  .map((row: any) => `${row.material_name} ${Number(row.short_qty || 0).toFixed(1)} ${String(row.uom || "").toLowerCase()}`)
+                  .join(", ")}
+                . Receive it into the ERP so the issue can be recorded.
+              </div>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <div className="mr-1 h-1.5 w-20 overflow-hidden rounded-full bg-surface-2">
                 <span

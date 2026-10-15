@@ -21,7 +21,7 @@ class MaintenanceFixture(TestCase):
         self.location = InventoryLocation.objects.create(plant=self.plant, code="MAINT-RM", name="Maint RM", type="RM")
         self.work_center = WorkCenter.objects.create(plant=self.plant, name="Maint WC", code="MAINT_WC", default_wip_location=self.location)
         self.machine = Machine.objects.create(work_center=self.work_center, name="Mamata", code="MC-04")
-        role = Role.objects.create(code="MAINTENANCE_SUPERVISOR", name="Maintenance Supervisor")
+        role, _ = Role.objects.get_or_create(code="MAINTENANCE_SUPERVISOR", defaults={"name": "Maintenance Supervisor"})
         self.supervisor = User.objects.create_user(username="maint-sup", password="x", role=role)
         self.tech = User.objects.create_user(username="maint-tech", password="x")
 
