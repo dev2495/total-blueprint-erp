@@ -65,7 +65,7 @@ test("packing and dispatch queue filters change the live queues instead of actin
   const seed = readMutationSeed()
   const targetRollId = String(seed.dispatch.roll_ids?.[0] || seed.dispatch.roll_id)
   await selectByTestId(page, "packing-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
-  await page.getByRole("button", { name: /ROLL_PACK\s+Packed roll/i }).click()
+  await page.getByTestId("packing-route-choice-ROLL_PACK").click()
   const targetReleaseButton = page.getByTestId(`packing-roll-release-${targetRollId}`)
   for (let pageTurn = 0; pageTurn < 12 && !(await targetReleaseButton.isVisible().catch(() => false)); pageTurn += 1) {
     const next = page.getByTestId("packing-roll-work-page-next")
@@ -136,7 +136,7 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
   await assertHealthyPage(page, { requireAuth: false })
 
   await selectByTestId(page, "packing-sales-order-select", new RegExp(seed.dispatch.sales_order_number, "i"))
-  await page.getByRole("button", { name: /ROLL_PACK\s+Packed roll/i }).click()
+  await page.getByTestId("packing-route-choice-ROLL_PACK").click()
   if (rollIds.length > 1) {
     await expect(page.getByTestId("packing-roll-work-total")).toContainText(/rolls/i)
     await page.getByTestId("packing-roll-select-all").click()
@@ -205,8 +205,8 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
   await expect(deliverButton).toBeVisible({ timeout: 15_000 })
   await deliverButton.click()
   await expect(page.getByRole("dialog")).toContainText("Confirm proof of delivery")
-  await page.getByPlaceholder("Customer receiver name").fill("UAT E2E Receiver")
-  await page.getByPlaceholder("Stamp, receipt or POD number").fill(`POD-${challanId.slice(0, 8)}`)
+  await page.getByLabel("Received by").fill("UAT E2E Receiver")
+  await page.getByLabel("POD reference").fill(`POD-${challanId.slice(0, 8)}`)
   const deliverResponse = page.waitForResponse((response) => response.url().includes(`/api/production/challans/${challanId}/confirm-pod/`) && response.request().method() === "POST")
   await page.getByTestId("dispatch-confirm-pod-submit").click()
   const podConfirmation = await deliverResponse

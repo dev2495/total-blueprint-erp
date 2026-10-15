@@ -1168,6 +1168,7 @@ def main():
             "production_job_number": jobwork_source_job.job_number,
             "source_roll_id": str(jobwork_roll.id),
             "source_roll_label": jobwork_roll.label_id,
+            "source_roll_weight_kg": float(jobwork_roll.weight_kg or 0),
             "receive_location_id": str(plant_a.warehouse.id),
             "receive_location_name": plant_a.warehouse.name,
             "return_material_id": str(extrudable_variant.id),

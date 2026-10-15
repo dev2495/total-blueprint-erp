@@ -66,6 +66,7 @@ export interface MutationSeedMetadata {
     production_job_number: string
     source_roll_id: string
     source_roll_label: string
+    source_roll_weight_kg?: number
     receive_location_id: string
     receive_location_name: string
     return_material_id: string
