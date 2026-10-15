@@ -280,6 +280,12 @@ class Machine(models.Model):
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=50)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
+    CONCURRENCY_CHOICES = [
+        ('AUTO', 'By step type (bulk→roll steps may run several orders; others one at a time)'),
+        ('ALLOW', 'Several orders may run at the same time'),
+        ('DENY', 'One order at a time'),
+    ]
+    concurrency_policy = models.CharField(max_length=8, choices=CONCURRENCY_CHOICES, default='AUTO', db_default='AUTO')
     cost_absorption_group = models.ForeignKey(
         'costing.CostAbsorptionGroup',
         on_delete=models.SET_NULL,

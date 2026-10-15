@@ -998,6 +998,11 @@ class DowntimeLog(models.Model):
     end_time = models.DateTimeField(null=True, blank=True)
     
     reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    # Governed reason code from the downtime reason master (the bucket above is
+    # derived from it); a pause from the terminal always carries one.
+    reason_code = models.ForeignKey('production.DowntimeReason', on_delete=models.SET_NULL, null=True, blank=True, related_name='downtime_logs')
+    SOURCE_CHOICES = [('MANUAL', 'Logged by hand'), ('PAUSE', 'Terminal pause'), ('MAINTENANCE', 'Maintenance job')]
+    source = models.CharField(max_length=16, choices=SOURCE_CHOICES, default='MANUAL', db_default='MANUAL', db_index=True)
     notes = models.TextField(blank=True)
     shift_code = models.CharField(max_length=20, blank=True, default="", db_index=True)
     shift_date = models.DateField(null=True, blank=True, db_index=True)

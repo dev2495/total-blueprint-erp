@@ -62,6 +62,7 @@ import {
   type Material,
 } from "@/services/master-data";
 import { machineService, type MachineJobEvent } from "@/services/machine";
+import { PauseReasonDialog, type PausePayload } from "@/components/production/pause-reason-dialog";
 import {
   reasonCodesService,
   groupReasonCodes,
@@ -1287,20 +1288,23 @@ export default function MachineExecutionPage() {
     context?.progress?.weight_kg ||
     context?.execution_profile?.progress?.weight_kg ||
     {};
+  // Unit contract: these three are kilograms. Job-level quantities are only a
+  // fallback when the job itself is a kg job; a pieces figure never lands here.
+  const selectedJobIsKg = String(selectedJob?.uom || "KG").toUpperCase() === "KG";
   const primaryTarget = toNullableNumber(
-    progressWeight?.target ??
-      stepExecution?.total_target_kg ??
-      selectedJob?.quantity,
+    stepExecution?.total_target_kg ??
+      progressWeight?.target ??
+      (selectedJobIsKg ? selectedJob?.quantity : null),
   );
   const primaryProduced = toNullableNumber(
-    progressWeight?.produced ??
-      stepExecution?.produced_kg ??
-      selectedJob?.produced_qty,
+    stepExecution?.produced_kg ??
+      progressWeight?.produced ??
+      (selectedJobIsKg ? selectedJob?.produced_qty : null),
   );
   const primaryRemaining = toNullableNumber(
-    progressWeight?.remaining ??
-      stepExecution?.remaining_kg ??
-      selectedJob?.remaining_qty,
+    stepExecution?.remaining_kg ??
+      progressWeight?.remaining ??
+      (selectedJobIsKg ? selectedJob?.remaining_qty : null),
   );
   const targetKg = primaryTarget ?? 0;
   const producedKg = primaryProduced ?? 0;
@@ -1711,7 +1715,11 @@ export default function MachineExecutionPage() {
     const nextJobId = selectedJob?.id ? String(selectedJob.id) : null;
     if (!nextJobId || initializedJobIdRef.current === nextJobId) return;
     initializedJobIdRef.current = nextJobId;
-    const initialKg = Math.max(0, maxOutputWithoutScrapKg || remainingKg || 0);
+    const stepCapKg = toNullableNumber(stepExecution?.total_target_kg);
+    const seedCandidates = [maxOutputWithoutScrapKg || remainingKg || 0, remainingKg || 0, stepCapKg ?? Infinity].filter(
+      (value) => Number.isFinite(value) && value > 0,
+    );
+    const initialKg = seedCandidates.length ? Math.max(0, Math.min(...seedCandidates)) : 0;
     setOutputWeightKg(
       !supportsDiscreteOutputRolls && initialKg > 0
         ? initialKg.toFixed(3)
@@ -1909,19 +1917,17 @@ export default function MachineExecutionPage() {
       }),
   });
 
+  const [pauseDialogOpen, setPauseDialogOpen] = useState(false);
   const stopMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (payload: PausePayload) => {
       if (!selectedJob) throw new Error("Select a job first.");
-      return machineService.stopJob(
-        machineId,
-        String(selectedJob.id),
-        "Operator pause",
-      );
+      return machineService.stopJob(machineId, String(selectedJob.id), payload);
     },
     onSuccess: async () => {
+      setPauseDialogOpen(false);
       toast({
         title: "Job paused",
-        description: "Output logging is locked until resume.",
+        description: "Downtime is being recorded with your reason. Output logging is locked until resume.",
       });
       await refreshAll();
     },
@@ -3173,6 +3179,12 @@ export default function MachineExecutionPage() {
         qualityPending={qualityMutation.isPending}
         onSaveQuality={() => qualityMutation.mutate()}
       />
+      <PauseReasonDialog
+        open={pauseDialogOpen}
+        onOpenChange={setPauseDialogOpen}
+        pending={stopMutation.isPending}
+        onConfirm={(payload) => stopMutation.mutate(payload)}
+      />
       {activeTab === "run" ? (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-line bg-surface-1/96 shadow-[0_-24px_70px_-36px_rgba(15,23,42,0.7)] backdrop-blur supports-[backdrop-filter]:bg-surface-1/88 lg:left-[76px]">
           <div className="mx-auto flex max-w-[1780px] flex-col gap-2 px-3 py-2 md:px-5 xl:flex-row xl:items-center xl:justify-between">
@@ -3211,7 +3223,7 @@ export default function MachineExecutionPage() {
                   className="h-11 min-w-[108px] rounded-[12px] bg-warning-fg px-4 text-sm font-semibold text-white hover:bg-warning-fg"
                   data-testid="machine-stop-step"
                   disabled={!canStop || stopMutation.isPending}
-                  onClick={() => stopMutation.mutate()}
+                  onClick={() => setPauseDialogOpen(true)}
                 >
                   <Pause className="mr-2 h-4 w-4" />
                   <span className="flex flex-col items-start leading-tight"><span>Pause</span><span className="text-caption font-medium opacity-90">रोकें</span></span>
@@ -3468,8 +3480,53 @@ function FocusedJobHero({
           <HeroMetric label="Remaining · बाकी" value={kg(remainingKg, 1)} />
           <HeroMetric label="Yield · उपज" value={`${yieldPct.toFixed(1)}%`} />
         </div>
+        <UnitWeightBreakdown
+          breakdown={context?.execution_profile?.unit_weight_breakdown_g ?? selectedJob?.unit_weight_breakdown_g}
+          pieces={toNumber(context?.execution_profile?.progress?.pcs?.target ?? selectedJob?.step_target_pcs ?? (String(selectedJob?.uom || "").toUpperCase() === "PCS" ? selectedJob?.quantity : 0), 0)}
+          targetKg={targetKg}
+        />
       </div>
     </section>
+  );
+}
+
+/** Where the target comes from: film + inks + chemicals + add-ons per piece × pieces. */
+function UnitWeightBreakdown({
+  breakdown,
+  pieces,
+  targetKg,
+}: {
+  breakdown: any;
+  pieces: number;
+  targetKg: number;
+}) {
+  if (!breakdown || !(toNumber(breakdown.total_g, 0) > 0)) return null;
+  const parts = [
+    ["Film", breakdown.films_g],
+    ["Ink", breakdown.inks_g],
+    ["Chemicals", breakdown.chemicals_g],
+    ["Add-ons", breakdown.addons_g],
+  ].filter(([, grams]) => toNumber(grams, 0) > 0);
+  const total = toNumber(breakdown.total_g, 0);
+  return (
+    <div
+      className="mt-2 rounded-xl bg-surface-1/10 px-3 py-2 text-caption text-white/85 ring-1 ring-surface-1/10"
+      data-testid="machine-target-breakdown"
+    >
+      <span className="font-semibold uppercase tracking-[0.08em] text-order-border">Target comes from · लक्ष्य कैसे बना</span>
+      <span className="ml-2 font-mono">
+        {parts.map(([label, grams]) => `${label} ${toNumber(grams, 0).toFixed(2)} g`).join(" + ")} = {total.toFixed(2)} g per piece
+        {pieces > 0 ? ` × ${Math.round(pieces).toLocaleString("en-IN")} pcs = ${kg(targetKg, 1)}` : ""}
+      </span>
+      {Array.isArray(breakdown.items) && breakdown.items.some((item: any) => item.section === "addons") ? (
+        <span className="ml-2 text-white/70">
+          {breakdown.items
+            .filter((item: any) => item.section === "addons")
+            .map((item: any) => `${item.name || item.code}: ${toNumber(item.grams, 0).toFixed(2)} g${item.stock_qty ? ` (${toNumber(item.stock_qty, 0).toFixed(3)} ${String(item.stock_uom || "").toLowerCase()} per piece)` : ""}`)
+            .join(" · ")}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -4270,13 +4327,21 @@ function QueueRail({
           visibleQueueItems.map((job: any) => {
             const spec = normalizeProductSpec(job);
             const selected = String(job.id) === String(selectedId);
+            const jobUom = String(job.uom || "KG").toUpperCase();
+            const jobIsPcs = jobUom === "PCS";
             const finalRequired =
               toNullableNumber(
                 job.quantity_kg ??
-                  job.quantity ??
                   job.order_qty_kg ??
-                  job.step_target_kg,
+                  job.order_reference_target_kg ??
+                  job.step_target_kg ??
+                  (jobIsPcs ? null : job.quantity),
               ) ?? 0;
+            const piecesRequired = jobIsPcs ? toNumber(job.quantity, 0) : 0;
+            const piecesProduced = jobIsPcs ? toNumber(job.produced_qty ?? job.step_produced_pcs, 0) : 0;
+            const piecesRemaining = jobIsPcs
+              ? Math.max(0, toNumber(job.remaining_qty, NaN) || piecesRequired - piecesProduced)
+              : 0;
             const finalProduced = Math.max(
               0,
               toNumber(
@@ -4396,24 +4461,33 @@ function QueueRail({
                   <div className="mt-2 grid grid-cols-3 gap-1.5">
                     <div>
                       <div className="font-mono text-xs font-semibold text-content-1">
-                        {kg(finalRequired, 0)}
+                        {jobIsPcs ? qtyLabel(piecesRequired, "PCS") : kg(finalRequired, 0)}
                       </div>
+                      {jobIsPcs && finalRequired > 0 ? (
+                        <div className="font-mono text-caption text-content-3">{kg(finalRequired, 0)}</div>
+                      ) : null}
                       <div className="text-caption font-bold uppercase tracking-wider text-content-4">
                         Required
                       </div>
                     </div>
                     <div>
                       <div className="font-mono text-xs font-semibold text-success-fg">
-                        {kg(finalProduced, 1)}
+                        {jobIsPcs ? qtyLabel(piecesProduced, "PCS") : kg(finalProduced, 1)}
                       </div>
+                      {jobIsPcs ? (
+                        <div className="font-mono text-caption text-content-3">{kg(finalProduced, 1)}</div>
+                      ) : null}
                       <div className="text-caption font-bold uppercase tracking-wider text-content-4">
                         Done
                       </div>
                     </div>
                     <div>
                       <div className="font-mono text-xs font-semibold text-primary">
-                        {kg(finalRemaining, 0)}
+                        {jobIsPcs ? qtyLabel(piecesRemaining, "PCS") : kg(finalRemaining, 0)}
                       </div>
+                      {jobIsPcs ? (
+                        <div className="font-mono text-caption text-content-3">{kg(finalRemaining, 0)}</div>
+                      ) : null}
                       <div className="text-caption font-bold uppercase tracking-wider text-content-4">
                         Balance
                       </div>

@@ -24,6 +24,7 @@ from apps.materials.models import GranuleQualityCode, InventoryMaterial
 from apps.production.models import DowntimeLog, JobExecutionLog, MaterialConsumptionLog, ProductionJob, QualityReading, ScrapLog
 from apps.production.serializers import ProductionJobSerializer
 from apps.production.services import OperatorService
+from apps.production.services.job_services import MachineBusyError
 from apps.production.services.services_execution import ExecutionService
 
 logger = logging.getLogger(__name__)
@@ -243,6 +244,7 @@ def machine_queue(request, machine_id):
         step_target_kg = Decimal(str(profile.get("step_target_total_kg") or 0))
         row["step_target_kg"] = float(step_target_kg)
         row["step_target_source"] = profile.get("target_source")
+        row["unit_weight_breakdown_g"] = profile.get("unit_weight_breakdown_g")
         row["primary_uom"] = profile.get("primary_uom") or "KG"
         row["step_target_primary"] = profile.get("step_target_primary")
         row["step_produced_primary"] = profile.get("step_produced_primary")
@@ -288,6 +290,12 @@ def machine_start_job(request, machine_id, job_id):
     try:
         job = OperatorService.start_job(job_id, request.user)
         return Response(ProductionJobSerializer(job).data)
+    except (ValueError, MachineBusyError) as exc:
+        # Policy refusals (machine busy, not assigned, wrong state) carry their own message.
+        return Response(
+            {"error": {"code": "MACHINE_START_REFUSED", "message": str(exc), "conflicting_job_number": getattr(exc, "conflicting_job_number", None)}},
+            status=status.HTTP_409_CONFLICT if isinstance(exc, MachineBusyError) else status.HTTP_400_BAD_REQUEST,
+        )
     except Exception:
         logger.exception("Machine start failed machine_id=%s job_id=%s", machine_id, job_id)
         return Response(
@@ -314,11 +322,20 @@ def machine_stop_job(request, machine_id, job_id):
     except ProductionJob.DoesNotExist:
         return Response({"error": "Job not found on this machine"}, status=status.HTTP_404_NOT_FOUND)
     
-    reason = request.data.get('reason', 'Operator Stop')
-    
+    reason = request.data.get('reason')
+
     try:
-        job = OperatorService.pause_job(job_id, reason, request.user)
+        job = OperatorService.pause_job(
+            job_id, reason, request.user,
+            reason_bucket=request.data.get('reason_bucket'),
+            reason_code_id=request.data.get('reason_code_id'),
+        )
         return Response(ProductionJobSerializer(job).data)
+    except ValueError as exc:
+        return Response(
+            {"error": {"code": "MACHINE_STOP_REFUSED", "message": str(exc)}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     except Exception:
         logger.exception("Machine stop failed machine_id=%s job_id=%s", machine_id, job_id)
         return Response(

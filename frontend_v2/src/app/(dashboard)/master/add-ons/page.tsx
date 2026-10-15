@@ -52,6 +52,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   weight_mode: z.enum(["PER_MM", "PER_PIECE", "FIXED"]),
   weight_value: z.coerce.number().min(0, "Value must be positive"),
+  addon_weight_basis_mm: z.coerce.number().int(),
   is_purchasable: z.boolean().default(false),
   addon_is_purchased: z.boolean().default(false),
   addon_purchase_uom: z.enum(["KG", "PCS", "METER"]).default("KG"),
@@ -75,6 +76,7 @@ function AddonForm({
         (initialData?.weight_mode as "PER_MM" | "PER_PIECE" | "FIXED") ||
         "PER_PIECE",
       weight_value: initialData?.weight_value || 0,
+      addon_weight_basis_mm: Number((initialData as any)?.addon_weight_basis_mm || 1),
       is_purchasable: Boolean(
         initialData?.is_purchasable ?? initialData?.addon_is_purchased,
       ),
@@ -88,6 +90,12 @@ function AddonForm({
 
   const purchased = form.watch("is_purchasable");
   const weightMode = form.watch("weight_mode");
+  const weightValue = Number(form.watch("weight_value") || 0);
+  const weightBasis = Number(form.watch("addon_weight_basis_mm") || 1);
+  const purchaseUom = form.watch("addon_purchase_uom");
+  // Live example on a 280 mm wide bag so a wrong coefficient is caught here, not on the floor.
+  const exampleWidthMm = 280;
+  const exampleGrams = weightMode === "PER_MM" ? (weightValue / (weightBasis || 1)) * exampleWidthMm : weightValue;
 
   return (
     <Form {...form}>
@@ -157,7 +165,7 @@ function AddonForm({
               <FormItem>
                 <FormLabel>
                   {weightMode === "PER_MM"
-                    ? "Weight coefficient (g/mm)"
+                    ? `Weight (g) per ${weightBasis === 10 ? "10 mm" : "1 mm"} of applied length`
                     : weightMode === "PER_PIECE"
                       ? "Weight per piece (g)"
                       : "Fixed weight (g)"}
@@ -174,6 +182,41 @@ function AddonForm({
               </FormItem>
             )}
           />
+        </div>
+        {weightMode === "PER_MM" ? (
+          <FormField
+            control={form.control}
+            name="addon_weight_basis_mm"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>The weight above is given per</FormLabel>
+                <Select onValueChange={(value) => field.onChange(Number(value))} value={String(field.value || 1)}>
+                  <FormControl>
+                    <SelectTrigger aria-label="Weight basis">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="1">1 mm of applied length</SelectItem>
+                    <SelectItem value="10">10 mm of applied length</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ) : null}
+        <div className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm" data-testid="addon-live-example">
+          <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">Check: one piece on a {exampleWidthMm} mm wide bag</div>
+          <div className="mt-0.5 font-mono text-content-1">
+            {weightMode === "PER_MM"
+              ? `${weightValue || 0} g ÷ ${weightBasis || 1} mm × ${exampleWidthMm} mm = ${exampleGrams.toFixed(3)} g per bag`
+              : `${exampleGrams.toFixed(3)} g per piece`}
+            {purchaseUom === "METER" && weightMode === "PER_MM" ? ` · stock plan ${(exampleWidthMm / 1000).toFixed(3)} m per bag` : ""}
+          </div>
+          <div className="mt-0.5 text-caption text-content-3">
+            Saving a changed weight re-resolves every open, unreleased order line that uses this add-on. Lines already released to the floor are recalculated from the work-centre terminal ("Recalculate from masters").
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -275,9 +318,17 @@ export default function AddonsPage() {
       id: string;
       data: z.infer<typeof formSchema>;
     }) => masterDataService.updateAddon(id, data),
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["addons"] });
-      toast({ title: "Success", description: "Addon updated." });
+      const refresh = data?.open_lines_refresh;
+      toast({
+        title: "Addon updated.",
+        description: refresh
+          ? refresh.error
+            ? `Saved, but open lines could not be refreshed: ${refresh.error}`
+            : `Open order lines re-resolved: ${refresh.refreshed ?? 0} refreshed, ${refresh.skipped ?? 0} skipped (released lines need "Recalculate from masters" on the terminal).`
+          : undefined,
+      });
       setEditingItem(null);
     },
     onError: (err: Error) =>

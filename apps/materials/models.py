@@ -827,6 +827,11 @@ class InventoryMaterial(models.Model):
     # Addon Specific
     weight_mode = models.CharField(max_length=20, choices=WEIGHT_MODE_CHOICES, null=True, blank=True)
     weight_value = models.FloatField(null=True, blank=True, help_text="Formula input value (g) based on weight_mode")
+    ADDON_BASIS_CHOICES = [(1, 'per 1 mm'), (10, 'per 10 mm')]
+    addon_weight_basis_mm = models.PositiveSmallIntegerField(
+        choices=ADDON_BASIS_CHOICES, default=1, db_default=1,
+        help_text="For PER_MM add-ons: the length the weight coefficient refers to (grams per 1 mm or per 10 mm of applied length)."
+    )
     addon_is_purchased = models.BooleanField(
         default=False,
         help_text="TRUE when this add-on is bought and stocked through bulk GRN before order-level consumption.",

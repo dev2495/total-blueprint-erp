@@ -184,7 +184,7 @@ class MachineSerializer(serializers.ModelSerializer):
     class Meta:
         model = Machine
         fields = [
-            'id', 'work_center', 'work_center_name', 'name', 'code', 'status',
+            'id', 'work_center', 'work_center_name', 'name', 'code', 'status', 'concurrency_policy',
             'cost_absorption_group', 'cost_absorption_group_code',
             'state', 'current_job_number', 'busy_until',
         ]

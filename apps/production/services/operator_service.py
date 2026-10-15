@@ -111,12 +111,8 @@ class OperatorService:
         return JobService.start_job(job, user=user)
 
     @staticmethod
-    def pause_job(job_id: str, reason: str, user):
-        # Log Downtime implicitly or explicitly? 
-        # Requirement: "Downtime Logging (Optional)". 
-        # If pausing for a break, maybe simple pause. If machine breakdown, downtime log.
-        # For now, just change state.
-        return JobService.pause_job(job_id, reason)
+    def pause_job(job_id: str, reason: str, user, *, reason_bucket=None, reason_code_id=None):
+        return JobService.pause_job(job_id, reason, reason_bucket=reason_bucket, reason_code_id=reason_code_id, user=user)
 
     @staticmethod
     def resume_job(job_id: str, user):
@@ -144,8 +140,10 @@ class OperatorService:
             **build_shift_fields_for_job(job),
         )
         
-        # We don't partial-complete or create rolls here anymore in the simple 'log' event.
-        # Rolls/Batches are created at 'complete_session' or 'complete_job'.
+        # Rolls are created at 'complete_session' / 'complete_job'; batch progress
+        # must still follow every log so planner and dispatch see it live.
+        from apps.production.services.batch_route_service import BatchExecutionService
+        BatchExecutionService.sync_for_job(job)
         return job
 
     @staticmethod

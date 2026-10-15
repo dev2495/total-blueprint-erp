@@ -38,8 +38,9 @@ export const operatorService = {
         return data;
     },
 
-    pauseJob: async (id: string, reason: string) => {
-        const { data } = await api.post(`/api/production/operator/${id}/pause/`, { reason });
+    pauseJob: async (id: string, payload: string | { reason: string; reason_bucket?: string; reason_code_id?: string | null }) => {
+        const body = typeof payload === "string" ? { reason: payload } : payload;
+        const { data } = await api.post(`/api/production/operator/${id}/pause/`, body);
         return data;
     },
 

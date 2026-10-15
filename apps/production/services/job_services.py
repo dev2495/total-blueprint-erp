@@ -5,7 +5,7 @@ from django.db.models import Q, Sum
 from django.utils import timezone
 from decimal import Decimal
 from django.conf import settings
-from apps.production.models import ProductionJob, JobExecutionLog, WorkCenterAssignment
+from apps.production.models import ProductionJob, JobExecutionLog, WorkCenterAssignment, DowntimeLog
 from apps.factory.models import Process, Plant
 from apps.inventory.models import InventoryLocation, InventoryRoll, InventoryReservation
 from apps.production.services.shift_resolver import build_shift_fields_for_job
@@ -1616,6 +1616,13 @@ class JobService:
         from apps.costing.services import CostingService
         
         with transaction.atomic():
+            conflicting = cls.machine_concurrency_block(job)
+            if conflicting:
+                raise MachineBusyError(
+                    f"{job.machine.name} is running {conflicting}. This machine runs one order at a time for this step; "
+                    f"change its concurrency setting in the machine master to allow more.",
+                    conflicting_job_number=conflicting,
+                )
             job.status = 'RUNNING'
             job.job_state = 'EXECUTING'
             job.start_date = timezone.now()
@@ -1651,6 +1658,7 @@ class JobService:
         # from apps.production.services.operator_service import OperatorService # Deprecated for Completion
         
         with transaction.atomic():
+            cls.close_open_downtime(job)
             # 1. Universal Execution (Phase 67)
             # Handles Physics-driven Consumption and Output Creation
             ExecutionService.execute_completion(job.id, actual_qty, user=user, **(completion_meta or {}))
@@ -1806,32 +1814,124 @@ class JobService:
                 WCManagerService.prepare_job_for_wc(job)
         return job
 
+    PAUSE_BUCKETS = {'BREAKDOWN', 'MAINTENANCE', 'MATERIAL', 'MANPOWER', 'POWER', 'OTHER'}
+
     @classmethod
-    def pause_job(cls, job_id, reason=None):
+    def _resolve_pause_reason(cls, reason=None, reason_bucket=None, reason_code_id=None):
+        """Return (bucket, reason_code, note). A pause must name a reason."""
+        from apps.production.models import DowntimeReason
+        code = None
+        if reason_code_id:
+            code = DowntimeReason.objects.filter(id=reason_code_id, is_active=True).first()
+            if code is None:
+                raise ValueError("Unknown downtime reason code.")
+        bucket = str(reason_bucket or '').strip().upper()
+        explicit_bucket = bucket in cls.PAUSE_BUCKETS
+        if not bucket and code is not None:
+            root = code
+            while getattr(root, 'parent', None) is not None:
+                root = root.parent
+            candidate = str(root.code or '').strip().upper()
+            bucket = candidate if candidate in cls.PAUSE_BUCKETS else ''
+        if bucket not in cls.PAUSE_BUCKETS:
+            bucket = 'OTHER'
+        note = str(reason or '').strip()
+        # A reason is a bucket, a governed code, or a note; "Other" needs a note.
+        if code is None and not note and (not explicit_bucket or bucket == 'OTHER'):
+            raise ValueError("A pause reason is required.")
+        return bucket, code, note
+
+    @classmethod
+    def close_open_downtime(cls, job, *, ts=None, source=None):
+        """Close every open downtime record of the job (resume, complete, cancel)."""
+        from django.utils import timezone
+        ended_at = ts or timezone.now()
+        qs = DowntimeLog.objects.filter(production_job=job, end_time__isnull=True)
+        if source:
+            qs = qs.filter(source=source)
+        closed = 0
+        for row in qs.order_by('start_time'):
+            row.end_time = ended_at if ended_at >= row.start_time else row.start_time
+            row.save(update_fields=['end_time'])
+            closed += 1
+        return closed
+
+    @classmethod
+    def pause_job(cls, job_id, reason=None, *, reason_bucket=None, reason_code_id=None, user=None):
+        from django.utils import timezone
+        from apps.production.services.shift_resolver import build_shift_fields_for_job
         job = ProductionJob.objects.get(id=job_id)
         if job.job_state not in ['EXECUTING', 'RELEASED']:
             raise ValueError(f"Cannot pause job in {job.job_state} state.")
+        bucket, code, note = cls._resolve_pause_reason(reason, reason_bucket, reason_code_id)
         from apps.costing.services import CostingService
-        CostingService.close_runtime_session(job, close_reason='PAUSE')
-        job.job_state = 'PAUSED'
-        if reason:
-            job.hold_reason = reason
-        job.save()
+        with transaction.atomic():
+            now = timezone.now()
+            CostingService.close_runtime_session(job, close_reason='PAUSE', ts=now)
+            job.job_state = 'PAUSED'
+            label = code.label if code is not None else ''
+            job.hold_reason = (f"{label}: {note}" if label and note else (label or note))[:255]
+            job.save(update_fields=['job_state', 'hold_reason', 'updated_at'])
+            if job.status == 'RUNNING':
+                # One downtime timeline per job: a pause is downtime with a reason.
+                DowntimeLog.objects.create(
+                    production_job=job,
+                    start_time=now,
+                    end_time=None,
+                    reason=bucket,
+                    reason_code=code,
+                    source='PAUSE',
+                    notes=note,
+                    logged_by=user if getattr(user, 'pk', None) else None,
+                    **build_shift_fields_for_job(job, ts=now),
+                )
         return job
 
     @classmethod
     def resume_job(cls, job_id, user=None):
+        from django.utils import timezone
         job = ProductionJob.objects.get(id=job_id)
         if job.job_state != 'PAUSED':
             raise ValueError("Can only resume PAUSED jobs.")
-        if job.status == 'RUNNING':
-            job.job_state = 'EXECUTING'
-            from apps.costing.services import CostingService
-            CostingService.open_runtime_session(job, user=user)
-        else:
-            job.job_state = 'RELEASED'
-        job.save()
+        with transaction.atomic():
+            now = timezone.now()
+            cls.close_open_downtime(job, ts=now, source='PAUSE')
+            if job.status == 'RUNNING':
+                job.job_state = 'EXECUTING'
+                from apps.costing.services import CostingService
+                CostingService.open_runtime_session(job, user=user, ts=now)
+            else:
+                job.job_state = 'RELEASED'
+            job.hold_reason = ''
+            job.save(update_fields=['job_state', 'hold_reason', 'updated_at'])
         return job
+
+    @classmethod
+    def machine_concurrency_block(cls, job, machine=None):
+        """
+        Return the conflicting running job number when the machine's policy does not
+        allow this job to run beside it, else None.
+        AUTO: a bulk->roll step may run several orders at once; every other step one at a time.
+        """
+        machine = machine or getattr(job, 'machine', None)
+        if machine is None:
+            return None
+        policy = str(getattr(machine, 'concurrency_policy', 'AUTO') or 'AUTO').upper()
+        if policy == 'ALLOW':
+            return None
+        process = job.current_process or job.process
+        if policy == 'AUTO' and process is not None:
+            input_form = str(getattr(process, 'input_form', '') or '').upper()
+            output_form = str(getattr(process, 'output_form', '') or '').upper()
+            if input_form == 'BULK' and output_form == 'ROLL':
+                return None
+        other = (
+            ProductionJob.objects.filter(machine=machine, job_state='EXECUTING', status='RUNNING')
+            .exclude(id=job.id)
+            .order_by('start_date')
+            .first()
+        )
+        return other.job_number if other is not None else None
 
     @classmethod
     def reprioritize_job(cls, job_id, new_priority):
@@ -2246,10 +2346,9 @@ class WCManagerService:
                 new_roll_ids = [rid for rid in requested if rid and rid not in existing_reserved]
                 candidate_roll_ids = list(existing_reserved) + new_roll_ids
 
-                if required_rolls == 0 and new_roll_ids:
-                    raise ValueError("This process does not consume rolls.")
-                if required_rolls and (len(existing_reserved) + len(new_roll_ids)) > required_rolls:
-                    raise ValueError(f"Too many rolls selected. Required: {required_rolls}.")
+                ExecutionService.validate_roll_selection(
+                    job, process, existing_roll_ids=existing_reserved, new_roll_ids=new_roll_ids
+                )
                 cls._validate_roll_assignment_set(job, process, candidate_roll_ids)
 
                 # Create strict reservations (InventoryReservation is the source of truth).
@@ -2314,10 +2413,9 @@ class WCManagerService:
             new_roll_ids = [rid for rid in requested if rid and rid not in existing_reserved]
             candidate_roll_ids = list(existing_reserved) + new_roll_ids
 
-            if required_rolls == 0 and new_roll_ids:
-                raise ValueError("This process does not consume rolls.")
-            if required_rolls and (len(existing_reserved) + len(new_roll_ids)) > required_rolls:
-                raise ValueError(f"Too many rolls selected. Required: {required_rolls}.")
+            ExecutionService.validate_roll_selection(
+                job, process, existing_roll_ids=existing_reserved, new_roll_ids=new_roll_ids
+            )
             cls._validate_roll_assignment_set(job, process, candidate_roll_ids)
 
             for rid in new_roll_ids:

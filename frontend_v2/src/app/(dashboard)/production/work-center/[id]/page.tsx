@@ -814,7 +814,7 @@ export default function WCMTerminal() {
     queryKey: ["wcm-queue", wcId, deferredQueueSearch],
     queryFn: ({ signal }) => wcmService.getQueue(wcId, 300, deferredQueueSearch, signal),
     refetchInterval:
-      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
+      materialIssueDirty || materialIssuePickerOpen ? false : 30000,
     placeholderData: keepPreviousData,
   });
 
@@ -877,7 +877,7 @@ export default function WCMTerminal() {
     queryKey: ["wcm-stats", wcId],
     queryFn: () => wcmService.getStats(wcId),
     refetchInterval:
-      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
+      materialIssueDirty || materialIssuePickerOpen ? false : 30000,
     placeholderData: keepPreviousData,
   });
 
@@ -1248,7 +1248,7 @@ export default function WCMTerminal() {
     // order. Fail closed until this job's own context arrives.
     placeholderData: () => undefined,
     refetchInterval:
-      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
+      materialIssueDirty || materialIssuePickerOpen ? false : 30000,
     refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
   });
   const executionContext = useMemo(() => {
@@ -1267,7 +1267,7 @@ export default function WCMTerminal() {
     enabled: !!selectedJobId,
     placeholderData: () => undefined,
     refetchInterval:
-      materialIssueDirty || materialIssuePickerOpen ? false : 15000,
+      materialIssueDirty || materialIssuePickerOpen ? false : 30000,
     refetchOnWindowFocus: !(materialIssueDirty || materialIssuePickerOpen),
   });
 
@@ -1313,7 +1313,7 @@ export default function WCMTerminal() {
     placeholderData: () => undefined,
     refetchInterval:
       selectedJobId && !(materialIssueDirty || materialIssuePickerOpen)
-        ? 15000
+        ? 30000
         : false,
   });
 
@@ -1817,6 +1817,15 @@ export default function WCMTerminal() {
     NONE: "Follow configured roll input requirement for this step.",
   };
   const rollsRequired = satisfactionStatus?.rolls_required ?? 0;
+  // Roll contract for the step: COUNT (fixed lanes/layers) or MASS (any number of
+  // rolls of the right web until the step mass is covered).
+  const rollMode = String((satisfactionStatus as any)?.roll_mode || (rollsRequired > 0 ? "COUNT" : "NONE")).toUpperCase();
+  const rollMassMode = rollMode === "MASS";
+  const rollTargetKg = Number((satisfactionStatus as any)?.roll_target_kg || 0);
+  const rollsReservedKg = Number((satisfactionStatus as any)?.rolls_reserved_kg || 0);
+  const rollShortKg = Number((satisfactionStatus as any)?.roll_short_kg || 0);
+  const rollMaxCount = Number((satisfactionStatus as any)?.roll_max_count || rollsRequired || 0);
+  const rollMassCovered = Boolean((satisfactionStatus as any)?.roll_mass_covered ?? true);
   const rollsReserved = satisfactionStatus?.rolls_reserved ?? 0;
   const lineageRollsAvailable = Number(
     (executionContext as any)?.wip_pool_meta?.lineage_roll_count ??
@@ -1886,9 +1895,18 @@ export default function WCMTerminal() {
     assignedRollsForDisplay.length,
     assignmentReservedCount,
   );
-  const rollsMissing = Math.max(0, rollsRequired - effectiveRollsReserved);
+  const rollsMissing = rollMassMode
+    ? (effectiveRollsReserved >= 1 ? 0 : 1)
+    : Math.max(0, rollsRequired - effectiveRollsReserved);
   const isRollInputStep = satisfactionStatus?.input_form === "ROLL";
   const requiresManualRollAssign = isRollInputStep && rollsMissing > 0;
+  // In mass mode more rolls may be added until the step mass is covered.
+  const canAddMoreRolls = rollMassMode
+    ? effectiveRollsReserved < Math.max(1, rollMaxCount) && (effectiveRollsReserved === 0 || !rollMassCovered)
+    : rollsMissing > 0;
+  const rollAllocationLabel = rollMassMode
+    ? `${effectiveRollsReserved} roll${effectiveRollsReserved === 1 ? "" : "s"} · ${rollsReservedKg.toFixed(1)} of ${rollTargetKg.toFixed(1)} kg`
+    : `${effectiveRollsReserved}/${rollsRequired} allocated`;
   const rollGuidanceText =
     satisfactionStatus?.input_form === "ROLL" &&
     rollsRequired > 0 &&
@@ -1896,7 +1914,7 @@ export default function WCMTerminal() {
       ? "Reserve required input roll(s) for this step."
       : rollBehaviorGuidance[rollBehavior] || rollBehaviorGuidance.NONE;
   const showRollGuidance = isRollInputStep;
-  const canManualAssign = isRollInputStep && rollsMissing > 0;
+  const canManualAssign = isRollInputStep && canAddMoreRolls;
   const assignedRollIdSet = useMemo(
     () => new Set(assignedRollsForDisplay.map((r: any) => String(r.id || ""))),
     [assignedRollsForDisplay],
@@ -2048,8 +2066,12 @@ export default function WCMTerminal() {
           const rollsLocalAvailable = Number(
             (satisfactionStatus as any)?.rolls_available ?? 0,
           );
-          const isOk = effectiveRollsReserved >= rollsRequired;
-          const statusText = isOk ? "READY" : "INSUFFICIENT";
+          const isOk = rollMassMode ? effectiveRollsReserved >= 1 : effectiveRollsReserved >= rollsRequired;
+          const statusText = !isOk
+            ? "INSUFFICIENT"
+            : rollMassMode && !rollMassCovered && rollShortKg > 0
+              ? `READY · SHORT ${rollShortKg.toFixed(1)} KG`
+              : "READY";
           return {
             material: "Rolls",
             type: "ROLL",
@@ -2642,6 +2664,30 @@ export default function WCMTerminal() {
     : requirementsSatisfied
       ? "Material and roll checks are ready."
       : "One or more inputs still need action.";
+
+  const recalcFromMastersMutation = useMutation({
+    mutationFn: async () => {
+      const jobId = activeAssignment?.production_job;
+      if (!jobId) throw new Error("Select a job first.");
+      const { data } = await api.post(`/api/production/jobs/${jobId}/recalculate-from-masters/`, {});
+      return data;
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Recalculated from masters",
+        description: `Unit weight ${Number(data?.before?.unit_weight_g || 0).toFixed(3)} g → ${Number(data?.after?.unit_weight_g || 0).toFixed(3)} g · order ${Number(data?.before?.total_weight_kg || 0).toFixed(1)} kg → ${Number(data?.after?.total_weight_kg || 0).toFixed(1)} kg · ${data?.jobs_recalculated ?? 0} job(s) updated.`,
+      });
+      refetchContext();
+      refetchSatisfaction();
+      queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+    },
+    onError: (err: any) =>
+      toast({
+        variant: "destructive",
+        title: "Could not recalculate",
+        description: err?.response?.data?.error || err?.message || "Unable to recalculate this line.",
+      }),
+  });
 
   useEffect(() => {
     if (!activeAssignment || !satisfactionStatus) return;
@@ -3540,7 +3586,7 @@ export default function WCMTerminal() {
                 Rolls locked
               </div>
               <div className="mt-1 text-sm font-semibold text-content-1">
-                {effectiveRollsReserved}/{rollsRequired} allocated
+                {rollAllocationLabel}
               </div>
             </div>
             <div className="rounded-xl border border-surface-1 bg-surface-1/80 p-3">
@@ -3605,13 +3651,17 @@ export default function WCMTerminal() {
                       : "bg-warning-bg text-warning-fg",
                   )}
                 >
-                  {effectiveRollsReserved}/{rollsRequired} allocated
+                  {rollAllocationLabel}
                 </span>
               </div>
               <div className="mt-3 grid gap-px overflow-hidden rounded-xl border border-line bg-line text-xs sm:grid-cols-4">
                 {[
-                  ["Required", rollsRequired, "text-content-1"],
-                  ["Reserved", effectiveRollsReserved, "text-primary"],
+                  rollMassMode
+                    ? ["Target", `${rollTargetKg.toFixed(1)} kg`, "text-content-1"]
+                    : ["Required", rollsRequired, "text-content-1"],
+                  rollMassMode
+                    ? ["Reserved", `${rollsReservedKg.toFixed(1)} kg · ${effectiveRollsReserved}`, "text-primary"]
+                    : ["Reserved", effectiveRollsReserved, "text-primary"],
                   ["Lineage", lineageRollsAvailable, "text-success-fg"],
                   ["Fallback", fallbackRollsAvailable, "text-warning-fg"],
                 ].map(([label, value, tone]) => (
@@ -3683,11 +3733,13 @@ export default function WCMTerminal() {
                     disabledLabel={
                       isReleasedToMachine
                         ? "LOCKED"
-                        : rollsMissing <= 0
-                          ? "ROLLS ASSIGNED"
-                          : "NO FREE SLOT"
+                        : rollMassMode && canAddMoreRolls
+                          ? "ADD ROLL"
+                          : rollsMissing <= 0
+                            ? "ROLLS ASSIGNED"
+                            : "NO FREE SLOT"
                     }
-                    required={rollsRequired}
+                    required={rollMassMode ? Math.max(1, rollMaxCount) : rollsRequired}
                     manualOverride={manualOverrideEnabled}
                     overrideReason={overrideReason}
                     onAssigned={() => {
@@ -5084,6 +5136,17 @@ export default function WCMTerminal() {
               }}
             >
               Cancel job
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl border-line px-4 text-xs font-bold text-content-2 hover:bg-surface-2"
+              data-testid="wcm-recalc-from-masters"
+              disabled={!activeAssignment || recalcFromMastersMutation.isPending}
+              title="Rebuild this line's weights, targets and issue plan from the current masters. Allowed only before any output is logged."
+              onClick={() => recalcFromMastersMutation.mutate()}
+            >
+              {recalcFromMastersMutation.isPending ? "Recalculating…" : "Recalculate from masters"}
             </Button>
             <Button
               type="button"

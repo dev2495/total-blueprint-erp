@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pause, Play, CheckCircle, ExternalLink, Factory } from "lucide-react";
 
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { PauseReasonDialog } from "@/components/production/pause-reason-dialog";
 
 interface ExecutionPanelProps {
   job: OperatorJob;
@@ -21,6 +23,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
   const isReleased =
     job.job_state === "RELEASED" || job.job_state === "WAITING";
 
+  const [pauseOpen, setPauseOpen] = useState(false);
   const handleAction = async (
     action: () => Promise<any>,
     successTitle: string,
@@ -144,18 +147,18 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             </Button>
           )}
           {isExecuting && (
-            <Button
-              variant="secondary"
-              onClick={() =>
-                handleAction(
-                  () => operatorService.pauseJob(job.id, "Operator Pause"),
-                  "Job Paused",
-                )
-              }
-            >
+            <Button variant="secondary" onClick={() => setPauseOpen(true)}>
               <Pause className="w-4 h-4 mr-2" /> Pause
             </Button>
           )}
+          <PauseReasonDialog
+            open={pauseOpen}
+            onOpenChange={setPauseOpen}
+            onConfirm={async (payload) => {
+              await handleAction(() => operatorService.pauseJob(job.id, payload), "Job Paused");
+              setPauseOpen(false);
+            }}
+          />
           {isPaused && (
             <Button
               onClick={() =>

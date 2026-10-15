@@ -1104,7 +1104,7 @@ class InventoryMaterialSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'category', 'category_display', 
             'base_uom', 'status', 'is_extrudable', 'is_purchasable',
             'packaging_kind', 'packaging_supply_mode', 'per_sheet_base_qty',
-            'weight_mode', 'weight_value', 'addon_is_purchased', 'addon_purchase_uom',
+            'weight_mode', 'weight_value', 'addon_weight_basis_mm', 'addon_is_purchased', 'addon_purchase_uom',
             'packaging_defaults_json', 'production_template',
             'commercial_family', 'commercial_family_name',
             'product_master_link',
@@ -1321,7 +1321,7 @@ class AddonSerializer(serializers.ModelSerializer):
     class Meta:
         model = InventoryMaterial
         fields = [
-            'id', 'code', 'name', 'weight_mode', 'weight_value',
+            'id', 'code', 'name', 'weight_mode', 'weight_value', 'addon_weight_basis_mm',
             'is_purchasable', 'addon_is_purchased', 'addon_purchase_uom', 'base_uom',
             'status', 'created_at',
         ]

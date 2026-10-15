@@ -1946,6 +1946,26 @@ class AddonViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'code']
 
+    PLANNING_FIELDS = ("weight_mode", "weight_value", "addon_weight_basis_mm", "addon_purchase_uom", "base_uom")
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        before = {field: getattr(instance, field, None) for field in self.PLANNING_FIELDS}
+        response = super().update(request, *args, **kwargs)
+        instance.refresh_from_db()
+        changed = [field for field in self.PLANNING_FIELDS if before.get(field) != getattr(instance, field, None)]
+        if changed and isinstance(response.data, dict):
+            # Weight or unit basis changed: every open, unreleased line that uses
+            # this add-on is re-resolved now. Released lines need the explicit
+            # "recalculate from masters" action on the work-centre terminal.
+            from apps.sales.services.order_service import SalesOrderService
+            try:
+                stats = SalesOrderService.refresh_open_snapshots_for_addon(instance.id)
+            except Exception as exc:  # pragma: no cover - surfaced to the user, never hides the save
+                stats = {"error": str(exc)}
+            response.data = {**response.data, "open_lines_refresh": {"changed_fields": changed, **(stats or {})}}
+        return response
+
 
 class PackagingViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_PACKAGING"

@@ -129,11 +129,36 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['post'], url_path='recalculate-from-masters')
+    def recalculate_from_masters(self, request, pk=None):
+        """
+        Rebuild the line's frozen BOM from the current masters (add-on weights,
+        film densities) for a job that is released but has no output yet.
+        """
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from apps.sales.services.order_service import SalesOrderService
+        job = self.get_object()
+        if not job.sales_order_item_id:
+            return Response({"error": "This job has no sales order line to recalculate."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            result = SalesOrderService.recalculate_line_bom_from_masters(job.sales_order_item, user=request.user)
+        except DjangoValidationError as exc:
+            message = "; ".join(exc.messages) if hasattr(exc, "messages") else str(exc)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result)
+
     @action(detail=True, methods=['post'])
     def pause(self, request, pk=None):
         reason = request.data.get('reason')
         try:
-            job = JobService.pause_job(pk, reason)
+            job = JobService.pause_job(
+                pk, reason,
+                reason_bucket=request.data.get('reason_bucket'),
+                reason_code_id=request.data.get('reason_code_id'),
+                user=request.user,
+            )
             return Response(ProductionJobSerializer(job).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -607,9 +632,13 @@ class OperatorViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def pause(self, request, pk=None):
-        reason = request.data.get('reason', 'Operator Pause')
+        reason = request.data.get('reason')
         try:
-            job = OperatorService.pause_job(pk, reason, request.user)
+            job = OperatorService.pause_job(
+                pk, reason, request.user,
+                reason_bucket=request.data.get('reason_bucket'),
+                reason_code_id=request.data.get('reason_code_id'),
+            )
             return Response(ProductionJobSerializer(job).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

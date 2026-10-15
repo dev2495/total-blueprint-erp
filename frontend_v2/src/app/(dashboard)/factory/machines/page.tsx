@@ -66,6 +66,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   work_center: z.string().min(1, "Work Center is required"),
   cost_absorption_group: z.string().optional(),
+  concurrency_policy: z.enum(["AUTO", "ALLOW", "DENY"]),
 });
 type MachineFormValues = z.infer<typeof formSchema>;
 
@@ -138,6 +139,7 @@ function MachineForm({
       name: initialData?.name || "",
       work_center: initialData?.work_center || "",
       cost_absorption_group: initialData?.cost_absorption_group || "NONE",
+      concurrency_policy: ((initialData as any)?.concurrency_policy as "AUTO" | "ALLOW" | "DENY") || "AUTO",
     },
   });
 
@@ -338,6 +340,31 @@ function MachineForm({
               <FormControl>
                 <Input placeholder="e.g. High Speed Extruder" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="concurrency_policy"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Orders running at the same time</FormLabel>
+              <Select onValueChange={field.onChange} value={field.value}>
+                <FormControl>
+                  <SelectTrigger aria-label="Orders running at the same time" data-testid="machine-concurrency-policy">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="AUTO">By step type (default): bulk → roll steps may run several orders, others one at a time</SelectItem>
+                  <SelectItem value="ALLOW">Several orders may run at the same time</SelectItem>
+                  <SelectItem value="DENY">One order at a time</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-[0.8rem] text-muted-foreground">
+                Start on the terminal is refused when another order is running and this setting does not allow it.
+              </div>
               <FormMessage />
             </FormItem>
           )}

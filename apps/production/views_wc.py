@@ -441,6 +441,7 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
                 order_reference_target_kg = 0.0
             step_target_kg = float(profile.get("step_target_total_kg") or 0)
             step_target_pcs = profile.get("step_target_pcs")
+            unit_weight_breakdown_g = profile.get("unit_weight_breakdown_g")
             step_target_primary = profile.get("step_target_primary")
             step_produced_primary = profile.get("step_produced_primary")
             step_remaining_primary = profile.get("step_remaining_primary")
@@ -453,6 +454,7 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             job_details["step_adjusted_total_kg"] = step_target_kg if step_target_kg > 0 else 0.0
             job_details["step_target_kg"] = step_target_kg
             job_details["step_target_pcs"] = step_target_pcs
+            job_details["unit_weight_breakdown_g"] = unit_weight_breakdown_g
             job_details["primary_uom"] = primary_uom
             job_details["step_target_primary"] = step_target_primary
             job_details["step_produced_primary"] = step_produced_primary

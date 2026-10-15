@@ -612,8 +612,13 @@ export const machineService = {
     },
 
     // Stop/pause a job on a machine
-    stopJob: async (machineId: string, jobId: string, reason?: string): Promise<ProductionJob> => {
-        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/stop/`, { reason });
+    stopJob: async (
+        machineId: string,
+        jobId: string,
+        payload?: string | { reason: string; reason_bucket?: string; reason_code_id?: string | null },
+    ): Promise<ProductionJob> => {
+        const body = typeof payload === "string" || payload === undefined ? { reason: payload } : payload;
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/stop/`, body);
         return (data?.data || data) as ProductionJob;
     },
 

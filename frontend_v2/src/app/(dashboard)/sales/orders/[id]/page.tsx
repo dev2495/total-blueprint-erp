@@ -660,7 +660,7 @@ function bomRows(line: any) {
         detail: textValue(component.material_name, component.variant_name, component.category_code, component.category, component.role, component.layer_role, component.grade),
         qty: rowQtyLabel(component),
         qtyKg,
-        perUnit: gPerPc ? `${fmtKg(gPerPc, 3)} g` : textValue(component.gsm && `${component.gsm} gsm`, component.ink_gsm && `${component.ink_gsm} gsm`),
+        perUnit: gPerPc ? `${fmtKg(gPerPc, 3)} g` : textValue(component.per_unit_basis, component.gsm && `${component.gsm} gsm`, component.ink_gsm && `${component.ink_gsm} gsm`),
         source,
         group,
         step: textValue(component.step_sequence, component.route_step, component.step),
@@ -840,7 +840,10 @@ function LineLayerBomCard({ line, index }: { line: SalesOrderLine; index: number
           {(recipeRows.length ? recipeRows : filmRows).slice(0, 8).map((row) => (
             <div key={row.key} className="mt-2 flex items-center justify-between gap-3 text-xs">
               <span className="min-w-0 truncate font-mono font-semibold text-content-1">{row.label}</span>
-              <span className="font-mono font-semibold text-content-2">{row.qty}</span>
+              <span className="font-mono font-semibold text-content-2">
+                {row.qty}
+                {row.perUnit ? <span className="ml-1.5 font-sans font-medium text-content-3">· {row.perUnit}</span> : null}
+              </span>
             </div>
           ))}
           {!recipeRows.length && !filmRows.length ? <div className="mt-2 text-xs font-semibold text-content-3">No material rows on this line snapshot.</div> : null}

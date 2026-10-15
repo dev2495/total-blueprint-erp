@@ -295,7 +295,8 @@ class BOMResolverService:
                         dim = eff_width + eff_height
                     else:
                         dim = Decimal('0')
-                    addon_weight_unit_g = weight_val * dim * addon_item_qty
+                    basis_mm = Decimal(str(getattr(addon_mat, 'addon_weight_basis_mm', 1) or 1))
+                    addon_weight_unit_g = (weight_val / basis_mm) * dim * addon_item_qty
                 elif addon_mat.weight_mode == 'PER_PIECE':
                     addon_weight_unit_g = weight_val * addon_item_qty
                 elif addon_mat.weight_mode == 'FIXED':
@@ -331,6 +332,7 @@ class BOMResolverService:
                     "weight_value": float(weight_val),
                     "applies_to": applies_to,
                     "applied_dimension_mm": float(round(dim, 6)) if addon_mat.weight_mode == 'PER_MM' else 0.0,
+                    "weight_basis_mm": int(getattr(addon_mat, 'addon_weight_basis_mm', 1) or 1),
                 })
             except (ObjectDoesNotExist, ValueError): continue
 

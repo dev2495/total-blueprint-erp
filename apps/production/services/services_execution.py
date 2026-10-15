@@ -512,7 +512,7 @@ class ExecutionService:
 
     @classmethod
     def _lane_active_min_layer_count(cls, job, process=None, step_roll_spec=None):
-        step_roll_spec = step_roll_spec or cls._resolve_step_roll_spec(job, process)
+        step_roll_spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
         explicit = int(step_roll_spec.get("active_min_layer_count") or 0)
         if explicit > 0:
             return explicit
@@ -524,7 +524,7 @@ class ExecutionService:
         process = process or job.current_process or job.process
         if not process or str(getattr(process, "roll_behavior", "") or "").upper() != "MULTI_INPUT_COMBINE":
             return True
-        step_roll_spec = step_roll_spec or cls._resolve_step_roll_spec(job, process)
+        step_roll_spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
         if not cls._is_lane_group_combine_spec(step_roll_spec):
             return True
         layer_count = cls._job_layer_count(job)
@@ -681,7 +681,7 @@ class ExecutionService:
         if input_form != "ROLL":
             return 0
 
-        spec = step_roll_spec or cls._resolve_step_roll_spec(job, process)
+        spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
         configured = int(spec.get("input_roll_count") or 0)
         inferred_layer_count = 0
         try:
@@ -720,6 +720,96 @@ class ExecutionService:
         if behavior == "CREATE_NEW" and input_form != "ROLL":
             return 0
         return configured if configured > 0 else 1
+
+    # Practical ceiling for a roll-input step that is fed by mass rather than by a
+    # fixed lane count (several rolls of the same web run one after another).
+    MASS_MODE_MAX_ROLLS = 24
+
+    @classmethod
+    def _roll_requirement(cls, job, process=None, step_roll_spec=None):
+        """
+        One roll contract for the step, used by readiness, allocation and the terminals.
+
+        mode:
+          NONE  - the step does not consume rolls.
+          COUNT - a fixed number of rolls must be present (combine lanes, laminate
+                  layers, modify/split one roll).
+          MASS  - any number of rolls of the right web until the step mass is covered
+                  (plain roll->bulk and single-web roll->roll steps). Readiness needs
+                  at least one roll; allocation is capped by target mass + tolerance and
+                  by max_count, never by "exactly one".
+        """
+        process = process or job.current_process or job.process
+        if not process:
+            return {"mode": "NONE", "min_count": 0, "max_count": 0, "target_kg": 0.0, "tolerance_kg": 0.0}
+        behavior = str(getattr(process, "roll_behavior", "NONE") or "NONE").upper()
+        input_form = str(getattr(process, "input_form", "BULK") or "BULK").upper()
+        if input_form != "ROLL":
+            return {"mode": "NONE", "min_count": 0, "max_count": 0, "target_kg": 0.0, "tolerance_kg": 0.0}
+        spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
+        count = cls._required_roll_count(job, process, spec)
+        inferred_layer_count = 0
+        try:
+            layer_snapshot = cls._job_layer_snapshot(job)
+            if isinstance(layer_snapshot, list):
+                inferred_layer_count = len([layer for layer in layer_snapshot if isinstance(layer, dict)])
+        except Exception:
+            inferred_layer_count = 0
+        mass_mode = behavior == "NONE" and inferred_layer_count <= 1 and count <= 1
+        if not mass_mode:
+            return {"mode": "COUNT" if count > 0 else "NONE", "min_count": count, "max_count": count, "target_kg": 0.0, "tolerance_kg": 0.0}
+        target_kg = Decimal("0")
+        try:
+            profile = cls._resolve_step_execution_profile(job) or {}
+            target_kg = cls._safe_decimal(profile.get("step_roll_target_kg") or 0)
+            if target_kg <= 0:
+                target_kg = cls._safe_decimal(profile.get("step_target_total_kg") or 0)
+        except Exception:
+            target_kg = Decimal("0")
+        configured = int(spec.get("input_roll_count") or 0)
+        max_count = configured if configured > 1 else cls.MASS_MODE_MAX_ROLLS
+        return {
+            "mode": "MASS",
+            "min_count": 1,
+            "max_count": max_count,
+            "target_kg": float(target_kg),
+            "tolerance_kg": float(cls._machine_close_tolerance_kg(target_kg)) if target_kg > 0 else 0.0,
+        }
+
+    @classmethod
+    def validate_roll_selection(cls, job, process, *, existing_roll_ids, new_roll_ids, requirement=None):
+        """
+        Raise ValueError when a selection breaks the step's roll contract.
+        COUNT mode: never more rolls than the fixed count.
+        MASS mode: never more than max_count, and no new roll once the reserved
+        mass already covers the target plus the close tolerance.
+        """
+        requirement = requirement or cls._roll_requirement(job, process)
+        mode = requirement.get("mode")
+        new_roll_ids = [rid for rid in (new_roll_ids or []) if rid]
+        if mode == "NONE":
+            if new_roll_ids:
+                raise ValueError("This process does not consume rolls.")
+            return requirement
+        total = len(set(str(r) for r in (existing_roll_ids or []))) + len(new_roll_ids)
+        if mode == "COUNT":
+            if total > int(requirement.get("max_count") or 0):
+                raise ValueError(f"Too many rolls selected. Required: {int(requirement.get('max_count') or 0)}.")
+            return requirement
+        if total > int(requirement.get("max_count") or cls.MASS_MODE_MAX_ROLLS):
+            raise ValueError(f"Too many rolls selected. This step accepts at most {int(requirement.get('max_count') or cls.MASS_MODE_MAX_ROLLS)} rolls.")
+        target_kg = cls._safe_decimal(requirement.get("target_kg") or 0)
+        if new_roll_ids and target_kg > 0 and existing_roll_ids:
+            from apps.inventory.models import InventoryRoll
+            reserved_kg = Decimal("0")
+            for roll in InventoryRoll.objects.filter(id__in=list(existing_roll_ids)).only("weight_kg"):
+                reserved_kg += cls._safe_decimal(getattr(roll, "weight_kg", 0))
+            ceiling = target_kg + cls._safe_decimal(requirement.get("tolerance_kg") or 0)
+            if reserved_kg >= ceiling:
+                raise ValueError(
+                    f"Step mass is already covered: {reserved_kg:.1f} kg reserved against {target_kg:.1f} kg required."
+                )
+        return requirement
 
     @classmethod
     def _safe_decimal(cls, value):
@@ -884,6 +974,44 @@ class ExecutionService:
             except Exception:
                 logger.warning("Invalid fallback density value=%r", fallback, exc_info=True)
         return None
+
+    @classmethod
+    def job_unit_weight_breakdown_g(cls, job):
+        """
+        Where the unit weight comes from, in grams per finished unit:
+        films + inks + chemicals + add-ons from the frozen BOM snapshot.
+        Shown under every target so a wrong master is visible on the floor.
+        """
+        try:
+            if cls._is_roll_mass_job(job):
+                return None
+            snap = (job.sales_order_item.bom_snapshot if getattr(job, "sales_order_item", None) else None) or \
+                   (getattr(job.template, "bom_schema", None) if getattr(job, "template", None) else None) or {}
+            if not isinstance(snap, dict):
+                return None
+            out = {"films_g": 0.0, "inks_g": 0.0, "chemicals_g": 0.0, "addons_g": 0.0, "items": []}
+            for section, key in (("films", "films_g"), ("inks", "inks_g"), ("chemicals", "chemicals_g"), ("addons", "addons_g")):
+                for row in snap.get(section, []) or []:
+                    if not isinstance(row, dict):
+                        continue
+                    grams = float(Decimal(str(row.get("weight_kg", 0) or 0)) * Decimal("1000"))
+                    if grams <= 0:
+                        continue
+                    out[key] += grams
+                    out["items"].append({
+                        "section": section,
+                        "code": str(row.get("code") or row.get("variant_code") or row.get("material_code") or ""),
+                        "name": str(row.get("name") or row.get("material_name") or row.get("variant_name") or ""),
+                        "grams": round(grams, 4),
+                        "stock_qty": row.get("stock_qty"),
+                        "stock_uom": row.get("stock_uom") or row.get("uom"),
+                    })
+            out["total_g"] = round(out["films_g"] + out["inks_g"] + out["chemicals_g"] + out["addons_g"], 4)
+            for key in ("films_g", "inks_g", "chemicals_g", "addons_g"):
+                out[key] = round(out[key], 4)
+            return out if out["total_g"] > 0 else None
+        except Exception:
+            return None
 
     @classmethod
     def _job_unit_weight_g(cls, job):
@@ -1545,6 +1673,7 @@ class ExecutionService:
         )
 
         return {
+            "unit_weight_breakdown_g": cls.job_unit_weight_breakdown_g(job),
             "step_roll_target_kg": float(step_roll_target_kg),
             "step_bulk_target_kg": float(step_bulk_target_kg),
             "step_target_total_kg": float(step_target_total_kg),
@@ -1806,6 +1935,7 @@ class ExecutionService:
         )
 
         return {
+            "unit_weight_breakdown_g": cls.job_unit_weight_breakdown_g(job),
             "step_roll_target_kg": float(step_roll_target_kg),
             "step_bulk_target_kg": float(step_bulk_target_kg),
             "step_target_total_kg": float(step_target_total_kg),
@@ -4354,6 +4484,12 @@ class ExecutionService:
                     if code and code not in category_to_step:
                         category_to_step[code] = step
 
+        # Add-ons (tape, zipper, spout) and packaging are consumed where the finished
+        # good is made: the last step of the route, unless the template maps a step.
+        if steps:
+            last_step = list(steps)[-1]
+            for consumable_code in ("ADDON", "PACKAGING"):
+                category_to_step.setdefault(consumable_code, last_step)
         if "GRANULE" not in category_to_step:
             fallback_step = next(
                 (
@@ -6241,6 +6377,12 @@ class ExecutionService:
             'order_progress': order_progress,
             'inputs': {
                 'rolls_required': int(satisfaction_status.get('rolls_required') or 0),
+                'roll_mode': satisfaction_status.get('roll_mode'),
+                'roll_max_count': satisfaction_status.get('roll_max_count'),
+                'roll_target_kg': satisfaction_status.get('roll_target_kg'),
+                'rolls_reserved_kg': satisfaction_status.get('rolls_reserved_kg'),
+                'roll_short_kg': satisfaction_status.get('roll_short_kg'),
+                'roll_mass_covered': satisfaction_status.get('roll_mass_covered'),
                 'rolls_reserved': int(satisfaction_status.get('rolls_reserved') or 0),
                 'bulk_preview': satisfaction_status.get('bulk_consumption') or [],
                 'bulk_preview_theoretical': satisfaction_status.get('bulk_consumption') or [],
@@ -6712,8 +6854,19 @@ class ExecutionService:
         rolls_missing_lineage = max(0, rolls_required - rolls_available)
 
         # Current-step readiness depends on active assignments only.
-        rolls_missing = max(0, rolls_required - reserved_count)
+        roll_requirement = cls._roll_requirement(job, process, current_step_roll_spec)
+        reserved_kg = Decimal("0")
+        for weight in reservation_qs.filter(status='ACTIVE').values_list('roll__weight_kg', flat=True):
+            reserved_kg += cls._safe_decimal(weight)
+        if roll_requirement.get("mode") == "MASS":
+            # Mass-fed step: one roll makes the step runnable; the shortfall is
+            # information for the planner, not a gate (partial runs are allowed).
+            rolls_missing = 0 if reserved_count >= 1 else 1
+        else:
+            rolls_missing = max(0, rolls_required - reserved_count)
         roll_satisfied = (rolls_missing == 0)
+        roll_target_kg = cls._safe_decimal(roll_requirement.get("target_kg") or 0)
+        roll_short_kg = max(Decimal("0"), roll_target_kg - reserved_kg) if roll_target_kg > 0 else Decimal("0")
 
         # Bulk consumption preview (step-aware)
         bulk_preview = cls.get_bulk_consumption_preview(job, requirements=requirements)
@@ -6733,11 +6886,20 @@ class ExecutionService:
             'pool_rolls': rolls_pool,
             'auto_first': True,
         }
+        roll_mass_status = {
+            'roll_mode': roll_requirement.get('mode'),
+            'roll_max_count': int(roll_requirement.get('max_count') or 0),
+            'roll_target_kg': float(roll_target_kg),
+            'rolls_reserved_kg': float(reserved_kg),
+            'roll_short_kg': float(roll_short_kg),
+            'roll_mass_covered': bool(roll_target_kg <= 0 or reserved_kg >= roll_target_kg),
+        }
         override_required = bool(process and process.input_form == 'ROLL' and rolls_missing > 0)
 
         return {
             'job_id': str(job.id),
             'process_code': process.code if process else 'N/A',
+            **roll_mass_status,
             'input_form': process.input_form if process else 'ROLL',
             'roll_behavior': process.roll_behavior if process else 'NONE',
             'current_step_roll_handling': current_step_roll_spec,

@@ -1329,6 +1329,7 @@ def _build_material_plan_lines(
             theoretical_qty, line_uom = _planning_qty_and_uom(section_name, row)
             if theoretical_qty <= 0:
                 continue
+            per_unit_qty = theoretical_qty if section_name not in order_scoped else None
             if section_name not in order_scoped:
                 theoretical_qty = theoretical_qty * multiplier
             category_code = _planning_category_for_row(section_name, row)
@@ -1370,6 +1371,8 @@ def _build_material_plan_lines(
                         "material_code": material_code,
                         "material_name": material_name,
                         "uom": line_uom,
+                        "per_unit_qty": float(per_unit_qty.quantize(Decimal("0.000001"))) if per_unit_qty is not None else None,
+                        "per_unit_basis": (f"{float(per_unit_qty.quantize(Decimal('0.000001'))):g} {line_uom.lower()} per piece" if per_unit_qty is not None else ""),
                         "step_id": template_policy.get("step_id"),
                         "step_sequence": template_policy.get("step_sequence"),
                         "step_name": template_policy.get("step_name"),
@@ -2503,6 +2506,108 @@ class SalesOrderService:
             reason=reason,
             raise_on_error=raise_on_error,
         )
+
+    @staticmethod
+    def refresh_open_snapshots_for_addon(addon_id, *, reason="ADDON_MASTER_EDIT"):
+        """
+        An add-on master edit (weight basis, coefficient, stock unit) re-resolves every
+        open, unreleased line that uses the add-on. Released lines are left for the
+        explicit recalculation below.
+        """
+        queryset = SalesOrderItem.objects.filter(bom_snapshot__addons__contains=[{"addon_id": str(addon_id)}])
+        return SalesOrderService.refresh_open_snapshots_for_items(queryset, reason=reason)
+
+    @staticmethod
+    def released_line_recalc_block_reason(item):
+        """Why a released line cannot be recalculated from masters: any floor activity."""
+        from apps.production.models import JobExecutionLog, MaterialConsumptionLog, ProductionJob
+        order_status = str(getattr(getattr(item, "sales_order", None), "status", "") or "").upper()
+        if order_status in {"PACKING_READY", "DISPATCH_READY", "COMPLETED", "CANCELLED"}:
+            return f"order status is {order_status}"
+        jobs = list(ProductionJob.objects.filter(sales_order_item=item).exclude(job_state="CANCELLED"))
+        if any(str(job.job_state or "").upper() == "COMPLETED" or Decimal(str(job.produced_qty or 0)) > 0 for job in jobs):
+            return "output has already been produced on this line"
+        if jobs and JobExecutionLog.objects.filter(production_job__in=jobs).exists():
+            return "output has already been logged on this line"
+        if jobs and MaterialConsumptionLog.objects.filter(production_job__in=jobs).exists():
+            return "material consumption has already been logged"
+        return None
+
+    @staticmethod
+    def recalculate_line_bom_from_masters(item, *, user=None):
+        """
+        Rebuild the frozen BOM of one line from the current masters without touching
+        its specification, jobs or allocations. For lines already released to the
+        floor but not started: weights, targets, issue plans and job requirements
+        follow the corrected master. Refused once any output or consumption exists.
+        """
+        from apps.production.models import ProductionJob
+        from apps.production.services.order_locks import lock_sales_order_items
+        from apps.production.services.services_execution import ExecutionService
+        from apps.production.services.batch_route_service import BatchExecutionService
+
+        with transaction.atomic():
+            locked = lock_sales_order_items([item.id])
+            item = locked[0] if locked else SalesOrderItem.objects.select_for_update().get(id=item.id)
+            reason = SalesOrderService.released_line_recalc_block_reason(item)
+            if reason:
+                raise ValidationError(f"Cannot recalculate this line: {reason}.")
+            geometry_snapshot = dict(item.geometry_snapshot or {})
+            fg_type = str(geometry_snapshot.get("finished_good_type") or ("ROLL" if str(item.qty_uom or "").upper() == "KG" and not item.layer_snapshot else "POUCH"))
+            printing_snapshot = dict(item.printing_snapshot or {})
+            preview_payload = {
+                "template_id": str(item.template_id) if item.template_id else None,
+                "finished_good_type": fg_type,
+                "geometry": geometry_snapshot,
+                "film_layers": list(item.layer_snapshot or []),
+                "printing": printing_snapshot,
+                "chemicals": printing_snapshot.get("chemicals") or {},
+                "addons": list(item.addons_snapshot or []),
+                "packaging_snapshot": dict(item.packaging_snapshot or {}),
+                "roll_form": geometry_snapshot.get("roll_form"),
+                "order_qty": float(item.qty_value or 0),
+                "uom": "KG" if fg_type == "ROLL" else item.qty_uom,
+            }
+            preview = SalesOrderService.preview_sales_item(preview_payload)
+            before = {
+                "unit_weight_g": float(item.unit_weight_g or 0),
+                "total_weight_kg": float(item.total_weight_kg or 0),
+            }
+            unit_weight_g = Decimal(str(preview.get("unit_weight_g") or 0))
+            total_weight_kg = Decimal(str(preview.get("total_weight_kg") or 0))
+            bom_snapshot = _make_json_serializable(preview.get("bom") or {})
+            previous_bom = item.bom_snapshot if isinstance(item.bom_snapshot, dict) else {}
+            if previous_bom.get("layer_signature_hash"):
+                bom_snapshot["layer_signature_hash"] = previous_bom.get("layer_signature_hash")
+            item.bom_snapshot = bom_snapshot
+            item.unit_weight_g = unit_weight_g
+            item.total_weight_kg = total_weight_kg
+            item.packaging_snapshot = _materialize_packaging_snapshot_quantities(
+                dict(item.packaging_snapshot or {}), preview_payload, unit_weight_g, total_weight_kg
+            )
+            item.save(update_fields=["bom_snapshot", "unit_weight_g", "total_weight_kg", "packaging_snapshot", "updated_at"])
+            jobs = list(ProductionJob.objects.select_for_update(of=("self",)).filter(sales_order_item=item).exclude(job_state="CANCELLED").order_by("current_step_index", "created_at"))
+            for job in jobs:
+                ExecutionService.calculate_requirements(job.id, persist=True, job=job)
+                if getattr(job, "production_batch_id", None):
+                    try:
+                        BatchExecutionService.sync_for_job(job)
+                    except Exception:
+                        logger.warning("recalculate_line_bom_from_masters: batch sync failed for job %s", job.id, exc_info=True)
+            try:
+                from apps.sales.models import SalesOrderAuditEvent  # noqa: F401
+            except Exception:
+                pass
+            logger.info(
+                "recalculate_line_bom_from_masters item=%s by=%s unit_weight_g %s -> %s total_kg %s -> %s jobs=%s",
+                item.id, getattr(user, "id", None), before["unit_weight_g"], float(unit_weight_g), before["total_weight_kg"], float(total_weight_kg), len(jobs),
+            )
+            return {
+                "item_id": str(item.id),
+                "before": before,
+                "after": {"unit_weight_g": float(unit_weight_g), "total_weight_kg": float(total_weight_kg)},
+                "jobs_recalculated": len(jobs),
+            }
 
     @staticmethod
     def _pre_release_revision_lock_reason(item):
