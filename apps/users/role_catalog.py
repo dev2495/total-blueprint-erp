@@ -15,6 +15,8 @@ CANONICAL_ROLE_LABELS = {
     "DISPATCH": "Dispatch",
     "PLANT_MANAGER": "Plant Manager",
     "WATCHMAN": "Watchman",
+    "MAINTENANCE_TECH": "Maintenance Technician",
+    "MAINTENANCE_SUPERVISOR": "Maintenance Supervisor",
 }
 
 
@@ -39,6 +41,8 @@ CANONICAL_ROLE_ORDER = [
     "DISPATCH",
     "PLANT_MANAGER",
     "WATCHMAN",
+    "MAINTENANCE_TECH",
+    "MAINTENANCE_SUPERVISOR",
 ]
 
 

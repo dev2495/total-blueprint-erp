@@ -151,6 +151,7 @@ INSTALLED_APPS = [
     "apps.procurement",
     "apps.platformops",
     "apps.gate.apps.GateConfig",
+    "apps.maintenance.apps.MaintenanceConfig",
     "rest_framework_simplejwt.token_blacklist",
 ]
 if not _env_bool("SKIP_ADMIN_APP_IMPORT", False):
@@ -406,6 +407,14 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = os.getenv("CELERY_TIMEZONE", "Asia/Kolkata")
 CELERY_ENABLE_UTC = True
 CELERY_BEAT_SCHEDULE = {
+    "maintenance-due-jobs-daily": {
+        "task": "apps.maintenance.tasks.generate_due_maintenance_jobs",
+        "schedule": crontab(minute=30, hour=5),  # 05:30 IST, before the day shift
+    },
+    "maintenance-overdue-reminder": {
+        "task": "apps.maintenance.tasks.notify_overdue_maintenance",
+        "schedule": crontab(minute=0, hour=8),  # 08:00 IST
+    },
     "db-backup-every-4h": {
         "task": "apps.platformops.tasks.run_db_backup_task",
         "schedule": crontab(minute=0, hour="*/4"),

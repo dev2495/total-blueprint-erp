@@ -62,6 +62,7 @@ urlpatterns = [
     path('api/procurement/', include('apps.procurement.urls')),
     path('api/ops/', include('apps.platformops.urls')),
     path('api/gate/', include('apps.gate.urls')),
+    path('api/maintenance/', include('apps.maintenance.urls')),
     path('api/system/', include('apps.users.urls_system')),
     path('media/artworks/<path:path>', artwork_media_serve),
 ]

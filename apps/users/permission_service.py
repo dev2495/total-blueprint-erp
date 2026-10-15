@@ -408,6 +408,8 @@ class PermissionService:
             'DISPATCH': '/dashboard/logistics',
             'PLANT_MANAGER': '/analytics/kpis',
             'WATCHMAN': '/gate',
+            'MAINTENANCE_TECH': '/maintenance/jobs',
+            'MAINTENANCE_SUPERVISOR': '/maintenance',
         }
         
         if code in ROUTING_MAP:
