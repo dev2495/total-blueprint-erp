@@ -585,7 +585,7 @@ class LocationScanView(APIView):
         granted = granted_for(user)
         if not can_with_wildcard(granted, "inventory.view"):
             raise PermissionDenied("Missing permission: inventory.view")
-        rolls = InventoryRoll.objects.filter(location=location, status__in=["AVAILABLE", "RESERVED", "IN_PROCESS"]).select_related("material").order_by("material__code", "roll_number")
+        rolls = InventoryRoll.objects.filter(location=location, status__in=["AVAILABLE", "RESERVED", "IN_PROCESS"]).select_related("material").order_by("material__code", "label_id")
         roll_groups: dict[str, dict] = {}
         roll_rows = []
         for roll in rolls[:1000]:
@@ -597,7 +597,7 @@ class LocationScanView(APIView):
             if roll.status != "AVAILABLE":
                 group["reserved"] += 1
             if len(roll_rows) < 400:
-                roll_rows.append({"id": str(roll.id), "roll_number": roll.roll_number, "material_code": getattr(mat, "code", "") or "", "width_mm": float(roll.width_mm or 0), "weight_kg": float(roll.weight_kg or 0), "status": roll.status, "batch_no": roll.batch_no})
+                roll_rows.append({"id": str(roll.id), "roll_number": roll.label_id or str(roll.id)[:8], "material_code": getattr(mat, "code", "") or "", "width_mm": float(roll.width_mm or 0), "weight_kg": float(roll.weight_kg or 0), "status": roll.status, "batch_no": roll.batch_no})
         bulk_rows = []
         for row in InventoryBulk.objects.filter(location=location, qty_kg__gt=0).select_related("material", "granule_code").order_by("material__code"):
             bulk_rows.append({"id": str(row.id), "material_id": str(row.material_id), "material_code": row.material.code, "material_name": row.material.name,
