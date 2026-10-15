@@ -48,5 +48,13 @@ Also: **add-on shortage switch** `ADDON_SHORTAGE_BLOCKS` (env, default off). Add
 - E2E: `tests/e2e/gate/maintenance.spec.ts` (schedule → due job → record → fault → QR → machine and location scan cards; header scan button), plus the existing sweeps.
 - Migrations (all additive): `factory.0029`, `materials.0052`, `production.0076`, `maintenance.0001`, `maintenance.0002` (roles).
 
+## E2E suite repairs (long-standing failures, none caused by this release)
+- **Operator flow**: the mutation seed now releases the operator's extrusion job through the WCM's own coded granule issue, and the extrusion fixtures carry a real granule line on their BOM (the screens build requirements from the frozen BOM since 30 Sep, so the old stored-only row was invisible). The test uses the pause-reason dialog and the current labels.
+- **WCM release**: same fixture fix; the seed stores the projected requirements as a planner release would.
+- **Dispatch (two tests)**: selectors follow the current packing route button and proof-of-delivery labels.
+- **Job work**: rewritten for the redesigned create, dispatch (declared value per roll for Rule 45 challans) and receive (mass balance within 3 %) screens.
+- **WIP route proof**: the telemetry seed wrote execution logs onto queued proof jobs, which marked them started and locked WCM preparation; telemetry now goes only on jobs that ran.
+- **Quotations**: the green run starts an isolated local SMTP sink (127.0.0.1, messages written to `.runtime/ui-e2e/smtp-sink`) and points the API at it with `SMTP_STARTTLS=false`; nothing is relayed. Production keeps STARTTLS on (the switch defaults to on).
+
 ## Deploy
 Build and activate with `.runtime/release-floor-logic/{build,activate}-floor-release.sh` (parent `28aa4de42a5f`). Migrate runs inside activate; no env change; beat picks up the two new schedules on restart.
