@@ -38,6 +38,15 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
 
   await expect(stopButton).toBeEnabled({ timeout: 20_000 })
   await stopButton.click()
+  // Pause asks for a reason; the reason becomes a downtime record for OEE and maintenance.
+  const pauseDialog = page.getByRole("dialog").filter({ hasText: /Why is the machine stopping/i })
+  await expect(pauseDialog).toBeVisible({ timeout: 15_000 })
+  await pauseDialog.getByRole("radio", { name: /Material shortage/i }).click()
+  await pauseDialog.getByRole("button", { name: /Pause machine/i }).click()
+  await expect(pauseDialog).toBeHidden({ timeout: 15_000 })
+  const pausedJob = await fetchJson<any>(page, `/api/production/jobs/${seed.operator.job_id}/`)
+  expect(pausedJob.status).toBe(200)
+  expect(String(pausedJob.data?.job_state || pausedJob.data?.data?.job_state || "")).toBe("PAUSED")
   await expect(startButton).toBeEnabled({ timeout: 20_000 })
   await startButton.click()
 
@@ -50,11 +59,13 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
 
   const outputPanelText = (await outputPanel.textContent()) || ""
   const pageText = (await page.locator("body").textContent()) || ""
-  const maxLogMatch = outputPanelText.match(/MAX THIS LOG\s*([0-9]+(?:\.[0-9]+)?)\s*kg/i)
+  const maxLogMatch =
+    outputPanelText.match(/Can log now \(max\)[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*kg/i) ||
+    outputPanelText.match(/MAX THIS LOG\s*([0-9]+(?:\.[0-9]+)?)\s*kg/i)
   const targetMatch =
     pageText.match(/STEP PROGRESS\s*[0-9]+(?:\.[0-9]+)?\s*kg\s*\/\s*([0-9]+(?:\.[0-9]+)?)\s*kg/i) ||
-    pageText.match(/TARGET\s*([0-9]+(?:\.[0-9]+)?)\s*kg/i) ||
-    outputPanelText.match(/TARGET\s*([0-9]+(?:\.[0-9]+)?)\s*kg/i)
+    pageText.match(/TARGET(?:\s*·\s*\S+)?\s*([0-9]+(?:\.[0-9]+)?)\s*kg/i) ||
+    outputPanelText.match(/TARGET(?:\s*·\s*\S+)?\s*([0-9]+(?:\.[0-9]+)?)\s*kg/i)
   const maxLogKg = Number(maxLogMatch?.[1] || targetMatch?.[1] || "9")
   const targetKg = Number(targetMatch?.[1] || maxLogKg)
   const scrapKg = targetKg > 1 ? 0.25 : 0

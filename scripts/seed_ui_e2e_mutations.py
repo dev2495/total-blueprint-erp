@@ -626,6 +626,99 @@ def _seed_step_requirement(
     )
 
 
+def _seed_extrusion_sales_item(*, label: str, source_job: ProductionJob, granule: InventoryMaterial, required_qty: Decimal) -> SalesOrderItem:
+    """
+    A dedicated sales line for an extrusion fixture whose frozen BOM carries the
+    granule as a plan line on the first route step. The screens build current-step
+    requirements from the frozen BOM (not from stored requirement rows), so the
+    granule must be on the BOM for the WCM issue and the terminal to see it.
+    """
+    from copy import deepcopy
+
+    template = source_job.template
+    step = TemplateProcessStep.objects.filter(template=template).order_by("sequence_number").first()
+    if step is None:
+        raise RuntimeError(f"Template step metadata missing for {label} extrusion seed.")
+    source_item = source_job.sales_order_item
+    bom = deepcopy(getattr(source_item, "bom_snapshot", None) or {})
+    lines = [row for row in (bom.get("planning_lines") or []) if str((row or {}).get("category_code") or "").upper() != "GRANULE"]
+    lines.append({
+        "category_code": "GRANULE",
+        "material_id": str(granule.id),
+        "material_code": granule.code,
+        "material_name": granule.name,
+        "uom": "KG",
+        "step_id": str(step.id),
+        "step_sequence": step.sequence_number,
+        "theoretical_qty": float(required_qty),
+        "planned_issue_qty": float(required_qty),
+    })
+    bom["planning_lines"] = lines
+    order_name = f"{PREFIX} {label} Extrusion Seed"
+    order = SalesOrder.objects.filter(order_name=order_name).order_by("-created_at").first()
+    customer = (
+        Customer.objects.filter(code="UAT-GREEN-SALES").first()
+        or Customer.objects.filter(status="ACTIVE").order_by("name").first()
+    )
+    if order is None:
+        order = _create_sales_order(
+            customer=customer,
+            customer_name=getattr(customer, "name", f"{PREFIX} Customer"),
+            order_name=order_name,
+            status="RELEASED",
+            order_type="MTO",
+        )
+    item = order.items.order_by("created_at").first()
+    fields = {
+        "template": template,
+        "mode": "TEMPLATE",
+        "line_name": f"{PREFIX} {label} Extrusion Seed Line",
+        "geometry_snapshot": dict(getattr(source_item, "geometry_snapshot", None) or {}),
+        "layer_snapshot": list(getattr(source_item, "layer_snapshot", None) or []),
+        "printing_snapshot": dict(getattr(source_item, "printing_snapshot", None) or {}),
+        "addons_snapshot": list(getattr(source_item, "addons_snapshot", None) or []),
+        "packaging_snapshot": dict(getattr(source_item, "packaging_snapshot", None) or {}),
+        "bom_snapshot": bom,
+        "qty_uom": "KG",
+        "qty_value": required_qty,
+        "unit_weight_g": Decimal("0"),
+        "total_weight_kg": required_qty,
+        "price_basis": "KG",
+        "unit_price": Decimal("1.0000"),
+    }
+    if item is None:
+        item = SalesOrderItem.objects.create(sales_order=order, **fields)
+    else:
+        for key, value in fields.items():
+            setattr(item, key, value)
+        item.save(update_fields=list(fields.keys()))
+    return item
+
+
+def _release_with_coded_issue(job: ProductionJob, assignment, granule: InventoryMaterial, granule_code, qty: Decimal):
+    """Release the job the way the WCM does: issue the coded granule, then mark ready."""
+    from apps.production.services.job_services import WCManagerService
+
+    ExecutionService.calculate_requirements(job.id, persist=True, job=job)
+    step_seq = int(job.current_step_index or 0) + 1
+    requirement = JobMaterialRequirement.objects.filter(
+        production_job=job, material=granule, process_step__sequence_number=step_seq
+    ).first()
+    if requirement is None:
+        raise RuntimeError(f"Granule requirement missing on {job.job_number} after BOM projection.")
+    WCManagerService.mark_execution_ready(
+        assignment.id,
+        material_confirmations=[{
+            "requirement_id": str(requirement.id),
+            "material_id": str(granule.id),
+            "actual_issued_qty": float(qty),
+            "actual_returned_qty": 0,
+            "actual_scrap_qty": 0,
+            "granule_code_allocations": [{"granule_code_id": str(granule_code.id), "qty_kg": float(qty)}],
+        }],
+    )
+
+
 def main():
     run_suffix = _suffix()
     runtime_path = runtime_dir() / "mutation-seed.json"
@@ -752,14 +845,16 @@ def main():
         quantity_kg=Decimal("9.0"),
         user=admin,
     )
+    operator_job.sales_order_item = _seed_extrusion_sales_item(label="Operator", source_job=job_source, granule=granule, required_qty=Decimal("9.000"))
+    operator_job.mts_order = None
+    operator_job.save(update_fields=["sales_order_item", "mts_order"])
     operator_assignment = _ensure_production_assignment(
         operator_job,
         plant_b.work_center,
         plant_b.machine,
-        "EXECUTION_READY",
+        "ASSIGNED",
         admin,
     )
-    _seed_extrusion_requirement(operator_job, granule, Decimal("9.000"))
     BulkService.add_bulk(
         material_id=granule.id,
         qty=Decimal("25.000"),
@@ -769,6 +864,8 @@ def main():
         reference=f"{PREFIX}-OP-BULK-{run_suffix}",
         granule_code_id=granule_code.id,
     )
+    _release_with_coded_issue(operator_job, operator_assignment, granule, granule_code, Decimal("9.000"))
+    operator_assignment.refresh_from_db()
 
     print("[seed-ui-mutations] printing fixture", flush=True)
     printing_source = print_source or job_source
@@ -877,7 +974,11 @@ def main():
         "WC_READY",
         admin,
     )
-    _seed_extrusion_requirement(wcm_job, granule, Decimal("11.000"))
+    wcm_job.sales_order_item = _seed_extrusion_sales_item(label="WCM", source_job=job_source, granule=granule, required_qty=Decimal("11.000"))
+    wcm_job.mts_order = None
+    wcm_job.save(update_fields=["sales_order_item", "mts_order"])
+    # A planner release stores the projected requirements; the WCM issue validates against them.
+    ExecutionService.calculate_requirements(wcm_job.id, persist=True, job=wcm_job)
     BulkService.add_bulk(
         material_id=granule.id,
         qty=Decimal("25.000"),
