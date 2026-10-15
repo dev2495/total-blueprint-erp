@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 
 const frontendRoot = process.cwd()
 const repoRoot = path.resolve(frontendRoot, "..")
@@ -160,7 +160,35 @@ const strictEnv = {
   FRONTEND_MODE: process.env.FRONTEND_MODE || process.env.UI_E2E_FRONTEND_MODE || "prod",
   BACKEND_SERVER_MODE: "gunicorn",
   GUNICORN_WORKERS: process.env.GUNICORN_WORKERS || "2",
+  // Mail goes only to the isolated local sink started below; nothing is relayed.
+  EMAIL_PROVIDER: "SMTP",
+  SMTP_HOST: "127.0.0.1",
+  SMTP_PORT: process.env.UI_E2E_SMTP_SINK_PORT || "8025",
+  SMTP_STARTTLS: "false",
+  SMTP_USER: "",
+  SMTP_PASSWORD: "",
+  SMTP_FROM_EMAIL: "uat-e2e@erp.local",
+  RESEND_API_KEY: "",
+  UI_E2E_LOCAL_SMTP_SINK: "1",
 }
+
+// Isolated local SMTP sink for quotation delivery; stopped when the run ends.
+const smtpSink = spawn(pythonBin, [path.join(repoRoot, "scripts", "local_smtp_sink.py"), "--port", strictEnv.SMTP_PORT, "--out", path.join(runtimeRoot, "smtp-sink")], {
+  cwd: repoRoot,
+  stdio: "ignore",
+})
+const stopSink = () => {
+  try {
+    smtpSink.kill("SIGTERM")
+  } catch {
+    // already stopped
+  }
+}
+process.on("exit", stopSink)
+process.on("SIGINT", () => {
+  stopSink()
+  process.exit(130)
+})
 
 fs.mkdirSync(runtimeRoot, { recursive: true })
 writeRunMetadata()

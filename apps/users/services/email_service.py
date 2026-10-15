@@ -140,8 +140,11 @@ class EmailDeliveryService:
             part.add_header("Content-Disposition", "attachment", filename=attachment["filename"])
             message.attach(part)
 
+        # STARTTLS is on unless explicitly switched off (only for an isolated local test sink).
+        use_starttls = os.getenv("SMTP_STARTTLS", "true").strip().lower() not in {"0", "false", "no"}
         with smtplib.SMTP(host, port, timeout=20) as server:
-            server.starttls()
+            if use_starttls:
+                server.starttls()
             if user:
                 server.login(user, password)
             server.sendmail(from_email, recipients, message.as_string())

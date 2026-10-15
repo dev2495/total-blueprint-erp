@@ -85,9 +85,14 @@ class Command(BaseCommand):
         limit = int(options["jobs"] or 12)
         mode = "APPLY" if apply else "DRY_RUN"
 
-        jobs = list(ProductionJob.objects.order_by("-created_at")[:limit])
+        # Telemetry is execution history, so it only goes on jobs that actually ran.
+        # Writing logs onto queued jobs would mark them as started and lock their
+        # WCM preparation (the WIP route proofs depend on that preparation).
+        jobs = list(
+            ProductionJob.objects.filter(job_state__in=["COMPLETED", "EXECUTING", "PAUSED"]).order_by("-created_at")[:limit]
+        )
         if not jobs:
-            raise CommandError("No production jobs available to seed telemetry.")
+            raise CommandError("No executed production jobs available to seed telemetry.")
 
         film = InventoryMaterial.objects.filter(category="FILM_VARIANT").order_by("created_at").first()
         adhesive = InventoryMaterial.objects.filter(category="ADHESIVE").order_by("created_at").first()
