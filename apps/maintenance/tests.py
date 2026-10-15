@@ -138,3 +138,60 @@ class FaultPausesRunningJobTests(MaintenanceFixture):
         self.job.refresh_from_db()
         self.assertEqual(self.job.job_state, "EXECUTING")
         self.assertFalse(DowntimeLog.objects.filter(production_job=self.job).exists())
+
+
+from django.test import override_settings
+from rest_framework.test import APIClient
+
+
+@override_settings(STRICT_RBAC=True)
+class MaintenanceRbacTests(MaintenanceFixture):
+    """Strict RBAC as in production: each role reaches exactly its maintenance and scan surfaces."""
+
+    def _user(self, role_code):
+        role, _ = Role.objects.get_or_create(code=role_code, defaults={"name": role_code.title()})
+        return User.objects.create_user(username=f"rbac-{role_code.lower()}", password="x", role=role)
+
+    def _client(self, user):
+        client = APIClient()
+        client.force_authenticate(user=user)
+        return client
+
+    def test_watchman_is_refused_everywhere(self):
+        client = self._client(self._user("WATCHMAN"))
+        for url in ["/api/maintenance/board/", "/api/maintenance/jobs/", f"/api/maintenance/scan/machine/{self.machine.code}/",
+                    f"/api/maintenance/scan/location/{self.location.code}/", "/api/maintenance/qr/targets/"]:
+            self.assertEqual(client.get(url).status_code, 403, url)
+
+    def test_store_reads_the_location_card_but_not_maintenance(self):
+        client = self._client(self._user("STORE"))
+        self.assertEqual(client.get(f"/api/maintenance/scan/location/{self.location.code}/").status_code, 200)
+        self.assertEqual(client.get("/api/maintenance/board/").status_code, 403)
+
+    def test_technician_records_work_and_reports_faults(self):
+        client = self._client(self._user("MAINTENANCE_TECH"))
+        self.assertEqual(client.get("/api/maintenance/board/").status_code, 200)
+        self.assertEqual(client.get(f"/api/maintenance/scan/machine/{self.machine.code}/").status_code, 200)
+        response = client.post("/api/maintenance/faults/", {"machine": str(self.machine.id), "title": "Belt slipping"}, format="json")
+        self.assertEqual(response.status_code, 201, response.content)
+        # Technicians do not manage schedules.
+        response = client.post("/api/maintenance/schedules/", {"machine": str(self.machine.id), "name": "X", "anchor_date": "2026-10-15"}, format="json")
+        self.assertEqual(response.status_code, 403)
+
+    def test_supervisor_manages_schedules(self):
+        client = self._client(self.supervisor)
+        response = client.post("/api/maintenance/schedules/", {
+            "machine": str(self.machine.id), "name": "Daily check", "anchor_date": "2026-10-15",
+            "checklist": [{"code": "OIL", "label": "Oil level", "kind": "OK_ISSUE"}],
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.data["next_due_date"], "2026-10-15")
+        self.assertEqual(client.post("/api/maintenance/schedules/generate-due/", {}, format="json").status_code, 200)
+
+    def test_machine_card_shows_maintenance_panels_only_with_permission(self):
+        tech = self._client(self._user("MAINTENANCE_TECH"))
+        self.assertIn("maintenance", tech.get(f"/api/maintenance/scan/machine/{self.machine.code}/").data)
+        planner = self._client(self._user("PLANNER"))
+        data = planner.get(f"/api/maintenance/scan/machine/{self.machine.code}/").data
+        self.assertNotIn("maintenance", data)
+        self.assertIn("report_30d", data)

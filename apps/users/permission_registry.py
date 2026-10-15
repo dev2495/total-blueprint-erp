@@ -107,6 +107,10 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/production/challans/", "logistics.manage"),
     ("PATCH", "/api/production/challans/", "logistics.manage"),
     ("DELETE", "/api/production/challans/", "logistics.manage"),
+    # Scan cards and QR images are read by anyone who works that area, not only maintenance.
+    ("GET", "/api/maintenance/scan/location/", "inventory.view"),
+    ("GET", "/api/maintenance/scan/machine/", "production.view"),
+    ("GET", "/api/maintenance/qr/", "factory.view"),
     ("GET", "/api/maintenance/", "maintenance.view"),
     ("POST", "/api/maintenance/", "maintenance.log"),
     ("PUT", "/api/maintenance/", "maintenance.log"),
@@ -421,6 +425,8 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "factory.view",
     ],
     "PLANNER": [
+        "page.scan.machine.view",
+        "page.scan.location.view",
         "users.self_manage",
         "production.view",
         "production.manage",
@@ -472,6 +478,7 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "page.profile.view",
     ],
     "WORK_CENTER_MANAGER": [
+        "page.scan.location.view",
         "users.self_manage",
         "maintenance.view",
         "maintenance.log",
@@ -515,6 +522,7 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "procurement.manage",
     ],
     "DISPATCH": [
+        "page.scan.location.view",
         "users.self_manage",
         "inventory.view",
         "inventory.manage",

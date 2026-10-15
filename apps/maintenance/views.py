@@ -43,6 +43,7 @@ from apps.maintenance.serializers import (
 from apps.maintenance.services import MaintenanceService
 from apps.users.permission_registry import can_with_wildcard
 from apps.users.permission_service import PermissionService
+from apps.users.permissions import RoleBasedAccessPermission
 from apps.users.role_catalog import get_canonical_role_code
 
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -90,7 +91,7 @@ def _plant_filter(request, qs, field="machine__work_center__plant_id"):
 
 # ============================================================================ schedules
 class MaintenanceScheduleViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
     serializer_class = MaintenanceScheduleSerializer
 
     def get_queryset(self):
@@ -132,7 +133,7 @@ class MaintenanceScheduleViewSet(viewsets.ModelViewSet):
 
 # ============================================================================ jobs
 class MaintenanceJobViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
     serializer_class = MaintenanceJobSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
 
@@ -253,7 +254,7 @@ class MaintenanceJobViewSet(viewsets.ModelViewSet):
 
 # ============================================================================ faults
 class MachineFaultViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
     serializer_class = MachineFaultSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]
 
@@ -323,7 +324,7 @@ class MachineFaultViewSet(viewsets.ModelViewSet):
 
 # ============================================================================ attachments
 class AttachmentUploadView(APIView):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
@@ -345,7 +346,7 @@ class AttachmentUploadView(APIView):
 
 
 class AttachmentFileView(APIView):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
 
     def get(self, request, pk):
         row = MaintenanceAttachment.objects.filter(id=pk).first()
@@ -360,7 +361,7 @@ class AttachmentFileView(APIView):
 
 # ============================================================================ board + reports
 class BoardView(APIView):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
 
     def get(self, request):
         board = MaintenanceService.board(plant_id=request.query_params.get("plant_id"), machine_id=request.query_params.get("machine_id"))
@@ -376,7 +377,7 @@ class BoardView(APIView):
 
 
 class ReportsView(APIView):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
 
     def get(self, request, report):
         plant_id = request.query_params.get("plant_id")
@@ -395,7 +396,7 @@ class ReportsView(APIView):
 
 
 class MachineHistoryView(APIView):
-    permission_classes = [IsAuthenticated, MaintenanceAccess]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
 
     def get(self, request, machine_id):
         machine = Machine.objects.select_related("work_center", "work_center__plant").filter(id=machine_id).first()
@@ -440,7 +441,7 @@ def _qr_svg(payload: str) -> HttpResponse:
 
 class MachineQrView(APIView):
     """SVG QR for one machine; printable from the machine master page."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission]
     content_negotiation_class = FileNegotiation
 
     def get(self, request, machine_id):
@@ -451,7 +452,7 @@ class MachineQrView(APIView):
 
 
 class LocationQrView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission]
     content_negotiation_class = FileNegotiation
 
     def get(self, request, location_id):
@@ -463,7 +464,7 @@ class LocationQrView(APIView):
 
 class QrTargetsView(APIView):
     """Machines and locations with their scan URLs, for the printable sheets."""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission]
 
     def get(self, request):
         plant_id = request.query_params.get("plant_id")
@@ -493,7 +494,7 @@ class MachineScanView(APIView):
     chooses the panels for the viewer's role. Production queue and live
     progress come from the existing machine endpoints.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission]
 
     def get(self, request, code):
         from apps.production.models import DowntimeLog, ProductionJob
@@ -571,7 +572,7 @@ class LocationScanView(APIView):
     there (rolls, bulk, packed units), so the store can count against it and
     post the differences through stock adjustments; owners see the totals.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission]
 
     def get(self, request, code):
         from apps.inventory.models import InventoryBulk, InventoryRoll
