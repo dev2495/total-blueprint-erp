@@ -141,7 +141,13 @@ export default function MachineScanPage() {
               </div>
             ))}
           </div>
-          {isSupervisorView && running.job_state === "EXECUTING" ? (
+          {isSupervisorView && running.job_state === "EXECUTING" && running.step_output_form === "ROLL" ? (
+            <div className="mt-3 rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm text-content-2">
+              {running.step_name ? `${running.step_name} makes rolls: ` : "This step makes rolls: "}log each roll with its width and weight on the{" "}
+              <Link href={`/production/machine/${data?.machine.id}`} className="font-semibold text-primary">machine terminal</Link>.
+            </div>
+          ) : null}
+          {isSupervisorView && running.job_state === "EXECUTING" && running.step_output_form !== "ROLL" ? (
             <div className="mt-3 rounded-xl border border-success-border bg-success-bg/40 p-3">
               <div className="mb-2 text-caption font-semibold uppercase tracking-wide text-success-fg">Quick log output · माल लिखें</div>
               <div className="grid grid-cols-[1fr_1fr_auto] gap-2">

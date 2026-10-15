@@ -508,7 +508,7 @@ class MachineScanView(APIView):
         granted = granted_for(user)
         can_view_maint = can_with_wildcard(granted, "maintenance.view")
         today = timezone.localdate()
-        running = list(ProductionJob.objects.filter(machine=machine, job_state__in=["EXECUTING", "PAUSED"]).select_related("sales_order_item__sales_order").order_by("start_date")[:5])
+        running = list(ProductionJob.objects.filter(machine=machine, job_state__in=["EXECUTING", "PAUSED"]).select_related("sales_order_item__sales_order", "current_process", "process").order_by("start_date")[:5])
         queued = ProductionJob.objects.filter(machine=machine).exclude(job_state__in=["EXECUTING", "PAUSED", "COMPLETED", "CANCELLED"]).count()
         since = timezone.now() - timezone.timedelta(days=30)
         downtime = DowntimeLog.objects.filter(production_job__machine=machine, start_time__gte=since)
@@ -535,7 +535,9 @@ class MachineScanView(APIView):
                      "order_number": getattr(getattr(j.sales_order_item, "sales_order", None), "order_number", "") if j.sales_order_item_id else "",
                      "customer": getattr(getattr(j.sales_order_item, "sales_order", None), "customer_name", "") if j.sales_order_item_id else "",
                      "quantity": float(j.quantity or 0), "uom": j.uom, "produced_qty": float(j.produced_qty or 0), "remaining_qty": float(j.remaining_qty or 0),
-                     "started_at": j.start_date.isoformat() if j.start_date else None, "hold_reason": j.hold_reason or ""}
+                     "started_at": j.start_date.isoformat() if j.start_date else None, "hold_reason": j.hold_reason or "",
+                     "step_name": getattr(j.current_process or j.process, "name", "") or "",
+                     "step_output_form": str(getattr(j.current_process or j.process, "output_form", "") or "").upper()}
                     for j in running
                 ],
                 "queued_count": queued,
@@ -600,10 +602,26 @@ class LocationScanView(APIView):
             if len(roll_rows) < 400:
                 roll_rows.append({"id": str(roll.id), "roll_number": roll.label_id or str(roll.id)[:8], "material_code": getattr(mat, "code", "") or "", "width_mm": float(roll.width_mm or 0), "weight_kg": float(roll.weight_kg or 0), "status": roll.status, "batch_no": roll.batch_no})
         bulk_rows = []
-        for row in InventoryBulk.objects.filter(location=location, qty_kg__gt=0).select_related("material", "granule_code").order_by("material__code"):
+        bulk_qs = list(InventoryBulk.objects.filter(location=location, qty_kg__gt=0).select_related("material", "granule_code").order_by("material__code"))
+        rows_per_material: dict[str, int] = {}
+        for row in InventoryBulk.objects.filter(location=location).values_list("material_id", flat=True):
+            rows_per_material[str(row)] = rows_per_material.get(str(row), 0) + 1
+        countable_categories = {"GRANULE", "INK", "ADHESIVE", "SOLVENT", "ADDON", "FILM_FAMILY"}
+        for row in bulk_qs:
+            category = str(row.material.category or "").upper()
+            # The phone count posts a stock adjustment, which works per material at a
+            # location. Coded granules held under several codes, or other stock
+            # classes, are counted in the physical count instead.
+            if category not in countable_categories:
+                countable, count_note = False, "Counted in the physical count"
+            elif rows_per_material.get(str(row.material_id), 0) > 1:
+                countable, count_note = False, "Several quality codes here: count in the physical count"
+            else:
+                countable, count_note = True, ""
             bulk_rows.append({"id": str(row.id), "material_id": str(row.material_id), "material_code": row.material.code, "material_name": row.material.name,
                               "category": row.material.category, "granule_code": row.granule_code.code if row.granule_code_id else "",
-                              "qty": float(row.qty_kg or 0), "uom": str(getattr(row.material, "base_uom", "KG") or "KG").upper()})
+                              "qty": float(row.qty_kg or 0), "uom": str(getattr(row.material, "base_uom", "KG") or "KG").upper(),
+                              "countable": countable, "count_note": count_note})
         packed = PackingUnit.objects.filter(location=location).exclude(status__in=["DISPATCHED", "CANCELLED"]).aggregate(units=Count("id"), pcs=Sum("qty_pcs"), kg=Sum("weight_kg"))
         return Response({
             "location": {"id": str(location.id), "code": location.code, "name": location.name, "type": location.type, "plant_id": str(location.plant_id), "plant_name": location.plant.name, "plant_code": location.plant.code},

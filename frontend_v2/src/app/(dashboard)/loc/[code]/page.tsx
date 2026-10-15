@@ -56,19 +56,29 @@ export default function LocationScanPage() {
       if (!data) throw new Error("Nothing to post.");
       const created = await api.post("/api/inventory/adjustments/", { plant: data.location.plant_id, reason: data.adjustment_reason || "COUNT_CORRECTION", notes: `Count at ${data.location.code} (${data.location.name}) from phone scan. ${note}`.trim() });
       const adjustmentId = created.data?.id;
-      for (const row of diffs) {
-        await api.post(`/api/inventory/adjustments/${adjustmentId}/add-line/`, {
-          stock_class: row.kind,
-          inventory_material: row.kind === "BULK" ? row.material_id : undefined,
-          inventory_roll: row.kind === "ROLL" ? row.roll_id : undefined,
-          location: data.location.id,
-          delta_qty: row.delta,
-          uom: row.uom,
-          notes: row.kind === "ROLL" ? "Not found during count" : `Counted ${row.after} ${row.uom.toLowerCase()}, system ${row.before}`,
-        });
+      try {
+        for (const row of diffs) {
+          await api.post(`/api/inventory/adjustments/${adjustmentId}/add-line/`, {
+            stock_class: row.kind,
+            inventory_material: row.kind === "BULK" ? row.material_id : undefined,
+            inventory_roll: row.kind === "ROLL" ? row.roll_id : undefined,
+            location: data.location.id,
+            delta_qty: row.delta,
+            uom: row.uom,
+            notes: row.kind === "ROLL" ? "Not found during count" : `Counted ${row.after} ${row.uom.toLowerCase()}, system ${row.before}`,
+          });
+        }
+        const posted = await api.post(`/api/inventory/adjustments/${adjustmentId}/post/`, {});
+        return posted.data;
+      } catch (err) {
+        // Nothing half-done is left behind: remove the draft, then report.
+        try {
+          await api.delete(`/api/inventory/adjustments/${adjustmentId}/`);
+        } catch {
+          // The draft stays visible under Stock adjustments if it cannot be removed.
+        }
+        throw err;
       }
-      const posted = await api.post(`/api/inventory/adjustments/${adjustmentId}/post/`, {});
-      return posted.data;
     },
     onSuccess: (adjustment: any) => {
       toast({ title: "Count posted · गिनती दर्ज", description: `Adjustment ${adjustment?.code || ""} posted with ${diffs.length} line(s).` });
@@ -139,7 +149,10 @@ export default function LocationScanPage() {
                       <div className="text-caption uppercase text-content-3">system</div>
                     </div>
                   </div>
-                  {counting ? (
+                  {counting && row.countable === false ? (
+                    <div className="mt-2 text-caption text-content-3">{row.count_note || "Counted in the physical count"}</div>
+                  ) : null}
+                  {counting && row.countable !== false ? (
                     <div className="mt-2 flex items-center gap-2">
                       <Input type="number" inputMode="decimal" step="0.001" className="h-12 font-mono text-lg" placeholder={`Counted ${row.uom.toLowerCase()}`} aria-label={`Counted quantity for ${row.material_code}`} value={bulkCounts[row.id] ?? ""} onChange={(event) => setBulkCounts((current) => ({ ...current, [row.id]: event.target.value }))} data-testid={`loc-count-${row.material_code}`} />
                       <Button type="button" variant="outline" className="h-12" onClick={() => setBulkCounts((current) => ({ ...current, [row.id]: String(row.qty) }))}>

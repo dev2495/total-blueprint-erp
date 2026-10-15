@@ -175,7 +175,7 @@ export interface MachineScan {
   machine: MachineRef & { concurrency_policy: string; assigned_operator: string };
   viewer: { role: string; can_log_checks: boolean; can_work: boolean; can_manage: boolean; can_view_maintenance: boolean; can_run_production: boolean; can_view_production: boolean };
   production: {
-    running: Array<{ id: string; job_number: string; job_state: string; status: string; order_number: string; customer: string; quantity: number; uom: string; produced_qty: number; remaining_qty: number; started_at: string | null; hold_reason: string }>;
+    running: Array<{ id: string; job_number: string; job_state: string; status: string; order_number: string; customer: string; quantity: number; uom: string; produced_qty: number; remaining_qty: number; started_at: string | null; hold_reason: string; step_name?: string; step_output_form?: string }>;
     queued_count: number;
   };
   report_30d: { run_hours: number; downtime_hours: number; breakdowns: number; breakdown_hours: number };
@@ -196,7 +196,7 @@ export interface LocationScan {
   totals: { roll_count: number; roll_kg: number; bulk_lines: number; bulk_kg: number; packed_units: number; packed_pcs: number; packed_kg: number };
   roll_groups: Array<{ material_id: string; material_code: string; material_name: string; rolls: number; weight_kg: number; reserved: number }>;
   rolls: Array<{ id: string; roll_number: string; material_code: string; width_mm: number; weight_kg: number; status: string; batch_no: string }>;
-  bulk: Array<{ id: string; material_id: string; material_code: string; material_name: string; category: string; granule_code: string; qty: number; uom: string }>;
+  bulk: Array<{ id: string; material_id: string; material_code: string; material_name: string; category: string; granule_code: string; qty: number; uom: string; countable?: boolean; count_note?: string }>;
   adjustment_reason: string;
 }
 
