@@ -34,6 +34,7 @@ Also: **add-on shortage switch** `ADDON_SHORTAGE_BLOCKS` (env, default off). Add
 ## QR and phone scan
 - Printable QR posters for every machine and every stock location (`/maintenance/qr`, plus a QR button on the machine card and a "QR code" action on the locations master).
 - Scan icon in the header for every role (desktop and phone), using the existing gate scanner.
+- A QR opened by the phone camera while signed out goes to sign-in and then back to that machine or location card (follow-up release on top of `80ba0619527f`).
 - `/m/<machine code>`: role-aware machine card. Operator: today's checks, report fault, terminal link. Technician: open jobs, schedules, history. Supervisor / work-centre manager: running order with a quick output log. Owner / plant manager: queue, 30-day run hours, downtime, breakdowns. Maintenance supervisor: the machine's board.
 - `/loc/<location code>`: what the system says is at the location (rolls by material, bulk lines, packed units, totals); store users count against it and post differences as a stock adjustment (count correction) through the normal posting rules; owners see the totals.
 
@@ -45,7 +46,7 @@ Also: **add-on shortage switch** `ADDON_SHORTAGE_BLOCKS` (env, default off). Add
 
 ## Guard rails
 - Unit tests: `apps/production/tests/test_floor_logic_contracts.py` (19: resume guard and add-on shortage switch added; roll contract, add-on basis, add-on issue step, pause/resume downtime, concurrency policy, recalc guard), `apps/maintenance/tests.py` (11: fixed-calendar vs after-last-service, unable/issue outcomes, fault pauses job, strict-RBAC per role).
-- E2E: `tests/e2e/gate/maintenance.spec.ts` (schedule → due job → record → fault → QR → machine and location scan cards; header scan button), plus the existing sweeps.
+- E2E: `tests/e2e/gate/maintenance.spec.ts` (schedule → due job → record → fault → QR → machine and location scan cards; header scan button; signed-out QR scan returns to the machine card after sign-in), plus the existing sweeps.
 - Migrations (all additive): `factory.0029`, `materials.0052`, `production.0076`, `maintenance.0001`, `maintenance.0002` (roles).
 
 ## E2E suite repairs (long-standing failures, none caused by this release)
@@ -58,3 +59,8 @@ Also: **add-on shortage switch** `ADDON_SHORTAGE_BLOCKS` (env, default off). Add
 
 ## Deploy
 Build and activate with `.runtime/release-floor-logic/{build,activate}-floor-release.sh` (parent `28aa4de42a5f`). Migrate runs inside activate; no env change; beat picks up the two new schedules on restart.
+
+## Go-live record
+- **15 Oct 2026, `80ba0619527f`** (parent `28aa4de42a5f`): server tree hash-matched the parent before build; managed backup PASS (86.4 MB) with a temporary restore drill; `check --deploy` clean; the exact five additive migrations applied; restart window 66 s; runtime proof PASS (maintenance roles present, no pending migrations); worker registered the maintenance tasks and beat carries both schedules; `ADDON_SHORTAGE_BLOCKS` off. Signed-out checks: all app routes 200, new maintenance and scan APIs 401, `/media/maintenance` 404, `/m/<code>` redirects to sign-in.
+- Verification before go-live (fresh database): Playwright gate 299/299, mutations 13/13, observations 10/10 ("Release green sweep passed"); backend 1,456 tests OK; typecheck, lint and navigation validation clean; no migration drift; secret scan clean.
+- **Follow-up (scan return after sign-in)**: frontend only, no migrations. Build and activate with `.runtime/release-scan-return/{build,activate}-scanret-release.sh` (parent `80ba0619527f`; activate refuses any migration plan). Rollback images are tagged `rollback-scanret-<tag>`.

@@ -108,3 +108,38 @@ test("header scan button opens the scanner for the signed-in account", async ({ 
   await page.getByTestId("scan-trigger-mobile").click()
   await expect(page.getByRole("dialog")).toContainText(/Scan QR/i, { timeout: 15_000 })
 })
+
+test("a machine QR opened while signed out returns to the machine card after sign-in", async ({ browser, page: adminPage }, testInfo) => {
+  annotate(testInfo, {
+    module: "Maintenance",
+    severity: "high",
+    role: "ADMIN",
+    feature: "scan-return-after-login",
+    expected: "Opening /m/<code> without a session goes to sign-in, and signing in lands on that machine card instead of the home page.",
+  })
+  const machines = await fetchJson<any>(adminPage, "/api/factory/machines/?page_size=1")
+  expect(machines.status).toBe(200)
+  const rows: any[] = Array.isArray(machines.data) ? machines.data : machines.data?.results || machines.data?.data || []
+  const code = String(rows[0]?.code || "")
+  expect(code).toBeTruthy()
+
+  // A phone camera opening the printed QR: no session cookies at all.
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const page = await context.newPage()
+  try {
+    const anon = await page.request.get("/api/factory/machines/?page_size=1")
+    expect([401, 403]).toContain(anon.status())
+    await page.goto(`/m/${code}`, { waitUntil: "domcontentloaded" })
+    await page.waitForURL(/\/login/, { timeout: 30_000 })
+    await page.locator("#login-identifier").fill(process.env.UI_E2E_ADMIN_USER || "admin")
+    await page.locator("#login-password").fill(process.env.UI_E2E_ADMIN_PASSWORD || "admin123")
+    await page.getByRole("button", { name: /^Sign in/i }).click()
+    await page.waitForURL(new RegExp(`/m/${code}/?$`), { timeout: 60_000 })
+    await expect(page.locator("body")).toContainText(code, { timeout: 30_000 })
+    await expect(page.locator("body")).toContainText(/Run hours/i, { timeout: 30_000 })
+    // A later plain sign-in (no scan) still goes to the role's home page.
+    expect(await page.evaluate(() => window.sessionStorage.getItem("erp.afterLogin"))).toBeNull()
+  } finally {
+    await context.close()
+  }
+})

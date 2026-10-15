@@ -69,6 +69,29 @@ function isAuthRoute(pathname: string) {
     return pathname === "/login" || pathname.startsWith("/login/") || pathname === "/admin-login" || pathname.startsWith("/admin-login/");
 }
 
+// A printed machine or location QR opened by the phone camera while signed out
+// should return to that card after sign-in, not to the role's home page.
+const AFTER_LOGIN_KEY = "erp.afterLogin";
+function isScanReturnPath(path: string) {
+    return /^\/(m|loc)\/[A-Za-z0-9_.-]+\/?$/.test(path) || /^\/maintenance(\/|$)/.test(path);
+}
+function rememberScanReturn(path: string) {
+    try {
+        if (isScanReturnPath(path)) window.sessionStorage.setItem(AFTER_LOGIN_KEY, path);
+    } catch {
+        // Session storage is optional.
+    }
+}
+function takeScanReturn(): string | null {
+    try {
+        const path = window.sessionStorage.getItem(AFTER_LOGIN_KEY);
+        window.sessionStorage.removeItem(AFTER_LOGIN_KEY);
+        return path && isScanReturnPath(path) ? path : null;
+    } catch {
+        return null;
+    }
+}
+
 function getEffectiveRole(userData: User | null): string | null {
     if (!userData) return null;
     const roleOverride = Cookies.get("x_role_override") || "";
@@ -94,6 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [effectiveRole, setEffectiveRole] = useState<string | null>(null);
     const lastActivityAtRef = useRef<number>(Date.now());
     const lastRefreshAtRef = useRef<number>(Date.now());
+    const postLoginLandingRef = useRef<string | null>(null);
     const router = useRouter();
     const pathname = usePathname();
 
@@ -197,6 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (cancelled) return;
             setLoading(false);
             if (!hydratedUser) {
+                rememberScanReturn(window.location.pathname);
                 router.replace("/login");
             }
         };
@@ -303,7 +328,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         lastRefreshAtRef.current = Date.now();
         setLoading(false);
 
-        const landing = getLandingPageForUser(resolvedUser, role);
+        const landing = takeScanReturn() || getLandingPageForUser(resolvedUser, role);
+        postLoginLandingRef.current = landing;
         startTransition(() => {
             router.replace(landing);
             router.refresh();
@@ -326,9 +352,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         const currentPath = String(pathname || "").toLowerCase();
         if (!loading && user && isAuthRoute(currentPath)) {
-            const landing = getLandingPageForUser(user);
+            // A sign-in that chose a landing (for example a scanned machine card) keeps it.
+            const landing = postLoginLandingRef.current || getLandingPageForUser(user);
             router.replace(landing);
+            return;
         }
+        if (!isAuthRoute(currentPath)) postLoginLandingRef.current = null;
     }, [effectiveRole, user, loading, pathname, router]);
 
 
