@@ -11,6 +11,7 @@ import { LocationCapsule } from "@/components/layout/location-capsule";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
+import { ScanButton } from "@/components/scan/scan-button";
 import { UserProfileMenu } from "@/components/layout/user-profile-menu";
 import { ContextHelpSheet } from "@/components/help/context-help-sheet";
 import { getCanonicalRoleLabel } from "@/lib/roles";
@@ -106,6 +107,7 @@ export function Header() {
           <div className="flex shrink-0 items-center gap-1.5">
             <ThemeToggle compact />
             <ContextHelpSheet />
+            <ScanButton compact testId="scan-trigger-mobile" />
             <NotificationBell triggerTestId="notification-bell-trigger-mobile" />
             <UserProfileMenu triggerTestId="profile-menu-trigger-mobile" />
           </div>
@@ -169,6 +171,7 @@ export function Header() {
           <div className="flex items-center gap-1 border-l border-line pl-2 sm:gap-2 sm:pl-3 lg:ml-1 lg:pl-4">
             <ThemeToggle />
             <ContextHelpSheet />
+            <ScanButton compact testId="scan-trigger" />
             <NotificationBell />
             {Boolean(user?.email_missing) && pathname !== "/profile" && !emailReminderDismissed ? (
               <div className="hidden items-center gap-1 lg:flex">

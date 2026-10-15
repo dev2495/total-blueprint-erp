@@ -38,6 +38,7 @@ import {
   ScrollText,
   DoorOpen,
   QrCode,
+  Wrench,
 } from "lucide-react"
 
 import { resolveNavigableRoute } from "./navigation-routes"
@@ -74,6 +75,14 @@ const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
   "/dashboard/admin": "page.dashboard.admin.view",
   "/dashboard/planner": "page.dashboard.planner.view",
   "/dashboard/work-center": "page.dashboard.work_center.view",
+  "/maintenance": "page.maintenance.board.view",
+  "/maintenance/jobs": "page.maintenance.jobs.view",
+  "/maintenance/faults": "page.maintenance.faults.view",
+  "/maintenance/schedules": "page.maintenance.schedules.view",
+  "/maintenance/reports": "page.maintenance.reports.view",
+  "/maintenance/qr": "page.maintenance.qr.view",
+  "/m": "page.scan.machine.view",
+  "/loc": "page.scan.location.view",
   "/dashboard/sales": "page.dashboard.sales.view",
   "/dashboard/inventory": "page.dashboard.inventory.view",
   "/dashboard/logistics": "page.dashboard.logistics.view",
@@ -603,6 +612,21 @@ export const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    title: "Maintenance",
+    href: "/maintenance",
+    icon: Wrench,
+    roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER", "WORK_CENTER_MANAGER", "OPERATOR", "MAINTENANCE_TECH", "MAINTENANCE_SUPERVISOR"],
+    permissionModules: ["maintenance"],
+    children: [
+      { title: "Maintenance Board", group: "Today", href: "/maintenance", icon: LayoutDashboard, roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER", "WORK_CENTER_MANAGER", "OPERATOR", "MAINTENANCE_TECH", "MAINTENANCE_SUPERVISOR"], permissions: ["maintenance.view"] },
+      { title: "Maintenance Jobs", group: "Today", href: "/maintenance/jobs", icon: ListChecks, roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER", "MAINTENANCE_TECH", "MAINTENANCE_SUPERVISOR"], permissions: ["maintenance.view"] },
+      { title: "Machine Faults", group: "Today", href: "/maintenance/faults", icon: AlertTriangle, roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER", "MAINTENANCE_TECH", "MAINTENANCE_SUPERVISOR"], permissions: ["maintenance.view"] },
+      { title: "Schedules", group: "Set up", href: "/maintenance/schedules", icon: CalendarRange, roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER", "MAINTENANCE_SUPERVISOR"], permissions: ["maintenance.manage"] },
+      { title: "QR Codes", group: "Set up", href: "/maintenance/qr", icon: QrCode, roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER", "MAINTENANCE_SUPERVISOR"], permissions: ["maintenance.manage"] },
+      { title: "Maintenance Reports", group: "Reports", href: "/maintenance/reports", icon: BarChart3, roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANT_MANAGER", "MAINTENANCE_SUPERVISOR"], permissions: ["maintenance.view", "analytics.view"] },
+    ],
+  },
+  {
     title: "Administration",
     href: "/dashboard/admin",
     icon: ShieldCheck,
@@ -690,6 +714,7 @@ export const SIDEBAR_SECTION_ORDER = [
   "Procurement",
   "Analytics",
   "Engineering",
+  "Maintenance",
   "Administration",
   "System",
 ]

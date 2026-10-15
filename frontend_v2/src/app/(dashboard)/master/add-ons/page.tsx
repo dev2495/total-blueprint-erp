@@ -215,7 +215,7 @@ function AddonForm({
             {purchaseUom === "METER" && weightMode === "PER_MM" ? ` · stock plan ${(exampleWidthMm / 1000).toFixed(3)} m per bag` : ""}
           </div>
           <div className="mt-0.5 text-caption text-content-3">
-            Saving a changed weight re-resolves every open, unreleased order line that uses this add-on. Lines already released to the floor are recalculated from the work-centre terminal ("Recalculate from masters").
+            Saving a changed weight re-resolves every open, unreleased order line that uses this add-on. Lines already released to the floor are recalculated from the work-centre terminal (&quot;Recalculate from masters&quot;).
           </div>
         </div>
 

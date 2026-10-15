@@ -16,6 +16,8 @@ export const ROLE_LANDING_PAGES: Record<string, string> = {
   ENGINEERING: '/engineering/artworks',
   PLANT_MANAGER: '/analytics/kpis',
   WATCHMAN: '/gate',
+  MAINTENANCE_TECH: '/maintenance/jobs',
+  MAINTENANCE_SUPERVISOR: '/maintenance',
 }
 
 export const CANONICAL_ROLE_LABELS: Record<string, string> = {
@@ -31,6 +33,8 @@ export const CANONICAL_ROLE_LABELS: Record<string, string> = {
   DISPATCH: 'Dispatch',
   PLANT_MANAGER: 'Plant Manager',
   WATCHMAN: 'Watchman',
+  MAINTENANCE_TECH: 'Maintenance Technician',
+  MAINTENANCE_SUPERVISOR: 'Maintenance Supervisor',
 }
 
 export const LEGACY_ROLE_CODE_ALIASES: Record<string, string> = {

@@ -4,7 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Location } from "@/services/factory";
 import { ActionMenu } from "@/components/ui-custom/action-menu";
 import { StatusBadge } from "@/components/ui-custom/status-badge";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, QrCode, Trash2 } from "lucide-react";
 
 interface ColumnsProps {
   onEdit: (item: Location) => void;
@@ -46,6 +46,11 @@ export const getColumns = ({
     cell: ({ row }) => (
       <ActionMenu
         actions={[
+          {
+            label: "QR code",
+            icon: QrCode,
+            onClick: () => window.location.assign(`/maintenance/qr?location=${row.original.id}`),
+          },
           {
             label: "Edit",
             icon: Pencil,

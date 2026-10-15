@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { factoryService, Machine, WorkCenter } from "@/services/factory";
 import { costingService } from "@/services/costing";
@@ -16,6 +18,7 @@ import {
   AlertTriangle,
   CheckCircle2,
 } from "lucide-react";
+import { QrCode } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -411,6 +414,7 @@ export default function MachinesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const router = useRouter();
   const [editingItem, setEditingItem] = useState<Machine | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Machine | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -611,6 +615,16 @@ export default function MachinesPage() {
                 </Badge>
 
                 <div className="flex gap-1 opacity-60 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 hover:text-primary"
+                    aria-label={`Printable QR code for ${machine.code}`}
+                    title="QR code: scan on the floor to open this machine"
+                    onClick={() => router.push(`/maintenance/qr?machine=${machine.id}`)}
+                  >
+                    <QrCode className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
