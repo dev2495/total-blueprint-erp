@@ -320,3 +320,45 @@ class AddonShortageSwitchTests(FloorFixtureMixin, TestCase):
         self.assertTrue(tape_rows[0]["blocking"])
         self.assertEqual(status["addon_shortages"], [])
         self.assertFalse(status["is_satisfied"])
+
+
+class AddonMasterPropagationTests(FloorFixtureMixin, TestCase):
+    """Editing an add-on's weight basis re-resolves the open lines that use it."""
+
+    def setUp(self):
+        from apps.users.models import User
+        self.build_floor()
+        self.tape = InventoryMaterial.objects.create(
+            code="TAPE-PROP", name="Tape prop", category="ADDON", base_uom="METER",
+            weight_mode="PER_MM", weight_value=0.1, addon_weight_basis_mm=1, addon_is_purchased=True, addon_purchase_uom="METER",
+        )
+        self.item.bom_snapshot = {"addons": [{"addon_id": str(self.tape.id), "code": self.tape.code, "weight_kg": 0.028}]}
+        self.item.save(update_fields=["bom_snapshot"])
+        self.other = SalesOrderItem.objects.create(sales_order=self.sales_order, template=self.template, qty_value=5, qty_uom="PCS", unit_price=1, bom_snapshot={"addons": []})
+        self.admin = User.objects.create_superuser(username="prop-admin", password="x", email="prop@example.com")
+
+    def test_basis_change_refreshes_only_lines_using_the_addon(self):
+        from unittest.mock import patch
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        with patch("apps.sales.services.order_service.SalesOrderService.refresh_open_snapshots_for_items", return_value={"checked": 1, "refreshed": 1, "skipped": 0}) as refresh:
+            response = client.patch(f"/api/materials/addons/{self.tape.id}/", {"addon_weight_basis_mm": 10}, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.tape.refresh_from_db()
+        self.assertEqual(self.tape.addon_weight_basis_mm, 10)
+        self.assertIn("addon_weight_basis_mm", response.data["open_lines_refresh"]["changed_fields"])
+        refresh.assert_called_once()
+        queryset = refresh.call_args.args[0]
+        self.assertEqual(list(queryset.values_list("id", flat=True)), [self.item.id])
+
+    def test_name_only_edit_does_not_refresh(self):
+        from unittest.mock import patch
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+        with patch("apps.sales.services.order_service.SalesOrderService.refresh_open_snapshots_for_items") as refresh:
+            response = client.patch(f"/api/materials/addons/{self.tape.id}/", {"name": "Tape renamed"}, format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertNotIn("open_lines_refresh", response.data)
+        refresh.assert_not_called()

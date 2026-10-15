@@ -16,7 +16,11 @@
 | 6 | Step target unexplained | Single number | "Target comes from" line: film + ink + chemicals + add-ons per piece × pieces; per-unit basis on order BOM rows |
 | 7 | Pause kept time only for costing | No downtime record on pause | Pause writes a `DowntimeLog` (bucket + governed reason code + note, `source=PAUSE`); resume and completion close it; both terminals use one pause dialog. OEE and maintenance read one timeline |
 
-Also: **machine concurrency policy** (`Machine.concurrency_policy`: AUTO = bulk→roll steps may run several orders, others one at a time; ALLOW; DENY), enforced at start with a clear refusal naming the running job; set on the machine master.
+Also: **add-on shortage switch** `ADDON_SHORTAGE_BLOCKS` (env, default off). Add-on rows are always shown, issued and consumed at their step; a shortage is flagged in amber on the WCM release bar ("Add-on stock short (not blocking)") and blocks release or start only when the switch is on. Turn it on once tape and zipper stock is received into the ERP at each plant; until then the floor keeps running.
+
+**Calmer screens**: the header bell's gate-bill summary polled every 5 s on every page for bill reviewers, the inventory bill inbox polled again under its own key, and the machine terminal polled every 8 s and 5 s. Now 30 s, 30 s, 15 s (bill queues) and 15 s (terminal); every action still refreshes what it changed at once, and windows refresh on focus.
+
+**Machine concurrency policy** (`Machine.concurrency_policy`: AUTO = bulk→roll steps may run several orders, others one at a time; ALLOW; DENY), enforced at start with a clear refusal naming the running job; set on the machine master.
 
 ## Preventive maintenance (new module `apps.maintenance`)
 - Schedules per machine (daily / weekly / monthly / every N running hours), fixed-calendar or after-last-service due rules, checklist items (OK/Issue or reading with range), operator check vs technician service, critical = verified.
@@ -33,8 +37,14 @@ Also: **machine concurrency policy** (`Machine.concurrency_policy`: AUTO = bulk�
 - `/m/<machine code>`: role-aware machine card. Operator: today's checks, report fault, terminal link. Technician: open jobs, schedules, history. Supervisor / work-centre manager: running order with a quick output log. Owner / plant manager: queue, 30-day run hours, downtime, breakdowns. Maintenance supervisor: the machine's board.
 - `/loc/<location code>`: what the system says is at the location (rolls by material, bulk lines, packed units, totals); store users count against it and post differences as a stock adjustment (count correction) through the normal posting rules; owners see the totals.
 
+## Security and data checks
+- Maintenance, scan and QR endpoints keep the global role guard (strict RBAC in production); the watchman is refused everywhere; the location card needs `inventory.view`, the machine card `production.view`, QR images `factory.view`, maintenance panels `maintenance.view`.
+- Photos are served only through the logged-in API (`/api/maintenance/attachments/<id>/file/`), stored on the persistent media volume, 8 MB limit, images and PDF only.
+- The phone count only offers materials a stock adjustment can post (bulk categories, one quality code at the location); coded granules held under several codes go to the physical count. A failed post removes its draft.
+- Resume honours the machine concurrency policy, same as start.
+
 ## Guard rails
-- Unit tests: `apps/production/tests/test_floor_logic_contracts.py` (16: roll contract, add-on basis, add-on issue step, pause/resume downtime, concurrency policy, recalc guard), `apps/maintenance/tests.py` (6: fixed-calendar vs after-last-service, unable/issue outcomes, fault pauses job).
+- Unit tests: `apps/production/tests/test_floor_logic_contracts.py` (19: resume guard and add-on shortage switch added; roll contract, add-on basis, add-on issue step, pause/resume downtime, concurrency policy, recalc guard), `apps/maintenance/tests.py` (11: fixed-calendar vs after-last-service, unable/issue outcomes, fault pauses job, strict-RBAC per role).
 - E2E: `tests/e2e/gate/maintenance.spec.ts` (schedule → due job → record → fault → QR → machine and location scan cards; header scan button), plus the existing sweeps.
 - Migrations (all additive): `factory.0029`, `materials.0052`, `production.0076`, `maintenance.0001`, `maintenance.0002` (roles).
 
