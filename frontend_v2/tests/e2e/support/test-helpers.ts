@@ -571,17 +571,22 @@ export async function selectByTestId(page: Page, testId: string, option: string 
   if (await matchesTriggerValue()) return
 
   if (isNativeSelect) {
-    const options = await trigger.locator("option").evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        label: node.textContent?.trim() || "",
-        value: (node as HTMLOptionElement).value,
-      })),
-    )
-    const selected = options.find((candidate) =>
-      typeof option === "string"
-        ? candidate.label.includes(option)
-        : option.test(candidate.label),
-    )
+    const readOptions = () =>
+      trigger.locator("option").evaluateAll((nodes) =>
+        nodes.map((node) => ({
+          label: node.textContent?.trim() || "",
+          value: (node as HTMLOptionElement).value,
+        })),
+      )
+    const matches = (candidate: { label: string }) =>
+      typeof option === "string" ? candidate.label.includes(option) : option.test(candidate.label)
+    // Options often arrive from an API after the select renders; wait for the one we need.
+    await expect
+      .poll(async () => (await readOptions()).some(matches), { timeout: 15_000 })
+      .toBe(true)
+      .catch(() => undefined)
+    const options = await readOptions()
+    const selected = options.find(matches)
     if (!selected) throw new Error(`No option matching ${String(option)} found for ${testId}`)
     await trigger.selectOption(selected.value)
     await expect(trigger).toHaveValue(selected.value)
