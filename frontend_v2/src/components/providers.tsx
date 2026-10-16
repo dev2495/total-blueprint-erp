@@ -201,6 +201,15 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         queryCache: new QueryCache({
           onError: (error, query) => {
             if (shouldSkipGlobalError(query.meta) || query.getObserversCount() === 0 || isCancelledRead(error)) return;
+            // A background refresh that timed out while the screen still shows the last good
+            // data is not a failure for the user: the "Synced Ns ago" banner carries it and the
+            // next poll retries. Only a first load with nothing to show gets the toast.
+            const code = (error as { code?: string })?.code;
+            const timedOut = code === "ECONNABORTED" || code === "ETIMEDOUT";
+            if (timedOut && query.state.data !== undefined) {
+              if (typeof console !== "undefined") console.warn("[client-refresh-timeout]", stableOperationKey(query.queryKey));
+              return;
+            }
             reportClientDataError({
               title: "Data load failed",
               error,

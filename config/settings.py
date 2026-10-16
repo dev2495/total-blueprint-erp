@@ -237,7 +237,8 @@ JWT_COOKIE_HTTPONLY = True
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "django.middleware.gzip.GZipMiddleware",
+    # Caddy compresses responses in production; compressing again in Python only costs CPU.
+    *([] if IS_PRODUCTION else ["django.middleware.gzip.GZipMiddleware"]),
     "django.contrib.sessions.middleware.SessionMiddleware",
     # Accept both `/api/x` and `/api/x/` without redirects.
     "config.api_slash_middleware.ApiSlashCompatMiddleware",

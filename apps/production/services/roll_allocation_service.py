@@ -61,6 +61,15 @@ def layer_signature_hash(layer_list) -> str:
 class RollAllocationService:
     @staticmethod
     def get_eligible_rolls(job, include_non_lineage_fallback: bool = False, include_remainder: bool = False):
+        """Eligible rolls for this job's step; computed once per GET request (see _get_eligible_rolls)."""
+        from config.request_context import request_memo
+
+        key = ("eligible_rolls", str(getattr(job, "id", "")), str(getattr(job, "current_process_id", "") or ""),
+               int(getattr(job, "current_step_index", 0) or 0), bool(include_non_lineage_fallback), bool(include_remainder))
+        return request_memo(key, lambda: RollAllocationService._get_eligible_rolls(job, include_non_lineage_fallback, include_remainder))
+
+    @staticmethod
+    def _get_eligible_rolls(job, include_non_lineage_fallback: bool = False, include_remainder: bool = False):
         """
         Universal roll eligibility logic (Stock Order, WIP, Jobwork).
         Filter rules:
@@ -100,6 +109,7 @@ class RollAllocationService:
         qs_all = (
             InventoryRoll.objects.filter(base_filters)
             .exclude(location__code='IN_TRANSIT')
+            .filter(ExecutionService._roll_candidate_prefilter(job, process, strict=False, step0_variant_gate=is_v2))
             .select_related('location').prefetch_related('material__parent_family', 'grade', 'created_process', 'parent_roll')
         )
 
@@ -118,9 +128,9 @@ class RollAllocationService:
             # Step-0 modify/split draws from raw/purchasable stage-0 pool.
             lineage_qs = qs_all.filter(stage_index=0)
         elif lineage_filter is not None:
-            lineage_qs = qs_all.filter(lineage_filter)
+            lineage_qs = qs_all.filter(lineage_filter).filter(ExecutionService._roll_candidate_prefilter(job, process, strict=True))
         else:
-            lineage_qs = qs_all
+            lineage_qs = qs_all.filter(ExecutionService._roll_candidate_prefilter(job, process, strict=True))
 
         downstream_modify_existing = (
             is_v2
@@ -213,8 +223,10 @@ class RollAllocationService:
         if not eligible_ids:
             return InventoryRoll.objects.none()
 
-        filtered = InventoryRoll.objects.filter(id__in=eligible_ids).select_related('location').prefetch_related(
-            'material__parent_family', 'grade', 'created_process', 'parent_roll'
+        # Everything the roll serializer reads, loaded in a handful of queries.
+        filtered = InventoryRoll.objects.filter(id__in=eligible_ids).select_related(
+            'location', 'location__plant', 'plant', 'material', 'material__parent_family', 'grade', 'created_process', 'parent_roll',
+            'created_by_job', 'created_by_job__production_batch', 'production_job', 'production_job__production_batch',
         )
 
         if job.sales_order_item:

@@ -6,7 +6,7 @@ import time
 
 from django.db import connection
 
-from .request_context import clear_request_context, set_request_context
+from .request_context import arm_request_memo, clear_request_context, disarm_request_memo, set_request_context
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,10 @@ class RequestContextMiddleware:
 
         set_request_context(request_id=request_id, user_id=user_id, role=role)
         request.request_id = request_id
+        if request.method in {'GET', 'HEAD'}:
+            arm_request_memo()
+        else:
+            disarm_request_memo()
         started = time.perf_counter()
         sql_count, sql_seconds = 0, 0.0
         response = None
@@ -64,6 +68,14 @@ class RequestContextMiddleware:
             response[self.HEADER_NAME] = request_id
             response['X-App-Build'] = os.getenv('APP_BUILD_SHA', 'unknown')
             response['Server-Timing'] = f'app;dur={duration_ms:.1f}, sql;dur={sql_seconds * 1000:.1f};desc="{sql_count} queries"'
+            slow_ms = float(os.getenv('SLOW_REQUEST_MS', '2000') or 2000)
+            if duration_ms >= slow_ms:
+                # Permanent trace for "request took too long": which path, how long, how many queries.
+                logger.warning('slow_request %s', json.dumps({
+                    'method': request.method, 'path': request.path, 'status': response.status_code,
+                    'duration_ms': round(duration_ms, 1), 'sql_count': sql_count, 'sql_ms': round(sql_seconds * 1000, 1),
+                    'role': role, 'build': os.getenv('APP_BUILD_SHA', 'unknown'),
+                }))
             if queue_read:
                 logger.info('queue_request %s', json.dumps({
                     'method': request.method, 'path': request.path, 'status': response.status_code,
@@ -79,4 +91,5 @@ class RequestContextMiddleware:
                 except Exception:
                     # Never leak a queue-only timeout into a reused write connection.
                     connection.close()
+            disarm_request_memo()
             clear_request_context()

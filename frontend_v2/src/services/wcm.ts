@@ -198,8 +198,9 @@ export const wcmService = {
         return Array.isArray(data) ? data : ((data as { results?: StalledJob[] })?.results ?? []);
     },
 
-    getEligibleRolls: async (jobId: string, signal?: AbortSignal) => {
-        const { data } = await api.get<any[]>(`/api/production/wc-allocation/${jobId}/eligible-rolls/`, { signal });
+    getEligibleRolls: async (jobId: string, signal?: AbortSignal, limit = 400) => {
+        // Inline suggestions only; the roll picker loads the full tiered list itself.
+        const { data } = await api.get<any[]>(`/api/production/wc-allocation/${jobId}/eligible-rolls/`, { params: { limit }, signal });
         return data;
     },
 

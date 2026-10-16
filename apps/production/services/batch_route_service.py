@@ -6,6 +6,8 @@ import re
 from django.db import transaction
 from django.db.models import Q
 
+from config.request_context import request_memo
+
 
 def _safe_int(value, default=0):
     try:
@@ -40,6 +42,14 @@ class RouteGraphService:
 
     @classmethod
     def normalize(cls, routing_rule):
+        """Normalized route graph; parsed once per request for each routing rule."""
+        rule_id = getattr(routing_rule, "id", None)
+        if rule_id is None:
+            return cls._normalize(routing_rule)
+        return request_memo(("route_graph", str(rule_id), str(getattr(routing_rule, "updated_at", "") or "")), lambda: cls._normalize(routing_rule))
+
+    @classmethod
+    def _normalize(cls, routing_rule):
         ordered = list(getattr(routing_rule, "ordered_processes", None) or [])
         raw = getattr(routing_rule, "route_graph", None) or {}
         if not isinstance(raw, dict):
@@ -198,6 +208,10 @@ class RouteGraphService:
     def _template_policy_lookup(cls, template):
         if not template:
             return {}, {}
+        return request_memo(("template_policy", str(template.id)), lambda: cls._template_policy_lookup_uncached(template))
+
+    @classmethod
+    def _template_policy_lookup_uncached(cls, template):
         steps = list(
             template.process_steps.select_related("process")
             .filter(is_removed_from_route=False)
@@ -379,19 +393,28 @@ class RouteGraphService:
         else:
             return False
 
-        base = scope.filter(job_state="COMPLETED")
+        scope_key = (
+            "route_scope", str(candidate.routing_rule_id),
+            str(getattr(candidate, "production_batch_id", "") or ""), str(getattr(candidate, "sales_order_item_id", "") or ""),
+            str(getattr(candidate, "mts_order_id", "") or ""),
+        )
 
-        completed = set(base.exclude(route_node_id="").values_list("route_node_id", flat=True))
-        if not completed:
-            # Legacy fallback for jobs that predate route_node_id.
-            completed_indexes = set(base.values_list("current_step_index", flat=True))
-            graph = cls.normalize(candidate.routing_rule)
-            completed = {
-                node["id"]
-                for node in graph["nodes"]
-                if cls.step_index_for_node(node) in completed_indexes
-            }
-        existing_node_ids = set(scope.exclude(route_node_id="").values_list("route_node_id", flat=True))
+        def _scope_sets():
+            base = scope.filter(job_state="COMPLETED")
+            completed = set(base.exclude(route_node_id="").values_list("route_node_id", flat=True))
+            if not completed:
+                # Legacy fallback for jobs that predate route_node_id.
+                completed_indexes = set(base.values_list("current_step_index", flat=True))
+                graph = cls.normalize(candidate.routing_rule)
+                completed = {
+                    node["id"]
+                    for node in graph["nodes"]
+                    if cls.step_index_for_node(node) in completed_indexes
+                }
+            existing_node_ids = set(scope.exclude(route_node_id="").values_list("route_node_id", flat=True))
+            return completed, existing_node_ids
+
+        completed, existing_node_ids = request_memo(scope_key, _scope_sets)
         resume_start = None
         batch = getattr(candidate, "production_batch", None)
         if batch is not None:
@@ -435,7 +458,10 @@ class RouteGraphService:
         successor_ids = set((completed_node or {}).get("successor_node_ids") or [])
         candidates = (
             ProductionJob.objects.filter(**filters)
-            .select_related("work_center__plant", "from_location__plant", "to_location__plant", "production_batch")
+            .select_related(
+                "work_center__plant", "from_location__plant", "to_location__plant", "production_batch",
+                "routing_rule", "template", "current_process", "process", "mts_order", "sales_order_item",
+            )
             .order_by("current_step_index", "created_at")
         )
         ready = []

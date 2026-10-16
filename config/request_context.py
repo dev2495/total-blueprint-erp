@@ -24,3 +24,28 @@ def get_request_context() -> dict:
         "user_id": _user_id_ctx.get("") or "",
         "role": _role_ctx.get("") or "",
     }
+
+
+# Per-request memo for pure read computations (job context, WIP pool, eligible rolls).
+# Only armed by the middleware for GET/HEAD requests, so writes never see stale values.
+_memo_ctx = contextvars.ContextVar("request_memo", default=None)
+
+
+def arm_request_memo() -> None:
+    _memo_ctx.set({})
+
+
+def disarm_request_memo() -> None:
+    _memo_ctx.set(None)
+
+
+def request_memo(key, build):
+    """Return build() once per request for this key; outside an armed request just call build()."""
+    memo = _memo_ctx.get(None)
+    if memo is None:
+        return build()
+    if key in memo:
+        return memo[key]
+    value = build()
+    memo[key] = value
+    return value

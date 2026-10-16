@@ -330,6 +330,9 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         return {}
 
     def get_execution_profile(self, obj):
+        # List screens that never read the profile (WCM history) skip the per-job computation.
+        if (self.context or {}).get("skip_execution_profile"):
+            return None
         from apps.production.services.services_execution import ExecutionService
         return ExecutionService.get_step_execution_profile(obj.id, job=obj)
 

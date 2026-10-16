@@ -685,6 +685,12 @@ class JobService:
     def runtime_skip_options_for_job(cls, previous_job):
         if str(getattr(previous_job, "job_state", "") or "").upper() != "COMPLETED":
             return []
+        from config.request_context import request_memo
+
+        return request_memo(("runtime_skip_options", str(previous_job.id)), lambda: list(cls._runtime_skip_options_for_job(previous_job)))
+
+    @classmethod
+    def _runtime_skip_options_for_job(cls, previous_job):
         from apps.production.services.batch_route_service import RouteGraphService
 
         options = []

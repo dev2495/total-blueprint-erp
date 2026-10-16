@@ -597,6 +597,10 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
                 'current_process',
                 'process',
                 'template',
+                'routing_rule',
+                'work_center',
+                'mts_order',
+                'production_batch',
                 'sales_order_item__sales_order',
                 'machine',
                 'operator',
@@ -634,7 +638,7 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
 
         from apps.production.serializers import ProductionJobSerializer
 
-        jobs_data = ProductionJobSerializer(queryset, many=True).data
+        jobs_data = ProductionJobSerializer(queryset, many=True, context={"skip_execution_profile": True}).data
         jobs_by_id = {str(j["id"]): j for j in jobs_data}
         job_ids = [job.id for job in queryset]
 
@@ -804,10 +808,15 @@ class JobAllocationViewSet(viewsets.ViewSet):
             ),
             include_remainder=True,
         )
-        logger.debug(f"[DEBUG] Eligible rolls count (with remainder): {rolls.count()}")
-        
-        serializer = InventoryRollSerializer(rolls, many=True)
-        return Response(serializer.data)
+        limit = _bounded_int(request.query_params.get("limit"), default=0, minimum=0, maximum=5000)
+        rows = list(rolls)
+        total = len(rows)
+        if limit:
+            rows = rows[:limit]
+        serializer = InventoryRollSerializer(rows, many=True)
+        response = Response(serializer.data)
+        response["X-Total-Count"] = str(total)
+        return response
 
     @action(detail=False, methods=['post'], url_path='assign-machine')
     def assign_machine(self, request):

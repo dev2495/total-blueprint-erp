@@ -40,6 +40,10 @@ services:
     env_file:
       - /opt/tpp-erp/secrets/app.env
     environment:
+      # 3 processes x 3 threads: Python request work runs on both CPUs even while one
+      # process waits on the database; same 9 slots as before, less head-of-line blocking.
+      GUNICORN_WORKERS: "3"
+      GUNICORN_THREADS: "3"
       BACKUP_LOCAL_DIR: /var/backups/tpp-erp/managed
       DR_RESTORE_DRILL_COMMAND: /app/deploy/aws/restore-drill.sh
       DR_SMOKE_TEST_COMMAND: RESTORED_DATABASE

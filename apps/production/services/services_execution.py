@@ -33,6 +33,38 @@ from apps.production.services.granule_availability import GranuleAvailabilitySer
 
 logger = logging.getLogger(__name__)
 
+from config.request_context import request_memo as _request_memo
+
+
+def _memoized_read(key_builder, copy_result=False):
+    """Compute once per GET request (see RequestContextMiddleware); writes are never memoized."""
+    import copy as _copy
+    import functools
+
+    def decorate(fn):
+        @functools.wraps(fn)
+        def wrapper(cls, *args, **kwargs):
+            try:
+                key = key_builder(*args, **kwargs)
+            except Exception:
+                key = None
+            if key is None:
+                return fn(cls, *args, **kwargs)
+            value = _request_memo(("exec",) + tuple(key), lambda: fn(cls, *args, **kwargs))
+            if copy_result:
+                return _copy.deepcopy(value)
+            return dict(value) if isinstance(value, dict) else value
+        return classmethod(wrapper)
+    return decorate
+
+
+def _job_key(job, process=None):
+    if job is None:
+        return None
+    pid = getattr(process, "id", None) if process is not None else getattr(job, "current_process_id", None) or getattr(job, "process_id", None)
+    return (str(getattr(job, "id", "")), str(pid or ""), int(getattr(job, "current_step_index", 0) or 0))
+
+
 class ExecutionService:
     """
     Phase 64B: core Manufacturing Execution System (MES) logic.
@@ -496,12 +528,7 @@ class ExecutionService:
         if ordered_codes:
             from apps.factory.models import Process
 
-            combine_codes = set(
-                Process.objects.filter(
-                    code__in=ordered_codes,
-                    roll_behavior="MULTI_INPUT_COMBINE",
-                ).values_list("code", flat=True)
-            )
+            combine_codes = cls._combine_codes_for(ordered_codes)
             for idx, code in enumerate(ordered_codes):
                 if idx > current_idx:
                     break
@@ -509,6 +536,16 @@ class ExecutionService:
                     pass_index += 1
             return max(pass_index, 1)
         return 1
+
+    @classmethod
+    def _combine_codes_for(cls, ordered_codes):
+        """Process codes in this route that combine webs; one lookup per request."""
+        from apps.factory.models import Process
+
+        codes = tuple(str(code) for code in ordered_codes or ())
+        return _request_memo(("exec", "combine_codes", codes), lambda: set(
+            Process.objects.filter(code__in=codes, roll_behavior="MULTI_INPUT_COMBINE").values_list("code", flat=True)
+        ))
 
     @classmethod
     def _lane_active_min_layer_count(cls, job, process=None, step_roll_spec=None):
@@ -540,17 +577,12 @@ class ExecutionService:
                 return 0
             from apps.factory.models import Process
 
-            combine_codes = set(
-                Process.objects.filter(
-                    code__in=ordered_codes,
-                    roll_behavior="MULTI_INPUT_COMBINE",
-                ).values_list("code", flat=True)
-            )
+            combine_codes = cls._combine_codes_for(ordered_codes)
             return len([code for code in ordered_codes if code in combine_codes])
         except Exception:
             return 0
 
-    @classmethod
+    @_memoized_read(lambda job, process=None: ("step_roll_spec",) + _job_key(job, process), copy_result=True)
     def _resolve_step_roll_spec(cls, job, process=None):
         process = process or job.current_process or job.process
         behavior = (getattr(process, "roll_behavior", None) or "NONE").upper()
@@ -3369,7 +3401,7 @@ class ExecutionService:
             )
         return None
 
-    @classmethod
+    @_memoized_read(lambda job, process=None: ("target_specs",) + _job_key(job, process), copy_result=True)
     def _build_step_target_specs(cls, job, process=None):
         process = process or job.current_process or job.process
         spec_hint = cls._resolve_step_roll_spec(job, process)
@@ -3473,7 +3505,7 @@ class ExecutionService:
                 _push(fallback_spec)
         return specs
 
-    @classmethod
+    @_memoized_read(lambda job, process=None: ("target_slots",) + _job_key(job, process), copy_result=True)
     def _build_step_target_slots(cls, job, process=None):
         process = process or job.current_process or job.process
         if not process or str(getattr(process, "input_form", "") or "").upper() != "ROLL":
@@ -3881,6 +3913,61 @@ class ExecutionService:
         }
 
     @classmethod
+    def _roll_candidate_prefilter(cls, job, process, *, strict, step0_variant_gate=False):
+        """SQL version of the rules _is_roll_step_compatible applies to every roll.
+
+        strict=True mirrors allow_input_stock_fallback=False. step0_variant_gate mirrors the
+        step-0 modify/split rule that only purchasable film variants may be loaded. Anything
+        this filter removes, the Python check would also reject, so results never change;
+        only fewer rows load.
+        """
+        from django.db.models import Q
+
+        if not process or str(process.input_form or "").upper() != "ROLL":
+            return Q()
+        current = int(getattr(job, "current_step_index", 0) or 0)
+        roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
+        is_roll_to_bulk = str(getattr(process, "output_form", "") or "").upper() == "BULK"
+        # Both branches reject rolls already past the next step.
+        q = Q(current_step_index__lte=current + 1) | Q(current_step_index__isnull=True)
+        if not is_roll_to_bulk:
+            # Every spec names a film variant or family; a roll matching none is rejected in Python too.
+            specs = cls._build_step_target_slots(job, process) if cls._is_lane_group_combine_spec(cls._resolve_step_roll_spec(job, process)) else cls._build_step_target_specs(job, process)
+            material_q = None
+            for spec in specs or []:
+                if not isinstance(spec, dict):
+                    continue
+                if spec.get("variant_id"):
+                    part = Q(material_id=str(spec["variant_id"]))
+                elif spec.get("family_id"):
+                    part = Q(material__parent_family_id=str(spec["family_id"]))
+                else:
+                    material_q = None
+                    break
+                material_q = part if material_q is None else (material_q | part)
+            if material_q is not None and specs:
+                q &= material_q
+        if step0_variant_gate and current == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"}:
+            purchasable = cls._step0_purchasable_variant_ids(job)
+            if purchasable:
+                q &= Q(material_id__in=list(purchasable))
+        if current <= 0:
+            return q
+        piece_primary = is_roll_to_bulk and cls._is_piece_primary_roll_to_bulk_job(job, process=process)
+        # A roll without the roll_role key is not raw; NOT IN alone would drop it (SQL null).
+        not_raw = ~Q(meta_json__roll_role__in=["RAW_MATERIAL", "RAW"]) | Q(meta_json__roll_role__isnull=True)
+        if is_roll_to_bulk:
+            if not piece_primary:
+                q &= Q(current_step_index__gte=current)
+                q &= not_raw
+            return q
+        if strict:
+            q &= not_raw
+            if roll_behavior != "MULTI_INPUT_COMBINE":
+                q &= Q(current_step_index__gte=current)
+        return q
+
+    @classmethod
     def _is_roll_step_compatible(cls, job, process, roll, target_specs, allow_input_stock_fallback=False):
         if not process or (process.input_form or "").upper() != "ROLL":
             return True
@@ -4028,7 +4115,7 @@ class ExecutionService:
                 break
         return rows
 
-    @classmethod
+    @_memoized_read(lambda job: ("wip_pool_v2",) + _job_key(job))
     def _resolve_wip_pool_details_v2(cls, job):
         process = job.current_process or job.process
         plant_id = cls._resolve_job_plant_id(job)
@@ -4185,9 +4272,12 @@ class ExecutionService:
         )
         if plant_id:
             candidates_qs = candidates_qs.filter(location__plant_id=plant_id)
+        # Rolls the compatibility check would reject anyway are left out in SQL, so a plant with
+        # thousands of stock rolls is not loaded into Python on every screen refresh.
+        candidates_qs = candidates_qs.filter(cls._roll_candidate_prefilter(job, process, strict=False, step0_variant_gate=True))
 
         if lineage_filter is not None:
-            lineage_qs = candidates_qs.filter(lineage_filter)
+            lineage_qs = candidates_qs.filter(lineage_filter).filter(cls._roll_candidate_prefilter(job, process, strict=True))
             if current_step_index > 0:
                 lineage_qs = lineage_qs.filter(created_by_job__isnull=False)
         else:
@@ -4336,7 +4426,7 @@ class ExecutionService:
             "recent_lineage": cls._recent_lineage_rolls(job, plant_id),
         }
 
-    @classmethod
+    @_memoized_read(lambda job: ("wip_pool",) + _job_key(job))
     def _resolve_wip_pool_details(cls, job):
         if cls._is_v2(job):
             return cls._resolve_wip_pool_details_v2(job)
@@ -5215,7 +5305,7 @@ class ExecutionService:
         return requirements
 
 
-    @classmethod
+    @_memoized_read(lambda job_id, reconcile_assignment=False: None if reconcile_assignment else ("job_context", str(job_id)))
     def get_job_context(cls, job_id, reconcile_assignment=False):
         """
         Loads full execution context for the WCM Terminal.
@@ -7452,7 +7542,7 @@ class ExecutionService:
             })
         return grouped
 
-    @classmethod
+    @_memoized_read(lambda job_id: ("satisfaction", str(job_id)))
     def get_satisfaction_status(cls, job_id):
         """
         Phase 68: Returns input satisfaction status for UI.

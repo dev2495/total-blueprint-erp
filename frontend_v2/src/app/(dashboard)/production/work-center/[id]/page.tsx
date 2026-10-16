@@ -870,7 +870,7 @@ export default function WCMTerminal() {
           historyDaysFilter === "ALL" ? null : Number(historyDaysFilter || 30),
         limit: 300,
       }),
-    refetchInterval: 30000, // History can update less frequently
+    refetchInterval: 120000, // History is a side panel; it does not need to poll every 30 s
     enabled: activeMainTab === "history",
   });
 
@@ -878,7 +878,7 @@ export default function WCMTerminal() {
     queryKey: ["wcm-stats", wcId],
     queryFn: () => wcmService.getStats(wcId),
     refetchInterval:
-      materialIssueDirty || materialIssuePickerOpen ? false : 30000,
+      materialIssueDirty || materialIssuePickerOpen ? false : 60000,
     placeholderData: keepPreviousData,
   });
 
@@ -891,7 +891,7 @@ export default function WCMTerminal() {
   } = useQuery<StalledJob[]>({
     queryKey: ["wcm-stalled-jobs", wcId],
     queryFn: () => wcmService.getStalledJobs({ work_center: wcId }),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
     placeholderData: keepPreviousData,
   });
   const stalledJobsList = Array.isArray(stalledJobs) ? stalledJobs : [];
