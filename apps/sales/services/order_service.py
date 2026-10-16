@@ -1686,48 +1686,51 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
             axis_values = item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {}
             pm_print_context = product_master_print_context(product_master, axis_values=axis_values)
             expected_line_stock_form = _line_size_stock_form(item, product_master)
-        substrate_mode = str(
-            printing.get("substrate_mode")
-            or printing.get("film_type")
-            or (substrate_mode_from_stock_form(expected_line_stock_form) if expected_line_stock_form else "")
-            or (pm_print_context["substrate_mode"] if pm_print_context else "")
-            or fixed_attrs.get("film_type")
-            or "SHEET"
-        ).upper()
-        if substrate_mode not in {"SHEET", "TUBING"}:
-            substrate_mode = "SHEET"
-        printing["substrate_mode"] = substrate_mode
-        printing["film_type"] = substrate_mode
+    # Lines without a product master still need a substrate mode and colour counts to confirm.
+    substrate_mode = str(
+        printing.get("substrate_mode")
+        or printing.get("film_type")
+        or (substrate_mode_from_stock_form(expected_line_stock_form) if expected_line_stock_form else "")
+        or (pm_print_context["substrate_mode"] if pm_print_context else "")
+        or fixed_attrs.get("film_type")
+        or "SHEET"
+    ).upper()
+    if substrate_mode not in {"SHEET", "TUBING"}:
+        substrate_mode = "SHEET"
+    printing["substrate_mode"] = substrate_mode
+    printing["film_type"] = substrate_mode
 
-        front_default = (
-            fixed_attrs.get("default_front_colors")
-            or fixed_attrs.get("front_colors_count")
-            or fixed_attrs.get("default_color_count")
-            or 1
-        )
-        back_default = (
-            fixed_attrs.get("default_back_colors")
-            or fixed_attrs.get("back_colors_count")
-            or 0
-        )
-        front_count = int(printing.get("front_colors_count") or len(printing.get("front_colors") or []) or front_default or 1)
-        back_count = int(printing.get("back_colors_count") or len(printing.get("back_colors") or []) or back_default or 0)
-        if substrate_mode == "SHEET":
-            back_count = 0
-        printing["front_colors_count"] = max(0, front_count)
-        printing["back_colors_count"] = max(0, back_count)
+    front_default = (
+        fixed_attrs.get("default_front_colors")
+        or fixed_attrs.get("front_colors_count")
+        or fixed_attrs.get("default_color_count")
+        or 1
+    )
+    back_default = (
+        fixed_attrs.get("default_back_colors")
+        or fixed_attrs.get("back_colors_count")
+        or 0
+    )
+    front_count = int(printing.get("front_colors_count") or len(printing.get("front_colors") or []) or front_default or 1)
+    back_count = int(printing.get("back_colors_count") or len(printing.get("back_colors") or []) or back_default or 0)
+    if substrate_mode == "SHEET" and product_master:
+        # Master-driven lines inherit the sheet rule silently; free-form lines
+        # keep what the user typed so the sheet/back-colour guard below can reject it.
+        back_count = 0
+    printing["front_colors_count"] = max(0, front_count)
+    printing["back_colors_count"] = max(0, back_count)
 
-        # Authoritative ink GSM comes from the approved artwork ONLY. No
-        # PM-level default-ink-gsm fallback any more — that would create
-        # phantom ink rows for warning-print orders. If `printing.enabled`
-        # is true here, an artwork must be on the line (or the PM
-        # default-artwork fallback resolved below) and the artwork itself
-        # supplies the GSM via the upstream `_printing_from_payload`. If no
-        # GSM is present we leave it at the snapshot's current value
-        # (likely 0) and let the downstream artwork lookup populate it.
-        ink_gsm = Decimal(str(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0))
-        printing["ink_gsm_total"] = float(ink_gsm)
-        printing["ink_gsm"] = float(ink_gsm)
+    # Authoritative ink GSM comes from the approved artwork ONLY. No
+    # PM-level default-ink-gsm fallback any more — that would create
+    # phantom ink rows for warning-print orders. If `printing.enabled`
+    # is true here, an artwork must be on the line (or the PM
+    # default-artwork fallback resolved below) and the artwork itself
+    # supplies the GSM via the upstream `_printing_from_payload`. If no
+    # GSM is present we leave it at the snapshot's current value
+    # (likely 0) and let the downstream artwork lookup populate it.
+    ink_gsm = Decimal(str(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0))
+    printing["ink_gsm_total"] = float(ink_gsm)
+    printing["ink_gsm"] = float(ink_gsm)
 
     print_type = str(printing.get("type") or printing.get("method") or "").upper()
     if not print_type:

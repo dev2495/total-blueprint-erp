@@ -88,7 +88,7 @@ class RollAllocationService:
         from apps.production.services.services_execution import ExecutionService
         is_v2 = ExecutionService._is_v2(job)
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
-        current_step_index = int(getattr(job, "current_step_index", 0) or 0)
+        current_step_index = ExecutionService._input_gate_step_index(job)  # root branches take raw stock like step 0
         try:
             from apps.inventory.serializers import resolve_roll_role
         except Exception:
@@ -144,6 +144,7 @@ class RollAllocationService:
             )
 
         eligible_ids = []
+        eligible_rows = []
         seen_ids = set()
         from apps.inventory.models import InventoryReservation
         reserved_by_other_active = set(
@@ -190,6 +191,7 @@ class RollAllocationService:
                     continue
                 seen_ids.add(roll.id)
                 eligible_ids.append(roll.id)
+                eligible_rows.append(roll)
 
         # Primary pool: lineage-matched rolls.
         collect_compatible_ids(lineage_qs, allow_input_stock_fallback=False)
@@ -211,6 +213,15 @@ class RollAllocationService:
                 required_rolls = 0
 
             needs_fallback = (len(eligible_ids) == 0) or (required_rolls > 0 and len(eligible_ids) < required_rolls)
+            if not needs_fallback and ExecutionService._is_lane_group_combine_spec(step_roll_spec):
+                # Lane groups: lineage may fill the produced lanes and leave a purchased
+                # layer's lane empty; that lane's stock rolls must be offered.
+                try:
+                    slots = ExecutionService._build_step_target_slots(job, process)
+                    match = ExecutionService._match_rolls_to_lane_slots(job, process, eligible_rows, slots, allow_input_stock_fallback=True)
+                    needs_fallback = bool(match.get("unmatched_target_slots"))
+                except Exception:
+                    logger.warning("lane fallback check failed for job=%s", job.id, exc_info=True)
             if needs_fallback:
                 if lineage_filter is not None:
                     fallback_qs = qs_all.exclude(lineage_filter)
@@ -298,6 +309,20 @@ class RollAllocationService:
         match the job target slot; trim is accounted separately between children.
         """
         from apps.production.services.services_execution import ExecutionService
+
+        # The finished child width lives on the order's geometry (set by sales / lane-up).
+        # After lamination the input spec is the full laminate web, so it must not win here.
+        try:
+            geometry = ExecutionService._job_geometry_snapshot(job) or {}
+            base = geometry.get("base") if isinstance(geometry.get("base"), dict) else {}
+            for key in ("target_child_width_mm", "child_target_width_mm"):
+                raw = geometry.get(key) if geometry.get(key) not in (None, "", 0) else base.get(key)
+                if raw not in (None, "", 0):
+                    width = Decimal(str(raw))
+                    if width > 0:
+                        return width
+        except Exception:
+            logger.warning("Child width from geometry failed job_id=%s", getattr(job, "id", None), exc_info=True)
 
         try:
             ctx = ExecutionService.get_job_context(str(job.id), reconcile_assignment=False) or {}

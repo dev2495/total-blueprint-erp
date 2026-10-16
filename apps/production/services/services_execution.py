@@ -101,6 +101,7 @@ class ExecutionService:
             "V2_STEP0_RESERVED_ACTUAL_WEIGHT": "Actual weight of reserved roll because it did not match a BOM layer",
             "V2_STEP0_HEAVIEST_PURCHASE_LAYER": "Heaviest purchasable BOM layer by density",
             "V2_COMBINE_FILM_SUM": "Sum of all BOM film layer weights for the order",
+            "V2_LAMINATE_FILM_SUM": "Step after lamination: sum of all BOM film layer weights",
             "V2_STEP_VARIANT_MATCH": "Film layers matching the output variant",
             "V2_ROLL_MASS_TARGET": "Order quantity for roll-mass job",
             "V2_FINAL_STEP_ORDER_TARGET": "Final route step uses the full order target",
@@ -507,6 +508,120 @@ class ExecutionService:
         return {}
 
     @classmethod
+    def _route_node_for_job(cls, job):
+        """This job's node in its route graph (None on linear routes without a graph)."""
+        if not getattr(job, "routing_rule_id", None):
+            return None
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        return _request_memo(("exec", "route_node", str(job.id), str(getattr(job, "route_node_id", "") or ""), int(getattr(job, "current_step_index", 0) or 0)),
+                             lambda: RouteGraphService.node_for_job(job))
+
+    @classmethod
+    def _input_gate_step_index(cls, job):
+        """Step index used to decide whether raw/purchased stock may feed this job.
+
+        A root of a parallel route (printing fed by purchased PET while extrusion makes the
+        LD web) sits at template index 1 or more, but it is the first step of its branch and
+        must take raw rolls like step 0 does. Non-root jobs keep their real step index.
+        """
+        real_index = int(getattr(job, "current_step_index", 0) or 0)
+        if real_index <= 0:
+            return 0
+        try:
+            node = cls._route_node_for_job(job)
+        except Exception:
+            node = None
+        if node and not (node.get("predecessor_node_ids") or []):
+            return 0
+        return real_index
+
+    @classmethod
+    def _prior_combine_step_index(cls, job, process=None):
+        """Step index of the last lamination (combine) step before this job's step, or None.
+
+        Steps after lamination (slitting, pouching) take the laminate, not the single films;
+        a second lamination pass takes the first pass's laminate in one lane.
+        """
+        rule = getattr(job, "routing_rule", None)
+        if rule is None:
+            return None
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        nodes = RouteGraphService.normalize(rule)["nodes"]
+        combine_codes = cls._combine_codes_for([n["process_code"] for n in nodes])
+        current = int(getattr(job, "current_step_index", 0) or 0)
+        prior = [RouteGraphService.step_index_for_node(n) for n in nodes if n["process_code"] in combine_codes and RouteGraphService.step_index_for_node(n) < current]
+        return max(prior) if prior else None
+
+    @classmethod
+    def _job_branch_layer_indexes(cls, job, process=None):
+        """Layer indexes (0-based) a root branch job works on, or None when the whole stack applies.
+
+        Roll-making roots (extrusion) take the extruded layers in route order; the other roots
+        (printing a purchased web) take the purchased layers in route order. Only applies when the
+        route has two or more roots and the order has two or more layers.
+        """
+        process = process or getattr(job, "current_process", None) or getattr(job, "process", None)
+        if str(getattr(process, "roll_behavior", "") or "").upper() == "MULTI_INPUT_COMBINE":
+            return None
+        node = cls._route_node_for_job(job)
+        if not node or (node.get("predecessor_node_ids") or []):
+            return None
+        from apps.factory.models import Process
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        graph = RouteGraphService.normalize(job.routing_rule)
+        roots = [n for n in graph["nodes"] if not (n.get("predecessor_node_ids") or [])]
+        layers = [layer for layer in (cls._job_layer_snapshot(job) or []) if isinstance(layer, dict)]
+        if len(roots) < 2 or len(layers) < 2:
+            return None
+        behaviours = dict(Process.objects.filter(code__in=[n["process_code"] for n in roots]).values_list("code", "roll_behavior"))
+        producer_roots = [n for n in roots if str(behaviours.get(n["process_code"]) or "").upper() == "CREATE_NEW"]
+        other_roots = [n for n in roots if n not in producer_roots]
+        variant_ids = [str(layer.get("variant_id") or layer.get("material_id") or "") for layer in layers]
+        extrudable = {
+            str(row) for row in InventoryMaterial.objects.filter(id__in=[v for v in variant_ids if v], is_extrudable=True).values_list("id", flat=True)
+        }
+
+        def is_made_here(index, layer):
+            source = str(layer.get("source_mode") or layer.get("source") or "").upper()
+            if source in {"EXTRUDE", "EXTRUSION", "PRODUCE", "PRODUCED", "MAKE", "IN_HOUSE", "CREATE_NEW"}:
+                return True
+            if source in {"PURCHASE", "PURCHASED"}:
+                return False
+            return variant_ids[index] in extrudable
+
+        made_here = [i for i, layer in enumerate(layers) if is_made_here(i, layer)]
+        bought = [i for i in range(len(layers)) if i not in made_here]
+        mapping = {}
+        for root, index in zip(producer_roots, made_here):
+            mapping[root["id"]] = [index]
+        for root, index in zip(other_roots, bought):
+            mapping[root["id"]] = [index]
+        return mapping.get(node["id"])
+
+    @classmethod
+    def _job_output_layer_snapshot(cls, job, process=None):
+        """The layer a roll-making (CREATE_NEW) step produces.
+
+        On a parallel route (EXT ∥ PRT -> Lam) the extrusion branch makes the extruded layer,
+        not necessarily layer 1 of the BOM. Branch key first, then the producer layers in
+        route order (the rule job creation uses), then layer 1 as before.
+        """
+        process = process or getattr(job, "current_process", None) or getattr(job, "process", None)
+        if str(getattr(process, "roll_behavior", "") or "").upper() == "CREATE_NEW" and cls._job_layer_count(job) > 1:
+            try:
+                from apps.production.services.job_services import JobService
+
+                layer = JobService._skipped_roll_layer_snapshot(job)
+                if isinstance(layer, dict) and layer:
+                    return layer
+            except Exception:
+                logger.warning("output layer for job=%s could not be matched to its branch", getattr(job, "id", None), exc_info=True)
+        return cls._first_layer_snapshot(job)
+
+    @classmethod
     def _job_layer_count(cls, job):
         layer_snapshot = cls._job_layer_snapshot(job)
         if not isinstance(layer_snapshot, list):
@@ -588,7 +703,7 @@ class ExecutionService:
         behavior = (getattr(process, "roll_behavior", None) or "NONE").upper()
         input_form = (getattr(process, "input_form", None) or "BULK").upper()
         output_form = (getattr(process, "output_form", None) or "ROLL").upper()
-        layer0 = cls._first_layer_snapshot(job)
+        layer0 = cls._job_output_layer_snapshot(job, process)
 
         default_input_count = 0
         if input_form == "ROLL":
@@ -1980,7 +2095,7 @@ class ExecutionService:
                 if roll_behavior == "MULTI_INPUT_COMBINE" and reserved_total > 0:
                     step_roll_target_kg = reserved_total
                     target_source = "V2_COMBINE_RESERVED_TOTAL"
-                elif roll_behavior in {"MODIFY_EXISTING", "SPLIT"} and int(job.current_step_index or 0) == 0 and reserved_total > 0:
+                elif roll_behavior in {"MODIFY_EXISTING", "SPLIT"} and cls._input_gate_step_index(job) == 0 and reserved_total > 0:
                     step_roll_target_kg = reserved_total
                     target_source = "V2_STEP0_RESERVED_TOTAL"
                 else:
@@ -1988,14 +2103,28 @@ class ExecutionService:
                     target_source = "V2_ROLL_MASS_TARGET"
             else:
                 if roll_behavior == "MULTI_INPUT_COMBINE":
+                    # A route with several lamination passes combines layers 1..pass+1 on each
+                    # pass (BOM film rows are in layer order); the last layer only joins at the last pass.
+                    pass_films = [row for row in films if isinstance(row, dict)]
+                    combine_passes = int(cls._route_lamination_step_count(job) or 0)
+                    if combine_passes > 1:
+                        pass_index = max(1, int(cls._infer_lamination_pass_index(job, process) or 1))
+                        pass_films = pass_films[: pass_index + 1]
+                    for film in pass_films:
+                        per_unit_kg = _as_decimal(film.get("weight_kg"))
+                        if per_unit_kg > 0 and order_qty_pcs > 0:
+                            step_roll_target_kg += per_unit_kg * order_qty_pcs
+                    target_source = "V2_COMBINE_FILM_SUM"
+                elif cls._prior_combine_step_index(job, process) is not None:
+                    # Slitting or printing after lamination works on the laminate: every film layer.
                     for film in films:
                         if not isinstance(film, dict):
                             continue
                         per_unit_kg = _as_decimal(film.get("weight_kg"))
                         if per_unit_kg > 0 and order_qty_pcs > 0:
                             step_roll_target_kg += per_unit_kg * order_qty_pcs
-                    target_source = "V2_COMBINE_FILM_SUM"
-                elif roll_behavior in {"MODIFY_EXISTING", "SPLIT"} and int(job.current_step_index or 0) == 0:
+                    target_source = "V2_LAMINATE_FILM_SUM"
+                elif roll_behavior in {"MODIFY_EXISTING", "SPLIT"} and cls._input_gate_step_index(job) == 0:
                     purch_films = [
                         row for row in films
                         if isinstance(row, dict) and str(row.get("source") or "").upper() == "PURCHASE"
@@ -2262,7 +2391,7 @@ class ExecutionService:
                     step_roll_target_kg += (per_unit_kg * order_qty_pcs)
             else:
                 # Phase 73: Impacting Step 1 MODIFY_EXISTING default target
-                use_heaviest_layer = (job.current_step_index == 0 and roll_behavior == "MODIFY_EXISTING")
+                use_heaviest_layer = (cls._input_gate_step_index(job) == 0 and roll_behavior == "MODIFY_EXISTING")
                 
                 heaviest_film = None
                 max_criteria_value = Decimal("-1")
@@ -2366,7 +2495,7 @@ class ExecutionService:
         # Phase 73: 1st Step Target Overrides
         # For MODIFY_EXISTING/SPLIT at step 0, if rolls are already reserved,
         # the target weight should match the reserved rolls' mass exactly.
-        if job.current_step_index == 0 and input_form == "ROLL" and roll_behavior in ("MODIFY_EXISTING", "SPLIT"):
+        if cls._input_gate_step_index(job) == 0 and input_form == "ROLL" and roll_behavior in ("MODIFY_EXISTING", "SPLIT"):
             # Phase 73: Dynamic Target Switching (User Request)
             # If a roll is explicitly reserved, the step target should match THAT roll's layer weight in the BOM.
             # This overrides the default "Heaviest Density" logic.
@@ -2522,7 +2651,7 @@ class ExecutionService:
                 "missing_after_auto": max(0, required_rolls),
             }
 
-        current_step_index = int(getattr(job, "current_step_index", 0) or 0)
+        current_step_index = cls._input_gate_step_index(job)  # root branches take raw stock like step 0
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         is_roll_to_bulk = (
             str(getattr(process, "input_form", "") or "").upper() == "ROLL"
@@ -3114,7 +3243,9 @@ class ExecutionService:
                 meta = getattr(roll, "meta_json", None) or {}
                 roll_role = str(meta.get("roll_role") or "").upper()
                 roll_behavior = str(meta.get("source_behavior") or "").upper()
-                if roll_role != "OUTPUT" or roll_behavior != "MULTI_INPUT_COMBINE":
+                is_laminate = bool(meta.get("is_laminate")) or roll_behavior == "MULTI_INPUT_COMBINE" or isinstance(meta.get("structure"), list)
+                # The laminate itself, or a roll cut or printed from it (it keeps the laminate identity).
+                if roll_role not in {"OUTPUT", "SPLIT_OUTPUT"} or not is_laminate:
                     continue
 
             variant_match = True
@@ -3268,7 +3399,7 @@ class ExecutionService:
             str(getattr(process, "input_form", "") or "").upper() == "ROLL"
             and str(getattr(process, "output_form", "") or "").upper() == "BULK"
         )
-        current_step_index = int(getattr(job, "current_step_index", 0) or 0)
+        current_step_index = cls._input_gate_step_index(job)  # root branches take raw stock like step 0
         lane_group_mode = cls._is_lane_group_combine_spec(step_roll_spec)
         target_specs = cls._build_step_target_slots(job, process) if lane_group_mode else cls._build_step_target_specs(job, process)
         active_rows = list(
@@ -3443,10 +3574,58 @@ class ExecutionService:
             req_width_mm = None
 
         layer_snapshot = cls._job_layer_snapshot(job)
-
+        # After lamination the input is the laminate: one spec with the summed gauge instead of
+        # one spec per film, so slitting and pouching see the laminate rolls in their WIP pool.
+        prior_combine = cls._prior_combine_step_index(job, process)
+        layers_for_laminate = [layer for layer in (layer_snapshot if isinstance(layer_snapshot, list) else []) if isinstance(layer, dict)]
+        # A later lamination pass takes the earlier laminate (layers 1..pass) in one lane and the
+        # next BOM layer in the other, so only that layer is specced below.
+        forced_layer_indexes = None
+        if prior_combine is not None and str(getattr(process, "roll_behavior", "") or "").upper() == "MULTI_INPUT_COMBINE":
+            pass_index = max(1, int(cls._infer_lamination_pass_index(job, process) or 1))
+            if len(layers_for_laminate) > pass_index:
+                forced_layer_indexes = {pass_index}
+                layers_for_laminate = layers_for_laminate[:pass_index]
+        if prior_combine is not None and len(layers_for_laminate) > 1:
+            gauge = Decimal("0")
+            widths = []
+            for layer in layers_for_laminate:
+                gauge += cls._safe_decimal(layer.get("thickness_micron") if layer.get("thickness_micron") is not None else layer.get("thickness") or 0)
+                try:
+                    width = float(layer.get("roll_width_mm") or layer.get("width_mm") or 0)
+                except Exception:
+                    width = 0
+                if width > 0:
+                    widths.append(width)
+            laminate_spec = {
+                "source_role": "LAMINATED_WIP",
+                "source_step_index": prior_combine + 1,
+                "thickness_micron": float(gauge) if gauge > 0 else None,
+                "stock_form": stock_contract.stock_form,
+                "width_basis": stock_contract.width_basis,
+                "slit_policy": stock_contract.slit_policy,
+            }
+            laminate_width = min(widths) if widths else req_width_mm
+            if laminate_width is not None:
+                laminate_spec["min_width_mm"] = float(laminate_width)
+                laminate_spec["max_auto_width_mm"] = float(laminate_width) * 1.10
+            _push(laminate_spec)
+            if forced_layer_indexes is None:
+                return specs
+        # A root branch of a parallel route works on its own layer only (printing the PET web
+        # must not be offered the extruded LD rolls of the other branch).
+        try:
+            branch_layer_indexes = cls._job_branch_layer_indexes(job, process)
+        except Exception:
+            logger.warning("branch layer scope could not be resolved for job=%s", getattr(job, "id", None), exc_info=True)
+            branch_layer_indexes = None
+        if forced_layer_indexes is not None:
+            branch_layer_indexes = forced_layer_indexes
         if isinstance(layer_snapshot, list):
             for idx, layer in enumerate(layer_snapshot):
                 if not isinstance(layer, dict):
+                    continue
+                if branch_layer_indexes is not None and idx not in branch_layer_indexes:
                     continue
                 layer_spec = {
                     "layer_index": idx + 1,
@@ -3925,7 +4104,7 @@ class ExecutionService:
 
         if not process or str(process.input_form or "").upper() != "ROLL":
             return Q()
-        current = int(getattr(job, "current_step_index", 0) or 0)
+        current = cls._input_gate_step_index(job)
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         is_roll_to_bulk = str(getattr(process, "output_form", "") or "").upper() == "BULK"
         # Both branches reject rolls already past the next step.
@@ -3975,7 +4154,7 @@ class ExecutionService:
         if not StockFormResolver.process_accepts_input(process, getattr(roll, "stock_form", None)):
             return False
 
-        current_step_index = int(getattr(job, "current_step_index", 0) or 0)
+        current_step_index = cls._input_gate_step_index(job)  # root branches take raw stock like step 0
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         is_roll_to_bulk = (
             str(getattr(process, "input_form", "") or "").upper() == "ROLL"
@@ -4123,7 +4302,7 @@ class ExecutionService:
         required_for_step = bool(process and (process.input_form or "").upper() == "ROLL")
         step_roll_spec = cls._resolve_step_roll_spec(job, process)
         required_rolls = cls._required_roll_count(job, process, step_roll_spec)
-        current_step_index = int(getattr(job, "current_step_index", 0) or 0)
+        current_step_index = cls._input_gate_step_index(job)  # root branches take raw stock like step 0
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
         purchasable_variant_ids = cls._step0_purchasable_variant_ids(job)
         lane_group_mode = cls._is_lane_group_combine_spec(step_roll_spec)
@@ -4306,7 +4485,14 @@ class ExecutionService:
                     continue
                 _append_roll(roll, "LINEAGE")
 
-            if discovery_allowed and len(lineage_pool) < int(required_rolls or 0):
+            lineage_short = len(lineage_pool) < int(required_rolls or 0)
+            if discovery_allowed and lane_group_mode and not lineage_short:
+                # Lane groups need film for every lane. When lineage covers only the produced
+                # layers (printed PET, extruded LD) the purchased layer's stock rolls must still be offered.
+                lineage_short = bool(
+                    cls._match_rolls_to_lane_slots(job, process, lineage_pool, target_specs, allow_input_stock_fallback=True).get("unmatched_target_slots")
+                )
+            if discovery_allowed and lineage_short:
                 if lineage_filter is not None:
                     broad_qs = candidates_qs.exclude(lineage_filter)
                 else:
@@ -4436,7 +4622,7 @@ class ExecutionService:
         lineage_filter = cls._resolve_job_lineage_filter(job)
         required_for_step = bool(process and (process.input_form or "").upper() == "ROLL")
         required_rolls = cls._required_roll_count(job, process, cls._resolve_step_roll_spec(job, process))
-        current_step_index = int(getattr(job, "current_step_index", 0) or 0)
+        current_step_index = cls._input_gate_step_index(job)  # root branches take raw stock like step 0
         roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
 
         pool = []
@@ -4740,7 +4926,7 @@ class ExecutionService:
 
         process = job.current_process or job.process
         if process and str(process.input_form or "").upper() == "ROLL":
-            current_step_index = int(getattr(job, "current_step_index", 0) or 0)
+            current_step_index = cls._input_gate_step_index(job)  # root branches take raw stock like step 0
             roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
             filtered = []
             seen_ids = set()
@@ -5086,6 +5272,28 @@ class ExecutionService:
             if fallback_step is not None:
                 category_to_step["GRANULE"] = fallback_step
 
+        def _behaviour(step):
+            return str(getattr(getattr(step, "process", None), "roll_behavior", "") or "").upper()
+
+        def _code_name(step):
+            proc = getattr(step, "process", None)
+            return f"{getattr(proc, 'code', '')} {getattr(proc, 'name', '')}".upper()
+
+        # Ink goes where the web is printed; adhesive and solvent where webs are laminated.
+        # Templates may map these explicitly; these are the defaults when they do not.
+        if "INK" not in category_to_step:
+            print_step = next(
+                (step for step in steps if getattr(getattr(step, "process", None), "print_capable", False) or getattr(getattr(step, "process", None), "has_artwork", False)),
+                None,
+            ) or next((step for step in steps if "PRT" in _code_name(step) or "PRINT" in _code_name(step)), None)
+            if print_step is not None:
+                category_to_step["INK"] = print_step
+        if not {"ADHESIVE", "SOLVENT", "CHEMICAL"} & set(category_to_step):
+            lam_step = next((step for step in steps if _behaviour(step) == "MULTI_INPUT_COMBINE"), None) or next(
+                (step for step in steps if "LAM" in _code_name(step)), None
+            )
+            if lam_step is not None:
+                category_to_step.setdefault("CHEMICAL", lam_step)
         bom = cls._job_bom_snapshot(job) or {}
         if not isinstance(bom, dict):
             bom = {}
@@ -5203,6 +5411,9 @@ class ExecutionService:
                     continue
                 if not step_id and category_code:
                     fallback_step = category_to_step.get(category_code)
+                    if fallback_step is None and category_code in {"ADHESIVE", "SOLVENT"}:
+                        # Lamination chemicals share the chemical step when the template maps only one of them.
+                        fallback_step = category_to_step.get("CHEMICAL") or category_to_step.get("ADHESIVE") or category_to_step.get("SOLVENT")
                     if fallback_step:
                         step_id = str(fallback_step.id)
                 if not material_id or not step_id:
@@ -7799,7 +8010,8 @@ class ExecutionService:
                 )
         if category == "GRANULE":
             return "AUTO_ESTIMATED_CONFIRM"
-        if category in {"INK", "CHEMICAL"}:
+        if category in {"INK", "CHEMICAL", "ADHESIVE", "SOLVENT"}:
+            # Lamination chemistry is weighed by the operator at step close, like granules.
             return "AUTO_ESTIMATED_CONFIRM"
         return "AUTO_FROM_OUTPUT"
 
@@ -8981,7 +9193,7 @@ class ExecutionService:
 
         # Get output material from Job Link (SO Item layers or Template layers)
         output_material = None
-        first_layer = cls._first_layer_snapshot(job)
+        first_layer = cls._job_output_layer_snapshot(job, process)
         variant_id = (
             kwargs.get("output_variant_id")
             or step_roll_spec.get("output_variant_id")
@@ -9254,10 +9466,12 @@ class ExecutionService:
 
             if not lane_flow and roll_behavior in ('MODIFY_EXISTING', 'SPLIT') and len(input_rolls) != 1:
                 raise ValueError(f"{roll_behavior} requires exactly one reserved roll.")
-            if roll_behavior == 'MODIFY_EXISTING' and int(getattr(job, "current_step_index", 0) or 0) > 0:
+            # A root branch (printing purchased film next to extrusion) is step 0 for its inputs.
+            gate_step_index = cls._input_gate_step_index(job)
+            if roll_behavior == 'MODIFY_EXISTING' and gate_step_index > 0:
                 for roll in (input_rolls[:1] if not lane_flow else input_rolls):
                     roll_step = int(getattr(roll, "current_step_index", 0) or 0)
-                    if roll_step < int(getattr(job, "current_step_index", 0) or 0) or not getattr(roll, "created_by_job_id", None):
+                    if roll_step < gate_step_index or not getattr(roll, "created_by_job_id", None):
                         raise ValueError(
                             f"MODIFY_EXISTING at step {job.current_step_index} requires a lineage output roll "
                             f"from the previous production flow. Roll {roll.label_id} has current_step_index={roll_step}."
@@ -9792,6 +10006,8 @@ class ExecutionService:
                                 "is_remainder": False,
                                 "roll_role": "SPLIT_OUTPUT",
                                 "source_behavior": "SPLIT",
+                                # A child cut from a laminate is still that laminate.
+                                **{key: (parent.meta_json or {}).get(key) for key in ("is_laminate", "structure_label", "structure") if (parent.meta_json or {}).get(key)},
                                 **internal_stock_meta,
                             }, weight_breakdown),
                             is_fg=output_is_fg
