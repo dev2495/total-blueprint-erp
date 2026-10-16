@@ -104,7 +104,8 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
   await clearAssignedRolls(page, true)
   await expect(page.locator("body")).toContainText("Lineage")
   await expect(page.locator("body")).toContainText("Fallback")
-  await expect(page.locator("body")).toContainText("0/1 allocated")
+  // Printing (modify) is queue-fed: the label counts rolls and kilos, not "x/1".
+  await expect(page.locator("body")).toContainText(/0 rolls ·/)
   await expect(page.locator("body")).toContainText("No roll allocated")
 
   await page.getByRole("button", { name: /allocate rolls/i }).first().click()
@@ -117,15 +118,15 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
     await allocationDialog.getByRole("button", { name: /finalize allocation/i }).click()
     await expect(page.getByTestId(`wcm-assigned-roll-${modifyFallback!.fallback_roll_id}`)).toBeVisible()
     await expect(page.locator("body")).toContainText(modifyFallback!.fallback_roll_label)
-    await expect(page.locator("body")).toContainText("1/1")
+    await expect(page.locator("body")).toContainText(/1 roll ·/)
 
     await page.getByTestId(`wcm-assigned-roll-${modifyFallback!.fallback_roll_id}`).getByRole("button").click()
     await expect(page.getByTestId(`wcm-assigned-roll-${modifyFallback!.fallback_roll_id}`)).toHaveCount(0)
-    await expect(page.locator("body")).toContainText("0/1 allocated")
+    await expect(page.locator("body")).toContainText(/0 rolls ·/)
   } else {
     await expect(allocationDialog).toContainText("No eligible")
     await allocationDialog.getByRole("button", { name: /^cancel$/i }).click()
-    await expect(page.locator("body")).toContainText("0/1 allocated")
+    await expect(page.locator("body")).toContainText(/0 rolls ·/)
   }
 
   const combineQueue = await fetchJson<any>(page, `/api/production/wc/${combineFallback!.work_center_id}/queue/`)
@@ -137,13 +138,14 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
   await expect(page.locator("body")).toContainText("Fallback")
   await expect(page.locator("body")).toContainText("Available choices")
 
+  // Three-layer lamination runs one lane per layer: the label counts rolls and lanes.
   const currentCombineText = (await page.locator("body").textContent()) || ""
-  if (currentCombineText.includes("3/3 allocated")) {
+  if (/3 rolls in 3 lanes(?! ·)/.test(currentCombineText)) {
     await expect(page.locator("body")).toContainText(combineFallback!.fallback_roll_label)
     return
   }
-  if (!currentCombineText.includes("2/3 allocated")) {
-    await expect(page.locator("body")).toContainText("0/3 allocated")
+  if (!currentCombineText.includes("2 rolls in 3 lanes")) {
+    await expect(page.locator("body")).toContainText("0 rolls in 3 lanes")
     await page.getByRole("button", { name: /allocate rolls/i }).first().click()
     const combineDialog = page.getByTestId("wcm-allocation-dialog")
     await expect(combineDialog).toContainText("Required")
@@ -155,7 +157,7 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
       await combineDialog.getByTestId(`wcm-local-roll-select-${rollId}`).click()
     }
     await combineDialog.getByRole("button", { name: /finalize allocation/i }).click()
-    await expect(page.locator("body")).toContainText("2/3 allocated")
+    await expect(page.locator("body")).toContainText("2 rolls in 3 lanes")
     await expect(page.locator("body")).toContainText("Assign 1 more roll before release")
   }
   await expect(page.getByTestId(`wcm-assigned-roll-${combineFallback!.fallback_roll_id}`)).toHaveCount(0)
@@ -165,7 +167,8 @@ test("WCM separates lineage from manual fallback and enforces three-slot combine
   await expect(combineFallbackDialog).toContainText("Fallback")
   await combineFallbackDialog.getByTestId(`wcm-local-roll-select-${combineFallback!.fallback_roll_id}`).click()
   await combineFallbackDialog.getByRole("button", { name: /finalize allocation/i }).click()
-  await expect(page.locator("body")).toContainText("3/3")
+  await expect(page.locator("body")).toContainText("3 rolls in 3 lanes")
+  await expect(page.getByTestId("wcm-roll-lanes")).toBeVisible()
   await expect(page.locator("body")).toContainText(combineFallback!.fallback_roll_label)
 })
 import type { Page } from "@playwright/test"

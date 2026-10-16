@@ -9,6 +9,7 @@ Floor logic contracts (15 Oct 2026 review):
 """
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
@@ -47,14 +48,25 @@ class RollContractTests(SimpleTestCase):
         process = SimpleNamespace(input_form="ROLL", output_form="BULK", roll_behavior="NONE")
         job = self._job(process)
         requirement = ExecutionService._roll_requirement(job, process, step_roll_spec={})
-        ExecutionService.validate_roll_selection(job, process, existing_roll_ids=[], new_roll_ids=["a", "b"], requirement=requirement)
+        with patch("apps.inventory.models.InventoryRoll.objects.filter") as roll_filter, \
+             patch.object(ExecutionService, "_roll_lane_state", return_value={"mode": "MASS", "lanes": [{"lane_key": "MAIN", "remaining_kg": 0, "rolls": []}]}):
+            roll_filter.return_value.select_related.return_value = []
+            ExecutionService.validate_roll_selection(job, process, existing_roll_ids=[], new_roll_ids=["a", "b"], requirement=requirement)
+
+    def test_single_unwinder_steps_queue_rolls(self):
+        # Printing and slitting run one roll after another: queue-fed, not "exactly one".
+        for behavior in ("MODIFY_EXISTING", "SPLIT"):
+            process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior=behavior)
+            requirement = ExecutionService._roll_requirement(self._job(process), process, step_roll_spec={})
+            self.assertEqual(requirement["mode"], "MASS", behavior)
+            self.assertEqual(requirement["min_count"], 1)
 
     def test_count_mode_refuses_extra_roll(self):
-        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="SPLIT")
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
         job = self._job(process)
-        requirement = ExecutionService._roll_requirement(job, process, step_roll_spec={})
+        requirement = ExecutionService._roll_requirement(job, process, step_roll_spec={"input_roll_count": 2})
         with self.assertRaises(ValueError):
-            ExecutionService.validate_roll_selection(job, process, existing_roll_ids=["a"], new_roll_ids=["b"], requirement=requirement)
+            ExecutionService.validate_roll_selection(job, process, existing_roll_ids=["a", "b"], new_roll_ids=["c"], requirement=requirement)
 
     def test_bulk_step_takes_no_rolls(self):
         process = SimpleNamespace(input_form="BULK", output_form="ROLL", roll_behavior="NONE")

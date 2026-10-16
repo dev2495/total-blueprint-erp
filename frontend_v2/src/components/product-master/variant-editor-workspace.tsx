@@ -1041,7 +1041,8 @@ function CatalogAxisField({
           </span>
         </div>
       )}
-      {axis.auto_demand_in_house && (
+      {(axis.master_data_source === "packaging_material" || axis.master_data_source === "pod_sku_variant") &&
+        axis.auto_demand_in_house !== false && (
         <div className="mt-1 text-caption text-success-fg">
           Auto-demand fires if stock short.
         </div>

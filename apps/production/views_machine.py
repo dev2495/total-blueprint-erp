@@ -909,6 +909,42 @@ def operator_machines(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+def machine_return_roll(request, machine_id, job_id):
+    """
+    Take a part-used roll off the running job: return the balance to stock under the same
+    label, or close a finished roll and book its core-end balance as scrap.
+    Route: POST /api/production/machine/<machine_id>/jobs/<job_id>/return-roll/
+    Body: { roll_id, mode: RETURN|FINISHED, weight_kg?, location_id?, note? }
+    """
+    machine, job, denied = _machine_job_or_response(request.user, machine_id, job_id)
+    if denied is not None:
+        return denied
+    roll_id = request.data.get("roll_id")
+    if not roll_id:
+        return Response({"error": "roll_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        result = ExecutionService.return_roll_balance(
+            job.id,
+            roll_id,
+            user=request.user,
+            mode=request.data.get("mode") or "RETURN",
+            location_id=request.data.get("location_id") or None,
+            weight_kg=request.data.get("weight_kg"),
+            note=str(request.data.get("note") or "")[:300],
+        )
+        return Response({"result": result, "context": ExecutionService.get_job_context(job.id)})
+    except ValueError as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception:
+        logger.exception("Machine return-roll failed machine_id=%s job_id=%s", machine_id, job_id)
+        return Response(
+            {"error": {"code": "MACHINE_RETURN_ROLL_FAILED", "message": "Unable to return the roll."}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def machine_log_scrap(request, machine_id, job_id):
     """
     Log scrap for a job on this machine.

@@ -211,7 +211,7 @@ function axisModeCopy(mode: "off" | "optional" | "required") {
   if (mode === "required") return "Required in sales/planner before submit.";
   if (mode === "optional")
     return "Can be skipped; if entered it affects matching and BOM.";
-  return "Not part of this master’s final product tuple.";
+  return "Fixed by this master: sales does not choose it.";
 }
 
 function packagingRuleForRole(role?: string) {
@@ -1013,13 +1013,27 @@ export function ProductMasterDetailWorkspace({
   const thicknessSummary = hasLayerThicknessAxis
     ? "Variable thickness"
     : `Total ${totalThickness}μ`;
-  const routeSteps = (routeInfo?.route_steps || []).map((step) => ({
-    index: step.index,
-    label: step.name || step.process_code || `Step ${step.index}`,
-    transition: step.transition,
-    tag: step.roll_behavior,
-    artwork_step: !!step.has_artwork,
-  }));
+  // N layers need N - 1 lamination passes; further passes on the shared route are skipped.
+  const detailLaminationNeeded = Math.max(0, (draft.layer_template?.length || 0) - 1);
+  let detailLaminationSeen = 0;
+  const routeSteps = (routeInfo?.route_steps || []).map((step) => {
+    const isLamination = String(step.roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE";
+    if (isLamination) detailLaminationSeen += 1;
+    const skipped = isLamination && detailLaminationSeen > detailLaminationNeeded;
+    return {
+      index: step.index,
+      label: step.name || step.process_code || `Step ${step.index}`,
+      transition: step.transition,
+      tag: step.roll_behavior,
+      artwork_step: !!step.has_artwork,
+      skipped,
+      skipReason: skipped
+        ? detailLaminationNeeded === 0
+          ? "skipped · 1 layer"
+          : `skipped · ${draft.layer_template.length} layers`
+        : undefined,
+    };
+  });
   const isEditing = (section: string) => editing === section;
   const startEdit = (section: string) => setEditing(section);
   const cancelEdit = () => {
@@ -4173,7 +4187,7 @@ function PackagingView({
                     ? "Counted at packing yard"
                     : `${axis.qty_per_pcs ?? 1} x pouch qty`)}
               </div>
-              {axis.auto_demand_in_house && (
+              {axis.auto_demand_in_house !== false && (
                 <span className="mt-2 inline-flex rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
                   auto-demand
                 </span>
@@ -5602,7 +5616,8 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
                 Required
               </span>
             )}
-            {def.auto_demand_in_house && (
+            {(def.master_data_source === "packaging_material" || def.master_data_source === "pod_sku_variant") &&
+              def.auto_demand_in_house !== false && (
               <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold uppercase text-success-fg ring-1 ring-success-border">
                 Auto-demand
               </span>

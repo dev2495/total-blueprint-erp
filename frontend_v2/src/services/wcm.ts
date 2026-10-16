@@ -337,6 +337,19 @@ export const wcmService = {
         return data;
     },
 
+    returnRoll: async (
+        assignmentId: string,
+        rollId: string,
+        payload: { mode: "RETURN" | "FINISHED"; weight_kg?: number; note?: string; location_id?: string },
+    ) => {
+        const { data } = await api.post(`/api/production/wc-allocation/return-roll/`, {
+            assignment_id: assignmentId,
+            roll_id: rollId,
+            ...payload,
+        });
+        return data;
+    },
+
     unassignRoll: async (assignmentId: string, reservationId: string) => {
         const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/unassign-roll/`, {
             assignment_id: assignmentId,

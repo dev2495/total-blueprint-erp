@@ -478,7 +478,7 @@ class MachineTerminalEndpointTests(TestCase):
             Decimal("13.0000"),
         )
 
-    def test_log_output_modify_existing_consumes_parent_and_returns_remainder(self):
+    def test_log_output_modify_existing_uses_parent_in_place_and_keeps_its_label(self):
         film = self._make_film("MT-FILM-MOD")
         process = Process.objects.create(
             code="MT_MODIFY",
@@ -494,12 +494,13 @@ class MachineTerminalEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200, response.data)
         parent.refresh_from_db()
-        self.assertEqual(parent.status, "CONSUMED")
-        self.assertEqual(parent.weight_kg, Decimal("0"))
+        # The 1.5 kg balance stays on the same roll, same label, still on the job.
+        self.assertNotEqual(parent.status, "CONSUMED")
+        self.assertEqual(parent.weight_kg, Decimal("1.500"))
+        self.assertEqual(parent.label_id, "MT-ROLL-MOD-PARENT")
         outputs = InventoryRoll.objects.filter(created_by_job=job, meta_json__source_behavior="MODIFY_EXISTING")
-        remainders = InventoryRoll.objects.filter(created_by_job=job, meta_json__source_behavior="MODIFY_EXISTING", meta_json__is_remainder=True)
         self.assertEqual(outputs.filter(meta_json__roll_role="OUTPUT").get().weight_kg, Decimal("3.000"))
-        self.assertEqual(remainders.get().weight_kg, Decimal("1.500"))
+        self.assertFalse(InventoryRoll.objects.filter(created_by_job=job, meta_json__is_remainder=True).exists())
         self.assertEqual(ScrapLog.objects.get(production_job=job).quantity, Decimal("0.5000"))
 
     def test_read_endpoints_respect_work_center_scope(self):
@@ -575,7 +576,7 @@ class MachineTerminalEndpointTests(TestCase):
         self.assertEqual(context.status_code, 200, context.data)
         self.assertEqual(context.data["waste_policy"]["reason_threshold_pct"], 1.0)
 
-    def test_log_output_split_creates_children_remainder_and_genealogy(self):
+    def test_log_output_split_creates_children_and_keeps_balance_on_parent(self):
         film = self._make_film("MT-FILM-SPLIT")
         process = Process.objects.create(
             code="MT_SPLIT",
@@ -601,15 +602,13 @@ class MachineTerminalEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200, response.data)
         parent.refresh_from_db()
-        self.assertEqual(parent.status, "CONSUMED")
+        self.assertNotEqual(parent.status, "CONSUMED")
+        self.assertEqual(parent.weight_kg, Decimal("1.500"))
         split_outputs = InventoryRoll.objects.filter(created_by_job=job, meta_json__roll_role="SPLIT_OUTPUT")
         self.assertEqual(split_outputs.count(), 2)
         self.assertEqual(sum((roll.weight_kg for roll in split_outputs), Decimal("0")), Decimal("3.000"))
-        self.assertEqual(
-            InventoryRoll.objects.get(created_by_job=job, meta_json__source_behavior="SPLIT", meta_json__is_remainder=True).weight_kg,
-            Decimal("1.500"),
-        )
-        self.assertEqual(RollLink.objects.filter(parent_roll=parent, relation_type="SPLIT").count(), 3)
+        self.assertFalse(InventoryRoll.objects.filter(created_by_job=job, meta_json__is_remainder=True).exists())
+        self.assertEqual(RollLink.objects.filter(parent_roll=parent, relation_type="SPLIT").count(), 2)
 
     def test_log_output_multi_input_combine_sums_thickness_and_consumes_all_inputs(self):
         film_a = self._make_film("MT-FILM-LAM-A")
@@ -717,7 +716,9 @@ class MachineTerminalEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200, response.data)
         parent_ok.refresh_from_db()
-        self.assertEqual(parent_ok.status, "CONSUMED")
+        # Part entry: 2.25 kg used, 1.75 kg stays on the same roll for the next entry.
+        self.assertNotEqual(parent_ok.status, "CONSUMED")
+        self.assertEqual(parent_ok.weight_kg, Decimal("1.750"))
         batch = FinishedGoodsBatch.objects.get(production_job=ok_job)
         self.assertEqual(batch.qty_kg, Decimal("2.0000"))
         self.assertEqual(batch.qty_pcs, 100)
@@ -761,7 +762,8 @@ class MachineTerminalEndpointTests(TestCase):
 
         self.assertEqual(response.status_code, 200, response.data)
         parent.refresh_from_db()
-        self.assertEqual(parent.status, "CONSUMED")
+        self.assertNotEqual(parent.status, "CONSUMED")
+        self.assertEqual(parent.weight_kg, Decimal("2.000"))
         batch = FinishedGoodsBatch.objects.get(production_job=job)
         self.assertEqual(batch.qty_kg, Decimal("2.0000"))
         self.assertEqual(batch.qty_pcs, 0)

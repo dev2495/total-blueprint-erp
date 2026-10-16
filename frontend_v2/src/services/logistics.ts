@@ -365,6 +365,57 @@ export interface SOPackingSummary {
     gonnies: Gonny[];
 }
 
+export type PackingCheckSummary = {
+    fg_batch_id: string;
+    batch_number: string;
+    job_number?: string | null;
+    status: "OPEN" | "VERIFIED" | "HELD" | "ACCEPTED";
+    logged_pcs: number;
+    logged_kg: number;
+    logged_weight_per_pc_g?: number | null;
+    packed_pcs: number;
+    sealed_pcs: number;
+    open_units: number;
+    unpacked_pcs: number;
+    gross_kg: number;
+    tare_kg: number;
+    net_kg: number;
+    packed_weight_per_pc_g?: number | null;
+    sample_weight_g?: number | null;
+    sample_size?: number | null;
+    weight_variance_pct?: number | null;
+    pcs_by_weight?: number | null;
+    pcs_variance_pct?: number | null;
+    kg_variance_pct?: number | null;
+    limits: { pcs_pct: number; kg_pct: number };
+    shortfall_pcs: number;
+    shortfall_kg: number;
+    reason?: string;
+    note?: string;
+    inner_packs?: {
+        material_id?: string | null;
+        pcs_per_pack?: number | null;
+        consumed_at_machine: number;
+        used_in_units: number;
+        returned?: number | null;
+    } | null;
+    sales_order_id?: string;
+    sales_order_no?: string;
+    customer?: string;
+    product?: string;
+    units?: Array<{
+        id: string;
+        label_id: string;
+        status: string;
+        qty_pcs: number;
+        gross_kg: number | null;
+        tare_kg: number;
+        net_kg: number | null;
+        expected_net_kg: number | null;
+        variance_pct: number | null;
+    }>;
+};
+
 export const logisticsService = {
     // Packing
     async getPackingOrders(): Promise<PackingSalesOrderRow[]> {
@@ -375,6 +426,38 @@ export const logisticsService = {
             customer_name: String(row?.customer_name || ''),
             status: String(row?.status || ''),
         })).filter((row) => row.id);
+    },
+
+    async getPackingCheckQueue(salesOrderId?: string, signal?: AbortSignal): Promise<PackingCheckSummary[]> {
+        const response = await api.get('/api/production/packing/verification-queue/', {
+            params: salesOrderId ? { sales_order_id: salesOrderId } : {},
+            signal,
+        });
+        return (response.data?.results || []) as PackingCheckSummary[];
+    },
+
+    async getPackingCheck(fgBatchId: string, signal?: AbortSignal): Promise<PackingCheckSummary> {
+        const response = await api.get('/api/production/packing/verification/', { params: { fg_batch_id: fgBatchId }, signal });
+        return response.data as PackingCheckSummary;
+    },
+
+    async recordPackingSample(fgBatchId: string, sampleCount: number, sampleWeightGTotal: number): Promise<PackingCheckSummary> {
+        const response = await api.post('/api/production/packing/verification-sample/', {
+            fg_batch_id: fgBatchId,
+            sample_count: sampleCount,
+            sample_weight_g_total: sampleWeightGTotal,
+        });
+        return response.data as PackingCheckSummary;
+    },
+
+    async closePackingCheck(fgBatchId: string, note?: string): Promise<PackingCheckSummary> {
+        const response = await api.post('/api/production/packing/verification-close/', { fg_batch_id: fgBatchId, note });
+        return response.data as PackingCheckSummary;
+    },
+
+    async acceptPackingCheck(fgBatchId: string, reason: string, note?: string): Promise<PackingCheckSummary> {
+        const response = await api.post('/api/production/packing/verification-accept/', { fg_batch_id: fgBatchId, reason, note });
+        return response.data as PackingCheckSummary;
     },
 
     async getPackingBoard(signal?: AbortSignal): Promise<PackingBoardSnapshot> {

@@ -264,11 +264,12 @@ class RollAllocationService:
                 return final_target + resolve_process_trim_mm(process)
             current_idx = int(getattr(job, "current_step_index", 0) or 0)
             steps = list(
-                template.steps.select_related("process").order_by("step_index")
+                template.process_steps.select_related("process").order_by("sequence_number")
             )
             cumulative_trim = Decimal("0")
             for step in steps:
-                if int(getattr(step, "step_index", 0) or 0) < current_idx:
+                # sequence_number is 1-based; current_step_index is 0-based.
+                if int(getattr(step, "sequence_number", 0) or 0) - 1 < current_idx:
                     continue
                 cumulative_trim += resolve_process_trim_mm(getattr(step, "process", None))
             return final_target + cumulative_trim

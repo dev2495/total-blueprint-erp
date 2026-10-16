@@ -465,6 +465,11 @@ function CustomerHeaderStrip({
     <section className="rounded-[18px] border border-line bg-surface-1 p-3 shadow-sm">
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-6">
         <SoField label="Bill to · customer" className="md:col-span-2">
+          <CustomerQuickPick
+            customers={customers}
+            selectedId={draft.customer}
+            onPick={onSetCustomer}
+          />
           <div className="relative">
             <select
               data-testid="sales-batch-customer"
@@ -837,3 +842,127 @@ function StickyCartBar({
     </div>
   );
 }
+
+
+const RECENT_CUSTOMERS_KEY = "erp.sales.recentCustomers";
+
+function readRecentCustomers(): string[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_CUSTOMERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String).slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberCustomer(id: string) {
+  try {
+    const next = [id, ...readRecentCustomers().filter((row) => row !== id)].slice(0, 5);
+    window.localStorage.setItem(RECENT_CUSTOMERS_KEY, JSON.stringify(next));
+  } catch {
+    // Recent customers are a convenience only.
+  }
+}
+
+/** Type two letters to find a customer; the last five picked are one tap away. */
+function CustomerQuickPick({
+  customers,
+  selectedId,
+  onPick,
+}: {
+  customers: Customer[];
+  selectedId: string;
+  onPick: (id: string) => void;
+}) {
+  const [query, setQuery] = React.useState("");
+  const [open, setOpen] = React.useState(false);
+  const [recent, setRecent] = React.useState<string[]>([]);
+  React.useEffect(() => setRecent(readRecentCustomers()), []);
+  React.useEffect(() => {
+    if (selectedId) {
+      rememberCustomer(selectedId);
+      setRecent(readRecentCustomers());
+    }
+  }, [selectedId]);
+  const needle = query.trim().toLowerCase();
+  const matches = React.useMemo(() => {
+    if (needle.length < 2) return [];
+    return customers
+      .filter((c) => `${c.name} ${c.code || ""}`.toLowerCase().includes(needle))
+      .slice(0, 8);
+  }, [customers, needle]);
+  const recentRows = recent
+    .map((id) => customers.find((c) => String(c.id) === id))
+    .filter((c): c is Customer => Boolean(c) && String((c as Customer).id) !== String(selectedId));
+  const pick = (id: string) => {
+    onPick(id);
+    setQuery("");
+    setOpen(false);
+  };
+  return (
+    <div className="relative mb-1.5">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && matches[0]) {
+            e.preventDefault();
+            pick(String(matches[0].id));
+          }
+          if (e.key === "Escape") setOpen(false);
+        }}
+        placeholder="Type 2 letters to find a customer"
+        aria-label="Find customer"
+        data-testid="sales-customer-search"
+        className={cn(INP, "pr-3")}
+      />
+      {open && matches.length ? (
+        <ul
+          role="listbox"
+          aria-label="Matching customers"
+          className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-line bg-surface-1 p-1 shadow-lg"
+        >
+          {matches.map((c) => (
+            <li key={c.id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={String(c.id) === String(selectedId)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(String(c.id))}
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-surface-2"
+                data-testid={`sales-customer-match-${c.id}`}
+              >
+                <span className="truncate">{c.name}</span>
+                {c.code ? <span className="shrink-0 font-mono text-caption text-content-3">{c.code}</span> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {!query && recentRows.length ? (
+        <div className="mt-1 flex flex-wrap gap-1" aria-label="Recent customers">
+          {recentRows.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => pick(String(c.id))}
+              className="max-w-[12rem] truncate rounded-full border border-line bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-2 hover:bg-surface-1"
+              data-testid={`sales-customer-recent-${c.id}`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+

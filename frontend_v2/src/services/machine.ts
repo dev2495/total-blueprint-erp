@@ -369,6 +369,33 @@ export interface JobContext {
             grade_id?: string | null;
             location_name?: string;
         }>;
+        roll_mode?: "NONE" | "COUNT" | "MASS" | "LANES" | string;
+        roll_output_cap_kg?: number | null;
+        roll_lanes?: Array<{
+            lane_key: string;
+            label: string;
+            share: number;
+            need_kg: number;
+            target_kg?: number;
+            loaded_kg: number;
+            short_kg: number;
+            covered: boolean;
+            material_name?: string;
+            rolls: Array<{
+                id: string;
+                reservation_id?: string;
+                label_id: string;
+                material_name?: string | null;
+                width_mm?: number | null;
+                thickness_micron?: number | null;
+                weight_kg: number;
+                original_weight_kg?: number | null;
+                status?: string;
+                started?: boolean;
+                running?: boolean;
+                location_name?: string | null;
+            }>;
+        }>;
         bulk_preview?: Array<{
             requirement_id?: string;
             material_id?: string;
@@ -623,6 +650,15 @@ export const machineService = {
     },
 
     // Log output (keeps step open)
+    returnRoll: async (
+        machineId: string,
+        jobId: string,
+        payload: { roll_id: string; mode: "RETURN" | "FINISHED"; weight_kg?: number; note?: string; location_id?: string },
+    ) => {
+        const { data } = await api.post(`/api/production/machine/${machineId}/jobs/${jobId}/return-roll/`, payload);
+        return data;
+    },
+
     logOutput: async (
         machineId: string,
         jobId: string,

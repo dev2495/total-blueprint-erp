@@ -823,6 +823,91 @@ class PackingViewSet(viewsets.ViewSet):
             
         return Response(results)
     
+    @action(detail=False, methods=['get'], url_path='verification')
+    def verification(self, request):
+        """Packing check for one FG batch: machine logged vs packed (net of packing material)."""
+        from .models import FinishedGoodsBatch
+        from .services.packing_service import PackingVerificationService
+        fg_batch_id = request.query_params.get('fg_batch_id')
+        if not fg_batch_id:
+            return Response({"error": "fg_batch_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            fg_batch = FinishedGoodsBatch.objects.select_related("production_job").get(id=fg_batch_id)
+        except (FinishedGoodsBatch.DoesNotExist, ValueError, ValidationError):
+            return Response({"error": "Batch not found"}, status=status.HTTP_404_NOT_FOUND)
+        return Response(PackingVerificationService.summary(fg_batch))
+
+    @action(detail=False, methods=['get'], url_path='verification-queue')
+    def verification_queue(self, request):
+        """Batches with packs whose packing check is open or held (newest first), plus recent decisions."""
+        from django.db.models import Count, Q
+        from .models import FinishedGoodsBatch
+        from .services.packing_service import PackingVerificationService
+
+        qs = (
+            FinishedGoodsBatch.objects.annotate(unit_count=Count("packing_units"))
+            .filter(unit_count__gt=0, sales_order_item__isnull=False)
+            # Batches made before the check started are left as they were.
+            .filter(created_at__gte=PackingVerificationService.start_moment())
+            .select_related("production_job", "sales_order_item__sales_order", "template")
+        )
+        sales_order_id = request.query_params.get("sales_order_id")
+        if sales_order_id:
+            qs = qs.filter(sales_order_item__sales_order_id=sales_order_id)
+        plant_id = request.query_params.get("plant_id")
+        if plant_id:
+            qs = qs.filter(location__plant_id=plant_id)
+        pending = qs.filter(Q(packing_verification__isnull=True) | Q(packing_verification__status__in=["OPEN", "HELD"])).order_by("-created_at")[:60]
+        decided = qs.filter(packing_verification__status__in=["VERIFIED", "ACCEPTED"]).order_by("-packing_verification__updated_at")[:20]
+        rows = []
+        for batch in list(pending) + list(decided):
+            data = PackingVerificationService.summary(batch)
+            data.pop("units", None)
+            so = getattr(batch.sales_order_item, "sales_order", None)
+            data["sales_order_id"] = str(so.id) if so else ""
+            data["sales_order_no"] = getattr(so, "order_number", "") if so else ""
+            data["customer"] = getattr(so, "customer_name", "") if so else ""
+            data["product"] = batch.template.name if batch.template else ""
+            rows.append(data)
+        return Response({"results": rows})
+
+    @action(detail=False, methods=['post'], url_path='verification-sample')
+    def verification_sample(self, request):
+        from .services.packing_service import PackingVerificationService
+        try:
+            data = PackingVerificationService.record_sample(
+                request.data.get('fg_batch_id'),
+                sample_count=request.data.get('sample_count'),
+                sample_weight_g_total=request.data.get('sample_weight_g_total'),
+                user=request.user,
+            )
+            return Response(data)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='verification-close')
+    def verification_close(self, request):
+        from .services.packing_service import PackingVerificationService
+        try:
+            data = PackingVerificationService.close(request.data.get('fg_batch_id'), user=request.user, note=request.data.get('note') or "")
+            return Response(data)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='verification-accept')
+    def verification_accept(self, request):
+        from .services.packing_service import PackingVerificationService
+        try:
+            data = PackingVerificationService.accept(
+                request.data.get('fg_batch_id'),
+                user=request.user,
+                reason=request.data.get('reason') or "",
+                note=request.data.get('note') or "",
+            )
+            return Response(data)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=False, methods=['post'])
     def create_gonny(self, request):
         """Create a packing unit (gonny) from FG batch."""
@@ -1149,8 +1234,12 @@ class PackingViewSet(viewsets.ViewSet):
         from apps.inventory.models import PackagingTransaction
         from datetime import datetime, timedelta
 
+        from django.db.models import Q as _Q
+
         qs = (
-            PackagingTransaction.objects.filter(type='CONSUME')
+            PackagingTransaction.objects.filter(
+                _Q(type='CONSUME') | _Q(type='ADJUST', meta_json__basis='INNER_PACK_RETURN')
+            )
             .filter(sales_order_item__isnull=False)
             .select_related('material', 'location', 'sales_order_item', 'sales_order_item__sales_order')
             .order_by('-created_at')
@@ -1209,6 +1298,8 @@ class PackingViewSet(viewsets.ViewSet):
                 "location_id": str(tx.location_id),
                 "location_name": tx.location.name,
                 "reference": tx.reference or "",
+                "type": tx.type,
+                "basis": (tx.meta_json or {}).get("basis") or "",
                 "ticked_by": (tx.meta_json or {}).get("ticked_by") or "",
                 "notes": (tx.meta_json or {}).get("notes") or "",
             })
@@ -1258,7 +1349,11 @@ class PackingViewSet(viewsets.ViewSet):
         mark_payloads = []
         for gonny in gonny_qs[:limit]:
             meta = gonny.meta_json if isinstance(gonny.meta_json, dict) else {}
-            for line in meta.get("release_extras") or []:
+            gonny_marks = [
+                row for row in (meta.get("packaging_marks") or [])
+                if isinstance(row, dict) and str(row.get("capture_mode") or "") == "MARKED_FOR_COUNT"
+            ]
+            for line in [*gonny_marks, *(meta.get("seal_extras") or []), *(meta.get("release_extras") or [])]:
                 if isinstance(line, dict) and line.get("material_id"):
                     material_ids.add(str(line.get("material_id")))
                     mark_payloads.append(("gonny", gonny, line))
@@ -1270,7 +1365,7 @@ class PackingViewSet(viewsets.ViewSet):
 
         from apps.materials.models import InventoryMaterial
         materials = {str(mat.id): mat for mat in InventoryMaterial.objects.filter(id__in=material_ids)}
-        for source, obj, line in mark_payloads:
+        for mark_index, (source, obj, line) in enumerate(mark_payloads):
             mat = materials.get(str(line.get("material_id")))
             if material_id and str(line.get("material_id")) != str(material_id):
                 continue
@@ -1281,7 +1376,7 @@ class PackingViewSet(viewsets.ViewSet):
             location = getattr(obj, "location", None) if source == "gonny" else getattr(getattr(obj, "roll", None), "location", None)
             occurred_at = (getattr(obj, "sealed_at", None) or getattr(obj, "created_at", None)) if source == "gonny" else getattr(obj, "packed_at", None)
             marked_rows.append({
-                "id": f"mark:{source}:{getattr(obj, 'id', '')}:{line.get('material_id')}",
+                "id": f"mark:{source}:{getattr(obj, 'id', '')}:{line.get('material_id')}:{mark_index}",
                 "created_at": occurred_at.isoformat() if occurred_at else "",
                 "sales_order_id": str(so.id) if so else None,
                 "sales_order_no": so.order_number if so else "",

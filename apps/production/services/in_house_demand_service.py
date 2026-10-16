@@ -134,6 +134,15 @@ class InHouseDemandService:
                 continue
             if mode not in {"IN_HOUSE", "BOTH"}:
                 continue
+            if not cls._master_allows_auto_demand(item, line):
+                skipped.append({
+                    "item_id": str(item.id),
+                    "kind": "PACKAGING",
+                    "reason": "auto_demand_off_on_product_master",
+                    "material_id": str(material.id),
+                    "material_code": material.code,
+                })
+                continue
             qty_decimal, uom = cls._estimate_packaging_line_qty(item, line, material)
             if qty_decimal <= 0:
                 skipped.append({"item_id": str(item.id), "kind": "PACKAGING", "reason": "non_positive_qty", "material_id": str(material.id)})
@@ -146,12 +155,19 @@ class InHouseDemandService:
                 grouped[key] = {"material": material, "uom": uom, "qty": Decimal("0")}
             grouped[key]["qty"] += qty_decimal
 
+        primary_cfg = snapshot.get("primary_inner_pack") if isinstance(snapshot.get("primary_inner_pack"), dict) else {}
+        inner_pouch_id = str(primary_cfg.get("material_id") or "") if primary_cfg.get("enabled") else ""
         for row in grouped.values():
             required_qty = row["qty"]
-            available_qty = cls._available_packaging_stock_qty(
-                row["material"],
-                plant_id=getattr(item.sales_order, "plant_id", None),
-            )
+            plant_id = getattr(item.sales_order, "plant_id", None)
+            available_qty = cls._available_packaging_stock_qty(row["material"], plant_id=plant_id)
+            netting = None
+            if inner_pouch_id and str(row["material"].id) == inner_pouch_id:
+                # Inner pouches are consumed automatically at pouching, so stock already promised
+                # to other open orders is not free, and in-house stock orders still running will add more.
+                netting = cls._inner_pouch_netting(row["material"], item=item, plant_id=plant_id)
+                required_qty = max(required_qty - netting["consumed_for_this_line"], Decimal("0"))
+                available_qty = available_qty + netting["pending_in_house"] - netting["needed_by_other_orders"]
             shortage_qty = required_qty - available_qty
             if shortage_qty <= 0:
                 skipped.append({
@@ -163,6 +179,7 @@ class InHouseDemandService:
                     "required_qty": str(required_qty),
                     "available_qty": str(available_qty),
                     "qty_uom": row["uom"],
+                    **({"netting": {key: str(value) for key, value in netting.items()}} if netting else {}),
                 })
                 continue
             target_qty = shortage_qty if available_qty > 0 else required_qty
@@ -192,6 +209,31 @@ class InHouseDemandService:
             )
             if was_created:
                 created.append(link)
+
+    INNER_ROLES = {"PRIMARY_INNER", "PRIMARY_INNER_PACK"}
+    OUTER_ROLES = {"ROLL_DISPATCH", "FINAL_OUTER", "SECONDARY_GONNY", "OUTER", "GONNY"}
+
+    @classmethod
+    def _master_allows_auto_demand(cls, item, line: dict) -> bool:
+        """The product master's packaging axis can switch off in-house demand; the order
+        follows it (the master preview already does). No master or no flag keeps demand on."""
+        master = getattr(item, "product_master", None)
+        axes = getattr(master, "variant_axes", None) if master is not None else None
+        if not isinstance(axes, list):
+            return True
+        role = str((line or {}).get("role") or (line or {}).get("basis") or "").upper()
+        if role in cls.INNER_ROLES:
+            names = {"packaging_inner", "packaging"}
+        elif role in cls.OUTER_ROLES:
+            names = {"packaging_outer"}
+        elif role == "POD":
+            names = {"pod_variant", "pod"}
+        else:
+            return True
+        for axis in axes:
+            if isinstance(axis, dict) and str(axis.get("axis") or "") in names and "auto_demand_in_house" in axis:
+                return bool(axis.get("auto_demand_in_house"))
+        return True
 
     @classmethod
     def _iter_packaging_lines(cls, item, snapshot: dict) -> Iterable[dict]:
@@ -484,6 +526,84 @@ class InHouseDemandService:
             return max(0, len(route_steps) - 1)
         except Exception:
             return 0
+
+    OPEN_ORDER_STATUSES = ("CONFIRMED", "PLANNING_REQUIRED", "PLANNED", "RELEASED", "PACKING_READY")
+    OPEN_STOCK_ORDER_STATUSES = ("DRAFT", "PLANNING_REQUIRED", "PLANNED", "RELEASED")
+
+    @classmethod
+    def _inner_pouch_netting(cls, material: InventoryMaterial, *, item, plant_id=None) -> dict:
+        """What else draws on, or adds to, this inner pouch stock in the plant.
+
+        needed_by_other_orders: other open order lines' inner pouches not consumed yet.
+        pending_in_house: in-house stock orders for this pouch still to produce.
+        consumed_for_this_line: already consumed for this line (a re-run must not plan it again).
+        """
+        from apps.inventory.models import PackagingTransaction
+        from apps.sales.models import SalesOrderItem
+
+        def consumed_for(line_id) -> Decimal:
+            total = (
+                PackagingTransaction.objects.filter(material=material, sales_order_item_id=line_id, type="CONSUME")
+                .aggregate(total=Sum("qty"))
+                .get("total")
+                or Decimal("0")
+            )
+            returned = (
+                PackagingTransaction.objects.filter(
+                    material=material, sales_order_item_id=line_id, type="ADJUST", meta_json__basis="INNER_PACK_RETURN"
+                )
+                .aggregate(total=Sum("qty"))
+                .get("total")
+                or Decimal("0")
+            )
+            return max(-Decimal(str(total)) - Decimal(str(returned)), Decimal("0"))
+
+        from django.db.models import Q
+
+        others = (
+            SalesOrderItem.objects.select_related("sales_order")
+            .filter(
+                # Older lines may name the inner pouch by code only.
+                Q(packaging_snapshot__primary_inner_pack__material_id=str(material.id))
+                | Q(packaging_snapshot__primary_inner_pack__material_code__iexact=str(material.code)),
+                packaging_snapshot__primary_inner_pack__enabled=True,
+                sales_order__status__in=cls.OPEN_ORDER_STATUSES,
+            )
+            .exclude(id=item.id)
+        )
+        needed = Decimal("0")
+        for other in others[:500]:
+            primary = (other.packaging_snapshot or {}).get("primary_inner_pack") or {}
+            line = {**primary, "basis": "PCS_PER_PACK"}
+            required, _ = cls._estimate_packaging_line_qty(other, line, material)
+            needed += max(required - consumed_for(other.id), Decimal("0"))
+
+        pending = Decimal("0")
+        links = (
+            SalesOrderItemInHouseDemand.objects.select_related("planned_stock_order")
+            .filter(
+                demand_kind="PACKAGING",
+                packaging_material=material,
+                planned_stock_order__status__in=cls.OPEN_STOCK_ORDER_STATUSES,
+            )
+            .exclude(sales_order_item_id=item.id)
+        )
+        if plant_id:
+            links = links.filter(planned_stock_order__plant_id=plant_id)
+        for link in links:
+            produced = (
+                PackagingTransaction.objects.filter(material=material, mts_order_id=link.planned_stock_order_id, type="PRODUCE")
+                .aggregate(total=Sum("qty"))
+                .get("total")
+                or Decimal("0")
+            )
+            pending += max(Decimal(str(link.target_qty or 0)) - Decimal(str(produced)), Decimal("0"))
+
+        return {
+            "needed_by_other_orders": needed,
+            "pending_in_house": pending,
+            "consumed_for_this_line": consumed_for(item.id),
+        }
 
     @staticmethod
     def _available_packaging_stock_qty(material: InventoryMaterial, *, plant_id=None) -> Decimal:
@@ -806,6 +926,9 @@ class InHouseDemandService:
         snapshot = item.packaging_snapshot or {}
         pod = snapshot.get("pod") or {}
         if not pod.get("enabled"):
+            return
+        if not cls._master_allows_auto_demand(item, {"role": "POD"}):
+            skipped.append({"item_id": str(item.id), "kind": "POD", "reason": "auto_demand_off_on_product_master"})
             return
 
         pod_sku_variant_id = pod.get("pod_sku_variant_id")

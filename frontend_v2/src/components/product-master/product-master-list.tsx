@@ -870,7 +870,7 @@ function ProductMasterCard({
             className={cn(
               "inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-caption font-semibold ring-1 disabled:opacity-60",
               master.active
-                ? "text-warning-fg ring-warning-border hover:bg-warning-bg"
+                ? "text-content-3 ring-line hover:bg-warning-bg hover:text-warning-fg hover:ring-warning-border"
                 : "text-success-fg ring-success-border hover:bg-success-bg",
             )}
           >

@@ -266,6 +266,7 @@ def _normalize_packaging_snapshot(raw):
 
     packaging_lines = _normalize_packaging_lines(src.get("packaging_lines") if isinstance(src.get("packaging_lines"), list) else [])
 
+    primary_material = None
     if bool(primary_src.get("enabled", False)):
         primary_material = _packaging_material_from_ref(primary_src.get("material_id") or primary_src.get("material_code"))
         if primary_material:
@@ -318,14 +319,28 @@ def _normalize_packaging_snapshot(raw):
     )
 
     return {
+        # The packaging master is the truth for the inner pouch: a code-only reference gets its id,
+        # so the pouching step can consume it and the in-house demand can find it.
         "primary_inner_pack": {
             "enabled": bool(primary_src.get("enabled", False)),
-            "material_id": _safe_uuid_str(primary_src.get("material_id")) or str(primary_src.get("material_id") or "").strip() or None,
-            "material_code": str(primary_src.get("material_code") or "").strip(),
-            "material_name": str(primary_src.get("material_name") or "").strip(),
-            "supply_mode": str(primary_src.get("supply_mode") or "").upper(),
-            "packaging_kind": str(primary_src.get("packaging_kind") or "").upper(),
-            "pcs_per_pack": _as_int(primary_src.get("pcs_per_pack"), 0),
+            "material_id": (
+                str(primary_material.id)
+                if primary_material
+                else _safe_uuid_str(primary_src.get("material_id")) or str(primary_src.get("material_id") or "").strip() or None
+            ),
+            "material_code": (getattr(primary_material, "code", "") or str(primary_src.get("material_code") or "")).strip(),
+            "material_name": (getattr(primary_material, "name", "") or str(primary_src.get("material_name") or "")).strip(),
+            "supply_mode": str(
+                getattr(primary_material, "packaging_supply_mode", "") or primary_src.get("supply_mode") or ""
+            ).upper(),
+            "packaging_kind": str(
+                getattr(primary_material, "packaging_kind", "") or primary_src.get("packaging_kind") or ""
+            ).upper(),
+            "pcs_per_pack": _as_int(primary_src.get("pcs_per_pack"), 0)
+            or _as_int(
+                ((getattr(primary_material, "packaging_defaults_json", None) or {}) if primary_material else {}).get("pcs_per_pack"),
+                0,
+            ),
         },
         "final_outer_pack": {
             "enabled": bool(outer_src.get("enabled", False)),
@@ -1370,6 +1385,9 @@ def _build_material_plan_lines(
                         "material_id": material_id,
                         "material_code": material_code,
                         "material_name": material_name,
+                        # Films made in-house (EXTRUDE) are intermediates of their granules;
+                        # screens show them but never add them to purchase/issue totals.
+                        "source": (str(row.get("source") or "").upper() or None) if section_name == "films" else None,
                         "uom": line_uom,
                         "per_unit_qty": float(per_unit_qty.quantize(Decimal("0.000001"))) if per_unit_qty is not None else None,
                         "per_unit_basis": (f"{float(per_unit_qty.quantize(Decimal('0.000001'))):g} {line_uom.lower()} per piece" if per_unit_qty is not None else ""),

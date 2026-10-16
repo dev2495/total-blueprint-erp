@@ -145,6 +145,10 @@ class InHouseDemandServiceTests(SimpleTestCase):
         self.assertEqual(result["created"], [])
         mock_pso_cls.objects.create.assert_not_called()
 
+    @patch(
+        "apps.production.services.in_house_demand_service.InHouseDemandService._inner_pouch_netting",
+        lambda *a, **kw: {"needed_by_other_orders": Decimal("0"), "pending_in_house": Decimal("0"), "consumed_for_this_line": Decimal("0")},
+    )
     @patch("apps.production.services.in_house_demand_service._audit", lambda *a, **kw: None)
     @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
     @patch("apps.production.services.in_house_demand_service.PlannedStockOrder")
@@ -192,6 +196,10 @@ class InHouseDemandServiceTests(SimpleTestCase):
         self.assertEqual(kwargs["quantity_uom"], "PCS")
         self.assertEqual(kwargs["stock_strategy"], "PACKAGING_STOCK")
 
+    @patch(
+        "apps.production.services.in_house_demand_service.InHouseDemandService._inner_pouch_netting",
+        lambda *a, **kw: {"needed_by_other_orders": Decimal("0"), "pending_in_house": Decimal("0"), "consumed_for_this_line": Decimal("0")},
+    )
     @patch("apps.production.services.in_house_demand_service._audit", lambda *a, **kw: None)
     @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
     @patch("apps.production.services.in_house_demand_service.PlannedStockOrder")

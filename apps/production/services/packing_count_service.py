@@ -151,7 +151,7 @@ class PackingCountService:
             end = end_at
         buckets: dict[tuple[str, str], dict] = {}
 
-        def add(sales_order_item, location, units, source, label):
+        def add(sales_order_item, location, units, source, label, marks=None):
             if not sales_order_item or not location:
                 return
             key = (str(sales_order_item.id), str(location.id))
@@ -168,9 +168,22 @@ class PackingCountService:
                     "units": Decimal("0"),
                     "sources": [],
                     "_sales_order_item": sales_order_item,
+                    "_plant_id": str(getattr(location, "plant_id", "") or ""),
+                    "_marks": {},
                 },
             )
             row["units"] += Decimal(str(units or 0))
+            for mark in marks or []:
+                if not isinstance(mark, dict):
+                    continue
+                material_id = str(mark.get("material_id") or "").strip()
+                if not material_id:
+                    continue
+                try:
+                    qty = Decimal(str(mark.get("qty") or 0))
+                except Exception:
+                    qty = Decimal("0")
+                row["_marks"][material_id] = row["_marks"].get(material_id, Decimal("0")) + max(qty, Decimal("0"))
             if len(row["sources"]) < 12:
                 row["sources"].append({"source": source, "label": label, "units": float(Decimal(str(units or 0)))})
 
@@ -182,7 +195,13 @@ class PackingCountService:
             gonnies = gonnies.filter(location_id=location_id)
         for gonny in gonnies:
             units = gonny.primary_pack_count if gonny.content_mode == "PRIMARY_PACKS" and gonny.primary_pack_count else gonny.qty_pcs
-            add(gonny.sales_order_item, gonny.location, units or 1, "GONNY", gonny.label_id)
+            meta = gonny.meta_json if isinstance(gonny.meta_json, dict) else {}
+            marks = [
+                *[row for row in (meta.get("packaging_marks") or []) if str((row or {}).get("capture_mode") or "") == "MARKED_FOR_COUNT"],
+                *(meta.get("seal_extras") or []),
+                *(meta.get("release_extras") or []),
+            ]
+            add(gonny.sales_order_item, gonny.location, units or 1, "GONNY", gonny.label_id, marks)
 
         roll_records = (
             RollDispatchPackRecord.objects.select_related("sales_order_item__sales_order", "roll__location")
@@ -191,11 +210,11 @@ class PackingCountService:
         if location_id:
             roll_records = roll_records.filter(roll__location_id=location_id)
         for record in roll_records:
-            add(record.sales_order_item, record.roll.location, 1, "ROLL", getattr(record.roll, "label_id", "ROLL"))
+            add(record.sales_order_item, record.roll.location, 1, "ROLL", getattr(record.roll, "label_id", "ROLL"), record.lines or [])
 
         rows = []
         for row in buckets.values():
-            rows.append({key: value for key, value in row.items() if key != "_sales_order_item"} | {"units": float(row["units"])})
+            rows.append({key: value for key, value in row.items() if not key.startswith("_")} | {"units": float(row["units"])})
         rows.sort(key=lambda item: (item["order_number"], item["location_name"]))
         return rows, buckets
 
@@ -342,14 +361,34 @@ class PackingCountService:
 
     @classmethod
     def _allocation_candidates(cls, *, material_id: str, location_id: str, count_date, counted_at=None):
+        """Same-day packing that used this material: orders that marked it on a unit, or whose
+        packing plan allows it. Packing material often sits in a store away from the packed
+        goods, so when nothing was packed at this location the whole plant is used."""
+
+        def pick(buckets):
+            marked = []
+            allowed = []
+            for row in buckets:
+                mark_qty = (row.get("_marks") or {}).get(str(material_id), Decimal("0"))
+                if mark_qty > 0:
+                    marked.append({**row, "units": mark_qty, "allocation_basis": "MARKED"})
+                elif row["units"] > 0 and cls._sales_line_allows_material(row.get("_sales_order_item"), material_id):
+                    allowed.append({**row, "allocation_basis": "PLAN"})
+            return marked or allowed
+
         _, buckets = cls.throughput_rows(count_date=count_date, location_id=location_id, end_at=counted_at)
-        candidates = []
-        for row in buckets.values():
-            if row["units"] <= 0:
-                continue
-            if cls._sales_line_allows_material(row.get("_sales_order_item"), material_id):
-                candidates.append(row)
-        return candidates
+        candidates = pick(buckets.values())
+        if candidates:
+            return candidates
+        plant_id = (
+            InventoryLocation.objects.filter(id=location_id).values_list("plant_id", flat=True).first()
+            if location_id
+            else None
+        )
+        if not plant_id:
+            return []
+        _, plant_buckets = cls.throughput_rows(count_date=count_date, end_at=counted_at)
+        return pick(row for row in plant_buckets.values() if row.get("_plant_id") == str(plant_id))
 
     @classmethod
     @transaction.atomic
@@ -410,6 +449,8 @@ class PackingCountService:
                             meta_json={
                                 **base_meta,
                                 "allocation_mode": "SAME_DAY_ALLOWED_PACKING_THROUGHPUT",
+                                "allocation_basis": row.get("allocation_basis", "PLAN"),
+                                "allocation_location_id": row.get("location_id"),
                                 "allocated_order_number": row["order_number"],
                                 "allocated_units": float(row["units"]),
                                 "throughput_sources": row["sources"],

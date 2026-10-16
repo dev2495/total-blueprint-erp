@@ -46,6 +46,7 @@ import { ArtworkButton } from "@/components/machine/cylinder-artwork";
 import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
 import { PrintColorRevisionNotice } from "@/components/production/print-color-revision-notice";
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
+import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/components/production/roll-lanes-panel";
 import {
   GranuleCodeSourcePicker,
   type GranuleCodeSourceOption,
@@ -1821,6 +1822,10 @@ export default function WCMTerminal() {
   // rolls of the right web until the step mass is covered).
   const rollMode = String((satisfactionStatus as any)?.roll_mode || (rollsRequired > 0 ? "COUNT" : "NONE")).toUpperCase();
   const rollMassMode = rollMode === "MASS";
+  // LANES: lamination lane groups, one queue per layer. MASS and LANES both run rolls
+  // one after another and accept the next roll while the job runs.
+  const rollLaneMode = rollMode === "LANES";
+  const rollLaneFlow = rollMassMode || rollLaneMode;
   const rollTargetKg = Number((satisfactionStatus as any)?.roll_target_kg || 0);
   const rollsReservedKg = Number((satisfactionStatus as any)?.rolls_reserved_kg || 0);
   const rollShortKg = Number((satisfactionStatus as any)?.roll_short_kg || 0);
@@ -1897,16 +1902,40 @@ export default function WCMTerminal() {
   );
   const rollsMissing = rollMassMode
     ? (effectiveRollsReserved >= 1 ? 0 : 1)
-    : Math.max(0, rollsRequired - effectiveRollsReserved);
+    : rollLaneMode
+      ? Math.max(0, Number((satisfactionStatus as any)?.rolls_missing ?? 0))
+      : Math.max(0, rollsRequired - effectiveRollsReserved);
   const isRollInputStep = satisfactionStatus?.input_form === "ROLL";
   const requiresManualRollAssign = isRollInputStep && rollsMissing > 0;
   // In mass mode more rolls may be added until the step mass is covered.
+  const rollLanes: RollLane[] = useMemo(() => {
+    const rows = (executionContext as any)?.inputs?.roll_lanes;
+    return Array.isArray(rows) ? rows : [];
+  }, [executionContext]);
+  // Lanes that can start but still lack film for the full order; adding rolls later is fine.
+  const shortRollLanes = useMemo(
+    () => (rollLaneFlow ? rollLanes.filter((lane) => !lane.covered && Number(lane.short_kg || 0) > 0.0005) : []),
+    [rollLaneFlow, rollLanes],
+  );
+  const emptyRollLanes = useMemo(
+    () => (rollLaneMode ? rollLanes.filter((lane) => Number(lane.loaded_kg || 0) <= 0.0005) : []),
+    [rollLaneMode, rollLanes],
+  );
+  const startedRollIds = useMemo(() => {
+    const ids = new Set<string>();
+    rollLanes.forEach((lane) => lane.rolls.forEach((roll) => roll.started && ids.add(String(roll.id))));
+    return ids;
+  }, [rollLanes]);
   const canAddMoreRolls = rollMassMode
     ? effectiveRollsReserved < Math.max(1, rollMaxCount) && (effectiveRollsReserved === 0 || !rollMassCovered)
-    : rollsMissing > 0;
+    : rollLaneMode
+      ? effectiveRollsReserved < Math.max(1, rollMaxCount)
+      : rollsMissing > 0;
   const rollAllocationLabel = rollMassMode
     ? `${effectiveRollsReserved} roll${effectiveRollsReserved === 1 ? "" : "s"} · ${rollsReservedKg.toFixed(1)} of ${rollTargetKg.toFixed(1)} kg`
-    : `${effectiveRollsReserved}/${rollsRequired} allocated`;
+    : rollLaneMode
+      ? `${effectiveRollsReserved} roll${effectiveRollsReserved === 1 ? "" : "s"} in ${rollLanes.length || rollsRequired} lanes${rollsMissing > 0 ? ` · ${rollsMissing} lane${rollsMissing === 1 ? "" : "s"} empty` : ""}`
+      : `${effectiveRollsReserved}/${rollsRequired} allocated`;
   const rollGuidanceText =
     satisfactionStatus?.input_form === "ROLL" &&
     rollsRequired > 0 &&
@@ -2768,6 +2797,22 @@ export default function WCMTerminal() {
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
     });
+  };
+
+  const handleReturnRoll = async (payload: ReturnRollPayload) => {
+    if (!activeAssignment) return;
+    await wcmService.returnRoll(activeAssignment.id, payload.rollId, {
+      mode: payload.mode,
+      weight_kg: payload.weightKg,
+      note: payload.note,
+    });
+    toast({
+      title: payload.mode === "RETURN" ? "Balance returned to stock" : "Roll marked finished",
+      description: "The roll keeps its label.",
+    });
+    await refetchContext();
+    await refetchSatisfaction();
+    queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
   };
 
   const handleRequestMaterialTransfer = (
@@ -3692,6 +3737,25 @@ export default function WCMTerminal() {
                 <div className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
                   Assign {rollsMissing} more roll{rollsMissing === 1 ? "" : "s"}{" "}
                   before release.
+                  {emptyRollLanes.length ? (
+                    <span className="font-normal">
+                      {" "}No roll yet: {emptyRollLanes.map((lane) => lane.label).join(", ")}.
+                    </span>
+                  ) : null}
+                </div>
+              ) : shortRollLanes.length ? (
+                <div
+                  className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-xs font-semibold text-info-fg"
+                  data-testid="wcm-roll-short-note"
+                >
+                  Ready to start: every {rollLaneMode ? "layer" : "input"} has a roll.
+                  <span className="font-normal">
+                    {" "}Still short for the full order:{" "}
+                    {shortRollLanes
+                      .map((lane) => `${lane.label} ${Number(lane.short_kg).toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg`)
+                      .join(" · ")}
+                    . Add the next roll before it runs out; this does not hold the release.
+                  </span>
                 </div>
               ) : (
                 <div className="mt-3 rounded-xl border border-success-border bg-success-bg px-3 py-2 text-xs font-semibold text-success-fg">
@@ -3733,12 +3797,12 @@ export default function WCMTerminal() {
                     wipPoolMeta={(executionContext as any)?.wip_pool_meta || {}}
                     rollAssignmentValidation={rollAssignmentValidation}
                     strictSpecMatch={!manualOverrideEnabled}
-                    disabled={isReleasedToMachine || !canManualAssign}
+                    disabled={(isReleasedToMachine && !rollLaneFlow) || !canManualAssign}
                     disabledLabel={
-                      isReleasedToMachine
+                      isReleasedToMachine && !rollLaneFlow
                         ? "LOCKED"
-                        : rollMassMode && canAddMoreRolls
-                          ? "ADD ROLL"
+                        : rollLaneFlow && canAddMoreRolls
+                          ? isReleasedToMachine ? "ADD NEXT ROLL" : "ADD ROLL"
                           : rollsMissing <= 0
                             ? "ROLLS ASSIGNED"
                             : "NO FREE SLOT"
@@ -3829,6 +3893,24 @@ export default function WCMTerminal() {
                   />
                 </div>
               ) : null}
+              {rollLaneFlow && rollLanes.length ? (
+                <div className="mt-4">
+                  <RollLanesPanel
+                    lanes={rollLanes}
+                    mode={rollMode}
+                    allowRemove
+                    allowReturn={isReleasedToMachine}
+                    busy={mutation.isPending}
+                    onRemove={(roll) =>
+                      roll.reservation_id
+                        ? handleUnassignRoll(roll.reservation_id)
+                        : handleUnassignRollByRoll(roll.id)
+                    }
+                    onReturn={handleReturnRoll}
+                    testIdPrefix="wcm-roll-lanes"
+                  />
+                </div>
+              ) : null}
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
                 <div className="rounded-xl border border-line bg-surface-2 p-3">
                   <div className="mb-2 flex items-center justify-between">
@@ -3869,7 +3951,16 @@ export default function WCMTerminal() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            disabled={isReleasedToMachine || mutation.isPending}
+                            disabled={
+                              (isReleasedToMachine && !rollLaneFlow) ||
+                              startedRollIds.has(String(roll.id)) ||
+                              mutation.isPending
+                            }
+                            title={
+                              startedRollIds.has(String(roll.id))
+                                ? "Part-used: use Return balance in the lanes above"
+                                : undefined
+                            }
                             className="h-8 w-8 rounded-lg text-content-4 hover:text-danger-fg"
                             data-testid={
                               roll.reservation_id

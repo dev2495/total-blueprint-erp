@@ -675,6 +675,16 @@ export function LineEditor({
                 <option value="KG">KG</option>
                 <option value="PCS">PCS</option>
               </SoSelect>
+              {master && String((master as any).product_kind || "").toUpperCase() === "POUCH" && line.qty_uom === "KG" ? (
+                <button
+                  type="button"
+                  onClick={() => onPatch({ qty_uom: "PCS", price_basis: "PCS" } as any)}
+                  className="mt-1 text-caption font-semibold text-primary underline-offset-2 hover:underline"
+                  data-testid="sales-line-use-pieces"
+                >
+                  Pouches: use pieces
+                </button>
+              ) : null}
             </SoField>
             <SoField label={`Rate / ${line.price_basis}`}>
               <input

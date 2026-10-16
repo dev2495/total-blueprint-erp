@@ -38,6 +38,8 @@ const RECORD_LABELS: Array<[RegExp, string]> = [
   [/^\/inventory\/outward-documents\/[0-9a-f-]{36}$/i, "Outward document"],
   [/^\/inventory\/job-work\/[0-9a-f-]{36}$/i, "Job-work order"],
   [/^\/system\/users\/[0-9a-f-]{36}$/i, "User"],
+  [/^\/master\/products\/[0-9a-f-]{36}$/i, "Product"],
+  [/^\/master\/pouch-styles\/[0-9a-f-]{36}$/i, "Pouch style"],
 ];
 
 function recordLabel(path: string): string | null {

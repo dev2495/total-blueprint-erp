@@ -4049,7 +4049,7 @@ function PackagingContractCard({
                 </div>
                 <span className="text-caption font-bold text-warning-fg">
                   {innerAxis?.required ? "required" : "optional"}
-                  {(innerAxis as any)?.auto_demand_in_house
+                  {(innerAxis as any)?.auto_demand_in_house !== false
                     ? " · auto-demand"
                     : ""}
                   {" · "}
@@ -4099,7 +4099,7 @@ function PackagingContractCard({
               </div>
               <span className="text-caption font-bold text-order-fg">
                 {podAxis?.required ? "required" : "optional"}
-                {(podAxis as any)?.auto_demand_in_house ? " · auto-demand" : ""}
+                {(podAxis as any)?.auto_demand_in_house !== false ? " · auto-demand" : ""}
                 {" · "}
                 {podCodes.length} allowed
               </span>

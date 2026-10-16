@@ -172,11 +172,21 @@ class JobService:
                 roll__isnull=False,
             )
         )
+        from decimal import Decimal as _D
         for reservation in active_reservations:
             roll = reservation.roll
+            if roll is not None and roll.weight_kg is not None and _D(str(roll.weight_kg)) <= _D("0.0005"):
+                # Used up on the last entry: close it rather than return an empty roll.
+                reservation.status = "FULFILLED"
+                reservation.save(update_fields=["status"])
+                if roll.status != "CONSUMED":
+                    roll.status = "CONSUMED"
+                    roll.weight_kg = _D("0")
+                    roll.save(update_fields=["status", "weight_kg"])
+                continue
             reservation.status = "RELEASED"
             reservation.save(update_fields=["status"])
-            if roll and roll.status == "RESERVED":
+            if roll and roll.status in {"RESERVED", "IN_PROCESS"}:
                 has_other_active = InventoryReservation.objects.filter(
                     roll=roll,
                     status="ACTIVE",
@@ -2285,6 +2295,48 @@ class WCManagerService:
                 job.save(update_fields=updates)
 
     @classmethod
+    def _job_is_running(cls, job):
+        return (
+            str(getattr(job, "job_state", "") or "").upper() in {"EXECUTING", "PAUSED"}
+            or str(getattr(job, "status", "") or "").upper() == "RUNNING"
+        )
+
+    @classmethod
+    def _ensure_rolls_can_change(cls, assignment, *, adding):
+        """
+        Before release: anything goes. After release or while running: rolls may be added
+        (the next roll for a lane), and a roll that this job has not touched may be taken
+        off. A part-used roll leaves only through "return balance".
+        """
+        job = getattr(assignment, "production_job", None)
+        job_state = str(getattr(job, "job_state", "") or "").upper()
+        if job_state in {"COMPLETED", "CANCELLED"}:
+            raise ValueError("This job is closed. Rolls can no longer change.")
+        status = str(getattr(assignment, "status", "") or "").upper()
+        released = status == "EXECUTION_READY" or cls._job_is_running(job)
+        if not released:
+            return
+        from apps.production.services.services_execution import ExecutionService
+        process = job.current_process or job.process
+        mode = ExecutionService._roll_requirement(job, process).get("mode")
+        if mode not in {"MASS", "LANES"}:
+            raise ValueError("This job is already released to machine execution. Preparation changes are locked.")
+
+    @classmethod
+    def _ensure_reservation_untouched(cls, job, *, reservation_id):
+        # Nothing can be consumed before the job runs; check only a released/running job.
+        if not cls._job_is_running(job) and str(getattr(job, "job_state", "") or "").upper() != "RELEASED":
+            return
+        from apps.inventory.models import InventoryReservation, RollConsumption
+        res = InventoryReservation.objects.filter(id=reservation_id, job=job).select_related("roll").first()
+        if res is None or not res.roll_id:
+            return
+        if RollConsumption.objects.filter(job=job, input_roll_id=res.roll_id).exists():
+            raise ValueError(
+                f"Roll {res.roll.label_id} is part-used on this job. Use Return balance to send what is left back to stock."
+            )
+
+    @classmethod
     def _ensure_pre_release_editable(cls, assignment):
         status = str(getattr(assignment, "status", "") or "").upper()
         job = getattr(assignment, "production_job", None)
@@ -2404,7 +2456,7 @@ class WCManagerService:
         
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
-            cls._ensure_pre_release_editable(assignment)
+            cls._ensure_rolls_can_change(assignment, adding=True)
             job = ProductionJob.objects.select_for_update().get(pk=assignment.production_job_id)
             list(InventoryRoll.objects.select_for_update().filter(id__in=roll_ids or []).order_by("id"))
             process = job.current_process or job.process
@@ -2464,8 +2516,9 @@ class WCManagerService:
 
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
-            cls._ensure_pre_release_editable(assignment)
+            cls._ensure_rolls_can_change(assignment, adding=False)
             job = assignment.production_job
+            cls._ensure_reservation_untouched(job, reservation_id=reservation_id)
 
             # Clear legacy links before unassigning to prevent any reconciliation
             # path from recreating a just-released reservation.
@@ -2498,7 +2551,7 @@ class WCManagerService:
 
         with transaction.atomic():
             assignment = WorkCenterAssignment.objects.get(id=assignment_id)
-            cls._ensure_pre_release_editable(assignment)
+            cls._ensure_rolls_can_change(assignment, adding=False)
             job = assignment.production_job
 
             # Frontend may pass either roll_id or reservation_id in some legacy paths.
@@ -2507,6 +2560,8 @@ class WCManagerService:
                 Q(job=job, roll_id=roll_id, status="ACTIVE") |
                 Q(job=job, id=roll_id, status="ACTIVE")
             ).first()
+            if res:
+                cls._ensure_reservation_untouched(job, reservation_id=res.id)
 
             # Clear legacy links before unassigning to prevent any reconciliation
             # path from recreating a just-released reservation.

@@ -199,6 +199,109 @@ class PackagingService:
 
     @classmethod
     @transaction.atomic
+    def consume_packaging_stock_in_plant(
+        cls,
+        *,
+        material_id,
+        qty,
+        location_id,
+        job_id=None,
+        sales_order_item_id=None,
+        mts_order_id=None,
+        reference="",
+        meta_json=None,
+        input_uom=None,
+        basis=None,
+    ):
+        """Consume from the given location first, then from other locations of the same plant.
+
+        Packing material is often kept in a store while the packed goods sit elsewhere in the
+        plant. Each location used gets its own CONSUME row, so the stock card stays exact.
+        """
+        material = InventoryMaterial.objects.get(id=material_id)
+        cls._validate_packaging_material(material)
+        location = InventoryLocation.objects.select_related("plant").get(id=location_id)
+        base_qty, conversion_meta = cls._resolve_base_qty(material, qty, input_uom=input_uom)
+        base_uom = InventoryMaterial.normalize_master_uom(material.base_uom or "PCS")
+
+        stocks = list(
+            PackagingStock.objects.select_for_update()
+            .select_related("location")
+            .filter(material=material, plant=location.plant)
+        )
+        stocks.sort(key=lambda row: (str(row.location_id) != str(location.id), -q4(row.qty)))
+        available = sum((max(q4(row.qty), Decimal("0")) for row in stocks), Decimal("0"))
+        if available < base_qty:
+            where = ", ".join(
+                f"{q4(row.qty)} at {row.location.name}" for row in stocks if q4(row.qty) > 0
+            ) or "none in this plant"
+            raise ValidationError(
+                f"Packaging stock shortage: {material.code} needs {base_qty} {material.base_uom}, "
+                f"plant has {available} {material.base_uom} ({where})."
+            )
+
+        transactions = []
+        remaining = base_qty
+        for stock in stocks:
+            if remaining <= 0:
+                break
+            take = min(remaining, q4(stock.qty))
+            if take <= 0:
+                continue
+            meta = dict(meta_json or {})
+            meta.update(conversion_meta)
+            if str(stock.location_id) != str(location.id):
+                meta["drawn_from_location_id"] = str(stock.location_id)
+                meta["requested_location_id"] = str(location.id)
+            transactions.append(
+                cls.consume_packaging_stock(
+                    material_id=material.id,
+                    qty=take,
+                    input_uom=base_uom,
+                    location_id=stock.location_id,
+                    job_id=job_id,
+                    sales_order_item_id=sales_order_item_id,
+                    mts_order_id=mts_order_id,
+                    reference=reference,
+                    meta_json=meta,
+                    basis=basis,
+                )
+            )
+            remaining = q4(remaining - take)
+        return transactions
+
+    @classmethod
+    @transaction.atomic
+    def return_unused_packaging_stock(
+        cls,
+        *,
+        material_id,
+        qty,
+        location_id,
+        cost,
+        job_id=None,
+        sales_order_item_id=None,
+        reference="",
+        meta_json=None,
+        basis="INNER_PACK_RETURN",
+    ):
+        """Put back packing material that was consumed for an order but not used (ADJUST row)."""
+        meta = dict(meta_json or {})
+        meta["basis"] = basis
+        return cls.add_packaging_stock(
+            material_id=material_id,
+            qty=qty,
+            location_id=location_id,
+            cost=cost,
+            job_id=job_id,
+            sales_order_item_id=sales_order_item_id,
+            reference=reference,
+            meta_json=meta,
+            tx_type="ADJUST",
+        )
+
+    @classmethod
+    @transaction.atomic
     def transfer_packaging_stock(
         cls,
         *,

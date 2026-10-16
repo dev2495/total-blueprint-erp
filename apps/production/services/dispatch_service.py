@@ -2038,6 +2038,10 @@ class FGDispatchService:
             raise ValueError(f"Gonny {gonny.label_id} must be SEALED before release to dispatch.")
         if getattr(gonny, "gross_weight_kg", None) is None:
             raise ValueError(f"Gonny {gonny.label_id} has no actual sealed gross weight.")
+        from apps.production.services.packing_service import PackingVerificationService
+        held = PackingVerificationService.held_batch_message(getattr(gonny, "fg_batch_id", None))
+        if held:
+            raise ValueError(held)
 
         marked_lines = FGDispatchService._usage_mark_lines(lines or [], default_basis="PER_GONNY_RELEASE")
 
@@ -2194,6 +2198,10 @@ class FGDispatchService:
                     raise ValueError(f"Gonny {gonny.label_id} is not released from Packing Yard.")
                 if getattr(gonny, "weight_kg", None) is None or getattr(gonny, "gross_weight_kg", None) is None:
                     raise ValueError(f"Gonny {gonny.label_id} is missing actual sealed gross weight.")
+                from apps.production.services.packing_service import PackingVerificationService
+                held = PackingVerificationService.held_batch_message(getattr(gonny, "fg_batch_id", None))
+                if held:
+                    raise ValueError(held)
 
                 validated_gonnies.append(gonny)
 

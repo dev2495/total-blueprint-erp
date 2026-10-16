@@ -1,5 +1,6 @@
 "use client";
 
+import { PmStepNav } from "./pm-step-nav";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -399,7 +400,7 @@ function axisModeCopy(mode: "off" | "optional" | "required") {
   if (mode === "required") return "Required in sales/planner before submit.";
   if (mode === "optional")
     return "Can be skipped; if entered it becomes part of matching and BOM.";
-  return "Not part of this master’s final product tuple.";
+  return "Fixed by this master: sales does not choose it.";
 }
 
 function firstAxisOption(axis?: VariantAxisDef): string {
@@ -800,7 +801,21 @@ export function ProductMasterEditWorkspace({
     0,
   );
   const errorCount = checks.filter((c) => !c.ok && c.tone !== "warn").length;
-  const routeSteps = (routeInfo?.route_steps || []).map((step) => ({
+  // A lamination pass joins two webs: a product with N layers runs N - 1 passes; any
+  // further pass on the shared route is skipped for this product.
+  const laminationPassesNeeded = Math.max(0, (draft.layer_template?.length || 0) - 1);
+  let laminationPassSeen = 0;
+  const routeSteps = (routeInfo?.route_steps || []).map((step) => {
+    const isLamination = String(step.roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE";
+    if (isLamination) laminationPassSeen += 1;
+    const skipped = isLamination && laminationPassSeen > laminationPassesNeeded;
+    return {
+    skipped,
+    skipReason: skipped
+      ? laminationPassesNeeded === 0
+        ? "skipped · 1 layer"
+        : `skipped · ${draft.layer_template.length} layers`
+      : undefined,
     index: step.index,
     label: step.name || step.process_code || `Step ${step.index}`,
     transition: step.transition,
@@ -814,7 +829,8 @@ export function ProductMasterEditWorkspace({
     successorNodeIds: step.successor_node_ids,
     isJoin: !!step.is_join,
     isParallelStart: !!step.is_parallel_start,
-  }));
+    };
+  });
   const isMultiLayer = draft.layer_template.length > 1;
   const adhesiveOptions = adhesiveSolvents.filter(
     (m: Material) => String(m.category || "").toUpperCase() === "ADHESIVE",
@@ -1255,13 +1271,15 @@ export function ProductMasterEditWorkspace({
 
       <div className="grid grid-cols-1 gap-6">
         <div className="space-y-6">
+          <PmStepNav />
           <RichSection
+            id="pm-basics"
             index={1}
             tone="indigo"
             icon={<Workflow className="h-5 w-5" />}
-            eyebrow="Identity"
-            title="Header & live route"
-            subtitle="The stable identity that sales & planner read."
+            eyebrow="Basics"
+            title="Name, kind and route"
+            subtitle="What sales and the planner see first. The route is the live template this product runs on."
           >
             <div className="space-y-4">
               {/* Top row · code + reporting group as tonal cards */}
@@ -1540,12 +1558,13 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
+            id="pm-rules"
             index={2}
             tone="emerald"
             icon={<CheckCircle2 className="h-5 w-5" />}
-            eyebrow="Sales contract"
-            title="Active master rules used by sales, planner, WCM and dispatch"
-            subtitle="This is the compact contract the order page reads; backend revisions stay hidden from operators."
+            eyebrow="Summary"
+            title="Rules every order of this product follows"
+            subtitle="A read-only summary of the layers, what sales can change, and where the BOM comes from."
           >
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
               <div className="rounded-2xl border border-info-border bg-gradient-to-br from-info-bg to-white p-3 shadow-sm">
@@ -1599,7 +1618,7 @@ export function ProductMasterEditWorkspace({
                   )}
                 </div>
                 <div className="mt-3 rounded-xl border border-dashed border-order-border bg-surface-1/70 px-2 py-2 text-caption text-content-3">
-                  Ad-hoc is bounded to PM axes:
+                  Sales may add new values only for:
                   <strong className="ml-1 text-order-fg">
                     {adHocAxisLabels.length ? adHocAxisLabels.join(", ") : "none"}
                   </strong>
@@ -1609,10 +1628,10 @@ export function ProductMasterEditWorkspace({
               <div className="rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg to-white p-3 shadow-sm">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="text-caption font-semibold uppercase text-warning-fg">
-                    BOM source policy
+                    Where the BOM comes from
                   </span>
                   <span className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-warning-fg ring-1 ring-warning-border">
-                    backend managed
+                    set by the system
                   </span>
                 </div>
                 <div className="space-y-2 text-caption leading-5 text-content-2">
@@ -1636,10 +1655,11 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
+            id="pm-sales-choices"
             index={3}
             tone="violet"
             icon={<Workflow className="h-5 w-5" />}
-            eyebrow="Variant axes"
+            eyebrow="What sales can change"
             title={
               isProductionMasterKind(draft.product_kind)
                 ? "What defines produced variants"
@@ -1882,12 +1902,13 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
+            id="pm-layers"
             index={4}
             tone="blue"
             icon={<Boxes className="h-5 w-5" />}
-            eyebrow="Layer template"
-            title="Per layer — default film + allowed alternates, μ + grade Fixed/Variable"
-            subtitle="Default film, thickness and grade are always required. Alternates stay bounded inside this Product Master and are picked per variant only when the layer-material axis is enabled."
+            eyebrow="Layers"
+            title="Layers: film, micron and grade"
+            subtitle="Each layer has a default film. Micron and grade are fixed, or chosen per order within the limits set here. Other films can be allowed per layer."
             actions={
               <Button
                 size="sm"
@@ -1935,10 +1956,11 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
+            id="pm-sizes"
             index={5}
             tone="emerald"
             icon={<span className="text-lg leading-none">📐</span>}
-            eyebrow="Sizes & geometry"
+            eyebrow="Sizes & web width"
             title={sizeSectionTitle}
             subtitle={sizeSectionSubtitle}
           >
@@ -1959,12 +1981,13 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
+            id="pm-printing"
             index={6}
             tone="fuchsia"
             icon={<Palette className="h-5 w-5" />}
             eyebrow="Printing"
-            title="2 knobs — print capable + artwork compulsory"
-            subtitle="Together they decide whether printing is possible and whether artwork blocks production release."
+            title="Can it be printed, and must artwork be ready first?"
+            subtitle="Print capable lets orders carry artwork. Artwork compulsory stops release until approved artwork is attached."
           >
             <PrintingTwoKnob
               printCapable={!!draft.fixed_attributes?.print_capable}
@@ -1991,10 +2014,11 @@ export function ProductMasterEditWorkspace({
 
           {isMultiLayer ? (
             <RichSection
+              id="pm-chemistry"
               index={7}
               tone="amber"
               icon={<Package className="h-5 w-5" />}
-              eyebrow="Advanced · chemistry"
+              eyebrow="Adhesive & solvent"
               title="Adhesive & solvent defaults"
               subtitle="One adhesive + one solvent per master. GSM × area flows into live BOM, sales orders, WIP, and dispatch consumption."
             >
@@ -2158,11 +2182,12 @@ export function ProductMasterEditWorkspace({
           {String(draft.product_kind || "").toUpperCase() === "PACKAGING" ||
           String(draft.product_kind || "").toUpperCase() === "POD" ? null : (
             <RichSection
-              index={8}
+              id="pm-addons"
+              index={isMultiLayer ? 8 : 7}
               tone="violet"
               icon={<Workflow className="h-5 w-5" />}
-              eyebrow="Advanced · catalog allow-list"
-              title="Sales-pickable menu"
+              eyebrow="Add-ons & packing"
+              title="What sales can add: inner pouch, POD, add-ons"
               subtitle={
                 String(draft.product_kind || "").toUpperCase() === "POUCH"
                   ? "Pick which Inner pouch + POD + Add-on catalog SKUs sales can choose from. Outer (gunny/sheet/tape/etc) is no longer here — packing yard ticks at EOD."
@@ -3657,7 +3682,8 @@ function AxisAllowedCard({
   );
 
   const required = Boolean(axisRow?.required);
-  const autoDemand = Boolean((axisRow as any)?.auto_demand_in_house);
+  // Missing flag means on: order confirm creates in-house demand unless the master says off.
+  const autoDemand = (axisRow as any)?.auto_demand_in_house !== false;
   const adHocAllowed = Boolean(
     (axisRow as any)?.allow_ad_hoc || (axisRow as any)?.allow_custom,
   );
@@ -3797,37 +3823,13 @@ function AxisAllowedCard({
       </div>
 
       {entry.axis === "packaging_inner" ? (
-        <div className="mt-3 rounded-xl border border-warning-border bg-surface-1/70 px-3 py-2">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[180px]">
-              <div className="text-caption font-bold uppercase tracking-wider text-warning-fg">
-                Default pcs / inner
-              </div>
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                value={defaultInnerPcs || ""}
-                placeholder="e.g. 100"
-                onChange={(e) =>
-                  onPatchFixed(
-                    primaryInnerPackPatch(
-                      draft.fixed_attributes,
-                      uniqueAllowedCodes[0] || "",
-                      Number(e.target.value),
-                      packagingMaterials,
-                    ),
-                  )
-                }
-                className="mt-1 h-9 rounded-lg border-warning-border bg-surface-1 font-mono text-xs font-bold"
-              />
-            </div>
-            <div className="max-w-xl text-caption leading-5 text-warning-fg">
-              Sales can override per order; customer overlay can override per
-              customer. Blank uses the selected inner-pouch catalog row default.
-            </div>
-          </div>
-        </div>
+        <InnerPouchDefault
+          fixed={draft.fixed_attributes}
+          allowedCodes={uniqueAllowedCodes}
+          materials={packagingMaterials}
+          defaultPcs={defaultInnerPcs}
+          onPatchFixed={onPatchFixed}
+        />
       ) : null}
 
       {/* Add picker */}
@@ -3882,18 +3884,138 @@ function defaultPrimaryInnerPcs(fixed?: Record<string, any>) {
   return Number.isFinite(pcs) && pcs > 0 ? pcs : 0;
 }
 
+const SUPPLY_LABEL: Record<string, string> = {
+  IN_HOUSE: "Made in our plant",
+  PURCHASED: "Bought",
+  BOTH: "Made here or bought",
+};
+
+/**
+ * Default inner pouch for this product. Pouching consumes it automatically (one per
+ * N pouches); every other packing item is taken off at the evening packing count.
+ */
+function InnerPouchDefault({
+  fixed,
+  allowedCodes,
+  materials,
+  defaultPcs,
+  onPatchFixed,
+}: {
+  fixed: Record<string, any> | undefined;
+  allowedCodes: string[];
+  materials: PackagingMaterial[];
+  defaultPcs: number;
+  onPatchFixed: (patch: Record<string, any>) => void;
+}) {
+  const savedCode = String(fixed?.primary_inner_pack?.material_code || "");
+  const savedEnabled = Boolean(fixed?.primary_inner_pack?.enabled);
+  const savedInList = allowedCodes.some((code) => code.toUpperCase() === savedCode.toUpperCase());
+  const selectedCode = savedInList ? savedCode : allowedCodes[0] || "";
+  const picked = materials.find((m) => String(m.code || "").toUpperCase() === selectedCode.toUpperCase());
+  const supply = String(picked?.packaging_supply_mode || "").toUpperCase();
+  const makesHere = supply === "IN_HOUSE" || supply === "BOTH";
+
+  // Keep the default on an allowed pouch: if it was removed from the list, move it to the
+  // first allowed one, or switch the default off when none is left.
+  React.useEffect(() => {
+    if (!savedEnabled || savedInList || materials.length === 0) return;
+    onPatchFixed(primaryInnerPackPatch(fixed, allowedCodes[0] || "", allowedCodes.length ? defaultPcs : 0, materials));
+  }, [savedEnabled, savedInList, materials, allowedCodes, defaultPcs, fixed, onPatchFixed]);
+
+  return (
+    <div className="mt-3 rounded-xl border border-warning-border bg-surface-1/70 px-3 py-2.5" data-testid="pm-inner-pouch-default">
+      {allowedCodes.length === 0 ? (
+        <div className="text-caption text-warning-fg">
+          Add an inner pouch below first. Then choose the default and how many pouches go in one.
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[220px] flex-1">
+            <div className="text-caption font-bold uppercase tracking-wider text-warning-fg">Default inner pouch</div>
+            <Select
+              value={selectedCode}
+              onValueChange={(code) => onPatchFixed(primaryInnerPackPatch(fixed, code, defaultPcs, materials))}
+            >
+              <SelectTrigger className="mt-1 h-9 rounded-lg border-warning-border bg-surface-1 text-xs" aria-label="Default inner pouch">
+                <SelectValue placeholder="Choose the default inner pouch" />
+              </SelectTrigger>
+              <SelectContent>
+                {allowedCodes.map((code) => {
+                  const row = materials.find((m) => String(m.code || "").toUpperCase() === code.toUpperCase());
+                  return (
+                    <SelectItem key={code} value={code}>
+                      <span className="font-mono font-bold">{code}</span>
+                      {row?.name && row.name !== code ? <span className="ml-2 text-content-3">{row.name}</span> : null}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="w-[150px]">
+            <div className="text-caption font-bold uppercase tracking-wider text-warning-fg">Pouches per inner</div>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={defaultPcs || ""}
+              placeholder="e.g. 100"
+              aria-label="Pouches per inner pouch"
+              onChange={(e) =>
+                onPatchFixed(primaryInnerPackPatch(fixed, selectedCode, Number(e.target.value), materials))
+              }
+              className="mt-1 h-9 rounded-lg border-warning-border bg-surface-1 font-mono text-xs font-bold"
+            />
+          </div>
+        </div>
+      )}
+      {picked ? (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-content-2">
+          <span className="rounded-full bg-surface-2 px-2 py-0.5 font-semibold text-content-1">
+            {SUPPLY_LABEL[supply] || "Supply not set"}
+          </span>
+          {makesHere ? (
+            picked.product_master_link?.master_name || picked.production_template_name || picked.production_template ? (
+              <span>
+                Made from{" "}
+                <b>
+                  {picked.product_master_link
+                    ? `${picked.product_master_link.master_code} · ${picked.product_master_link.master_name}`
+                    : picked.production_template_name || "its production route"}
+                </b>
+                ; a shortage creates a stock order when the sales order is confirmed.
+              </span>
+            ) : (
+              <span className="font-semibold text-warning-fg">
+                No product master is linked to make this pouch, so in-house demand cannot be planned. Link one on the packaging master.
+              </span>
+            )
+          ) : null}
+        </div>
+      ) : null}
+      <div className="mt-1.5 text-caption leading-5 text-content-3">
+        {defaultPcs > 0 && picked
+          ? `Pouching uses 1 inner pouch per ${defaultPcs} pouches automatically. Gonnies, cartons and extras are counted at the evening packing count. `
+          : "Blank pouches-per-inner means no inner pouch by default. "}
+        Sales can change it per order; a customer overlay can change it per customer.
+      </div>
+    </div>
+  );
+}
+
 function primaryInnerPackPatch(
   fixed: Record<string, any> | undefined,
   materialCode: string,
   pcsRaw: number,
   materials: PackagingMaterial[],
 ) {
-  const pcs = Number.isFinite(pcsRaw) && pcsRaw > 0 ? Math.floor(pcsRaw) : 0;
   const picked = materials.find(
     (m) =>
       String(m.code || "").toUpperCase() ===
       String(materialCode || "").toUpperCase(),
   );
+  // Never switch the inner pouch on without a real packing material behind it.
+  const pcs = picked && Number.isFinite(pcsRaw) && pcsRaw > 0 ? Math.floor(pcsRaw) : 0;
   const currentLines = Array.isArray(fixed?.packaging_lines)
     ? fixed?.packaging_lines
     : [];

@@ -914,6 +914,42 @@ class JobAllocationViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['post'], url_path='return-roll')
+    def return_roll(self, request):
+        """Send what is left on a part-used roll back to stock (same label), or close it as finished."""
+        assignment_id = request.data.get('assignment_id')
+        roll_id = request.data.get('roll_id')
+        if not assignment_id or not roll_id:
+            return Response({"error": "assignment_id and roll_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            before = WorkCenterAssignment.objects.select_related("production_job", "work_center", "assigned_machine").get(id=assignment_id)
+            before_status = before.status
+            from apps.production.services.services_execution import ExecutionService
+            result = ExecutionService.return_roll_balance(
+                before.production_job_id,
+                roll_id,
+                user=request.user,
+                mode=request.data.get("mode") or "RETURN",
+                location_id=request.data.get("location_id") or None,
+                weight_kg=request.data.get("weight_kg"),
+                note=str(request.data.get("note") or "")[:300],
+            )
+            assignment = WorkCenterAssignment.objects.get(id=assignment_id)
+            _write_wcm_audit(
+                assignment,
+                "RETURN_ROLL",
+                user=request.user,
+                before_status=before_status,
+                reason=str(request.data.get("note") or ""),
+                payload=result,
+            )
+            serializer = WorkCenterAssignmentSerializer(assignment)
+            return Response({**serializer.data, "return_result": result})
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=False, methods=['post'], url_path='unassign-roll-by-roll')
     def unassign_roll_by_roll(self, request):
         assignment_id = request.data.get('assignment_id')

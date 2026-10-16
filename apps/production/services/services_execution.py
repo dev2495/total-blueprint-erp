@@ -724,65 +724,311 @@ class ExecutionService:
     # Practical ceiling for a roll-input step that is fed by mass rather than by a
     # fixed lane count (several rolls of the same web run one after another).
     MASS_MODE_MAX_ROLLS = 24
+    # A roll with less than this left after an entry is treated as used up.
+    ROLL_EMPTY_EPSILON_KG = Decimal("0.0005")
+    # Film gauge on the floor is never exactly the layer plan; a lane may run this far short of
+    # its share (the other lanes cover the gap). Weighing the balance on return corrects any drift.
+    ROLL_LANE_STRETCH_PCT = Decimal("0.05")
+    ROLL_LANE_STRETCH_MIN_KG = Decimal("0.25")
+
+    @classmethod
+    def _uses_roll_lanes(cls, job, process=None, step_roll_spec=None):
+        """True when the step runs its rolls through lanes (one queue per unwinder)."""
+        requirement = cls._roll_requirement(job, process, step_roll_spec)
+        return requirement.get("mode") in {"MASS", "LANES"}
 
     @classmethod
     def _roll_requirement(cls, job, process=None, step_roll_spec=None):
         """
-        One roll contract for the step, used by readiness, allocation and the terminals.
+        One roll contract for the step, used by readiness, allocation, logging and the terminals.
 
         mode:
           NONE  - the step does not consume rolls.
-          COUNT - a fixed number of rolls must be present (combine lanes, laminate
-                  layers, modify/split one roll).
-          MASS  - any number of rolls of the right web until the step mass is covered
-                  (plain roll->bulk and single-web roll->roll steps). Readiness needs
-                  at least one roll; allocation is capped by target mass + tolerance and
-                  by max_count, never by "exactly one".
+          COUNT - a fixed set of rolls (strict combine steps that are not lane groups).
+          MASS  - one lane (one unwinder): any number of rolls queued one after another until
+                  the step's remaining mass is covered. Plain roll->bulk, printing/modify,
+                  slitting and roll-fed create steps.
+          LANES - lamination in lane-group mode: one lane per layer slot, each lane its own
+                  queue, each lane fed until its share of the remaining output is covered.
+        Readiness needs one roll per lane; allocation is capped by mass, never by "exactly one".
         """
         process = process or job.current_process or job.process
+        none = {"mode": "NONE", "min_count": 0, "max_count": 0, "target_kg": 0.0, "tolerance_kg": 0.0, "lanes": []}
         if not process:
-            return {"mode": "NONE", "min_count": 0, "max_count": 0, "target_kg": 0.0, "tolerance_kg": 0.0}
+            return none
         behavior = str(getattr(process, "roll_behavior", "NONE") or "NONE").upper()
         input_form = str(getattr(process, "input_form", "BULK") or "BULK").upper()
+        output_form = str(getattr(process, "output_form", "ROLL") or "ROLL").upper()
         if input_form != "ROLL":
-            return {"mode": "NONE", "min_count": 0, "max_count": 0, "target_kg": 0.0, "tolerance_kg": 0.0}
+            return none
         spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
         count = cls._required_roll_count(job, process, spec)
-        inferred_layer_count = 0
-        try:
-            layer_snapshot = cls._job_layer_snapshot(job)
-            if isinstance(layer_snapshot, list):
-                inferred_layer_count = len([layer for layer in layer_snapshot if isinstance(layer, dict)])
-        except Exception:
+        lane_group = behavior == "MULTI_INPUT_COMBINE" and cls._is_lane_group_combine_spec(spec)
+
+        if behavior == "MULTI_INPUT_COMBINE" and not lane_group:
+            return {"mode": "COUNT" if count > 0 else "NONE", "min_count": count, "max_count": count,
+                    "target_kg": 0.0, "tolerance_kg": 0.0, "lanes": []}
+        if behavior == "NONE" and output_form != "BULK":
+            # Legacy roll->roll NONE steps keep their count contract for multi-layer jobs.
             inferred_layer_count = 0
-        mass_mode = behavior == "NONE" and inferred_layer_count <= 1 and count <= 1
-        if not mass_mode:
-            return {"mode": "COUNT" if count > 0 else "NONE", "min_count": count, "max_count": count, "target_kg": 0.0, "tolerance_kg": 0.0}
+            try:
+                layer_snapshot = cls._job_layer_snapshot(job)
+                if isinstance(layer_snapshot, list):
+                    inferred_layer_count = len([layer for layer in layer_snapshot if isinstance(layer, dict)])
+            except Exception:
+                inferred_layer_count = 0
+            if inferred_layer_count > 1 or count > 1:
+                return {"mode": "COUNT" if count > 0 else "NONE", "min_count": count, "max_count": count,
+                        "target_kg": 0.0, "tolerance_kg": 0.0, "lanes": []}
+        if count <= 0 and not (behavior == "NONE" and output_form == "BULK"):
+            # An explicit zero-roll step spec (for example a roll step skipped for this product).
+            return none
+
         target_kg = Decimal("0")
+        remaining_kg = Decimal("0")
         try:
             profile = cls._resolve_step_execution_profile(job) or {}
             target_kg = cls._safe_decimal(profile.get("step_roll_target_kg") or 0)
             if target_kg <= 0:
                 target_kg = cls._safe_decimal(profile.get("step_target_total_kg") or 0)
+            produced_kg = cls._safe_decimal(profile.get("step_produced_kg") or 0)
+            remaining_kg = max(Decimal("0"), target_kg - max(produced_kg, Decimal("0")))
         except Exception:
             target_kg = Decimal("0")
+            remaining_kg = Decimal("0")
+        tolerance_kg = cls._machine_close_tolerance_kg(target_kg) if target_kg > 0 else Decimal("0")
         configured = int(spec.get("input_roll_count") or 0)
+
+        if lane_group:
+            lanes = cls._roll_lane_definitions(job, process, spec)
+            payload_lanes = []
+            for lane in lanes:
+                share = cls._safe_decimal(lane.get("share") or 0)
+                payload_lanes.append({
+                    "lane_key": lane["lane_key"],
+                    "label": lane.get("label") or lane["lane_key"],
+                    "share": float(share),
+                    "need_kg": float((remaining_kg * share).quantize(Decimal("0.001"))) if remaining_kg > 0 else 0.0,
+                    "target_kg": float((target_kg * share).quantize(Decimal("0.001"))) if target_kg > 0 else 0.0,
+                    "tolerance_kg": float((tolerance_kg * share).quantize(Decimal("0.001"))) if tolerance_kg > 0 else 0.0,
+                    "layer_indices": lane.get("layer_indices") or [],
+                    "material_name": lane.get("material_name") or "",
+                })
+            lane_count = max(1, len(payload_lanes) or count or 2)
+            return {
+                "mode": "LANES",
+                "min_count": lane_count,
+                "max_count": lane_count * cls.MASS_MODE_MAX_ROLLS,
+                "per_lane_max": cls.MASS_MODE_MAX_ROLLS,
+                "target_kg": float(target_kg),
+                "remaining_kg": float(remaining_kg),
+                "tolerance_kg": float(tolerance_kg),
+                "adhesive_share": float(cls._safe_decimal(lanes[0].get("adhesive_share") if lanes else 0)),
+                "lanes": payload_lanes,
+            }
+
         max_count = configured if configured > 1 else cls.MASS_MODE_MAX_ROLLS
         return {
             "mode": "MASS",
             "min_count": 1,
             "max_count": max_count,
             "target_kg": float(target_kg),
-            "tolerance_kg": float(cls._machine_close_tolerance_kg(target_kg)) if target_kg > 0 else 0.0,
+            "remaining_kg": float(remaining_kg),
+            "tolerance_kg": float(tolerance_kg),
+            "lanes": [{
+                "lane_key": "MAIN",
+                "label": "Input rolls",
+                "share": 1.0,
+                "need_kg": float(remaining_kg),
+                "target_kg": float(target_kg),
+                "tolerance_kg": float(tolerance_kg),
+                "layer_indices": [],
+                "material_name": "",
+            }],
         }
+
+    @classmethod
+    def _layer_gsm(cls, layer):
+        """Grams per square metre of one film layer: micron x density (g/cm3)."""
+        if not isinstance(layer, dict):
+            return Decimal("0")
+        thickness = cls._safe_decimal(layer.get("thickness_micron") if layer.get("thickness_micron") is not None else layer.get("thickness"))
+        if thickness <= 0:
+            return Decimal("0")
+        density = cls._safe_decimal(layer.get("density_g_cm3") or layer.get("density_gcm3") or 0)
+        if density <= 0:
+            material = None
+            variant_id = layer.get("variant_id") or layer.get("material_id")
+            if variant_id:
+                material = InventoryMaterial.objects.filter(id=variant_id).select_related("parent_family").first()
+            if material is not None:
+                try:
+                    density = cls._safe_decimal(cls._resolve_density_gcm3(material=material) or 0)
+                except Exception:
+                    density = Decimal("0")
+        if density <= 0:
+            density = Decimal("0.92")
+        return thickness * density
+
+    @classmethod
+    def _roll_lane_definitions(cls, job, process=None, step_roll_spec=None):
+        """
+        Lanes of a lane-group lamination step with each lane's share of the output weight.
+
+        Pass 1: one lane per layer slot. Pass n: lane A is the laminate from the earlier
+        passes, lane B is the next layer. Shares come from g/m2 (micron x density), ink is
+        added to the lane that carries layer 1, and this pass's adhesive is the rest.
+        When g/m2 cannot be worked out, lanes share equally and adhesive is ignored.
+        """
+        process = process or job.current_process or job.process
+        spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
+        slots = cls._build_step_target_slots(job, process) or []
+        layers = [layer for layer in (cls._job_layer_snapshot(job) or []) if isinstance(layer, dict)]
+        printing = cls._job_printing_snapshot(job) or {}
+        ink_gsm = cls._safe_decimal(printing.get("ink_gsm_total") or printing.get("ink_gsm") or 0) if printing.get("enabled", True) else Decimal("0")
+        chemicals = printing.get("chemicals") if isinstance(printing.get("chemicals"), dict) else {}
+        adhesive_gsm_total = cls._safe_decimal(chemicals.get("adhesive_gsm") or 0)
+        passes = max(1, int(cls._route_lamination_step_count(job) or 1))
+        pass_index = int(spec.get("lamination_pass_index") or cls._infer_lamination_pass_index(job, process) or 1)
+        split_pct = spec.get("adhesive_split_pct")
+        if split_pct not in (None, ""):
+            pass_adhesive = adhesive_gsm_total * cls._safe_decimal(split_pct) / Decimal("100")
+        else:
+            pass_adhesive = adhesive_gsm_total / Decimal(passes)
+
+        lanes = []
+        for slot in slots:
+            lane_key = str(slot.get("lane_key") or f"LANE_{slot.get('slot_index') or len(lanes) + 1}")
+            source_role = str(slot.get("source_role") or "").upper()
+            layer_indices = []
+            gsm = Decimal("0")
+            if source_role == "LAMINATED_WIP":
+                layer_indices = list(range(1, min(pass_index, len(layers)) + 1))
+                gsm = sum((cls._layer_gsm(layers[i - 1]) for i in layer_indices), Decimal("0"))
+                if pass_index > 1 and passes > 0 and split_pct in (None, ""):
+                    gsm += adhesive_gsm_total * Decimal(pass_index - 1) / Decimal(passes)
+            else:
+                try:
+                    layer_index = int(slot.get("layer_index") or 0)
+                except Exception:
+                    layer_index = 0
+                if 1 <= layer_index <= len(layers):
+                    layer_indices = [layer_index]
+                    gsm = cls._layer_gsm(layers[layer_index - 1])
+            if 1 in layer_indices:
+                gsm += ink_gsm
+            lanes.append({
+                "lane_key": lane_key,
+                "label": slot.get("lane_label") or lane_key.replace("LANE_", "Lane "),
+                "layer_indices": layer_indices,
+                "gsm": gsm,
+                "slot": slot,
+                "material_name": slot.get("variant_name") or ("Laminate from earlier pass" if source_role == "LAMINATED_WIP" else ""),
+            })
+        if not lanes:
+            return []
+        total_gsm = sum((lane["gsm"] for lane in lanes), Decimal("0"))
+        if total_gsm <= 0 or any(lane["gsm"] <= 0 for lane in lanes):
+            equal = (Decimal("1") / Decimal(len(lanes))).quantize(Decimal("0.000001"))
+            for lane in lanes:
+                lane["share"] = equal
+                lane["adhesive_share"] = Decimal("0")
+            return lanes
+        denominator = total_gsm + max(pass_adhesive, Decimal("0"))
+        adhesive_share = (max(pass_adhesive, Decimal("0")) / denominator).quantize(Decimal("0.000001"))
+        for lane in lanes:
+            lane["share"] = (lane["gsm"] / denominator).quantize(Decimal("0.000001"))
+            lane["adhesive_share"] = adhesive_share
+        return lanes
+
+    @classmethod
+    def _roll_lane_state(cls, job, process=None, step_roll_spec=None, requirement=None):
+        """
+        Current state of each lane: queued rolls (running roll first), kilos left on them,
+        kilos still needed. Rolls whose reservation has no lane (older data) are placed in
+        the first compatible lane, else the first lane.
+        """
+        from apps.inventory.models import InventoryReservation
+        process = process or job.current_process or job.process
+        spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
+        requirement = requirement or cls._roll_requirement(job, process, spec)
+        lanes = [dict(lane) for lane in (requirement.get("lanes") or [])]
+        if not lanes:
+            return {"mode": requirement.get("mode"), "lanes": []}
+        lane_index = {lane["lane_key"]: lane for lane in lanes}
+        for lane in lanes:
+            lane["rolls"] = []
+            lane["remaining_kg"] = Decimal("0")
+        reservations = list(
+            InventoryReservation.objects.filter(job=job, status="ACTIVE", roll__isnull=False)
+            .select_related("roll", "roll__material", "roll__material__parent_family", "roll__grade", "roll__location")
+            .order_by("created_at")
+        )
+        started_roll_ids = set(
+            str(rid) for rid in RollConsumption.objects.filter(job=job, input_roll_id__in=[r.roll_id for r in reservations]).values_list("input_roll_id", flat=True)
+        ) if reservations else set()
+        slots_by_lane = {}
+        if requirement.get("mode") == "LANES":
+            for definition in cls._roll_lane_definitions(job, process, spec):
+                slots_by_lane[definition["lane_key"]] = definition.get("slot") or {}
+        for res in reservations:
+            key = res.target_lane_key if requirement.get("mode") == "LANES" else "MAIN"
+            if key not in lane_index:
+                key = None
+                if requirement.get("mode") == "LANES":
+                    for lane_key, slot in slots_by_lane.items():
+                        try:
+                            if cls._is_roll_step_compatible(job, process, res.roll, [slot], allow_input_stock_fallback=True) and cls._roll_matches_target_specs(res.roll, [slot]):
+                                key = lane_key
+                                break
+                        except Exception:
+                            continue
+                key = key or lanes[0]["lane_key"]
+            lane = lane_index[key]
+            lane["rolls"].append({"reservation": res, "roll": res.roll, "started": str(res.roll_id) in started_roll_ids})
+            lane["remaining_kg"] += cls._safe_decimal(res.roll.weight_kg)
+        for lane in lanes:
+            lane["rolls"].sort(key=lambda row: (0 if row["started"] else 1, row["reservation"].created_at))
+            lane["running_roll"] = lane["rolls"][0]["roll"] if lane["rolls"] else None
+        return {"mode": requirement.get("mode"), "lanes": lanes, "requirement": requirement}
+
+    @classmethod
+    def _select_lane_for_roll(cls, job, process, roll, lane_state, extra_kg_by_lane=None):
+        """Pick the compatible lane with the biggest shortfall for a roll being added."""
+        if not lane_state or not lane_state.get("lanes"):
+            return None
+        if lane_state.get("mode") != "LANES":
+            return lane_state["lanes"][0]
+        spec = cls._resolve_step_roll_spec(job, process)
+        definitions = {d["lane_key"]: d for d in cls._roll_lane_definitions(job, process, spec)}
+        extra_kg_by_lane = extra_kg_by_lane or {}
+        best = None
+        best_short = None
+        for lane in lane_state["lanes"]:
+            slot = (definitions.get(lane["lane_key"]) or {}).get("slot") or {}
+            try:
+                compatible = cls._is_roll_step_compatible(job, process, roll, [slot], allow_input_stock_fallback=True) and cls._roll_matches_target_specs(roll, [slot])
+            except Exception:
+                compatible = False
+            if not compatible:
+                continue
+            reserved = cls._safe_decimal(lane.get("remaining_kg")) + cls._safe_decimal(extra_kg_by_lane.get(lane["lane_key"], 0))
+            short = cls._safe_decimal(lane.get("need_kg")) - reserved
+            if not lane.get("rolls") and not extra_kg_by_lane.get(lane["lane_key"]):
+                short += Decimal("1000000")  # an empty lane always comes first
+            if best is None or short > best_short:
+                best, best_short = lane, short
+        return best
 
     @classmethod
     def validate_roll_selection(cls, job, process, *, existing_roll_ids, new_roll_ids, requirement=None):
         """
         Raise ValueError when a selection breaks the step's roll contract.
-        COUNT mode: never more rolls than the fixed count.
-        MASS mode: never more than max_count, and no new roll once the reserved
-        mass already covers the target plus the close tolerance.
+        COUNT: never more rolls than the fixed count.
+        MASS:  never more than max_count rolls, and no new roll once the kilos left on the
+               reserved rolls already cover what the step still needs plus the close tolerance.
+        LANES: each new roll must fit a lane; per lane the same mass rule applies to that
+               lane's share of the remaining output.
         """
         requirement = requirement or cls._roll_requirement(job, process)
         mode = requirement.get("mode")
@@ -798,18 +1044,247 @@ class ExecutionService:
             return requirement
         if total > int(requirement.get("max_count") or cls.MASS_MODE_MAX_ROLLS):
             raise ValueError(f"Too many rolls selected. This step accepts at most {int(requirement.get('max_count') or cls.MASS_MODE_MAX_ROLLS)} rolls.")
-        target_kg = cls._safe_decimal(requirement.get("target_kg") or 0)
-        if new_roll_ids and target_kg > 0 and existing_roll_ids:
-            from apps.inventory.models import InventoryRoll
-            reserved_kg = Decimal("0")
-            for roll in InventoryRoll.objects.filter(id__in=list(existing_roll_ids)).only("weight_kg"):
-                reserved_kg += cls._safe_decimal(getattr(roll, "weight_kg", 0))
-            ceiling = target_kg + cls._safe_decimal(requirement.get("tolerance_kg") or 0)
-            if reserved_kg >= ceiling:
+        if not new_roll_ids:
+            return requirement
+        from apps.inventory.models import InventoryRoll
+        new_rolls = list(
+            InventoryRoll.objects.filter(id__in=new_roll_ids).select_related("material", "material__parent_family", "grade", "location")
+        )
+        lane_state = cls._roll_lane_state(job, process, requirement=requirement)
+        # This order's own WIP rolls can always be queued; the mass cap only stops stock or
+        # other orders' rolls being locked to a job that does not need them.
+        capped_rolls = [roll for roll in new_rolls if not cls._is_order_own_roll(job, roll)]
+        if mode == "MASS":
+            lane = (lane_state.get("lanes") or [{}])[0]
+            need = cls._safe_decimal(requirement.get("remaining_kg") or requirement.get("target_kg") or 0)
+            ceiling = need + cls._safe_decimal(requirement.get("tolerance_kg") or 0)
+            reserved = cls._safe_decimal(lane.get("remaining_kg") or 0)
+            if need > 0 and reserved >= ceiling and len(capped_rolls) > 0:
                 raise ValueError(
-                    f"Step mass is already covered: {reserved_kg:.1f} kg reserved against {target_kg:.1f} kg required."
+                    f"Step mass is already covered: {reserved:.1f} kg on reserved rolls against {need:.1f} kg still needed."
                 )
+            return requirement
+        # LANES
+        added_by_lane = {}
+        added_count_by_lane = {}
+        for roll in new_rolls:
+            lane = cls._select_lane_for_roll(job, process, roll, lane_state, extra_kg_by_lane=added_by_lane)
+            if lane is None:
+                raise ValueError(f"Roll {roll.label_id} does not match any lane of this step.")
+            lane_rolls = len(lane.get("rolls") or []) + int(added_count_by_lane.get(lane["lane_key"], 0))
+            already = cls._safe_decimal(lane.get("remaining_kg")) + cls._safe_decimal(added_by_lane.get(lane["lane_key"], 0))
+            need = cls._safe_decimal(lane.get("need_kg") or 0)
+            ceiling = need + cls._safe_decimal(lane.get("tolerance_kg") or 0)
+            has_any = bool(lane.get("rolls")) or lane["lane_key"] in added_by_lane
+            if need > 0 and has_any and already >= ceiling and not cls._is_order_own_roll(job, roll):
+                raise ValueError(
+                    f"{lane.get('label') or lane['lane_key']} is already covered: {already:.1f} kg on its rolls against {need:.1f} kg still needed."
+                )
+            if lane_rolls >= int(requirement.get("per_lane_max") or cls.MASS_MODE_MAX_ROLLS):
+                raise ValueError(f"{lane.get('label') or lane['lane_key']} already has the most rolls it can queue.")
+            added_by_lane[lane["lane_key"]] = cls._safe_decimal(added_by_lane.get(lane["lane_key"], 0)) + cls._safe_decimal(roll.weight_kg)
+            added_count_by_lane[lane["lane_key"]] = int(added_count_by_lane.get(lane["lane_key"], 0)) + 1
         return requirement
+
+    @classmethod
+    def _job_loaded_roll_mass_kg(cls, job, roll_id=None):
+        """Kilos loaded on a job: what it already used from its rolls plus what is still on them."""
+        active = InventoryReservation.objects.filter(job=job, status="ACTIVE", roll__isnull=False)
+        used = RollConsumption.objects.filter(job=job)
+        if roll_id is not None:
+            active = active.filter(roll_id=roll_id)
+            used = used.filter(input_roll_id=roll_id)
+        left = active.aggregate(total=Sum("roll__weight_kg")).get("total") or Decimal("0")
+        consumed = used.aggregate(total=Sum("consumed_kg")).get("total") or Decimal("0")
+        return cls._safe_decimal(left) + cls._safe_decimal(consumed)
+
+    @classmethod
+    def _is_order_own_roll(cls, job, roll):
+        """A roll made or received for this same order line or stock order (its own WIP)."""
+        so_item_id = getattr(job, "sales_order_item_id", None)
+        if so_item_id and str(getattr(roll, "sales_order_item_id", "") or "") == str(so_item_id):
+            return True
+        mts_id = getattr(job, "mts_order_id", None)
+        created_by = getattr(roll, "created_by_job", None)
+        if mts_id and created_by is not None and str(getattr(created_by, "mts_order_id", "") or "") == str(mts_id):
+            return True
+        return False
+
+    @classmethod
+    def _consume_rolls_in_place(cls, rolls, qty_kg, *, allow_spill=True, label="input"):
+        """
+        Take qty_kg from the given rolls in order (running roll first). A part-used roll keeps
+        its id and label with less weight left; a roll taken to zero is marked CONSUMED.
+        Returns usage rows {parent_roll, used_qty_kg, remainder_qty_kg (0), remainder_roll (None), balance_kg}.
+        """
+        remaining = cls._safe_decimal(qty_kg)
+        usage = []
+        if remaining <= 0:
+            return usage
+        for roll in rolls:
+            if remaining <= cls.ROLL_EMPTY_EPSILON_KG:
+                break
+            weight = cls._safe_decimal(roll.weight_kg)
+            if weight <= 0:
+                continue
+            used = min(weight, remaining)
+            balance = weight - used
+            if balance <= cls.ROLL_EMPTY_EPSILON_KG:
+                roll.weight_kg = Decimal("0")
+                roll.status = "CONSUMED"
+                roll.save(update_fields=["weight_kg", "status"])
+                balance = Decimal("0")
+            else:
+                roll.weight_kg = balance
+                roll.save(update_fields=["weight_kg"])
+            usage.append({
+                "parent_roll": roll,
+                "used_qty_kg": used,
+                "remainder_qty_kg": Decimal("0"),
+                "remainder_roll": None,
+                "balance_kg": balance,
+            })
+            remaining -= used
+            if not allow_spill:
+                break
+        if remaining > cls.ROLL_EMPTY_EPSILON_KG:
+            raise ValueError(
+                f"Not enough weight left on the loaded {label} rolls: {remaining:.3f} kg more is needed. Load the next roll first."
+            )
+        return usage
+
+    @classmethod
+    def _lane_stretch_kg(cls, lane_need_kg):
+        """How far a lane may run short of its layer share before it must load the next roll."""
+        need = cls._safe_decimal(lane_need_kg)
+        return max(need * cls.ROLL_LANE_STRETCH_PCT, cls.ROLL_LANE_STRETCH_MIN_KG)
+
+    @classmethod
+    def _lane_input_cap_kg(cls, lane_state, scrap_qty=Decimal("0")):
+        """Most output the loaded rolls can give: the tightest lane decides (with its stretch)."""
+        lanes = (lane_state or {}).get("lanes") or []
+        if not lanes:
+            return None
+        caps = []
+        share_total = Decimal("0")
+        left_total = Decimal("0")
+        for lane in lanes:
+            share = cls._safe_decimal(lane.get("share") or 0)
+            left = cls._safe_decimal(lane.get("remaining_kg") or 0)
+            if share <= 0:
+                continue
+            share_total += share
+            left_total += left
+            keep = Decimal("1") - cls.ROLL_LANE_STRETCH_PCT
+            caps.append(max(left / (share * keep), (left + cls.ROLL_LANE_STRETCH_MIN_KG) / share))
+        if not caps or share_total <= 0:
+            return None
+        cap = min(min(caps), left_total / share_total) - cls._safe_decimal(scrap_qty)
+        return max(cap, Decimal("0"))
+
+    @classmethod
+    def _plan_lane_split(cls, lane_state, total_kg):
+        """Split total_kg of film use across the lanes by layer share.
+
+        A lane that runs a little short of its share (within its stretch) gives what it has and
+        the gap is taken from the other lanes' spare film. Past the stretch the lane is really
+        out of film and the operator must load its next roll first.
+        Returns (plan, adjusted): plan is [(lane, kg)], adjusted lists lanes that gave less.
+        """
+        total = cls._safe_decimal(total_kg)
+        lanes = [
+            lane for lane in (lane_state or {}).get("lanes") or []
+            if cls._safe_decimal(lane.get("share") or 0) > 0
+        ]
+        tol = Decimal("0.001")
+        amounts = []
+        adjusted = []
+        gap_total = Decimal("0")
+        for lane in lanes:
+            share = cls._safe_decimal(lane.get("share") or 0)
+            left = cls._safe_decimal(lane.get("remaining_kg") or 0)
+            need = (total * share).quantize(Decimal("0.0001"))
+            label = lane.get("label") or lane.get("lane_key")
+            if need > left + tol:
+                gap = need - left
+                if gap > cls._lane_stretch_kg(need):
+                    raise ValueError(
+                        f"{label} has {left:.1f} kg left on its loaded rolls, "
+                        f"enough for {(left / share):.1f} kg of output. Load the next roll for this lane first."
+                    )
+                amounts.append(left)
+                gap_total += gap
+                adjusted.append({
+                    "lane_key": lane.get("lane_key"),
+                    "label": label,
+                    "share_kg": float(need),
+                    "used_kg": float(left),
+                })
+            else:
+                amounts.append(need)
+        if gap_total > 0:
+            adjusted_keys = {row["lane_key"] for row in adjusted}
+            spares = [
+                (index, cls._safe_decimal(lane.get("remaining_kg") or 0) - amounts[index])
+                for index, lane in enumerate(lanes)
+                if lane.get("lane_key") not in adjusted_keys
+            ]
+            spares = [(index, spare) for index, spare in spares if spare > 0]
+            spare_total = sum((spare for _, spare in spares), Decimal("0"))
+            if gap_total > spare_total + tol:
+                label = adjusted[0]["label"]
+                raise ValueError(
+                    f"The loaded rolls are {(gap_total - spare_total):.1f} kg short for this output. "
+                    f"Load the next roll for {label} first."
+                )
+            given = Decimal("0")
+            for position, (index, spare) in enumerate(spares):
+                if position == len(spares) - 1:
+                    extra = gap_total - given
+                else:
+                    extra = (gap_total * spare / spare_total).quantize(Decimal("0.0001"))
+                extra = min(extra, spare)
+                amounts[index] += extra
+                given += extra
+        return list(zip(lanes, amounts)), adjusted
+
+    @classmethod
+    def _serialize_roll_lanes(cls, lane_state):
+        rows = []
+        for lane in (lane_state or {}).get("lanes") or []:
+            rolls = []
+            for index, row in enumerate(lane.get("rolls") or []):
+                roll = row["roll"]
+                rolls.append({
+                    "id": str(roll.id),
+                    "reservation_id": str(row["reservation"].id),
+                    "label_id": roll.label_id,
+                    "material_name": getattr(getattr(roll, "material", None), "name", None),
+                    "width_mm": float(roll.width_mm) if roll.width_mm is not None else None,
+                    "thickness_micron": float(roll.thickness_micron) if roll.thickness_micron is not None else None,
+                    "weight_kg": float(roll.weight_kg or 0),
+                    "original_weight_kg": float(roll.original_weight_kg or 0) if getattr(roll, "original_weight_kg", None) is not None else None,
+                    "status": roll.status,
+                    "started": bool(row.get("started")),
+                    "running": index == 0,
+                    "location_name": getattr(getattr(roll, "location", None), "name", None),
+                })
+            need = cls._safe_decimal(lane.get("need_kg") or 0)
+            left = cls._safe_decimal(lane.get("remaining_kg") or 0)
+            rows.append({
+                "lane_key": lane.get("lane_key"),
+                "label": lane.get("label"),
+                "share": float(lane.get("share") or 0),
+                "need_kg": float(need),
+                "target_kg": float(lane.get("target_kg") or 0),
+                "loaded_kg": float(left),
+                "short_kg": float(max(Decimal("0"), need - left)),
+                "covered": bool(need <= 0 or left >= need),
+                "material_name": lane.get("material_name") or "",
+                "layer_indices": lane.get("layer_indices") or [],
+                "rolls": rolls,
+            })
+        return rows
 
     @classmethod
     def _safe_decimal(cls, value):
@@ -819,7 +1294,7 @@ class ExecutionService:
             return Decimal("0")
 
     @classmethod
-    def _resolve_runtime_output_cap_kg(cls, process, step_profile, input_rolls=None, scrap_qty=Decimal("0")):
+    def _resolve_runtime_output_cap_kg(cls, process, step_profile, input_rolls=None, scrap_qty=Decimal("0"), input_cap_override_kg=None):
         """
         Resolve physically allowed output cap for current log event.
         Rules:
@@ -843,7 +1318,9 @@ class ExecutionService:
             step_cap_kg = step_remaining_kg if step_remaining_kg > 0 else None
 
         input_cap_kg = None
-        if input_form == "ROLL":
+        if input_form == "ROLL" and input_cap_override_kg is not None:
+            input_cap_kg = max(cls._safe_decimal(input_cap_override_kg), Decimal("0"))
+        elif input_form == "ROLL":
             total_input_kg = Decimal("0")
             for roll in (input_rolls or []):
                 total_input_kg += cls._safe_decimal(getattr(roll, "weight_kg", 0))
@@ -1170,7 +1647,10 @@ class ExecutionService:
             remaining_pcs = cls._convert_qty(remaining_kg, "KG", "PCS", unit_weight_g) if derivation_available else None
         else:
             target_pcs = target_raw
-            if piece_primary:
+            # Steps that make pieces (pouching, sealing) lead with the pieces counted; the
+            # weight-based count is kept alongside as a check.
+            counted_primary = piece_primary or str(getattr(process, "output_form", "") or "").upper() == "BULK"
+            if counted_primary:
                 produced_pcs = Decimal(str(job.produced_qty or 0))
             elif derivation_available:
                 produced_pcs = cls._convert_qty(logged_output_kg, "KG", "PCS", unit_weight_g)
@@ -1182,11 +1662,15 @@ class ExecutionService:
             if remaining_pcs < 0:
                 remaining_pcs = Decimal("0")
             target_kg = cls._convert_qty(target_pcs, "PCS", "KG", unit_weight_g) if derivation_available else None
-            produced_kg = (
-                cls._convert_qty(produced_pcs, "PCS", "KG", unit_weight_g)
-                if derivation_available
-                else (logged_output_kg if logged_output_kg > 0 else None)
-            )
+            if counted_primary and logged_output_kg > 0:
+                # Kilos actually logged, not pieces x theory.
+                produced_kg = logged_output_kg
+            else:
+                produced_kg = (
+                    cls._convert_qty(produced_pcs, "PCS", "KG", unit_weight_g)
+                    if derivation_available
+                    else (logged_output_kg if logged_output_kg > 0 else None)
+                )
             remaining_kg = cls._convert_qty(remaining_pcs, "PCS", "KG", unit_weight_g) if derivation_available else None
 
         def _flt(value):
@@ -1213,6 +1697,11 @@ class ExecutionService:
                     "target": _flt(target_pcs),
                     "produced": _flt(produced_pcs),
                     "remaining": _flt(remaining_pcs),
+                    "produced_by_weight": _flt(
+                        cls._convert_qty(logged_output_kg, "KG", "PCS", unit_weight_g)
+                        if (unit_weight_g > 0 and logged_output_kg > 0) else None
+                    ),
+                    "counted_primary": bool(job_uom != "KG" and (piece_primary or str(getattr(process, "output_form", "") or "").upper() == "BULK")),
                 },
             },
         }
@@ -1453,14 +1942,9 @@ class ExecutionService:
         target_source = "V2_DEFAULT"
         if input_form == "ROLL":
             if is_roll_mass_job:
-                reserved_total = (
-                    InventoryReservation.objects.filter(
-                        job=job,
-                        status="ACTIVE",
-                        roll__isnull=False,
-                    ).aggregate(total=Sum("roll__weight_kg")).get("total")
-                    or Decimal("0")
-                )
+                # Rolls are used in place, so "reserved" weight falls with every entry.
+                # The step's mass is what was loaded: used on this job + still on its rolls.
+                reserved_total = cls._job_loaded_roll_mass_kg(job)
                 if roll_behavior == "MULTI_INPUT_COMBINE" and reserved_total > 0:
                     step_roll_target_kg = reserved_total
                     target_source = "V2_COMBINE_RESERVED_TOTAL"
@@ -1501,7 +1985,7 @@ class ExecutionService:
                                 target_source = "V2_STEP0_RESERVED_LAYER"
                                 break
                     if chosen is None and reserved and reserved.roll:
-                        reserved_weight = _as_decimal(getattr(reserved.roll, "weight_kg", 0))
+                        reserved_weight = cls._job_loaded_roll_mass_kg(job, roll_id=reserved.roll_id)
                         if reserved_weight > 0:
                             step_roll_target_kg = reserved_weight
                             target_source = "V2_STEP0_RESERVED_ACTUAL_WEIGHT"
@@ -5913,11 +6397,24 @@ class ExecutionService:
         }
         order_profile = cls._build_execution_profile(job)
         step_profile = cls._resolve_step_execution_profile(job)
+        roll_lane_payload = []
+        lane_cap_kg = None
+        if process_input_form == "ROLL":
+            try:
+                context_lane_state = cls._roll_lane_state(job, current_process or process, current_step_roll_spec)
+                if context_lane_state.get("mode") in {"MASS", "LANES"}:
+                    lane_cap_kg = cls._lane_input_cap_kg(context_lane_state)
+                    roll_lane_payload = cls._serialize_roll_lanes(context_lane_state)
+            except Exception:
+                logger.warning("roll lane state failed for job=%s", getattr(job, "id", None), exc_info=True)
+                roll_lane_payload = []
+                lane_cap_kg = None
         runtime_output_cap = cls._resolve_runtime_output_cap_kg(
             current_process or process,
             step_profile,
             input_rolls=active_reserved_rolls,
             scrap_qty=Decimal("0"),
+            input_cap_override_kg=lane_cap_kg,
         )
         max_output_cap_kg = runtime_output_cap.get("max_output_kg")
         input_cap_kg = runtime_output_cap.get("input_cap_kg")
@@ -6377,6 +6874,8 @@ class ExecutionService:
             'inputs': {
                 'rolls_required': int(satisfaction_status.get('rolls_required') or 0),
                 'roll_mode': satisfaction_status.get('roll_mode'),
+                'roll_lanes': roll_lane_payload,
+                'roll_output_cap_kg': float(lane_cap_kg) if lane_cap_kg is not None else None,
                 'addon_shortages': satisfaction_status.get('addon_shortages') or [],
                 'addon_shortage_blocks': satisfaction_status.get('addon_shortage_blocks'),
                 'roll_max_count': satisfaction_status.get('roll_max_count'),
@@ -6526,8 +7025,19 @@ class ExecutionService:
             raise ValueError("This process does not accept roll assignments.")
         if active_qs.filter(roll=roll).exists():
             raise ValueError(f"Roll {roll.label_id} is already reserved for this job.")
-        if (not is_roll_to_bulk) and (not lane_group_mode) and active_count >= required_rolls:
-            raise ValueError(f"Roll assignment already satisfied ({required_rolls} required). Unassign to change selection.")
+        roll_requirement = cls._roll_requirement(job, process, step_roll_spec)
+        if roll_requirement.get("mode") == "COUNT":
+            if active_count >= required_rolls:
+                raise ValueError(f"Roll assignment already satisfied ({required_rolls} required). Unassign to change selection.")
+        elif not defer_slot_validation:
+            # Lane and mass caps (MASS / LANES). Batch callers validate the whole set first.
+            cls.validate_roll_selection(
+                job,
+                process,
+                existing_roll_ids=[str(rid) for rid in active_qs.values_list("roll_id", flat=True)],
+                new_roll_ids=[str(roll.id)],
+                requirement=roll_requirement,
+            )
 
         if cls._is_v2(job):
             roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
@@ -6643,16 +7153,26 @@ class ExecutionService:
 
         selected_lane_slot = None
         if lane_group_mode:
-            for slot in cls._build_step_target_slots(job, process):
-                if cls._is_roll_step_compatible(
-                    job,
-                    process,
-                    roll,
-                    [slot],
-                    allow_input_stock_fallback=True,
-                ) and cls._roll_matches_target_specs(roll, [slot]):
-                    selected_lane_slot = slot
-                    break
+            # Pick the compatible lane that is shortest of rolls, so two lanes of the same
+            # film fill evenly instead of everything landing in lane A.
+            lane_state = cls._roll_lane_state(job, process, step_roll_spec)
+            best_lane = cls._select_lane_for_roll(job, process, roll, lane_state)
+            if best_lane is not None:
+                for definition in cls._roll_lane_definitions(job, process, step_roll_spec):
+                    if definition["lane_key"] == best_lane["lane_key"]:
+                        selected_lane_slot = definition.get("slot") or None
+                        break
+            if selected_lane_slot is None:
+                for slot in cls._build_step_target_slots(job, process):
+                    if cls._is_roll_step_compatible(
+                        job,
+                        process,
+                        roll,
+                        [slot],
+                        allow_input_stock_fallback=True,
+                    ) and cls._roll_matches_target_specs(roll, [slot]):
+                        selected_lane_slot = slot
+                        break
 
         def _decimal_or_none(value):
             if value in (None, ""):
@@ -6684,8 +7204,13 @@ class ExecutionService:
                 target_lane_meta=selected_lane_slot or {},
             )
             
-            # 2. Update Roll Status
-            roll.status = 'RESERVED'
+            # 2. Update Roll Status. A roll added to a job that is already running goes
+            # straight to IN_PROCESS, as start_job does for rolls reserved before the start.
+            job_running = (
+                str(getattr(job, "job_state", "") or "").upper() in {"EXECUTING", "PAUSED"}
+                or str(getattr(job, "status", "") or "").upper() == "RUNNING"
+            )
+            roll.status = 'IN_PROCESS' if job_running else 'RESERVED'
             roll.save()
             
             # 3. Update Requirement Tracking
@@ -6698,6 +7223,134 @@ class ExecutionService:
                 req.save()
             
         return cls.get_job_context(job_id)
+
+    @classmethod
+    @transaction.atomic
+    def return_roll_balance(cls, job_id, roll_id, user=None, *, mode="RETURN", location_id=None, weight_kg=None, note=""):
+        """
+        Take a part-used roll off the job.
+
+        RETURN:   what is left goes back to stock under the same label. A raw (stage 0) roll
+                  goes to the plant's RM store, a processed roll to its current place, unless
+                  a location is given. A measured weight lower than the system balance books
+                  the difference as scrap; a higher one is refused.
+        FINISHED: the roll is done; any balance left (core end) is booked as scrap.
+        """
+        from apps.production.models import ScrapLog
+        mode = str(mode or "RETURN").upper()
+        if mode not in {"RETURN", "FINISHED"}:
+            raise ValueError("Mode must be RETURN or FINISHED.")
+        job = ProductionJob.objects.select_for_update().get(pk=job_id)
+        res = (
+            InventoryReservation.objects.select_for_update()
+            .filter(job=job, roll_id=roll_id, status="ACTIVE")
+            .select_related("roll", "roll__location", "material")
+            .first()
+        )
+        if res is None:
+            raise ValueError("This roll is not loaded on this job.")
+        roll = InventoryRoll.objects.select_for_update().get(pk=res.roll_id)
+        balance = cls._safe_decimal(roll.weight_kg)
+        scrap_kg = Decimal("0")
+        if mode == "FINISHED":
+            scrap_kg = balance
+            balance = Decimal("0")
+        elif weight_kg not in (None, ""):
+            measured = cls._safe_decimal(weight_kg)
+            if measured < 0:
+                raise ValueError("Measured weight cannot be negative.")
+            if measured > balance + Decimal("0.001"):
+                raise ValueError(
+                    f"Measured {measured:.3f} kg is more than the {balance:.3f} kg the system shows left on {roll.label_id}. Check the scale."
+                )
+            scrap_kg = balance - measured
+            balance = measured
+
+        if scrap_kg > Decimal("0.0005"):
+            ScrapLog.objects.create(
+                production_job=job,
+                quantity=scrap_kg.quantize(Decimal("0.0001")),
+                uom="KG",
+                reason="MATERIAL",
+                notes=f"Roll end {roll.label_id} ({'finished' if mode == 'FINISHED' else 'weighed on return'}){': ' + note if note else ''}"[:500],
+                logged_by=user,
+            )
+            RollConsumption.objects.create(
+                job=job,
+                process=job.current_process or job.process,
+                input_roll=roll,
+                output_roll=None,
+                balance_roll=roll if balance > 0 else None,
+                consumed_kg=Decimal("0"),
+                scrap_kg=scrap_kg.quantize(Decimal("0.001")),
+                balance_kg=balance.quantize(Decimal("0.001")),
+                output_kg=Decimal("0"),
+                machine=getattr(job, "machine", None),
+                operator=user,
+            )
+
+        req = JobMaterialRequirement.objects.filter(production_job=job, material=res.material).first()
+        if req:
+            req.assigned_qty = max(Decimal("0"), (req.assigned_qty or Decimal("0")) - cls._safe_decimal(roll.weight_kg))
+            req.save(update_fields=["assigned_qty"])
+
+        if balance <= Decimal("0.0005"):
+            roll.weight_kg = Decimal("0")
+            roll.status = "CONSUMED"
+            roll.save(update_fields=["weight_kg", "status"])
+            res.status = "FULFILLED"
+            res.save(update_fields=["status"])
+        else:
+            source_location_id = roll.location_id
+            target_location_id = location_id or None
+            if target_location_id:
+                target = InventoryLocation.objects.filter(id=target_location_id, is_active=True).select_related("plant").first()
+                if target is None:
+                    raise ValueError("Return location not found.")
+                job_plant_id = cls._resolve_job_plant_id(job)
+                if job_plant_id and str(target.plant_id) != str(job_plant_id):
+                    raise ValueError("Return the roll to a location in this job's plant.")
+            elif int(getattr(roll, "stage_index", 0) or 0) == 0:
+                plant_id = getattr(getattr(roll, "location", None), "plant_id", None) or roll.plant_id
+                rm = (
+                    InventoryLocation.objects.filter(plant_id=plant_id, type="RM", is_active=True).order_by("-is_system", "name").first()
+                    if plant_id else None
+                )
+                target_location_id = rm.id if rm else None
+            roll.weight_kg = balance
+            roll.status = "AVAILABLE"
+            fields = ["weight_kg", "status"]
+            if target_location_id and str(target_location_id) != str(source_location_id):
+                roll.location_id = target_location_id
+                fields.append("location")
+            roll.save(update_fields=fields)
+            if target_location_id and str(target_location_id) != str(source_location_id):
+                RollMovement.objects.create(
+                    roll=roll,
+                    from_location_id=source_location_id,
+                    to_location_id=target_location_id,
+                    reason="WIP_TRANSFER",
+                    reason_note=f"Balance returned from {job.job_number}"[:255],
+                    job=job,
+                    moved_by=user,
+                )
+            res.status = "RELEASED"
+            res.save(update_fields=["status"])
+
+        assignment = WorkCenterAssignment.objects.filter(production_job=job).first()
+        if assignment:
+            remaining_roll_ids = InventoryReservation.objects.filter(
+                job=job, status="ACTIVE", roll__isnull=False,
+            ).values_list("roll_id", flat=True)
+            assignment.allocated_rolls.set(InventoryRoll.objects.filter(id__in=list(remaining_roll_ids)))
+        return {
+            "roll_id": str(roll.id),
+            "label_id": roll.label_id,
+            "mode": mode,
+            "balance_kg": float(balance),
+            "scrap_kg": float(scrap_kg),
+            "status": roll.status,
+        }
 
     @classmethod
     def unassign_roll(cls, job_id, reservation_id):
@@ -6859,15 +7512,37 @@ class ExecutionService:
         reserved_kg = Decimal("0")
         for weight in reservation_qs.filter(status='ACTIVE').values_list('roll__weight_kg', flat=True):
             reserved_kg += cls._safe_decimal(weight)
+        lane_summary = []
         if roll_requirement.get("mode") == "MASS":
-            # Mass-fed step: one roll makes the step runnable; the shortfall is
-            # information for the planner, not a gate (partial runs are allowed).
-            rolls_missing = 0 if reserved_count >= 1 else 1
+            # Mass-fed step: one roll with weight makes the step runnable; the shortfall
+            # is information for the planner, not a gate (partial runs are allowed).
+            rolls_missing = 0 if (reserved_count >= 1 and reserved_kg > cls.ROLL_EMPTY_EPSILON_KG) else 1
+        elif roll_requirement.get("mode") == "LANES":
+            lane_state = cls._roll_lane_state(job, process, current_step_roll_spec, roll_requirement)
+            rolls_missing = sum(
+                1 for lane in lane_state.get("lanes") or []
+                if cls._safe_decimal(lane.get("remaining_kg")) <= cls.ROLL_EMPTY_EPSILON_KG
+            )
+            for lane in lane_state.get("lanes") or []:
+                need = cls._safe_decimal(lane.get("need_kg") or 0)
+                left = cls._safe_decimal(lane.get("remaining_kg") or 0)
+                lane_summary.append({
+                    "lane_key": lane.get("lane_key"),
+                    "label": lane.get("label"),
+                    "rolls": len(lane.get("rolls") or []),
+                    "loaded_kg": float(left),
+                    "need_kg": float(need),
+                    "short_kg": float(max(Decimal("0"), need - left)),
+                })
         else:
             rolls_missing = max(0, rolls_required - reserved_count)
         roll_satisfied = (rolls_missing == 0)
         roll_target_kg = cls._safe_decimal(roll_requirement.get("target_kg") or 0)
-        roll_short_kg = max(Decimal("0"), roll_target_kg - reserved_kg) if roll_target_kg > 0 else Decimal("0")
+        roll_need_kg = cls._safe_decimal(roll_requirement.get("remaining_kg") or 0) if roll_requirement.get("remaining_kg") is not None else roll_target_kg
+        if roll_requirement.get("mode") == "LANES" and lane_summary:
+            roll_short_kg = sum((cls._safe_decimal(row["short_kg"]) for row in lane_summary), Decimal("0"))
+        else:
+            roll_short_kg = max(Decimal("0"), roll_need_kg - reserved_kg) if roll_need_kg > 0 else Decimal("0")
 
         # Bulk consumption preview (step-aware)
         bulk_preview = cls.get_bulk_consumption_preview(job, requirements=requirements)
@@ -6910,7 +7585,9 @@ class ExecutionService:
             'roll_target_kg': float(roll_target_kg),
             'rolls_reserved_kg': float(reserved_kg),
             'roll_short_kg': float(roll_short_kg),
-            'roll_mass_covered': bool(roll_target_kg <= 0 or reserved_kg >= roll_target_kg),
+            'roll_need_kg': float(roll_need_kg),
+            'roll_mass_covered': bool(roll_short_kg <= 0),
+            'roll_lane_summary': lane_summary,
         }
         override_required = bool(process and process.input_form == 'ROLL' and rolls_missing > 0)
 
@@ -8136,6 +8813,10 @@ class ExecutionService:
                 used_qty = Decimal(str(item.get("used_qty_kg") or 0))
                 remainder_roll = item.get("remainder_roll")
                 remainder_qty = Decimal(str(item.get("remainder_qty_kg") or 0))
+                if remainder_roll is None and item.get("balance_kg") is not None:
+                    # In-place use: the balance stays on the same roll.
+                    remainder_qty = Decimal(str(item.get("balance_kg") or 0))
+                    remainder_roll = parent_roll if remainder_qty > 0 else None
                 proportional_output = Decimal("0")
                 proportional_scrap = Decimal("0")
                 if total_used > 0 and output_kg_total > 0:
@@ -8426,50 +9107,72 @@ class ExecutionService:
                 str(process.input_form or "").upper() == "ROLL"
                 and str(process.output_form or "").upper() == "BULK"
             )
+            roll_requirement = cls._roll_requirement(job, process, step_roll_spec) if str(process.input_form or "").upper() == "ROLL" else {"mode": "NONE", "lanes": []}
+            # Lane flow: MASS (one unwinder) and LANES (lamination lane groups). Rolls are used
+            # in place from the running roll of each lane, stay reserved until used up or
+            # returned, and keep their label. COUNT steps keep the strict legacy contract.
+            lane_flow = roll_requirement.get("mode") in {"MASS", "LANES"}
+            lane_state = None
 
             if required_rolls == 0 and roll_reservations and not is_roll_to_bulk:
                 raise ValueError("This process does not consume rolls, but roll reservations exist.")
-            if required_rolls > 0 and len(roll_reservations) < required_rolls:
-                raise ValueError("Missing reserved rolls. WCM must satisfy roll requirements before completion.")
-            if is_roll_to_bulk and len(roll_reservations) <= 0:
-                raise ValueError("ROLL->BULK requires at least one reserved input roll.")
-
-            # ROLL->BULK and lane-group lamination can consume multiple reserved
-            # physical rolls in one completion event. Strict behaviors stay
-            # deterministic by required_roll_count policy.
-            if is_roll_to_bulk or lane_group_mode:
+            if lane_flow:
+                lane_state = cls._roll_lane_state(job, process, step_roll_spec, roll_requirement)
+                if not roll_reservations:
+                    raise ValueError("No input roll is loaded for this step. Ask the WCM to add the next roll.")
+                for lane in lane_state.get("lanes") or []:
+                    if cls._safe_decimal(lane.get("remaining_kg")) <= cls.ROLL_EMPTY_EPSILON_KG:
+                        raise ValueError(
+                            f"{lane.get('label') or lane.get('lane_key')} has no roll with weight left. Ask the WCM to add the next roll."
+                        )
                 reservations_to_use = roll_reservations
                 extra_reservations = []
+                input_rolls = []
+                for lane in lane_state.get("lanes") or []:
+                    input_rolls.extend(row["roll"] for row in lane.get("rolls") or [])
             else:
-                reservations_to_use = roll_reservations[:required_rolls] if required_rolls > 0 else []
-                extra_reservations = roll_reservations[required_rolls:] if required_rolls > 0 else []
-            input_rolls = [r.roll for r in reservations_to_use if r.roll]
+                if required_rolls > 0 and len(roll_reservations) < required_rolls:
+                    raise ValueError("Missing reserved rolls. WCM must satisfy roll requirements before completion.")
+                if is_roll_to_bulk and len(roll_reservations) <= 0:
+                    raise ValueError("ROLL->BULK requires at least one reserved input roll.")
+                if is_roll_to_bulk or lane_group_mode:
+                    reservations_to_use = roll_reservations
+                    extra_reservations = []
+                else:
+                    reservations_to_use = roll_reservations[:required_rolls] if required_rolls > 0 else []
+                    extra_reservations = roll_reservations[required_rolls:] if required_rolls > 0 else []
+                input_rolls = [r.roll for r in reservations_to_use if r.roll]
             total_input_weight = sum(Decimal(str(r.weight_kg or 0)) for r in input_rolls)
             runtime_output_cap = cls._resolve_runtime_output_cap_kg(
                 process,
                 step_profile,
                 input_rolls=input_rolls,
                 scrap_qty=scrap_qty,
+                input_cap_override_kg=cls._lane_input_cap_kg(lane_state, scrap_qty) if lane_flow else None,
             )
             max_output_kg = runtime_output_cap.get("max_output_kg")
             epsilon = Decimal("0.001")
+            lane_split_adjusted = []
+            if lane_flow and roll_behavior != "SPLIT":
+                # Refuses when a lane is out of film; small share gaps are absorbed by the other lanes.
+                _, lane_split_adjusted = cls._plan_lane_split(lane_state, output_weight_kg + scrap_qty)
             if max_output_kg is not None and output_weight_kg > (max_output_kg + epsilon):
                 raise ValueError(
                     f"Output ({output_weight_kg:.3f} kg) exceeds max allowed for this step "
                     f"({max_output_kg:.3f} kg)."
                 )
 
-            if roll_behavior in ('MODIFY_EXISTING', 'SPLIT') and len(input_rolls) != 1:
+            if not lane_flow and roll_behavior in ('MODIFY_EXISTING', 'SPLIT') and len(input_rolls) != 1:
                 raise ValueError(f"{roll_behavior} requires exactly one reserved roll.")
             if roll_behavior == 'MODIFY_EXISTING' and int(getattr(job, "current_step_index", 0) or 0) > 0:
-                roll = input_rolls[0]
-                roll_step = int(getattr(roll, "current_step_index", 0) or 0)
-                if roll_step < int(getattr(job, "current_step_index", 0) or 0) or not getattr(roll, "created_by_job_id", None):
-                    raise ValueError(
-                        f"MODIFY_EXISTING at step {job.current_step_index} requires a lineage output roll "
-                        f"from the previous production flow. Roll {roll.label_id} has current_step_index={roll_step}."
-                    )
-            if roll_behavior == 'MULTI_INPUT_COMBINE' and lane_group_mode:
+                for roll in (input_rolls[:1] if not lane_flow else input_rolls):
+                    roll_step = int(getattr(roll, "current_step_index", 0) or 0)
+                    if roll_step < int(getattr(job, "current_step_index", 0) or 0) or not getattr(roll, "created_by_job_id", None):
+                        raise ValueError(
+                            f"MODIFY_EXISTING at step {job.current_step_index} requires a lineage output roll "
+                            f"from the previous production flow. Roll {roll.label_id} has current_step_index={roll_step}."
+                        )
+            if roll_behavior == 'MULTI_INPUT_COMBINE' and lane_group_mode and not lane_flow:
                 assignment_validation = cls._summarize_roll_assignment_validation(
                     job,
                     process,
@@ -8478,8 +9181,28 @@ class ExecutionService:
                 )
                 if not assignment_validation.get("is_complete") or not assignment_validation.get("slot_satisfied"):
                     raise ValueError("MULTI_INPUT_COMBINE requires every lamination lane to have compatible reserved rolls.")
-            elif roll_behavior == 'MULTI_INPUT_COMBINE' and len(input_rolls) != required_rolls:
+            elif roll_behavior == 'MULTI_INPUT_COMBINE' and not lane_group_mode and len(input_rolls) != required_rolls:
                 raise ValueError(f"MULTI_INPUT_COMBINE requires exactly {required_rolls} reserved rolls.")
+
+            def _main_lane_rolls():
+                lanes = (lane_state or {}).get("lanes") or []
+                return [row["roll"] for row in (lanes[0].get("rolls") if lanes else [])]
+
+            def _consume_lane_flow(total_kg, label):
+                """Use total_kg from the lanes by share, in place. Returns usage rows."""
+                if roll_requirement.get("mode") == "LANES":
+                    rows = []
+                    lane_plan, _ = cls._plan_lane_split(lane_state, total_kg)
+                    for lane, lane_kg in lane_plan:
+                        if lane_kg <= 0:
+                            continue
+                        rows.extend(cls._consume_rolls_in_place(
+                            [row["roll"] for row in lane.get("rolls") or []],
+                            lane_kg,
+                            label=str(lane.get("label") or lane.get("lane_key")),
+                        ))
+                    return rows
+                return cls._consume_rolls_in_place(_main_lane_rolls(), total_kg, label=label)
 
             def _parse_decimal(value, field_name, allow_zero=False):
                 if value in (None, ""):
@@ -8594,18 +9317,22 @@ class ExecutionService:
                 if roll_behavior == 'MODIFY_EXISTING':
                     if output_weight_kg <= 0:
                         raise ValueError("Produced weight must be > 0.")
-                    roll = input_rolls[0]
-                    input_weight = Decimal(str(roll.weight_kg or 0))
                     expected = output_weight_kg + scrap_qty
-                    if expected > input_weight + Decimal('0.001'):
-                        raise ValueError("Produced weight + scrap exceeds reserved input roll weight.")
-
-                    usage = _consume_input_rolls_with_remainder(input_rolls, expected, "MODIFY_EXISTING")
-                    consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage)
+                    if lane_flow:
+                        running_rolls = _main_lane_rolls() or input_rolls
+                        roll = running_rolls[0]
+                        usage = _consume_lane_flow(expected, "input")
+                    else:
+                        roll = input_rolls[0]
+                        input_weight = Decimal(str(roll.weight_kg or 0))
+                        if expected > input_weight + Decimal('0.001'):
+                            raise ValueError("Produced weight + scrap exceeds reserved input roll weight.")
+                        usage = _consume_input_rolls_with_remainder(input_rolls, expected, "MODIFY_EXISTING")
+                    consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage if cls._safe_decimal(item.get("balance_kg", 0)) <= 0 or not lane_flow)
                     _record_film_usage_actuals(usage, scrap_qty)
 
-                    thickness_micron = _resolve_thickness(step_roll_spec.get("thickness_rule"), input_rolls)
-                    width_mm = _resolve_width(step_roll_spec.get("width_rule"), input_rolls)
+                    thickness_micron = _resolve_thickness(step_roll_spec.get("thickness_rule"), [roll])
+                    width_mm = _resolve_width(step_roll_spec.get("width_rule"), [roll])
                     if width_mm is None and roll.width_mm is not None:
                         width_mm = Decimal(str(roll.width_mm))
 
@@ -8622,82 +9349,145 @@ class ExecutionService:
                     if width_mm is None or width_mm <= 0:
                         raise ValueError("Output width is required for MODIFY_EXISTING.")
 
-                    out_roll = _find_active_output_roll(parent_roll=roll)
-                    weight_breakdown = _roll_weight_breakdown({}, output_weight_kg, "output_roll")
-                    if out_roll:
-                        out_roll.weight_kg += output_weight_kg
-                        _apply_roll_weight_breakdown(out_roll, weight_breakdown)
-                        if internal_stock_meta:
-                            meta = dict(out_roll.meta_json or {})
-                            meta.update(internal_stock_meta)
-                            out_roll.meta_json = meta
-                        out_roll.save(update_fields=['weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'meta_json'])
-                    else:
-                        out_meta = dict(roll.meta_json or {})
-                        if roll_spec:
-                            out_meta.update({k: v for k, v in roll_spec.items() if v is not None})
-                        out_meta.update({
-                            "is_remainder": False,
-                            "roll_role": "OUTPUT",
-                            "source_behavior": "MODIFY_EXISTING",
-                            "source_roll_label": roll.label_id,
-                        })
-                        out_meta.update(internal_stock_meta)
-                        out_stock_form, out_width_basis = _resolve_output_stock_form_for_row(roll)
+                    # One output roll per row the operator sends (each doffed roll). Without rows,
+                    # the entry adds to the roll still winding from the same input roll.
+                    modify_rows = []
+                    raw_modify_rows = kwargs.get("roll_outputs") or []
+                    if isinstance(raw_modify_rows, list):
+                        for idx, row in enumerate(raw_modify_rows, start=1):
+                            if not isinstance(row, dict):
+                                continue
+                            row_weight = _parse_decimal(row.get("weight_kg"), f"roll_outputs[{idx}].weight_kg")
+                            modify_rows.append({
+                                "weight_kg": row_weight,
+                                "weight_breakdown": _roll_weight_breakdown(row, row_weight, f"roll_outputs[{idx}]"),
+                                "width_mm": _parse_decimal(row.get("width_mm"), f"roll_outputs[{idx}].width_mm") if row.get("width_mm") not in (None, "") else None,
+                                "stock_form": row.get("stock_form"),
+                                "width_basis": row.get("width_basis"),
+                            })
+                    if modify_rows:
+                        rows_total = sum((row["weight_kg"] for row in modify_rows), Decimal("0"))
+                        if abs(rows_total - output_weight_kg) > Decimal("0.001"):
+                            raise ValueError("roll_outputs total weight must match actual output quantity.")
+                    output_specs = modify_rows or [{
+                        "weight_kg": output_weight_kg,
+                        "weight_breakdown": _roll_weight_breakdown({}, output_weight_kg, "output_roll"),
+                        "width_mm": None,
+                        "stock_form": None,
+                        "width_basis": None,
+                    }]
+                    modify_created = []
+                    for spec_row in output_specs:
+                        row_weight_kg = spec_row["weight_kg"]
+                        weight_breakdown = spec_row["weight_breakdown"]
+                        out_roll = None if modify_rows else _find_active_output_roll(parent_roll=roll)
+                        if out_roll:
+                            out_roll.weight_kg += row_weight_kg
+                            _apply_roll_weight_breakdown(out_roll, weight_breakdown)
+                            if internal_stock_meta:
+                                meta = dict(out_roll.meta_json or {})
+                                meta.update(internal_stock_meta)
+                                out_roll.meta_json = meta
+                            out_roll.save(update_fields=['weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'meta_json'])
+                        else:
+                            out_meta = dict(roll.meta_json or {})
+                            if roll_spec:
+                                out_meta.update({k: v for k, v in roll_spec.items() if v is not None})
+                            out_meta.update({
+                                "is_remainder": False,
+                                "roll_role": "OUTPUT",
+                                "source_behavior": "MODIFY_EXISTING",
+                                "source_roll_label": roll.label_id,
+                            })
+                            out_meta.update(internal_stock_meta)
+                            out_stock_form, out_width_basis = _resolve_output_stock_form_for_row(roll, spec_row)
 
-                        out_roll = InventoryRoll.objects.create(
-                            label_id=_next_job_roll_label("MOD"),
-                            material=out_material,
-                            plant=job.work_center.plant if job.work_center else roll.plant,
-                            production_job=job,
-                            created_by_job=job,
-                            created_process=process,
-                            parent_roll=roll,
-                            thickness_micron=thickness_micron,
-                            width_mm=width_mm,
-                            stock_form=out_stock_form,
-                            width_basis=out_width_basis,
-                            density_gcm3=cls._resolve_density_gcm3(material=out_material, roll=roll),
-                            grade_id=out_grade_id,
-                            weight_kg=output_weight_kg,
-                            original_weight_kg=output_weight_kg,
-                            net_weight_kg=weight_breakdown["net_weight_kg"],
-                            tare_weight_kg=weight_breakdown["tare_weight_kg"],
-                            gross_weight_kg=weight_breakdown["gross_weight_kg"],
-                            status='AVAILABLE',
-                            location_id=output_location_id,
-                            stage_index=job.current_step_index + 1,
-                            current_step_index=job.current_step_index + 1,
-                            completed_step_index=job.current_step_index,
-                            template=job.template,
-                            sales_order_item=job.sales_order_item,
-                            meta_json=_with_roll_weight_meta(out_meta, weight_breakdown),
-                            is_fg=output_is_fg
+                            out_roll = InventoryRoll.objects.create(
+                                label_id=_next_job_roll_label("MOD"),
+                                material=out_material,
+                                plant=job.work_center.plant if job.work_center else roll.plant,
+                                production_job=job,
+                                created_by_job=job,
+                                created_process=process,
+                                parent_roll=roll,
+                                thickness_micron=thickness_micron,
+                                width_mm=spec_row.get("width_mm") or width_mm,
+                                stock_form=out_stock_form,
+                                width_basis=out_width_basis,
+                                density_gcm3=cls._resolve_density_gcm3(material=out_material, roll=roll),
+                                grade_id=out_grade_id,
+                                weight_kg=row_weight_kg,
+                                original_weight_kg=row_weight_kg,
+                                net_weight_kg=weight_breakdown["net_weight_kg"],
+                                tare_weight_kg=weight_breakdown["tare_weight_kg"],
+                                gross_weight_kg=weight_breakdown["gross_weight_kg"],
+                                status='AVAILABLE',
+                                location_id=output_location_id,
+                                stage_index=job.current_step_index + 1,
+                                current_step_index=job.current_step_index + 1,
+                                completed_step_index=job.current_step_index,
+                                template=job.template,
+                                sales_order_item=job.sales_order_item,
+                                meta_json=_with_roll_weight_meta(out_meta, weight_breakdown),
+                                is_fg=output_is_fg
+                            )
+                        modify_created.append((out_roll, row_weight_kg))
+
+                    modify_total = sum((w for _, w in modify_created), Decimal("0"))
+                    usage_total = sum((Decimal(str(item["used_qty_kg"])) for item in usage), Decimal("0"))
+                    for out_roll, row_weight_kg in modify_created:
+                        for item in usage:
+                            parent = item["parent_roll"]
+                            link_qty = (row_weight_kg * Decimal(str(item["used_qty_kg"])) / usage_total) if usage_total > 0 else row_weight_kg
+                            link, created = RollLink.objects.get_or_create(
+                                parent_roll=parent,
+                                child_roll=out_roll,
+                                defaults={'relation_type': 'PROCESS_OUTPUT', 'qty_used_kg': link_qty}
+                            )
+                            if not created:
+                                link.qty_used_kg += link_qty
+                                link.save(update_fields=['qty_used_kg'])
+                    if lane_flow:
+                        _record_roll_consumption_rows(
+                            usage,
+                            output_roll=modify_created[0][0] if modify_created else None,
+                            output_kg_total=modify_total,
+                            scrap_qty_total=scrap_qty,
                         )
-
-                    link, created = RollLink.objects.get_or_create(
-                        parent_roll=roll,
-                        child_roll=out_roll,
-                        defaults={'relation_type': 'PROCESS_OUTPUT', 'qty_used_kg': output_weight_kg}
-                    )
-                    if not created:
-                        link.qty_used_kg += output_weight_kg
-                        link.save(update_fields=['qty_used_kg'])
 
                 elif roll_behavior == 'MULTI_INPUT_COMBINE':
                     if output_weight_kg <= 0:
                         raise ValueError("Produced weight must be > 0.")
                     expected = output_weight_kg + scrap_qty
-                    if expected > total_input_weight + Decimal('0.001'):
-                        raise ValueError("Produced weight + scrap exceeds total input roll weight.")
-
-                    usage = _consume_input_rolls_with_remainder(
-                        input_rolls,
-                        expected,
-                        "MULTI_INPUT_COMBINE",
-                        consume_all_parents=True,
-                    )
-                    consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage)
+                    combine_structure = []
+                    if lane_flow:
+                        # The running roll of each lane is what is on the unwinders now.
+                        running_by_lane = [
+                            (lane, (lane.get("rolls") or [{}])[0].get("roll"))
+                            for lane in (lane_state or {}).get("lanes") or []
+                        ]
+                        physics_rolls = [roll_obj for _, roll_obj in running_by_lane if roll_obj is not None]
+                        usage = _consume_lane_flow(expected, "lane")
+                        for lane, roll_obj in running_by_lane:
+                            if roll_obj is None:
+                                continue
+                            combine_structure.append({
+                                "lane_key": lane.get("lane_key"),
+                                "material": getattr(getattr(roll_obj, "material", None), "name", None),
+                                "thickness_micron": float(roll_obj.thickness_micron or 0),
+                                "share": float(lane.get("share") or 0),
+                            })
+                    else:
+                        if expected > total_input_weight + Decimal('0.001'):
+                            raise ValueError("Produced weight + scrap exceeds total input roll weight.")
+                        physics_rolls = input_rolls
+                        usage = _consume_input_rolls_with_remainder(
+                            input_rolls,
+                            expected,
+                            "MULTI_INPUT_COMBINE",
+                            consume_all_parents=True,
+                        )
+                    consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage if cls._safe_decimal(item.get("balance_kg", 0)) <= 0 or not lane_flow)
                     _record_film_usage_actuals(usage, scrap_qty)
 
                     # V2 deterministic combine physics is fixed:
@@ -8705,17 +9495,20 @@ class ExecutionService:
                     # - output width = minimum input width
                     width_candidates = [
                         Decimal(str(r.width_mm))
-                        for r in input_rolls
+                        for r in physics_rolls
                         if getattr(r, "width_mm", None) is not None
                     ]
                     width_mm = min(width_candidates) if width_candidates else Decimal("0")
 
                     thickness_micron = sum(
-                        (Decimal(str(r.thickness_micron or 0)) for r in input_rolls),
+                        (Decimal(str(r.thickness_micron or 0)) for r in physics_rolls),
                         Decimal("0"),
                     )
-                    grade_id = output_grade_id or (input_rolls[0].grade_id if input_rolls else None)
-                    material = output_material or (input_rolls[0].material if input_rolls else None)
+                    grade_id = output_grade_id or (physics_rolls[0].grade_id if physics_rolls else None)
+                    material = output_material or (physics_rolls[0].material if physics_rolls else None)
+                    structure_label = " / ".join(
+                        f"{row['material'] or 'film'} {row['thickness_micron']:g} µ" for row in combine_structure
+                    ) if combine_structure else ""
 
                     if thickness_micron <= 0:
                         raise ValueError("Output thickness is required for MULTI_INPUT_COMBINE.")
@@ -8806,6 +9599,10 @@ class ExecutionService:
                                     "roll_role": "OUTPUT",
                                     "source_behavior": "MULTI_INPUT_COMBINE",
                                     "lamination_pass_index": step_roll_spec.get("lamination_pass_index"),
+                                    "is_laminate": True,
+                                    "structure_label": structure_label or None,
+                                    "structure": combine_structure or None,
+                                    "lane_share_adjusted": lane_split_adjusted or None,
                                     **internal_stock_meta,
                                 }, weight_breakdown),
                                 is_fg=output_is_fg
@@ -8826,12 +9623,19 @@ class ExecutionService:
                             if not created:
                                 link.qty_used_kg += link_qty
                                 link.save(update_fields=['qty_used_kg'])
+                    if lane_flow:
+                        _record_roll_consumption_rows(
+                            usage,
+                            output_roll=created_rolls[0][0] if created_rolls else None,
+                            output_kg_total=total_link_weight,
+                            scrap_qty_total=scrap_qty,
+                        )
 
                 elif roll_behavior == 'SPLIT':
                     if not isinstance(split_outputs, list) or len(split_outputs) == 0:
                         raise ValueError("Split outputs are required for SPLIT behavior.")
 
-                    parent = input_rolls[0]
+                    parent = (_main_lane_rolls() or input_rolls)[0] if lane_flow else input_rolls[0]
                     input_weight = Decimal(str(parent.weight_kg or 0))
 
                     parsed_outputs = []
@@ -8851,6 +9655,11 @@ class ExecutionService:
 
                     expected = total_output + scrap_qty
                     if expected > input_weight + Decimal('0.001'):
+                        if lane_flow:
+                            raise ValueError(
+                                f"Split outputs + scrap ({expected:.3f} kg) exceed the weight left on parent roll "
+                                f"{parent.label_id} ({input_weight:.3f} kg). Log one parent roll at a time."
+                            )
                         raise ValueError("Split outputs + scrap exceed input roll weight.")
                     if max_output_kg is not None and total_output > (max_output_kg + Decimal("0.001")):
                         raise ValueError(
@@ -8903,22 +9712,43 @@ class ExecutionService:
                             defaults={'relation_type': 'SPLIT', 'qty_used_kg': out['weight_kg']}
                         )
 
-                    if remainder > Decimal('0.001'):
-                        _create_remainder_roll(parent, remainder, "SPLIT")
+                    if lane_flow:
+                        # The parent stays the same roll: whatever is not slit stays on it,
+                        # with its own label, for the next entry or for return to stock.
+                        split_usage = cls._consume_rolls_in_place([parent], expected, allow_spill=False, label="parent")
+                        _record_film_usage_actuals(
+                            [{
+                                "parent_roll": parent,
+                                "used_qty_kg": total_output,
+                                "remainder_qty_kg": Decimal("0"),
+                            }],
+                            scrap_qty,
+                        )
+                        _record_roll_consumption_rows(
+                            split_usage,
+                            output_roll=None,
+                            output_kg_total=total_output,
+                            scrap_qty_total=scrap_qty,
+                        )
+                        if str(parent.status).upper() == "CONSUMED":
+                            consumed_roll_ids.add(str(parent.id))
+                    else:
+                        if remainder > Decimal('0.001'):
+                            _create_remainder_roll(parent, remainder, "SPLIT")
 
-                    _record_film_usage_actuals(
-                        [{
-                            "parent_roll": parent,
-                            "used_qty_kg": total_output,
-                            "remainder_qty_kg": remainder if remainder > Decimal("0.001") else Decimal("0"),
-                        }],
-                        scrap_qty,
-                    )
+                        _record_film_usage_actuals(
+                            [{
+                                "parent_roll": parent,
+                                "used_qty_kg": total_output,
+                                "remainder_qty_kg": remainder if remainder > Decimal("0.001") else Decimal("0"),
+                            }],
+                            scrap_qty,
+                        )
 
-                    parent.status = 'CONSUMED'
-                    parent.weight_kg = Decimal('0')
-                    parent.save(update_fields=['status', 'weight_kg'])
-                    consumed_roll_ids.add(str(parent.id))
+                        parent.status = 'CONSUMED'
+                        parent.weight_kg = Decimal('0')
+                        parent.save(update_fields=['status', 'weight_kg'])
+                        consumed_roll_ids.add(str(parent.id))
 
                 else:
                     # CREATE_NEW / fallback
@@ -8956,11 +9786,14 @@ class ExecutionService:
 
                     usage = []
                     if process.input_form == 'ROLL' and input_rolls:
-                        usage = _consume_input_rolls_with_remainder(input_rolls, output_weight_kg + scrap_qty, "CREATE_NEW")
-                        consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage)
+                        if lane_flow:
+                            usage = _consume_lane_flow(output_weight_kg + scrap_qty, "input")
+                        else:
+                            usage = _consume_input_rolls_with_remainder(input_rolls, output_weight_kg + scrap_qty, "CREATE_NEW")
+                        consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage if cls._safe_decimal(item.get("balance_kg", 0)) <= 0 or not lane_flow)
                         _record_film_usage_actuals(usage, scrap_qty)
 
-                    parent_roll = input_rolls[0] if input_rolls else None
+                    parent_roll = (usage[0]["parent_roll"] if usage else (input_rolls[0] if input_rolls else None))
                     parent_meta = (parent_roll.meta_json or {}) if parent_roll else {}
                     out_meta = dict(parent_meta)
                     if roll_spec:
@@ -9060,6 +9893,13 @@ class ExecutionService:
                             if not created:
                                 link.qty_used_kg += link_qty
                                 link.save(update_fields=['qty_used_kg'])
+                    if lane_flow and usage:
+                        _record_roll_consumption_rows(
+                            usage,
+                            output_roll=created_rolls[0][0] if created_rolls else None,
+                            output_kg_total=total_link_weight,
+                            scrap_qty_total=scrap_qty,
+                        )
 
             elif process.output_form == 'BULK':
                 terminal_pouch_fg_bulk = cls._is_terminal_pouch_fg_bulk_step(job, process=process)
@@ -9107,13 +9947,18 @@ class ExecutionService:
                     if output_weight_kg <= 0:
                         raise ValueError("Output weight must be > 0 for roll consumption.")
                     expected_roll_consumption = output_weight_kg + scrap_qty
-                    if len(input_rolls) > 1 and expected_roll_consumption < (total_input_weight - Decimal('0.001')):
-                        raise ValueError(
-                            "ROLL->BULK with multiple reserved rolls must consume all reserved roll weight. "
-                            "Increase output/scrap or unreserve unused rolls."
-                        )
-                    usage = _consume_input_rolls_with_remainder(input_rolls, expected_roll_consumption, "ROLL_TO_BULK")
-                    consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage)
+                    if lane_flow:
+                        # Part entries are fine: the running roll gives first, the rest stay
+                        # reserved on the job with their labels until used or returned.
+                        usage = _consume_lane_flow(expected_roll_consumption, "input")
+                    else:
+                        if len(input_rolls) > 1 and expected_roll_consumption < (total_input_weight - Decimal('0.001')):
+                            raise ValueError(
+                                "ROLL->BULK with multiple reserved rolls must consume all reserved roll weight. "
+                                "Increase output/scrap or unreserve unused rolls."
+                            )
+                        usage = _consume_input_rolls_with_remainder(input_rolls, expected_roll_consumption, "ROLL_TO_BULK")
+                    consumed_roll_ids.update(str(item["parent_roll"].id) for item in usage if cls._safe_decimal(item.get("balance_kg", 0)) <= 0 or not lane_flow)
                     _record_film_usage_actuals(usage, scrap_qty)
                     _record_roll_consumption_rows(
                         usage,
@@ -9185,12 +10030,25 @@ class ExecutionService:
                     primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") or {}
                     if bool(primary_pack.get("enabled")):
                         material_id = primary_pack.get("material_id")
+                        if not material_id and primary_pack.get("material_code"):
+                            # Older order lines saved the inner pouch by code only.
+                            material_id = (
+                                InventoryMaterial.objects.filter(
+                                    code__iexact=str(primary_pack.get("material_code")).strip(),
+                                    category="PACKAGING",
+                                )
+                                .values_list("id", flat=True)
+                                .first()
+                            )
                         try:
                             pcs_per_pack = int(primary_pack.get("pcs_per_pack") or 0)
                         except Exception:
                             pcs_per_pack = 0
                         if not material_id:
-                            raise ValueError("Packaging config missing primary_inner_pack.material_id.")
+                            raise ValueError(
+                                "This order's inner pouch is not set (no packing material on the order line). "
+                                "Set it on the order or the product master, then enter the output again."
+                            )
                         if pcs_per_pack <= 0:
                             raise ValueError("Packaging config primary_inner_pack.pcs_per_pack must be > 0.")
                         packs_needed = (int(output_pcs) + pcs_per_pack - 1) // pcs_per_pack
@@ -9238,7 +10096,9 @@ class ExecutionService:
                         else "N/A"
                     )
                     reference = f"SO:{so_number} JOB:{job.job_number} FG_BATCH:{fg_batch.batch_number}"
-                    PackagingService.consume_packaging_stock(
+                    # Inner pouches are the one packing item consumed automatically; they may sit
+                    # in a packing store, so draw from anywhere in the plant (output location first).
+                    inner_txs = PackagingService.consume_packaging_stock_in_plant(
                         material_id=primary_pack_runtime_meta["material_id"],
                         qty=primary_pack_runtime_meta["pack_count"],
                         input_uom="PCS",
@@ -9254,6 +10114,12 @@ class ExecutionService:
                             "pack_count": primary_pack_runtime_meta["pack_count"],
                         },
                     )
+                    batch_meta = dict(fg_batch.meta_json or {})
+                    batch_primary = dict(batch_meta.get("primary_inner_pack") or {})
+                    batch_primary["consume_tx_ids"] = [str(tx.id) for tx in inner_txs]
+                    batch_meta["primary_inner_pack"] = batch_primary
+                    fg_batch.meta_json = batch_meta
+                    fg_batch.save(update_fields=["meta_json"])
 
             # 4. Waste log (operator input). New machine terminal clients send
             # trim and process scrap separately; legacy clients still send only
@@ -9301,6 +10167,18 @@ class ExecutionService:
                 )
 
             # 5. Close roll reservations precisely (no phantom fulfillment)
+            if lane_flow:
+                # Used-up rolls close; every other reserved roll stays on the job with its
+                # balance and label until the next entry, a return, or job completion.
+                for res in reservations_to_use:
+                    if not res.roll_id:
+                        continue
+                    res.roll.refresh_from_db(fields=["status", "weight_kg"])
+                    if str(res.roll.status).upper() == "CONSUMED" or cls._safe_decimal(res.roll.weight_kg) <= cls.ROLL_EMPTY_EPSILON_KG:
+                        res.status = 'FULFILLED'
+                        res.save(update_fields=['status'])
+                reservations_to_use = []
+                extra_reservations = []
             for res in reservations_to_use:
                 if res.roll_id and str(res.roll_id) in consumed_roll_ids:
                     res.status = 'FULFILLED'

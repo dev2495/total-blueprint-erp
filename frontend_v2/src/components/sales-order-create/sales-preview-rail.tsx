@@ -85,6 +85,8 @@ type BomRow = {
   policySource?: string;
   policyMode?: string;
   placeholder?: boolean;
+  /** Film made in the plant from granules: shown, never added to totals. */
+  madeInHouse?: boolean;
 };
 
 const CATEGORY_ORDER: BomCategory[] = [
@@ -99,7 +101,27 @@ const CATEGORY_ORDER: BomCategory[] = [
   "OTHER",
 ];
 
+const EXPLICIT_CATEGORY: Record<string, BomCategory> = {
+  FILM: "FILM",
+  FILM_VARIANT: "FILM",
+  FILM_FAMILY: "FILM",
+  GRANULE: "GRANULE",
+  INK: "INK",
+  ADHESIVE: "CHEMICAL",
+  SOLVENT: "CHEMICAL",
+  CHEMICAL: "CHEMICAL",
+  ADH: "CHEMICAL",
+  ADDON: "ADDON",
+  POD: "POD",
+  INNER_POUCH: "INNER_POUCH",
+  PACKAGING: "PACKAGING",
+};
+
 function matchCategory(cat: string, code = "", name = ""): BomCategory {
+  // A category the backend states wins over guessing from the code or name
+  // (an "LDPE ... film" is film, not granules).
+  const explicit = EXPLICIT_CATEGORY[String(cat || "").trim().toUpperCase()];
+  if (explicit) return explicit;
   const hay = `${cat} ${code} ${name}`.toUpperCase();
   if (/^POD$|POD[_-]/.test(hay)) return "POD";
   if (/INK|PIGMENT|COLOR|COLOUR/.test(hay)) return "INK";
@@ -294,6 +316,9 @@ function makeBomRow(
     plannedIssueQty: num(row?.planned_issue_qty),
     policySource: pickText(row?.policy_source),
     policyMode: pickText(row?.effective_issue_policy_mode, row?.template_issue_policy_mode),
+    madeInHouse:
+      cat === "FILM" &&
+      ["EXTRUDE", "IN_HOUSE", "MAKE"].includes(String(row?.source || row?.supply || "").toUpperCase()),
   };
 }
 
@@ -577,7 +602,7 @@ function collectStepGroups(rows: BomRow[]) {
 function displayTotalForGroup(rows: BomRow[]) {
   const totals = new Map<string, number>();
   for (const row of rows) {
-    if (row.placeholder || !Number.isFinite(row.qty)) continue;
+    if (row.placeholder || row.madeInHouse || !Number.isFinite(row.qty)) continue;
     const uom = String(row.uom || "").toUpperCase();
     if (!uom || uom === "MAP") continue;
     totals.set(uom, (totals.get(uom) || 0) + row.qty);
@@ -590,7 +615,13 @@ function displayTotalForGroup(rows: BomRow[]) {
 
 function BomLineRow({ row }: { row: BomRow }) {
   return (
-    <div className="grid grid-cols-[1fr_auto] items-center gap-2 border-t border-line px-3 py-1.5 text-xs font-bold">
+    <div
+      className={cn(
+        "grid grid-cols-[1fr_auto] items-center gap-2 border-t border-line px-3 py-1.5 text-xs font-bold",
+        row.madeInHouse && "opacity-70",
+      )}
+      title={row.madeInHouse ? "Made in the plant from the granules above; not added to the totals." : undefined}
+    >
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-1.5">
           {row.swatchHex ? (
@@ -614,6 +645,11 @@ function BomLineRow({ row }: { row: BomRow }) {
           {row.basis ? (
             <span className="shrink-0 rounded bg-surface-2 px-1">
               {row.basis}
+            </span>
+          ) : null}
+          {row.madeInHouse ? (
+            <span className="shrink-0 rounded bg-surface-2 px-1 text-content-3">
+              made here · not added
             </span>
           ) : null}
           {row.note ? (
@@ -1032,7 +1068,8 @@ export function SalesPreviewRail({
       (r) =>
         (r.cat === "GRANULE" || r.cat === "FILM") &&
         String(r.uom).toUpperCase() === "KG" &&
-        !r.placeholder,
+        !r.placeholder &&
+        !r.madeInHouse,
     )
     .reduce((s, r) => s + (Number.isFinite(r.qty) ? r.qty : 0), 0);
   const lanePct =

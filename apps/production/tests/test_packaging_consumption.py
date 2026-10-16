@@ -2,7 +2,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
 from apps.production.services.dispatch_service import FGDispatchService
 from apps.production.services.packing_service import PackingService
@@ -33,7 +33,7 @@ class PackagingConsumptionTests(SimpleTestCase):
 
         self.assertEqual(mass, Decimal("0.130000"))
 
-    def test_create_gonny_consumes_selected_gonny_material(self):
+    def test_create_gonny_marks_gonny_for_the_evening_count_without_stock_movement(self):
         batch = SimpleNamespace(
             id="batch-1",
             batch_number="B-1",
@@ -56,12 +56,44 @@ class PackagingConsumptionTests(SimpleTestCase):
             result = PackingService.create_gonny.__wrapped__("batch-1", 20, user=None, gonny_material_id="gonny-mat-1")
 
         self.assertIs(result, created)
-        consume_stock.assert_called_once()
-        self.assertEqual(consume_stock.call_args.kwargs["material_id"], "gonny-mat-1")
-        self.assertEqual(consume_stock.call_args.kwargs["qty"], 1)
+        # Base rule: only inner pouches are consumed automatically; the gonny is marked.
+        consume_stock.assert_not_called()
+        meta = create_unit.call_args.kwargs["meta_json"]
+        self.assertEqual(meta["gonny_stock_effect"], "MARK_ONLY")
+        self.assertEqual(
+            meta["packaging_marks"],
+            [{"material_id": "gonny-mat-1", "qty": 1.0, "uom": "PCS", "basis": "PER_GONNY", "capture_mode": "MARKED_FOR_COUNT"}],
+        )
         self.assertEqual(create_unit.call_args.kwargs["qty_pcs"], 20)
         self.assertEqual(create_unit.call_args.kwargs["content_mode"], "LOOSE_POUCHES")
         self.assertEqual(batch.qty_pcs, 80)
+
+    def test_create_gonny_consumes_the_gonny_only_when_the_setting_asks_for_it(self):
+        batch = SimpleNamespace(
+            id="batch-1b",
+            batch_number="B-1B",
+            status="AVAILABLE",
+            qty_pcs=100,
+            packing_units=SimpleNamespace(count=lambda: 0),
+            location=SimpleNamespace(id="loc-1"),
+            production_job_id=None,
+            sales_order_item=None,
+            sales_order_item_id=None,
+            save=MagicMock(),
+        )
+        created = SimpleNamespace(id="gonny-1b", label_id="G-B-1B-001", qty_pcs=20, status="OPEN")
+
+        with override_settings(PACKING_GONNY_AUTO_CONSUME=True), \
+             patch("apps.production.services.packing_service.FinishedGoodsBatch.objects.select_for_update") as select_for_update, \
+             patch("apps.production.services.packing_service.PackagingService.consume_packaging_stock") as consume_stock, \
+             patch("apps.production.services.packing_service.PackingUnit.objects.create", return_value=created) as create_unit:
+            select_for_update.return_value.get.return_value = batch
+            PackingService.create_gonny.__wrapped__("batch-1b", 20, user=None, gonny_material_id="gonny-mat-1")
+
+        consume_stock.assert_called_once()
+        self.assertEqual(consume_stock.call_args.kwargs["material_id"], "gonny-mat-1")
+        self.assertEqual(consume_stock.call_args.kwargs["qty"], 1)
+        self.assertEqual(create_unit.call_args.kwargs["meta_json"]["gonny_stock_effect"], "CONSUMED")
 
     def test_create_gonny_defaults_primary_pack_count_from_sales_snapshot(self):
         batch = SimpleNamespace(
@@ -218,8 +250,9 @@ class PackagingConsumptionTests(SimpleTestCase):
                 content_mode="PRIMARY_PACKS",
             )
 
-        self.assertEqual(consume_stock.call_count, 1)
-        self.assertEqual(consume_stock.call_args.kwargs["material_id"], "gonny-mat-3")
+        # Inner packs were consumed at the machine and the gonny waits for the evening count.
+        self.assertEqual(consume_stock.call_count, 0)
+        self.assertEqual(create_unit.call_args.kwargs["meta_json"]["packaging_marks"][0]["material_id"], "gonny-mat-3")
         self.assertTrue(create_unit.call_args.kwargs["meta_json"]["primary_packs_prepacked"])
 
     def test_seal_gonny_marks_submitted_extras_before_legacy_snapshot_without_stock_movement(self):

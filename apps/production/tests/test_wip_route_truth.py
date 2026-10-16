@@ -312,10 +312,19 @@ class WipRouteTruthTests(SimpleTestCase):
              patch("apps.production.services.job_services.InventoryReservation.objects.filter", return_value=reservations), \
              patch("apps.production.services.job_services.InventoryRoll.objects.filter", return_value=reserved_rolls), \
              patch("apps.production.services.services_execution.ExecutionService._required_roll_count", return_value=1), \
+             patch("apps.production.services.services_execution.ExecutionService._roll_requirement", return_value={"mode": "COUNT", "max_count": 2}), \
              patch.object(WCManagerService, "_validate_roll_assignment_set"), \
              patch.object(WCManagerService, "_sync_assignment_status"):
+            # Fixed-count combine steps stay locked once released to the operator.
             with self.assertRaisesRegex(ValueError, "already released"):
                 WCManagerService.assign_rolls("assignment-1", [], user="admin")
 
         allocated_rolls.set.assert_not_called()
         assignment.save.assert_not_called()
+
+    def test_lane_steps_accept_the_next_roll_after_release(self):
+        process = SimpleNamespace(input_form="ROLL", output_form="ROLL", roll_behavior="MULTI_INPUT_COMBINE")
+        job = SimpleNamespace(id="job-1", current_process=process, process=process, job_state="EXECUTING", status="RUNNING")
+        assignment = SimpleNamespace(id="assignment-1", status="EXECUTION_READY", production_job=job)
+        with patch("apps.production.services.services_execution.ExecutionService._roll_requirement", return_value={"mode": "LANES"}):
+            WCManagerService._ensure_rolls_can_change(assignment, adding=True)

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PackingCheckHeldNotice, PackingCheckPanel } from "@/components/packing/packing-check-panel";
 import {
   Dialog,
   DialogContent,
@@ -1026,6 +1027,13 @@ export default function PackingYardPage() {
         </Select>
       </section>
 
+      <PackingCheckHeldNotice
+        onOpenOrder={(orderId) => {
+          clearFilters();
+          selectPackingOrder(orderId);
+        }}
+      />
+
       <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         {/* Queue */}
         <aside className="min-w-0">
@@ -1450,6 +1458,8 @@ export default function PackingYardPage() {
                     </div>
                   </Panel>
 
+                  <PackingCheckPanel salesOrderId={selectedOrderId || undefined} />
+
                   <Panel
                     flush
                     icon={<Scale />}
@@ -1790,13 +1800,16 @@ export default function PackingYardPage() {
                   onChange={(event) => setGonnyMaterialId(event.target.value)}
                   className="h-10 w-full rounded-xl border border-input bg-surface-1 px-3 text-[13px]"
                 >
-                  <option value="">Select gonny stock</option>
+                  <option value="">Select gonny</option>
                   {gonnies.map((item: PackagingMaterial) => (
                     <option key={item.id} value={item.id}>
                       {item.code} • {item.name}
                     </option>
                   ))}
                 </select>
+                <p className="text-caption text-content-3">
+                  Marked on this unit; the evening packing count takes it off stock.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="packing-gonny-qty">Pouches to pack</Label>

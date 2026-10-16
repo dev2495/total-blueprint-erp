@@ -410,6 +410,17 @@ CELERY_ENABLE_UTC = True
 # WCM release and machine start only when this is on. Turn on once add-on stock
 # is received into the ERP at the plant.
 ADDON_SHORTAGE_BLOCKS = os.getenv("ADDON_SHORTAGE_BLOCKS", "False").strip().lower() in {"1", "true", "yes"}
+# Packing yard check limits (percent). Within both, a closed batch is verified; outside,
+# it is held for dispatch until a supervisor accepts it with a reason.
+PACKING_VERIFY_PCS_PCT = float(os.getenv("PACKING_VERIFY_PCS_PCT", "2") or 2)
+PACKING_VERIFY_KG_PCT = float(os.getenv("PACKING_VERIFY_KG_PCT", "2") or 2)
+# Only batches made from this moment go through the packing check; older batches keep working
+# as before and are never closed or booked by it. Blank = when the packing check went live
+# (its migration was applied). Accepts YYYY-MM-DD or an ISO date-time in plant time.
+PACKING_VERIFY_START_DATE = os.getenv("PACKING_VERIFY_START_DATE", "").strip()
+# Base rule: only inner pouches are consumed automatically; gonnies are marked and taken off
+# stock by the evening packing count. Set to true only to go back to consuming a gonny on creation.
+PACKING_GONNY_AUTO_CONSUME = os.getenv("PACKING_GONNY_AUTO_CONSUME", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 CELERY_BEAT_SCHEDULE = {
     "maintenance-due-jobs-daily": {

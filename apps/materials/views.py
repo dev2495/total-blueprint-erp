@@ -1231,7 +1231,9 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                         {"detail": f"{axis_name} qty formula failed: {exc}"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
-                auto_demand = bool(axis_def.get("auto_demand_in_house") and in_house and required_qty > 0)
+                # Missing flag means on (the order-confirm demand follows the same rule).
+                auto_demand_on = axis_def.get("auto_demand_in_house", True) is not False
+                auto_demand = bool(auto_demand_on and in_house and required_qty > 0)
                 lines.append(
                     {
                         "axis": axis_name,
@@ -1243,7 +1245,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                         "uom": uom,
                         "basis": basis,
                         "formula": axis_def.get("qty_formula") or None,
-                        "auto_demand_in_house": bool(axis_def.get("auto_demand_in_house")),
+                        "auto_demand_in_house": auto_demand_on,
                         "in_house": in_house,
                         "would_create_demand": auto_demand,
                     }

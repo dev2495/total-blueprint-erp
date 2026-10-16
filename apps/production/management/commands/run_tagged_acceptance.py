@@ -1758,9 +1758,10 @@ class Command(BaseCommand):
         route_profiles.update({f"combine_three_{key}": value for key, value in combine_three_bundle.profiles.items()})
         combine_three_create_job = combine_three_bundle.jobs["create_new"]
         combine_three_input_rolls = [
-            _seed_route_roll(combine_three_create_job, material=route_three_variants[0], thickness_micron=12, weight_kg="3.0000"),
-            _seed_route_roll(combine_three_create_job, material=route_three_variants[1], thickness_micron=15, weight_kg="3.0000"),
-            _seed_route_roll(combine_three_create_job, material=route_three_variants[2], thickness_micron=20, weight_kg="3.0000"),
+            # Weights follow the layer plan (12/15/20 µ of 47 µ), so 9 kg of laminate uses every roll fully.
+            _seed_route_roll(combine_three_create_job, material=route_three_variants[0], thickness_micron=12, weight_kg="2.2979"),
+            _seed_route_roll(combine_three_create_job, material=route_three_variants[1], thickness_micron=15, weight_kg="2.8723"),
+            _seed_route_roll(combine_three_create_job, material=route_three_variants[2], thickness_micron=20, weight_kg="3.8298"),
         ]
         combine_three_job = combine_three_bundle.jobs["combine"]
         combine_three_before = self._summarize_pool_details(ExecutionService._resolve_wip_pool_details_v2(combine_three_job))
@@ -1800,8 +1801,8 @@ class Command(BaseCommand):
         route_profiles.update({f"combine_three_fallback_{key}": value for key, value in combine_three_fallback_bundle.profiles.items()})
         combine_three_fallback_create_job = combine_three_fallback_bundle.jobs["create_new"]
         combine_three_lineage_short = [
-            _seed_route_roll(combine_three_fallback_create_job, material=route_three_variants[0], thickness_micron=12, weight_kg="3.0000"),
-            _seed_route_roll(combine_three_fallback_create_job, material=route_three_variants[1], thickness_micron=15, weight_kg="3.0000"),
+            _seed_route_roll(combine_three_fallback_create_job, material=route_three_variants[0], thickness_micron=12, weight_kg="2.2979"),
+            _seed_route_roll(combine_three_fallback_create_job, material=route_three_variants[1], thickness_micron=15, weight_kg="2.8723"),
         ]
         combine_three_purchased_fallback = InventoryRoll.objects.create(
             label_id=f"TEST-COMB3-FALLBACK-{tag}",
@@ -1810,8 +1811,8 @@ class Command(BaseCommand):
             thickness_micron=Decimal("20"),
             width_mm=Decimal("1550"),
             plant=fg_location.plant,
-            original_weight_kg=Decimal("3.0000"),
-            weight_kg=Decimal("3.0000"),
+            original_weight_kg=Decimal("3.8298"),
+            weight_kg=Decimal("3.8298"),
             location=fg_location,
             status="AVAILABLE",
             stage_index=0,
@@ -1898,17 +1899,18 @@ class Command(BaseCommand):
                 status="AVAILABLE",
             ).order_by("created_at", "label_id")
         )
-        split_remainder_roll = (
-            InventoryRoll.objects.filter(
-                parent_roll=split_parent_roll,
-                meta_json__is_remainder=True,
-                status="AVAILABLE",
-            )
-            .order_by("-created_at")
-            .first()
+        # The balance stays on the parent roll under its own label; no leftover roll is made.
+        split_remainder_roll = InventoryRoll.objects.get(pk=split_parent_roll.pk)
+        split_expected_balance = Decimal(str(split_parent_roll.original_weight_kg or 0)) - sum(
+            Decimal(str(roll.weight_kg or 0)) for roll in split_output_rolls
         )
-        if len(split_output_rolls) != 2 or not split_remainder_roll:
-            raise CommandError("WIP route proof failed to create split outputs and remainder.")
+        if (
+            len(split_output_rolls) != 2
+            or split_remainder_roll.status != "AVAILABLE"
+            or abs(Decimal(str(split_remainder_roll.weight_kg or 0)) - split_expected_balance) > Decimal("0.001")
+            or InventoryRoll.objects.filter(parent_roll=split_parent_roll, meta_json__is_remainder=True).exists()
+        ):
+            raise CommandError("WIP route proof failed to create split outputs with the balance kept on the parent roll.")
 
         roll_to_bulk_bundle = _build_route_proof_bundle(
             slug="ROLL_TO_BULK",

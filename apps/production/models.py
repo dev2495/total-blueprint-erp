@@ -876,6 +876,7 @@ class ProductionWcmAuditEvent(models.Model):
         ("ASSIGN_MACHINE", "Assign Machine"),
         ("ALLOCATE_ROLLS", "Allocate Rolls"),
         ("UNASSIGN_ROLL", "Unassign Roll"),
+        ("RETURN_ROLL", "Return Roll Balance"),
         ("RELEASE_TO_MACHINE", "Release To Machine"),
         ("MATERIAL_ISSUE", "Material Issue"),
         ("MATERIAL_TRANSFER_REQUEST", "Material Transfer Request"),
@@ -1137,6 +1138,61 @@ class FinishedGoodsBatch(models.Model):
 
     def __str__(self):
         return f"{self.batch_number} | {self.template.name} | {self.qty_pcs} PCS"
+
+
+class PackingVerification(models.Model):
+    """
+    Packing yard check of one finished-goods batch against what the machine logged.
+
+    Net packed weight = gross on the scale - inner packs - gonny/carton - extras (tape,
+    tags), as stored on each sealed pack. Within the limits the batch is VERIFIED and
+    finished stock follows the packed figures; outside them it is HELD for dispatch until
+    a supervisor ACCEPTS it with a reason. Machine logging is not changed.
+    """
+    STATUS_CHOICES = [
+        ('OPEN', 'Open'),
+        ('VERIFIED', 'Verified'),
+        ('HELD', 'Held'),
+        ('ACCEPTED', 'Accepted with reason'),
+    ]
+    REASON_CHOICES = [
+        ('REJECTS', 'Rejects found at pouching'),
+        ('COUNT_ERROR', 'Count error'),
+        ('MACHINE_OVERLOG', 'Machine over-logged'),
+        ('SCALE_CHECK', 'Scale checked'),
+        ('OTHER', 'Other'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    fg_batch = models.OneToOneField('FinishedGoodsBatch', on_delete=models.CASCADE, related_name='packing_verification')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='OPEN', db_index=True)
+    logged_pcs = models.IntegerField(default=0)
+    logged_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    packed_pcs = models.IntegerField(default=0)
+    packed_gross_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    packed_tare_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    packed_net_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    sample_weight_g = models.DecimalField(max_digits=10, decimal_places=4, null=True, blank=True,
+                                          help_text="Real weight of one pouch from a weighed sample.")
+    sample_size = models.PositiveIntegerField(null=True, blank=True)
+    pcs_variance_pct = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
+    kg_variance_pct = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
+    shortfall_pcs = models.IntegerField(default=0)
+    shortfall_kg = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, blank=True, default='')
+    note = models.TextField(blank=True, default='')
+    checked_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='packing_checks')
+    checked_at = models.DateTimeField(null=True, blank=True)
+    decided_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='packing_check_decisions')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'packing_verifications'
+
+    def __str__(self):
+        return f"Packing check {self.fg_batch_id} {self.status}"
 
 
 class PackingUnit(models.Model):

@@ -72,6 +72,7 @@ import {
 import { CylinderSetCard } from "@/components/machine/cylinder-artwork";
 import { PrintColorRevisionNotice } from "@/components/production/print-color-revision-notice";
 import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
+import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/components/production/roll-lanes-panel";
 
 type QueueFilter = "ALL" | "RUNNING" | "READY" | "PAUSED";
 type TerminalTab = "run" | "history";
@@ -1429,17 +1430,28 @@ export default function MachineExecutionPage() {
       )
       .filter(Boolean),
   ).size;
+  const rollLanes: RollLane[] = useMemo(
+    () => (Array.isArray(context?.inputs?.roll_lanes) ? context.inputs.roll_lanes : []),
+    [context],
+  );
+  const rollLaneMode = String(context?.inputs?.roll_mode || "").toUpperCase();
+  const rollLaneFlow = (rollLaneMode === "MASS" || rollLaneMode === "LANES") && rollLanes.length > 0;
   const allocationReady =
     !allocationRequired ||
-    (laneGroupMode
-      ? requiredLaneCount <= 0
-        ? reservedRolls.length > 0
-        : reservedLaneCount >= requiredLaneCount
-      : reservedRolls.length >= 1);
+    (rollLaneFlow
+      ? rollLanes.every((lane) => toNumber(lane.loaded_kg, 0) > 0.0005)
+      : laneGroupMode
+        ? requiredLaneCount <= 0
+          ? reservedRolls.length > 0
+          : reservedLaneCount >= requiredLaneCount
+        : reservedRolls.length >= 1);
   const reservedInputTotalKg = reservedRolls.reduce(
     (sum: number, row: any) => sum + toNumber(row.weight_kg, 0),
     0,
   );
+  // Lane steps: the tightest lane decides how much output the loaded rolls can give.
+  const laneOutputCapKg = rollLaneFlow ? toNullableNumber(context?.inputs?.roll_output_cap_kg) : null;
+  const inputCapKg = laneOutputCapKg ?? reservedInputTotalKg;
   const inventoryCounters: any = context?.telemetry?.inventory_counters || {};
   const consumedInputTotalKg = Math.max(
     0,
@@ -1467,7 +1479,7 @@ export default function MachineExecutionPage() {
           0,
           Math.min(
             contextMaxOutputKg ?? remainingKg,
-            reservedInputTotalKg || (contextMaxOutputKg ?? remainingKg),
+            inputCapKg || (contextMaxOutputKg ?? remainingKg),
           ),
         )
       : Math.max(0, contextMaxOutputKg ?? remainingKg);
@@ -1492,7 +1504,7 @@ export default function MachineExecutionPage() {
           0,
           Math.min(
             maxOutputWithoutScrapKg,
-            Math.max(0, reservedInputTotalKg - wasteKgValue),
+            Math.max(0, inputCapKg - wasteKgValue),
           ),
         )
       : maxOutputWithoutScrapKg;
@@ -2112,6 +2124,21 @@ export default function MachineExecutionPage() {
           "Unable to log output.",
       }),
   });
+
+  const handleReturnRoll = async (payload: ReturnRollPayload) => {
+    if (!selectedJob) return;
+    await machineService.returnRoll(machineId, String(selectedJob.id), {
+      roll_id: payload.rollId,
+      mode: payload.mode,
+      weight_kg: payload.weightKg,
+      note: payload.note,
+    });
+    toast({
+      title: payload.mode === "RETURN" ? "Balance returned · वापस भेजा" : "Roll finished · रोल खत्म",
+      description: "The roll keeps its label.",
+    });
+    await refreshAll();
+  };
 
   const completeMutation = useMutation({
     mutationFn: async (options?: { forceReasonOverride?: string }) => {
@@ -3089,6 +3116,16 @@ export default function MachineExecutionPage() {
                     </div>
                   </section>
                 )}
+                {rollLaneFlow ? (
+                  <RollLanesPanel
+                    lanes={rollLanes}
+                    mode={rollLaneMode}
+                    allowRemove={false}
+                    allowReturn
+                    onReturn={handleReturnRoll}
+                    testIdPrefix="machine-roll-lanes"
+                  />
+                ) : null}
                 <ReservationSummaryCard
                   reservedInputKg={reservedInputTotalKg}
                   consumedInputKg={consumedInputTotalKg}
@@ -3482,6 +3519,9 @@ function FocusedJobHero({
           <HeroMetric label="Remaining · बाकी" value={kg(remainingKg, 1)} />
           <HeroMetric label="Yield · उपज" value={`${yieldPct.toFixed(1)}%`} />
         </div>
+        {context?.execution_profile?.progress?.pcs?.counted_primary ? (
+          <CountedPiecesStrip pcs={context.execution_profile.progress.pcs} />
+        ) : null}
         <UnitWeightBreakdown
           breakdown={context?.execution_profile?.unit_weight_breakdown_g ?? selectedJob?.unit_weight_breakdown_g}
           pieces={toNumber(context?.execution_profile?.progress?.pcs?.target ?? selectedJob?.step_target_pcs ?? (String(selectedJob?.uom || "").toUpperCase() === "PCS" ? selectedJob?.quantity : 0), 0)}
@@ -3489,6 +3529,32 @@ function FocusedJobHero({
         />
       </div>
     </section>
+  );
+}
+
+/** Pieces made: counted pieces lead; the weight-based count is a check beside it. */
+function CountedPiecesStrip({ pcs }: { pcs: any }) {
+  const counted = toNumber(pcs?.produced, 0);
+  const target = toNumber(pcs?.target, 0);
+  const byWeight = toNullableNumber(pcs?.produced_by_weight);
+  const diffPct = byWeight && counted > 0 ? ((byWeight - counted) / counted) * 100 : null;
+  return (
+    <div
+      className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm lg:col-span-2"
+      data-testid="machine-counted-pieces"
+    >
+      <span className="font-semibold">
+        Pieces counted · गिने गए{" "}
+        <span className="font-mono">{counted.toLocaleString("en-IN")}</span>
+        {target > 0 ? <span className="opacity-70"> of {target.toLocaleString("en-IN")}</span> : null}
+      </span>
+      {byWeight !== null ? (
+        <span className="text-xs opacity-80">
+          By weight · वज़न से <span className="font-mono">{Math.round(byWeight).toLocaleString("en-IN")}</span>
+          {diffPct !== null && Math.abs(diffPct) >= 0.5 ? ` (${diffPct > 0 ? "+" : ""}${diffPct.toFixed(1)}%)` : ""}
+        </span>
+      ) : null}
+    </div>
   );
 }
 

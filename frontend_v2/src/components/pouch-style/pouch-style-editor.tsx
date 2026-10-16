@@ -200,6 +200,8 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
     ? formulaParams.terms
     : [];
   const trim = Number(formulaParams.trim_mm ?? 0);
+  // Built-in formulas fall back to the style's default trim, as the width math does.
+  const effectiveTrim = Number(formulaParams.trim_mm ?? fieldAdjustments.trim_default_mm ?? 0);
   const isLocked = !!draft.locked;
   const stockForm = String(
     draft.default_stock_form || "OPEN_WEB",
@@ -565,14 +567,15 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
       {isLocked && !isNew ? (
         <div className="mt-4 rounded-2xl border-2 border-warning-border bg-warning-bg px-4 py-3 text-[12px] text-warning-fg">
-          <div className="flex items-center gap-2 font-bold">
-            <Lock className="h-3.5 w-3.5" /> This configuration is locked because
-            product sizes are using it.
+          <div className="flex items-center gap-2 font-bold" data-testid="pouch-style-approved-banner">
+            <Lock className="h-3.5 w-3.5" /> Approved style ·{" "}
+            {Number(draft.sizes_count || 0) > 0
+              ? `${Number(draft.sizes_count)} size${Number(draft.sizes_count) === 1 ? "" : "s"} use it`
+              : "no size uses it yet"}
           </div>
           <p className="mt-1 text-caption">
-            Saving real changes creates a <b>new draft</b> for new pickers.
-            Existing sizes keep their saved snapshot until the approved change
-            is propagated safely.
+            Saving real changes creates a <b>new draft</b>. Sizes that use
+            this style keep their saved copy until the new draft is approved.
           </p>
         </div>
       ) : null}
@@ -758,6 +761,41 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
           {/* Formula builder — VISUAL */}
           <Card index={3} title="Child-width formula builder" tone="emerald">
+            {CLOSED_FORMULA_TEXT[String(draft.formula_kind || "").toUpperCase()] ? (
+              <div className="mb-3 rounded-xl border border-success-border bg-success-bg/60 px-3 py-3 text-xs text-success-fg" data-testid="pouch-style-fixed-formula">
+                <div className="font-bold">
+                  Fixed formula: child width = {CLOSED_FORMULA_TEXT[String(draft.formula_kind).toUpperCase()]} + trim{" "}
+                  {formatNumber(effectiveTrim)} mm
+                </div>
+                <p className="mt-1 text-caption">
+                  This style uses a built-in formula, so there are no terms
+                  below. The live preview uses it as shown.
+                  {CLOSED_FORMULA_PRESET[String(draft.formula_kind).toUpperCase()] && (isNew || !draft.deprecated)
+                    ? " To change it, start from the matching terms; saving then creates a new draft."
+                    : ""}
+                </p>
+                {CLOSED_FORMULA_PRESET[String(draft.formula_kind).toUpperCase()] && !draft.deprecated ? (
+                  <button
+                    type="button"
+                    className="mt-2 rounded-md bg-surface-1 px-2 py-1 text-caption font-bold text-success-fg ring-1 ring-success-border hover:bg-surface-2"
+                    onClick={() => {
+                      const preset = FORMULA_PRESETS.find(
+                        (row) => row.code === CLOSED_FORMULA_PRESET[String(draft.formula_kind).toUpperCase()],
+                      );
+                      if (!preset) return;
+                      setDraft((d) => ({
+                        ...d,
+                        formula_kind: "LINEAR" as PouchFormulaKind,
+                        formula_params: { ...(d.formula_params as any), terms: preset.terms, trim_mm: effectiveTrim },
+                      }));
+                    }}
+                    data-testid="pouch-style-edit-as-terms"
+                  >
+                    Edit as terms
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <p className="-mt-1 mb-2 text-caption text-content-3">
               <b>Child stock width = sum of (coefficient × field) + trim.</b>{" "}
               Click <b>+ Add</b> to drop in a field. Set its coefficient —
@@ -865,7 +903,11 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
             <div className="mt-4 grid gap-2 md:grid-cols-2">
               <FormulaEquation
                 label="Child stock-width formula"
-                value={`child width = ${prettyExpression("LINEAR", terms, trim) || "(empty — add a term above)"}`}
+                value={
+                  CLOSED_FORMULA_TEXT[String(draft.formula_kind || "").toUpperCase()]
+                    ? `child width = ${CLOSED_FORMULA_TEXT[String(draft.formula_kind).toUpperCase()]} + ${formatNumber(effectiveTrim)}`
+                    : `child width = ${prettyExpression("LINEAR", terms, trim) || "(empty — add a term above)"}`
+                }
                 tone="emerald"
               />
               <FormulaEquation
@@ -1181,6 +1223,31 @@ function sortStable(value: any): any {
   }
   return value;
 }
+
+const CLOSED_FORMULA_TEXT: Record<string, string> = {
+  SIMPLE_DOUBLE: "2 × W",
+  THREE_SIDE_SEAL: "2 × W",
+  SACHET: "2 × W",
+  GUSSETED_SIDE: "2 × (W + G)",
+  QUAD_SEAL: "2 × (W + G)",
+  GUSSETED_BOTTOM: "2 × W + G × bottom factor",
+  FLAT_BOTTOM: "2 × W + 2 × G",
+  CENTER_SEAL_H: "H + overlap",
+  SPOUT: "2 × W + flap",
+  STICK_PACK: "W × stick factor",
+};
+
+/** Preset that writes a fixed formula as editable terms (same width for the same inputs). */
+const CLOSED_FORMULA_PRESET: Record<string, string> = {
+  SIMPLE_DOUBLE: "PILLOW",
+  THREE_SIDE_SEAL: "PILLOW",
+  SACHET: "PILLOW",
+  GUSSETED_SIDE: "SIDE_GUSSET",
+  QUAD_SEAL: "QUAD_SEAL",
+  FLAT_BOTTOM: "SIDE_GUSSET",
+  GUSSETED_BOTTOM: "STAND_UP_K",
+  CENTER_SEAL_H: "CENTER_SEAL",
+};
 
 function prettyExpression(
   kind: PouchFormulaKind,

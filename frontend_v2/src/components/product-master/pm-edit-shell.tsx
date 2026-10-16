@@ -231,7 +231,9 @@ export function RichSection({
   className,
   bodyClassName,
   badge,
+  id,
 }: {
+  id?: string;
   tone: RichTone;
   index?: number;
   icon: React.ReactNode;
@@ -247,8 +249,10 @@ export function RichSection({
   const t = TONE_META[tone];
   return (
     <section
+      id={id}
+      aria-labelledby={id ? `${id}-title` : undefined}
       className={cn(
-        "relative overflow-hidden rounded-2xl border bg-surface-1 shadow-sm ring-1 ring-surface-1/40",
+        "relative scroll-mt-32 overflow-hidden rounded-2xl border bg-surface-1 shadow-sm ring-1 ring-surface-1/40",
         t.ring.replace("ring-", "border-"),
         className,
       )}
@@ -303,9 +307,12 @@ export function RichSection({
                 ) : null}
                 {badge}
               </div>
-              <div className="font-display text-base font-semibold text-content-1 tracking-tight">
+              <h2
+                id={id ? `${id}-title` : undefined}
+                className="font-display text-base font-semibold text-content-1 tracking-tight"
+              >
                 {title}
-              </div>
+              </h2>
               {subtitle ? (
                 <div
                   className={cn("mt-0.5 text-caption leading-snug", t.subtitle)}
