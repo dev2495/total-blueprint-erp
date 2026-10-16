@@ -458,6 +458,12 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "ship_to_customer_name",
             "address_override",
             "remarks",
+            "bill_to_address",
+            "ship_to_address",
+            "customer_po_reference",
+            "payment_terms",
+            "delivery_terms",
+            "source_quotation_revision",
             "order_type",
             "status",
             "status_display",
@@ -476,7 +482,7 @@ class SalesOrderSerializer(serializers.ModelSerializer):
             "block_reasons",
             "created_at",
         ]
-        read_only_fields = ["status", "created_at", "total_weight_kg", "commercial_confirmed_at", "execution_model_version"]
+        read_only_fields = ["status", "created_at", "total_weight_kg", "commercial_confirmed_at", "execution_model_version", "source_quotation_revision"]
 
     def get_can_confirm(self, obj):
         return len(resolve_block_reasons(obj)) == 0

@@ -40,6 +40,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { normalizeProductSpec } from "@/lib/product-spec";
+import { MadeCard } from "@/components/spine/made-card";
+import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
+import type { SpineMade } from "@/services/spine";
 import {
   ALL_PRODUCTION_FACET,
   buildProductionFacetOptions,
@@ -1212,6 +1215,8 @@ export default function MachineExecutionPage() {
   );
   const stepTransform = `${currentInputForm.toLowerCase()} → ${currentOutputForm.toLowerCase()}`;
   const spec = normalizeProductSpec(selectedJob, context);
+  // Order spine + "what is to be made" for the selected job (read-only, cached 30 s).
+  const spineQuery = useOrderSpine({ jobId: selectedJob?.id ? String(selectedJob.id) : "" });
   const targetStockContract = useMemo(
     () => targetStockContractFromContext(context),
     [context],
@@ -2841,21 +2846,18 @@ export default function MachineExecutionPage() {
               </aside>
 
               <main className="order-1 min-w-0 space-y-4 xl:order-2">
-                <FocusedJobHero
-                  selectedJob={selectedJob}
-                  spec={spec}
-                  context={context}
-                  customerName={customerName}
-                  orderNumber={orderNumber}
-                  templateName={templateName}
-                  plannerNote={plannerNote}
-                  stepName={stepName}
-                  behavior={behavior}
+                <MachineFocusStrip
+                  jobId={selectedJob?.id ? String(selectedJob.id) : ""}
+                  made={spineQuery.data?.made ?? null}
+                  pcs={context?.execution_profile?.progress?.pcs}
                   targetKg={targetKg}
                   producedKg={producedKg}
                   remainingKg={remainingKg}
-                  yieldPct={yieldPct}
                   progressPct={progressPct}
+                  unitWeightG={unitWeightG}
+                  stepName={stepName}
+                  orderNumber={orderNumber}
+                  customerName={customerName}
                 />
 
                 <section
@@ -3071,9 +3073,43 @@ export default function MachineExecutionPage() {
                   </div>
 
                 </section>
+
+                <details className="group rounded-[18px] border border-line bg-surface-1 shadow-sm" data-testid="machine-order-drawer">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-caption font-bold uppercase tracking-[0.1em] text-content-3">
+                    Order, spec and lineage · ऑर्डर और स्पेक
+                    <span className="ml-auto text-content-4 group-open:hidden">show</span>
+                    <span className="ml-auto hidden text-content-4 group-open:inline">hide</span>
+                  </summary>
+                  <div className="border-t border-line p-3">
+                <FocusedJobHero
+                  selectedJob={selectedJob}
+                  spec={spec}
+                  context={context}
+                  customerName={customerName}
+                  orderNumber={orderNumber}
+                  templateName={templateName}
+                  plannerNote={plannerNote}
+                  stepName={stepName}
+                  behavior={behavior}
+                  targetKg={targetKg}
+                  producedKg={producedKg}
+                  remainingKg={remainingKg}
+                  yieldPct={yieldPct}
+                  progressPct={progressPct}
+                />
+                  </div>
+                </details>
               </main>
 
               <aside className="order-3 min-w-0 space-y-4 xl:col-span-2 2xl:sticky 2xl:top-[9rem] 2xl:col-span-1 2xl:max-h-[calc(100vh-10rem)] 2xl:overflow-y-auto 2xl:pr-1">
+                <InputFeedCard
+                  reservedRolls={reservedRolls}
+                  wipRolls={rightRailRolls}
+                  materialRows={materialReleaseRows}
+                  materialConfirmations={materialConfirmations}
+                  updateMaterialConfirmation={updateMaterialConfirmation}
+                  contextLoading={contextLoading}
+                />
                 <RouteStepper
                   stepName={stepName}
                   stepTransform={stepTransform}
@@ -3132,14 +3168,6 @@ export default function MachineExecutionPage() {
                   heldInputKg={heldInputTotalKg}
                   reservedRolls={reservedRolls}
                   materialRows={materialReleaseRows}
-                />
-                <InputFeedCard
-                  reservedRolls={reservedRolls}
-                  wipRolls={rightRailRolls}
-                  materialRows={materialReleaseRows}
-                  materialConfirmations={materialConfirmations}
-                  updateMaterialConfirmation={updateMaterialConfirmation}
-                  contextLoading={contextLoading}
                 />
                 <TelemetryPanel
                   events={events}
@@ -3595,6 +3623,91 @@ function UnitWeightBreakdown({
         </span>
       ) : null}
     </div>
+  );
+}
+
+/** Three numbers first (target · done · left, in the unit the operator counts), then the
+ *  order spine and what is to be made. Everything else about the order sits in the drawer. */
+function MachineFocusStrip({
+  jobId,
+  made,
+  pcs,
+  targetKg,
+  producedKg,
+  remainingKg,
+  progressPct,
+  unitWeightG,
+  stepName,
+  orderNumber,
+  customerName,
+}: {
+  jobId: string;
+  made: SpineMade | null;
+  pcs: any;
+  targetKg: number;
+  producedKg: number;
+  remainingKg: number;
+  progressPct: number;
+  unitWeightG: number;
+  stepName: string;
+  orderNumber: string;
+  customerName: string;
+}) {
+  const piecesFirst = Boolean(pcs?.counted_primary) && toNumber(pcs?.target, 0) > 0;
+  const fmtPcs = (value: number) => `${Math.round(value).toLocaleString("en-IN")} pcs`;
+  const fmtKg = (value: number) => kg(value, 1);
+  const pcsTarget = toNumber(pcs?.target, 0);
+  const pcsDone = toNumber(pcs?.produced, 0);
+  const pcsLeft = Math.max(0, pcsTarget - pcsDone);
+  const byWeight = toNullableNumber(pcs?.produced_by_weight);
+  const kgToPcs = (value: number) => (unitWeightG > 0 ? `${Math.round((value * 1000) / unitWeightG).toLocaleString("en-IN")} pcs` : "");
+  const tiles = piecesFirst
+    ? [
+        { label: "Target · लक्ष्य", value: fmtPcs(pcsTarget), sub: fmtKg(targetKg) },
+        { label: "Done · बन गया", value: fmtPcs(pcsDone), sub: byWeight !== null ? `by weight ${Math.round(byWeight).toLocaleString("en-IN")} · ${fmtKg(producedKg)}` : fmtKg(producedKg), tone: "success" as const },
+        { label: "Left · बाकी", value: fmtPcs(pcsLeft), sub: fmtKg(remainingKg) },
+      ]
+    : [
+        { label: "Target · लक्ष्य", value: fmtKg(targetKg), sub: kgToPcs(targetKg) },
+        { label: "Done · बन गया", value: fmtKg(producedKg), sub: kgToPcs(producedKg), tone: "success" as const },
+        { label: "Left · बाकी", value: fmtKg(remainingKg), sub: kgToPcs(remainingKg) },
+      ];
+  const safeProgress = Math.max(0, Math.min(100, progressPct || 0));
+  return (
+    <section
+      className="overflow-hidden rounded-[18px] border border-line bg-surface-1 p-3 shadow-sm"
+      data-testid="machine-focus-strip"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+          {orderNumber} · {stepName} · {customerName}
+        </div>
+        {jobId ? <OrderSpine jobId={jobId} current="floor" compact testId="machine-order-spine" /> : null}
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {tiles.map((tile) => (
+          <div
+            key={tile.label}
+            className={cn(
+              "rounded-xl border px-3 py-2.5",
+              tile.tone === "success" ? "border-success-border bg-success-bg" : "border-line bg-surface-2",
+            )}
+          >
+            <div className={cn("text-caption font-semibold uppercase tracking-[0.1em]", tile.tone === "success" ? "text-success-fg" : "text-content-3")}>
+              {tile.label}
+            </div>
+            <div className={cn("mt-1 break-words font-mono text-2xl font-semibold tabular-nums md:text-3xl", tile.tone === "success" ? "text-success-fg" : "text-content-1")}>
+              {tile.value}
+            </div>
+            {tile.sub ? <div className="mt-0.5 text-xs font-semibold text-content-3">{tile.sub}</div> : null}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-2" aria-hidden>
+        <div className={cn("h-full rounded-full", safeProgress >= 100 ? "bg-success-fg" : "bg-primary")} style={{ width: `${safeProgress}%` }} />
+      </div>
+      {made ? <MadeCard made={made} dense className="mt-3" testId="machine-made-card" /> : null}
+    </section>
   );
 }
 

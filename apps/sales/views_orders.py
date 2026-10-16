@@ -266,6 +266,14 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=["get"])
+    def spine(self, request, pk=None):
+        """Read-only order spine: master -> quote -> order -> plan -> floor -> yard -> dispatch."""
+        from .services.order_spine_service import OrderSpineService
+
+        order = self.get_object()
+        return Response(OrderSpineService.for_order(order))
+
     @action(detail=True, methods=["post"])
     def confirm(self, request, pk=None):
         try:

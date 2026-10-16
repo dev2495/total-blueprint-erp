@@ -242,7 +242,7 @@ export const NAV_ITEMS: NavItem[] = [
       },
       {
         title: "Stock Launcher",
-        group: "Planning", href: "/production/planner/stock-launcher",
+        group: "Planning", href: "/dashboard/planner/control-tower/stock-launcher",
         icon: Package,
         roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "PLANNER", "PLANT_MANAGER"],
         permissions: ["production.view", "production.manage"],

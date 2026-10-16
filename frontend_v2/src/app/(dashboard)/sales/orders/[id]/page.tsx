@@ -46,6 +46,8 @@ import { cn } from "@/lib/utils";
 import { analyticsApi, type OrderTrackingResponse } from "@/services/analytics";
 import { customerDispatchApi, type CustomerDispatch } from "@/services/customer-dispatch";
 import { salesService, type SalesOrder, type SalesOrderLine } from "@/services/sales";
+import { MadeCard } from "@/components/spine/made-card";
+import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 
 const LINE_PROGRESS_TONES = [
   { fill: "#2563eb", dark: "#1e40af", light: "rgba(37,99,235,.22)", track: "rgba(37,99,235,.10)", text: "text-primary", border: "border-info-border", bg: "bg-info-bg" },
@@ -2338,6 +2340,44 @@ function TimelineEvent({ title, subtitle, meta, qty, tone }: { title: string; su
   );
 }
 
+/** Bill-to, ship-to, PO reference, terms and the client note. Shown on this page only; the
+ *  note also prints on the dispatch slip when written. */
+function CommercialHead({ order }: { order: SalesOrder }) {
+  const rows: Array<{ label: string; value: string }> = [
+    { label: "Bill to", value: String(order.bill_to_address || "").trim() },
+    { label: "Ship to", value: String(order.ship_to_address || order.address_override || "").trim() || String(order.ship_to_customer_name || "").trim() },
+    { label: "PO reference", value: String(order.customer_po_reference || "").trim() },
+    { label: "Payment terms", value: String(order.payment_terms || "").trim() },
+    { label: "Delivery terms", value: String(order.delivery_terms || "").trim() },
+  ].filter((row) => row.value);
+  const note = String(order.remarks || "").trim();
+  if (!rows.length && !note) return null;
+  return (
+    <details className="group mt-4 rounded-xl border border-line bg-surface-1" data-testid="order-commercial-head">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+        <ReceiptText className="h-3.5 w-3.5 text-primary" /> Commercial head
+        {note ? <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal text-warning-fg">note prints on slip</span> : null}
+        <span className="ml-auto text-content-4 group-open:hidden">show</span>
+        <span className="ml-auto hidden text-content-4 group-open:inline">hide</span>
+      </summary>
+      <dl className="grid gap-2 border-t border-line px-3 py-3 text-sm">
+        {rows.map((row) => (
+          <div key={row.label} className="grid grid-cols-[108px_minmax(0,1fr)] gap-2">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-content-4">{row.label}</dt>
+            <dd className="min-w-0 whitespace-pre-line break-words font-medium text-content-1">{row.value}</dd>
+          </div>
+        ))}
+        {note ? (
+          <div className="grid grid-cols-[108px_minmax(0,1fr)] gap-2">
+            <dt className="text-xs font-semibold uppercase tracking-wide text-content-4">Client note</dt>
+            <dd className="min-w-0 whitespace-pre-line break-words rounded-lg bg-warning-bg px-2 py-1.5 font-medium text-warning-fg">{note}</dd>
+          </div>
+        ) : null}
+      </dl>
+    </details>
+  );
+}
+
 export default function SalesOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -2362,6 +2402,7 @@ export default function SalesOrderDetailPage() {
     enabled: Boolean(id),
     staleTime: 30_000,
   });
+  const spineQuery = useOrderSpine({ orderId: id });
 
   const confirmMutation = useMutation({
     mutationFn: () => salesService.confirmOrder(id),
@@ -2402,6 +2443,7 @@ export default function SalesOrderDetailPage() {
   return (
     <div className="erp-soft-canvas erp-smooth-surface min-h-screen">
       <div className="mx-auto w-full max-w-[1600px] space-y-5 px-4 py-5 sm:px-5 lg:px-7">
+        <OrderSpine orderId={id} current="order" />
         <section className="erp-stable-row overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm">
           <div className="grid min-w-0 grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div className="min-w-0 p-4 sm:p-5 lg:p-6">
@@ -2413,9 +2455,10 @@ export default function SalesOrderDetailPage() {
                 <Badge variant="outline" className="rounded-full border-warning-border bg-warning-bg px-3 py-1 font-mono text-caption font-semibold uppercase text-content-1">{statusLabel(order.status)}</Badge>
                 {trackingQuery.isFetching ? <Badge variant="outline" className="rounded-full text-caption font-semibold uppercase"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> refreshing</Badge> : null}
               </div>
+              {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} className="mt-3" /> : null}
               <div className="mt-3 flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="min-w-0">
-                  <h1 className="max-w-full truncate text-2xl font-semibold tracking-tight text-content-1 sm:text-3xl lg:text-4xl">{order.customer_name}</h1>
+                  <h1 className="max-w-full truncate text-xl font-semibold tracking-tight text-content-1 sm:text-2xl">{order.customer_name}</h1>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-sm font-semibold text-content-3">
                     <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4 text-primary" /> Placed {fmtDate(order.created_at)}</span>
                     <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Due {fmtDate(order.delivery_date)}</span>
@@ -2456,6 +2499,7 @@ export default function SalesOrderDetailPage() {
                   <Link href={`/sales/orders/${id}/dispatches`}><Truck className="mr-2 h-4 w-4" /> Dispatch ledger</Link>
                 </Button>
               </div>
+              <CommercialHead order={order} />
             </div>
           </div>
         </section>

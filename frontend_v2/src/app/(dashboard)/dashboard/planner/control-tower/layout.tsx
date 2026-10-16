@@ -11,6 +11,7 @@ import {
   History,
   Sparkles,
   Combine,
+  Rocket,
 } from "lucide-react";
 
 const TABS: Array<{
@@ -62,6 +63,13 @@ const TABS: Array<{
     icon: Combine,
     eyebrow: "Tab 6",
   },
+  {
+    key: "stock-launcher",
+    label: "Launch Stock",
+    href: "/dashboard/planner/control-tower/stock-launcher",
+    icon: Rocket,
+    eyebrow: "Tab 7",
+  },
 ];
 
 export default function ControlTowerLayout({
@@ -81,14 +89,14 @@ export default function ControlTowerLayout({
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [activeKey]);
 
-  // Keyboard shortcuts 1-6
+  // Keyboard shortcuts 1-7
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && /input|textarea|select/i.test(target.tagName)) return;
       if (target && target.isContentEditable) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const idx = "123456".indexOf(event.key);
+      const idx = "1234567".indexOf(event.key);
       if (idx >= 0) {
         event.preventDefault();
         router.push(TABS[idx].href);

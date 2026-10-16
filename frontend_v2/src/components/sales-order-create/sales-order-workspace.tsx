@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 // Sales order create workspace shell with customer header, line builder, and sticky submit.
 
 import * as React from "react";
@@ -332,6 +334,8 @@ export function SalesOrderV34Workspace() {
         isReady={combinedReadyToSubmit}
         isSubmitting={createMutation.isPending}
         onSubmit={submitOrder}
+        customerId={draft.customer}
+        firstMasterId={draft.lines[0]?.product_master || ""}
       />
     </div>
   );
@@ -754,10 +758,14 @@ function StickyCartBar({
   isReady,
   isSubmitting,
   onSubmit,
+  customerId,
+  firstMasterId,
 }: {
   lineCount: number;
   cartTotalKg: number;
   cartTotalValue: number;
+  customerId?: string;
+  firstMasterId?: string;
   blockingIssues: string[];
   warnings: string[];
   isReady: boolean;
@@ -814,7 +822,18 @@ function StickyCartBar({
             </div>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Side exits: Confirm is the main road; a quotation or a stock order start from the same place. */}
+          <Button asChild variant="outline" className="h-11 rounded-xl" data-testid="sales-create-save-quotation">
+            <Link href={customerId ? `/sales/quotations/new?customer=${encodeURIComponent(customerId)}` : "/sales/quotations/new"}>
+              Save as quotation
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" className="h-11 rounded-xl text-content-2" data-testid="sales-create-make-for-stock">
+            <Link href={firstMasterId ? `/dashboard/planner/control-tower/stock-launcher?master=${encodeURIComponent(firstMasterId)}` : "/dashboard/planner/control-tower/stock-launcher"}>
+              Make for stock
+            </Link>
+          </Button>
           <Button
             data-testid="sales-create-submit"
             onClick={onSubmit}

@@ -98,6 +98,12 @@ export interface SalesOrder {
     ship_to_customer_name?: string | null;
     address_override?: string | null;
     remarks?: string | null;
+    bill_to_address?: string | null;
+    ship_to_address?: string | null;
+    customer_po_reference?: string | null;
+    payment_terms?: string | null;
+    delivery_terms?: string | null;
+    source_quotation_revision?: string | null;
     plant_name?: string | null;
     order_type?: string;
     status:

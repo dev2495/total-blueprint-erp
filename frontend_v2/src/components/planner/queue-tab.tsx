@@ -15,6 +15,8 @@ import { formatDisplayDateTime } from "@/lib/date-format";
 
 import { usePlannerJobs } from "@/hooks/use-planner";
 import type { ProductionJob } from "@/services/production";
+import { JobCard, type JobCardBadge } from "@/components/spine/job-card";
+import { OrderSpine } from "@/components/spine/order-spine";
 import type { TowerTabContext } from "./types";
 import { PlannerReadFeedStatus } from "../control-tower/read-feed-status";
 
@@ -180,46 +182,28 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                 list.map((job) => {
                   const pct = progressPct(job);
                   const isSelected = selectedJob?.id === job.id;
+                  const kind = progressKind(pct);
+                  const badges: JobCardBadge[] = [
+                    { label: `${pct}%`, tone: kind === "warn" ? "warning" : kind, mono: true },
+                    ...(job.process_code ? [{ label: job.process_code, tone: "neutral" as const }] : []),
+                    ...(job.is_on_hold ? [{ label: "Hold", tone: "warning" as const }] : []),
+                    ...(job.job_state === "EXECUTING" ? [{ label: "Running", tone: "success" as const }] : []),
+                  ];
                   return (
-                    <button
+                    <JobCard
                       key={job.id}
-                      type="button"
+                      title={job.order_number || job.job_number}
+                      step={job.process_code || undefined}
+                      figure={formatQty(job.step_target_primary ?? job.quantity, job.primary_uom || job.uom)}
+                      figureHint="Step target"
+                      subtitle={[job.customer_name, jobLineLabel(job), job.work_center_name || "WC pending"].filter(Boolean).join(" · ")}
+                      badges={badges}
+                      progressPct={pct}
+                      tone={job.is_on_hold ? "warning" : job.job_state === "EXECUTING" ? "success" : "info"}
+                      selected={isSelected}
                       onClick={() => setSelectedJob(job)}
-                      className={cn(
-                        "flex flex-col gap-1 rounded-lg border bg-surface-1 px-3 py-2 text-left transition-colors hover:border-info-border hover:bg-info-bg",
-                        isSelected
-                          ? "border-info-border bg-info-bg"
-                          : "border-line",
-                      )}
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-mono-token text-[12px] font-semibold text-content-1">
-                          {job.job_number}
-                        </span>
-                        <Chip kind={progressKind(pct)} size="sm" mono>
-                          {pct}%
-                        </Chip>
-                      </div>
-                      <div className="truncate text-[12px] text-content-2">
-                        {jobLineLabel(job)}
-                      </div>
-                      <div className="text-caption text-content-3">
-                        {job.order_number || "—"} ·{" "}
-                        {job.work_center_name || "WC pending"}
-                      </div>
-                      <ChipGroup spacing="tight">
-                        {job.process_code && (
-                          <Chip kind="process" size="sm">
-                            {job.process_code}
-                          </Chip>
-                        )}
-                        {job.is_on_hold && (
-                          <Chip kind="warn" size="sm">
-                            Hold
-                          </Chip>
-                        )}
-                      </ChipGroup>
-                    </button>
+                      testId={`planner-queue-job-${job.job_number}`}
+                    />
                   );
                 })
               )}
@@ -245,6 +229,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
                   {jobLineLabel(selectedJob)} ·{" "}
                   {selectedJob.process_code || "—"}
                 </SheetDescription>
+                <OrderSpine jobId={String(selectedJob.id)} current="plan" compact className="mt-2" testId="planner-order-spine" />
                 <ChipGroup className="pt-1" spacing="tight">
                   <Chip
                     kind={

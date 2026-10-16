@@ -35,6 +35,7 @@ import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
 import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
 import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
 import { formatDisplayDate } from "@/lib/date-format";
+import { OrderSpine } from "@/components/spine/order-spine";
 import { matchingPlannerDetail, samePlannerEntity, type PlannerIdentity } from "@/lib/query-contract";
 
 function fmt(n: any, decimals = 0) {
@@ -1095,6 +1096,11 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                             <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
                                 {order.order_number}{(order as any).customer_name ? ` · ${(order as any).customer_name}` : ""}
                             </div>
+                            {order.order_id ? (
+                                <div style={{ marginTop: 10 }}>
+                                    <OrderSpine orderId={String(order.order_id)} current="plan" compact testId="planner-order-spine" />
+                                </div>
+                            ) : null}
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 }}>
                                 <Chip kind={fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
                                 {factSheet.profile_label && <Chip kind="size">{factSheet.profile_label}</Chip>}

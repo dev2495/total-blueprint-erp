@@ -77,6 +77,17 @@ class ProductionJobViewSet(viewsets.ModelViewSet):
             return ProductionJobBoardSerializer
         return super().get_serializer_class()
 
+    @action(detail=True, methods=['get'])
+    def spine(self, request, pk=None):
+        """Order spine for this job's sales order (empty for stock/MTS jobs)."""
+        from apps.sales.services.order_spine_service import OrderSpineService
+
+        job = self.get_object()
+        payload = OrderSpineService.for_job(job)
+        if payload is None:
+            return Response({"order_id": None, "stations": [], "made": None, "focus_job_id": str(job.id)})
+        return Response(payload)
+
     @action(detail=False, methods=['get'])
     def board(self, request):
         from .serializers import ProductionJobBoardSerializer

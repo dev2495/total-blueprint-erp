@@ -47,6 +47,8 @@ import { ProductionOrderSpecRail } from "@/components/production/production-orde
 import { PrintColorRevisionNotice } from "@/components/production/print-color-revision-notice";
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
 import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/components/production/roll-lanes-panel";
+import { MadeCard } from "@/components/spine/made-card";
+import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import {
   GranuleCodeSourcePicker,
   type GranuleCodeSourceOption,
@@ -1378,6 +1380,8 @@ export default function WCMTerminal() {
   }, [eligibleRolls]);
 
   const selectedJob = (activeAssignment as any)?.job_details;
+  // Order spine + "what is to be made" for the selected job (read-only, cached 30 s).
+  const spineQuery = useOrderSpine({ jobId: selectedJobId ? String(selectedJobId) : "" });
   const selectedQueueJob = ((summaryActiveAssignment as any)?.job_details ||
     {}) as Record<string, any>;
   const selectedTargetPlantId = String(
@@ -3446,7 +3450,7 @@ export default function WCMTerminal() {
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
-              Current order
+              1 · What it is · Current order
             </div>
             <h2 className="mt-1 text-lg font-semibold leading-tight tracking-tight text-white">
               {selectedOrderNumberLabel}
@@ -3517,6 +3521,12 @@ export default function WCMTerminal() {
           </TooltipProvider>
         </div>
 
+        {selectedJobId ? (
+          <div className="mt-3 flex flex-col gap-2">
+            <OrderSpine jobId={String(selectedJobId)} current="floor" dark compact testId="wcm-order-spine" />
+            {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} dark dense testId="wcm-made-card" /> : null}
+          </div>
+        ) : null}
         <div className="mt-3 rounded-xl border border-surface-1/10 bg-surface-1/10 p-2.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -3683,7 +3693,7 @@ export default function WCMTerminal() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                    Roll allocation detail
+                    2 · What it needs · Rolls
                   </div>
                   <div className="mt-1 text-lg font-semibold text-content-1">
                     {rollBehaviorLabel}
@@ -4037,7 +4047,7 @@ export default function WCMTerminal() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                  Machine assignment
+                  2 · What it needs · Machine
                 </div>
                 <div className="text-lg font-semibold text-content-1">
                   {selectedMachine?.name || "Select machine"}
@@ -4157,7 +4167,7 @@ export default function WCMTerminal() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                  Current-step issue
+                  2 · What it needs · Input issue
                 </div>
                 <div className="text-lg font-semibold text-content-1">
                   Input issue
@@ -5037,7 +5047,7 @@ export default function WCMTerminal() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                  Current-step materials
+                  2 · What it needs · Materials
                 </div>
                 <div className="mt-1 text-lg font-semibold text-content-1">
                   {selectedStepMaterialRows.length
@@ -5132,11 +5142,44 @@ export default function WCMTerminal() {
           ) : null}
         </>
       )}
+      {Array.isArray((executionContext as any)?.recent_lineage) && (executionContext as any).recent_lineage.length ? (
+        <section className="order-7 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm" data-testid="wcm-lineage-card">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                4 · Where the rolls came from
+              </div>
+              <div className="mt-1 text-lg font-semibold text-content-1">
+                Latest rolls on this order
+              </div>
+              <p className="mt-1 text-xs font-medium text-content-3">
+                Newest first. Full genealogy stays in Inventory › Roll Genealogy.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+            {(executionContext as any).recent_lineage.slice(0, 6).map((roll: any) => (
+              <div key={roll.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs">
+                <div className="min-w-0">
+                  <div className="truncate font-mono font-semibold text-content-1">{roll.label_id}</div>
+                  <div className="truncate text-content-3">
+                    {[roll.material_name, roll.stage, roll.location_name].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                <div className="flex-none text-right font-mono font-semibold tabular-nums text-content-2">
+                  {Number(roll.weight_kg || 0).toFixed(1)} kg
+                  {roll.width_mm ? <div className="text-[10px] font-medium text-content-4">{Number(roll.width_mm).toFixed(0)} mm</div> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="order-last rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur xl:sticky xl:bottom-0 xl:z-10">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[240px] flex-1">
             <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
-              Release bar
+              3 · Ready? · Release bar
             </div>
             <div
               className={cn(

@@ -1269,7 +1269,7 @@ export function ProductMasterEditWorkspace({
         );
       })()}
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
           <PmStepNav />
           <RichSection
@@ -1655,8 +1655,256 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
-            id="pm-sales-choices"
+            id="pm-layers"
             index={3}
+            tone="blue"
+            icon={<Boxes className="h-5 w-5" />}
+            eyebrow="Layers"
+            title="Layers: film, micron and grade"
+            subtitle="Each layer has a default film. Micron and grade are fixed, or chosen per order within the limits set here. Other films can be allowed per layer."
+            actions={
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={addLayer}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" /> Add layer
+              </Button>
+            }
+          >
+            <div className="space-y-3">
+              {draft.layer_template.map((row, i) => (
+                <LayerCard
+                  key={i}
+                  index={i}
+                  layer={row}
+                  filmVariants={filmVariants}
+                  grades={grades}
+                  recipes={recipes}
+                  onPatch={(patch) => patchLayer(i, patch)}
+                  onPickFilm={(picked) =>
+                    patchLayer(
+                      i,
+                      sanitizeLayerForFilm(row, picked, grades, recipes),
+                    )
+                  }
+                  onRemove={() => removeLayer(i)}
+                />
+              ))}
+              {draft.layer_template.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-info-border bg-info-bg p-6 text-center text-xs text-primary">
+                  No layers yet. Click <strong>Add layer</strong> above.
+                </div>
+              ) : null}
+            </div>
+            <p className="mt-3 flex items-center gap-1.5 text-caption text-content-3">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning-fg" />
+              Total default thickness{" "}
+              <strong className="ml-1 text-content-2">
+                {totalThickness} μ
+              </strong>
+              . No global thickness or grade — per-layer only.
+            </p>
+          </RichSection>
+
+          <RichSection
+            id="pm-printing"
+            index={4}
+            tone="fuchsia"
+            icon={<Palette className="h-5 w-5" />}
+            eyebrow="Printing"
+            title="Can it be printed, and must artwork be ready first?"
+            subtitle="Print capable lets orders carry artwork. Artwork compulsory stops release until approved artwork is attached."
+          >
+            <PrintingTwoKnob
+              printCapable={!!draft.fixed_attributes?.print_capable}
+              artworkRequired={!!draft.fixed_attributes?.artwork_required}
+              printType={printType}
+              substrateMode={artworkSubstrateMode}
+              mixedSubstrateModes={mixedArtworkSubstrateModes}
+              defaultArtworkId={String(
+                draft.fixed_attributes?.default_artwork_id || "",
+              )}
+              artworks={compatibleApprovedArtworks}
+              incompatibleDefaultArtwork={incompatibleDefaultArtwork}
+              productionMaster={
+                String(draft.product_kind || "").toUpperCase() ===
+                  "PACKAGING" ||
+                String(draft.product_kind || "").toUpperCase() === "POD"
+              }
+              onChange={(p) => patchFixed(p)}
+              onChangeDefaultArtwork={(id) =>
+                patchFixed({ default_artwork_id: id || null } as any)
+              }
+            />
+          </RichSection>
+
+          {isMultiLayer ? (
+            <RichSection
+              id="pm-chemistry"
+              index={5}
+              tone="amber"
+              icon={<Package className="h-5 w-5" />}
+              eyebrow="Adhesive & solvent"
+              title="Adhesive & solvent defaults"
+              subtitle="One adhesive + one solvent per master. GSM × area flows into live BOM, sales orders, WIP, and dispatch consumption."
+            >
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                <div className="rounded-xl border border-line bg-surface-1 p-3">
+                  <div className="mb-3 flex items-start gap-2">
+                    <Package className="mt-0.5 h-4 w-4 text-success-fg" />
+                    <div>
+                      <div className="text-sm font-semibold text-content-1">
+                        Adhesive
+                      </div>
+                      <div className="text-caption text-content-3">
+                        Consumed from selected adhesive master by GSM × area.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+                    <div>
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                        Material
+                      </Label>
+                      <Select
+                        value={
+                          draft.fixed_attributes?.adhesive_material_id ||
+                          "__none__"
+                        }
+                        onValueChange={(v) =>
+                          patchChemistryMaterial(
+                            "adhesive",
+                            v === "__none__" ? "" : v,
+                          )
+                        }
+                      >
+                        <SelectTrigger className="mt-1 h-9 rounded-xl text-xs">
+                          <SelectValue placeholder="Select adhesive" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No adhesive</SelectItem>
+                          {adhesiveOptions.map((m: Material, index) => (
+                            <SelectItem
+                              key={`${m.id || m.code}-${index}`}
+                              value={m.id || m.code}
+                            >
+                              {m.code} · {m.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                        GSM
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="mt-1 h-9 rounded-xl text-right text-xs"
+                        value={draft.fixed_attributes?.adhesive_gsm ?? ""}
+                        onChange={(e) =>
+                          patchFixed({
+                            adhesive_gsm:
+                              e.target.value === ""
+                                ? ""
+                                : Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  {draft.fixed_attributes?.adhesive_material_code ? (
+                    <div className="mt-2 rounded-lg bg-success-bg px-2 py-1.5 text-caption font-semibold text-success-fg">
+                      {draft.fixed_attributes.adhesive_material_code} ·{" "}
+                      {draft.fixed_attributes.adhesive_gsm || 0} GSM
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="rounded-xl border border-line bg-surface-1 p-3">
+                  <div className="mb-3 flex items-start gap-2">
+                    <Disc className="mt-0.5 h-4 w-4 text-info-fg" />
+                    <div>
+                      <div className="text-sm font-semibold text-content-1">
+                        Solvent
+                      </div>
+                      <div className="text-caption text-content-3">
+                        Consumed from selected solvent master by GSM × area.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
+                    <div>
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                        Material
+                      </Label>
+                      <Select
+                        value={
+                          draft.fixed_attributes?.solvent_material_id ||
+                          "__none__"
+                        }
+                        onValueChange={(v) =>
+                          patchChemistryMaterial(
+                            "solvent",
+                            v === "__none__" ? "" : v,
+                          )
+                        }
+                      >
+                        <SelectTrigger className="mt-1 h-9 rounded-xl text-xs">
+                          <SelectValue placeholder="Select solvent" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No solvent</SelectItem>
+                          {solventOptions.map((m: Material, index) => (
+                            <SelectItem
+                              key={`${m.id || m.code}-${index}`}
+                              value={m.id || m.code}
+                            >
+                              {m.code} · {m.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                        GSM
+                      </Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="mt-1 h-9 rounded-xl text-right text-xs"
+                        value={draft.fixed_attributes?.solvent_gsm ?? ""}
+                        onChange={(e) =>
+                          patchFixed({
+                            solvent_gsm:
+                              e.target.value === ""
+                                ? ""
+                                : Number(e.target.value),
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  {draft.fixed_attributes?.solvent_material_code ? (
+                    <div className="mt-2 rounded-lg bg-info-bg px-2 py-1.5 text-caption font-semibold text-info-fg">
+                      {draft.fixed_attributes.solvent_material_code} ·{" "}
+                      {draft.fixed_attributes.solvent_gsm || 0} GSM
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </RichSection>
+          ) : null}
+
+          <RichSection
+            id="pm-sales-choices"
+            index={isMultiLayer ? 6 : 5}
             tone="violet"
             icon={<Workflow className="h-5 w-5" />}
             eyebrow="What sales can change"
@@ -1902,62 +2150,8 @@ export function ProductMasterEditWorkspace({
           </RichSection>
 
           <RichSection
-            id="pm-layers"
-            index={4}
-            tone="blue"
-            icon={<Boxes className="h-5 w-5" />}
-            eyebrow="Layers"
-            title="Layers: film, micron and grade"
-            subtitle="Each layer has a default film. Micron and grade are fixed, or chosen per order within the limits set here. Other films can be allowed per layer."
-            actions={
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl"
-                onClick={addLayer}
-              >
-                <Plus className="mr-1 h-3.5 w-3.5" /> Add layer
-              </Button>
-            }
-          >
-            <div className="space-y-3">
-              {draft.layer_template.map((row, i) => (
-                <LayerCard
-                  key={i}
-                  index={i}
-                  layer={row}
-                  filmVariants={filmVariants}
-                  grades={grades}
-                  recipes={recipes}
-                  onPatch={(patch) => patchLayer(i, patch)}
-                  onPickFilm={(picked) =>
-                    patchLayer(
-                      i,
-                      sanitizeLayerForFilm(row, picked, grades, recipes),
-                    )
-                  }
-                  onRemove={() => removeLayer(i)}
-                />
-              ))}
-              {draft.layer_template.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-info-border bg-info-bg p-6 text-center text-xs text-primary">
-                  No layers yet. Click <strong>Add layer</strong> above.
-                </div>
-              ) : null}
-            </div>
-            <p className="mt-3 flex items-center gap-1.5 text-caption text-content-3">
-              <AlertTriangle className="h-3.5 w-3.5 text-warning-fg" />
-              Total default thickness{" "}
-              <strong className="ml-1 text-content-2">
-                {totalThickness} μ
-              </strong>
-              . No global thickness or grade — per-layer only.
-            </p>
-          </RichSection>
-
-          <RichSection
             id="pm-sizes"
-            index={5}
+            index={isMultiLayer ? 7 : 6}
             tone="emerald"
             icon={<span className="text-lg leading-none">📐</span>}
             eyebrow="Sizes & web width"
@@ -1979,200 +2173,6 @@ export function ProductMasterEditWorkspace({
               isSaving={updateMutation.isPending}
             />
           </RichSection>
-
-          <RichSection
-            id="pm-printing"
-            index={6}
-            tone="fuchsia"
-            icon={<Palette className="h-5 w-5" />}
-            eyebrow="Printing"
-            title="Can it be printed, and must artwork be ready first?"
-            subtitle="Print capable lets orders carry artwork. Artwork compulsory stops release until approved artwork is attached."
-          >
-            <PrintingTwoKnob
-              printCapable={!!draft.fixed_attributes?.print_capable}
-              artworkRequired={!!draft.fixed_attributes?.artwork_required}
-              printType={printType}
-              substrateMode={artworkSubstrateMode}
-              mixedSubstrateModes={mixedArtworkSubstrateModes}
-              defaultArtworkId={String(
-                draft.fixed_attributes?.default_artwork_id || "",
-              )}
-              artworks={compatibleApprovedArtworks}
-              incompatibleDefaultArtwork={incompatibleDefaultArtwork}
-              productionMaster={
-                String(draft.product_kind || "").toUpperCase() ===
-                  "PACKAGING" ||
-                String(draft.product_kind || "").toUpperCase() === "POD"
-              }
-              onChange={(p) => patchFixed(p)}
-              onChangeDefaultArtwork={(id) =>
-                patchFixed({ default_artwork_id: id || null } as any)
-              }
-            />
-          </RichSection>
-
-          {isMultiLayer ? (
-            <RichSection
-              id="pm-chemistry"
-              index={7}
-              tone="amber"
-              icon={<Package className="h-5 w-5" />}
-              eyebrow="Adhesive & solvent"
-              title="Adhesive & solvent defaults"
-              subtitle="One adhesive + one solvent per master. GSM × area flows into live BOM, sales orders, WIP, and dispatch consumption."
-            >
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <div className="rounded-xl border border-line bg-surface-1 p-3">
-                  <div className="mb-3 flex items-start gap-2">
-                    <Package className="mt-0.5 h-4 w-4 text-success-fg" />
-                    <div>
-                      <div className="text-sm font-semibold text-content-1">
-                        Adhesive
-                      </div>
-                      <div className="text-caption text-content-3">
-                        Consumed from selected adhesive master by GSM × area.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-                    <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                        Material
-                      </Label>
-                      <Select
-                        value={
-                          draft.fixed_attributes?.adhesive_material_id ||
-                          "__none__"
-                        }
-                        onValueChange={(v) =>
-                          patchChemistryMaterial(
-                            "adhesive",
-                            v === "__none__" ? "" : v,
-                          )
-                        }
-                      >
-                        <SelectTrigger className="mt-1 h-9 rounded-xl text-xs">
-                          <SelectValue placeholder="Select adhesive" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">No adhesive</SelectItem>
-                          {adhesiveOptions.map((m: Material, index) => (
-                            <SelectItem
-                              key={`${m.id || m.code}-${index}`}
-                              value={m.id || m.code}
-                            >
-                              {m.code} · {m.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                        GSM
-                      </Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="mt-1 h-9 rounded-xl text-right text-xs"
-                        value={draft.fixed_attributes?.adhesive_gsm ?? ""}
-                        onChange={(e) =>
-                          patchFixed({
-                            adhesive_gsm:
-                              e.target.value === ""
-                                ? ""
-                                : Number(e.target.value),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  {draft.fixed_attributes?.adhesive_material_code ? (
-                    <div className="mt-2 rounded-lg bg-success-bg px-2 py-1.5 text-caption font-semibold text-success-fg">
-                      {draft.fixed_attributes.adhesive_material_code} ·{" "}
-                      {draft.fixed_attributes.adhesive_gsm || 0} GSM
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="rounded-xl border border-line bg-surface-1 p-3">
-                  <div className="mb-3 flex items-start gap-2">
-                    <Disc className="mt-0.5 h-4 w-4 text-info-fg" />
-                    <div>
-                      <div className="text-sm font-semibold text-content-1">
-                        Solvent
-                      </div>
-                      <div className="text-caption text-content-3">
-                        Consumed from selected solvent master by GSM × area.
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
-                    <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                        Material
-                      </Label>
-                      <Select
-                        value={
-                          draft.fixed_attributes?.solvent_material_id ||
-                          "__none__"
-                        }
-                        onValueChange={(v) =>
-                          patchChemistryMaterial(
-                            "solvent",
-                            v === "__none__" ? "" : v,
-                          )
-                        }
-                      >
-                        <SelectTrigger className="mt-1 h-9 rounded-xl text-xs">
-                          <SelectValue placeholder="Select solvent" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">No solvent</SelectItem>
-                          {solventOptions.map((m: Material, index) => (
-                            <SelectItem
-                              key={`${m.id || m.code}-${index}`}
-                              value={m.id || m.code}
-                            >
-                              {m.code} · {m.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                        GSM
-                      </Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="mt-1 h-9 rounded-xl text-right text-xs"
-                        value={draft.fixed_attributes?.solvent_gsm ?? ""}
-                        onChange={(e) =>
-                          patchFixed({
-                            solvent_gsm:
-                              e.target.value === ""
-                                ? ""
-                                : Number(e.target.value),
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
-                  {draft.fixed_attributes?.solvent_material_code ? (
-                    <div className="mt-2 rounded-lg bg-info-bg px-2 py-1.5 text-caption font-semibold text-info-fg">
-                      {draft.fixed_attributes.solvent_material_code} ·{" "}
-                      {draft.fixed_attributes.solvent_gsm || 0} GSM
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </RichSection>
-          ) : null}
 
           {/* Sales-pickable menu — only for sales-facing masters
  (POUCH / ROLL / OTHER). PACKAGING + POD masters are
@@ -2208,7 +2208,7 @@ export function ProductMasterEditWorkspace({
           )}
         </div>
 
-        <aside className="grid gap-4 xl:grid-cols-2">
+        <aside className="grid gap-4 xl:grid-cols-2 2xl:sticky 2xl:top-16 2xl:max-h-[calc(100vh-5rem)] 2xl:grid-cols-1 2xl:self-start 2xl:overflow-y-auto 2xl:pr-1">
           {(() => {
             const kind = String(draft.product_kind || "").toUpperCase();
             const visualKind =

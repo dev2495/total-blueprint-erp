@@ -53,6 +53,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/dashboard/planner/control-tower/completed-trace",
   "/dashboard/planner/control-tower/stock-intelligence",
   "/dashboard/planner/control-tower/gang-builder",
+  "/dashboard/planner/control-tower/stock-launcher",
   "/dashboard/sales",
   "/dashboard/work-center",
   "/engineering",
