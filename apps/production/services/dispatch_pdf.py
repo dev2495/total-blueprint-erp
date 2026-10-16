@@ -792,6 +792,8 @@ class DispatchListPDFService:
             "document_date": document_date.isoformat(),
             "customer_name": challan.customer_name or "-",
             "sales_order_no": cls._safe_sales_order_number(challan),
+            # The client's per-order note (SalesOrder.remarks) prints on the slip only when written.
+            "order_note": " ".join(str(getattr(sales_order, "remarks", "") or "").split()),
             "sales_order_id": str(challan.sales_order_id),
             "plant_name": challan.plant.name if challan.plant else "-",
             "delivery": delivery,
@@ -1363,9 +1365,21 @@ class DispatchListPDFService:
         return BytesIO(cls.TPP_PRINT_PACKAGE_HEADER + escp_buffer.getvalue())
 
     @classmethod
+    def _dispatch_detail_lines(cls, document: dict[str, Any]) -> list[str]:
+        delivery = _dict(document.get("delivery"))
+        lines = [
+            f"DELIVERY TO : {_text(delivery.get('delivery_to'), document.get('customer_name'), 'NOT RECORDED')}",
+            f"TRANSPORT NAME : {_text(document.get('transporter_name'), 'NOT RECORDED')}",
+            f"LOCATION : {_text(delivery.get('location'), 'NOT RECORDED')}",
+        ]
+        note = " ".join(str(document.get("order_note") or "").split())
+        if note:
+            lines.append(f"NOTE : {note}")
+        return lines
+
+    @classmethod
     def render(cls, challan: DeliveryChallan) -> BytesIO:
         document = cls._challan_document(challan)
-        delivery = _dict(document.get("delivery"))
         return cls._render_rows_pdf(
             title="DISPATCH SLIP",
             doc_ref=document["document_ref"],
@@ -1375,18 +1389,13 @@ class DispatchListPDFService:
             rows=document["rows"],
             document_date=document.get("document_date"),
             balance_rows=document.get("balance_rows") or [],
-            detail_lines=[
-                f"DELIVERY TO : {_text(delivery.get('delivery_to'), document.get('customer_name'), 'NOT RECORDED')}",
-                f"TRANSPORT NAME : {_text(document.get('transporter_name'), 'NOT RECORDED')}",
-                f"LOCATION : {_text(delivery.get('location'), 'NOT RECORDED')}",
-            ],
+            detail_lines=cls._dispatch_detail_lines(document),
             qr_token=_gate_qr_token(challan),
         )
 
     @classmethod
     def render_text(cls, challan: DeliveryChallan) -> str:
         document = cls._challan_document(challan)
-        delivery = _dict(document.get("delivery"))
         return cls._render_rows_text(
             title="DISPATCH SLIP",
             doc_ref=document["document_ref"],
@@ -1396,11 +1405,7 @@ class DispatchListPDFService:
             rows=document["rows"],
             document_date=document.get("document_date"),
             balance_rows=document.get("balance_rows") or [],
-            detail_lines=[
-                f"DELIVERY TO : {_text(delivery.get('delivery_to'), document.get('customer_name'), 'NOT RECORDED')}",
-                f"TRANSPORT NAME : {_text(document.get('transporter_name'), 'NOT RECORDED')}",
-                f"LOCATION : {_text(delivery.get('location'), 'NOT RECORDED')}",
-            ],
+            detail_lines=cls._dispatch_detail_lines(document),
         )
 
     @classmethod

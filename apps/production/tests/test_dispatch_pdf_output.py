@@ -617,6 +617,17 @@ class DispatchPDFOutputTests(SimpleTestCase):
         self.assertNotIn("Security:", text)
         self.assertNotIn("Dispatch slip only", text)
 
+    def test_dispatch_footer_prints_the_order_note_only_when_written(self):
+        challan = _snapshot_challan([_ready_row(1)], version=3)
+        self.assertNotIn("NOTE :", DispatchListPDFService.render_text(challan))
+
+        challan.print_snapshot["order_note"] = "Deliver before 11 am.\nCall Ramesh at the gate; keep cartons upright."
+        text = DispatchListPDFService.render_text(challan)
+        self.assertIn("NOTE : Deliver before 11 am. Call Ramesh at the gate; keep cartons upright.", text)
+        self.assertTrue(all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for line in text.splitlines()))
+        self.assertIn("LOCATION : Illustrative Test Location", text)
+        self.assertNotIn("Dispatch Incharge", text)
+
     def test_grade_column_abbreviates_live_metallocene_grade(self):
         row = _ready_row(1)
         row.update({"description": "LD-MW", "grade": "20% METALLOCENE", "size": "495MM", "thickness": "80"})
