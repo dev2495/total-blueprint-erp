@@ -12,7 +12,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from apps.production.models import DeliveryChallan, FinishedGoodsBatch, PackingVerification, ProductionJob
+from apps.production.models import DeliveryChallan, DeliveryChallanItem, FinishedGoodsBatch, PackingUnit, PackingVerification, ProductionJob
 from apps.sales.models import SalesOrder, SalesOrderItem
 
 OPEN_JOB_STATES = {"PLANNED", "WAITING", "READY", "RELEASED", "QUEUED"}
@@ -67,7 +67,9 @@ class OrderSpineService:
         )
         batches = list(FinishedGoodsBatch.objects.filter(sales_order_item__sales_order=order))
         verifications = list(PackingVerification.objects.filter(fg_batch__in=[b.id for b in batches])) if batches else []
+        units = list(PackingUnit.objects.filter(sales_order_item__sales_order=order)) if batches else []
         challans = list(DeliveryChallan.objects.filter(sales_order=order).order_by("created_at"))
+        challan_items = list(DeliveryChallanItem.objects.filter(challan__in=[c.id for c in challans])) if challans else []
 
         stations = [
             cls._master_station(items),
@@ -75,8 +77,8 @@ class OrderSpineService:
             cls._order_station(order, items),
             cls._plan_station(order, items, jobs),
             cls._floor_station(order, jobs, focus_job),
-            cls._yard_station(order, items, batches, verifications),
-            cls._dispatch_station(order, items, batches, challans),
+            cls._yard_station(order, items, batches, verifications, units),
+            cls._dispatch_station(order, items, challans, challan_items),
         ]
         return {
             "order_id": str(order.id),
@@ -181,13 +183,16 @@ class OrderSpineService:
         return cls._station("floor", "Floor", state, f"{step_label} · {len(done)} of {total} done", href, detail)
 
     @classmethod
-    def _yard_station(cls, order, items, batches, verifications):
+    def _yard_station(cls, order, items, batches, verifications, units):
         if not batches:
             return cls._station("yard", "Yard", "pending", "—", "/logistics/packing", "No finished batches yet")
-        pcs = sum(int(b.qty_pcs or 0) for b in batches)
+        # Pieces move from the batch into gonnies/cartons as they are packed; count both.
+        pcs = sum(int(b.qty_pcs or 0) for b in batches) + sum(int(u.qty_pcs or 0) for u in units)
         verified = [v for v in verifications if str(v.status).upper() == "VERIFIED"]
         held = [v for v in verifications if str(v.status).upper() == "HELD"]
         bits = [f"{len(batches)} batch{'es' if len(batches) != 1 else ''}", f"{pcs:,} pcs"]
+        if units:
+            bits.append(f"{len(units)} unit{'s' if len(units) != 1 else ''}")
         if verified:
             bits.append(f"{len(verified)} verified")
         if held:
@@ -200,22 +205,27 @@ class OrderSpineService:
         return cls._station("yard", "Yard", state, " · ".join(bits), "/logistics/packing", "Packing check" if verifications else "Packing")
 
     @classmethod
-    def _dispatch_station(cls, order, items, batches, challans):
-        dispatched_pcs = sum(int(b.dispatched_qty_pcs or 0) for b in batches)
+    def _dispatch_station(cls, order, items, challans, challan_items):
+        sent_states = {"DISPATCHED", "IN_TRANSIT", "RECEIVED", "DELIVERED", "POD_CONFIRMED"}
+        sent = [c for c in challans if str(c.status).upper() in sent_states]
+        sent_ids = {c.id for c in sent}
+        dispatched_pcs = sum(int(ci.qty_pcs or 0) for ci in challan_items if ci.challan_id in sent_ids)
+        loaded_pcs = sum(int(ci.qty_pcs or 0) for ci in challan_items)
         ordered_pcs = sum(int(round(_num(i.qty_value))) for i in items if str(i.qty_uom).upper() == "PCS")
         href = f"/sales/orders/{order.id}/dispatches"
-        if not challans and not dispatched_pcs:
+        if not challans:
             return cls._station("dispatch", "Dispatch", "pending", "—", href)
-        sent = [c for c in challans if str(c.status).upper() in {"DISPATCHED", "IN_TRANSIT", "RECEIVED", "DELIVERED", "POD_CONFIRMED"}]
         value = f"{len(challans)} challan{'s' if len(challans) != 1 else ''}"
         if dispatched_pcs:
-            value += f" · {dispatched_pcs:,} pcs"
+            value += f" · {dispatched_pcs:,} pcs sent"
+        elif loaded_pcs:
+            value += f" · {loaded_pcs:,} pcs loading"
         state = "active"
         if ordered_pcs and dispatched_pcs >= ordered_pcs:
             state = "done"
         elif order.status in {"COMPLETED", "DISPATCHED"}:
             state = "done"
-        detail = f"{len(sent)} on the road" if sent else "Draft challan"
+        detail = f"{len(sent)} on the road" if sent else "Draft challan · not yet dispatched"
         return cls._station("dispatch", "Dispatch", state, value, href, detail)
 
     # ------------------------------------------------------------------ what is to be made
