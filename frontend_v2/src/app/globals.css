@@ -30,33 +30,34 @@
 
 @layer base {
   :root {
-    --canvas-base: #f3f4f7;
-    --canvas-tint: #eceff5;
+    /* Calm neutral canvas: near-white page, pure white cards, hairline borders. */
+    --canvas-base: #f7f8fa;
+    --canvas-tint: #f2f4f7;
     --surface-1: #ffffff;
-    --surface-1-soft: #fbfbfd;
-    --surface-2: #f7f8fa;
-    --surface-3: #0c111d;
+    --surface-1-soft: #fcfcfd;
+    --surface-2: #f3f4f6;
+    --surface-3: #12161f;
     /* RGB triplets so Tailwind opacity modifiers (bg-surface-1/80) work on tokens. */
     --surface-1-rgb: 255 255 255;
-    --surface-2-rgb: 247 248 250;
-    --surface-3-rgb: 12 17 29;
+    --surface-2-rgb: 243 244 246;
+    --surface-3-rgb: 18 22 31;
     --success-fg-rgb: 4 120 87;
     --warning-fg-rgb: 180 83 9;
     --danger-fg-rgb: 190 18 60;
     --order-fg-rgb: 51 70 201;
-    --surface-glass: rgba(255, 255, 255, 0.8);
-    --surface-glass-edge: rgba(255, 255, 255, 0.42);
+    --surface-glass: rgba(255, 255, 255, 0.88);
+    --surface-glass-edge: rgba(16, 24, 40, 0.08);
 
-    --text-1: #0a0e17;
-    --text-2: #1d2433;
-    --text-3: #535c6d;
-    --text-4: #6b7487; /* 4.6:1 on white; was #8b94a5 (3.05:1) */
+    --text-1: #0b0f17;
+    --text-2: #1f2633;
+    --text-3: #5b6472; /* 5.9:1 on white */
+    --text-4: #6b7487; /* 4.6:1 on white */
     --text-on-dark: #f8fafc;
     --text-on-brand: #ffffff;
 
-    --border-soft: #e7e9ee;
-    --border-strong: #d2d7e0;
-    --divider: #eceef2;
+    --border-soft: #e6e8ec;
+    --border-strong: #d4d8df;
+    --divider: #eceef1;
 
     --brand-50: #eff6ff;
     --brand-100: #dbeafe;
@@ -82,32 +83,25 @@
     --rose-500: #f43f5e;
     --rose-700: #be123c;
 
-    --shadow-flat: 0 1px 0 rgba(15, 23, 42, 0.04);
-    --shadow-sm:
-      0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+    /* Shadows are whispers: a hairline lift for cards, a soft fall for overlays.
+       The old coloured "glow" shadows are now plain hairline rings. */
+    --shadow-flat: 0 1px 0 rgba(16, 24, 40, 0.04);
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
     --shadow-md:
-      0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 20px -10px rgba(16, 24, 40, 0.12);
+      0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 12px -4px rgba(16, 24, 40, 0.08);
     --shadow-lg:
-      0 2px 6px rgba(16, 24, 40, 0.05),
-      0 20px 44px -18px rgba(16, 24, 40, 0.2);
-    --shadow-glow-brand:
-      0 0 0 1px rgba(37, 99, 235, 0.18),
-      0 12px 28px -12px rgba(37, 99, 235, 0.32);
-    --shadow-glow-violet:
-      0 0 0 1px rgba(59, 130, 246, 0.18),
-      0 12px 28px -12px rgba(59, 130, 246, 0.3);
-    --shadow-glow-sky:
-      0 0 0 1px rgba(14, 165, 233, 0.18),
-      0 12px 28px -12px rgba(14, 165, 233, 0.3);
-    --shadow-glow-emerald:
-      0 0 0 1px rgba(16, 185, 129, 0.2),
-      0 12px 28px -12px rgba(16, 185, 129, 0.3);
+      0 2px 4px rgba(16, 24, 40, 0.04),
+      0 12px 32px -12px rgba(16, 24, 40, 0.16);
+    --shadow-glow-brand: 0 0 0 1px rgba(37, 99, 235, 0.24);
+    --shadow-glow-violet: 0 0 0 1px rgba(59, 130, 246, 0.22);
+    --shadow-glow-sky: 0 0 0 1px rgba(14, 165, 233, 0.22);
+    --shadow-glow-emerald: 0 0 0 1px rgba(16, 185, 129, 0.24);
 
     --r-2: 6px;
     --r-3: 10px;
     --r-4: 14px;
-    --r-5: 18px;
-    --r-6: 24px;
+    --r-5: 16px;
+    --r-6: 20px;
     --r-pill: 999px;
 
     --z-modal: 60;
@@ -123,35 +117,36 @@
     --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
     --font-display: "Inter", -apple-system, "SF Pro Display", system-ui, sans-serif;
 
-    --background: 225 17% 96%;
-    --foreground: 222 39% 6%;
+    --background: 220 23% 97%;
+    --foreground: 220 35% 7%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 220 35% 7%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 220 35% 7%;
 
     --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 220 20% 95%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 24% 16%;
 
-    --muted: 220 20% 96%;
-    --muted-foreground: 219 12% 38%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 217 11% 40%;
 
-    --accent: 220 60% 97%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 24% 16%;
 
-    --destructive: 349 89% 60%;
+    --destructive: 347 77% 50%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 225 14% 92%;
-    --input: 223 14% 86%;
+    --border: 220 14% 91%;
+    --input: 218 15% 85%;
     --ring: 221 83% 53%;
 
-    --radius: 0.75rem;
+    /* 10px controls (rounded-lg), 8px (md), 6px (sm). Cards use --r-4 (14px). */
+    --radius: 0.625rem;
 
 
     /* Data-viz tokens: validated categorical order (CVD-safe adjacent pairs). */
@@ -171,18 +166,16 @@
     --viz-serious: #ec835a;
     --viz-critical: #d03b3b;
 
-    /* One hero surface for every page header across the app. */
-    --hero-surface:
-      radial-gradient(900px 420px at 94% -30%, rgba(88, 140, 255, 0.36) 0%, transparent 60%),
-      radial-gradient(720px 380px at -6% 130%, rgba(56, 189, 248, 0.14) 0%, transparent 62%),
-      linear-gradient(135deg, #0b1122 0%, #10193a 52%, #172a5c 100%);
-    --hero-edge: rgba(255, 255, 255, 0.1);
-    --hero-tile: rgba(255, 255, 255, 0.06);
-    --hero-tile-edge: rgba(255, 255, 255, 0.1);
-    --hero-muted: rgba(214, 222, 238, 0.74);
+    /* One page header for the whole app: a plain white card with a hairline
+       edge. Stat tiles sit on the quiet inset surface. */
+    --hero-surface: var(--surface-1);
+    --hero-edge: var(--border-soft);
+    --hero-tile: var(--surface-2);
+    --hero-tile-edge: var(--border-soft);
+    --hero-muted: var(--text-3);
 
-    --shadow-premium: var(--shadow-md);
-    --shadow-premium-hover: var(--shadow-lg);
+    --shadow-premium: var(--shadow-sm);
+    --shadow-premium-hover: var(--shadow-md);
     --shadow-glass: inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
 
     /* Planner control tower design-system aliases.
@@ -309,32 +302,33 @@
   .dark {
     color-scheme: dark;
 
-    --canvas-base: #0b0e14;
-    --canvas-tint: #0f131b;
-    --surface-1: #141924;
-    --surface-1-soft: #181e2a;
-    --surface-2: #10141c;
-    --surface-3: #080a0f;
-    --surface-1-rgb: 20 25 36;
-    --surface-2-rgb: 16 20 28;
-    --surface-3-rgb: 8 10 15;
+    /* Dark: no pure black. Cards lift one step above the canvas; borders stay visible. */
+    --canvas-base: #0e1116;
+    --canvas-tint: #11151b;
+    --surface-1: #161b22;
+    --surface-1-soft: #1a2029;
+    --surface-2: #11151b;
+    --surface-3: #090b0f;
+    --surface-1-rgb: 22 27 34;
+    --surface-2-rgb: 17 21 27;
+    --surface-3-rgb: 9 11 15;
     --success-fg-rgb: 153 243 205;
     --warning-fg-rgb: 255 225 163;
     --danger-fg-rgb: 255 183 196;
     --order-fg-rgb: 185 198 255;
-    --surface-glass: rgba(16, 20, 28, 0.82);
-    --surface-glass-edge: rgba(148, 163, 184, 0.18);
+    --surface-glass: rgba(22, 27, 34, 0.88);
+    --surface-glass-edge: rgba(255, 255, 255, 0.08);
 
-    --text-1: #f8fafc;
-    --text-2: #e4e8ef;
-    --text-3: #a9b2c2;
-    --text-4: #8a94a6;
+    --text-1: #f3f5f7;
+    --text-2: #dfe3e8;
+    --text-3: #a3abb8; /* 7.4:1 on surface-1 */
+    --text-4: #8b94a3; /* 5.3:1 on surface-1 */
     --text-on-dark: #ffffff;
     --text-on-brand: #ffffff;
 
-    --border-soft: #222936;
-    --border-strong: #343d4f;
-    --divider: #1c222d;
+    --border-soft: #262c36;
+    --border-strong: #38404d;
+    --divider: #20262f;
 
     --brand-50: rgba(74, 126, 255, 0.14);
     --brand-100: rgba(85, 140, 255, 0.2);
@@ -360,55 +354,43 @@
     --rose-700: #ffb7c4;
 
     --shadow-flat: 0 1px 0 rgba(255, 255, 255, 0.04);
-    --shadow-sm:
-      0 1px 2px rgba(0, 0, 0, 0.18), 0 10px 28px -18px rgba(0, 0, 0, 0.55);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
     --shadow-md:
-      0 1px 2px rgba(0, 0, 0, 0.18), 0 18px 42px -24px rgba(0, 0, 0, 0.58);
+      0 1px 2px rgba(0, 0, 0, 0.24), 0 6px 16px -6px rgba(0, 0, 0, 0.4);
     --shadow-lg:
-      0 10px 26px -18px rgba(0, 0, 0, 0.6),
-      0 34px 76px -42px rgba(0, 0, 0, 0.72);
-    --shadow-glow-brand:
-      0 0 0 1px rgba(143, 184, 255, 0.2),
-      0 16px 34px -18px rgba(90, 141, 247, 0.46);
-    --shadow-glow-violet:
-      0 0 0 1px rgba(167, 139, 250, 0.18),
-      0 14px 30px -18px rgba(167, 139, 250, 0.38);
-    --shadow-glow-sky:
-      0 0 0 1px rgba(103, 215, 255, 0.2),
-      0 14px 30px -18px rgba(103, 215, 255, 0.38);
-    --shadow-glow-emerald:
-      0 0 0 1px rgba(94, 226, 173, 0.18),
-      0 14px 30px -18px rgba(94, 226, 173, 0.38);
+      0 2px 4px rgba(0, 0, 0, 0.28),
+      0 16px 40px -16px rgba(0, 0, 0, 0.55);
+    --shadow-glow-brand: 0 0 0 1px rgba(143, 184, 255, 0.28);
+    --shadow-glow-violet: 0 0 0 1px rgba(167, 139, 250, 0.24);
+    --shadow-glow-sky: 0 0 0 1px rgba(103, 215, 255, 0.24);
+    --shadow-glow-emerald: 0 0 0 1px rgba(94, 226, 173, 0.24);
 
-    --background: 222 27% 6%;
-    --foreground: 214 32% 94%;
-    --card: 222 26% 11%;
-    --card-foreground: 214 32% 94%;
-    --popover: 222 26% 11%;
-    --popover-foreground: 214 32% 94%;
+    --background: 218 22% 7%;
+    --foreground: 210 10% 96%;
+    --card: 215 21% 11%;
+    --card-foreground: 210 10% 96%;
+    --popover: 215 21% 11%;
+    --popover-foreground: 210 10% 96%;
     --primary: 220 91% 68%;
     --primary-foreground: 220 30% 10%;
-    --secondary: 222 20% 15%;
-    --secondary-foreground: 214 30% 92%;
-    --muted: 222 20% 15%;
-    --muted-foreground: 216 18% 72%;
-    --accent: 222 22% 16%;
-    --accent-foreground: 214 32% 94%;
-    --destructive: 349 89% 72%;
+    --secondary: 217 18% 14%;
+    --secondary-foreground: 210 10% 92%;
+    --muted: 217 18% 14%;
+    --muted-foreground: 216 12% 70%;
+    --accent: 217 18% 15%;
+    --accent-foreground: 210 10% 96%;
+    --destructive: 349 80% 70%;
     --destructive-foreground: 220 30% 10%;
-    --border: 220 18% 18%;
-    --input: 220 16% 24%;
+    --border: 218 17% 18%;
+    --input: 217 16% 26%;
     --ring: 220 91% 68%;
 
-    --shadow-premium: var(--shadow-md);
-    --shadow-premium-hover: var(--shadow-lg);
-    --shadow-glass: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+    --shadow-premium: var(--shadow-sm);
+    --shadow-premium-hover: var(--shadow-md);
+    --shadow-glass: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
 
-    --hero-surface:
-      radial-gradient(900px 420px at 94% -30%, rgba(88, 140, 255, 0.24) 0%, transparent 60%),
-      radial-gradient(720px 380px at -6% 130%, rgba(56, 189, 248, 0.08) 0%, transparent 62%),
-      linear-gradient(135deg, #0e1424 0%, #121b33 55%, #17254a 100%);
-    --hero-edge: rgba(255, 255, 255, 0.08);
+    --hero-surface: var(--surface-1);
+    --hero-edge: var(--border-soft);
 
     --viz-1: #3987e5;
     --viz-2: #d95926;
@@ -599,34 +581,13 @@
     font-family: var(--font-mono);
   }
 
+  /* The page canvas is one flat neutral; no ambient gradients or patterns. */
   .erp-canvas {
     position: relative;
     isolation: isolate;
     background: var(--canvas-base);
   }
 
-  /* Ambient light lives on its own fixed, composited layer so scrolling never
-     repaints the page background. */
-  .erp-canvas::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background:
-      radial-gradient(1100px 520px at 88% -12%, color-mix(in srgb, var(--brand-500) 9%, transparent) 0%, transparent 62%),
-      radial-gradient(900px 480px at -8% -6%, color-mix(in srgb, var(--info-fg) 6%, transparent) 0%, transparent 60%),
-      linear-gradient(180deg, var(--canvas-tint) 0%, var(--canvas-base) 38%);
-    transform: translateZ(0);
-  }
-
-  .dark .erp-canvas::before {
-    background:
-      radial-gradient(1100px 560px at 88% -14%, rgba(111, 160, 255, 0.1) 0%, transparent 62%),
-      radial-gradient(900px 520px at -8% -8%, rgba(103, 215, 255, 0.05) 0%, transparent 60%),
-      linear-gradient(180deg, var(--canvas-tint) 0%, var(--canvas-base) 40%);
-  }
-
   @media (prefers-reduced-transparency: reduce) {
     .erp-glass-chrome {
       background-color: var(--surface-1);
@@ -643,71 +604,12 @@
     }
   }
 
-  .sales-create-page {
-    background:
-      linear-gradient(90deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px) 0
-        0 / 26px 26px,
-      linear-gradient(0deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px) 0
-        0 / 26px 26px,
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--canvas-tint) 84%, var(--surface-1)) 0%,
-        var(--canvas-base) 54%,
-        color-mix(in srgb, var(--canvas-base) 86%, var(--surface-2)) 100%
-      );
-  }
-
-  .dark .sales-create-page {
-    background:
-      linear-gradient(90deg, rgba(143, 184, 255, 0.045) 1px, transparent 1px)
-        0 0 / 26px 26px,
-      linear-gradient(0deg, rgba(143, 184, 255, 0.035) 1px, transparent 1px)
-        0 0 / 26px 26px,
-      linear-gradient(
-        180deg,
-        #0f172a 0%,
-        #101827 48%,
-        #0b1120 100%
-      );
-  }
-
+  /* Every module canvas is the same flat neutral (was grid patterns + tints). */
+  .sales-create-page,
   .erp-soft-canvas,
   .stock-lifecycle-canvas,
   .wcm-terminal-canvas {
-    background:
-      radial-gradient(
-        860px 520px at 6% -10%,
-        rgba(79, 70, 229, 0.1),
-        transparent 58%
-      ),
-      radial-gradient(
-        820px 520px at 94% 0%,
-        rgba(16, 185, 129, 0.08),
-        transparent 56%
-      ),
-      linear-gradient(180deg, #eef2ff 0%, #f1f5f9 55%, #eef4f8 100%);
-  }
-
-  .dark .erp-soft-canvas,
-  .dark .stock-lifecycle-canvas,
-  .dark .wcm-terminal-canvas {
-    background:
-      radial-gradient(
-        980px 600px at 6% -12%,
-        rgba(143, 184, 255, 0.15),
-        transparent 58%
-      ),
-      radial-gradient(
-        900px 560px at 94% 0%,
-        rgba(94, 226, 173, 0.1),
-        transparent 58%
-      ),
-      linear-gradient(
-        180deg,
-        var(--canvas-tint) 0%,
-        var(--canvas-base) 52%,
-        var(--surface-3) 100%
-      );
+    background: var(--canvas-base);
   }
 
   .erp-production-surface,
@@ -725,23 +627,7 @@
   }
 
   .erp-production-surface:not(.erp-soft-canvas):not(.stock-lifecycle-canvas):not(.wcm-terminal-canvas):not(.pm-master-canvas):not(.sales-create-page):not(.canvas) {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--canvas-tint) 78%, var(--surface-1)) 0%,
-        var(--canvas-base) 50%,
-        color-mix(in srgb, var(--canvas-base) 88%, var(--surface-2)) 100%
-      );
-  }
-
-  .dark .erp-production-surface:not(.erp-soft-canvas):not(.stock-lifecycle-canvas):not(.wcm-terminal-canvas):not(.pm-master-canvas):not(.sales-create-page):not(.canvas) {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--canvas-tint) 78%, var(--surface-3)) 0%,
-        var(--canvas-base) 52%,
-        var(--surface-3) 100%
-      );
+    background: var(--canvas-base);
   }
 
   .erp-production-surface :is(.overflow-y-auto, .overflow-auto),
@@ -778,12 +664,7 @@
   .stock-lifecycle-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb,
   .wcm-terminal-canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb,
   .canvas :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--brand-500) 42%, var(--border-soft)),
-        color-mix(in srgb, var(--border-strong) 88%, var(--surface-2))
-      );
+    background: var(--border-strong);
     border: 2px solid transparent;
     border-radius: 999px;
     background-clip: padding-box;
@@ -833,32 +714,15 @@
     }
   }
 
-  .erp-hero {
-    position: relative;
-    overflow: hidden;
-    color: var(--text-on-dark);
-    background: var(--hero-surface);
-    border: 1px solid var(--hero-edge);
-    box-shadow: var(--shadow-md);
-  }
-
+  /* The page header is a plain card now: white, hairline edge, dark text. */
+  .erp-hero,
   .erp-admin-hero {
     position: relative;
     overflow: hidden;
-    color: var(--text-on-dark);
+    color: var(--text-1);
     background: var(--hero-surface);
     border: 1px solid var(--hero-edge);
-    box-shadow: var(--shadow-md);
-  }
-
-  .erp-hero::before,
-  .erp-admin-hero::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    box-shadow: var(--shadow-sm);
   }
 
   .erp-hero h1,
@@ -870,6 +734,94 @@
   .erp-admin-hero h3,
   .erp-admin-hero p {
     color: inherit;
+  }
+
+  /* ------------------------------------------------------------------
+     Hero compatibility layer.
+     Many pages still write white-on-ink utilities inside the hero
+     (text-white, text-white/70, bg-white/10, ring-surface-1/20,
+     text-info-border as "muted"). The header is light now, so those
+     utilities are remapped to the light palette here, scoped to the hero,
+     instead of touching every page. Elements that carry their own solid
+     fill (bg-primary, bg-success-fg, …) keep their white text.
+     ------------------------------------------------------------------ */
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)[class*="text-white"] {
+    color: var(--text-1) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    :is(.text-white, [class*="hover:text-white"]):not([class*="bg-primary"]):not([class*="bg-success"]):not([class*="bg-warning"]):not([class*="bg-danger"]):not([class*="bg-info-fg"]):not([class*="bg-order-fg"]):not([class*="bg-brand"]):not([class*="bg-surface-3"]):not([class*="bg-content"]):not([class*="bg-[#"]) {
+    color: var(--text-1) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    [class*="text-white/"]:not([class*="bg-primary"]):not([class*="bg-success"]):not([class*="bg-warning"]):not([class*="bg-danger"]):not([class*="bg-info-fg"]):not([class*="bg-order-fg"]):not([class*="bg-brand"]):not([class*="bg-surface-3"]):not([class*="bg-content"]):not([class*="bg-[#"]) {
+    color: var(--text-3) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    :is(.text-info-border, .text-order-border, [class*="text-info-border/"], [class*="text-order-border/"]) {
+    color: var(--text-3) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin) .text-success-border {
+    color: var(--success-fg) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin) .text-warning-border {
+    color: var(--warning-fg) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin) .text-danger-border {
+    color: var(--danger-fg) !important;
+  }
+
+  /* Solid status pills (bg-success-fg + text-success-border) become soft tints. */
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    span[class*="bg-success-fg"][class*="text-success-border"] {
+    background-color: var(--success-bg) !important;
+    color: var(--success-fg) !important;
+    --tw-ring-color: var(--success-border) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    span[class*="bg-warning-fg"][class*="text-warning-border"] {
+    background-color: var(--warning-bg) !important;
+    color: var(--warning-fg) !important;
+    --tw-ring-color: var(--warning-border) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    span[class*="bg-danger-fg"][class*="text-danger-border"] {
+    background-color: var(--danger-bg) !important;
+    color: var(--danger-fg) !important;
+    --tw-ring-color: var(--danger-border) !important;
+  }
+
+  /* Translucent "glass" tiles become quiet inset tiles. */
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    :is([class*="bg-white/"], [class*="bg-surface-1/1"], [class*="bg-surface-1/2"], [class*="bg-surface-1/5"], [class*="bg-surface-1/7"], [class*="bg-surface-1/8"]) {
+    background-color: var(--surface-2) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    :is([class*="hover:bg-white/"], [class*="hover:bg-surface-1/1"], [class*="hover:bg-surface-1/2"]):hover {
+    background-color: var(--surface-2) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    :is([class*="border-white/"], [class*="border-surface-1/"]) {
+    border-color: var(--border-soft) !important;
+  }
+
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin)
+    :is([class*="ring-white/"], [class*="ring-surface-1/"]) {
+    --tw-ring-color: var(--border-soft) !important;
+  }
+
+  /* A solid white button on a white header keeps a hairline so it stays a button. */
+  :is(.erp-hero, .erp-admin-hero, .ds-card.is-hero, .ds-card.is-hero-admin) .bg-white {
+    box-shadow: inset 0 0 0 1px var(--border-strong);
   }
 
   .shadow-premium {
@@ -908,23 +860,7 @@
   }
 
   .pm-master-canvas {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--canvas-tint) 78%, var(--surface-1)) 0%,
-        var(--canvas-base) 42%,
-        color-mix(in srgb, var(--canvas-base) 86%, var(--surface-2)) 100%
-      );
-  }
-
-  .dark .pm-master-canvas {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--canvas-tint) 82%, var(--surface-3)) 0%,
-        var(--canvas-base) 48%,
-        var(--surface-3) 100%
-      );
+    background: var(--canvas-base);
   }
 
   .pm-detail-viewport {
@@ -951,12 +887,7 @@
   }
 
   .pm-detail-viewport :is(.overflow-y-auto, .overflow-auto)::-webkit-scrollbar-thumb {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--brand-500) 46%, var(--border-soft)),
-        color-mix(in srgb, var(--border-strong) 88%, var(--surface-2))
-      );
+    background: var(--border-strong);
     border: 2px solid transparent;
     border-radius: 999px;
     background-clip: padding-box;
@@ -978,47 +909,48 @@
   }
 
   .pm-detail-viewport :is(.overflow-x-auto, .overflow-auto)::-webkit-scrollbar-thumb {
-    background:
-      linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--brand-500) 46%, var(--border-soft)),
-        color-mix(in srgb, var(--border-strong) 88%, var(--surface-2))
-      );
+    background: var(--border-strong);
     border: 2px solid transparent;
     border-radius: 999px;
     background-clip: padding-box;
   }
 
   .canvas {
-    background:
-      linear-gradient(0deg, rgba(37, 99, 235, 0.035) 1px, transparent 1px) 0 0 /
-        24px 100%,
-      linear-gradient(90deg, rgba(37, 99, 235, 0.035) 1px, transparent 1px) 0
-        0 / 100% 24px,
-      radial-gradient(
-        860px 520px at 100% -15%,
-        rgba(59, 130, 246, 0.1),
-        transparent 58%
-      ),
-      var(--canvas-base);
+    background: var(--canvas-base);
   }
 
+  /* The one permitted small-caps label: 12px, light tracking. */
   .t-eyebrow {
-    color: var(--text-4);
+    color: var(--text-3);
     font-family: var(--font-ui);
-    font-size: 10.5px;
-    font-weight: 650;
-    letter-spacing: 0.1em;
-    line-height: 1.2;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
     text-transform: uppercase;
   }
 
+  /* Page title: 24px semibold, tight. */
   .t-display-md {
     font-family: var(--font-display);
-    font-size: clamp(28px, 2.6vw, 40px);
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1.03;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  .t-h3 {
+    color: var(--text-1);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+  }
+
+  .t-caption {
+    color: var(--text-3);
+    font-size: 13px;
+    line-height: 1.45;
   }
 
   .ds-card {
@@ -1026,87 +958,74 @@
     min-width: 0;
     overflow: hidden;
     border: 1px solid var(--border-soft);
-    border-radius: var(--r-5);
-    background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+    border-radius: var(--r-4);
+    background: var(--surface-1);
     box-shadow: var(--shadow-sm);
-    padding: 18px;
+    padding: 20px;
   }
 
   .ds-card.is-emphasis {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--info-bg) 78%, transparent),
-        color-mix(in srgb, var(--surface-1) 96%, transparent) 44%
-      ),
-      var(--surface-1);
-    border-color: var(--info-border);
-    box-shadow: var(--shadow-md);
+    background: var(--surface-1);
+    border-color: var(--brand-200);
+    box-shadow: var(--shadow-sm);
   }
 
   .ds-card.is-hero,
   .ds-card.is-hero-admin {
     border-color: var(--hero-edge);
-    color: #fff;
-    padding: clamp(22px, 2.5vw, 32px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .ds-card.is-hero,
-  .ds-card.is-hero-admin {
+    color: var(--text-1);
     background: var(--hero-surface);
+    padding: 20px 24px;
+    box-shadow: var(--shadow-sm);
   }
 
   .ds-card.is-hoverable {
     transition:
-      transform var(--dur-base) var(--ease-out),
       box-shadow var(--dur-base) var(--ease-out),
       border-color var(--dur-base) var(--ease-out);
   }
 
   .ds-card.is-hoverable:hover {
-    transform: translateY(-1px);
-    border-color: rgba(96, 165, 250, 0.62);
+    border-color: var(--border-strong);
     box-shadow: var(--shadow-md);
   }
 
+  /* Hero stat tiles: quiet inset tiles instead of frosted glass. */
   .ds-glass {
     min-width: 0;
-    border: 1px solid var(--hero-tile-edge, rgba(255, 255, 255, 0.1));
-    border-radius: var(--r-4);
-    background: var(--hero-tile, rgba(255, 255, 255, 0.06));
-    padding: 14px 16px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
-    backdrop-filter: blur(10px);
+    border: 1px solid var(--hero-tile-edge);
+    border-radius: var(--r-3);
+    background: var(--hero-tile);
+    padding: 12px 14px;
   }
 
   .ds-glass-eyebrow {
-    color: rgba(226, 232, 240, 0.72);
-    font-size: 10.5px;
-    font-weight: 650;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    color: var(--text-3);
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.3;
   }
 
   .ds-glass-num {
-    margin-top: 8px;
-    color: #fff;
+    margin-top: 6px;
+    color: var(--text-1);
     font-family: var(--font-display);
-    font-size: clamp(22px, 2.1vw, 30px);
-    font-weight: 700;
-    letter-spacing: -0.025em;
-    line-height: 1;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
     font-variant-numeric: tabular-nums;
   }
 
   .ds-glass-sub {
-    margin-top: 6px;
-    color: rgba(226, 232, 240, 0.76);
-    font-size: 12px;
-    font-weight: 600;
+    margin-top: 4px;
+    color: var(--text-3);
+    font-size: 12.5px;
+    font-weight: 500;
     line-height: 1.35;
   }
 
+  /* Buttons: solid accent, white with hairline, or text. No lift, no glow. */
   .ds-btn {
     display: inline-flex;
     min-height: 40px;
@@ -1118,53 +1037,73 @@
     padding: 0 14px;
     color: var(--text-1);
     font-size: 13px;
-    font-weight: 650;
+    font-weight: 500;
     line-height: 1;
     transition:
-      transform var(--dur-fast) var(--ease-out),
-      box-shadow var(--dur-fast) var(--ease-out),
-      background var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out);
+      background-color var(--dur-surface) var(--ease-out),
+      border-color var(--dur-surface) var(--ease-out),
+      color var(--dur-surface) var(--ease-out),
+      box-shadow var(--dur-surface) var(--ease-out);
   }
 
-  .ds-btn:hover {
-    transform: translateY(-1px);
+  .ds-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-500) 40%, transparent);
   }
 
   .ds-btn.is-primary {
-    background: linear-gradient(135deg, var(--brand-600), var(--brand-500));
-    color: #fff;
-    box-shadow: var(--shadow-glow-brand);
+    background: var(--brand-600);
+    color: var(--text-on-brand);
+    box-shadow: var(--shadow-sm);
   }
 
-  .ds-btn.is-secondary,
-  .ds-btn.is-ghost {
+  .ds-btn.is-primary:hover {
+    background: var(--brand-700);
+  }
+
+  .ds-btn.is-secondary {
     border-color: var(--border-soft);
-    background: color-mix(in srgb, var(--surface-1) 82%, transparent);
-    color: var(--text-2);
-    box-shadow: var(--shadow-flat);
+    background: var(--surface-1);
+    color: var(--text-1);
+    box-shadow: var(--shadow-sm);
   }
 
-  .is-hero .ds-btn.is-ghost,
-  .is-hero-admin .ds-btn.is-ghost {
-    border-color: rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+  .ds-btn.is-secondary:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+  }
+
+  .ds-btn.is-ghost {
+    background: transparent;
+    color: var(--text-2);
+  }
+
+  .ds-btn.is-ghost:hover {
+    background: var(--surface-2);
+    color: var(--text-1);
   }
 
   .ds-btn.is-success {
-    background: linear-gradient(135deg, var(--emerald-700), var(--emerald-500));
+    background: var(--emerald-700);
     color: #fff;
   }
 
   .ds-btn.is-warn {
-    background: linear-gradient(135deg, var(--amber-700), var(--amber-500));
+    background: var(--amber-700);
     color: #fff;
   }
 
   .ds-btn.is-danger {
-    background: linear-gradient(135deg, var(--rose-700), var(--rose-500));
+    background: var(--rose-700);
     color: #fff;
+  }
+
+  /* Dark-mode fills are light tints, so their label is ink. */
+  .dark .ds-btn.is-success,
+  .dark .ds-btn.is-warn,
+  .dark .ds-btn.is-danger,
+  .dark .ds-btn.is-primary {
+    color: #0b0f17;
   }
 
   .ds-btn.size-sm {
@@ -1179,6 +1118,7 @@
     font-size: 14px;
   }
 
+  /* Chips: 12px, sentence case, soft tint. */
   .ds-chip {
     display: inline-flex;
     align-items: center;
@@ -1189,12 +1129,86 @@
     background: var(--surface-2);
     padding: 3px 9px;
     color: var(--text-2);
-    font-size: 10px;
-    font-weight: 650;
-    letter-spacing: 0.03em;
-    line-height: 1.2;
-    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.3;
     white-space: nowrap;
+  }
+
+  /* Planner DataTable / EmptyState (ds-tbl, ds-empty) — hairline rows, 44px. */
+  .ds-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .ds-tbl th {
+    height: 40px;
+    padding: 0 16px;
+    text-align: left;
+    color: var(--text-3);
+    font-size: 12.5px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--surface-2);
+  }
+
+  .ds-tbl td {
+    height: 44px;
+    padding: 8px 16px;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: middle;
+  }
+
+  .ds-tbl tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .ds-tbl tbody tr:hover {
+    background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  }
+
+  .ds-tbl th.num,
+  .ds-tbl td.num {
+    text-align: right;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-empty {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 32px 20px;
+    text-align: center;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-4);
+    background: var(--surface-1);
+  }
+
+  .ds-empty-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-3);
+    background: var(--surface-2);
+    color: var(--text-3);
+  }
+
+  .ds-empty-title {
+    color: var(--text-1);
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .ds-empty-body {
+    max-width: 420px;
+    color: var(--text-3);
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   /* P1.3: status chips routed to one shared scale (Tier-2 vars) — same hex, one source of truth. */
@@ -1250,7 +1264,7 @@
     border: 1px solid var(--border-soft);
     border-radius: var(--r-4);
     background: var(--surface-1);
-    padding: 14px;
+    padding: 16px;
     box-shadow: var(--shadow-sm);
   }
 
@@ -1266,15 +1280,9 @@
   .theme-toggle__halo {
     position: absolute;
     inset: 5px;
-    border-radius: 14px;
-    background:
-      radial-gradient(
-        circle at 35% 30%,
-        color-mix(in srgb, var(--warning-fg) 44%, transparent),
-        transparent 48%
-      ),
-      linear-gradient(145deg, var(--surface-2), var(--surface-1));
-    opacity: 0.72;
+    border-radius: 10px;
+    background: var(--surface-2);
+    opacity: 0.9;
     transform: scale(0.88) rotate(0deg);
     transition:
       opacity 520ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -1315,13 +1323,7 @@
   }
 
   .dark .theme-toggle__halo {
-    background:
-      radial-gradient(
-        circle at 65% 25%,
-        rgba(143, 184, 255, 0.42),
-        transparent 52%
-      ),
-      linear-gradient(145deg, #2a3443, #171f2b);
+    background: var(--surface-1-soft);
     opacity: 1;
     transform: scale(1) rotate(180deg);
   }
@@ -1341,10 +1343,8 @@
   }
 
   .theme-transitioning .theme-toggle {
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--brand-400) 32%, transparent),
-      0 18px 44px -22px color-mix(in srgb, var(--brand-500) 58%, transparent);
-    transform: translateY(-1px) scale(1.06);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-500) 40%, transparent);
+    transform: scale(1.04);
   }
 
   .theme-transitioning::before {
@@ -1467,27 +1467,28 @@
   }
 
   .ds-kpi-eyebrow {
-    color: var(--text-4);
-    font-size: 10px;
-    font-weight: 650;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    color: var(--text-3);
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.3;
   }
 
   .ds-kpi-num {
-    margin-top: 8px;
+    margin-top: 6px;
     color: var(--text-1);
     font-family: var(--font-display);
-    font-size: 30px;
-    font-weight: 650;
-    line-height: 1;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
   }
 
   .ds-kpi-sub {
-    margin-top: 6px;
+    margin-top: 4px;
     color: var(--text-3);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 12.5px;
+    font-weight: 500;
   }
 
   .ds-kpi.k-success {
@@ -2354,8 +2355,7 @@
     transform-origin: 0 50%;
     transform: scaleX(0);
     opacity: 0;
-    background: linear-gradient(90deg, var(--viz-1), color-mix(in srgb, var(--viz-1) 60%, #7dd3fc));
-    box-shadow: 0 0 8px color-mix(in srgb, var(--viz-1) 60%, transparent);
+    background: hsl(var(--primary));
   }
 
   .erp-route-progress[data-state="running"] {

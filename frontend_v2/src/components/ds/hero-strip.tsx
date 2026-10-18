@@ -30,9 +30,8 @@ export const HeroStrip = React.forwardRef<HTMLElement, HeroStripProps>(
     <section
       ref={ref}
       className={cn(
-        "relative isolate overflow-hidden rounded-2xl border",
-        variant === "light" &&
-          "border-surface-1/40 bg-gradient-to-br from-info-bg via-white to-order-bg",
+        "relative isolate overflow-hidden rounded-[16px] border shadow-[var(--shadow-sm)]",
+        variant === "light" && "border-line bg-surface-1",
         variant === "admin" && "erp-admin-hero border-transparent",
         variant === "plain" && "border-line bg-surface-1",
         "px-5 py-4",
@@ -44,31 +43,20 @@ export const HeroStrip = React.forwardRef<HTMLElement, HeroStripProps>(
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           {eyebrow && (
-            <div
-              className={cn(
-                "text-caption font-semibold uppercase tracking-[0.08em]",
-                variant === "admin" ? "text-info-border" : "text-primary",
-              )}
-            >
+            <div className="text-[12.5px] font-medium text-content-3">
               {eyebrow}
             </div>
           )}
           <h1
             className={cn(
-              "font-display leading-tight tracking-[-0.01em]",
-              "text-[clamp(1.5rem,2.4vw,2.25rem)]",
-              variant === "admin" ? "text-white" : "text-content-1",
+              "font-semibold leading-7 tracking-[-0.02em] text-content-1",
+              "text-[22px] md:text-[24px] md:leading-8",
             )}
           >
             {title}
           </h1>
           {subtitle && (
-            <div
-              className={cn(
-                "mt-1 max-w-2xl text-sm",
-                variant === "admin" ? "text-info-border" : "text-content-3",
-              )}
-            >
+            <div className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-content-3">
               {subtitle}
             </div>
           )}

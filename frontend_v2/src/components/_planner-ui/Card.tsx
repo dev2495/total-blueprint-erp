@@ -11,12 +11,12 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 /**
  * Card — the universal surface.
  *
- * <Card>                                — default surface
- * <Card variant="emphasis">             — top-tinted gradient, slightly elevated
- * <Card variant="hero">                 — brand blue gradient, white text
- * <Card variant="hero-admin">           — navy gradient, for admin pages
+ * <Card>                                — default surface (white, hairline, soft shadow)
+ * <Card variant="emphasis">             — same surface with a brand-tinted hairline
+ * <Card variant="hero">                 — the page header card (white, dark text)
+ * <Card variant="hero-admin">           — identical to "hero"; kept for admin pages
  *
- * Add `hoverable` to lift on hover (do not use on hero variants).
+ * Add `hoverable` for a stronger hairline + shadow on hover (not on hero variants).
  *
  * Do NOT use bg-surface-1, border, or shadow utilities — they're baked in.
  */

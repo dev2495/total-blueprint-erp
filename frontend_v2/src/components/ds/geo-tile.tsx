@@ -56,7 +56,7 @@ export const GeoTile = React.forwardRef<HTMLDivElement, GeoTileProps>(
       {...props}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
+        <span className="text-caption font-medium text-content-3">
           {label}
         </span>
         {chip && (

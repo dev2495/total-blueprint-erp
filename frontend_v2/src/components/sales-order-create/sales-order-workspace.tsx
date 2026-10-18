@@ -361,50 +361,50 @@ function SubtleHero({
   blockerCount: number;
 }) {
   return (
-    <section className="erp-hero relative overflow-hidden rounded-[20px] p-4 text-white shadow-lg">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.28),transparent_24rem)]" />
+    <section className="erp-hero relative overflow-hidden rounded-[16px] p-4 md:p-5">
+      <div className="hidden" />
       <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-border">
+          <div className="flex items-center text-caption font-medium text-content-3">
             <span className="mr-2 inline-block h-2 w-2 rounded-full bg-success-fg" />
             Sales · New order
           </div>
-          <h1 className="mt-1 font-display text-xl font-semibold tracking-tight md:text-2xl">
+          <h1 className="mt-1 text-[22px] font-semibold leading-7 tracking-[-0.02em] text-content-1 md:text-[24px] md:leading-8">
             {customer
               ? `${customer.name} order workspace`
               : "New sales order"}
           </h1>
-          <p className="mt-1 max-w-4xl text-xs font-semibold text-white/72 md:text-sm">
+          <p className="mt-1 max-w-4xl text-[13px] leading-relaxed text-content-3 md:text-[13.5px]">
             {customer
               ? "Add the lines for this customer. Each line carries its product, artwork, packing and quantity; the material list updates as you go."
               : `Choose the customer first (${customerCount} on file), then add the lines.`}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-caption font-semibold">
+          <div className="mt-3 flex flex-wrap gap-2 text-caption font-medium">
             <span
               className={cn(
                 "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
                 customer
-                  ? "bg-success-fg text-success-border ring-success-border"
-                  : "bg-warning-fg text-warning-border ring-warning-border",
+                  ? "bg-success-bg text-success-fg ring-success-border"
+                  : "bg-warning-bg text-warning-fg ring-warning-border",
               )}
             >
               <CheckCircle2 className="h-3.5 w-3.5" /> Customer{" "}
               {customer ? "set" : "pending"}
             </span>
-            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-1/12 px-3 text-white ring-1 ring-surface-1/20">
+            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-content-2 ring-1 ring-line">
               Lines{" "}
               <span className="font-mono tabular-nums">
                 {draft.lines.length}
               </span>
             </span>
-            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-1/12 px-3 text-white ring-1 ring-surface-1/20">
+            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-content-2 ring-1 ring-line">
               KG{" "}
               <span className="font-mono tabular-nums">
                 {cartTotalKg ? cartTotalKg.toLocaleString() : "—"}
               </span>
             </span>
             {cartTotalValue > 0 ? (
-              <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-1/12 px-3 text-white ring-1 ring-surface-1/20">
+              <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-content-2 ring-1 ring-line">
                 Value{" "}
                 <span className="font-mono tabular-nums">
                   ₹{Math.round(cartTotalValue).toLocaleString()}
@@ -415,10 +415,10 @@ function SubtleHero({
               className={cn(
                 "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
                 isReady
-                  ? "bg-success-fg text-success-border ring-success-border"
+                  ? "bg-success-bg text-success-fg ring-success-border"
                   : blockerCount > 0
-                    ? "bg-danger-fg text-danger-border ring-danger-border"
-                    : "bg-warning-fg text-warning-border ring-warning-border",
+                    ? "bg-danger-bg text-danger-fg ring-danger-border"
+                    : "bg-warning-bg text-warning-fg ring-warning-border",
               )}
             >
               {isReady
@@ -427,11 +427,11 @@ function SubtleHero({
             </span>
           </div>
         </div>
-        <div className="hidden rounded-2xl bg-white/10 p-3 ring-1 ring-white/20 backdrop-blur md:block">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/58">
+        <div className="hidden rounded-[12px] border border-line bg-surface-2 p-3 md:block">
+          <div className="text-caption font-medium text-content-3">
             Flow
           </div>
-          <div className="mt-2 grid gap-1 text-xs font-bold">
+          <div className="mt-2 grid gap-1 text-xs font-medium text-content-2">
             <span>1. Header</span>
             <span>2. Line tabs</span>
             <span>3. Axes + artwork</span>
@@ -773,23 +773,23 @@ function StickyCartBar({
   onSubmit: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface-1/95 px-4 py-3 shadow-2xl backdrop-blur sm:px-6 lg:left-[var(--sidebar-width,16rem)]">
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface-1/92 px-4 py-3 shadow-[0_-8px_24px_-16px_rgba(16,24,40,0.18)] backdrop-blur-md sm:px-6 lg:left-[var(--sidebar-width,16rem)]">
       <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-caption font-medium text-content-3">
               Cart
             </span>
-            <span className="rounded-full bg-info-bg px-2.5 py-0.5 text-xs font-bold text-primary">
+            <span className="rounded-full bg-info-bg px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-info-border">
               {lineCount} {lineCount === 1 ? "line" : "lines"}
             </span>
             {cartTotalKg > 0 ? (
-              <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-bold text-success-fg ring-1 ring-success-border">
+              <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-semibold text-success-fg ring-1 ring-success-border">
                 {cartTotalKg.toLocaleString()} KG
               </span>
             ) : null}
             {cartTotalValue > 0 ? (
-              <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-bold text-content-2">
+              <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-content-2 ring-1 ring-line">
                 ₹{Math.round(cartTotalValue).toLocaleString()}
               </span>
             ) : null}
@@ -799,7 +799,7 @@ function StickyCartBar({
               {blockingIssues.slice(0, 2).map((b, i) => (
                 <span
                   key={i}
-                  className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 font-bold text-danger-fg ring-1 ring-danger-border"
+                  className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 font-medium text-danger-fg ring-1 ring-danger-border"
                 >
                   <AlertTriangle className="h-3 w-3" />
                   {b}
@@ -813,7 +813,7 @@ function StickyCartBar({
               {warnings.slice(0, 1).map((w, i) => (
                 <span
                   key={i}
-                  className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 font-bold text-warning-fg ring-1 ring-warning-border"
+                  className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 font-medium text-warning-fg ring-1 ring-warning-border"
                 >
                   <Sparkles className="h-3 w-3" />
                   {w}
@@ -839,10 +839,10 @@ function StickyCartBar({
             onClick={onSubmit}
             disabled={!isReady || isSubmitting}
             className={cn(
-              "gap-1.5 rounded-xl shadow-lg",
+              "h-11 gap-1.5 rounded-[10px]",
               isReady
-                ? "bg-gradient-to-r from-success-fg to-info-fg hover:shadow-xl hover:"
-                : "bg-line",
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : "bg-line text-content-3 shadow-none",
             )}
           >
             {isSubmitting ? (
@@ -851,7 +851,7 @@ function StickyCartBar({
               <ClipboardCheck className="h-4 w-4" />
             )}
             Create + send to planner
-            <span className="hidden rounded bg-surface-1/15 px-1.5 py-0.5 text-caption font-semibold sm:inline">
+            <span className="hidden rounded-[4px] bg-white/15 px-1.5 py-0.5 text-caption font-medium sm:inline">
               ⌘↵
             </span>
             <ArrowRight className="h-4 w-4" />

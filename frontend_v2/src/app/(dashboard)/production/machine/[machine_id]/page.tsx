@@ -653,7 +653,7 @@ function terminalStateBadgeClass(state?: string) {
     return "bg-warning-bg text-warning-fg ring-warning-border";
   if (normalized === "COMPLETE")
     return "bg-order-bg text-order-fg ring-order-border";
-  return "bg-surface-1/10 text-content-4 ring-surface-1/10";
+  return "bg-surface-2 text-content-3 ring-line";
 }
 
 function firstNumber(row: any, keys: string[], fallback = 0) {
@@ -2715,14 +2715,14 @@ export default function MachineExecutionPage() {
         machine
       </span>
       <div className="mx-auto max-w-[1780px] px-3 py-3 md:px-5">
-        <section className="sticky top-2 z-30 mb-3 overflow-hidden rounded-[16px] bg-surface-3/96 shadow-[0_20px_56px_-40px_rgba(15,23,42,0.58)] ring-1 ring-line backdrop-blur">
-          <div className="grid gap-2 px-3 py-2 text-sm text-white lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:px-4">
+        <section className="sticky top-2 z-30 mb-3 overflow-hidden rounded-[14px] border border-line bg-surface-1/92 shadow-[var(--shadow-sm)] backdrop-blur-md">
+          <div className="grid gap-2 px-3 py-2 text-sm text-content-1 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:px-4">
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-8 rounded-lg px-2 text-xs font-semibold text-white hover:bg-surface-1/10 hover:text-white"
+                  className="h-8 rounded-[8px] px-2 text-xs font-medium text-content-2 hover:bg-surface-2 hover:text-content-1"
                   onClick={() => router.push("/production/machine-selector")}
                 >
                   <ArrowLeft className="mr-1 h-4 w-4" />
@@ -2730,30 +2730,30 @@ export default function MachineExecutionPage() {
                 </Button>
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-semibold uppercase tracking-wider ring-1",
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-medium ring-1",
                     terminalStateBadgeClass(terminalState),
                   )}
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-current" />
                   {terminalState}
                 </span>
-                <span className="rounded-full bg-surface-1/10 px-2.5 py-1 text-caption font-bold text-white/80">
+                <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-caption font-medium text-content-2">
                   Shift live
                 </span>
               </div>
               <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="truncate text-sm font-semibold md:text-base">
+                <span className="truncate text-sm font-semibold text-content-1 md:text-base">
                   {machineName}
                 </span>
-                <span className="font-mono text-xs font-bold text-white/80">
+                <span className="font-mono text-xs font-medium text-content-3">
                   {machineCode}
                 </span>
-                <span className="hidden text-xs font-semibold text-white/80 xl:inline">
+                <span className="hidden text-xs font-medium text-content-3 xl:inline">
                   {machineDetail?.machine?.plant_name || "Plant"} /{" "}
                   {machineDetail?.machine?.work_center_name || "Assigned line"}
                 </span>
               </div>
-              <div className="mt-0.5 truncate text-xs font-semibold text-white/80">
+              <div className="mt-0.5 truncate text-xs font-medium text-content-3">
                 {templateName} · {customerName} ·{" "}
                 <span className="font-mono">{orderNumber}</span> · {stepName}
               </div>
@@ -2761,10 +2761,10 @@ export default function MachineExecutionPage() {
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-1 text-caption font-bold ring-1",
+                  "rounded-full px-2.5 py-1 text-caption font-medium ring-1",
                   online
-                    ? "bg-surface-1/10 text-white/80 ring-surface-1/10"
-                    : "bg-danger-solid text-danger-border ring-danger-border",
+                    ? "bg-surface-2 text-content-2 ring-line"
+                    : "bg-danger-bg text-danger-fg ring-danger-border",
                 )}
               >
                 {syncLabel}
@@ -2773,10 +2773,10 @@ export default function MachineExecutionPage() {
                 type="button"
                 variant={activeTab === "run" ? "secondary" : "ghost"}
                 className={cn(
-                  "h-8 rounded-lg px-3 text-xs font-semibold",
+                  "h-8 rounded-[8px] px-3 text-xs font-medium",
                   activeTab === "run"
-                    ? "bg-surface-1 text-content-1 hover:bg-surface-2"
-                    : "text-white hover:bg-surface-1/10 hover:text-white",
+                    ? "bg-surface-2 text-content-1 hover:bg-surface-2"
+                    : "text-content-2 hover:bg-surface-2 hover:text-content-1",
                 )}
                 onClick={() => setActiveTab("run")}
               >
@@ -2786,10 +2786,10 @@ export default function MachineExecutionPage() {
                 type="button"
                 variant={activeTab === "history" ? "secondary" : "ghost"}
                 className={cn(
-                  "h-8 rounded-lg px-3 text-xs font-semibold",
+                  "h-8 rounded-[8px] px-3 text-xs font-medium",
                   activeTab === "history"
-                    ? "bg-surface-1 text-content-1 hover:bg-surface-2"
-                    : "text-white hover:bg-surface-1/10 hover:text-white",
+                    ? "bg-surface-2 text-content-1 hover:bg-surface-2"
+                    : "text-content-2 hover:bg-surface-2 hover:text-content-1",
                 )}
                 onClick={() => setActiveTab("history")}
               >
@@ -2799,7 +2799,7 @@ export default function MachineExecutionPage() {
               <Button
                 type="button"
                 variant="ghost"
-                className="h-8 rounded-lg px-3 text-xs font-semibold text-white hover:bg-surface-1/10 hover:text-white"
+                className="h-8 rounded-[8px] px-3 text-xs font-medium text-content-2 hover:bg-surface-2 hover:text-content-1"
                 onClick={() => refreshAll()}
               >
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
@@ -3436,12 +3436,12 @@ function FocusedJobHero({
 }: any) {
   if (!selectedJob) {
     return (
-      <section className="erp-hero overflow-hidden rounded-[20px] p-6 text-white">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/75">
+      <section className="erp-hero overflow-hidden rounded-[16px] p-6">
+        <div className="text-caption font-medium text-content-3">
           Idle
         </div>
-        <div className="mt-2 text-2xl font-semibold">No job selected · कोई जॉब चुना नहीं</div>
-        <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-white/85">
+        <div className="mt-2 text-[22px] font-semibold tracking-[-0.02em] text-content-1">No job selected · कोई जॉब चुना नहीं</div>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-content-2">
           Pick a job from the queue on the left. Then press Start, log what you
           make, and press Complete when the step is done. · बाईं ओर की कतार से जॉब
           चुनें, Start दबाएँ, बनाया हुआ माल लिखें, और काम पूरा होने पर Complete दबाएँ।
@@ -3468,27 +3468,27 @@ function FocusedJobHero({
     priority.toLowerCase() !== "none";
   const safeProgress = Math.max(0, Math.min(100, progressPct));
   const gaugeStyle = {
-    background: `conic-gradient(#10b981 ${safeProgress}%, rgba(255,255,255,0.18) 0)`,
+    background: `conic-gradient(var(--success-fg) ${safeProgress}%, var(--border-soft) 0)`,
   } as any;
 
   return (
     <section
-      className="overflow-hidden rounded-[18px] bg-gradient-to-br from-surface-3 via-[#253a58] to-[#446fb8] p-3 text-white shadow-[0_18px_46px_-38px_rgba(15,23,42,0.65)]"
+      className="erp-hero overflow-hidden rounded-[16px] p-3 md:p-4"
       data-testid="machine-job-briefing"
     >
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_98px]">
         <div className="min-w-0">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-border">
+          <div className="text-caption font-medium text-content-3">
             Now selected · {jobNumber} · {orderNumber}
           </div>
-          <h2 className="mt-1 break-words text-xl font-semibold tracking-tight">
+          <h2 className="mt-1 break-words text-[20px] font-semibold tracking-[-0.02em] text-content-1">
             {spec?.productName || templateName}
           </h2>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-order-border">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-medium text-content-3">
             <span>{customerName}</span>
-            <span className="text-order-border">/</span>
+            <span className="text-content-4">/</span>
             <span>{stepName}</span>
-            <span className="text-order-border">/</span>
+            <span className="text-content-4">/</span>
             <span>{behaviorLabel(behavior)}</span>
             {showPriority ? (
               <span className="rounded-full border border-warning-border bg-warning-bg px-2.5 py-1 text-caption font-semibold text-warning-fg shadow-sm">
@@ -3498,18 +3498,18 @@ function FocusedJobHero({
           </div>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {batchLabel ? (
-              <span className="inline-flex min-h-6 items-center rounded-full bg-surface-1/12 px-2.5 py-0.5 text-caption font-semibold text-white ring-1 ring-surface-1/20">
+              <span className="inline-flex min-h-6 items-center rounded-full bg-surface-2 px-2.5 py-0.5 text-caption font-medium text-content-2 ring-1 ring-line">
                 {batchLabel}
               </span>
             ) : null}
             {routeLabel ? (
-              <span className="inline-flex min-h-6 items-center rounded-full bg-surface-1/12 px-2.5 py-0.5 text-caption font-semibold text-white ring-1 ring-surface-1/20">
+              <span className="inline-flex min-h-6 items-center rounded-full bg-surface-2 px-2.5 py-0.5 text-caption font-medium text-content-2 ring-1 ring-line">
                 {routeLabel}
               </span>
             ) : null}
           </div>
           {plannerNote ? (
-            <div className="mt-2 rounded-xl bg-surface-1/10 px-3 py-2 text-xs font-semibold leading-5 text-order-border ring-1 ring-surface-1/15">
+            <div className="mt-2 rounded-[10px] bg-surface-2 px-3 py-2 text-xs font-medium leading-5 text-content-2 ring-1 ring-line">
               Planner note: {plannerNote}
             </div>
           ) : null}
@@ -3721,14 +3721,14 @@ function HeroMetric({
   tone?: "slate" | "emerald";
 }) {
   return (
-    <div className="rounded-xl bg-surface-1/10 px-3 py-2.5 ring-1 ring-surface-1/10">
-      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-order-border">
+    <div className="rounded-[12px] border border-line bg-surface-2 px-3 py-2.5">
+      <div className="text-caption font-medium text-content-3">
         {label}
       </div>
       <div
         className={cn(
-          "mt-1 break-words font-mono text-base font-semibold text-white",
-          tone === "emerald" && "text-success-border",
+          "mt-1 break-words font-mono text-base font-semibold tabular-nums text-content-1",
+          tone === "emerald" && "text-success-fg",
         )}
       >
         {value}

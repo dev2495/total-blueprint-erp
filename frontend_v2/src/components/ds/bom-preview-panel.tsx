@@ -61,7 +61,7 @@ export const BomPreviewPanel = React.forwardRef<
       ref={ref}
       aria-label="BOM preview"
       className={cn(
-        "flex flex-col gap-3 overflow-hidden rounded-2xl border border-line bg-surface-1/80 p-4 backdrop-blur-sm",
+        "flex flex-col gap-3 overflow-hidden rounded-[14px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]",
         sticky && "sticky top-3",
         className,
       )}

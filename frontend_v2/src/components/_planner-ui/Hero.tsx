@@ -17,9 +17,17 @@ interface HeroProps {
   subtitle?: string;
   variant?: HeroVariant;
   actions?: ReactNode;          // a flexbox row of buttons
-  kpis?: HeroKPI[];             // rendered as glass tiles inside the hero
+  kpis?: HeroKPI[];             // rendered as quiet tiles inside the hero
   className?: string;
 }
+
+const ACCENT_NUM: Record<NonNullable<HeroKPI["accent"]>, string> = {
+  default: "var(--text-1)",
+  success: "var(--success-fg)",
+  warn: "var(--warning-fg)",
+  danger: "var(--danger-fg)",
+  info: "var(--info-fg)",
+};
 
 /**
  * Hero — the always-on page header. Exactly ONE per page.
@@ -35,7 +43,8 @@ interface HeroProps {
  *    ]}
  * />
  *
- * Use variant="admin" for the navy admin door. Default is the standard blue brand gradient.
+ * Both variants render the same calm white header card; "admin" is kept for
+ * the admin pages' API and reads identically.
  *
  * The page title MUST live inside <Hero title=>, never raw <h1>.
  */
@@ -54,15 +63,15 @@ export function Hero({
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             {eyebrow && (
-              <div className="t-eyebrow" style={{ color: "rgba(255,255,255,.65)" }}>
+              <div className="t-eyebrow" style={{ color: "var(--text-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500, fontSize: 12.5 }}>
                 {eyebrow}
               </div>
             )}
-            <h1 className="t-display-md" style={{ color: "#fff", marginTop: 4 }}>
+            <h1 className="t-display-md" style={{ color: "var(--text-1)", marginTop: 4 }}>
               {title}
             </h1>
             {subtitle && (
-              <p style={{ color: "rgba(255,255,255,.78)", fontSize: 14, marginTop: 8, maxWidth: 560 }}>
+              <p style={{ color: "var(--text-3)", fontSize: 13.5, lineHeight: 1.5, marginTop: 6, maxWidth: 560 }}>
                 {subtitle}
               </p>
             )}
@@ -72,7 +81,7 @@ export function Hero({
 
         {kpis && kpis.length > 0 && (
           <div
-            className={`grid gap-3 mt-5`}
+            className={`grid gap-2 mt-4`}
             style={{
               gridTemplateColumns: `repeat(auto-fit, minmax(${kpis.length >= 7 ? "140px" : "160px"}, 1fr))`,
             }}
@@ -82,27 +91,12 @@ export function Hero({
                 <div className="ds-glass-eyebrow">{k.eyebrow}</div>
                 <div
                   className="ds-glass-num"
-                  style={{
-                    color:
-                      k.accent === "success" ? "#a7f3d0"
-                      : k.accent === "warn"  ? "#fde68a"
-                      : k.accent === "danger" ? "#fecaca"
-                      : "#fff",
-                  }}
+                  style={{ color: ACCENT_NUM[k.accent ?? "default"] }}
                 >
                   {k.value}
                 </div>
                 {k.sub && (
-                  <div
-                    className="ds-glass-sub"
-                    style={{
-                      color:
-                        k.accent === "success" ? "#a7f3d0"
-                        : k.accent === "warn"  ? "#fde68a"
-                        : k.accent === "danger" ? "#fecaca"
-                        : "rgba(255,255,255,.7)",
-                    }}
-                  >
+                  <div className="ds-glass-sub" style={{ color: "var(--text-3)" }}>
                     {k.sub}
                   </div>
                 )}

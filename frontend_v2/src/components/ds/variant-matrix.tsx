@@ -131,7 +131,7 @@ export function VariantMatrix({
           className,
         )}
       >
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-content-3">
+        <div className="mb-2 text-xs font-medium text-content-3">
           Single variant
         </div>
         <div className="font-mono-token text-sm text-content-1">
@@ -147,7 +147,7 @@ export function VariantMatrix({
     const values = uniqueAxisValues(axis, filteredVariants);
     return (
       <div className={cn("flex flex-col gap-3", className)}>
-        <div className="text-xs font-semibold uppercase tracking-wide text-content-3">
+        <div className="text-xs font-medium text-content-3">
           {axis.axis}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -194,8 +194,8 @@ export function VariantMatrix({
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {/* Axis pickers */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1/70 p-2 backdrop-blur-sm">
-        <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-[12px] border border-line bg-surface-1 p-2">
+        <span className="text-caption font-medium text-content-3">
           Rows
         </span>
         <ChipGroup spacing="tight">
@@ -212,7 +212,7 @@ export function VariantMatrix({
             </Chip>
           ))}
         </ChipGroup>
-        <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
+        <span className="text-caption font-medium text-content-3">
           Cols
         </span>
         <ChipGroup spacing="tight">
@@ -234,7 +234,7 @@ export function VariantMatrix({
       {/* Filter row for non-axis dims */}
       {otherAxes.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface-2 p-2">
-          <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
+          <span className="text-caption font-medium text-content-3">
             Filter
           </span>
           {otherAxes.map((a) => {
@@ -274,7 +274,7 @@ export function VariantMatrix({
         >
           <div
             role="columnheader"
-            className="sticky left-0 top-0 z-10 border-b border-r border-line bg-surface-2 px-2 py-1 text-caption font-semibold uppercase tracking-wide text-content-3"
+            className="sticky left-0 top-0 z-10 border-b border-r border-line bg-surface-2 px-2 py-1 text-caption font-medium text-content-3"
           >
             {rowAxis} ↓ / {colAxis} →
           </div>
@@ -408,7 +408,7 @@ function Drawer({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex justify-end bg-surface-3 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex justify-end bg-surface-3/50 backdrop-blur-[2px]"
       onClick={onClose}
     >
       <aside
@@ -417,7 +417,7 @@ function Drawer({
       >
         <header className="flex items-start justify-between gap-2">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-wide text-content-4">
+            <div className="text-caption font-medium text-content-3">
               {cell.variant ? "Variant" : "Create variant"}
             </div>
             <div className="font-display text-xl text-content-1">
@@ -452,7 +452,7 @@ function Drawer({
 
         {cell.variant?.geometry_snapshot && (
           <section className="rounded-lg border border-line bg-surface-1 p-3">
-            <h3 className="mb-2 text-caption font-semibold uppercase tracking-wide text-content-3">
+            <h3 className="mb-2 text-caption font-medium text-content-3">
               Geometry
             </h3>
             <pre className="overflow-x-auto whitespace-pre-wrap font-mono-token text-caption text-content-2">

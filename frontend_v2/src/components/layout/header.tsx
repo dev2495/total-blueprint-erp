@@ -50,7 +50,7 @@ export function Header() {
   };
 
   return (
-    <header className="erp-glass-chrome fixed left-0 right-0 top-0 z-50 border-b border-line bg-surface-1/85 px-3 py-2 shadow-[var(--shadow-sm)] backdrop-blur-xl backdrop-saturate-150 transition-[background-color,border-color,box-shadow] duration-150 md:left-4 md:right-4 md:top-3 md:rounded-[18px] md:border md:px-4 md:py-2.5 lg:sticky lg:left-auto lg:right-auto lg:top-3 lg:mx-6 lg:px-4 xl:mx-8">
+    <header className="erp-glass-chrome fixed left-0 right-0 top-0 z-50 border-b border-line bg-surface-1/90 px-3 py-2 backdrop-blur-md transition-[background-color,border-color,box-shadow] duration-150 md:left-4 md:right-4 md:top-3 md:rounded-[14px] md:border md:px-4 md:py-2.5 md:shadow-[var(--shadow-sm)] lg:sticky lg:left-auto lg:right-auto lg:top-3 lg:mx-6 lg:px-4 xl:mx-8">
       <div className="flex w-full flex-col gap-2.5 lg:hidden">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -59,7 +59,7 @@ export function Header() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-11 w-11 rounded-xl border-line bg-surface-1/95 shadow-sm"
+                  className="h-11 w-11 rounded-[10px] border-line bg-surface-1 shadow-none"
                   data-testid="mobile-nav-trigger"
                   aria-label="Open navigation"
                 >
@@ -68,7 +68,7 @@ export function Header() {
               </SheetTrigger>
               <SheetContent
                 side="left"
-                className="w-[min(82vw,19.5rem)] border-r border-line bg-surface-1 p-0 shadow-[24px_0_80px_-56px_rgba(15,23,42,0.65)] backdrop-blur-2xl"
+                className="w-[min(82vw,19.5rem)] border-r border-line bg-surface-1 p-0"
               >
                 <div className="flex h-full flex-col">
                   <SheetHeader className="border-b border-line px-4 py-4 text-left">
@@ -94,11 +94,11 @@ export function Header() {
                 </div>
               </SheetContent>
             </Sheet>
-            <div className="min-w-0 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
-              <div className="truncate text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="min-w-0 rounded-[10px] border border-line bg-surface-2 px-3 py-2">
+              <div className="truncate text-caption font-medium text-content-3">
                 Role
               </div>
-              <div className="truncate text-caption font-bold text-content-2">
+              <div className="truncate text-caption font-semibold text-content-1">
                 {getRoleDisplayName()}
               </div>
             </div>
@@ -136,7 +136,7 @@ export function Header() {
             <Button
               asChild
               variant="outline"
-              className="h-10 shrink-0 rounded-xl border-warning-border bg-warning-bg px-3 text-xs font-semibold text-warning-fg hover:bg-warning-bg"
+              className="h-10 shrink-0 rounded-[10px] border-warning-border bg-warning-bg px-3 text-xs font-medium text-warning-fg hover:bg-warning-bg"
             >
               <Link href="/profile">
                 <AlertTriangle className="mr-1.5 h-4 w-4" />
@@ -161,9 +161,9 @@ export function Header() {
           <div className="relative z-10 hidden md:block">
             <RoleSwitcher />
           </div>
-          <div className="hidden items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm 2xl:flex">
-            <div aria-hidden="true" className="h-2 w-2 rounded-full bg-success-fg shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-            <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 lg:text-caption">
+          <div className="hidden items-center gap-2 rounded-[10px] border border-line bg-surface-2 px-3 py-2 2xl:flex">
+            <div aria-hidden="true" className="h-2 w-2 rounded-full bg-success-fg" />
+            <span className="text-caption font-medium text-content-2 lg:text-caption">
               {getRoleDisplayName()}
             </span>
           </div>
@@ -178,7 +178,7 @@ export function Header() {
                 <Button
                   asChild
                   variant="outline"
-                  className="h-10 rounded-xl border-warning-border bg-warning-bg text-warning-fg hover:bg-warning-bg"
+                  className="h-10 rounded-[10px] border-warning-border bg-warning-bg font-medium text-warning-fg hover:bg-warning-bg"
                 >
                   <Link href="/profile">
                     <AlertTriangle className="mr-1.5 h-4 w-4" />
@@ -188,7 +188,7 @@ export function Header() {
                 <button
                   type="button"
                   aria-label="Hide the email reminder for this session"
-                  className="h-8 w-8 rounded-lg text-content-3 hover:bg-surface-2 hover:text-content-1"
+                  className="h-8 w-8 rounded-[8px] text-content-3 transition-colors duration-150 hover:bg-surface-2 hover:text-content-1"
                   onClick={() => {
                     setEmailReminderDismissed(true);
                     try {

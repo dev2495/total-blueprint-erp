@@ -158,7 +158,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                         }
                         className={cn(
                           opt.disabled && "opacity-40 cursor-not-allowed",
-                          selected && "ring-2 ring-info-border",
+                          selected && "ring-2 ring-focus",
                         )}
                       >
                         {opt.label}
@@ -172,7 +172,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                 <select
                   value={String(current ?? "")}
                   onChange={(e) => update(axis.axis, e.target.value)}
-                  className="h-9 rounded-md border border-line bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-info-border"
+                  className="h-9 rounded-md border border-line bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-focus"
                 >
                   <option value="">— select —</option>
                   {opts.map((opt) => (
@@ -199,7 +199,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                       e.target.value === "" ? null : Number(e.target.value),
                     )
                   }
-                  className="h-9 rounded-md border border-line bg-surface-1 px-2 font-mono-token text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-info-border"
+                  className="h-9 rounded-md border border-line bg-surface-1 px-2 font-mono-token text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-focus"
                 />
               )}
 
@@ -235,7 +235,7 @@ export const AxisEditor = React.forwardRef<HTMLDivElement, AxisEditorProps>(
                   type="text"
                   value={current ?? ""}
                   onChange={(e) => update(axis.axis, e.target.value)}
-                  className="h-9 rounded-md border border-line bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-info-border"
+                  className="h-9 rounded-md border border-line bg-surface-1 px-2 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-focus"
                 />
               )}
 
