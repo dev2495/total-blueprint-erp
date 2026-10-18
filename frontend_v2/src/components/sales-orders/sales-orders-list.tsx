@@ -1842,7 +1842,7 @@ export function SalesOrdersListWorkspace() {
         ) : (
           <>
             {/* Desktop column headers — hidden on mobile */}
-            <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,1.2fr)_minmax(0,2.05fr)_8.5rem_minmax(0,1.05fr)_9.5rem] gap-3 border-b border-line bg-surface-2 px-4 py-2 text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+            <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,2.4fr)_7rem_minmax(240px,1.1fr)_8rem] gap-3 border-b border-line bg-surface-2 px-4 py-2.5 text-[12.5px] font-medium text-content-3">
               <div>
                 <input
                   type="checkbox"
@@ -1852,7 +1852,7 @@ export function SalesOrdersListWorkspace() {
                 />
               </div>
               <div>Customer · Order #</div>
-              <div>Product master · variant tuple</div>
+              <div>Product · size · layers</div>
               <div>Placed · age</div>
               <div>Qty · progress</div>
               <div className="text-right">Status · actions</div>
@@ -1927,23 +1927,22 @@ function Hero({
   kpis: { open: number; awaiting: number; aged: number; customersOpen: number };
 }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-order-bg via-white to-success-bg px-5 py-4 shadow-sm sm:px-6 sm:py-5">
-      <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-order-fg via-order-fg to-order-fg" />
-      <div className="relative pl-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <section className="rounded-2xl border border-line bg-surface-1 px-5 py-4 shadow-sm sm:px-6 sm:py-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
-            Sales · order operations
+          <div className="text-[12.5px] font-medium text-content-3">
+            Sales · orders
           </div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-content-1 mt-1 sm:text-3xl">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-content-1 mt-0.5">
             Sales Orders
           </h1>
-          <p className="mt-1.5 max-w-2xl text-xs text-content-3">
+          <p className="mt-1 max-w-2xl text-[13.5px] text-content-3">
             Every open order, by age and stage. Anything older than 5 days
             bubbles up in red — that&apos;s the line worth chasing.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-1.5 text-caption font-bold">
             <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-0.5 text-success-fg ring-1 ring-success-border">
-              ⚡ {kpis.open} open
+              {kpis.open} open
             </span>
             {kpis.awaiting ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-0.5 text-warning-fg ring-1 ring-warning-border">
@@ -1952,7 +1951,7 @@ function Hero({
             ) : null}
             {kpis.aged ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2.5 py-0.5 text-danger-fg ring-1 ring-danger-border">
-                ▾ {kpis.aged} aged 6+d
+                {kpis.aged} aged 6+ days
               </span>
             ) : null}
             <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-0.5 text-content-2 ring-1 ring-line">
@@ -1963,13 +1962,13 @@ function Hero({
         <div className="flex items-center gap-2">
           <Link
             href="/master/products"
-            className="inline-flex h-9 items-center rounded-lg border border-line bg-surface-1 px-3 text-caption font-bold text-content-2 hover:bg-surface-2"
+            className="inline-flex h-9 items-center rounded-[10px] border border-line bg-surface-1 px-3.5 text-[13px] font-semibold text-content-2 transition-colors hover:bg-surface-2"
           >
             Product master
           </Link>
           <Link
             href="/sales/orders/create"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-order-fg to-order-fg px-3 text-caption font-bold text-white shadow-md"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-primary px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-primary/90"
           >
             <Plus className="h-3.5 w-3.5" /> New order
           </Link>
@@ -2004,21 +2003,19 @@ function KpiTile({
           : tone === "indigo"
             ? "text-order-fg"
             : "text-content-1";
-  const isCard = tone === "amber" || tone === "rose";
-  const valueCls = isCard ? "" : toneCls;
-  const wrap = isCard ? toneCls : "border-line bg-surface-1";
+  // Calm tiles: neutral card, the status colour lives on the number only.
+  const valueCls = tone === "amber" ? "text-warning-fg" : tone === "rose" ? "text-danger-fg" : toneCls;
   const cls = cn(
-    "rounded-2xl border px-3.5 py-2.5 shadow-sm text-left",
-    wrap,
-    onClick ? "hover:shadow-md cursor-pointer" : "",
+    "rounded-[14px] border border-line bg-surface-1 px-4 py-3 text-left transition-colors",
+    onClick ? "hover:border-line-strong cursor-pointer" : "",
   );
   const body = (
     <>
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12.5px] font-medium text-content-3">
         {label}
       </div>
       <div
-        className={cn("font-display text-xl font-semibold tabular-nums", valueCls)}
+        className={cn("mt-0.5 font-display text-2xl font-semibold tabular-nums", valueCls)}
       >
         {value}
       </div>
@@ -3689,7 +3686,7 @@ function OrderRow({
       {/* Desktop layout (table-ish) */}
       <div
         className={cn(
-          "hidden md:grid grid-cols-[2.5rem_minmax(0,1.05fr)_minmax(0,2fr)_7.5rem_minmax(280px,1.25fr)_8rem] gap-3 px-4 items-center",
+          "hidden md:grid grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,2.4fr)_7rem_minmax(240px,1.1fr)_8rem] gap-3 px-4 items-center",
           rowPad,
         )}
       >

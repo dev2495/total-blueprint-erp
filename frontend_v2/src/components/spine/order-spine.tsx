@@ -86,7 +86,7 @@ export function OrderSpineStrip({
             <StateIcon state={state} />
             <span className="font-semibold">{station.label}</span>
             {!compact && station.value && station.value !== "—" ? (
-              <span className={cn("font-mono-token tabular-nums", state === "active" ? "opacity-90" : "opacity-80")}>{station.value}</span>
+              <span className={cn("max-w-[11rem] truncate font-mono-token tabular-nums", state === "active" ? "opacity-90" : "opacity-80")}>{station.value}</span>
             ) : null}
           </>
         );

@@ -48,6 +48,7 @@ import { PrintColorRevisionNotice } from "@/components/production/print-color-re
 import { StalledJobsPanel } from "@/components/wcm/stalled-jobs-panel";
 import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/components/production/roll-lanes-panel";
 import { MadeCard } from "@/components/spine/made-card";
+import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import {
   GranuleCodeSourcePicker,
@@ -3540,8 +3541,8 @@ export default function WCMTerminal() {
 
         {selectedJobId ? (
           <div className="mt-3 flex flex-col gap-2">
-            <OrderSpine jobId={String(selectedJobId)} current="floor" dark compact testId="wcm-order-spine" />
-            {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} dark dense testId="wcm-made-card" /> : null}
+            <OrderSpine jobId={String(selectedJobId)} current="floor" compact testId="wcm-order-spine" />
+            {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} testId="wcm-made-card" /> : null}
           </div>
         ) : null}
         <div className="mt-3 rounded-xl border border-surface-1/10 bg-surface-1/10 p-2.5">
@@ -6474,6 +6475,7 @@ export default function WCMTerminal() {
                                     </span>
                                   ) : null}
                                 </div>
+                                <SpecBlock data={specFromSource(job)} size="md" className="mt-2.5" testId={`wcm-queue-spec-${job.job_number || ""}`} />
                                 <div className="mt-2 flex flex-wrap gap-1.5 text-caption font-semibold">
                                   <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-content-3">
                                     Job {job.job_number || "—"}

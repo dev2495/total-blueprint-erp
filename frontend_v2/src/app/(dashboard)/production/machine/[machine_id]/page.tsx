@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { normalizeProductSpec } from "@/lib/product-spec";
 import { MadeCard } from "@/components/spine/made-card";
+import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import type { SpineMade } from "@/services/spine";
 import {
@@ -4573,7 +4574,7 @@ function QueueRail({
                 className={cn(
                   "w-full rounded-[14px] border p-2.5 text-left transition",
                   selected
-                    ? "border-primary bg-gradient-to-b from-info-bg to-surface-1 shadow-[0_10px_24px_-14px_rgba(37,99,235,0.5)]"
+                    ? "border-primary bg-info-bg shadow-sm"
                     : "border-line bg-surface-1 hover:border-primary",
                 )}
                 onClick={() => setSelectedJobId(String(job.id))}
@@ -4589,6 +4590,7 @@ function QueueRail({
                     <div className="mt-0.5 break-words font-mono text-caption font-bold text-primary">
                       {job.order_number || spec.orderNumber || "SO not captured"}
                     </div>
+                    <SpecBlock data={specFromSource(job)} size="md" stack className="mt-2" testId={`machine-queue-spec-${job.id}`} />
                     {productionBatchLabel(job) || routeNodeLabel(job) ? (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {productionBatchLabel(job) ? (

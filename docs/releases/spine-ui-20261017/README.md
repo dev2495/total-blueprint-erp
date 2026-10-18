@@ -80,3 +80,24 @@ with the local test admin. Go-live only on the owner's word after that review; r
 - Composer: the order note field is labelled "Client note · prints on the dispatch slip when written".
 - Local demo data: `python manage.py seed_local_floor_demo` (see docs in the command) builds a live-like floor so
   the stack can be exercised end to end on the local E2E database.
+
+## Third pass (18 Oct 2026) — calm design system, seven-workspace sidebar, large spec
+
+- **Design system (Fable 5.1 design pass, merged from `design/calm-ui-20261018`)**: flat neutral canvas, white
+  hairline cards, one accent, soft shadows, 10/14 px radii, sentence-case labels, quiet badges/tables/buttons,
+  light page headers instead of gradient banners (PageHero, GradientHero, planner/ds heroes, product-master
+  sections, header, WC/machine headers, composer hero and cart bar), light + dark tokens. Token names unchanged;
+  a scoped compatibility layer keeps old white-on-navy utilities readable inside the now-light heroes.
+- **Sidebar = seven workspaces** (Products, Orders, Plan, Floor, Stock, Yard & Dispatch, Reports & admin) with
+  every old section folded under "All screens" (opens automatically on a page outside the workspaces).
+  A workspace shows when any of its screens is in the user's sidebar today (`accessibleWorkspaces`), so role
+  defaults and per-user permission overrides carry over with no second role mapping. `npm run
+  test:workspace-roles` checks every role: no screen lost, no access added.
+- **Spec block** (`components/spine/spec-block.tsx`): size large, then each layer with name, micron (large),
+  grade and source, plus total gauge — on the orders list, order lines, composer line, made-card (order, WC,
+  machine, planner, yard), planner queue rows, WC queue cards and the machine queue rail. Order line layer
+  snapshots now carry `grade_name` at read time (snapshot rows are not modified).
+- Orders list: calm header, neutral KPI tiles (status colour on the number), header and rows share one column
+  template with a wider spec column.
+
+Checks: typecheck, lint, nav:validate, test:workspace-roles, next build; backend suite 1517 OK.

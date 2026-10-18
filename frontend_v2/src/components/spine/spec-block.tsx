@@ -85,12 +85,15 @@ export function SpecBlock({
   data,
   size = "lg",
   dark = false,
+  stack = false,
   className,
   testId = "spec-block",
 }: {
   data: SpecBlockData | null | undefined;
   size?: "lg" | "md";
   dark?: boolean;
+  /** One layer per row, for narrow rails. */
+  stack?: boolean;
   className?: string;
   testId?: string;
 }) {
@@ -119,16 +122,16 @@ export function SpecBlock({
         </div>
       ) : null}
       {layers.length ? (
-        <div className={cn("grid gap-1.5", lg ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2")} data-testid={`${testId}-layers`}>
+        <div className={cn("grid gap-1.5", stack ? "" : lg ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2")} data-testid={`${testId}-layers`}>
           {layers.map((layer) => (
             <div key={`${layer.index}-${layer.name}`} className={cn("flex min-w-0 items-center gap-3 rounded-xl px-3", lg ? "py-2" : "py-1.5", tile)}>
               <span className={cn("flex-none font-mono text-[12px] font-semibold", muted)}>L{layer.index}</span>
               <div className="min-w-0 flex-1">
-                <div className={cn("truncate font-semibold", strong, lg ? "text-[15px]" : "text-[14px]")} title={layer.name}>
+                <div className={cn("line-clamp-2 break-words font-semibold leading-snug", strong, lg ? "text-[15px]" : "text-[14px]")} title={layer.name}>
                   {layer.name}
                 </div>
                 {layer.grade || sourceWord(layer.source) ? (
-                  <div className={cn("truncate text-[12.5px]", muted)}>
+                  <div className={cn("text-[12.5px] leading-snug", muted)}>
                     {[layer.grade ? `Grade ${layer.grade}` : "", sourceWord(layer.source)].filter(Boolean).join(" · ")}
                   </div>
                 ) : null}
