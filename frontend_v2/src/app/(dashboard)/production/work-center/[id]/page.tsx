@@ -3462,27 +3462,27 @@ export default function WCMTerminal() {
   // tablet (md..xl) Sheet so a long queue never forces scrolling past it.
   const detailPaneContent = (
     <div className="flex flex-col gap-3">
-      <section className="order-1 overflow-hidden rounded-[18px] border border-primary bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-3 text-white shadow-[0_22px_56px_-40px_rgba(15,23,42,.7)]">
+      <section className="order-1 overflow-hidden rounded-[14px] border border-line bg-surface-1 p-3 text-content-1 shadow-[var(--shadow-sm)]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
-              <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-white/15 font-mono text-sm font-bold text-white ring-1 ring-white/25">1</span>
+            <div className="flex items-center gap-2 text-caption font-medium text-content-3">
+              <span className="grid h-7 w-7 flex-none place-items-center rounded-[8px] border border-line bg-surface-2 font-mono text-sm font-semibold text-content-1">1</span>
               What it is · Current order
             </div>
-            <h2 className="mt-1 text-lg font-semibold leading-tight tracking-tight text-white">
+            <h2 className="mt-1 text-lg font-semibold leading-tight tracking-[-0.01em] text-content-1">
               {selectedOrderNumberLabel}
             </h2>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-info-border">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-content-3">
               <span>{selectedCustomerLabel}</span>
               {selectedJobNumberLabel ? (
                 <>
-                  <span className="text-info-border/60">·</span>
+                  <span className="text-content-4">·</span>
                   <span>Job {selectedJobNumberLabel}</span>
                 </>
               ) : null}
               {selectedProductName ? (
                 <>
-                  <span className="text-info-border/60">·</span>
+                  <span className="text-content-4">·</span>
                   <span>
                     {selectedProductName}
                   </span>
@@ -3492,12 +3492,12 @@ export default function WCMTerminal() {
             {selectedProductionBatchLabel || selectedRouteNodeLabel ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {selectedProductionBatchLabel ? (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-caption font-semibold text-white">
+                  <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-caption font-medium text-content-2">
                     {selectedProductionBatchLabel}
                   </span>
                 ) : null}
                 {selectedRouteNodeLabel ? (
-                  <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-caption font-semibold text-white">
+                  <span className="rounded-full border border-line bg-surface-2 px-2.5 py-1 text-caption font-medium text-content-2">
                     {selectedRouteNodeLabel}
                   </span>
                 ) : null}
@@ -3509,10 +3509,10 @@ export default function WCMTerminal() {
               <TooltipTrigger asChild>
                 <span
                   className={cn(
-                    "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wider",
+                    "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium",
                     pushBlockingReasons.length
-                      ? "border-danger-border bg-danger-solid text-danger-border"
-                      : "border-success-border bg-success-fg text-success-border",
+                      ? "border-danger-border bg-danger-bg text-danger-fg"
+                      : "border-success-border bg-success-bg text-success-fg",
                   )}
                 >
                   {blockerLabel}
@@ -5390,16 +5390,16 @@ export default function WCMTerminal() {
           </Button>
         </div>
       ) : null}
-      <header className="sticky top-0 z-30 border-b border-primary bg-[#10233f]/95 text-white shadow-[0_18px_50px_-35px_rgba(15,23,42,.75)] backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-line bg-surface-1/92 text-content-1 shadow-[var(--shadow-sm)] backdrop-blur-md">
         <div className="flex h-14 w-full items-center gap-4 px-6">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-sm font-semibold text-white shadow-sm">
+          <div className="grid h-8 w-8 place-items-center rounded-[8px] bg-primary text-sm font-semibold text-primary-foreground">
             W
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">
+            <div className="text-sm font-semibold tracking-[-0.01em] text-content-1">
               ERP · Production
             </div>
-            <div className="text-caption text-info-border">
+            <div className="text-caption text-content-3">
               Work Center Terminal
             </div>
           </div>
@@ -5408,10 +5408,10 @@ export default function WCMTerminal() {
               type="button"
               onClick={() => setActiveMainTab("terminal")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm transition",
+                "rounded-[8px] px-3 py-1.5 text-sm font-medium transition-colors duration-150",
                 activeMainTab === "terminal"
-                  ? "bg-surface-1 text-[#10233f]"
-                  : "text-info-border hover:bg-surface-1/10",
+                  ? "bg-surface-2 text-content-1"
+                  : "text-content-3 hover:bg-surface-2 hover:text-content-1",
               )}
             >
               Queue
@@ -5420,10 +5420,10 @@ export default function WCMTerminal() {
               type="button"
               onClick={() => setActiveMainTab("running")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm transition",
+                "rounded-[8px] px-3 py-1.5 text-sm font-medium transition-colors duration-150",
                 activeMainTab === "running"
-                  ? "bg-surface-1 text-[#10233f]"
-                  : "text-info-border hover:bg-surface-1/10",
+                  ? "bg-surface-2 text-content-1"
+                  : "text-content-3 hover:bg-surface-2 hover:text-content-1",
               )}
             >
               Running / ready
@@ -5433,10 +5433,10 @@ export default function WCMTerminal() {
               data-testid="wcm-stalled-tab"
               onClick={() => setActiveMainTab("stalled")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition",
+                "inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-sm font-medium transition-colors duration-150",
                 activeMainTab === "stalled"
-                  ? "bg-warning-fg text-[#10233f]"
-                  : "text-info-border hover:bg-surface-1/10",
+                  ? "bg-warning-bg text-warning-fg"
+                  : "text-content-3 hover:bg-surface-2 hover:text-content-1",
               )}
             >
               <TriangleAlert className="size-3.5" />
@@ -5444,9 +5444,9 @@ export default function WCMTerminal() {
               {stalledJobsList.length > 0 ? (
                 <span
                   className={cn(
-                    "rounded-full px-1.5 font-mono text-caption font-bold tabular-nums",
+                    "rounded-full px-1.5 font-mono text-caption font-semibold tabular-nums",
                     activeMainTab === "stalled"
-                      ? "bg-surface-1/25 text-white"
+                      ? "bg-surface-1 text-warning-fg"
                       : "bg-warning-bg text-warning-fg",
                   )}
                 >
@@ -5455,7 +5455,7 @@ export default function WCMTerminal() {
               ) : null}
             </button>
             <a
-              className="rounded-md px-3 py-1.5 text-sm text-info-border transition hover:bg-surface-1/10"
+              className="rounded-[8px] px-3 py-1.5 text-sm font-medium text-content-3 transition-colors duration-150 hover:bg-surface-2 hover:text-content-1"
               href={
                 selectedMachineId
                   ? `/production/machine/${selectedMachineId}`
@@ -5468,17 +5468,17 @@ export default function WCMTerminal() {
               type="button"
               onClick={() => setActiveMainTab("history")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm transition",
+                "rounded-[8px] px-3 py-1.5 text-sm font-medium transition-colors duration-150",
                 activeMainTab === "history"
-                  ? "bg-surface-1 text-[#10233f]"
-                  : "text-info-border hover:bg-surface-1/10",
+                  ? "bg-surface-2 text-content-1"
+                  : "text-content-3 hover:bg-surface-2 hover:text-content-1",
               )}
             >
               History
             </button>
           </nav>
-          <div className="ml-auto hidden items-center gap-3 text-xs text-info-border md:flex">
-            <span className="font-mono tabular-nums text-info-border">
+          <div className="ml-auto hidden items-center gap-3 text-xs text-content-3 md:flex">
+            <span className="font-mono tabular-nums text-content-3">
               {new Date(nowTick).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -5490,10 +5490,10 @@ export default function WCMTerminal() {
                 className={cn(
                   "h-2 w-2 rounded-full",
                   !online
-                    ? "bg-danger-solid shadow-[0_0_0_5px_rgba(244,63,94,0.12)]"
+                    ? "bg-danger-solid"
                     : isStaleSync
-                      ? "bg-warning-fg shadow-[0_0_0_5px_rgba(245,158,11,0.12)]"
-                      : "bg-success-fg shadow-[0_0_0_5px_rgba(16,185,129,0.12)]",
+                      ? "bg-warning-fg"
+                      : "bg-success-fg",
                 )}
               />
               {!online
@@ -5507,10 +5507,10 @@ export default function WCMTerminal() {
       </header>
 
       <main className="mx-auto w-full max-w-[1660px] px-4 py-4 lg:px-6">
-        <section className="overflow-hidden rounded-[22px] bg-gradient-to-br from-[#143b70] via-[#1e4f8f] to-[#263d86] p-4 text-white shadow-[0_22px_56px_-42px_rgba(15,23,42,.7)]">
+        <section className="overflow-hidden rounded-[16px] border border-line bg-surface-1 p-4 text-content-1 shadow-[var(--shadow-sm)] md:p-5">
           <div className="flex flex-wrap items-end gap-4">
             <div className="min-w-[280px] flex-1">
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-info-border">
+              <div className="flex flex-wrap items-center gap-2 text-[12.5px] font-medium text-content-3">
                 <span>
                   {workCenter?.plant_name ||
                     (workCenter as any)?.plant?.name ||
@@ -5530,11 +5530,11 @@ export default function WCMTerminal() {
                   })}
                 </span>
               </div>
-              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">
+              <h1 className="mt-1 text-[22px] font-semibold leading-7 tracking-[-0.02em] text-content-1 md:text-[24px] md:leading-8">
                 {workCenter?.name ||
                   (activeAssignment as any)?.work_center_name ||
                   "Work Center"}
-                <span className="text-xl font-semibold text-info-border">
+                <span className="text-[20px] font-medium text-content-3">
                   {" · "}
                   {activeMainTab === "running"
                     ? "Running / ready"
@@ -5545,12 +5545,12 @@ export default function WCMTerminal() {
                         : "Queue"}
                 </span>
               </h1>
-              <p className="mt-1 max-w-3xl text-xs font-semibold text-info-border">
+              <p className="mt-1 max-w-3xl text-[13px] leading-relaxed text-content-3">
                 Plan to ready to release. Pick one job, clear the readiness
                 gates, then send it to the machine terminal.
               </p>
             </div>
-            <div className="grid w-full grid-cols-2 gap-3 md:w-auto md:grid-cols-4">
+            <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:grid-cols-4">
               {[
                 ["Running / ready", visibleRunningAssignments.length],
                 ["Waiting", stats.waiting],
@@ -5559,15 +5559,15 @@ export default function WCMTerminal() {
               ].map(([label, value]) => (
                 <div
                   key={String(label)}
-                  className="rounded-xl border border-surface-1/10 bg-surface-1/10 px-3 py-2 shadow-sm"
+                  className="rounded-[12px] border border-line bg-surface-2 px-3 py-2"
                 >
-                  <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
+                  <div className="text-caption font-medium text-content-3">
                     {label}
                   </div>
                   {showStatsSkeleton ? (
-                    <Skeleton className="mt-1 h-6 w-10 bg-surface-1/20" />
+                    <Skeleton className="mt-1 h-6 w-10 bg-line" />
                   ) : (
-                    <div className="text-lg font-semibold tabular-nums text-white">
+                    <div className="text-[22px] font-semibold leading-tight tabular-nums text-content-1">
                       {value}
                     </div>
                   )}

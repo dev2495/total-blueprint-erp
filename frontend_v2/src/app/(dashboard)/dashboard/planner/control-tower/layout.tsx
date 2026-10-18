@@ -121,17 +121,15 @@ export default function ControlTowerLayout({
         style={{
           display: "inline-flex",
           flexWrap: "nowrap",
-          gap: 4,
-          padding: 6,
-          borderRadius: "var(--r-pill)",
-          background: "var(--surface-glass)",
-          backdropFilter: "blur(10px)",
-          border: "1px solid var(--surface-glass-edge)",
-          boxShadow: "var(--sh-md)",
+          gap: 2,
+          padding: 4,
+          borderRadius: "var(--r-3)",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border-soft)",
           marginBottom: "var(--sp-6)",
           maxWidth: "100%",
           overflowX: "auto",
-          scrollPaddingInline: 6,
+          scrollPaddingInline: 4,
         }}
       >
         {TABS.map((tab) => {
@@ -153,16 +151,18 @@ export default function ControlTowerLayout({
                 flexShrink: 0,
                 alignItems: "center",
                 gap: 8,
-                padding: "8px 16px",
-                borderRadius: "var(--r-pill)",
-                background: isActive ? "var(--brand-600)" : "transparent",
-                color: isActive ? "var(--text-on-brand)" : "var(--text-2)",
+                minHeight: 36,
+                padding: "6px 14px",
+                borderRadius: 8,
+                background: isActive ? "var(--surface-1)" : "transparent",
+                color: isActive ? "var(--text-1)" : "var(--text-3)",
                 fontSize: 13,
-                fontWeight: 600,
+                fontWeight: 500,
                 textDecoration: "none",
                 whiteSpace: "nowrap",
-                transition: "all var(--df) var(--eo)",
-                boxShadow: isActive ? "var(--glow-brand)" : "none",
+                transition:
+                  "background-color var(--df) var(--eo), color var(--df) var(--eo), box-shadow var(--df) var(--eo)",
+                boxShadow: isActive ? "var(--sh-sm)" : "none",
               }}
             >
               <Icon size={14} />
@@ -171,14 +171,12 @@ export default function ControlTowerLayout({
                 aria-hidden
                 style={{
                   fontFamily: "var(--f-mono)",
-                  fontSize: 10,
+                  fontSize: 11,
                   padding: "1px 6px",
-                  borderRadius: 6,
-                  background: isActive
-                    ? "rgba(255,255,255,.18)"
-                    : "var(--surface-2)",
-                  color: isActive ? "rgba(255,255,255,.9)" : "var(--text-3)",
-                  border: isActive ? "none" : "1px solid var(--border-soft)",
+                  borderRadius: 5,
+                  background: isActive ? "var(--surface-2)" : "transparent",
+                  color: "var(--text-3)",
+                  border: "1px solid var(--border-soft)",
                 }}
               >
                 {TABS.indexOf(tab) + 1}

@@ -15,17 +15,19 @@ export interface ScopeCardProps
   meta?: Array<{ label: string; value: React.ReactNode }>;
 }
 
+// Full literal class strings so Tailwind can see them (the old concatenated
+// gradient classes were never generated).
 const toneAccent: Record<ChipKind, string> = {
-  info: "from-info-bg to-surface-1",
-  success: "from-success-bg to-white",
-  warn: "from-warning-bg to-white",
-  danger: "from-danger-bg to-white",
-  neutral: "from-surface-2 to-white",
-  accent: "from-order-bg to-white",
-  process: "from-info-bg to-surface-1",
-  thick: "from-order-bg to-white",
-  "fg-roll": "from-danger-bg to-white",
-  "fg-pouch": "from-warning-bg to-white",
+  info: "data-[selected]:bg-info-bg",
+  success: "data-[selected]:bg-success-bg",
+  warn: "data-[selected]:bg-warning-bg",
+  danger: "data-[selected]:bg-danger-bg",
+  neutral: "data-[selected]:bg-info-bg",
+  accent: "data-[selected]:bg-order-bg",
+  process: "data-[selected]:bg-info-bg",
+  thick: "data-[selected]:bg-order-bg",
+  "fg-roll": "data-[selected]:bg-danger-bg",
+  "fg-pouch": "data-[selected]:bg-warning-bg",
 };
 
 export const ScopeCard = React.forwardRef<HTMLButtonElement, ScopeCardProps>(
@@ -48,10 +50,11 @@ export const ScopeCard = React.forwardRef<HTMLButtonElement, ScopeCardProps>(
       type="button"
       data-selected={selected || undefined}
       className={cn(
-        "group relative flex min-h-[112px] w-full flex-col items-start gap-2 rounded-xl border bg-surface-1 p-4 text-left transition-all",
-        "border-line hover:border-line-strong hover:shadow-sm",
-        "data-[selected]:border-primary data-[selected]:shadow-[0_0_0_3px_rgba(37,99,235,0.12)]",
-        "data-[selected]:bg-gradient-to-br data-[selected]:" + toneAccent[tone],
+        "group relative flex min-h-[112px] w-full flex-col items-start gap-2 rounded-[12px] border bg-surface-1 p-4 text-left transition-[border-color,background-color,box-shadow] duration-150",
+        "border-line hover:border-line-strong",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2",
+        "data-[selected]:border-primary data-[selected]:ring-2 data-[selected]:ring-focus",
+        toneAccent[tone],
         className,
       )}
       {...props}
@@ -85,7 +88,7 @@ export const ScopeCard = React.forwardRef<HTMLButtonElement, ScopeCardProps>(
         <dl className="mt-2 grid w-full grid-cols-2 gap-2">
           {meta.map((m) => (
             <div key={m.label} className="flex flex-col gap-0.5">
-              <dt className="text-caption font-semibold uppercase tracking-wide text-content-4">
+              <dt className="text-caption font-medium text-content-3">
                 {m.label}
               </dt>
               <dd className="font-mono-token text-[12px] text-content-2">

@@ -18,7 +18,7 @@ interface GradientHeroProps {
   actions?: React.ReactNode;
   /** Accent palette */
   palette?: "blue" | "indigo" | "violet" | "emerald" | "rose";
-  /** "vivid" (default) keeps the saturated gradient. "subtle" renders a calm light card with a thin accent stripe — same data, less visual noise. */
+  /** Both tones now render the same calm light header; "subtle" is the compact spacing. */
   tone?: "vivid" | "subtle";
   className?: string;
   children?: React.ReactNode;
@@ -60,7 +60,7 @@ export function GradientHero({
             {chips.map((chip, idx) => (
               <SharedHeroChip key={`${chip.label}-${idx}`} tone={chip.tone ? CHIP_TONE[chip.tone] : "neutral"}>
                 {chip.label}
-                {chip.value ? <span className="ml-1 font-semibold tabular-nums text-white">{chip.value}</span> : null}
+                {chip.value ? <span className="ml-1 font-semibold tabular-nums text-content-1">{chip.value}</span> : null}
               </SharedHeroChip>
             ))}
           </>

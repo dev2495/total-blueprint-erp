@@ -27,7 +27,7 @@ export interface StepStripProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const stateRing: Record<StepState, string> = {
   complete: "bg-success-fg text-white",
-  current: "bg-primary text-white shadow-[0_0_0_3px_rgba(37,99,235,0.18)]",
+  current: "bg-primary text-white ring-2 ring-focus",
   upcoming: "bg-line text-content-3",
   disabled: "bg-surface-2 text-content-4",
   error: "bg-danger-solid text-white",
@@ -63,7 +63,7 @@ export const StepStrip = React.forwardRef<HTMLDivElement, StepStripProps>(
         role="tablist"
         aria-label="Step strip"
         className={cn(
-          "relative flex w-full items-center gap-1 overflow-x-auto rounded-xl border border-line bg-surface-1/80 px-2 py-2 backdrop-blur-sm",
+          "relative flex w-full items-center gap-1 overflow-x-auto rounded-[12px] border border-line bg-surface-1 px-2 py-2",
           compact && "py-1",
           variant === "stop" && "border-warning-border bg-warning-bg",
           className,

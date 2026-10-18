@@ -24,7 +24,7 @@ export const FilterChip = React.forwardRef<HTMLButtonElement, FilterChipProps>(
         type="button"
         data-active={active || hasValue || undefined}
         className={cn(
-          "group inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-semibold transition-colors",
+          "group inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-150",
           "border-line bg-surface-1 text-content-2 hover:bg-surface-2",
           "data-[active]:border-info-border data-[active]:bg-info-bg data-[active]:text-primary",
           className,

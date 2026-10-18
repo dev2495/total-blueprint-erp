@@ -15,16 +15,16 @@ export interface KpiTileProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const toneRing: Record<ChipKind, string> = {
-  info: "ring-info-border",
-  success: "ring-success-border",
-  warn: "ring-warning-border",
-  danger: "ring-danger-border",
-  neutral: "ring-line",
-  accent: "ring-order-border",
-  process: "ring-info-border",
-  thick: "ring-order-border",
-  "fg-roll": "ring-danger-border",
-  "fg-pouch": "ring-warning-border",
+  info: "border-info-border",
+  success: "border-success-border",
+  warn: "border-warning-border",
+  danger: "border-danger-border",
+  neutral: "border-line",
+  accent: "border-order-border",
+  process: "border-info-border",
+  thick: "border-order-border",
+  "fg-roll": "border-danger-border",
+  "fg-pouch": "border-warning-border",
 };
 
 const trendColor: Record<
@@ -54,21 +54,21 @@ export const KpiTile = React.forwardRef<HTMLDivElement, KpiTileProps>(
     <div
       ref={ref}
       className={cn(
-        "relative flex min-w-[140px] flex-col rounded-xl bg-surface-1/80 ring-1 backdrop-blur-sm",
-        "shadow-[0_1px_0_rgba(15,23,42,0.04)]",
+        "relative flex min-w-[140px] flex-col rounded-[12px] border bg-surface-1",
+        "shadow-[var(--shadow-sm)]",
         toneRing[tone],
         compact ? "px-3 py-2 gap-0.5" : "px-4 py-3 gap-1",
         className,
       )}
       {...props}
     >
-      <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
+      <div className="text-[12.5px] font-medium text-content-3">
         {label}
       </div>
       <div
         className={cn(
-          "font-display tabular-nums leading-none text-content-1",
-          compact ? "text-xl" : "text-2xl",
+          "font-display font-semibold tracking-[-0.02em] tabular-nums leading-none text-content-1",
+          compact ? "text-xl" : "text-[24px]",
         )}
       >
         {loading ? (

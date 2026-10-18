@@ -3,11 +3,11 @@
 /**
  * pm-edit-shell.tsx
  *
- * Rich visual primitives dedicated to the PM Edit workspace. Mirrors the look
+ * Visual primitives dedicated to the PM Edit workspace. Mirrors the look
  * of the detail page (`pm-detail-v37.tsx`):
- * - RichHero — gradient page hero with ambient blobs, big title, chips
- * - RichSection — vibrant per-section card with icon bubble + tonal blob
- * + accent stripe; replaces SectionCardV3 for PM Edit only
+ * - RichHero — plain page header card: title, subtitle, soft chips
+ * - RichSection — plain section card with a neutral icon tile, title and
+ *   subtitle; replaces SectionCardV3 for PM Edit only
  * - PouchStyleIcon — small inline SVG depicting each pouch style
  * - PouchStylePicker— visual grid of pouch styles with formula chip
  * - LayerStateToggle— Fixed/Variable toggle pill row for a layer-axis (μ or G)
@@ -37,98 +37,23 @@ export type RichTone =
   | "rose"
   | "slate";
 
-const TONE_META: Record<
-  RichTone,
-  {
-    wrap: string;
-    stripe: string;
-    iconBg: string;
-    eyebrow: string;
-    subtitle: string;
-    blob: string;
-    ring: string;
-  }
-> = {
-  indigo: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-info-bg",
-    stripe: "bg-gradient-to-b from-order-fg to-primary",
-    iconBg: "bg-gradient-to-br from-order-fg to-primary text-white shadow-md",
-    eyebrow: "text-order-fg",
-    subtitle: "text-order-fg",
-    blob: "bg-order-bg",
-    ring: "ring-order-border",
-  },
-  blue: {
-    wrap: "border-info-border bg-gradient-to-br from-info-bg via-white to-info-bg",
-    stripe: "bg-gradient-to-b from-primary to-info-fg",
-    iconBg: "bg-gradient-to-br from-primary to-info-fg text-white shadow-md",
-    eyebrow: "text-primary",
-    subtitle: "text-primary",
-    blob: "bg-info-bg",
-    ring: "ring-info-border",
-  },
-  violet: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-purple-50/60",
-    stripe: "bg-gradient-to-b from-order-fg to-purple-500",
-    iconBg:
-      "bg-gradient-to-br from-order-fg to-purple-500 text-white shadow-md",
-    eyebrow: "text-order-fg",
-    subtitle: "text-order-fg",
-    blob: "bg-order-bg",
-    ring: "ring-order-border",
-  },
-  emerald: {
-    wrap: "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg",
-    stripe: "bg-gradient-to-b from-success-fg to-success-bg0",
-    iconBg:
-      "bg-gradient-to-br from-success-fg to-success-bg0 text-white shadow-md",
-    eyebrow: "text-success-fg",
-    subtitle: "text-success-fg",
-    blob: "bg-success-bg",
-    ring: "ring-success-border",
-  },
-  amber: {
-    wrap: "border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm",
-    stripe: "bg-gradient-to-b from-warning-fg to-warm",
-    iconBg: "bg-gradient-to-br from-warning-fg to-warm text-white shadow-md",
-    eyebrow: "text-warning-fg",
-    subtitle: "text-warning-fg",
-    blob: "bg-warning-bg",
-    ring: "ring-warning-border",
-  },
-  fuchsia: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-danger-bg",
-    stripe: "bg-gradient-to-b from-order-fg to-danger-solid",
-    iconBg:
-      "bg-gradient-to-br from-order-fg to-danger-solid text-white shadow-md",
-    eyebrow: "text-order-fg",
-    subtitle: "text-order-fg",
-    blob: "bg-order-bg",
-    ring: "ring-order-border",
-  },
-  rose: {
-    wrap: "border-danger-border bg-gradient-to-br from-danger-bg via-white to-warm",
-    stripe: "bg-gradient-to-b from-danger-solid to-warm",
-    iconBg: "bg-gradient-to-br from-danger-solid to-warm text-white shadow-md",
-    eyebrow: "text-danger-fg",
-    subtitle: "text-danger-fg",
-    blob: "bg-danger-bg",
-    ring: "ring-danger-border",
-  },
-  slate: {
-    wrap: "border-line bg-gradient-to-br from-surface-2 via-white to-surface-2",
-    stripe: "bg-gradient-to-b from-surface-2 to-surface-3",
-    iconBg:
-      "bg-gradient-to-br from-surface-2 to-surface-3 text-white shadow-md",
-    eyebrow: "text-content-2",
-    subtitle: "text-content-2",
-    blob: "bg-line",
-    ring: "ring-line",
-  },
+/**
+ * The tone now only colours the section icon. Cards themselves are plain:
+ * white surface, hairline border, dark title, muted subtitle.
+ */
+const TONE_META: Record<RichTone, { icon: string }> = {
+  indigo: { icon: "text-order-fg" },
+  blue: { icon: "text-primary" },
+  violet: { icon: "text-order-fg" },
+  emerald: { icon: "text-success-fg" },
+  amber: { icon: "text-warning-fg" },
+  fuchsia: { icon: "text-order-fg" },
+  rose: { icon: "text-danger-fg" },
+  slate: { icon: "text-content-3" },
 };
 
 // ──────────────────────────────────────────────────────────────────
-// RichHero — the gradient page hero
+// RichHero — the page header card
 // ──────────────────────────────────────────────────────────────────
 
 export interface RichHeroChip {
@@ -152,46 +77,32 @@ export function RichHero({
   actions?: React.ReactNode;
 }) {
   const CHIP_TONE: Record<string, string> = {
-    ok: "bg-success-bg text-success-fg ring-success-border",
-    warn: "bg-warning-bg text-warning-fg ring-warning-border",
-    info: "bg-surface-1 text-order-fg ring-order-border",
+    ok: "border-success-border bg-success-bg text-success-fg",
+    warn: "border-warning-border bg-warning-bg text-warning-fg",
+    info: "border-line bg-surface-2 text-content-2",
   };
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg px-6 py-5 shadow-lg ring-1 ring-surface-1/40">
-      {/* Decorative blurred blobs */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-order-fg blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -bottom-24 left-10 h-56 w-56 rounded-full bg-order-fg blur-3xl"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-10 right-1/3 h-32 w-32 rounded-full bg-order-bg blur-2xl"
-      />
-      <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-b from-order-fg via-order-fg to-order-fg shadow-[0_0_18px_2px_rgba(139,92,246,0.45)]" />
-      <div className="relative pl-3 flex flex-wrap items-start justify-between gap-4">
+    <section className="relative overflow-hidden rounded-[16px] border border-line bg-surface-1 px-5 py-5 shadow-[var(--shadow-sm)] md:px-6">
+      <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+          <div className="text-[12.5px] font-medium text-content-3">
             {eyebrow}
           </div>
-          <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight bg-gradient-to-br from-surface-3 via-order-fg to-order-fg bg-clip-text text-transparent mt-1">
+          <h1 className="mt-1 text-[22px] font-semibold leading-7 tracking-[-0.02em] text-content-1 md:text-[24px] md:leading-8">
             {title}
           </h1>
           {subtitle ? (
-            <p className="mt-2 text-sm text-content-2 max-w-3xl leading-relaxed">
+            <p className="mt-1 max-w-3xl text-[13.5px] leading-relaxed text-content-3">
               {subtitle}
             </p>
           ) : null}
           {chips && chips.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-2 text-caption">
+            <div className="mt-3 flex flex-wrap gap-1.5 text-caption">
               {chips.map((c, i) => (
                 <span
                   key={i}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 font-bold ring-1 shadow-sm",
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium",
                     CHIP_TONE[c.tone || "info"],
                   )}
                 >
@@ -200,16 +111,14 @@ export function RichHero({
                       {c.icon}
                     </span>
                   ) : null}
-                  <span className="text-caption font-semibold uppercase tracking-wider">
-                    {c.label}
-                  </span>
-                  <span className="font-mono font-semibold">{c.value}</span>
+                  <span className="text-caption opacity-80">{c.label}</span>
+                  <span className="font-mono-token font-medium">{c.value}</span>
                 </span>
               ))}
             </div>
           ) : null}
         </div>
-        {actions ? <div className="relative">{actions}</div> : null}
+        {actions ? <div className="relative flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
     </section>
   );
@@ -252,56 +161,30 @@ export function RichSection({
       id={id}
       aria-labelledby={id ? `${id}-title` : undefined}
       className={cn(
-        "relative scroll-mt-32 overflow-hidden rounded-2xl border bg-surface-1 shadow-sm ring-1 ring-surface-1/40",
-        t.ring.replace("ring-", "border-"),
+        "relative scroll-mt-32 overflow-hidden rounded-[14px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]",
         className,
       )}
     >
-      {/* Tonal header band */}
-      <header
-        className={cn(
-          "relative overflow-hidden border-b px-5 py-3.5 sm:px-6",
-          t.wrap,
-          t.ring,
-        )}
-      >
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full blur-3xl",
-            t.blob,
-          )}
-        />
-        <div className={cn("absolute inset-y-0 left-0 w-1", t.stripe)} />
-        <div className="relative flex flex-wrap items-start justify-between gap-3 pl-2">
+      <header className="relative border-b border-line px-5 py-4 sm:px-6">
+        <div className="relative flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0 flex-1">
             <span
               className={cn(
-                "flex h-10 w-10 flex-none items-center justify-center rounded-xl",
-                t.iconBg,
+                "flex h-9 w-9 flex-none items-center justify-center rounded-[10px] border border-line bg-surface-2 [&>svg]:h-4 [&>svg]:w-4",
+                t.icon,
               )}
             >
               {icon}
             </span>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {typeof index === "number" ? (
-                  <span
-                    className={cn(
-                      "inline-flex h-5 min-w-[20px] items-center justify-center rounded-md px-1 text-caption font-semibold ring-1 ring-inset",
-                      t.iconBg,
-                    )}
-                  >
+                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-[6px] border border-line bg-surface-2 px-1 font-mono-token text-caption font-medium text-content-3">
                     {index}
                   </span>
                 ) : null}
                 {eyebrow ? (
-                  <span
-                    className={cn(
-                      "text-caption font-semibold uppercase tracking-[0.12em]",
-                      t.eyebrow,
-                    )}
-                  >
+                  <span className="text-caption font-medium text-content-3">
                     {eyebrow}
                   </span>
                 ) : null}
@@ -309,14 +192,12 @@ export function RichSection({
               </div>
               <h2
                 id={id ? `${id}-title` : undefined}
-                className="font-display text-base font-semibold text-content-1 tracking-tight"
+                className="text-[15px] font-semibold leading-snug tracking-[-0.01em] text-content-1"
               >
                 {title}
               </h2>
               {subtitle ? (
-                <div
-                  className={cn("mt-0.5 text-caption leading-snug", t.subtitle)}
-                >
+                <div className="mt-0.5 text-[13px] leading-snug text-content-3">
                   {subtitle}
                 </div>
               ) : null}
@@ -601,26 +482,26 @@ export function PouchStylePicker({
               type="button"
               onClick={() => onChange(opt.value)}
               className={cn(
-                "group relative flex flex-col items-center gap-1 rounded-xl border bg-surface-1 px-2 py-2 text-caption font-bold transition hover:shadow-md",
+                "group relative flex flex-col items-center gap-1 rounded-[10px] border px-2 py-2 text-caption font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2",
                 active
-                  ? "border-success-border ring-2 ring-success-border bg-gradient-to-br from-success-bg to-success-bg"
-                  : "border-line hover:border-success-border text-content-3",
+                  ? "border-primary bg-info-bg text-primary"
+                  : "border-line bg-surface-1 text-content-3 hover:border-line-strong hover:bg-surface-2",
               )}
             >
               <PouchStyleIcon
                 style={opt.value}
-                className={active ? "text-success-fg" : "text-content-3"}
+                className={active ? "text-primary" : "text-content-3"}
               />
               <span
                 className={cn(
                   "text-caption leading-tight text-center",
-                  active ? "text-success-fg" : "text-content-3",
+                  active ? "text-primary" : "text-content-3",
                 )}
               >
                 {opt.label}
               </span>
               {active ? (
-                <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-success-fg text-caption font-semibold text-white shadow ring-2 ring-surface-1">
+                <span className="absolute -top-1.5 -right-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-primary text-caption font-semibold text-white ring-2 ring-surface-1">
                   ✓
                 </span>
               ) : null}
@@ -630,15 +511,13 @@ export function PouchStylePicker({
       </div>
       <div
         className={cn(
-          "rounded-lg px-3 py-2 text-caption font-mono font-bold ring-1",
+          "rounded-[10px] border px-3 py-2 font-mono-token text-caption font-medium",
           usesH
-            ? "bg-warning-bg text-warning-fg ring-warning-border"
-            : "bg-order-bg text-order-fg ring-order-border",
+            ? "border-warning-border bg-warning-bg text-warning-fg"
+            : "border-line bg-surface-2 text-content-2",
         )}
       >
-        <span className="text-caption font-semibold uppercase tracking-wider">
-          Roll W ={" "}
-        </span>
+        <span className="font-medium opacity-80">Roll W ={" "}</span>
         {formula}
         {usesH ? (
           <span className="ml-2 text-caption font-normal opacity-80">
@@ -664,16 +543,16 @@ export function LayerStatePill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset",
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-caption font-medium",
         variable
-          ? "bg-gradient-to-r from-success-bg to-success-bg text-success-fg ring-success-border shadow-sm"
-          : "bg-info-bg text-primary ring-info-border",
+          ? "border-success-border bg-success-bg text-success-fg"
+          : "border-info-border bg-info-bg text-info-fg",
       )}
     >
       <span
         className={cn(
           "inline-block h-1.5 w-1.5 rounded-full",
-          variable ? "bg-success-fg" : "bg-primary",
+          variable ? "bg-success-fg" : "bg-info-fg",
         )}
       />
       <span>{axis}</span>
