@@ -37,6 +37,7 @@ import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFi
 import { formatDisplayDate } from "@/lib/date-format";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import { MadeCard } from "@/components/spine/made-card";
+import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { matchingPlannerDetail, samePlannerEntity, type PlannerIdentity } from "@/lib/query-contract";
 
 function fmt(n: any, decimals = 0) {
@@ -876,6 +877,9 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
             {selected && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "var(--brand-600)" }} />}
 
             <OrderPassportStrip order={o} compact />
+
+            {/* Size, layers, thickness and grade in readable type. */}
+            <SpecBlock data={specFromSource(o)} size="md" className="mt-2" testId={`planner-queue-spec-${plannerRowKey(o)}`} />
 
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8, marginBottom: 8, flexWrap: "wrap" }}>
                 <span style={{
