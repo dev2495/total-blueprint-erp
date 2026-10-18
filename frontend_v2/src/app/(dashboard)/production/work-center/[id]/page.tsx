@@ -384,6 +384,22 @@ function layerQueueLabel(layer: any) {
     .join(" · ");
 }
 
+/** Numbered dossier card header: 1 What it is · 2 What it needs · 3 Ready? · 4 Where from. */
+function DossierHeader({ n, title, sub, right }: { n: string; title: string; sub?: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-primary font-mono text-base font-bold text-white shadow-sm">{n}</span>
+        <div>
+          <div className="text-lg font-semibold leading-tight text-content-1">{title}</div>
+          {sub ? <div className="mt-0.5 text-xs font-medium text-content-3">{sub}</div> : null}
+        </div>
+      </div>
+      {right ? <div className="flex flex-wrap items-center gap-2">{right}</div> : null}
+    </div>
+  );
+}
+
 function QueueFacetSelect({
   label,
   value,
@@ -3449,8 +3465,9 @@ export default function WCMTerminal() {
       <section className="order-1 overflow-hidden rounded-[18px] border border-primary bg-gradient-to-br from-[#10233f] via-[#153f73] to-[#1f3f86] p-3 text-white shadow-[0_22px_56px_-40px_rgba(15,23,42,.7)]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
-              1 · What it is · Current order
+            <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
+              <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-white/15 font-mono text-sm font-bold text-white ring-1 ring-white/25">1</span>
+              What it is · Current order
             </div>
             <h2 className="mt-1 text-lg font-semibold leading-tight tracking-tight text-white">
               {selectedOrderNumberLabel}
@@ -3599,7 +3616,8 @@ export default function WCMTerminal() {
         <section className="order-2 rounded-2xl border border-success-border bg-success-bg p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="text-caption uppercase tracking-wider text-success-fg">
+              <div className="flex items-center gap-2 text-caption uppercase tracking-wider text-success-fg">
+                <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-success-fg font-mono text-sm font-bold text-white">2</span>
                 Sent to machine
               </div>
               <div className="mt-1 text-lg font-semibold text-content-1">
@@ -3687,13 +3705,24 @@ export default function WCMTerminal() {
           ) : null}
         </section>
       ) : (
-        <>
+        <section className="order-2 rounded-[22px] border border-line bg-surface-2/70 p-3 shadow-sm" data-testid="wcm-dossier-needs">
+          <DossierHeader
+            n="2"
+            title="What it needs"
+            sub="Rolls by lane · machine · materials · input issue"
+            right={
+              <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", rollOk && currentStepIssueOk && !detailMaterialBlocked ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg")}>
+                {rollOk && currentStepIssueOk && !detailMaterialBlocked ? "Everything in hand" : "Needs attention"}
+              </span>
+            }
+          />
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
           {satisfactionStatus?.input_form === "ROLL" ? (
-            <section className="order-3 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
+            <section className="order-1 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm xl:col-span-2">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                    2 · What it needs · Rolls
+                    Rolls by lane
                   </div>
                   <div className="mt-1 text-lg font-semibold text-content-1">
                     {rollBehaviorLabel}
@@ -4047,7 +4076,7 @@ export default function WCMTerminal() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                  2 · What it needs · Machine
+                  Machine
                 </div>
                 <div className="text-lg font-semibold text-content-1">
                   {selectedMachine?.name || "Select machine"}
@@ -4163,11 +4192,11 @@ export default function WCMTerminal() {
             ) : null}
           </section>
 
-          <section className="order-4 flex flex-col rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
+          <details className="group order-5 rounded-2xl border border-line bg-surface-1 shadow-sm xl:col-span-2" open={Boolean(materialIssueDirty || materialReleaseCheckCount || detailMaterialBlocked)} data-testid="wcm-input-issue">
+            <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-4">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                  2 · What it needs · Input issue
+                  Input issue <span className="ml-1 normal-case tracking-normal text-content-4 group-open:hidden">· tap to open</span>
                 </div>
                 <div className="text-lg font-semibold text-content-1">
                   Input issue
@@ -4194,7 +4223,8 @@ export default function WCMTerminal() {
                   {materialReleaseLabel}
                 </span>
               </div>
-            </div>
+            </summary>
+            <div className="flex flex-col px-4 pb-4">
             {currentStepPolicyItems.length ? (
               <div className="order-4 mt-3 rounded-2xl border border-info-border bg-info-bg p-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -5041,13 +5071,14 @@ export default function WCMTerminal() {
                 </div>
               </div>
             ) : null}
-          </section>
+            </div>
+          </details>
 
-          <section className="order-5 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
+          <section className="order-3 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                  2 · What it needs · Materials
+                  Materials
                 </div>
                 <div className="mt-1 text-lg font-semibold text-content-1">
                   {selectedStepMaterialRows.length
@@ -5092,7 +5123,7 @@ export default function WCMTerminal() {
           {detailRequiresCylinderGate ? (
             <section
               className={cn(
-                "order-6 rounded-2xl border p-4 shadow-sm",
+                "order-4 rounded-2xl border p-4 shadow-sm",
                 cylinderGateOk && !detailMaterialBlocked
                   ? "border-success-border bg-success-bg"
                   : "border-danger-border bg-danger-bg",
@@ -5140,23 +5171,12 @@ export default function WCMTerminal() {
               </div>
             </section>
           ) : null}
-        </>
+          </div>
+        </section>
       )}
       {Array.isArray((executionContext as any)?.recent_lineage) && (executionContext as any).recent_lineage.length ? (
         <section className="order-7 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm" data-testid="wcm-lineage-card">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
-                4 · Where the rolls came from
-              </div>
-              <div className="mt-1 text-lg font-semibold text-content-1">
-                Latest rolls on this order
-              </div>
-              <p className="mt-1 text-xs font-medium text-content-3">
-                Newest first. Full genealogy stays in Inventory › Roll Genealogy.
-              </p>
-            </div>
-          </div>
+          <DossierHeader n="4" title="Where the rolls came from" sub="Newest first · full genealogy stays in Inventory › Roll Genealogy" />
           <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
             {(executionContext as any).recent_lineage.slice(0, 6).map((roll: any) => (
               <div key={roll.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-2.5 py-1.5 text-xs">
@@ -5178,8 +5198,9 @@ export default function WCMTerminal() {
       <section className="order-last rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur xl:sticky xl:bottom-0 xl:z-10">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[240px] flex-1">
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
-              3 · Ready? · Release bar
+            <div className="flex items-center gap-2">
+              <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-primary font-mono text-sm font-bold text-white">3</span>
+              <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">Ready? · Release</span>
             </div>
             <div
               className={cn(

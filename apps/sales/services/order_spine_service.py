@@ -57,7 +57,7 @@ class OrderSpineService:
     def for_order(cls, order: SalesOrder, *, focus_job: ProductionJob | None = None) -> dict[str, Any]:
         items = list(
             SalesOrderItem.objects.filter(sales_order=order)
-            .select_related("product_master", "template")
+            .select_related("product_master", "template", "template__routing_rule", "assigned_artwork")
             .order_by("created_at")
         )
         jobs = list(
@@ -229,6 +229,18 @@ class OrderSpineService:
         return cls._station("dispatch", "Dispatch", state, value, href, detail)
 
     # ------------------------------------------------------------------ what is to be made
+    @staticmethod
+    def _grade_names(layers) -> dict[str, str]:
+        ids = {str(layer.get("grade_id")) for layer in layers if isinstance(layer, dict) and layer.get("grade_id")}
+        if not ids:
+            return {}
+        try:
+            from apps.recipes.models import RecipeGrade
+
+            return {str(g.id): g.name for g in RecipeGrade.objects.filter(id__in=ids)}
+        except Exception:
+            return {}
+
     @classmethod
     def _made_summary(cls, order, items) -> dict[str, Any]:
         lines = [cls._made_line(item) for item in items]
@@ -240,6 +252,12 @@ class OrderSpineService:
             "route": lines[0]["route"] if lines else "",
             "lanes": lines[0]["lanes"] if lines else "",
             "unit_weight_g": lines[0]["unit_weight_g"] if lines else None,
+            "layers": lines[0]["layers"] if lines else [],
+            "size": lines[0]["size"] if lines else "",
+            "pouch_style": lines[0]["pouch_style"] if lines else "",
+            "artwork": lines[0]["artwork"] if lines else "",
+            "colours": lines[0]["colours"] if lines else 0,
+            "gauge_micron": lines[0]["gauge_micron"] if lines else None,
             "total_kg": round(total_kg, 3),
             "line_count": len(lines),
             "lines": lines,
@@ -270,24 +288,46 @@ class OrderSpineService:
         headline = " · ".join([qty, product, *size_bits]) if product else " · ".join([qty, *size_bits])
 
         layers = item.layer_snapshot if isinstance(item.layer_snapshot, list) else []
+        layer_rows = []
         layer_bits = []
         gauge = 0.0
-        for layer in layers:
+        grade_names = cls._grade_names(layers)
+        films = {}
+        bom = item.bom_snapshot if isinstance(item.bom_snapshot, dict) else {}
+        for row in bom.get("films") or []:
+            if isinstance(row, dict) and row.get("variant_id"):
+                films[str(row["variant_id"])] = row
+        for index, layer in enumerate(layers, start=1):
             if not isinstance(layer, dict):
                 continue
             name = _text(layer.get("name"), layer.get("variant_name"), layer.get("variant_code"), layer.get("family_name"), "film")
             micron = _num(layer.get("thickness_micron") if layer.get("thickness_micron") is not None else layer.get("thickness"))
+            grade = _text(layer.get("grade_name"), layer.get("grade"), grade_names.get(str(layer.get("grade_id") or "")))
+            film_row = films.get(str(layer.get("variant_id") or ""), {})
+            source = _text(film_row.get("source"), layer.get("source")).upper()
             gauge += micron
-            layer_bits.append(f"{name} {micron:g} µ" if micron else name)
+            label = f"{name} {micron:g} µ" if micron else name
+            if grade:
+                label += f" · {grade}"
+            layer_bits.append(label)
+            layer_rows.append({
+                "index": index, "name": name, "micron": micron or None, "grade": grade, "source": source,
+                "density": _num(layer.get("density_g_cm3") or layer.get("density")) or None,
+                "width_mm": _num(layer.get("roll_width_mm") or layer.get("width_mm")) or None,
+                "kg": round(_num(film_row.get("weight_kg")) * _num(item.qty_value), 3) if film_row.get("weight_kg") and str(item.qty_uom).upper() == "PCS" else None,
+            })
         structure = " / ".join(layer_bits)
         if len(layer_bits) > 1 and gauge:
             structure += f" · {gauge:g} µ laminate"
 
         printing = item.printing_snapshot if isinstance(item.printing_snapshot, dict) else {}
         print_text = ""
+        artwork_obj = getattr(item, "assigned_artwork", None)
+        colours = 0
+        artwork = ""
         if printing.get("enabled"):
             colours = int(_num(printing.get("front_colors_count")) + _num(printing.get("back_colors_count")))
-            artwork = _text(printing.get("artwork_code"), printing.get("artwork_name"))
+            artwork = _text(getattr(artwork_obj, "design_code", None), printing.get("artwork_code"), printing.get("artwork_name"))
             print_text = "printed"
             if colours:
                 print_text += f" · {colours} colour{'s' if colours != 1 else ''}"
@@ -313,6 +353,14 @@ class OrderSpineService:
             "fg_type": fg_type,
             "pouch_style": style,
             "size": " · ".join(size_bits),
+            "width_mm": width or None,
+            "height_mm": height or None,
+            "gusset_mm": gusset or None,
+            "layers": layer_rows,
+            "gauge_micron": round(gauge, 2) if gauge else None,
+            "colours": colours,
+            "artwork": artwork,
+            "print_method": _text(printing.get("method"), printing.get("type")).upper() if printing.get("enabled") else "",
             "qty": qty,
             "structure": structure,
             "print": print_text,

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { OrderSpine } from "@/components/spine/order-spine";
+import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
+import { MadeCard } from "@/components/spine/made-card";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -142,6 +143,7 @@ export default function PackingYardPage() {
   const [customerFilter, setCustomerFilter] = useState("ALL");
   const [sortMode, setSortMode] = useState<PackingSortMode>("URGENCY");
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const packingSpine = useOrderSpine({ orderId: selectedOrderId });
   const [routeChoice, setRouteChoice] = useState<RouteKind | "">("");
   const [createBatchId, setCreateBatchId] = useState("");
   const [createQty, setCreateQty] = useState("");
@@ -1193,6 +1195,7 @@ export default function PackingYardPage() {
           ) : (
             <>
               <OrderSpine orderId={String(selected.sales_order.id)} current="yard" testId="packing-order-spine" />
+              {packingSpine.data?.made ? <MadeCard made={packingSpine.data.made} dense testId="packing-made-card" /> : null}
               {/* Order header */}
               <section className="erp-enter rounded-[18px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)] md:p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

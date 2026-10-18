@@ -12,6 +12,17 @@ export interface SpineStation {
   detail: string;
 }
 
+export interface SpineMadeLayer {
+  index: number;
+  name: string;
+  micron: number | null;
+  grade: string;
+  source: string;
+  density: number | null;
+  width_mm: number | null;
+  kg: number | null;
+}
+
 export interface SpineMadeLine {
   item_id: string;
   headline: string;
@@ -19,6 +30,14 @@ export interface SpineMadeLine {
   fg_type: string;
   pouch_style: string;
   size: string;
+  width_mm?: number | null;
+  height_mm?: number | null;
+  gusset_mm?: number | null;
+  layers: SpineMadeLayer[];
+  gauge_micron?: number | null;
+  colours?: number;
+  artwork?: string;
+  print_method?: string;
   qty: string;
   structure: string;
   print: string;
@@ -36,6 +55,12 @@ export interface SpineMade {
   route: string;
   lanes: string;
   unit_weight_g: number | null;
+  layers?: SpineMadeLayer[];
+  size?: string;
+  pouch_style?: string;
+  artwork?: string;
+  colours?: number;
+  gauge_micron?: number | null;
   total_kg: number;
   line_count: number;
   lines: SpineMadeLine[];

@@ -1272,6 +1272,13 @@ export function ProductMasterEditWorkspace({
       <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
           <PmStepNav />
+          <div className="flex items-center gap-3 rounded-2xl border border-info-border bg-info-bg px-4 py-3" data-testid="pm-group-1">
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-primary font-mono text-base font-bold text-white">1</span>
+            <div>
+              <div className="font-display text-base font-semibold text-content-1">What it is</div>
+              <div className="text-xs font-medium text-content-3">Name, kind, route and the rules every order of this product follows</div>
+            </div>
+          </div>
           <RichSection
             id="pm-basics"
             index={1}
@@ -1654,6 +1661,13 @@ export function ProductMasterEditWorkspace({
             </div>
           </RichSection>
 
+          <div className="flex items-center gap-3 rounded-2xl border border-info-border bg-info-bg px-4 py-3" data-testid="pm-group-2">
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-primary font-mono text-base font-bold text-white">2</span>
+            <div>
+              <div className="font-display text-base font-semibold text-content-1">What is fixed</div>
+              <div className="text-xs font-medium text-content-3">Layers, printing and adhesive · sales cannot change these</div>
+            </div>
+          </div>
           <RichSection
             id="pm-layers"
             index={3}
@@ -1902,6 +1916,13 @@ export function ProductMasterEditWorkspace({
             </RichSection>
           ) : null}
 
+          <div className="flex items-center gap-3 rounded-2xl border border-info-border bg-info-bg px-4 py-3" data-testid="pm-group-3">
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-primary font-mono text-base font-bold text-white">3</span>
+            <div>
+              <div className="font-display text-base font-semibold text-content-1">What sales choose</div>
+              <div className="text-xs font-medium text-content-3">Allowed axes, sizes and add-ons an order may pick</div>
+            </div>
+          </div>
           <RichSection
             id="pm-sales-choices"
             index={isMultiLayer ? 6 : 5}

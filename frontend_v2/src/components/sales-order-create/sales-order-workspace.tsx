@@ -308,12 +308,12 @@ export function SalesOrderV34Workspace() {
         <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
             <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-              Order remarks (optional)
+              Client note · prints on the dispatch slip when written
             </Label>
             <Textarea
               value={draft.remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Special instructions for the whole order. Per-line notes live inside the line editor."
+              placeholder="What the customer asked for on delivery, e.g. 'Deliver before 11 am, call Ramesh at the gate'. Shown on the order page and on the dispatch slip."
               className="mt-1 min-h-[72px] rounded-xl border-line shadow-sm"
             />
           </div>

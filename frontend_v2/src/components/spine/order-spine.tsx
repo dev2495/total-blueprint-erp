@@ -72,7 +72,8 @@ export function OrderSpineStrip({
       aria-label="Order spine"
       data-testid={testId}
       className={cn(
-        "flex max-w-full flex-wrap items-stretch overflow-hidden rounded-full border text-[12px] leading-tight",
+        "flex max-w-full flex-wrap items-stretch overflow-hidden rounded-2xl border leading-tight",
+        compact ? "text-[12px]" : "text-[13px]",
         dark ? "border-white/20 bg-white/10" : "border-line bg-surface-1 shadow-sm",
         className,
       )}
@@ -90,7 +91,8 @@ export function OrderSpineStrip({
           </>
         );
         const cls = cn(
-          "flex min-w-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 transition-colors",
+          "flex min-w-0 items-center gap-1.5 whitespace-nowrap transition-colors",
+          compact ? "px-3 py-1.5" : "px-4 py-2.5",
           index < stations.length - 1 && (dark ? "border-r border-white/15" : "border-r border-line"),
           palette[state],
           station.href && (dark ? "hover:bg-white/15" : "hover:bg-surface-2"),

@@ -62,3 +62,21 @@ Not done on purpose (owner's call, 17 Oct): sidebar narrowing by role; bill-to a
 Local stack (backend 8401 on the seeded E2E database, frontend 3401 production build) reviewed in the browser
 with the local test admin. Go-live only on the owner's word after that review; release scripts follow the
 `.runtime/release-*` pattern (PARENT = live commit, no migration, no env change).
+
+## Second pass (18 Oct 2026) — bolder layout + full spec everywhere
+
+- WC terminal detail pane is a real dossier: card **1 · What it is** (order, spine, made-card, step target), card
+  **2 · What it needs** grouping rolls-by-lane (full width), machine, materials and the cylinder/artwork gate in a
+  grid, with **Input issue** folded into a drawer that opens itself when entries are unsaved or material is blocked;
+  card **3 · Ready?** (release), card **4 · Where the rolls came from**. Every action, gate and endpoint unchanged.
+- Made-card now shows the whole spec on every screen: size with gusset, pouch style, each layer as
+  `L1 PET 12 µ · bought`, `L2 LD MW 50 µ · FOOD · made here`, laminate gauge, print method · colours · artwork code,
+  unit weight · order kg, lanes, route, due. Backend `made.layers[]` carries material, micron, grade (resolved
+  from RecipeGrade), source, density, width and kg per layer. Shown on order page, WC, machine, planner Plan Queue
+  order detail and the packing yard.
+- Spine strip is larger by default (compact only inside dark headers).
+- Product master edit: visible banners `1 · What it is / 2 · What is fixed / 3 · What sales choose` above each
+  group; sections ordered the same way.
+- Composer: the order note field is labelled "Client note · prints on the dispatch slip when written".
+- Local demo data: `python manage.py seed_local_floor_demo` (see docs in the command) builds a live-like floor so
+  the stack can be exercised end to end on the local E2E database.

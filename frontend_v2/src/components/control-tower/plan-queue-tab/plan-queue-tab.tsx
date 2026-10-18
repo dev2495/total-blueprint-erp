@@ -35,7 +35,8 @@ import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
 import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
 import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
 import { formatDisplayDate } from "@/lib/date-format";
-import { OrderSpine } from "@/components/spine/order-spine";
+import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
+import { MadeCard } from "@/components/spine/made-card";
 import { matchingPlannerDetail, samePlannerEntity, type PlannerIdentity } from "@/lib/query-contract";
 
 function fmt(n: any, decimals = 0) {
@@ -951,6 +952,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
     onInvalidate: () => Promise<void>;
 }) {
     const { toast } = useToast();
+    const spineQuery = useOrderSpine({ orderId: order.order_id ? String(order.order_id) : "" });
     const segments = deriveSegments(order);
     const fgType = String(order.fg_type || order.final_product_type || "—");
     const due = dueLabel((order as any).delivery_date);
@@ -1097,8 +1099,9 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                                 {order.order_number}{(order as any).customer_name ? ` · ${(order as any).customer_name}` : ""}
                             </div>
                             {order.order_id ? (
-                                <div style={{ marginTop: 10 }}>
+                                <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                                     <OrderSpine orderId={String(order.order_id)} current="plan" compact testId="planner-order-spine" />
+                                    {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} dense testId="planner-made-card" /> : null}
                                 </div>
                             ) : null}
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 }}>
