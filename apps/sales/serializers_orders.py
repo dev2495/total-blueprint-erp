@@ -12,6 +12,31 @@ from .services.order_block_resolver import resolve_block_reasons
 from .services.order_service import SalesOrderService, _normalize_packaging_snapshot
 
 
+def _grade_names():
+    """Recipe grade id -> name, read once per request (a handful of rows)."""
+    from apps.recipes.models import RecipeGrade
+    from config.request_context import request_memo
+
+    return request_memo(("recipe_grade_names",), lambda: {str(gid): name for gid, name in RecipeGrade.objects.values_list("id", "name")})
+
+
+def _layers_with_grade_names(layers):
+    """Copy of the layer snapshot with grade_name filled from grade_id (read-only; the snapshot is not changed)."""
+    if not isinstance(layers, list) or not layers:
+        return layers if isinstance(layers, list) else []
+    if not any(isinstance(layer, dict) and layer.get("grade_id") and not layer.get("grade_name") for layer in layers):
+        return layers
+    names = _grade_names()
+    out = []
+    for layer in layers:
+        if isinstance(layer, dict) and layer.get("grade_id") and not layer.get("grade_name"):
+            name = names.get(str(layer.get("grade_id")))
+            out.append({**layer, "grade_name": name} if name else layer)
+        else:
+            out.append(layer)
+    return out
+
+
 def _line_product_spec(item):
     if item is None:
         return {}
@@ -23,7 +48,7 @@ def _line_product_spec(item):
     template = getattr(item, "template", None)
     return build_product_spec(
         geometry=item.geometry_snapshot if isinstance(getattr(item, "geometry_snapshot", None), dict) else {},
-        layers=item.layer_snapshot if isinstance(getattr(item, "layer_snapshot", None), list) else [],
+        layers=_layers_with_grade_names(item.layer_snapshot if isinstance(getattr(item, "layer_snapshot", None), list) else []),
         printing=item.printing_snapshot if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
         addons=item.addons_snapshot if isinstance(getattr(item, "addons_snapshot", None), list) else [],
         packaging=item.packaging_snapshot if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
@@ -427,6 +452,12 @@ class SalesOrderItemSerializer(serializers.ModelSerializer):
         from apps.production.services.batch_route_service import BatchExecutionService
 
         return BatchExecutionService.line_summary(obj)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if isinstance(data.get("layer_snapshot"), list):
+            data["layer_snapshot"] = _layers_with_grade_names(data["layer_snapshot"])
+        return data
 
     def get_line_label(self, obj):
         return _line_product_spec(obj).get("display_label") or getattr(obj, "line_name", "") or ""
@@ -878,7 +909,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
 
     def _snapshot_layer_rows(self, item):
         rows = []
-        for index, layer in enumerate((item.layer_snapshot or [])[:4]):
+        for index, layer in enumerate(_layers_with_grade_names(item.layer_snapshot or [])[:4]):
             if not isinstance(layer, dict):
                 continue
             code = str(layer.get("variant_code") or layer.get("material_code") or layer.get("family_code") or layer.get("code") or "").strip()
@@ -930,7 +961,7 @@ class SalesOrderListSerializer(SalesOrderSerializer):
                 "product_master_code": str(getattr(item.product_master, "code", "") or "") if getattr(item, "product_master", None) else "",
                 "axis_values": item.axis_values if isinstance(getattr(item, "axis_values", None), dict) else {},
                 "geometry_snapshot": item.geometry_snapshot if isinstance(getattr(item, "geometry_snapshot", None), dict) else {},
-                "layer_snapshot": item.layer_snapshot if isinstance(getattr(item, "layer_snapshot", None), list) else [],
+                "layer_snapshot": _layers_with_grade_names(item.layer_snapshot if isinstance(getattr(item, "layer_snapshot", None), list) else []),
                 "printing_snapshot": item.printing_snapshot if isinstance(getattr(item, "printing_snapshot", None), dict) else {},
                 "addons_snapshot": item.addons_snapshot if isinstance(getattr(item, "addons_snapshot", None), list) else [],
                 "packaging_snapshot": item.packaging_snapshot if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},

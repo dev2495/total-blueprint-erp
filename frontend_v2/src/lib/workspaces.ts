@@ -6,6 +6,8 @@
  *   Products → Orders → Plan → Floor → Stock → Yard & Dispatch → Reports & admin
  */
 import type { ElementType } from "react";
+
+import { NAV_ITEMS, canAccessNavTarget, type NavItem, type SidebarAccessContext } from "./sidebar-nav";
 import {
   BarChart3,
   Boxes,
@@ -48,7 +50,7 @@ export const WORKSPACES: Workspace[] = [
       { label: "Product masters", href: "/master/products" },
       { label: "Pouch styles", href: "/master/pouch-styles" },
       { label: "Web-width policies", href: "/master/web-width-policies" },
-      { label: "Templates", href: "/engineering/templates", group: "Routes" },
+      { label: "Templates", href: "/engineering/templates", group: "Routes", match: ["/engineering", "/dashboard/engineering"] },
       { label: "Routing studio", href: "/engineering/routing" },
       { label: "Route dispatch", href: "/engineering/route-dispatch" },
       { label: "Processes", href: "/factory/processes" },
@@ -114,7 +116,7 @@ export const WORKSPACES: Workspace[] = [
     tabs: [
       { label: "WC terminal", href: "/production/work-center" },
       { label: "Machine terminal", href: "/production/machine-selector", match: ["/production/machine"] },
-      { label: "Command deck", href: "/dashboard/work-center" },
+      { label: "Command deck", href: "/dashboard/work-center", match: ["/dashboard/operator"] },
       { label: "Visual factory", href: "/factory/overview" },
       { label: "Ink floor", href: "/inventory/ink-floor" },
       { label: "Job work", href: "/inventory/job-work" },
@@ -171,7 +173,7 @@ export const WORKSPACES: Workspace[] = [
       { label: "Packing yard", href: "/logistics/packing" },
       { label: "Evening count", href: "/logistics/packing/consumption" },
       { label: "Packing audit", href: "/logistics/packing/audit" },
-      { label: "Dispatch bay", href: "/logistics/dispatch", match: ["/logistics"] },
+      { label: "Dispatch bay", href: "/logistics/dispatch", match: ["/logistics", "/dashboard/logistics"] },
       { label: "In transit", href: "/logistics/transit" },
       { label: "Outward documents", href: "/inventory/outward-documents" },
       { label: "Gate passes", href: "/inventory/gate-passes" },
@@ -243,4 +245,52 @@ export function resolveWorkspace(pathname: string): { workspace: Workspace; tab:
   }
   if (!best) return null;
   return { workspace: best.workspace, tab: best.tab };
+}
+
+type NavTarget = NavItem | NonNullable<NavItem["children"]>[number];
+
+let navIndexCache: Map<string, NavTarget> | null = null;
+
+/** Sidebar entries by route, so a workspace tab inherits the exact role + permission rule of today's sidebar. */
+export function navTargetFor(href: string): NavTarget | undefined {
+  if (!navIndexCache) {
+    navIndexCache = new Map();
+    for (const item of NAV_ITEMS) {
+      navIndexCache.set(normalize(item.href), item);
+      for (const child of item.children || []) navIndexCache.set(normalize(child.href), child);
+    }
+  }
+  return navIndexCache.get(normalize(href));
+}
+
+/** A tab is open to a user when its sidebar entry is (pages not in the sidebar keep their own page guards). */
+export function canOpenTab(tab: WorkspaceTab, context: SidebarAccessContext): boolean {
+  const target = navTargetFor(tab.href);
+  return target ? canAccessNavTarget(target, context) : true;
+}
+
+export interface AccessibleWorkspace {
+  workspace: Workspace;
+  tabs: WorkspaceTab[];
+  /** Where the sidebar link goes: the workspace home when allowed, else the first allowed tab. */
+  href: string;
+}
+
+/**
+ * Workspaces a user can see. A workspace shows when at least one of its screens is in the
+ * user's sidebar today, so role defaults and per-user permission overrides carry over
+ * exactly; there is no second role mapping to drift out of sync.
+ */
+export function accessibleWorkspaces(context: SidebarAccessContext): AccessibleWorkspace[] {
+  const out: AccessibleWorkspace[] = [];
+  for (const workspace of WORKSPACES) {
+    const allowedGoverned = workspace.tabs.filter((tab) => navTargetFor(tab.href) && canOpenTab(tab, context));
+    if (!allowedGoverned.length) continue;
+    const tabs = workspace.tabs.filter((tab) => canOpenTab(tab, context));
+    const home = tabs.some((tab) => normalize(tab.href) === normalize(workspace.home)) && navTargetFor(workspace.home) && canOpenTab({ label: "", href: workspace.home }, context)
+      ? workspace.home
+      : allowedGoverned[0].href;
+    out.push({ workspace, tabs, href: home });
+  }
+  return out;
 }

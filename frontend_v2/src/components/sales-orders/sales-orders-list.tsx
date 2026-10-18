@@ -62,6 +62,7 @@ import {
   type ProductMaster,
 } from "@/services/product-master";
 import { formatDisplayDate } from "@/lib/date-format";
+import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -3174,8 +3175,11 @@ function LinePreviewStack({
           index === 0 ? order.item_summary : undefined,
         );
         const metrics = lineProductionMetrics(line);
-        const topChips = chips.filter((chip) => !chip.key.startsWith("layer-"));
-        const layerChips = chips.filter((chip) => chip.key.startsWith("layer-"));
+        // Size, layers, thickness and grade read large in the spec block; the chips keep the rest.
+        const spec = specFromSource(line && Object.keys(line).length ? line : order, line);
+        const topChips = chips.filter(
+          (chip) => !/^(layer|thickness|size|width|height|gusset)/.test(chip.key),
+        );
         return (
           <div
             key={String(line?.id || `line-preview-${index}`)}
@@ -3189,23 +3193,19 @@ function LinePreviewStack({
               <div className="min-w-0 flex-1">
                 <div
                   className={cn(
-                    "line-clamp-2 font-mono font-semibold leading-5 text-content-1",
-                    compact ? "text-[14px]" : "text-[16px]",
+                    "line-clamp-2 font-semibold leading-5 text-content-1",
+                    compact ? "text-[14px]" : "text-[15px]",
                   )}
+                  title={label}
                 >
                   {label}
                 </div>
+                <SpecBlock data={spec} size="md" className="mt-2" testId={`order-line-spec-${index}`} />
                 <AxisChipStrip
                   chips={topChips}
                   compact={compact}
                   maxLines={1}
-                  className="mt-1"
-                />
-                <AxisChipStrip
-                  chips={layerChips}
-                  compact={compact}
-                  maxLines={2}
-                  className="mt-1"
+                  className="mt-1.5"
                 />
                 <LineFulfillmentStrip metrics={metrics} index={index} compact={compact} />
               </div>

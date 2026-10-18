@@ -42,6 +42,7 @@ import {
   type ArtworkColorway,
 } from "@/components/erp/artwork-section";
 import { SalesPreviewRail } from "./sales-preview-rail";
+import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 
 import {
   productMasterService,
@@ -629,16 +630,16 @@ export function LineEditor({
     <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
       {/* ───────────────── LEFT: section cards ───────────────── */}
       <div className="space-y-3">
-        <div className="rounded-[18px] border border-warning-border bg-gradient-to-r from-warning-bg via-surface-1 to-info-bg px-4 py-3 shadow-sm">
+        <div className="rounded-[16px] border border-line bg-surface-1 px-4 py-3 shadow-sm" data-testid="line-editor-spec-card">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-warning-fg text-sm font-semibold text-white">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary text-sm font-semibold text-white">
               {(lineIndex ?? 0) + 1}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-caption font-semibold uppercase text-warning-fg">
-                Line label used across sales, planner, WCM, packing and dispatch
+              <div className="text-[12px] font-medium text-content-3">
+                Line label · used by planner, WCM, packing and dispatch
               </div>
-              <div className="mt-0.5 truncate font-mono text-[12px] font-semibold text-content-1">
+              <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-5 text-content-1" title={liveLineLabel || undefined}>
                 {liveLineLabel || "Enter quantity, price and Product Master to build label"}
               </div>
             </div>
@@ -648,6 +649,9 @@ export function LineEditor({
               </span>
             ) : null}
           </div>
+          {previewForRail ? (
+            <SpecBlock data={specFromSource(previewForRail)} size="lg" className="mt-3" testId={`line-editor-spec-${(lineIndex ?? 0) + 1}`} />
+          ) : null}
         </div>
 
         <SectionCard

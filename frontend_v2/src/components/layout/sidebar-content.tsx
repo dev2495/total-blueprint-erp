@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, LayoutGrid } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import { getLandingPage } from "@/lib/roles";
 import { NAV_ITEMS, SIDEBAR_SECTION_ORDER, canAccessNavTarget } from "@/lib/sidebar-nav";
+import { accessibleWorkspaces, resolveWorkspace } from "@/lib/workspaces";
 
 function navTestId(value: string) {
   return String(value || "")
@@ -78,7 +79,86 @@ function useSidebarAuth() {
     userRoleCode,
     authorizedItems,
     isAuthorized,
+    accessContext,
   };
+}
+
+const ALL_SCREENS_KEY = "erp.sidebar.allScreensOpen";
+
+function readAllScreensOpen(): boolean {
+  try {
+    return window.localStorage.getItem(ALL_SCREENS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** The seven workspaces of the order spine: the first thing in the sidebar for every role. */
+function WorkspaceLinks({
+  compact,
+  pathname,
+  accessContext,
+  onNavigate,
+}: {
+  compact: boolean;
+  pathname: string;
+  accessContext: Parameters<typeof accessibleWorkspaces>[0];
+  onNavigate?: () => void;
+}) {
+  const items = useMemo(() => accessibleWorkspaces(accessContext), [accessContext]);
+  const current = resolveWorkspace(pathname)?.workspace.key;
+  if (!items.length) return null;
+  return (
+    <div className={cn(compact ? "space-y-2" : "space-y-0.5")} data-testid="sidebar-workspaces">
+      {!compact ? (
+        <div className="px-3 pb-1 pt-1 text-[11px] font-semibold text-content-4">Workspaces</div>
+      ) : null}
+      {items.map(({ workspace, href, tabs }, index) => {
+        const active = current === workspace.key;
+        const Icon = workspace.icon;
+        if (compact) {
+          return (
+            <div key={workspace.key} className="mx-auto flex h-11 w-11 items-center justify-center">
+              <Link
+                href={href}
+                onClick={onNavigate}
+                title={`${workspace.label} · ${tabs.length} screens`}
+                aria-label={workspace.label}
+                aria-current={active ? "page" : undefined}
+                data-testid={`sidebar-workspace-${workspace.key}`}
+                data-active={active ? "true" : undefined}
+                className={cn(
+                  "relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-150",
+                  active ? "bg-primary text-white" : "text-content-3 hover:bg-surface-2 hover:text-content-1",
+                )}
+              >
+                <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.1 : 1.8} />
+              </Link>
+            </div>
+          );
+        }
+        return (
+          <Link
+            key={workspace.key}
+            href={href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            data-testid={`sidebar-workspace-${workspace.key}`}
+            data-active={active ? "true" : undefined}
+            data-active-current={active ? "true" : undefined}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors duration-150",
+              active ? "bg-primary text-white" : "text-content-2 hover:bg-surface-2 hover:text-content-1",
+            )}
+          >
+            <Icon className={cn("h-[18px] w-[18px] flex-none", active ? "text-white" : "text-content-3 group-hover:text-content-1")} strokeWidth={active ? 2 : 1.8} />
+            <span className="min-w-0 flex-1 truncate">{workspace.label}</span>
+            <span className={cn("font-mono text-[11px]", active ? "text-white/75" : "text-content-4")}>{index + 1}</span>
+          </Link>
+        );
+      })}
+    </div>
+  );
 }
 
 export function SidebarBrand({ compact = false }: { compact?: boolean }) {
@@ -137,8 +217,27 @@ export function SidebarNavContent({
   compact?: boolean;
   onNavigate?: () => void;
 }) {
-  const { user, pathname, userRoleCode, authorizedItems, isAuthorized } =
+  const { user, pathname, userRoleCode, authorizedItems, isAuthorized, accessContext } =
     useSidebarAuth();
+  // Every screen of the old sidebar stays reachable under "All screens", folded by default
+  // (opened automatically on a page that belongs to no workspace).
+  const [allScreensOpen, setAllScreensOpen] = useState(false);
+  useEffect(() => {
+    setAllScreensOpen(readAllScreensOpen());
+  }, []);
+  const outsideWorkspaces = !resolveWorkspace(pathname);
+  const showAllScreens = allScreensOpen || outsideWorkspaces;
+  const toggleAllScreens = () => {
+    setAllScreensOpen((open) => {
+      const next = !open;
+      try {
+        window.localStorage.setItem(ALL_SCREENS_KEY, next ? "1" : "0");
+      } catch {
+        /* per-viewer convenience only */
+      }
+      return next;
+    });
+  };
   const navRef = useRef<HTMLElement>(null);
   // Explicit open/closed state of child groups ("section|group"); unset = open when it holds the current page.
   const [groupState, setGroupState] = useState<Record<string, boolean>>({});
@@ -190,7 +289,30 @@ export function SidebarNavContent({
             : "sidebar-nav"
       }
     >
-      {authorizedItems.map((item, index) => {
+      <WorkspaceLinks compact={compact && !mobile} pathname={pathname} accessContext={accessContext} onNavigate={onNavigate} />
+      <div className={cn(compact && !mobile ? "mx-auto flex h-11 w-11 items-center justify-center" : "pt-2")}>
+        <button
+          type="button"
+          onClick={toggleAllScreens}
+          aria-expanded={showAllScreens}
+          title="All screens"
+          data-testid="sidebar-all-screens-toggle"
+          className={cn(
+            compact && !mobile
+              ? "flex h-11 w-11 items-center justify-center rounded-xl text-content-4 transition-colors hover:bg-surface-2 hover:text-content-1"
+              : "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-content-3 transition-colors hover:bg-surface-2 hover:text-content-1",
+          )}
+        >
+          <LayoutGrid className="h-4 w-4 flex-none" strokeWidth={1.8} />
+          {compact && !mobile ? null : (
+            <>
+              <span className="min-w-0 flex-1 text-left">All screens</span>
+              <ChevronDown className={cn("h-4 w-4 transition-transform duration-150", showAllScreens ? "rotate-180" : "")} />
+            </>
+          )}
+        </button>
+      </div>
+      {showAllScreens ? authorizedItems.map((item, index) => {
         const authorizedChildren = item.children?.filter((child) => {
           const isAuth = isAuthorized(child);
           if (child.href === "/dashboard/sales" && userRoleCode === "SALES") {
@@ -618,7 +740,7 @@ export function SidebarNavContent({
             )}
           </div>
         );
-      })}
+      }) : null}
     </nav>
   );
 }

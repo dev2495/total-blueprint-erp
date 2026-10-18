@@ -6,11 +6,12 @@
  * spine endpoint, so every screen agrees. Commercial details (bill-to, PO, terms) are
  * deliberately NOT here; they live only on the sales order page.
  */
-import { CalendarDays, Layers, Printer, Route, Ruler, Scale, SplitSquareHorizontal } from "lucide-react";
+import { CalendarDays, Printer, Route, Scale, SplitSquareHorizontal } from "lucide-react";
 
 import { formatDisplayDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import type { SpineMade, SpineMadeLayer } from "@/services/spine";
+import { SpecBlock, specFromMade } from "./spec-block";
 
 function Fact({ icon, children, dark, strong }: { icon?: React.ReactNode; children: React.ReactNode; dark?: boolean; strong?: boolean }) {
   return (
@@ -24,13 +25,6 @@ function Fact({ icon, children, dark, strong }: { icon?: React.ReactNode; childr
       <span className="truncate">{children}</span>
     </span>
   );
-}
-
-function sourceWord(source: string) {
-  const s = String(source || "").toUpperCase();
-  if (s.includes("EXTRU")) return "made here";
-  if (s.includes("PURCH")) return "bought";
-  return "";
 }
 
 export function layerLabel(layer: SpineMadeLayer) {
@@ -61,11 +55,7 @@ export function MadeCard({
 }) {
   if (!made) return null;
   const extraLines = Math.max(0, made.line_count - 1);
-  const layers = made.layers || [];
   const first = made.lines[0];
-  const sizeText = first?.width_mm && first?.height_mm
-    ? `${first.width_mm.toLocaleString("en-IN", { maximumFractionDigits: 1 })} × ${first.height_mm.toLocaleString("en-IN", { maximumFractionDigits: 1 })} mm${first.gusset_mm ? ` · gusset ${first.gusset_mm.toLocaleString("en-IN", { maximumFractionDigits: 1 })}` : ""}`
-    : made.size || "";
   const printText = first?.print_method
     ? [first.print_method, made.colours ? `${made.colours} colour${made.colours === 1 ? "" : "s"}` : "", made.artwork].filter(Boolean).join(" · ")
     : made.print && made.print !== "plain" ? made.print : "plain";
@@ -91,35 +81,14 @@ export function MadeCard({
         ) : null}
       </h2>
 
-      {/* Spec: size, every layer with material · micron · grade · source, gauge, print. */}
-      <div className="mt-2.5 flex flex-wrap gap-1.5" data-testid={`${testId}-spec`}>
-        {sizeText ? (
-          <Fact icon={<Ruler />} dark={dark} strong>
-            {sizeText}
-          </Fact>
-        ) : null}
-        {made.pouch_style ? (
-          <Fact icon={<Layers />} dark={dark}>
-            {made.pouch_style.replace(/_/g, " ")}
-          </Fact>
-        ) : null}
-        {layers.map((layer) => (
-          <Fact key={layer.index} dark={dark} strong>
-            <span className={cn("mr-1 font-mono text-[11px]", dark ? "text-white/70" : "text-content-3")}>L{layer.index}</span>
-            {layerLabel(layer)}
-            {sourceWord(layer.source) ? <span className={cn("ml-1", dark ? "text-white/70" : "text-content-3")}>· {sourceWord(layer.source)}</span> : null}
-          </Fact>
-        ))}
-        {layers.length > 1 && made.gauge_micron ? (
-          <Fact dark={dark}>{made.gauge_micron.toLocaleString("en-IN", { maximumFractionDigits: 1 })} µ laminate</Fact>
-        ) : null}
+      {/* Spec in large type: size, then every layer with thickness and grade. */}
+      <SpecBlock data={specFromMade(made)} size={dense ? "md" : "lg"} dark={dark} className="mt-3" testId={`${testId}-spec`} />
+
+      {/* Print, quantities and plan. */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
         <Fact icon={<Printer />} dark={dark}>
           {printText}
         </Fact>
-      </div>
-
-      {/* Quantities and plan. */}
-      <div className="mt-2 flex flex-wrap gap-1.5">
         {made.unit_weight_g ? (
           <Fact icon={<Scale />} dark={dark}>
             {made.unit_weight_g.toLocaleString("en-IN", { maximumFractionDigits: 3 })} g each

@@ -11,24 +11,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, canAccessNavTarget, type NavItem } from "@/lib/sidebar-nav";
-import { WORKSPACES, resolveWorkspace } from "@/lib/workspaces";
-
-type NavTarget = NavItem | NonNullable<NavItem["children"]>[number];
-
-function normalize(path: string) {
-  return (String(path || "").split("?")[0].replace(/\/+$/g, "") || "/").toLowerCase();
-}
-
-/** Sidebar entries by href, so a workspace tab inherits the sidebar's role/permission rule. */
-function buildNavIndex() {
-  const index = new Map<string, NavTarget>();
-  for (const item of NAV_ITEMS) {
-    index.set(normalize(item.href), item);
-    for (const child of item.children || []) index.set(normalize(child.href), child);
-  }
-  return index;
-}
+import { WORKSPACES, canOpenTab, resolveWorkspace } from "@/lib/workspaces";
 
 export function WorkspaceBar() {
   const pathname = usePathname() || "/";
@@ -51,18 +34,12 @@ export function WorkspaceBar() {
     }),
     [baseRoleCode, extraPermissions, roleCode, user?.entitlements?.documents, user?.entitlements?.gate_master, user?.entitlements?.inventory_bill_review, user?.is_owner, user?.is_superuser],
   );
-  const navIndex = useMemo(buildNavIndex, []);
-
   const resolved = useMemo(() => resolveWorkspace(pathname), [pathname]);
 
   const tabs = useMemo(() => {
     if (!resolved) return [];
-    return resolved.workspace.tabs.filter((tab) => {
-      const target = navIndex.get(normalize(tab.href));
-      // A screen not listed in the sidebar is open to whoever can reach its page.
-      return target ? canAccessNavTarget(target, accessContext) : true;
-    });
-  }, [accessContext, navIndex, resolved]);
+    return resolved.workspace.tabs.filter((tab) => canOpenTab(tab, accessContext));
+  }, [accessContext, resolved]);
 
   useEffect(() => {
     scroller.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });

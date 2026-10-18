@@ -47,6 +47,7 @@ import { analyticsApi, type OrderTrackingResponse } from "@/services/analytics";
 import { customerDispatchApi, type CustomerDispatch } from "@/services/customer-dispatch";
 import { salesService, type SalesOrder, type SalesOrderLine } from "@/services/sales";
 import { MadeCard } from "@/components/spine/made-card";
+import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 
 const LINE_PROGRESS_TONES = [
@@ -1454,7 +1455,7 @@ function LineTrackerSection({ line, index, tracking }: { line: SalesOrderLine; i
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <LineColorIcon index={index} />
-            <h2 className="min-w-0 truncate font-mono text-base font-semibold text-content-1">
+            <h2 className="min-w-0 truncate text-base font-semibold text-content-1" title={lineLabel(line, index)}>
               L{index + 1} · {lineLabel(line, index)} · {fmtKg(metrics.orderedKg)} kg
             </h2>
             <Badge variant="outline" className="rounded-full text-caption font-semibold uppercase">{line.line_status_display || statusLabel(line.line_status)}</Badge>
@@ -1463,6 +1464,7 @@ function LineTrackerSection({ line, index, tracking }: { line: SalesOrderLine; i
           <div className="mt-1 text-xs font-semibold text-content-3">
             {line.template_name || line.product_master_name || "Template snapshot"} · Route batch production and commercial demand stay tied to this line.
           </div>
+          <SpecBlock data={specFromSource(line)} size="lg" className="mt-3" testId={`order-line-${index + 1}-spec`} />
           <LineSpecChips line={line} />
         </div>
         <ArtworkThumb preview={artwork} compact />
