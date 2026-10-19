@@ -895,9 +895,14 @@ export function StockLauncherV3Workspace() {
         <div className="grid min-w-0 gap-1.5">
           <div className="text-[12.5px] text-content-3">Plan · Launch stock</div>
           <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-content-1">
-            {master ? `Launch ${master.name}` : "Launch stock from a product master"}
+            Launch stock from any Product Master
           </h1>
           <p className="max-w-3xl text-[13.5px] text-content-3">
+            {master ? (
+              <>
+                Building <span className="font-semibold text-content-1">{master.name}</span>.{" "}
+              </>
+            ) : null}
             Three decisions: what to build, who it is for, and how far the route runs. The stock order goes straight to production.
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -1209,7 +1214,7 @@ export function StockLauncherV3Workspace() {
             <section className="rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-5 py-3.5">
                 <StepDot state={sizeCode ? "done" : "todo"}>4</StepDot>
-                <h2 className="text-[15.5px] font-semibold text-content-1">Size and layers</h2>
+                <h2 className="text-[15.5px] font-semibold text-content-1">Spec / axes · size and layers</h2>
                 <span className="text-[12.5px] text-content-3">size, stock form, layer stack and width math from the product master</span>
               </div>
               <div className="grid gap-5 p-5">
@@ -1314,6 +1319,14 @@ export function StockLauncherV3Workspace() {
             </section>
           ) : null}
 
+          {!master ? (
+            <section className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-[18px] border border-dashed border-line-strong bg-surface-1 px-5 py-4">
+              <StepDot state="idle">4</StepDot>
+              <h2 className="text-[15.5px] font-semibold text-content-2">Spec / axes · size and layers</h2>
+              <span className="text-[12.5px] text-content-3">opens when a product master is picked above</span>
+            </section>
+          ) : null}
+
           <section className="rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-5 py-3.5">
               <StepDot state={quantity > 0 ? "done" : "todo"}>5</StepDot>
@@ -1334,6 +1347,8 @@ export function StockLauncherV3Workspace() {
                     className="h-12 rounded-[13px] border-line-strong text-[22px] font-semibold tabular-nums tracking-[-0.02em]"
                   />
                 </Field>
+                <div className="grid gap-1.5">
+                <Label className="text-[12px] font-semibold text-content-2">UOM</Label>
                 <div className="inline-flex h-12 items-center rounded-[13px] border border-line-strong bg-surface-2 p-1" role="group" aria-label="UOM">
                   {(["KG", "PCS"] as const).map((unit) => (
                     <button
@@ -1349,6 +1364,7 @@ export function StockLauncherV3Workspace() {
                       {unit.toLowerCase()}
                     </button>
                   ))}
+                </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">

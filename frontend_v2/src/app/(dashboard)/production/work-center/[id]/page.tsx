@@ -5196,7 +5196,7 @@ export default function WCMTerminal() {
           </div>
         </section>
       ) : null}
-      <section className="order-last rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur xl:sticky xl:bottom-0 xl:z-10">
+      <section className="order-last rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_26px_70px_-45px_rgba(15,23,42,.55)] backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-[240px] flex-1">
             <div className="flex items-center gap-2">

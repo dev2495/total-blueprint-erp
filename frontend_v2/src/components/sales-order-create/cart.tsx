@@ -45,8 +45,17 @@ export function Cart({
 }: CartProps) {
   const customerId = draft.customer || undefined;
 
+  const heading = (
+    <div className="flex items-baseline gap-2 px-1">
+      <h2 className="text-[15.5px] font-semibold tracking-[-0.01em] text-content-1">Line items</h2>
+      <span className="text-[12.5px] tabular-nums text-content-3">{draft.lines.length}</span>
+    </div>
+  );
+
   if (draft.lines.length === 0) {
     return (
+      <div className="grid gap-2">
+      {heading}
       <section className="grid place-items-center rounded-[18px] border border-dashed border-line-strong bg-surface-1 px-6 py-10 text-center">
         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-2 text-content-3">
           <ShoppingBag className="h-6 w-6" />
@@ -62,6 +71,7 @@ export function Cart({
           {draft.customer ? "Add line" : "Pick customer first"}
         </Button>
       </section>
+      </div>
     );
   }
 
@@ -69,6 +79,7 @@ export function Cart({
 
   return (
     <div className="grid gap-3" data-testid="sales-cart">
+      {heading}
       {draft.lines.map((line, idx) => {
         const master = masters.find((item) => item.id === line.product_master);
         const issues = perLineIssues[line.id] || [];
