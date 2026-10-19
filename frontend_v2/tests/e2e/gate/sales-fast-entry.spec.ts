@@ -30,6 +30,7 @@ test("sales create page and Product Master expose the new product-master lanes",
   await page.goto("/sales/orders")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Sales Orders")
-  await expect(page.getByRole("link", { name: /New order/i })).toBeVisible()
+  // "New order" is both a workspace tab and the page's own button; check the page button.
+  await expect(page.getByTestId("sales-orders-list-page").getByRole("link", { name: /New order/i })).toBeVisible()
   await expect(page.getByRole("link", { name: /Product Master/i }).first()).toBeVisible()
 })

@@ -4077,7 +4077,7 @@ export default function WCMTerminal() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold text-content-3">
-                  Machine
+                  Machine assignment
                 </div>
                 <div className="text-lg font-semibold text-content-1">
                   {selectedMachine?.name || "Select machine"}
@@ -5079,7 +5079,7 @@ export default function WCMTerminal() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold text-content-3">
-                  Materials
+                  Current-step materials
                 </div>
                 <div className="mt-1 text-lg font-semibold text-content-1">
                   {selectedStepMaterialRows.length

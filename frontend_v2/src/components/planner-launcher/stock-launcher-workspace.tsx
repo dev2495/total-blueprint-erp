@@ -124,7 +124,6 @@ export function StockLauncherV3Workspace() {
     "ALL",
   );
   const [masterSearch, setMasterSearch] = React.useState("");
-  const [showDerived, setShowDerived] = React.useState(false);
   const [scope, setScope] = React.useState<CommitmentScope>("GENERIC");
   const [productMasterId, setProductMasterId] = React.useState(initialMaster);
   const [templateId, setTemplateId] = React.useState<string>("");
