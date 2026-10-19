@@ -350,7 +350,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
 
       {/* Formula table */}
       <div className="overflow-hidden rounded-3xl border border-line bg-surface-1 shadow-sm">
-        <div className="border-b border-line bg-gradient-to-r from-order-bg via-order-bg to-order-bg px-5 py-4">
+        <div className="border-b border-line bg-surface-2 px-5 py-4">
           <div className="font-display text-sm font-semibold text-content-2">
             Opening + Ins − Outs ± Adjustments = Closing
           </div>
@@ -421,7 +421,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-gradient-to-r from-order-bg via-order-bg to-order-bg">
+              <tr className="bg-surface-2">
                 <td className="px-4 py-3 font-display text-sm font-semibold text-content-2">
                   Totals
                 </td>
@@ -456,7 +456,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
             !period || period.status === "CLOSED" || blockers.length > 0
           }
           className={cn(
-            "bg-gradient-to-r from-order-fg via-order-fg to-danger-solid text-white",
+            "bg-plate text-white",
             "hover:from-order-fg hover:via-order-fg hover:to-danger-fg",
           )}
         >
@@ -496,7 +496,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
               disabled={
                 closeMutation.isPending || !period || blockers.length > 0
               }
-              className="bg-gradient-to-r from-order-fg to-order-fg text-white"
+              className="bg-plate text-white"
             >
               {closeMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

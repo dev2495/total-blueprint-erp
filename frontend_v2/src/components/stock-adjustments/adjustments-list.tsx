@@ -57,7 +57,7 @@ export function StockAdjustmentsList() {
   }, [rows, statusFilter]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-order-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="violet"
         eyebrow="INVENTORY · STOCK ADJUSTMENTS"
@@ -230,7 +230,7 @@ function AdjustmentCard({ a }: { a: StockAdjustment }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl bg-surface-2 px-2 py-2">
-      <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold text-content-1">

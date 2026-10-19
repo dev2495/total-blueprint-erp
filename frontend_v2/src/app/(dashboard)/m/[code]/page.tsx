@@ -137,7 +137,7 @@ export default function MachineScanPage() {
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl border border-line bg-surface-2 px-2 py-2">
                 <div className="font-mono text-base font-semibold text-content-1">{value}</div>
-                <div className="text-caption font-semibold uppercase tracking-wide text-content-3">{label}</div>
+                <div className="text-[12px] font-semibold text-content-3">{label}</div>
               </div>
             ))}
           </div>

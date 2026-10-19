@@ -41,7 +41,7 @@ export function InkColorSwatches({
       className={cn("flex items-center gap-1.5", className)}
       aria-label={`Ink colors: ${list.join(", ")}`}
     >
-      <span className="text-caption font-bold uppercase tracking-wider text-content-4">
+      <span className="text-[12px] font-semibold text-content-3">
         Colors
       </span>
       <div className="flex max-w-[340px] flex-wrap items-center gap-1">

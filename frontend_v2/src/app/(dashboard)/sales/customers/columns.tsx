@@ -16,7 +16,7 @@ export const getColumns = ({
   {
     accessorKey: "code",
     header: () => (
-      <span className="text-caption font-semibold uppercase tracking-widest text-content-4 px-2">
+      <span className="text-[12px] font-semibold text-content-3 px-2">
         Client Code
       </span>
     ),
@@ -31,7 +31,7 @@ export const getColumns = ({
   {
     accessorKey: "name",
     header: () => (
-      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-[12px] font-semibold text-content-3">
         Corporate Entity
       </span>
     ),
@@ -51,7 +51,7 @@ export const getColumns = ({
   {
     id: "tax_identity",
     header: () => (
-      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-[12px] font-semibold text-content-3">
         Tax Identity
       </span>
     ),
@@ -69,7 +69,7 @@ export const getColumns = ({
   {
     accessorKey: "status",
     header: () => (
-      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-[12px] font-semibold text-content-3">
         Account Status
       </span>
     ),
@@ -78,7 +78,7 @@ export const getColumns = ({
   {
     id: "credit",
     header: () => (
-      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-[12px] font-semibold text-content-3">
         Credit Exposure
       </span>
     ),
@@ -97,7 +97,7 @@ export const getColumns = ({
   {
     id: "address_book",
     header: () => (
-      <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <span className="text-[12px] font-semibold text-content-3">
         Address Book
       </span>
     ),

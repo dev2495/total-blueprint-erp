@@ -87,49 +87,49 @@ export const CATEGORY_META: CategoryDef[] = [
     key: "FILM_VARIANT",
     label: "Rolls",
     icon: PackageCheck,
-    accent: "from-primary to-info-fg",
+    accent: "bg-primary",
   },
   {
     key: "GRANULE",
     label: "Granule",
     icon: Wheat,
-    accent: "from-warning-fg to-warm",
+    accent: "bg-warning-fg",
   },
   {
     key: "INK",
     label: "Ink",
     icon: Droplets,
-    accent: "from-order-fg to-danger-solid",
+    accent: "bg-plate",
   },
   {
     key: "SOLVENT",
     label: "Solvent",
     icon: FlaskConical,
-    accent: "from-success-fg to-success-bg0",
+    accent: "bg-success-fg",
   },
   {
     key: "ADHESIVE",
     label: "Adhesive",
     icon: Sparkles,
-    accent: "from-danger-solid to-warm",
+    accent: "bg-danger-solid",
   },
   {
     key: "PACKAGING",
     label: "Packaging",
     icon: Package,
-    accent: "from-order-fg to-order-fg",
+    accent: "bg-plate",
   },
   {
     key: "ADDON",
     label: "Add-ons",
     icon: Puzzle,
-    accent: "from-info-fg to-order-fg",
+    accent: "bg-primary",
   },
   {
     key: "POD",
     label: "POD",
     icon: Layers,
-    accent: "from-surface-2 to-surface-2",
+    accent: "bg-surface-2",
   },
 ];
 
@@ -938,7 +938,7 @@ function Hero({
 }) {
   return (
     <section className="erp-hero relative overflow-hidden rounded-[26px] p-6 text-white">
-      <div className="absolute -right-16 -top-16 h-60 w-60 rounded-full bg-surface-1/10 blur-3xl" />
+      <div className="hidden absolute -right-16 -top-16 h-60 w-60 rounded-full bg-surface-1/10 blur-3xl" />
       <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-border dark:text-white/80">
@@ -2099,7 +2099,7 @@ function SnapshotsPanel({
                       {batch.line_count || batch.lines?.length || 0} lines
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-2 text-caption font-bold uppercase tracking-[0.12em] text-content-3">
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[12px] font-semibold text-content-3">
                     <span>{batch.batch_no || batch.id}</span>
                     <span>
                       {batch.posted_at
@@ -2747,7 +2747,7 @@ function AuditBatchDrawer({
 function ProofMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-3">
-      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
+      <div className="text-[12px] font-semibold text-content-3">{label}</div>
       <div className="mt-1 truncate text-sm font-semibold text-content-1">{value || "-"}</div>
     </div>
   );

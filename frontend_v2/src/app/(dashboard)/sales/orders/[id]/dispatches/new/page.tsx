@@ -232,7 +232,7 @@ export default function NewCustomerDispatchPage() {
 
   return (
     <div className="min-h-screen space-y-6 bg-surface-2 p-6">
-      <section className="rounded-[2rem] border border-line bg-gradient-to-br from-success-fg via-success-fg to-success-fg px-8 py-7 text-white shadow-lg">
+      <section className="rounded-[2rem] border border-line bg-success-fg px-8 py-7 text-white shadow-lg">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <Link
@@ -330,7 +330,7 @@ export default function NewCustomerDispatchPage() {
         <CardContent className="overflow-x-auto p-0">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-surface-2 text-left text-caption font-bold uppercase tracking-wide text-content-3">
+              <tr className="border-b border-line bg-surface-2 text-left text-[12px] font-semibold text-content-3">
                 <th className="px-4 py-3">Item</th>
                 <th className="px-4 py-3 text-right">Ordered</th>
                 <th className="px-4 py-3 text-right">Already shipped</th>
@@ -440,7 +440,7 @@ function Field({
 }) {
   return (
     <div className={wide ? "md:col-span-2 lg:col-span-3" : ""}>
-      <Label className="text-caption font-bold uppercase tracking-wide text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         {label}
       </Label>
       <div className="mt-1">{children}</div>

@@ -274,7 +274,7 @@ export function RecipeForm({
                 </p>
               </div>
               <div className="rounded-xl border border-primary/15 bg-surface-1 px-3 py-2 text-right">
-                <div className="text-caption font-semibold uppercase tracking-wider text-content-4">Current revision</div>
+                <div className="text-[12px] font-semibold text-content-3">Current revision</div>
                 <div className="font-mono text-lg font-semibold tabular-nums text-primary">v{initialData.revision_no || 1}</div>
               </div>
             </div>
@@ -286,7 +286,7 @@ export function RecipeForm({
                 { label: "Released", value: impact?.released ?? "—", icon: ShieldCheck },
               ].map((metric) => (
                 <div key={metric.label} className="bg-surface-1 px-3 py-2.5">
-                  <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-content-4">
+                  <div className="flex items-center gap-1.5 text-[12px] font-semibold text-content-3">
                     <metric.icon className="h-3.5 w-3.5" /> {metric.label}
                   </div>
                   <div className="mt-1 font-mono text-lg font-semibold tabular-nums text-content-1">
@@ -297,7 +297,7 @@ export function RecipeForm({
             </div>
             {impact?.samples?.length ? (
               <div className="border-t border-primary/10 bg-surface-1 px-4 py-3">
-                <div className="mb-2 text-caption font-semibold uppercase tracking-wider text-content-4">Recent matching order lines</div>
+                <div className="mb-2 text-[12px] font-semibold text-content-3">Recent matching order lines</div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {impact.samples.slice(0, 4).map((sample) => (
                     <div key={sample.line_id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2">

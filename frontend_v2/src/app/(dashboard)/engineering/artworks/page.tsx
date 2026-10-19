@@ -86,7 +86,7 @@ function ArtworkThumbnail({ artwork }: { artwork: Artwork }) {
   }
 
   return (
-    <div className="flex h-full items-center justify-center bg-gradient-to-br from-surface-2 via-white to-info-bg text-content-4">
+    <div className="flex h-full items-center justify-center bg-surface-2 text-content-4">
       <ImageIcon className="h-12 w-12" />
     </div>
   );
@@ -225,7 +225,7 @@ export default function EngineeringArtworksPage() {
                       <div className="text-sm font-semibold tracking-tight text-content-1">
                         {artwork.name}
                       </div>
-                      <div className="mt-1 font-mono text-caption font-bold uppercase tracking-[0.1em] text-content-4">
+                      <div className="mt-1 font-mono text-[12px] font-semibold text-content-3">
                         {artwork.design_code}
                       </div>
                     </div>
@@ -262,7 +262,7 @@ export default function EngineeringArtworksPage() {
 
                   <div className="grid grid-cols-2 gap-3 rounded-2xl bg-surface-2 p-4 text-sm">
                     <div>
-                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Front / Back
                       </div>
                       <div className="mt-1 font-semibold text-content-1">
@@ -271,7 +271,7 @@ export default function EngineeringArtworksPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Print / Film
                       </div>
                       <div className="mt-1 font-semibold text-content-1">
@@ -280,7 +280,7 @@ export default function EngineeringArtworksPage() {
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Color Identity
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">

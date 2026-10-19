@@ -55,7 +55,7 @@ function KpiCard({
             <Icon className="h-5 w-5" strokeWidth={2.2} />
           </div>
         </div>
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           {label}
         </div>
         <div className="mt-2 text-4xl font-semibold tracking-tight text-content-1">

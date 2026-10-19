@@ -1238,7 +1238,7 @@ export function ArtworkDialog({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                      <p className="text-[12px] font-semibold text-content-3">
                         Cylinder specs
                       </p>
                       <p className="mt-1 text-caption text-content-3">

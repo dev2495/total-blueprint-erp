@@ -19,7 +19,7 @@ export const getColumns = ({
   {
     accessorKey: "code",
     header: () => (
-      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         Vendor ID
       </div>
     ),
@@ -32,7 +32,7 @@ export const getColumns = ({
   {
     accessorKey: "name",
     header: () => (
-      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         Entity Name
       </div>
     ),
@@ -50,7 +50,7 @@ export const getColumns = ({
   {
     accessorKey: "type",
     header: () => (
-      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         Sector
       </div>
     ),
@@ -66,7 +66,7 @@ export const getColumns = ({
   {
     accessorKey: "lead_time_days",
     header: () => (
-      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         Lead Time
       </div>
     ),
@@ -82,7 +82,7 @@ export const getColumns = ({
   {
     accessorKey: "status",
     header: () => (
-      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         Status
       </div>
     ),

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1030,8 +1030,8 @@ export default function QuotationWorkspace({
     <main className="mx-auto max-w-[1480px] px-5 py-7 lg:px-8 lg:py-8 pb-32 space-y-5">
       {/* Hero */}
       <section className="erp-hero relative overflow-hidden rounded-[28px] p-6 text-white">
-        <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-surface-1/10 blur-3xl" />
-        <div className="absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-order-fg blur-3xl" />
+        <div className="hidden absolute -right-20 -top-20 h-72 w-72 rounded-full bg-surface-1/10 blur-3xl" />
+        <div className="hidden absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-order-fg blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-border">
@@ -1181,7 +1181,7 @@ export default function QuotationWorkspace({
         <div className="space-y-5 min-w-0">
           {/* Meta strip */}
           <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-caption font-semibold uppercase tracking-widest text-content-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-[12px] font-semibold text-content-3">
               <div>
                 <div>Customer</div>
                 <div className="mt-1 text-sm font-bold text-content-1 normal-case tracking-normal truncate">
@@ -1227,7 +1227,7 @@ export default function QuotationWorkspace({
                 <h3 className="text-base font-semibold text-content-1">Client and enquiry context</h3>
                 <p className="mt-1 text-caption font-semibold text-content-4">These values are snapshotted on this revision. Missing Customer Master details remain visible blockers; nothing is invented.</p>
               </div>
-              {status !== "DRAFT" ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-content-3 ring-1 ring-line">Frozen revision</span> : null}
+              {status !== "DRAFT" ? <span className="rounded-full bg-surface-2 px-2.5 py-1 text-[12px] font-semibold text-content-3 ring-1 ring-line">Frozen revision</span> : null}
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <QuoteField label="Enquiry / RFQ reference" value={enquiryReference} onChange={setEnquiryReference} disabled={status !== "DRAFT"} />
@@ -1336,7 +1336,7 @@ export default function QuotationWorkspace({
                 <h3 className="text-base font-semibold text-content-1">
                   Quote Lines
                 </h3>
-                <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+                <span className="text-[12px] font-semibold text-content-3">
                   {counts.total} lines · {counts.catalog} catalog ·{" "}
                   {counts.adhoc} ad-hoc · ₹ {inrFmt(subtotal)}
                 </span>
@@ -1450,7 +1450,7 @@ export default function QuotationWorkspace({
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <label className="block">
-                <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <span className="text-[12px] font-semibold text-content-3">
                   Discount %
                 </span>
                 <input
@@ -1464,7 +1464,7 @@ export default function QuotationWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <span className="text-[12px] font-semibold text-content-3">
                   Discount ₹
                 </span>
                 <input
@@ -1478,7 +1478,7 @@ export default function QuotationWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <span className="text-[12px] font-semibold text-content-3">
                   Freight ₹
                 </span>
                 <input
@@ -1489,7 +1489,7 @@ export default function QuotationWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <span className="text-[12px] font-semibold text-content-3">
                   GST %
                 </span>
                 <input
@@ -1500,7 +1500,7 @@ export default function QuotationWorkspace({
                 />
               </label>
             </div>
-            <label className="inline-flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-content-3">
+            <label className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-3">
               <input
                 type="checkbox"
                 checked={freightIncluded}
@@ -1512,7 +1512,7 @@ export default function QuotationWorkspace({
             {/* Other charges */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Other charges (tooling, samples, dies)
                 </div>
                 <button
@@ -1613,7 +1613,7 @@ export default function QuotationWorkspace({
 
             {/* Terms */}
             <div className="space-y-2 pt-2">
-              <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Terms preset
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -1651,7 +1651,7 @@ export default function QuotationWorkspace({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-brand-navy" />
-                  <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Customer
                   </div>
                 </div>
@@ -1730,7 +1730,7 @@ export default function QuotationWorkspace({
             <section className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]">
               <div className="flex items-center gap-2 mb-3">
                 <Clock className="h-4 w-4 text-brand-blue" />
-                <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Lifecycle
                 </div>
               </div>
@@ -1785,7 +1785,7 @@ export default function QuotationWorkspace({
       {/* Sticky bottom action bar */}
       <div className="fixed bottom-0 inset-x-0 z-30 border-t border-line bg-surface-1/95 backdrop-blur shadow-[0_-12px_28px_-12px_rgba(15,23,42,0.16)]">
         <div className="mx-auto max-w-[1480px] px-5 lg:px-8 py-3 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
             {saveMut.isPending ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-order-fg" />
@@ -1866,10 +1866,10 @@ export default function QuotationWorkspace({
           <p className="text-[12px] font-semibold leading-5 text-content-3">
             This is optional. It creates only a governed Product Variant under the existing Base Product Master. It does not create Product, Size, Layer, Pouch Style or RM masters, and quote-only costs are never promoted.
           </p>
-          <label className="mt-4 block text-caption font-semibold uppercase tracking-wider text-content-3">Variant code
+          <label className="mt-4 block text-[12px] font-semibold text-content-3">Variant code
             <input autoFocus value={variantCode} onChange={(event) => setVariantCode(event.target.value.toUpperCase())} className="mt-1 h-10 w-full rounded-lg border border-line px-3 font-mono text-sm font-bold" placeholder="Unique variant code" />
           </label>
-          <label className="mt-3 block text-caption font-semibold uppercase tracking-wider text-content-3">Business reason
+          <label className="mt-3 block text-[12px] font-semibold text-content-3">Business reason
             <textarea value={variantReason} onChange={(event) => setVariantReason(event.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-line px-3 py-2 text-sm font-semibold" placeholder="Why should this quote configuration become reusable?" />
           </label>
           <div className="mt-4 flex justify-end gap-2">
@@ -2073,7 +2073,7 @@ function QuoteField({
   const controlClass = "mt-1 w-full rounded-lg border border-line bg-surface-1 px-3 py-2 text-sm font-semibold text-content-1 outline-none focus:border-order-border focus:ring-2 focus:ring-order-border disabled:bg-surface-2 disabled:text-content-3";
   return (
     <label className={multiline ? "md:col-span-3" : ""}>
-      <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <span className="text-[12px] font-semibold text-content-3">
         {label}{required ? " *" : ""}
       </span>
       {multiline ? (
@@ -2128,7 +2128,7 @@ function Row({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-4">{label}</div>
+      <div className="text-[12px] font-semibold text-content-3">{label}</div>
       <div className="mt-1 font-mono text-content-1">{value}</div>
     </div>
   );
@@ -2401,6 +2401,17 @@ function NewQuotationOnboarding({
     queryFn: () => quotationService.listCustomers({ page_size: 200 }),
   });
   const customers = customersQuery.data || [];
+  // Arriving from the order composer ("Quotation" switch) carries the customer along.
+  const searchParams = useSearchParams();
+  const presetCustomer = searchParams?.get("customer") || "";
+  useEffect(() => {
+    if (!presetCustomer || selected || !customers.length) return;
+    const match = customers.find((c) => String(c.id) === presetCustomer);
+    if (match) {
+      setSelected(match);
+      setSearch(match.name);
+    }
+  }, [customers, presetCustomer, selected]);
   const filtered = useMemo(() => {
     const t = search.trim().toLowerCase();
     if (!t) return customers.slice(0, 20);
@@ -2441,36 +2452,54 @@ function NewQuotationOnboarding({
 
   return (
     <main className="mx-auto max-w-[920px] px-5 py-10 lg:px-8 lg:py-12">
-      <div className="rounded-[28px] bg-gradient-to-br from-order-fg via-order-fg to-order-fg p-1 shadow-[0_40px_80px_-40px_rgba(79,70,229,0.6)]">
-        <div className="rounded-[26px] bg-surface-1 px-6 py-8 lg:px-10 lg:py-12">
+      <div className="rounded-[20px] border border-line bg-surface-1 shadow-[var(--shadow-md)]">
+        <div className="px-6 py-8 lg:px-10 lg:py-10">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg inline-flex items-center gap-2">
-                <Sparkles className="h-3.5 w-3.5" />
-                New quotation
+              <div className="text-[12.5px] text-content-3">
+                Sales · New quotation
               </div>
-              <h1 className="mt-2 text-2xl lg:text-3xl font-semibold tracking-tight text-content-1">
+              <h1 className="mt-1 text-[26px] font-semibold leading-tight tracking-[-0.025em] text-content-1">
                 Start a new quotation
               </h1>
-              <p className="mt-1 text-sm font-semibold text-content-3">
+              <p className="mt-1 text-[13.5px] text-content-3">
                 Pick a customer to begin. Their pricing rules and credit profile
                 load automatically.
               </p>
             </div>
-            <Link
-              href="/sales/quotations"
-              className="h-10 px-3 inline-flex items-center gap-1.5 rounded-lg text-content-3 hover:bg-surface-2 font-bold text-sm"
-            >
-              <ArrowLeft className="h-4 w-4" /> Quotations
-            </Link>
+            <div className="flex items-center gap-2">
+              <nav
+                aria-label="Document kind"
+                className="inline-flex h-10 items-center rounded-[12px] border border-line-strong bg-surface-2 p-1"
+              >
+                <Link
+                  href={selected?.id ? `/sales/orders/create?customer=${encodeURIComponent(String(selected.id))}` : "/sales/orders/create"}
+                  className="inline-flex h-8 items-center gap-2 rounded-[9px] px-3 text-[13px] font-semibold text-content-3 transition hover:text-content-1"
+                >
+                  <span className="font-mono text-[10.5px] opacity-70">SO</span>Order
+                </Link>
+                <span
+                  aria-current="page"
+                  className="inline-flex h-8 items-center gap-2 rounded-[9px] bg-plate px-3 text-[13px] font-semibold text-plate-fg"
+                >
+                  <span className="font-mono text-[10.5px] opacity-70">QT</span>Quotation
+                </span>
+              </nav>
+              <Link
+                href="/sales/quotations"
+                className="h-10 px-3 inline-flex items-center gap-1.5 rounded-[11px] text-content-3 hover:bg-surface-2 font-medium text-[13px]"
+              >
+                <ArrowLeft className="h-4 w-4" /> Quotations
+              </Link>
+            </div>
           </div>
 
           {/* Customer combobox */}
           <div className="mt-6">
-            <label className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <label className="text-[12px] font-semibold text-content-2">
               Customer
             </label>
-            <div className="mt-1 flex items-center gap-2 h-12 rounded-xl border-2 border-order-border focus-within:border-order-border px-3 bg-surface-1">
+            <div className="mt-1.5 flex h-12 items-center gap-2 rounded-[14px] border border-line-strong bg-surface-1 px-3.5 focus-within:border-primary focus-within:ring-4 focus-within:ring-info-bg">
               <Search className="h-4 w-4 text-content-4" />
               <input
                 autoFocus
@@ -2520,11 +2549,11 @@ function NewQuotationOnboarding({
                         setSearch(c.name);
                       }}
                       className={cn(
-                        "w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-order-bg border-b border-line last:border-b-0",
-                        selected?.id === c.id && "bg-order-bg",
+                        "w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-surface-1 border-b border-line last:border-b-0",
+                        selected?.id === c.id && "bg-info-bg",
                       )}
                     >
-                      <Users className="h-4 w-4 text-order-fg shrink-0" />
+                      <Users className="h-4 w-4 text-content-3 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-content-1 truncate">
                           {c.name}
@@ -2534,7 +2563,7 @@ function NewQuotationOnboarding({
                         </div>
                       </div>
                       {selected?.id === c.id ? (
-                        <CheckCircle2 className="h-4 w-4 text-order-fg shrink-0" />
+                        <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                       ) : null}
                     </button>
                   ))
@@ -2545,7 +2574,7 @@ function NewQuotationOnboarding({
             {/* Recent customers chips */}
             {recents.length > 0 && !selected ? (
               <div className="mt-4">
-                <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Or pick from recent customers
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -2602,7 +2631,7 @@ function NewQuotationOnboarding({
             <button
               onClick={() => selected && onPick(selected)}
               disabled={!selected || creating}
-              className="h-11 px-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-order-fg via-order-fg to-order-fg text-white font-semibold text-sm shadow-md hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="h-11 px-5 inline-flex items-center gap-2 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {creating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

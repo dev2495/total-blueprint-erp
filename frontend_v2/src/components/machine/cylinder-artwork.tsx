@@ -97,7 +97,7 @@ export function CylinderSetCard({
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Layers className="h-4 w-4 text-order-fg" />
-          <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Cylinder set
           </div>
           {artworkCode ? (
@@ -148,7 +148,7 @@ function SidePanel({
   if (assignments.length === 0) return null;
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-2">
-      <div className="px-1 pb-1.5 text-caption font-bold uppercase tracking-wider text-content-3">
+      <div className="px-1 pb-1.5 text-[12px] font-semibold text-content-3">
         {title}
       </div>
       <div className="space-y-1">

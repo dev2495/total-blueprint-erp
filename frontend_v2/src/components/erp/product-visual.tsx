@@ -48,7 +48,7 @@ export function ProductVisual({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-surface-2 via-white to-info-bg p-4 ring-1 ring-line",
+        "relative overflow-hidden rounded-2xl border border-line bg-surface-2 p-4 ring-1 ring-line",
         className,
       )}
     >
@@ -87,7 +87,7 @@ export function ProductVisual({
             <div className="absolute left-3 top-3 right-3 flex items-start justify-between">
               <div>
                 {title ? (
-                  <div className="text-caption font-bold uppercase tracking-[0.1em] text-content-3">
+                  <div className="text-[12px] font-semibold text-content-3">
                     {title}
                   </div>
                 ) : null}
@@ -97,7 +97,7 @@ export function ProductVisual({
                   </div>
                 ) : null}
               </div>
-              <span className="rounded-full bg-surface-1/80 px-2 py-0.5 text-caption font-bold uppercase tracking-wider text-content-3 ring-1 ring-line">
+              <span className="rounded-full bg-surface-1/80 px-2 py-0.5 text-[12px] font-semibold text-content-3 ring-1 ring-line">
                 {kind}
               </span>
             </div>
@@ -108,7 +108,7 @@ export function ProductVisual({
           <div
             className={cn("flex flex-col gap-1.5", compact ? "w-32" : "w-40")}
           >
-            <div className="text-caption font-bold uppercase tracking-[0.1em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Layer stack
             </div>
             <div className="flex flex-1 flex-col gap-0.5 rounded-xl bg-surface-1 p-2 ring-1 ring-line">

@@ -531,7 +531,7 @@ export default function InventoryHistoryPage() {
 function MetricTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl bg-surface-1 px-3 py-3 shadow-sm">
-      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-content-1">{value}</div>

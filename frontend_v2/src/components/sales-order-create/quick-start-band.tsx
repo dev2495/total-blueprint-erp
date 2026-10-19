@@ -163,50 +163,34 @@ export function QuickStartBand({
   if (cards.length === 0) {
     return (
       <div
-        className="rounded-2xl border border-line bg-gradient-to-br from-surface-2 to-white p-4 shadow-sm"
+        className="flex flex-wrap items-center gap-2 text-[12.5px] text-content-3"
         data-testid="sales-quick-start-band"
       >
-        <div className="flex items-center gap-2 text-caption font-bold text-content-2">
-          <Sparkles className="h-3.5 w-3.5 text-content-3" />
-          Quick Start
-          <span
-            className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-3"
-            data-testid="sales-quick-start-empty"
-          >
-            no overlays or recent activity
-          </span>
-        </div>
-        <p className="mt-1.5 text-xs text-content-3">
-          {customerName
-            ? `${customerName} has no customer defaults or recent order shortcuts yet. `
-            : ""}
-          Add a line manually below; once an overlay or repeat order exists it
-          will show here.
-        </p>
+        <span className="font-medium text-content-2">Quick Start</span>
+        <span
+          className="rounded-full bg-surface-2 px-2 py-0.5"
+          data-testid="sales-quick-start-empty"
+        >
+          no overlays or recent activity
+        </span>
+        <span>
+          {customerName ? `${customerName} has no saved items or recent orders yet. ` : ""}
+          Search a product above to add the first line.
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3" data-testid="sales-quick-start-band">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-0.5 text-caption font-semibold uppercase tracking-[0.12em] text-order-fg ring-1 ring-order-border">
-            <Zap className="-mt-0.5 mr-1 inline h-2.5 w-2.5" />
-            Quick Start
-          </span>
-          {customerName && (
-            <span className="text-caption font-medium text-content-3">
-              for{" "}
-              <span className="font-bold text-content-2">{customerName}</span>
-            </span>
-          )}
-        </div>
-        <span className="text-caption font-bold text-content-3">
+    <div className="grid gap-2" data-testid="sales-quick-start-band">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12.5px] text-content-3">
+        <span className="font-medium text-content-2">Quick Start</span>
+        {customerName ? <span className="min-w-0">· usual items for {customerName}</span> : null}
+        <span className="ml-auto whitespace-nowrap">
           {cards.length} suggestion{cards.length === 1 ? "" : "s"}
         </span>
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-wrap gap-2">
         {cards.map((c) => (
           <QuickStartCardView key={c.id} card={c} onAdd={() => onAdd(c.seed)} />
         ))}
@@ -252,56 +236,21 @@ function QuickStartCardView({
       type="button"
       onClick={onAdd}
       data-testid={`sales-quick-start-card-${card.kind}`}
-      className={cn(
-        "group relative flex flex-col gap-2 overflow-hidden rounded-2xl border bg-surface-1 p-4 text-left shadow-sm ring-1 transition hover:shadow-md hover:ring-2",
-        tone.border,
-        tone.ring,
-      )}
+      title={card.subtitle || card.title}
+      className="group grid max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] border border-line bg-surface-1 px-3 py-2 text-left transition hover:border-info-border hover:bg-info-bg"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-lg ring-1 shadow-sm",
-              tone.iconBg,
-              tone.iconText,
-              tone.iconRing,
-            )}
-          >
-            {tone.icon}
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1 ring-inset",
-              tone.badgeBg,
-              tone.badgeText,
-            )}
-          >
-            {tone.label}
-          </span>
-        </div>
-        <span className="rounded-full bg-primary p-1 text-white shadow-md transition group-hover:bg-primary group-hover:shadow-lg">
-          <Plus className="h-3 w-3" />
+      <span className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.05em] text-content-4">
+        {tone.label}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[13px] font-semibold text-content-1">{card.title}</span>
+        <span className="block truncate text-[12px] text-content-3">
+          {[card.subtitle, card.metric].filter(Boolean).join(" · ")}
         </span>
-      </div>
-      <div>
-        <div className="font-mono text-xs font-bold text-content-1">
-          {card.title}
-        </div>
-        {card.subtitle && (
-          <div className="mt-0.5 truncate text-caption text-content-3">
-            {card.subtitle}
-          </div>
-        )}
-      </div>
-      {card.metric && (
-        <div className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold text-content-2">
-          {card.metric}
-        </div>
-      )}
-      <div className="mt-1 text-caption font-bold uppercase tracking-wider text-content-4 group-hover:text-primary">
+      </span>
+      <span className="whitespace-nowrap text-[12px] font-medium text-primary opacity-80 group-hover:opacity-100">
         + Add to cart
-      </div>
+      </span>
     </button>
   );
 }

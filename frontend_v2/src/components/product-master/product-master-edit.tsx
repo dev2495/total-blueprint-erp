@@ -1,6 +1,8 @@
 "use client";
 
 import { PmStepNav } from "./pm-step-nav";
+import { SpecPlate } from "@/components/plate/spec-plate";
+import { specFromMasterLine } from "@/components/plate/spec-from-master";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1202,31 +1204,17 @@ export function ProductMasterEditWorkspace({
                 </Button>
               }
             />
-            <div className="rounded-2xl border border-info-border bg-gradient-to-r from-info-bg via-white to-info-bg px-4 py-3 text-xs text-primary shadow-sm ring-1 ring-info-border">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-semibold uppercase tracking-[0.1em]">
-                    Save impact
-                  </div>
-                  <div className="mt-1 leading-5 text-content-2">
-                    Saving refreshes the active Product Master contract. Clean
-                    unreleased demand updates to it automatically. Released,
-                    allocated, consumed, WIP-linked, or job-started lines stay
-                    frozen on their original snapshot for audit.
-                  </div>
-                </div>
-                <span className="rounded-full bg-surface-1 px-3 py-1 text-caption font-semibold uppercase tracking-wider text-primary ring-1 ring-info-border">
-                  active on save
-                </span>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 rounded-[14px] bg-surface-2 px-4 py-2.5 text-[12.5px] text-content-3">
+              <span className="font-medium text-content-2">Active on save.</span>
+              Clean open demand picks up the change; released, allocated or started lines keep their original snapshot for audit.
             </div>
             {/* Production-master banner — surfaces the manual
  catalog-link model and reminds the admin this isn't
  a sales master. */}
             {isProductionMaster ? (
-              <div className="rounded-2xl border border-order-border bg-gradient-to-r from-order-bg via-white to-order-bg px-4 py-3 shadow-sm ring-1 ring-order-border">
+              <div className="rounded-[16px] border border-line bg-surface-1 px-4 py-3 shadow-[var(--shadow-sm)]">
                 <div className="flex flex-wrap items-start gap-3">
-                  <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-order-fg to-order-fg text-white shadow-md">
+                  <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-surface-2 text-content-2 ring-1 ring-line">
                     <Workflow className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -1269,14 +1257,14 @@ export function ProductMasterEditWorkspace({
         );
       })()}
 
-      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
-        <div className="space-y-6">
-          <PmStepNav />
-          <div className="flex items-center gap-3 rounded-2xl border border-info-border bg-info-bg px-4 py-3" data-testid="pm-group-1">
-            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-primary font-mono text-base font-bold text-white">1</span>
-            <div>
-              <div className="font-display text-base font-semibold text-content-1">What it is</div>
-              <div className="text-xs font-medium text-content-3">Name, kind, route and the rules every order of this product follows</div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[188px_minmax(0,1fr)_360px]">
+        <PmStepNav className="xl:col-span-2 2xl:col-span-1" />
+        <div className="min-w-0 space-y-6">
+          <div className="flex items-baseline gap-3 px-1 pt-2" data-testid="pm-group-1">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-content-4">Part 1</span>
+            <div className="min-w-0">
+              <div className="text-[18px] font-semibold tracking-[-0.015em] text-content-1">What it is</div>
+              <div className="text-[12.5px] text-content-3">Name, kind, route and the rules every order of this product follows</div>
             </div>
           </div>
           <RichSection
@@ -1448,7 +1436,7 @@ export function ProductMasterEditWorkspace({
                           className={cn(
                             "rounded-2xl border bg-surface-1 px-3.5 py-3 text-left shadow-sm transition",
                             active
-                              ? "border-warning-border ring-2 ring-warning-border bg-gradient-to-br from-warning-bg to-warm"
+                              ? "border-warning-border ring-2 ring-warning-border bg-warning-bg"
                               : "border-line hover:border-warning-border hover:bg-warning-bg",
                           )}
                         >
@@ -1495,17 +1483,17 @@ export function ProductMasterEditWorkspace({
                 className={cn(
                   "flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-sm ring-1 transition",
                   draft.active
-                    ? "border-success-border bg-gradient-to-r from-success-bg via-white to-success-bg ring-success-border"
-                    : "border-danger-border bg-gradient-to-r from-danger-bg via-white to-warm ring-danger-border",
+                    ? "border-success-border bg-success-bg ring-success-border"
+                    : "border-danger-border bg-danger-bg ring-danger-border",
                 )}
               >
                 <div className="flex items-center gap-3">
                   <span
                     className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-md",
+                      "flex h-9 w-9 items-center justify-center rounded-xl text-white",
                       draft.active
-                        ? "bg-gradient-to-br from-success-fg to-success-bg0"
-                        : "bg-gradient-to-br from-danger-solid to-warm",
+                        ? "bg-plate"
+                        : "bg-plate",
                     )}
                   >
                     {draft.active ? (
@@ -1539,7 +1527,7 @@ export function ProductMasterEditWorkspace({
 
             <div className="mt-5">
               <div className="mb-2 flex items-center justify-between">
-                <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                <Label className="text-[12px] font-semibold text-content-2">
                   Live route preview
                 </Label>
                 <span className="text-caption text-content-3">
@@ -1574,9 +1562,9 @@ export function ProductMasterEditWorkspace({
             subtitle="A read-only summary of the layers, what sales can change, and where the BOM comes from."
           >
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-              <div className="rounded-2xl border border-info-border bg-gradient-to-br from-info-bg to-white p-3 shadow-sm">
+              <div className="rounded-[14px] bg-surface-2 p-3.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-caption font-semibold uppercase text-primary">
+                  <span className="text-[12.5px] font-semibold text-content-1">
                     Layer contract
                   </span>
                   <span
@@ -1603,9 +1591,9 @@ export function ProductMasterEditWorkspace({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-order-border bg-gradient-to-br from-order-bg to-white p-3 shadow-sm">
+              <div className="rounded-[14px] bg-surface-2 p-3.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-caption font-semibold uppercase text-order-fg">
+                  <span className="text-[12.5px] font-semibold text-content-1">
                     Order axes
                   </span>
                   <span className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-order-fg ring-1 ring-order-border">
@@ -1632,9 +1620,9 @@ export function ProductMasterEditWorkspace({
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg to-white p-3 shadow-sm">
+              <div className="rounded-[14px] bg-surface-2 p-3.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-caption font-semibold uppercase text-warning-fg">
+                  <span className="text-[12.5px] font-semibold text-content-1">
                     Where the BOM comes from
                   </span>
                   <span className="rounded-full bg-surface-1 px-2 py-0.5 text-caption font-semibold text-warning-fg ring-1 ring-warning-border">
@@ -1661,11 +1649,11 @@ export function ProductMasterEditWorkspace({
             </div>
           </RichSection>
 
-          <div className="flex items-center gap-3 rounded-2xl border border-info-border bg-info-bg px-4 py-3" data-testid="pm-group-2">
-            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-primary font-mono text-base font-bold text-white">2</span>
-            <div>
-              <div className="font-display text-base font-semibold text-content-1">What is fixed</div>
-              <div className="text-xs font-medium text-content-3">Layers, printing and adhesive · sales cannot change these</div>
+          <div className="flex items-baseline gap-3 px-1 pt-2" data-testid="pm-group-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-content-4">Part 2</span>
+            <div className="min-w-0">
+              <div className="text-[18px] font-semibold tracking-[-0.015em] text-content-1">What is fixed</div>
+              <div className="text-[12.5px] text-content-3">Layers, printing and adhesive · sales cannot change these</div>
             </div>
           </div>
           <RichSection
@@ -1779,7 +1767,7 @@ export function ProductMasterEditWorkspace({
                   </div>
                   <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
                     <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-[12px] font-semibold text-content-2">
                         Material
                       </Label>
                       <Select
@@ -1811,7 +1799,7 @@ export function ProductMasterEditWorkspace({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-[12px] font-semibold text-content-2">
                         GSM
                       </Label>
                       <Input
@@ -1853,7 +1841,7 @@ export function ProductMasterEditWorkspace({
                   </div>
                   <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-3">
                     <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-[12px] font-semibold text-content-2">
                         Material
                       </Label>
                       <Select
@@ -1885,7 +1873,7 @@ export function ProductMasterEditWorkspace({
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                      <Label className="text-[12px] font-semibold text-content-2">
                         GSM
                       </Label>
                       <Input
@@ -1916,11 +1904,11 @@ export function ProductMasterEditWorkspace({
             </RichSection>
           ) : null}
 
-          <div className="flex items-center gap-3 rounded-2xl border border-info-border bg-info-bg px-4 py-3" data-testid="pm-group-3">
-            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-primary font-mono text-base font-bold text-white">3</span>
-            <div>
-              <div className="font-display text-base font-semibold text-content-1">What sales choose</div>
-              <div className="text-xs font-medium text-content-3">Allowed axes, sizes and add-ons an order may pick</div>
+          <div className="flex items-baseline gap-3 px-1 pt-2" data-testid="pm-group-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-content-4">Part 3</span>
+            <div className="min-w-0">
+              <div className="text-[18px] font-semibold tracking-[-0.015em] text-content-1">What sales choose</div>
+              <div className="text-[12.5px] text-content-3">Allowed axes, sizes and add-ons an order may pick</div>
             </div>
           </div>
           <RichSection
@@ -1944,7 +1932,7 @@ export function ProductMasterEditWorkspace({
               const kind = String(draft.product_kind || "").toUpperCase();
               if (kind === "POUCH") {
                 return (
-                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-warning-border bg-gradient-to-r from-warning-bg via-white to-warm px-3 py-2 text-caption text-warning-fg">
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption text-warning-fg">
                     <Package className="mt-0.5 h-4 w-4 flex-none text-warning-fg" />
                     <span>
                       <strong>Inner pouch axis</strong> below lets sales pick
@@ -1968,7 +1956,7 @@ export function ProductMasterEditWorkspace({
               }
               if (kind === "PACKAGING" || kind === "POD") {
                 return (
-                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-order-border bg-gradient-to-r from-order-bg via-white to-order-bg px-3 py-2 text-caption text-order-fg">
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-order-border bg-surface-1 px-3 py-2 text-caption text-order-fg">
                     <Workflow className="mt-0.5 h-4 w-4 flex-none text-order-fg" />
                     <span>
                       This is a <strong>{kind}</strong> production master. It
@@ -1982,10 +1970,10 @@ export function ProductMasterEditWorkspace({
               }
               return null;
             })()}
-            <div className="mb-3 rounded-2xl border border-info-border bg-gradient-to-r from-info-bg via-surface-1 to-success-bg p-3 shadow-sm">
+            <div className="mb-3 rounded-[14px] bg-surface-2 p-3.5">
               <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
+                  <div className="text-[12px] font-semibold text-content-2">
                     Sales ad-hoc permissions
                   </div>
                   <div className="mt-0.5 text-caption font-semibold text-content-3">
@@ -2139,7 +2127,7 @@ export function ProductMasterEditWorkspace({
                         </div>
                       ) : null}
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-surface-2 px-2 py-1.5">
-                        <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+                        <span className="text-[12px] font-semibold text-content-2">
                           {def.axis === "size" ? "Ad-hoc size in sales" : "Ad-hoc value"}
                         </span>
                         <button
@@ -2229,7 +2217,7 @@ export function ProductMasterEditWorkspace({
           )}
         </div>
 
-        <aside className="grid gap-4 xl:grid-cols-2 2xl:sticky 2xl:top-16 2xl:max-h-[calc(100vh-5rem)] 2xl:grid-cols-1 2xl:self-start 2xl:overflow-y-auto 2xl:pr-1">
+        <aside className="grid content-start gap-4 md:grid-cols-2 xl:sticky xl:top-16 xl:max-h-[calc(100vh-5rem)] xl:grid-cols-1 xl:self-start xl:overflow-y-auto xl:pr-1">
           {(() => {
             const kind = String(draft.product_kind || "").toUpperCase();
             const visualKind =
@@ -2238,38 +2226,74 @@ export function ProductMasterEditWorkspace({
                 : kind;
             const usesProductVisual =
               visualKind === "POUCH" || visualKind === "ROLL";
+            const firstSize = draftSizes.find((row: any) => row.active !== false) || draftSizes[0];
+            const fixed = draft.fixed_attributes || {};
+            const adhesiveGsm = Number(fixed.adhesive_gsm || 0) + Number(fixed.solvent_gsm || 0);
             return (
-              <RichSection
-                tone="emerald"
-                icon={<span className="text-sm">🧪</span>}
-                title="Live anatomy"
-                subtitle={`${kind} → ${visualKind} · ${draft.layer_template.length} layers · ${totalThickness}μ`}
-              >
-                {usesProductVisual ? (
-                  <ProductVisual
-                    kind={visualKind as ProductKind}
-                    layers={draft.layer_template}
-                    width_mm={draftSizes[0]?.width_mm}
-                    height_mm={draftSizes[0]?.height_mm}
-                    gusset_mm={draftSizes[0]?.gusset_mm}
-                    roll_width_mm={
-                      draftSizes[0]?.roll_width_mm ||
-                      autoRollWidthMm(draftSizes[0] || {}, visualKind)
-                    }
-                    addons={
-                      draft.fixed_attributes?.print_capable ? ["PRINT"] : []
-                    }
-                    title="Draft"
-                    subtitle={`${draft.layer_template.length} layers · ${totalThickness}μ`}
-                  />
-                ) : (
-                  <FlatFilmVisual
-                    layers={draft.layer_template}
-                    sizeRow={draftSizes[0]}
-                    kind={kind}
-                  />
-                )}
-              </RichSection>
+              <>
+                <SpecPlate
+                  data={specFromMasterLine({
+                    layers: draft.layer_template,
+                    size: firstSize,
+                    showRanges: true,
+                  })}
+                  caption="Spec plate"
+                  captionRight={
+                    <span className="text-plate-fg-3">
+                      {firstSize ? `first active size · ${firstSize.code}` : "no size yet"}
+                    </span>
+                  }
+                  facts={[
+                    { label: "Kind", value: `${kind.toLowerCase()} → ${String(visualKind).toLowerCase()}` },
+                    { label: "Route", value: draft.template_name || "" },
+                    {
+                      label: "Print",
+                      value: fixed.print_capable
+                        ? fixed.artwork_required
+                          ? "compulsory"
+                          : "capable"
+                        : "plain",
+                    },
+                    { label: "Sizes", value: `${draftSizes.length}` },
+                    { label: "Adhesive", value: adhesiveGsm > 0 ? `${adhesiveGsm} gsm` : "" },
+                  ]}
+                  testId="pm-spec-plate"
+                  narrow
+                  emptyText="Add a layer and a size to see the spec."
+                />
+                <section className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
+                  <div className="mb-2 flex items-baseline justify-between gap-2">
+                    <span className="text-[13px] font-semibold text-content-1">Anatomy</span>
+                    <span className="text-[12px] text-content-3">
+                      {draft.layer_template.length} layers · {totalThickness}μ
+                    </span>
+                  </div>
+                  {usesProductVisual ? (
+                    <ProductVisual
+                      kind={visualKind as ProductKind}
+                      layers={draft.layer_template}
+                      width_mm={draftSizes[0]?.width_mm}
+                      height_mm={draftSizes[0]?.height_mm}
+                      gusset_mm={draftSizes[0]?.gusset_mm}
+                      roll_width_mm={
+                        draftSizes[0]?.roll_width_mm ||
+                        autoRollWidthMm(draftSizes[0] || {}, visualKind)
+                      }
+                      addons={
+                        draft.fixed_attributes?.print_capable ? ["PRINT"] : []
+                      }
+                      title="Draft"
+                      subtitle={`${draft.layer_template.length} layers · ${totalThickness}μ`}
+                    />
+                  ) : (
+                    <FlatFilmVisual
+                      layers={draft.layer_template}
+                      sizeRow={draftSizes[0]}
+                      kind={kind}
+                    />
+                  )}
+                </section>
+              </>
             );
           })()}
 
@@ -2384,48 +2408,47 @@ const FORM_FIELD_TONE: Record<
     label: "text-order-fg",
     ring: "ring-order-border",
     dot: "bg-order-fg",
-    bg: "bg-gradient-to-br from-order-bg to-white",
+    bg: "bg-surface-1",
   },
   violet: {
     label: "text-order-fg",
     ring: "ring-order-border",
     dot: "bg-order-fg",
-    bg: "bg-gradient-to-br from-order-bg to-white",
+    bg: "bg-surface-1",
   },
   emerald: {
     label: "text-success-fg",
     ring: "ring-success-border",
     dot: "bg-success-fg",
-    bg: "bg-gradient-to-br from-success-bg to-white",
+    bg: "bg-success-bg",
   },
   amber: {
     label: "text-warning-fg",
     ring: "ring-warning-border",
     dot: "bg-warning-fg",
-    bg: "bg-gradient-to-br from-warning-bg to-white",
+    bg: "bg-warning-bg",
   },
   fuchsia: {
     label: "text-order-fg",
     ring: "ring-order-border",
     dot: "bg-order-fg",
-    bg: "bg-gradient-to-br from-order-bg to-white",
+    bg: "bg-surface-1",
   },
   blue: {
     label: "text-primary",
     ring: "ring-info-border",
     dot: "bg-primary",
-    bg: "bg-gradient-to-br from-info-bg to-surface-1",
+    bg: "bg-surface-1",
   },
   slate: {
     label: "text-content-3",
     ring: "ring-line",
     dot: "bg-line",
-    bg: "bg-gradient-to-br from-surface-2 to-white",
+    bg: "bg-surface-1",
   },
 };
 function FormField({
   label,
-  tone = "slate",
   prominent,
   children,
 }: {
@@ -2434,27 +2457,11 @@ function FormField({
   prominent?: boolean;
   children: React.ReactNode;
 }) {
-  const t = FORM_FIELD_TONE[tone] || FORM_FIELD_TONE.slate;
   return (
-    <div
-      className={cn(
-        "rounded-2xl ring-1 p-3 shadow-sm",
-        t.ring,
-        t.bg,
-        prominent && "p-4",
-      )}
-    >
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span className={cn("inline-block h-1.5 w-1.5 rounded-full", t.dot)} />
-        <Label
-          className={cn(
-            "text-caption font-semibold uppercase tracking-[0.12em]",
-            t.label,
-          )}
-        >
-          {label}
-        </Label>
-      </div>
+    <div className={cn("grid gap-1.5", prominent && "gap-2")}>
+      <Label className="text-[11.5px] font-semibold tracking-[0.01em] text-content-3">
+        {label}
+      </Label>
       {children}
     </div>
   );
@@ -2485,8 +2492,8 @@ function FlatFilmVisual({
   ];
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg p-4">
-        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-success-fg mb-2">
+      <div className="rounded-2xl border border-success-border bg-success-bg p-4">
+        <div className="text-[12px] font-semibold text-content-2 mb-2">
           Flat film stack · {kind}
         </div>
         {/* Layer stack — proportional thickness bars */}
@@ -2527,7 +2534,7 @@ function FlatFilmVisual({
           </div>
         )}
         <div className="mt-3 flex items-center justify-between rounded-lg bg-surface-1 px-3 py-1.5 ring-1 ring-success-border">
-          <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <span className="text-[12px] font-semibold text-content-2">
             Total thickness
           </span>
           <span className="font-mono font-semibold text-success-fg">
@@ -2658,20 +2665,19 @@ function LayerCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border bg-gradient-to-br from-white via-info-bg to-info-bg p-4 shadow-sm ring-1 ring-surface-1/40",
-        isSetupPending ? "border-warning-border" : "border-info-border",
+        "relative overflow-hidden rounded-[16px] border bg-surface-1 p-4",
+        isSetupPending ? "border-warning-border" : "border-line",
       )}
     >
-      <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary to-info-fg" />
-      <div className="relative pl-2">
+      <div className="relative">
         {/* Header — layer number + Fixed/Variable summary pills + delete */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-info-fg text-white shadow-md font-semibold text-sm">
+            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-plate font-mono text-[12.5px] font-semibold text-plate-fg">
               L{index + 1}
             </span>
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
+              <div className="text-[12px] font-semibold text-content-2">
                 Layer {index + 1}
               </div>
               <div className="font-display text-sm font-semibold text-content-1">
@@ -2681,7 +2687,7 @@ function LayerCard({
           </div>
           <div className="flex items-center gap-1.5">
             {isSetupPending ? (
-              <span className="rounded-full bg-warning-bg px-2 py-1 text-caption font-semibold uppercase text-warning-fg ring-1 ring-warning-border">
+              <span className="rounded-full bg-warning-bg px-2 py-1 text-[12.5px] font-semibold text-content-1 ring-1 ring-warning-border">
                 setup needed
               </span>
             ) : null}
@@ -2710,7 +2716,7 @@ function LayerCard({
 
         {/* Film picker */}
         <div className="mb-3">
-          <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
+          <Label className="text-[12px] font-semibold text-content-2">
             Default film variant · Product Master owned
           </Label>
           {filmVariants.length ? (
@@ -2751,7 +2757,7 @@ function LayerCard({
               <div className="mt-3 rounded-xl border border-info-border bg-surface-1/80 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
+                    <div className="text-[12px] font-semibold text-content-2">
                       Allowed film variants · {allowedFilmRows.length}
                     </div>
                     <div className="text-caption font-semibold text-content-3">
@@ -2941,7 +2947,7 @@ function LayerCard({
           <button
             type="button"
             onClick={() => setShowRollOverride((v) => !v)}
-            className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-[0.1em] text-content-3 hover:text-content-1"
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-content-2 hover:text-content-1"
           >
             <span
               className={cn(
@@ -3017,7 +3023,7 @@ function LayerAxisBlock({
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "text-caption font-semibold uppercase tracking-[0.1em]",
+              "text-[12.5px] font-semibold",
               axisColor === "blue" ? "text-primary" : "text-success-fg",
             )}
           >
@@ -3052,14 +3058,14 @@ function LayerAxisBlock({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-1">
+          <div className="text-[12px] font-semibold text-content-2 mb-1">
             Default {variable ? "(required)" : ""}
           </div>
           {defaultEditor}
         </div>
         {variable && allowedEditor ? (
           <div>
-            <div className="text-caption font-semibold uppercase tracking-wider text-success-fg mb-1">
+            <div className="text-[12px] font-semibold text-content-2 mb-1">
               Allowed list · sales/planner picks one per variant
             </div>
             {allowedEditor}
@@ -3161,7 +3167,7 @@ function PrintingTwoKnob({
   > = productionMaster
     ? {
         OFF: {
-          tone: "bg-gradient-to-br from-surface-2 to-surface-2",
+          tone: "bg-surface-1",
           ring: "ring-line",
           title: "No printing",
           eyebrow: "Plain production master",
@@ -3169,7 +3175,7 @@ function PrintingTwoKnob({
           bom: "BOM has no ink rows. Weight = layers + chemistry only.",
         },
         CAPABLE_OPTIONAL: {
-          tone: "bg-gradient-to-br from-warning-bg to-warm",
+          tone: "bg-warning-bg",
           ring: "ring-warning-border",
           title: "Print capable · artwork OPTIONAL",
           eyebrow:
@@ -3178,7 +3184,7 @@ function PrintingTwoKnob({
           bom: "Ink rows in BOM = ZERO until an artwork is attached on the production order. No fake GSM. Once attached, total ink theory appears.",
         },
         REQUIRED: {
-          tone: "bg-gradient-to-br from-order-bg to-order-bg",
+          tone: "bg-surface-1",
           ring: "ring-order-border",
           title: "Print compulsory · artwork REQUIRED",
           eyebrow:
@@ -3189,7 +3195,7 @@ function PrintingTwoKnob({
       }
     : {
         OFF: {
-          tone: "bg-gradient-to-br from-surface-2 to-surface-2",
+          tone: "bg-surface-1",
           ring: "ring-line",
           title: "No printing",
           eyebrow: "Plain master",
@@ -3197,7 +3203,7 @@ function PrintingTwoKnob({
           bom: "BOM has no ink rows. Weight = layers + chemistry only.",
         },
         CAPABLE_OPTIONAL: {
-          tone: "bg-gradient-to-br from-warning-bg to-warm",
+          tone: "bg-warning-bg",
           ring: "ring-warning-border",
           title: "Print capable · artwork OPTIONAL",
           eyebrow: "Warning-print mode · ships without artwork",
@@ -3205,7 +3211,7 @@ function PrintingTwoKnob({
           bom: "Ink rows in BOM = ZERO until an artwork is attached on the line. No fake GSM. When an artwork is attached, total ink theory appears.",
         },
         REQUIRED: {
-          tone: "bg-gradient-to-br from-order-bg to-order-bg",
+          tone: "bg-surface-1",
           ring: "ring-order-border",
           title: "Print compulsory · artwork REQUIRED",
           eyebrow: "Artwork-gated production · default fallback shown below",
@@ -3233,14 +3239,14 @@ function PrintingTwoKnob({
             className={cn(
               "flex h-9 w-9 flex-none items-center justify-center rounded-xl",
               printCapable
-                ? "bg-gradient-to-br from-order-fg to-order-fg text-white shadow-md"
+                ? "bg-plate text-plate-fg"
                 : "bg-surface-2 text-content-3",
             )}
           >
             <Palette className="h-4 w-4" />
           </span>
           <div className="flex-1">
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <div className="text-[12px] font-semibold text-content-2">
               Knob 1
             </div>
             <div className="text-sm font-semibold text-content-1">
@@ -3280,14 +3286,14 @@ function PrintingTwoKnob({
             className={cn(
               "flex h-9 w-9 flex-none items-center justify-center rounded-xl",
               printCapable && artworkRequired
-                ? "bg-gradient-to-br from-order-fg to-danger-solid text-white shadow-md"
+                ? "bg-plate text-plate-fg"
                 : "bg-surface-2 text-content-3",
             )}
           >
             <CheckCircle2 className="h-4 w-4" />
           </span>
           <div className="flex-1">
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <div className="text-[12px] font-semibold text-content-2">
               Knob 2
             </div>
             <div className="text-sm font-semibold text-content-1">
@@ -3315,7 +3321,7 @@ function PrintingTwoKnob({
       {printCapable ? (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <div className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
-            <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <Label className="text-[12px] font-semibold text-content-2">
               Allowed print method
             </Label>
             <Select
@@ -3341,14 +3347,14 @@ function PrintingTwoKnob({
           </div>
 
           <div className="rounded-2xl border border-info-border bg-info-bg p-3 shadow-sm">
-            <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-primary">
+            <Label className="text-[12px] font-semibold text-content-2">
               Artwork form from pouch style
             </Label>
             <div className="mt-2 flex h-10 items-center justify-between rounded-xl bg-surface-1 px-3 ring-1 ring-info-border">
               <span className="text-sm font-semibold text-content-1">
                 {mixedSubstrateModes ? "MIXED" : substrateMode}
               </span>
-              <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <span className="text-[12px] font-semibold text-content-2">
                 {mixedSubstrateModes
                   ? "fallback disabled"
                   : substrateMode === "TUBING"
@@ -3398,19 +3404,19 @@ function PrintingTwoKnob({
         <div className="flex items-start gap-3">
           <span
             className={cn(
-              "flex h-9 w-9 flex-none items-center justify-center rounded-xl text-white shadow-md",
+              "flex h-9 w-9 flex-none items-center justify-center rounded-xl text-white",
               state === "OFF" &&
-                "bg-gradient-to-br from-surface-2 to-surface-2",
+                "bg-surface-1",
               state === "CAPABLE_OPTIONAL" &&
-                "bg-gradient-to-br from-warning-fg to-warm",
+                "bg-plate",
               state === "REQUIRED" &&
-                "bg-gradient-to-br from-order-fg to-order-fg",
+                "bg-plate",
             )}
           >
             <Disc className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-2">
               {meta.eyebrow}
             </div>
             <div className="font-display text-sm font-semibold text-content-1">
@@ -3418,7 +3424,7 @@ function PrintingTwoKnob({
             </div>
             <div className="mt-1 text-[12px] text-content-2">{meta.body}</div>
             <div className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-surface-1/80 px-2.5 py-1.5 text-caption font-semibold text-content-2 ring-1 ring-surface-1/40">
-              <span className="font-semibold uppercase text-caption tracking-wider text-content-3">
+              <span className="text-[12px] font-semibold text-content-2">
                 BOM
               </span>
               <span>{meta.bom}</span>
@@ -3434,9 +3440,9 @@ function PrintingTwoKnob({
  misleading. Until any artwork is on the line, the BOM resolver
  writes ZERO ink rows — no fake GSM. */}
       {printCapable && artworkRequired ? (
-        <div className="rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-danger-bg p-3 shadow-sm ring-1 ring-order-border">
+        <div className="rounded-[14px] bg-surface-2 p-3.5">
           <div className="flex items-center justify-between gap-2 mb-1.5">
-            <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
+            <Label className="text-[12px] font-semibold text-content-2">
               Default fallback artwork (optional pre-fill)
             </Label>
             <span className="text-caption font-bold text-content-3">
@@ -3725,7 +3731,7 @@ function AxisAllowedCard({
         <div className="min-w-0">
           <div
             className={cn(
-              "text-caption font-semibold uppercase tracking-[0.1em]",
+              "text-[12.5px] font-semibold",
               entry.tone.text,
             )}
           >
@@ -3804,7 +3810,7 @@ function AxisAllowedCard({
 
       {/* Allowed code chips */}
       <div className="mt-3">
-        <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-1">
+        <div className="text-[12px] font-semibold text-content-2 mb-1">
           Allowed codes · {uniqueAllowedCodes.length}
         </div>
         {uniqueAllowedCodes.length === 0 ? (
@@ -3855,7 +3861,7 @@ function AxisAllowedCard({
 
       {/* Add picker */}
       <div className="mt-3">
-        <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-1">
+        <div className="text-[12px] font-semibold text-content-2 mb-1">
           Add from catalog · {pickable.length} available
         </div>
         {pickable.length === 0 ? (
@@ -3952,7 +3958,7 @@ function InnerPouchDefault({
       ) : (
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[220px] flex-1">
-            <div className="text-caption font-bold uppercase tracking-wider text-warning-fg">Default inner pouch</div>
+            <div className="text-[12px] font-semibold text-content-2">Default inner pouch</div>
             <Select
               value={selectedCode}
               onValueChange={(code) => onPatchFixed(primaryInnerPackPatch(fixed, code, defaultPcs, materials))}
@@ -3974,7 +3980,7 @@ function InnerPouchDefault({
             </Select>
           </div>
           <div className="w-[150px]">
-            <div className="text-caption font-bold uppercase tracking-wider text-warning-fg">Pouches per inner</div>
+            <div className="text-[12px] font-semibold text-content-2">Pouches per inner</div>
             <Input
               type="number"
               min={1}

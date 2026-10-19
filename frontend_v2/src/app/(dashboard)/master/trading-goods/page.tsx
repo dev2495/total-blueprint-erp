@@ -56,7 +56,7 @@ export default function TradingGoodsListPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-success-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-success-bg px-4 py-4 sm:px-6">
       <GradientHero
         palette="emerald"
         eyebrow="MASTER · TRADING GOODS"
@@ -253,7 +253,7 @@ function Stat({
 }) {
   return (
     <div className="rounded-2xl bg-surface-2 px-2 py-2">
-      <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center justify-center gap-1 font-mono text-sm font-bold text-content-1">

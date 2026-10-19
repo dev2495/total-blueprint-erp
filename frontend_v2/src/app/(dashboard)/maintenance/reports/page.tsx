@@ -27,7 +27,7 @@ function Table({ columns, rows, empty }: { columns: Array<[string, (row: any) =>
   return (
     <div className="overflow-x-auto rounded-xl border border-line">
       <table className="w-full text-sm">
-        <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-wide text-content-3">
+        <thead className="bg-surface-2 text-[12px] font-semibold text-content-3">
           <tr>
             {columns.map(([label, , align]) => (
               <th key={label} className={cn("px-3 py-2 text-left", align === "right" && "text-right")}>

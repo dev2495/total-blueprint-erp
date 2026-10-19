@@ -88,7 +88,7 @@ export function StockAdjustmentDetail({ id }: { id: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-order-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="violet"
         eyebrow={`INVENTORY · ADJUSTMENT · ${adj.code}`}

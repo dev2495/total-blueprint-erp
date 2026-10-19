@@ -77,50 +77,46 @@ export function RichHero({
   actions?: React.ReactNode;
 }) {
   const CHIP_TONE: Record<string, string> = {
-    ok: "border-success-border bg-success-bg text-success-fg",
-    warn: "border-warning-border bg-warning-bg text-warning-fg",
-    info: "border-line bg-surface-2 text-content-2",
+    ok: "bg-success-bg text-success-fg",
+    warn: "bg-warning-bg text-warning-fg",
+    info: "bg-surface-2 text-content-2",
   };
   return (
-    <section className="relative overflow-hidden rounded-[16px] border border-line bg-surface-1 px-5 py-5 shadow-[var(--shadow-sm)] md:px-6">
-      <div className="relative flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] font-medium text-content-3">
-            {eyebrow}
+    <header className="flex flex-wrap items-start justify-between gap-4 pt-1">
+      <div className="grid min-w-0 flex-1 gap-1.5">
+        <div className="text-[12.5px] text-content-3">{eyebrow}</div>
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-content-1">
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="max-w-3xl text-[13.5px] leading-relaxed text-content-3">
+            {subtitle}
+          </p>
+        ) : null}
+        {chips && chips.length > 0 ? (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {chips.map((c, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[12px]",
+                  CHIP_TONE[c.tone || "info"],
+                )}
+              >
+                {c.icon ? (
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center opacity-70">
+                    {c.icon}
+                  </span>
+                ) : null}
+                <span className="opacity-75">{c.label}</span>
+                <span className="font-semibold tabular-nums">{c.value}</span>
+              </span>
+            ))}
           </div>
-          <h1 className="mt-1 text-[22px] font-semibold leading-7 tracking-[-0.02em] text-content-1 md:text-[24px] md:leading-8">
-            {title}
-          </h1>
-          {subtitle ? (
-            <p className="mt-1 max-w-3xl text-[13.5px] leading-relaxed text-content-3">
-              {subtitle}
-            </p>
-          ) : null}
-          {chips && chips.length > 0 ? (
-            <div className="mt-3 flex flex-wrap gap-1.5 text-caption">
-              {chips.map((c, i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-medium",
-                    CHIP_TONE[c.tone || "info"],
-                  )}
-                >
-                  {c.icon ? (
-                    <span className="inline-flex h-3.5 w-3.5 items-center justify-center">
-                      {c.icon}
-                    </span>
-                  ) : null}
-                  <span className="text-caption opacity-80">{c.label}</span>
-                  <span className="font-mono-token font-medium">{c.value}</span>
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        {actions ? <div className="relative flex shrink-0 items-center gap-2">{actions}</div> : null}
+        ) : null}
       </div>
-    </section>
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+    </header>
   );
 }
 
@@ -161,52 +157,51 @@ export function RichSection({
       id={id}
       aria-labelledby={id ? `${id}-title` : undefined}
       className={cn(
-        "relative scroll-mt-32 overflow-hidden rounded-[14px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]",
+        "relative scroll-mt-28 overflow-hidden rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]",
         className,
       )}
     >
-      <header className="relative border-b border-line px-5 py-4 sm:px-6">
+      <header className="relative border-b border-line px-5 py-4">
         <div className="relative flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-start gap-3 min-w-0 flex-1">
-            <span
-              className={cn(
-                "flex h-9 w-9 flex-none items-center justify-center rounded-[10px] border border-line bg-surface-2 [&>svg]:h-4 [&>svg]:w-4",
-                t.icon,
-              )}
-            >
-              {icon}
-            </span>
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            {typeof index === "number" ? (
+              <span className="mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-full bg-surface-2 text-[12px] font-semibold text-content-2 ring-1 ring-line">
+                {index}
+              </span>
+            ) : (
+              <span
+                className={cn(
+                  "mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-surface-2 ring-1 ring-line [&>svg]:h-3.5 [&>svg]:w-3.5",
+                  t.icon,
+                )}
+              >
+                {icon}
+              </span>
+            )}
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                {typeof index === "number" ? (
-                  <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-[6px] border border-line bg-surface-2 px-1 font-mono-token text-caption font-medium text-content-3">
-                    {index}
-                  </span>
-                ) : null}
-                {eyebrow ? (
-                  <span className="text-caption font-medium text-content-3">
-                    {eyebrow}
-                  </span>
-                ) : null}
+                <h2
+                  id={id ? `${id}-title` : undefined}
+                  className="text-[16px] font-semibold leading-snug tracking-[-0.01em] text-content-1"
+                >
+                  {title}
+                </h2>
                 {badge}
               </div>
-              <h2
-                id={id ? `${id}-title` : undefined}
-                className="text-[15px] font-semibold leading-snug tracking-[-0.01em] text-content-1"
-              >
-                {title}
-              </h2>
               {subtitle ? (
-                <div className="mt-0.5 text-[13px] leading-snug text-content-3">
+                <div className="mt-0.5 max-w-3xl text-[13px] leading-snug text-content-3">
                   {subtitle}
                 </div>
+              ) : null}
+              {eyebrow ? (
+                <span className="sr-only">{eyebrow}</span>
               ) : null}
             </div>
           </div>
           {actions ? <div className="flex-none">{actions}</div> : null}
         </div>
       </header>
-      <div className={cn("p-5 sm:p-6", bodyClassName)}>{children}</div>
+      <div className={cn("p-5", bodyClassName)}>{children}</div>
     </section>
   );
 }

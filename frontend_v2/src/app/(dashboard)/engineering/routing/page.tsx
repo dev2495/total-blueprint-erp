@@ -293,7 +293,7 @@ function RouteFlowPreview({
             )}
           >
             <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+              <span className="text-[12px] font-semibold text-content-3">
                 Stage {stagePosition + 1}
               </span>
               {stage.nodes.length > 1 ? (

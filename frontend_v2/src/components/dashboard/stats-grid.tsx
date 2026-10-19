@@ -55,11 +55,11 @@ export function StatsGrid({ metrics }: { metrics: Metric[] }) {
               tone.shell,
             )}
           >
-            <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-surface-1/60 blur-2xl" />
+            <div className="hidden pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-surface-1/60 blur-2xl" />
             <div className="relative flex h-full flex-col gap-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
-                  <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                  <div className="text-[12px] font-semibold text-content-3">
                     {metric.label}
                   </div>
                   <div

@@ -216,7 +216,7 @@ export default function MaintenanceSchedulesPage() {
                 </SelectContent>
               </Select>
               <label className="text-sm">
-                <span className="mb-1 block text-caption font-semibold uppercase tracking-wide text-content-3">First due date</span>
+                <span className="mb-1 block text-[12px] font-semibold text-content-3">First due date</span>
                 <Input type="date" value={editing.anchor_date || ""} onChange={(event) => setField({ anchor_date: event.target.value })} aria-label="First due date" />
               </label>
               <Select value={String(editing.responsible_user || "NONE")} onValueChange={(value) => setField({ responsible_user: value === "NONE" ? null : value })}>
@@ -248,7 +248,7 @@ export default function MaintenanceSchedulesPage() {
               </div>
               <div className="sm:col-span-2">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-caption font-semibold uppercase tracking-wide text-content-3">Checklist ({checklist.length})</span>
+                  <span className="text-[12px] font-semibold text-content-3">Checklist ({checklist.length})</span>
                   <div className="flex gap-1">
                     {!checklist.length ? (
                       <Button type="button" size="sm" variant="ghost" onClick={() => setField({ checklist: STARTER_CHECKS })}>

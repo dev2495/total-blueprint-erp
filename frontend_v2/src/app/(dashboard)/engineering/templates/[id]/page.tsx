@@ -179,7 +179,7 @@ function ReadinessDashboard({
     <section className="rounded-[20px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
         <div className="min-w-[260px] flex-1">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Template readiness
           </div>
           <div className="mt-2 flex items-baseline gap-3">
@@ -194,7 +194,7 @@ function ReadinessDashboard({
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-info-bg">
             <span
-              className="block h-full rounded-full bg-gradient-to-r from-primary to-info-fg"
+              className="block h-full rounded-full bg-primary"
               style={{ width: `${pct}%` }}
             />
           </div>
@@ -216,7 +216,7 @@ function ReadinessDashboard({
         </div>
         <div className="hidden w-px self-stretch bg-surface-2 xl:block" />
         <div className="min-w-[320px] flex-1">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Blocking checks
           </div>
           <div className="mt-3 space-y-2 text-sm">
@@ -245,7 +245,7 @@ function ReadinessDashboard({
         </div>
         <div className="hidden w-px self-stretch bg-surface-2 xl:block" />
         <div className="min-w-[230px]">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             What is next
           </div>
           <p className="mt-2 text-sm font-medium text-content-3">
@@ -277,7 +277,7 @@ function LifecycleRail({ status }: { status: string }) {
   return (
     <section className="rounded-[20px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
-        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Lifecycle
         </div>
         <span className="rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-primary">
@@ -314,7 +314,7 @@ function ReadinessPanel({ readiness }: { readiness: any }) {
       <CardContent className="p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Review gate
             </div>
             <div
@@ -445,7 +445,7 @@ function StepCard({ step }: { step: TemplateProcessStep }) {
         {(step.materials || []).map((material) => (
           <span
             key={material.id}
-            className="rounded-full bg-surface-2 px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
+            className="rounded-full bg-surface-2 px-3 py-1 text-[12px] font-semibold text-content-3"
           >
             {material.category_code}
           </span>
@@ -553,7 +553,7 @@ function DispatchStepEditor({
           <div className="rounded-2xl border border-line bg-surface-2 p-3">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                <div className="text-[12px] font-semibold text-content-3">
                   Allowed centers
                 </div>
                 <div className="text-xs font-semibold text-content-3">
@@ -671,7 +671,7 @@ function DispatchStepEditor({
               />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-3">
-              <div className="mb-3 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+              <div className="mb-3 text-[12px] font-semibold text-content-3">
                 Route behavior
               </div>
               <div className="space-y-3">
@@ -891,7 +891,7 @@ function BatchExecutionPolicyCard({
         <div className="rounded-[1.5rem] border border-line bg-surface-1 p-4">
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 Selected route flow · read only
               </div>
               <div className="mt-1 text-sm font-semibold text-content-1">
@@ -916,7 +916,7 @@ function BatchExecutionPolicyCard({
                   <div
                     className={`w-full rounded-2xl border p-3 ${stage.nodes.length > 1 ? "border-warning-border bg-warning-bg/50" : "border-line bg-surface-2"}`}
                   >
-                    <div className="mb-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="mb-2 text-[12px] font-semibold text-content-3">
                       Stage {stagePosition + 1}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -950,7 +950,7 @@ function BatchExecutionPolicyCard({
         </div>
 
         <div className="space-y-3">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+          <div className="text-[12px] font-semibold text-content-3">
             Batch creation
           </div>
           <div className="grid gap-4 md:grid-cols-3">
@@ -993,7 +993,7 @@ function BatchExecutionPolicyCard({
         </div>
 
         <div className="space-y-3">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+          <div className="text-[12px] font-semibold text-content-3">
             Release behavior
           </div>
           <div className="grid gap-3 md:grid-cols-2">
@@ -1362,7 +1362,7 @@ export default function TemplateStudioPage() {
               T
             </div>
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Template Studio · execution rules
               </div>
               <div className="truncate text-[15px] font-semibold text-content-1">
@@ -1588,7 +1588,7 @@ export default function TemplateStudioPage() {
                       <div
                         className={`rounded-2xl border px-4 py-3 ${String(step.process_roll_behavior || "").toUpperCase() === "MULTI_INPUT_COMBINE" ? "border-warning-border bg-warning-bg" : "border-info-border bg-surface-1"}`}
                       >
-                        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                        <div className="text-[12px] font-semibold text-content-3">
                           Stage {step.sequence_number}
                         </div>
                         <div className="mt-1 text-sm font-semibold text-content-1">

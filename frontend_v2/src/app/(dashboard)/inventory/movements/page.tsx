@@ -125,7 +125,7 @@ export default function RollMovementsPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <section className="relative overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 p-6 shadow-[0_30px_80px_-42px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-primary via-info-fg to-success-fg" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-primary" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-primary">

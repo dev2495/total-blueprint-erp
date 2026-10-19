@@ -27,7 +27,7 @@ export function GatePlantScopeSection({
   const count = plants.filter((p) => selectedIds.has(String(p.id))).length;
   return (
     <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line" data-testid="gate-plant-scope">
-      <div className="-m-6 mb-4 h-1.5 bg-gradient-to-r from-info-fg to-warm" />
+      <div className="-m-6 mb-4 h-1.5 bg-primary" />
       <header className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-2xl bg-info-bg text-info-fg">

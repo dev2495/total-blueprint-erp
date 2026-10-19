@@ -391,7 +391,7 @@ export function DemandTab({ context }: DemandTabProps) {
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-3">
-        <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           Filters
         </span>
         <FilterChip
@@ -611,7 +611,7 @@ export function DemandTab({ context }: DemandTabProps) {
               </SheetHeader>
 
               <section className="space-y-2">
-                <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+                <h3 className="text-[12px] font-semibold text-content-3">
                   Spec
                 </h3>
                 <div className="grid grid-cols-2 gap-2">
@@ -620,7 +620,7 @@ export function DemandTab({ context }: DemandTabProps) {
               </section>
 
               <section className="space-y-2">
-                <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+                <h3 className="text-[12px] font-semibold text-content-3">
                   BOM
                 </h3>
                 <BomPreviewPanel
@@ -632,7 +632,7 @@ export function DemandTab({ context }: DemandTabProps) {
               </section>
 
               <section className="space-y-2">
-                <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+                <h3 className="text-[12px] font-semibold text-content-3">
                   Release
                 </h3>
                 {selected.release_checklist?.blocked_count ? (

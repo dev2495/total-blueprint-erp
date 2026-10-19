@@ -11,7 +11,7 @@ function names(value: unknown): string[] {
 function ColorLine({ label, colors, muted = false }: { label: string; colors: string[]; muted?: boolean }) {
   return (
     <div className={cn("min-w-0 flex-1 rounded-xl border px-3 py-2", muted ? "border-line bg-surface-2" : "border-warning-border bg-surface-1")}>
-      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">{label}</div>
+      <div className="text-[12px] font-semibold text-content-3">{label}</div>
       <div className={cn("mt-1 break-words text-lg font-semibold leading-tight", muted ? "text-content-3 line-through decoration-danger-fg/50" : "text-content-1")}>
         {colors.join(" · ") || "None"}
       </div>

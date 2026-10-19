@@ -428,7 +428,7 @@ export function UserEditor({
   const palette = paletteFor(selectedRole?.code);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-order-bg via-white to-order-bg px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="indigo"
         eyebrow={
@@ -585,7 +585,7 @@ export function UserEditor({
             )}
           >
             <div
-              className={cn("-m-6 mb-4 h-1.5 bg-gradient-to-r", palette.stripe)}
+              className={cn("-m-6 mb-4 h-1.5 ", palette.stripe)}
             />
             <header className="mb-4 mt-2 flex items-center gap-2">
               <div
@@ -690,7 +690,7 @@ export function UserEditor({
             </section>
           ) : (
           <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
-            <div className="-m-6 mb-4 h-1.5 bg-gradient-to-r from-warning-fg to-warning-fg" />
+            <div className="-m-6 mb-4 h-1.5 bg-warning-fg" />
             <header className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <div className="grid h-9 w-9 place-items-center rounded-2xl bg-warning-bg text-warning-fg">
@@ -812,7 +812,7 @@ export function UserEditor({
         <div className="space-y-6">
           <div className="lg:sticky lg:top-4 space-y-6">
             {/* Access summary */}
-            <section className="rounded-3xl bg-gradient-to-br from-surface-2 to-order-bg p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
+            <section className="rounded-3xl bg-surface-2 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
               <header className="mb-3 flex items-center gap-2">
                 <div className="grid h-9 w-9 place-items-center rounded-2xl bg-order-bg text-order-fg">
                   <ShieldCheck className="h-4 w-4" />
@@ -994,7 +994,7 @@ function WorkCenterScopeSection({
 }) {
   return (
     <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line">
-      <div className="-m-6 mb-4 h-1.5 bg-gradient-to-r from-success-fg to-primary" />
+      <div className="-m-6 mb-4 h-1.5 bg-success-fg" />
       <header className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="grid h-9 w-9 place-items-center rounded-2xl bg-success-bg text-success-fg">
@@ -1146,7 +1146,7 @@ function SummaryRow({
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface-1 px-3 py-2 ring-1 ring-line">
-      <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <span className="text-[12px] font-semibold text-content-3">
         {label}
       </span>
       <span className={cn("rounded-full px-2.5 py-1 text-caption font-bold ring-1", toneClass)}>
@@ -1191,7 +1191,7 @@ function RoleCard({
     >
       <div
         className={cn(
-          "absolute inset-x-0 top-0 h-1 bg-gradient-to-r",
+          "absolute inset-x-0 top-0 h-1 ",
           palette.stripe,
         )}
       />
@@ -1242,7 +1242,7 @@ function PasswordResetBody({
   return (
     <>
       <div className="mt-2">
-        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+        <Label className="text-[12px] font-semibold text-content-3">
           New password
         </Label>
         <PasswordInput
@@ -1282,7 +1282,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         {label}
       </Label>
       <div className="mt-1.5">{children}</div>

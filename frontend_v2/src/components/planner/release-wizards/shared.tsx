@@ -146,7 +146,7 @@ export function FieldRow({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-caption font-semibold uppercase tracking-wide text-content-3">
+      <span className="text-[12px] font-semibold text-content-3">
         {label}
       </span>
       {children}
@@ -173,7 +173,7 @@ export function SummaryStat({
   };
   return (
     <div className={cn("rounded-lg border px-3 py-2", toneCls[tone])}>
-      <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono-token text-[13px] text-content-1">

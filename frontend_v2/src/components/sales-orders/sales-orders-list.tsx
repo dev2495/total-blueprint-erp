@@ -247,9 +247,9 @@ function customerInitials(name: string): string {
   );
 }
 function customerAvatarTone(d: number): string {
-  if (d >= 6) return "bg-gradient-to-br from-danger-bg to-danger-fg";
-  if (d >= 3) return "bg-gradient-to-br from-warning-bg to-warning-fg";
-  return "bg-gradient-to-br from-success-bg to-success-fg";
+  if (d >= 6) return "bg-danger-bg";
+  if (d >= 3) return "bg-warning-bg";
+  return "bg-success-bg";
 }
 function orderTotalKg(o: SalesOrder): number {
   return orderQtyPair(o).kg;
@@ -1218,7 +1218,7 @@ function ArtworkPreviewButton({
         </span>
         {showLabel ? (
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <span className="block truncate text-[12px] font-semibold text-content-3">
               Artwork
             </span>
             <span className="block truncate font-mono text-caption font-semibold text-order-fg">
@@ -2057,7 +2057,7 @@ function SavedViewsBar({
   return (
     <section className="flex flex-wrap items-center justify-between gap-2 rounded-[1.15rem] border border-line bg-surface-1/90 px-3 py-2 text-caption font-bold shadow-sm ring-1 ring-white/70">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+        <span className="mr-1 text-[12px] font-semibold text-content-3">
           Views
         </span>
         {quickViews.map((qv) => (
@@ -2229,14 +2229,14 @@ function FilterBand({
     <section className="rounded-[1.25rem] border border-line bg-surface-1/95 p-3 shadow-sm ring-1 ring-white/60 space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2 px-1">
         <div className="min-w-0">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Queue filters
           </div>
           <div className="mt-0.5 text-xs font-bold text-content-2">
             {visibleCount} visible from {totalCount} order{totalCount === 1 ? "" : "s"}
           </div>
         </div>
-        <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wide text-content-3">
+        <div className="flex items-center gap-1.5 text-[12px] font-semibold text-content-3">
           <span className="rounded-full border border-line bg-surface-2 px-2 py-1">
             Live queue
           </span>
@@ -2259,7 +2259,7 @@ function FilterBand({
           />
         </div>
         <div className="flex flex-wrap items-center gap-1.5 text-caption font-bold overflow-x-auto pb-1 -mx-1 px-1 xl:overflow-visible">
-          <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 mr-1 flex-none">
+          <span className="text-[12px] font-semibold text-content-3 mr-1 flex-none">
             Status
           </span>
           <StatusPillBtn
@@ -2302,7 +2302,7 @@ function FilterBand({
 
       {/* Row 2 — age + fulfillment flow */}
       <div className="flex flex-wrap items-center gap-1.5 text-caption font-bold">
-        <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 mr-1">
+        <span className="text-[12px] font-semibold text-content-3 mr-1">
           Age
         </span>
         <AgePillBtn
@@ -2330,7 +2330,7 @@ function FilterBand({
           }
         />
 
-        <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 mx-2 hidden md:inline">
+        <span className="text-[12px] font-semibold text-content-3 mx-2 hidden md:inline">
           Flow
         </span>
         {FLOW_FILTERS.map((flow) => {
@@ -2350,7 +2350,7 @@ function FilterBand({
 
       {/* Row 3 — customer + master + advanced + reset */}
       <div className="flex flex-wrap items-center gap-1.5 text-caption font-bold">
-        <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 mx-2 hidden md:inline">
+        <span className="text-[12px] font-semibold text-content-3 mx-2 hidden md:inline">
           Customer
         </span>
         <div className="min-w-[160px] flex-none md:flex-1 md:max-w-[220px]">
@@ -2372,7 +2372,7 @@ function FilterBand({
           </Select>
         </div>
 
-        <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 mx-2 hidden md:inline">
+        <span className="text-[12px] font-semibold text-content-3 mx-2 hidden md:inline">
           Master
         </span>
         <div className="min-w-[160px] flex-none md:flex-1 md:max-w-[220px]">
@@ -2416,7 +2416,7 @@ function FilterBand({
       {advancedOpen ? (
         <div className="rounded-xl border border-line bg-surface-2 p-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               FG type
             </Label>
             <Select
@@ -2436,7 +2436,7 @@ function FilterBand({
             </Select>
           </div>
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Width (mm)
             </Label>
             <Input
@@ -2447,7 +2447,7 @@ function FilterBand({
             />
           </div>
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Height (mm)
             </Label>
             <Input
@@ -2458,7 +2458,7 @@ function FilterBand({
             />
           </div>
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Thickness (μ)
             </Label>
             <Input
@@ -2469,7 +2469,7 @@ function FilterBand({
             />
           </div>
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Pouch style
             </Label>
             <PouchStyleFilterPicker
@@ -2689,7 +2689,7 @@ function TableHeader({
         ))}
       </div>
       <div className="flex items-center gap-1.5 text-caption font-bold">
-        <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 hidden sm:inline">
+        <span className="text-[12px] font-semibold text-content-3 hidden sm:inline">
           Density
         </span>
         <div className="inline-flex rounded-lg bg-surface-2 p-0.5 shadow-inner">
@@ -2792,7 +2792,7 @@ function QuantityStack({
         <span className="text-caption font-bold text-content-3">
           {primary.uom}
         </span>
-        <span className="ml-1 rounded bg-surface-2 px-1 py-0.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+        <span className="ml-1 rounded bg-surface-2 px-1 py-0.5 text-[12px] font-semibold text-content-3">
           main
         </span>
       </div>
@@ -2984,7 +2984,7 @@ function FlowMeter({
   const bands = flowBandMetrics({ orderedKg, producedKg: readyKg + dispatchedKg, packedKg: readyKg + dispatchedKg, dispatchedKg, wipKg });
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-caption font-semibold uppercase tracking-wider text-content-4">
+      <div className="mb-1 flex items-center justify-between text-[12px] font-semibold text-content-3">
         <span>Fulfillment flow</span>
         <span>{orderedKg > 0 ? `${Math.round(bands.completePct)}%` : "0%"}</span>
       </div>
@@ -3211,7 +3211,7 @@ function LinePreviewStack({
         );
       })}
       {lines.length > 2 ? (
-        <div className="px-2 text-caption font-semibold uppercase tracking-wide text-content-4">
+        <div className="px-2 text-[12px] font-semibold text-content-3">
           + {lines.length - 2} more line{lines.length - 2 === 1 ? "" : "s"}
         </div>
       ) : null}
@@ -3298,7 +3298,7 @@ function LineContributionBar({
   if (!rows.length || totalKg <= 0) return null;
   return (
     <div className={cn(compact ? "mt-1.5" : "mt-2")}>
-      <div className="mb-1 flex items-center justify-between text-caption font-semibold uppercase tracking-wider text-content-4">
+      <div className="mb-1 flex items-center justify-between text-[12px] font-semibold text-content-3">
         <span>Line-wise fulfillment</span>
         <span>{rows.length} line{rows.length === 1 ? "" : "s"}</span>
       </div>
@@ -3437,7 +3437,7 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
               {salesLineLabel(line, index)}
             </span>
             {line.line_status_display || line.line_status ? (
-              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-caption font-semibold uppercase tracking-wide text-content-3">
+              <span className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[12px] font-semibold text-content-3">
                 {line.line_status_display || line.line_status}
               </span>
             ) : null}
@@ -3474,7 +3474,7 @@ function LineFlowCard({ line, index }: { line: any; index: number }) {
             <QuantityStack qtyPair={metrics.qtyPair} compact />
             <div className="text-right">
               <div className="font-mono text-[13px] font-semibold text-content-1">{fmtKg(metrics.orderedKg)} KG</div>
-              <div className="text-caption font-bold uppercase tracking-wide text-content-4">line target</div>
+              <div className="text-[12px] font-semibold text-content-3">line target</div>
             </div>
           </div>
           <FlowMeter
@@ -3630,7 +3630,7 @@ function OrderRow({
                 >
                   {ageLabel}
                 </span>
-                <span className="rounded-full border border-line bg-surface-1 px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide text-content-3">
+                <span className="rounded-full border border-line bg-surface-1 px-1.5 py-0.5 text-[12px] font-semibold text-content-3">
                   {orderLines.length || 1} line{(orderLines.length || 1) === 1 ? "" : "s"}
                 </span>
               </div>
@@ -3639,7 +3639,7 @@ function OrderRow({
           <LinePreviewStack order={order} lines={orderLines} compact />
           <div className="mt-1.5 flex items-center justify-between gap-2 text-caption">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-wider text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 Total order
               </div>
               <QuantityStack qtyPair={qtyPair} compact />
@@ -3735,7 +3735,7 @@ function OrderRow({
                 </>
               ) : null}
               <span className="text-content-4">·</span>
-              <span className="rounded-full border border-line bg-surface-1 px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide text-content-3">
+              <span className="rounded-full border border-line bg-surface-1 px-1.5 py-0.5 text-[12px] font-semibold text-content-3">
                 {orderLines.length || 1} line{(orderLines.length || 1) === 1 ? "" : "s"}
               </span>
             </div>
@@ -3758,7 +3758,7 @@ function OrderRow({
         <div className="min-w-0 self-stretch">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 Placed
               </div>
               <div className="truncate text-caption font-mono font-semibold text-content-1">
@@ -3873,7 +3873,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
         <div className="space-y-3">
           <div className="grid gap-2 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.9fr)_auto] xl:items-stretch">
             <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Order snapshot</div>
+              <div className="text-[12px] font-semibold text-content-3">Order snapshot</div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-caption font-bold text-content-2">
                 <span className="truncate text-content-1">{full.customer_name}</span>
                 <span className="font-mono text-order-fg">{full.order_number}</span>
@@ -3887,7 +3887,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
             <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
               <div className="grid gap-2 sm:grid-cols-[minmax(120px,.65fr)_minmax(220px,1fr)] sm:items-center">
                 <div>
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Total order demand</div>
+                  <div className="text-[12px] font-semibold text-content-3">Total order demand</div>
                   <div className="mt-1 font-mono text-[15px] font-semibold text-content-1">
                     {fmtKg(totals.orderedKg)} <span className="text-caption text-content-3">KG</span>
                     {orderPair?.pcs !== null && orderPair?.pcs !== undefined ? (
@@ -3922,7 +3922,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
 
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Line flow breakdown · {items.length}
               </div>
               {full.created_at ? (
@@ -4035,7 +4035,7 @@ function CancelOrderDialog({
       }}
     >
       <DialogContent className="max-w-2xl rounded-2xl p-0 overflow-hidden">
-        <div className="border-b border-danger-border bg-gradient-to-r from-danger-bg via-white to-white px-5 py-4">
+        <div className="border-b border-danger-border bg-danger-bg px-5 py-4">
           <DialogHeader>
             <div className="text-caption font-semibold uppercase tracking-[0.12em] text-danger-fg">
               Cancel sales demand
@@ -4053,7 +4053,7 @@ function CancelOrderDialog({
         </div>
         <div className="px-5 py-4 space-y-3">
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-1.5 block">
+            <Label className="text-[12px] font-semibold text-content-3 mb-1.5 block">
               Cancel scope
             </Label>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -4102,7 +4102,7 @@ function CancelOrderDialog({
           {scope === "LINES" ? (
             <div>
               <div className="mb-1.5 flex items-center justify-between gap-2">
-                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   Select line items
                 </Label>
                 <button
@@ -4175,7 +4175,7 @@ function CancelOrderDialog({
             </div>
           ) : null}
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-1.5 block">
+            <Label className="text-[12px] font-semibold text-content-3 mb-1.5 block">
               Reason category <span className="text-danger-fg">*</span>
             </Label>
             <div className="flex flex-wrap gap-1.5 text-caption font-bold">
@@ -4197,7 +4197,7 @@ function CancelOrderDialog({
             </div>
           </div>
           <div>
-            <Label className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-1.5 block">
+            <Label className="text-[12px] font-semibold text-content-3 mb-1.5 block">
               Note (optional)
             </Label>
             <Textarea

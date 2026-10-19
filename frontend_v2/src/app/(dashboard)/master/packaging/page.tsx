@@ -451,7 +451,7 @@ export default function PackagingMasterPage() {
  catalog for stock + consumption tracking. */}
           <Link
             href="/master/products?kind=PACKAGING"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-order-border bg-gradient-to-r from-order-bg to-order-bg px-3 text-caption font-bold text-order-fg hover:from-order-bg hover:to-order-bg transition"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-order-border bg-surface-2 px-3 text-caption font-bold text-order-fg hover:from-order-bg hover:to-order-bg transition"
             title="Create an in-house production master that produces packing SKUs into this catalog"
           >
             <Plus className="h-3.5 w-3.5" /> Build production master
@@ -532,7 +532,7 @@ export default function PackagingMasterPage() {
                     <div className="text-sm font-semibold tracking-tight text-content-1">
                       {row.name}
                     </div>
-                    <div className="mt-1 font-mono text-caption font-bold uppercase tracking-[0.1em] text-content-4">
+                    <div className="mt-1 font-mono text-[12px] font-semibold text-content-3">
                       {row.code}
                     </div>
                   </div>
@@ -578,7 +578,7 @@ export default function PackagingMasterPage() {
 
                 <div className="grid grid-cols-2 gap-3 rounded-2xl bg-surface-2 p-4 text-sm">
                   <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Base UOM
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -586,7 +586,7 @@ export default function PackagingMasterPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Unit Conversion
                     </div>
                     <div className="mt-1 font-bold text-content-1">
@@ -600,7 +600,7 @@ export default function PackagingMasterPage() {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Product Master Link
                     </div>
                     <div
@@ -631,7 +631,7 @@ export default function PackagingMasterPage() {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Default Brand / Pack Config
                     </div>
                     <div className="mt-1 text-sm text-content-2">

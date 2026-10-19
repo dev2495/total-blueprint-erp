@@ -546,7 +546,7 @@ export default function WorkCentersPage() {
                         </div>
                       </div>
                       <div className="mt-4 rounded-2xl border border-line bg-surface-2 px-3 py-3">
-                        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                        <div className="text-[12px] font-semibold text-content-3">
                           Default cost group
                         </div>
                         <div className="mt-1 text-sm font-semibold text-content-2">

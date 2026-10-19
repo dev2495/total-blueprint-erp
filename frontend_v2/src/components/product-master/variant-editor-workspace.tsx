@@ -251,7 +251,7 @@ export function VariantEditorWorkspace({
       </div>
 
       {/* ─── Hero context strip ─── */}
-      <section className="overflow-hidden rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg shadow-md ring-1 ring-order-border">
+      <section className="overflow-hidden rounded-2xl border border-order-border bg-surface-2 shadow-md ring-1 ring-order-border">
         <div className="grid grid-cols-1 gap-4 px-5 py-4 lg:grid-cols-[200px_1fr_280px]">
           <div className="flex flex-col items-center justify-center">
             <PouchSilhouette kind={master.product_kind} size={firstSize} />
@@ -300,7 +300,7 @@ export function VariantEditorWorkspace({
           </div>
           {/* Live variant code preview (the killer) */}
           <div className="rounded-xl bg-surface-3 px-4 py-3 text-white shadow-md">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Variant code (live)
             </div>
             <div className="mt-1 mono text-[12px] font-bold text-success-border break-all">
@@ -327,7 +327,7 @@ export function VariantEditorWorkspace({
         <div className="space-y-4">
           {/* Required axes */}
           {requiredAxes.length > 0 && (
-            <div className="rounded-2xl border border-danger-border bg-gradient-to-br from-danger-bg to-white shadow-sm">
+            <div className="rounded-2xl border border-danger-border bg-danger-bg shadow-sm">
               <div className="border-b border-danger-border bg-danger-bg px-4 py-2 flex items-center justify-between">
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-danger-fg">
                   Required axes
@@ -389,7 +389,7 @@ export function VariantEditorWorkspace({
           {/* Optional axes */}
           <div className="rounded-2xl border border-line bg-surface-1 shadow-sm">
             <div className="border-b border-line bg-surface-2 px-4 py-2 flex items-center justify-between">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Configuration
               </div>
               <span className="text-caption text-content-3">
@@ -493,7 +493,7 @@ export function VariantEditorWorkspace({
                       <tr>
                         <td
                           colSpan={2}
-                          className="px-3 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3"
+                          className="px-3 py-2 text-right text-[12px] font-semibold text-content-3"
                         >
                           Total
                         </td>
@@ -554,7 +554,7 @@ export function VariantEditorWorkspace({
                           className={cn(
                             "rounded-full px-3 py-1 text-caption font-semibold uppercase tracking-wider shadow-sm transition",
                             active
-                              ? "bg-gradient-to-r from-primary to-order-fg text-white"
+                              ? "bg-primary text-white"
                               : "bg-surface-1 text-content-2 ring-1 ring-line hover:bg-info-bg",
                           )}
                         >
@@ -603,7 +603,7 @@ export function VariantEditorWorkspace({
 
           {/* Pricing reference (from overlays) */}
           {overlays.length > 0 && (
-            <div className="rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg to-white shadow-sm">
+            <div className="rounded-2xl border border-warning-border bg-warning-bg shadow-sm">
               <div className="border-b border-warning-border bg-warning-bg px-4 py-2 flex items-center justify-between">
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
                   Pricing reference
@@ -655,7 +655,7 @@ export function VariantEditorWorkspace({
         <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
           {/* Material breakdown */}
           <div className="overflow-hidden rounded-2xl border border-info-border bg-surface-1 shadow-md ring-1 ring-info-border">
-            <div className="bg-gradient-to-br from-primary via-order-fg to-order-fg px-4 py-3 text-white">
+            <div className="bg-primary px-4 py-3 text-white">
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
                 🧪 Material breakdown
               </div>
@@ -664,7 +664,7 @@ export function VariantEditorWorkspace({
               </div>
             </div>
             <div className="px-4 py-3">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Catalog BOM lines
               </div>
               <ul className="mt-1.5 space-y-1 text-caption">
@@ -689,7 +689,7 @@ export function VariantEditorWorkspace({
                   </li>
                 )}
               </ul>
-              <div className="mt-3 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="mt-3 text-[12px] font-semibold text-content-3">
                 Layer materials
               </div>
               <ul className="mt-1.5 space-y-1 text-caption">
@@ -747,7 +747,7 @@ export function VariantEditorWorkspace({
           </div>
 
           {/* Stock match */}
-          <div className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg to-white p-4 shadow-md ring-1 ring-success-border">
+          <div className="rounded-2xl border border-success-border bg-success-bg p-4 shadow-md ring-1 ring-success-border">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
@@ -782,14 +782,14 @@ export function VariantEditorWorkspace({
 
           {/* Save CTAs */}
           <div className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Save options
             </div>
             <div className="mt-2 flex flex-col gap-1.5">
               <Button
                 onClick={() => createMutation.mutate()}
                 disabled={!validation.ok || createMutation.isPending}
-                className="gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-order-fg text-white shadow-md hover:shadow-lg"
+                className="gap-1.5 rounded-xl bg-plate text-white shadow-md hover:shadow-lg"
               >
                 {createMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -829,7 +829,7 @@ export function VariantEditorWorkspace({
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface-1/95 backdrop-blur px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Variant draft
             </span>
             {validation.ok ? (
@@ -860,7 +860,7 @@ export function VariantEditorWorkspace({
             <Button
               onClick={() => createMutation.mutate()}
               disabled={!validation.ok || createMutation.isPending}
-              className="gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-order-fg text-white shadow-md"
+              className="gap-1.5 rounded-xl bg-plate text-white shadow-md"
             >
               {createMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

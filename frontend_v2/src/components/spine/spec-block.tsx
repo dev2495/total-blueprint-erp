@@ -16,6 +16,8 @@ export interface SpecBlockLayer {
   micron: number | null;
   grade?: string;
   source?: string;
+  /** Short extra word under the layer name (e.g. "fixed", "40–60 allowed"). */
+  note?: string;
 }
 
 export interface SpecBlockData {

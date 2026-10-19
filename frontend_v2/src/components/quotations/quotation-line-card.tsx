@@ -996,7 +996,7 @@ export default function QuotationLineCard({
       {isOpen ? (
         <div className="border-t border-line p-4 bg-surface-2 space-y-4">
           {/* Governed specification ribbon */}
-          <div className="rounded-xl bg-gradient-to-r from-order-fg via-order-fg to-order-fg text-white p-3 flex flex-wrap items-center gap-3 shadow-[0_18px_42px_-30px_rgba(99,102,241,0.6)]">
+          <div className="rounded-xl bg-plate text-white p-3 flex flex-wrap items-center gap-3 shadow-[0_18px_42px_-30px_rgba(99,102,241,0.6)]">
             <RibbonStat label="Pouch GSM" value={inr(totalGsm)} />
             <RibbonStat label="Weight / pc" value={`${inr(unitWeightG)} g`} />
             <RibbonStat label="Rate ₹/kg" value={`₹ ${inr(item.rate)}`} />
@@ -1127,7 +1127,7 @@ export default function QuotationLineCard({
               {/* Qty + UOM */}
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 rounded-xl border border-line bg-surface-1 p-3">
                 <label className="block">
-                  <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <span className="text-[12px] font-semibold text-content-3">
                     Quantity
                   </span>
                   <input
@@ -1140,7 +1140,7 @@ export default function QuotationLineCard({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <span className="text-[12px] font-semibold text-content-3">
                     UOM
                   </span>
                   <select
@@ -1158,7 +1158,7 @@ export default function QuotationLineCard({
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <span className="text-[12px] font-semibold text-content-3">
                     Rate ₹
                   </span>
                   <input
@@ -1175,7 +1175,7 @@ export default function QuotationLineCard({
                   />
                 </label>
                 <div>
-                  <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Line total
                   </div>
                   <div className="mt-1 h-10 inline-flex items-center font-mono font-semibold text-content-1">
@@ -1187,7 +1187,7 @@ export default function QuotationLineCard({
 
             <div className="space-y-3">
               <div className="rounded-xl border border-line bg-surface-1 p-4">
-                <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Cost handoff
                 </div>
                 <div className="mt-2 text-sm font-semibold text-content-1">
@@ -1279,7 +1279,7 @@ function CatalogSalesEditPanel({ value, onChange }: { value: LineSpecValue; onCh
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
         {fields.map(([key, label]) => (
-          <label key={key} className="text-caption font-semibold uppercase tracking-wider text-content-4">{label}
+          <label key={key} className="text-[12px] font-semibold text-content-3">{label}
             <input type="number" min="0" value={Number(value[key] || 0)} onChange={(event) => onChange({ ...value, [key]: Number(event.target.value) })} className="mt-1 h-9 w-full rounded-lg border border-line px-2 text-right font-mono text-xs font-bold" />
           </label>
         ))}

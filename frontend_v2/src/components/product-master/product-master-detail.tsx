@@ -1345,13 +1345,13 @@ export function ProductMasterDetailWorkspace({
             <div
               key={c.label}
               className={cn(
-                "rounded-xl border bg-gradient-to-br px-4 py-3.5 shadow-sm transition-all hover:shadow-md",
+                "rounded-xl border px-4 py-3.5 shadow-sm transition-all hover:shadow-md",
                 c.tone === "emerald" &&
-                  "border-success-border from-success-bg to-white ring-1 ring-success-border",
+                  "border-success-border bg-success-bg ring-1 ring-success-border",
                 c.tone === "amber" &&
-                  "border-warning-border from-warning-bg to-white ring-1 ring-warning-border",
+                  "border-warning-border bg-warning-bg ring-1 ring-warning-border",
                 c.tone === "slate" &&
-                  "border-line from-surface-2 to-white ring-1 ring-line",
+                  "border-line bg-surface-2 ring-1 ring-line",
               )}
             >
               <div className="flex items-center justify-between gap-2">
@@ -1370,7 +1370,7 @@ export function ProductMasterDetailWorkspace({
                     {c.icon}
                   </span>
                   <div>
-                    <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+                    <div className="text-[12px] font-semibold text-content-3">
                       {c.label}
                     </div>
                     <div className="text-sm font-semibold text-content-1">
@@ -1402,7 +1402,7 @@ export function ProductMasterDetailWorkspace({
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-6">
           <Tabs value={tab} onValueChange={setTab} className="space-y-5">
-            <TabsList className="flex w-full flex-wrap rounded-2xl bg-gradient-to-r from-surface-2 via-surface-2 to-surface-2 p-1.5 shadow-sm ring-1 ring-line">
+            <TabsList className="flex w-full flex-wrap rounded-2xl bg-surface-2 p-1.5 shadow-sm ring-1 ring-line">
               <TabsTrigger
                 value="spec"
                 className="flex-1 rounded-xl text-xs font-semibold data-[state=active]:bg-surface-1 data-[state=active]:shadow-md data-[state=active]:ring-1 data-[state=active]:ring-line"
@@ -2166,7 +2166,7 @@ export function ProductMasterDetailWorkspace({
             <TabsContent value="variants" className="space-y-4">
               {/* Summary strip */}
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl border border-info-border bg-gradient-to-br from-info-bg to-surface-1 px-4 py-3 ring-1 ring-info-border">
+                <div className="rounded-xl border border-info-border bg-surface-2 px-4 py-3 ring-1 ring-info-border">
                   <div className="text-caption font-bold uppercase tracking-wider text-primary">
                     Variants
                   </div>
@@ -2174,7 +2174,7 @@ export function ProductMasterDetailWorkspace({
                     {variants.length}
                   </div>
                 </div>
-                <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg to-white px-4 py-3 ring-1 ring-order-border">
+                <div className="rounded-xl border border-order-border bg-surface-2 px-4 py-3 ring-1 ring-order-border">
                   <div className="text-caption font-bold uppercase tracking-wider text-order-fg">
                     Active axes
                   </div>
@@ -2182,7 +2182,7 @@ export function ProductMasterDetailWorkspace({
                     {draft.variant_axes.length}
                   </div>
                 </div>
-                <div className="rounded-xl border border-success-border bg-gradient-to-br from-success-bg to-white px-4 py-3 ring-1 ring-success-border">
+                <div className="rounded-xl border border-success-border bg-success-bg px-4 py-3 ring-1 ring-success-border">
                   <div className="text-caption font-bold uppercase tracking-wider text-success-fg">
                     Required
                   </div>
@@ -2190,8 +2190,8 @@ export function ProductMasterDetailWorkspace({
                     {draft.variant_axes.filter(isUiRequiredAxis).length}
                   </div>
                 </div>
-                <div className="rounded-xl border border-line bg-gradient-to-br from-surface-2 to-white px-4 py-3 ring-1 ring-line">
-                  <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+                <div className="rounded-xl border border-line bg-surface-2 px-4 py-3 ring-1 ring-line">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Sizes
                   </div>
                   <div className="mt-0.5 text-lg font-semibold text-content-1">
@@ -2214,14 +2214,14 @@ export function ProductMasterDetailWorkspace({
                     const palette = requiredForUi
                       ? {
                           border: "border-info-border",
-                          bg: "bg-gradient-to-br from-info-bg to-surface-1",
+                          bg: "bg-surface-2",
                           ring: "ring-info-border",
                           icon: "bg-info-bg text-primary ring-info-border",
                           badge: "bg-primary text-white ring-primary",
                         }
                       : {
                           border: "border-order-border",
-                          bg: "bg-gradient-to-br from-order-bg to-white",
+                          bg: "bg-surface-2",
                           ring: "ring-order-border",
                           icon: "bg-order-bg text-order-fg ring-order-border",
                           badge: "bg-order-bg text-order-fg ring-order-border",
@@ -2388,7 +2388,7 @@ export function ProductMasterDetailWorkspace({
             <TabsContent value="overlays" className="space-y-4">
               {overlays.length > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <div className="rounded-xl border border-info-border bg-gradient-to-br from-info-bg to-surface-1 px-4 py-3 ring-1 ring-info-border">
+                  <div className="rounded-xl border border-info-border bg-surface-2 px-4 py-3 ring-1 ring-info-border">
                     <div className="text-caption font-bold uppercase tracking-wider text-primary">
                       Customers
                     </div>
@@ -2396,7 +2396,7 @@ export function ProductMasterDetailWorkspace({
                       {overlays.length}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-success-border bg-gradient-to-br from-success-bg to-white px-4 py-3 ring-1 ring-success-border">
+                  <div className="rounded-xl border border-success-border bg-success-bg px-4 py-3 ring-1 ring-success-border">
                     <div className="text-caption font-bold uppercase tracking-wider text-success-fg">
                       With item codes
                     </div>
@@ -2404,7 +2404,7 @@ export function ProductMasterDetailWorkspace({
                       {overlays.filter((o: any) => o.customer_item_code).length}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg to-white px-4 py-3 ring-1 ring-order-border">
+                  <div className="rounded-xl border border-order-border bg-surface-2 px-4 py-3 ring-1 ring-order-border">
                     <div className="text-caption font-bold uppercase tracking-wider text-order-fg">
                       With MOQ
                     </div>
@@ -2617,13 +2617,13 @@ export function ProductMasterDetailWorkspace({
             <div className="flex flex-col gap-2.5">
               <Link
                 href={`/sales/orders/create?master=${master.id}`}
-                className="flex items-center justify-between rounded-xl bg-gradient-to-r from-primary to-order-fg px-4 py-3.5 text-sm font-bold text-white shadow-lg ring-1 ring-primary transition-all hover:shadow-xl hover:"
+                className="flex items-center justify-between rounded-xl bg-primary px-4 py-3.5 text-sm font-bold text-white shadow-lg ring-1 ring-primary transition-all hover:shadow-xl hover:"
               >
                 Create sales order <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href={`/production/planner/stock-launcher?master=${master.id}`}
-                className="flex items-center justify-between rounded-xl bg-gradient-to-r from-order-fg to-order-fg px-4 py-3.5 text-sm font-bold text-white shadow-lg ring-1 ring-order-border transition-all hover:shadow-xl hover:"
+                className="flex items-center justify-between rounded-xl bg-plate px-4 py-3.5 text-sm font-bold text-white shadow-lg ring-1 ring-order-border transition-all hover:shadow-xl hover:"
               >
                 Launch WIP / stock <ArrowRight className="h-4 w-4" />
               </Link>
@@ -3446,7 +3446,7 @@ export function ProductMasterDetailWorkspace({
                         key={layerKey}
                         className="rounded-lg border border-line bg-surface-2 px-3 py-2"
                       >
-                        <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                        <div className="text-[12px] font-semibold text-content-3">
                           L{layerKey}
                         </div>
                         <div className="mt-1 text-xs font-semibold text-content-3">
@@ -3457,7 +3457,7 @@ export function ProductMasterDetailWorkspace({
                   }
                   return (
                     <div key={layerKey} className="space-y-1">
-                      <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                      <Label className="text-[12px] font-semibold text-content-3">
                         L{layerKey}
                       </Label>
                       <Select
@@ -3643,7 +3643,7 @@ function EditField({
 }) {
   return (
     <div className={span === 2 ? "sm:col-span-2" : ""}>
-      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         {label}
       </Label>
       <div className="mt-1">{children}</div>
@@ -3770,7 +3770,7 @@ function ReadField({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-      <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div
@@ -4035,13 +4035,13 @@ function VariantAxisChips({ axes }: { axes: any[] }) {
           const pal = requiredForUi
             ? {
                 border: "border-info-border",
-                bg: "bg-gradient-to-br from-info-bg to-surface-1",
+                bg: "bg-surface-2",
                 ring: "ring-info-border",
                 icon: "bg-info-bg text-primary ring-info-border",
               }
             : {
                 border: "border-order-border",
-                bg: "bg-gradient-to-br from-order-bg to-white",
+                bg: "bg-surface-2",
                 ring: "ring-order-border",
                 icon: "bg-order-bg text-order-fg ring-order-border",
               };
@@ -4757,7 +4757,7 @@ function VariantStatsRow({ variant }: { variant: any }) {
           key={s.k}
           className="rounded-md bg-surface-2 px-2 py-1 ring-1 ring-line"
         >
-          <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             {s.k}
           </div>
           <div className="font-mono text-caption font-bold text-content-2 tabular-nums">
@@ -4944,25 +4944,25 @@ function ProductSpecCard(props: {
     violet: {
       ring: "ring-order-border",
       iconBg: "bg-order-bg text-order-fg",
-      gradient: "from-info-bg via-white to-order-bg",
+      gradient: "bg-surface-2",
       bar: "border-l-violet-500",
     },
     emerald: {
       ring: "ring-success-border",
       iconBg: "bg-success-bg text-success-fg",
-      gradient: "from-success-bg via-white to-info-bg",
+      gradient: "bg-success-bg",
       bar: "border-l-emerald-500",
     },
     fuchsia: {
       ring: "ring-order-border",
       iconBg: "bg-order-bg text-order-fg",
-      gradient: "from-order-bg via-white to-order-bg",
+      gradient: "bg-surface-2",
       bar: "border-l-fuchsia-500",
     },
     blue: {
       ring: "ring-info-border",
       iconBg: "bg-info-bg text-primary",
-      gradient: "from-info-bg via-white to-success-bg",
+      gradient: "bg-surface-2",
       bar: "border-l-blue-500",
     },
   };
@@ -4970,7 +4970,7 @@ function ProductSpecCard(props: {
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-3xl border bg-gradient-to-br shadow-md ring-1 border-line border-l-[3px]",
+        "overflow-hidden rounded-3xl border shadow-md ring-1 border-line border-l-[3px]",
         a.gradient,
         a.ring,
         a.bar,
@@ -5013,7 +5013,7 @@ function ProductSpecCard(props: {
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 Product spec · what is this?
               </div>
               <div className="font-display mt-1 text-2xl font-bold text-content-1">
@@ -5086,7 +5086,7 @@ function ProductSpecCard(props: {
           {/* Layer summary chips */}
           {layers.length > 0 && (
             <div className="mt-4">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 Layer stack (top → bottom)
               </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -5162,7 +5162,7 @@ function SpecCell({
         tone ? TONE[tone] : "border-line",
       )}
     >
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 text-sm font-bold text-content-1">{value}</div>
@@ -5633,7 +5633,7 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
           )}
         </div>
         <div className="flex flex-col items-end gap-1 text-right">
-          <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+          <span className="text-[12px] font-semibold text-content-3">
             Qty per order
           </span>
           <span className="rounded-lg bg-surface-3 px-2 py-1 font-mono text-caption text-success-border ring-1 ring-line-strong">
@@ -5646,7 +5646,7 @@ function CatalogAxisCard({ def }: { def: VariantAxisDef }) {
         </div>
       </div>
       <div className="mt-3">
-        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+        <div className="text-[12px] font-semibold text-content-3">
           {isLoading
             ? "Loading catalog options…"
             : `Available catalog options${options.length ? ` (${options.length})` : ""}`}

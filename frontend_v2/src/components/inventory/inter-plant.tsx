@@ -273,7 +273,7 @@ export function InterPlantV36() {
                   </div>
                   <div className="relative flex-1 h-7 rounded-md bg-surface-2 ring-1 ring-line overflow-hidden">
                     <div
-                      className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary via-order-fg to-order-fg"
+                      className="absolute inset-y-0 left-0 bg-primary"
                       style={{ width: `${widthPct}%` }}
                     />
                     <div className="absolute inset-0 flex items-center justify-between px-3 text-caption font-bold">
@@ -348,15 +348,15 @@ function Kpi({
   sub: string;
 }) {
   const TONE = {
-    blue: "from-primary via-order-fg to-order-fg",
-    violet: "from-order-fg via-order-fg to-danger-solid",
-    amber: "from-warning-fg via-warm to-danger-solid",
-    emerald: "from-success-fg via-info-fg to-info-fg",
+    blue: "bg-primary",
+    violet: "bg-plate",
+    amber: "bg-warning-fg",
+    emerald: "bg-success-fg",
   }[tone];
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-lg ring-1 ring-surface-1/10 hover:shadow-2xl hover:-translate-y-0.5",
+        "overflow-hidden rounded-2xl p-4 text-white shadow-lg ring-1 ring-surface-1/10 hover:shadow-2xl hover:-translate-y-0.5",
         TONE,
       )}
     >
@@ -390,17 +390,17 @@ function Lane({
   const TONE = {
     amber: {
       bar: "border-l-amber-500",
-      bg: "from-warning-bg",
+      bg: "bg-warning-bg",
       num: "bg-warning-fg text-white",
     },
     blue: {
       bar: "border-l-blue-500",
-      bg: "from-info-bg",
+      bg: "bg-surface-2",
       num: "bg-primary text-white",
     },
     emerald: {
       bar: "border-l-emerald-500",
-      bg: "from-success-bg",
+      bg: "bg-success-bg",
       num: "bg-success-fg text-white",
     },
   }[tone];
@@ -413,7 +413,7 @@ function Lane({
     >
       <header
         className={cn(
-          "flex items-center justify-between border-b border-line bg-gradient-to-r via-white to-white px-4 py-3",
+          "flex items-center justify-between border-b border-line px-4 py-3",
           TONE.bg,
         )}
       >
@@ -559,7 +559,7 @@ function DetailDrawer({
         className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
@@ -627,7 +627,7 @@ function DetailDrawer({
 
           {/* Logistics */}
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Logistics
             </div>
             <div className="grid grid-cols-2 gap-2 text-caption">
@@ -643,7 +643,7 @@ function DetailDrawer({
 
           {/* Timeline */}
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Lifecycle
             </div>
             <ol className="relative ml-3 border-l-2 border-line space-y-3">
@@ -665,7 +665,7 @@ function DetailDrawer({
           {Array.isArray(challan.item_preview) &&
             challan.item_preview.length > 0 && (
               <div>
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+                <div className="text-[12px] font-semibold text-content-3 mb-2">
                   Lines preview
                 </div>
                 <div className="space-y-1.5">
@@ -715,7 +715,7 @@ function DetailDrawer({
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 text-xs font-bold text-content-2 truncate">

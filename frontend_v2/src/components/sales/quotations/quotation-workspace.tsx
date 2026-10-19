@@ -1117,7 +1117,7 @@ export default function QuotationWorkspace() {
               <div className="rounded-[1.6rem] border border-info-border bg-surface-1/88 px-4 py-4 text-content-1 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Open quotes
                     </div>
                     <div className="mt-2 text-2xl font-semibold">
@@ -1137,7 +1137,7 @@ export default function QuotationWorkspace() {
               <div className="rounded-[1.8rem] border border-line bg-surface-1 p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Saved quotations
                     </div>
                     <div className="mt-1 text-base font-semibold text-content-1">
@@ -1197,7 +1197,7 @@ export default function QuotationWorkspace() {
               <div className="rounded-[1.8rem] border border-line bg-surface-1 p-4 shadow-[0_20px_40px_-36px_rgba(15,23,42,0.24)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Active lines
                     </div>
                     <div className="mt-1 text-base font-semibold text-content-1">
@@ -1247,7 +1247,7 @@ export default function QuotationWorkspace() {
             <div className="grid gap-5 border-b border-line px-6 py-6 xl:grid-cols-[minmax(0,1.2fr)_300px]">
               <div className="space-y-4">
                 <div>
-                  <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Commercial header
                   </div>
                   <div className="mt-2 text-3xl font-semibold tracking-tight text-content-1">
@@ -1315,7 +1315,7 @@ export default function QuotationWorkspace() {
               </div>
 
               <div className="rounded-[1.7rem] border border-line-strong bg-surface-3 px-5 py-5 text-white shadow-[0_22px_56px_-42px_rgba(15,23,42,0.8)]">
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                <div className="text-[12px] font-semibold text-content-3">
                   Quote identity
                 </div>
                 <div
@@ -1655,7 +1655,7 @@ function QuoteWorkbench({
         <div className="min-w-0 space-y-6">
           <div className="grid gap-4 rounded-[1.8rem] border border-line bg-surface-1/90 px-5 py-5 shadow-[0_22px_44px_-40px_rgba(15,23,42,0.3)] lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 Launch deck
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-tight text-content-1">
@@ -1747,7 +1747,7 @@ function QuoteWorkbench({
           <div className="rounded-[1.7rem] border border-line bg-surface-3 px-5 py-5 text-white shadow-[0_26px_60px_-48px_rgba(15,23,42,0.78)]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                <div className="text-[12px] font-semibold text-content-3">
                   Commercial inspector
                 </div>
                 <div className="mt-2 text-xl font-semibold text-white">
@@ -1808,7 +1808,7 @@ function QuoteWorkbench({
           </div>
 
           <div className="rounded-[1.6rem] border border-line bg-surface-2 px-4 py-4">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Preview summary
             </div>
             {previewError ? (
@@ -1855,7 +1855,7 @@ function QuoteWorkbench({
           </div>
 
           <div className="rounded-[1.7rem] border border-line bg-surface-1 px-5 py-5 shadow-[0_22px_48px_-44px_rgba(15,23,42,0.35)]">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Quotation summary
             </div>
             <div className="mt-4 space-y-2">
@@ -1949,7 +1949,7 @@ function SkuQuoteLane({
         <div className="border-b border-line bg-[linear-gradient(135deg,#f9f4ea_0%,#ffffff_40%,#f3f6fb_100%)] px-6 py-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 SKU fast lane
               </div>
               <div className="mt-2 text-3xl font-semibold tracking-tight text-content-1">
@@ -2064,7 +2064,7 @@ function SkuQuoteLane({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-12 rounded-2xl border-line px-4 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
+                      className="h-12 rounded-2xl border-line px-4 text-[12px] font-semibold text-content-3"
                     >
                       Pricing
                     </Button>
@@ -2144,7 +2144,7 @@ function SkuQuoteLane({
             <div className="grid gap-5 px-6 py-6">
               {compatibilityTab === "materials" ? (
                 <div className="rounded-[1.5rem] border border-line bg-surface-2 px-5 py-5">
-                  <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Material compatibility
                   </div>
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
@@ -2204,7 +2204,7 @@ function SkuQuoteLane({
               ) : null}
 
               <div>
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                <div className="text-[12px] font-semibold text-content-3">
                   Commercial edits
                 </div>
                 <div className="mt-2 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -2298,7 +2298,7 @@ function SkuQuoteLane({
           </div>
 
           <aside className="relative z-0 border-t border-line bg-surface-3 px-5 py-5 text-white xl:border-l xl:border-t-0 xl:border-line-strong">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Seeded from SKU
             </div>
             <div className="mt-3 text-2xl font-semibold tracking-tight">
@@ -2514,7 +2514,7 @@ function CustomQuoteLane({
           </div>
         </div>
         <div className="rounded-[1.6rem] border border-line bg-surface-1 px-5 py-5">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+          <div className="text-[12px] font-semibold text-content-3">
             Commercial response
           </div>
           <div className="mt-3 space-y-2">
@@ -3596,7 +3596,7 @@ function FieldShell({
   return (
     <div className="space-y-2">
       {label ? (
-        <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <Label className="text-[12px] font-semibold text-content-3">
           {label}
         </Label>
       ) : null}
@@ -3693,7 +3693,7 @@ function StatPill({
     <div
       className={`rounded-2xl border px-3 py-3 ${subtle ? "border-line bg-surface-1" : "border-line bg-surface-2"}`}
     >
-      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-content-1">{value}</div>

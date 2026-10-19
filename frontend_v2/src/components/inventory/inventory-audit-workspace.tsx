@@ -944,7 +944,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
 
             <div className="overflow-x-auto rounded-2xl border border-line">
               <table className="min-w-[940px] w-full text-left text-sm">
-                <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                <thead className="bg-surface-2 text-[12px] font-semibold text-content-3">
                   <tr>
                     <LineSortHeader id="class">Class</LineSortHeader>
                     <LineSortHeader id="material">Material</LineSortHeader>
@@ -1110,14 +1110,14 @@ export function InventoryYearCloseWorkspace() {
 
   return (
     <div className="space-y-6 pb-10">
-      <section className="rounded-[2rem] border border-line bg-gradient-to-br from-warm via-surface-3 to-surface-3 p-6 text-white">
-        <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-caption font-semibold uppercase tracking-[0.12em] text-white">
+      <section className="rounded-[18px] border border-line bg-surface-1 p-6 shadow-[var(--shadow-sm)]">
+        <Badge className="rounded-full border-transparent bg-warning-bg text-[12px] font-semibold text-warning-fg">
           Year-End Lock
         </Badge>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h1 className="mt-3 text-[26px] font-semibold tracking-[-0.025em] text-content-1">
           Financial Year Close
         </h1>
-        <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-warm">
+        <p className="mt-2 max-w-2xl text-[13.5px] leading-6 text-content-3">
           Review closing stock, clear blockers, lock the year, and generate
           next-year opening stock from the approved closing snapshot.
         </p>
@@ -1157,7 +1157,7 @@ export function InventoryYearCloseWorkspace() {
             Export Preview
           </Button>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Period status
             </div>
             <div className="mt-2 text-xl font-semibold">
@@ -1189,7 +1189,7 @@ export function InventoryYearCloseWorkspace() {
         ].map(([label, value]) => (
           <Card key={label} className="rounded-[1.25rem]">
             <CardContent className="p-5">
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 {label}
               </div>
               <div className="mt-2 text-2xl font-semibold">
@@ -1209,7 +1209,7 @@ export function InventoryYearCloseWorkspace() {
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-sm">
-              <thead className="text-left text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+              <thead className="text-left text-[12px] font-semibold text-content-3">
                 <tr>
                   <th className="px-3 py-2">Class</th>
                   <th>Material</th>
@@ -1303,7 +1303,7 @@ export function InventoryStockCardWorkspace() {
   }
   return (
     <div className="space-y-6 pb-10">
-      <section className="rounded-[2rem] border border-line bg-gradient-to-br from-white via-info-bg to-success-bg p-6">
+      <section className="rounded-[2rem] border border-line bg-surface-1 p-6">
         <Badge className="rounded-full bg-info-bg text-primary">
           Audit Ledger
         </Badge>
@@ -1402,7 +1402,7 @@ export function InventoryStockCardWorkspace() {
         ].map(([label, value]) => (
           <Card key={label} className="rounded-[1.25rem]">
             <CardContent className="p-5">
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 {label}
               </div>
               <div className="mt-2 text-2xl font-semibold">
@@ -1421,7 +1421,7 @@ export function InventoryStockCardWorkspace() {
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="min-w-[980px] w-full text-sm">
-            <thead className="text-left text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <thead className="text-left text-[12px] font-semibold text-content-3">
               <tr>
                 <th className="px-3 py-2">Date</th>
                 <th>Source</th>

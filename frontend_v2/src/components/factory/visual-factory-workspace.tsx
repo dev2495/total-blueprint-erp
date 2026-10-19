@@ -364,8 +364,8 @@ function TopHero({
 
   return (
     <section className="space-y-3">
-      <div className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-order-bg via-white to-success-bg px-6 py-5 shadow-sm">
-        <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-order-fg via-order-fg to-order-fg" />
+      <div className="relative overflow-hidden rounded-2xl border border-line bg-surface-2 px-6 py-5 shadow-sm">
+        <div className="absolute inset-y-0 left-0 w-1.5 bg-plate" />
         <div className="relative pl-3 flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
@@ -695,7 +695,7 @@ function KpiTile({
 }) {
   const body = (
     <>
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div
@@ -775,7 +775,7 @@ function RouteSwimlane({
   const order: ProcessKey[] = ["EXT", "PRINT", "LAM", "SLIT", "POU", "PACK"];
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
-      <header className="border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+      <header className="border-b border-line bg-surface-2 px-5 py-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             Route flow · today
@@ -930,7 +930,7 @@ function WipAgingPanel({
   );
   return (
     <div className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
-      <header className="border-b border-line bg-gradient-to-r from-success-bg via-white to-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+      <header className="border-b border-line bg-success-bg px-5 py-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
             WIP pools · aged
@@ -956,7 +956,7 @@ function WipAgingPanel({
         </div>
       </header>
       <div className="bg-surface-2 border-b border-line px-5 py-2 flex flex-wrap items-center gap-3 text-caption font-bold">
-        <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           aging buckets
         </span>
         <span className="inline-flex items-center gap-1.5">
@@ -1132,7 +1132,7 @@ function buildAlerts({
 
 function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
   return (
-    <aside className="rounded-2xl border border-line bg-gradient-to-b from-white via-white to-danger-bg shadow-sm overflow-hidden">
+    <aside className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
       <header className="border-b border-line bg-surface-1 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-danger-bg text-danger-fg">
@@ -1266,7 +1266,7 @@ function PlantsTab({
     <section className="space-y-4">
       <div className="rounded-2xl border border-line bg-surface-1 px-5 py-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-caption font-bold">
-          <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <span className="text-[12px] font-semibold text-content-3">
             {plants.length} plants
           </span>
           <Link
@@ -1396,10 +1396,10 @@ function PlantBlock({
 
   return (
     <article className="rounded-2xl border border-order-border bg-surface-1 shadow-sm overflow-hidden">
-      <header className="border-b border-order-border bg-gradient-to-r from-order-bg via-white to-success-bg px-5 py-4">
+      <header className="border-b border-order-border bg-surface-2 px-5 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-order-bg to-order-fg text-white shadow-sm">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-plate text-plate-fg">
               <Factory className="h-4 w-4" />
             </span>
             <div className="min-w-0">
@@ -1639,7 +1639,7 @@ function KpiSmall({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 ring-1 ring-line px-2.5 py-1.5">
-      <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div
@@ -1783,7 +1783,7 @@ function CustomersTab({
       </div>
 
       <div className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
-        <header className="border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-3">
+        <header className="border-b border-line bg-surface-2 px-5 py-3">
           <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             Order age distribution · {salesOrders.length} open lines
           </div>
@@ -1907,7 +1907,7 @@ function CustomerCard({
         className={cn(
           "border-b px-5 py-3 flex items-start justify-between gap-3",
           group.hasAged
-            ? "border-danger-border bg-gradient-to-r from-danger-bg via-white to-white"
+            ? "border-danger-border bg-danger-bg"
             : "border-line bg-surface-1",
         )}
       >
@@ -1916,8 +1916,8 @@ function CustomerCard({
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-xl text-white font-semibold",
               group.hasAged
-                ? "bg-gradient-to-br from-danger-bg to-danger-fg"
-                : "bg-gradient-to-br from-success-bg to-success-fg",
+                ? "bg-danger-bg"
+                : "bg-success-bg",
             )}
           >
             {initials}
@@ -2023,7 +2023,7 @@ function CustomerCard({
       </div>
       {Object.keys(inFlight).length > 0 ? (
         <div className="bg-surface-2 px-5 py-2 border-t border-line flex flex-wrap items-center gap-1.5 text-caption font-bold">
-          <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
+          <span className="text-[12px] font-semibold text-content-3">
             In flight now
           </span>
           {(Object.keys(inFlight) as ProcessKey[]).map((k) => (

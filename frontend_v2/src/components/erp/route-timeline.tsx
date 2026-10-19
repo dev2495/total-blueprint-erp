@@ -99,7 +99,7 @@ export function RouteTimeline({
                 )}
               >
                 <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                  <span className="font-mono text-caption font-semibold uppercase tracking-wider text-content-4">
+                  <span className="font-mono text-[12px] font-semibold text-content-3">
                     Stage {stage.index}
                   </span>
                   {isParallel ? (
@@ -362,7 +362,7 @@ function RouteStepButton({
         </span>
       </span>
       {step.transition || step.tag ? (
-        <span className="mt-2 text-caption font-semibold uppercase tracking-wider text-content-4">
+        <span className="mt-2 text-[12px] font-semibold text-content-3">
           {step.transition || step.tag}
         </span>
       ) : null}
@@ -383,7 +383,7 @@ function RouteEndCap({
   icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex w-16 flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface-2 py-2 text-caption font-semibold uppercase tracking-wider text-content-4">
+    <div className="flex w-16 flex-col items-center justify-center rounded-xl border border-dashed border-line bg-surface-2 py-2 text-[12px] font-semibold text-content-3">
       {icon}
       {label}
     </div>

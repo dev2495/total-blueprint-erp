@@ -72,7 +72,7 @@ function toneForMode(mode: string) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+    <div className="text-[12px] font-semibold text-content-3">
       {children}
     </div>
   );
@@ -670,7 +670,7 @@ export default function CostingCenterPage() {
                     </FieldShell>
                   </div>
                   <div className="rounded-[1.5rem] border border-line bg-surface-2 p-3">
-                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Entry model
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1100,7 +1100,7 @@ export default function CostingCenterPage() {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                          <div className="text-[12px] font-semibold text-content-3">
                             {group.code}
                           </div>
                           <div className="mt-2 text-xl font-semibold text-content-1">

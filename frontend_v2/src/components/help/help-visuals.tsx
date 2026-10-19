@@ -53,7 +53,7 @@ export function HelpFlowDiagram({
   );
 
   return (
-    <div className="rounded-2xl border border-line bg-gradient-to-br from-white to-surface-2 p-4">
+    <div className="rounded-2xl border border-line bg-surface-1 p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
@@ -82,7 +82,7 @@ export function HelpFlowDiagram({
                 <div className="text-sm font-semibold leading-5 text-content-1">
                   {localize(node.title, locale)}
                 </div>
-                <div className="mt-0.5 text-caption font-bold uppercase tracking-[0.1em] text-content-4">
+                <div className="mt-0.5 text-[12px] font-semibold text-content-3">
                   {node.id}
                 </div>
               </div>

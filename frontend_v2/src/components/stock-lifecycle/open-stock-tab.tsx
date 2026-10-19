@@ -245,7 +245,7 @@ function categoryMeta(category: string) {
       key: category,
       label: category,
       icon: Sparkles,
-      accent: "from-surface-2 to-surface-2",
+      accent: "bg-surface-2",
     }
   );
 }
@@ -901,7 +901,7 @@ export function OpenStockTab({
                 className="h-10 rounded-xl pl-9"
               />
             </div>
-            <label className="grid min-w-[220px] gap-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <label className="grid min-w-[220px] gap-1 text-[12px] font-semibold text-content-3">
               Opening balance as of
               <Input
                 type="datetime-local"
@@ -1239,7 +1239,7 @@ export function OpenStockTab({
       <div className="rounded-[22px] border border-line bg-surface-1 p-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Focused editor
             </div>
             <div className="mt-0.5 text-sm font-bold text-content-1">
@@ -1324,7 +1324,7 @@ export function OpenStockTab({
               >
                 <div
                   className={cn(
-                    "flex items-center justify-between gap-3 bg-gradient-to-r px-4 py-3 text-white",
+                    "flex items-center justify-between gap-3 px-4 py-3 text-white",
                     meta.accent,
                   )}
                 >
@@ -1778,7 +1778,7 @@ export function OpenStockTab({
             mutation.isPending
           }
           onClick={() => mutation.mutate()}
-          className="rounded-xl bg-gradient-to-r from-order-fg via-order-fg to-order-fg text-white hover:from-order-fg hover:via-order-fg hover:to-order-fg"
+          className="rounded-xl bg-plate text-white hover:from-order-fg hover:via-order-fg hover:to-order-fg"
         >
           {mutation.isPending ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

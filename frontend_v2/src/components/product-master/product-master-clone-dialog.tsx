@@ -239,7 +239,7 @@ export function ProductMasterCloneDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[92vh] max-w-5xl flex-col overflow-hidden rounded-2xl p-0">
-        <DialogHeader className="border-b border-line bg-gradient-to-r from-order-bg via-white to-order-bg px-5 py-4">
+        <DialogHeader className="border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-order-fg text-white shadow-sm">
               <Copy className="h-4 w-4" />
@@ -259,7 +259,7 @@ export function ProductMasterCloneDialog({
         <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[330px_minmax(0,1fr)]">
           <aside className="space-y-4">
             <section className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Source
               </div>
               <div className="mt-2 rounded-xl bg-surface-2 p-3">
@@ -294,7 +294,7 @@ export function ProductMasterCloneDialog({
 
             <section className="space-y-3 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
               <div className="grid gap-2">
-                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   New code
                 </Label>
                 <Input
@@ -306,7 +306,7 @@ export function ProductMasterCloneDialog({
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   New name
                 </Label>
                 <Input
@@ -315,7 +315,7 @@ export function ProductMasterCloneDialog({
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   Route at create
                 </Label>
                 <Select value={templateId} onValueChange={setTemplateId}>
@@ -337,7 +337,7 @@ export function ProductMasterCloneDialog({
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   Note
                 </Label>
                 <Textarea
@@ -417,7 +417,7 @@ export function ProductMasterCloneDialog({
                     </div>
                     <div className="grid gap-2 md:grid-cols-[1fr_1.5fr_120px_120px]">
                       <div className="grid gap-1">
-                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Role
                         </Label>
                         <Input
@@ -428,7 +428,7 @@ export function ProductMasterCloneDialog({
                         />
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Film variant
                         </Label>
                         <Select
@@ -465,7 +465,7 @@ export function ProductMasterCloneDialog({
                         ) : null}
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Micron
                         </Label>
                         <Input
@@ -479,7 +479,7 @@ export function ProductMasterCloneDialog({
                         />
                       </div>
                       <div className="grid gap-1">
-                        <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Grade
                         </Label>
                         <Input

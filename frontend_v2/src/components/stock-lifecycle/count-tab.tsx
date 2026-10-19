@@ -803,7 +803,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-[0_8px_30px_-20px_rgba(15,23,42,0.18)]">
-          <div className="hidden grid-cols-[132px_minmax(0,1fr)_170px_105px_120px_105px_minmax(0,1fr)] gap-3 bg-surface-2 px-4 py-2 text-caption font-semibold uppercase tracking-wide text-content-3 lg:grid">
+          <div className="hidden grid-cols-[132px_minmax(0,1fr)_170px_105px_120px_105px_minmax(0,1fr)] gap-3 bg-surface-2 px-4 py-2 text-[12px] font-semibold text-content-3 lg:grid">
             <div>Code</div>
             <div>Material</div>
             <div>Location</div>
@@ -1042,7 +1042,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
       </div>
 
       <aside className="space-y-4">
-        <div className="rounded-2xl border border-line bg-gradient-to-br from-white to-surface-2 p-4 shadow-sm">
+        <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-content-3">
             <Layers3 className="h-4 w-4" />
             Count mode
@@ -1071,7 +1071,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-line bg-gradient-to-br from-white to-surface-2 p-4 shadow-sm">
+        <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
           <div className="text-xs uppercase tracking-wide text-content-3">
             Variance summary
           </div>
@@ -1132,7 +1132,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
           )}
           <Button
             data-testid="count-post-batch"
-            className="mt-4 w-full bg-gradient-to-r from-order-fg via-order-fg to-order-fg text-white hover:from-order-fg hover:via-order-fg hover:to-order-fg"
+            className="mt-4 w-full bg-plate text-white hover:from-order-fg hover:via-order-fg hover:to-order-fg"
             disabled={
               stats.ready === 0 || stats.blocked > 0 || mutation.isPending
             }

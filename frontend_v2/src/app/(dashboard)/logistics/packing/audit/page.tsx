@@ -145,23 +145,23 @@ export default function PackingAuditPage() {
   }, [rows, dateFrom, dateTo]);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-br from-surface-2 via-white to-order-bg px-4 py-4 sm:px-6">
+    <div className="relative min-h-screen overflow-x-hidden bg-surface-2 px-4 py-4 sm:px-6">
       <div
         aria-hidden
-        className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-order-bg blur-3xl"
+        className="hidden pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-order-bg blur-3xl"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute top-40 -right-32 h-80 w-80 rounded-full bg-success-bg blur-3xl"
+        className="hidden pointer-events-none absolute top-40 -right-32 h-80 w-80 rounded-full bg-success-bg blur-3xl"
       />
       <div className="relative space-y-4 pb-12">
         {/* Hero */}
-        <header className="relative overflow-hidden rounded-3xl border border-line bg-gradient-to-br from-surface-2 via-white to-order-bg px-6 py-4 shadow-lg ring-1 ring-surface-1/40">
+        <header className="relative overflow-hidden rounded-3xl border border-line bg-surface-2 px-6 py-4 shadow-lg ring-1 ring-surface-1/40">
           <div
             aria-hidden
-            className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-order-bg blur-3xl"
+            className="hidden pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-order-bg blur-3xl"
           />
-          <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-surface-2 to-order-fg" />
+          <div className="absolute inset-y-0 left-0 w-1.5 bg-surface-2" />
           <div className="relative flex items-start justify-between gap-3 pl-3">
             <div className="flex items-start gap-3 min-w-0">
               <Link
@@ -197,7 +197,7 @@ export default function PackingAuditPage() {
               <Button
                 onClick={exportCsv}
                 disabled={rows.length === 0}
-                className="rounded-xl bg-gradient-to-r from-surface-3 to-surface-3 text-white shadow-md hover:shadow-lg disabled:opacity-50"
+                className="rounded-xl bg-plate text-white shadow-md hover:shadow-lg disabled:opacity-50"
               >
                 <Download className="mr-1.5 h-4 w-4" /> Export CSV
               </Button>
@@ -222,13 +222,13 @@ export default function PackingAuditPage() {
         <section className="rounded-2xl border border-line bg-surface-1 shadow-sm p-3 sm:p-4 ring-1 ring-surface-1/40">
           <div className="flex items-center gap-2 mb-3">
             <Filter className="h-3.5 w-3.5 text-content-3" />
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Filter
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Date from
               </Label>
               <Input
@@ -239,7 +239,7 @@ export default function PackingAuditPage() {
               />
             </div>
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Date to
               </Label>
               <Input
@@ -250,7 +250,7 @@ export default function PackingAuditPage() {
               />
             </div>
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Customer
               </Label>
               <Select
@@ -271,7 +271,7 @@ export default function PackingAuditPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Material
               </Label>
               <Select
@@ -293,7 +293,7 @@ export default function PackingAuditPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Order #
               </Label>
               <div className="relative mt-1">
@@ -311,10 +311,10 @@ export default function PackingAuditPage() {
 
         {/* Records */}
         <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
-          <header className="flex items-center justify-between border-b border-line bg-gradient-to-r from-surface-2 via-white to-order-bg px-5 py-2.5">
+          <header className="flex items-center justify-between border-b border-line bg-surface-2 px-5 py-2.5">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-content-3" />
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Audit records · {data?.count ?? 0}
               </div>
             </div>
@@ -436,26 +436,26 @@ const KPI_TONES: Record<
   { wrap: string; stripe: string; label: string; value: string }
 > = {
   indigo: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-info-bg",
-    stripe: "bg-gradient-to-r from-order-fg to-primary",
+    wrap: "border-order-border bg-surface-2",
+    stripe: "bg-plate",
     label: "text-order-fg",
     value: "text-order-fg",
   },
   violet: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-purple-50/60",
-    stripe: "bg-gradient-to-r from-order-fg to-purple-500",
+    wrap: "border-order-border bg-surface-2",
+    stripe: "bg-plate",
     label: "text-order-fg",
     value: "text-order-fg",
   },
   emerald: {
-    wrap: "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg",
-    stripe: "bg-gradient-to-r from-success-fg to-success-bg0",
+    wrap: "border-success-border bg-success-bg",
+    stripe: "bg-success-fg",
     label: "text-success-fg",
     value: "text-success-fg",
   },
   amber: {
-    wrap: "border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm",
-    stripe: "bg-gradient-to-r from-warning-fg to-warm",
+    wrap: "border-warning-border bg-warning-bg",
+    stripe: "bg-warning-fg",
     label: "text-warning-fg",
     value: "text-warning-fg",
   },

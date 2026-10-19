@@ -38,7 +38,7 @@ function PreviewMetric({
 }) {
   return (
     <div className="rounded-[1.4rem] border border-line bg-surface-1/92 px-4 py-4 shadow-[0_14px_40px_-38px_rgba(15,23,42,0.4)]">
-      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-2 text-[1.45rem] font-semibold tracking-tight text-content-1">
@@ -109,7 +109,7 @@ export function SkuVariantStudioRail({
         <div className="space-y-4 px-5 py-5">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1.3fr)_110px]">
             <div className="space-y-2">
-              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Preview quantity
               </Label>
               <Input
@@ -123,7 +123,7 @@ export function SkuVariantStudioRail({
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <Label className="text-[12px] font-semibold text-content-3">
                 UOM
               </Label>
               {isRoll ? (

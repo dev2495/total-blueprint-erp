@@ -185,7 +185,7 @@ export function StockAdjustmentForm() {
   const canSave = !!plantId && lines.some((l) => l.delta_qty !== "");
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-order-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="violet"
         eyebrow="INVENTORY · STOCK ADJUSTMENTS · NEW"
@@ -215,7 +215,7 @@ export function StockAdjustmentForm() {
           </header>
           <div className="grid gap-4 md:grid-cols-3">
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Plant
               </Label>
               <Select value={plantId} onValueChange={setPlantId}>
@@ -232,7 +232,7 @@ export function StockAdjustmentForm() {
               </Select>
             </div>
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Reason
               </Label>
               <Select
@@ -252,7 +252,7 @@ export function StockAdjustmentForm() {
               </Select>
             </div>
             <div className="md:col-span-1">
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Notes
               </Label>
               <Textarea
@@ -387,7 +387,7 @@ function LineRow({
       </div>
       <div className="mt-2 grid gap-3 md:grid-cols-4">
         <div>
-          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-[12px] font-semibold text-content-3">
             Stock class
           </Label>
           <Select
@@ -418,7 +418,7 @@ function LineRow({
         </div>
 
         <div className="md:col-span-3">
-          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-[12px] font-semibold text-content-3">
             {line.stock_class === "TRADING_GOOD" ? "Trading good" : "Material"}
           </Label>
           <div className="mt-1">
@@ -453,7 +453,7 @@ function LineRow({
 
         {needsRoll ? (
           <div className="md:col-span-3 md:col-start-2">
-            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Roll
             </Label>
             <div className="mt-1">
@@ -476,7 +476,7 @@ function LineRow({
 
         {needsLocation ? (
           <div className="md:col-span-3 md:col-start-2">
-            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Location
             </Label>
             <Select
@@ -500,7 +500,7 @@ function LineRow({
         ) : null}
 
         <div>
-          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-[12px] font-semibold text-content-3">
             Delta qty
           </Label>
           <Input
@@ -514,7 +514,7 @@ function LineRow({
         </div>
 
         <div>
-          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-[12px] font-semibold text-content-3">
             UOM
           </Label>
           <Input
@@ -526,7 +526,7 @@ function LineRow({
         </div>
 
         <div className="md:col-span-2">
-          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-[12px] font-semibold text-content-3">
             Preview
           </Label>
           <div className="mt-1 flex h-9 items-center rounded-md border border-line bg-surface-1 px-3 font-mono text-caption text-content-2">
@@ -551,7 +551,7 @@ function LineRow({
         </div>
 
         <div className="md:col-span-4">
-          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <Label className="text-[12px] font-semibold text-content-3">
             Line notes
           </Label>
           <Input

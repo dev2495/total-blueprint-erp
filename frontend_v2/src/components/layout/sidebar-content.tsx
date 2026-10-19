@@ -126,7 +126,8 @@ function WorkspaceLinks({
                 aria-label={workspace.label}
                 aria-current={active ? "page" : undefined}
                 data-testid={`sidebar-workspace-${workspace.key}`}
-                data-active={active ? "true" : undefined}
+                data-workspace-link=""
+                data-workspace-active={active ? "true" : undefined}
                 className={cn(
                   "relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-150",
                   active ? "bg-primary text-white" : "text-content-3 hover:bg-surface-2 hover:text-content-1",
@@ -144,8 +145,8 @@ function WorkspaceLinks({
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             data-testid={`sidebar-workspace-${workspace.key}`}
-            data-active={active ? "true" : undefined}
-            data-active-current={active ? "true" : undefined}
+            data-workspace-link=""
+            data-workspace-active={active ? "true" : undefined}
             className={cn(
               "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors duration-150",
               active ? "bg-primary text-white" : "text-content-2 hover:bg-surface-2 hover:text-content-1",
@@ -200,7 +201,7 @@ export function SidebarBrand({ compact = false }: { compact?: boolean }) {
         />
       </div>
       <div className="flex min-w-0 flex-col overflow-hidden leading-none transition-[opacity,transform] duration-300 ease-out">
-        <span className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           ERP System
         </span>
       </div>
@@ -312,7 +313,10 @@ export function SidebarNavContent({
           )}
         </button>
       </div>
-      {showAllScreens ? authorizedItems.map((item, index) => {
+      {/* Every old screen stays in the markup (route inventory, keyboard search, tests); the group is only
+          shown when "All screens" is open or the page belongs to no workspace. */}
+      <div className={cn(showAllScreens ? "contents" : "hidden")} data-testid="sidebar-all-screens">
+      {authorizedItems.map((item, index) => {
         const authorizedChildren = item.children?.filter((child) => {
           const isAuth = isAuthorized(child);
           if (child.href === "/dashboard/sales" && userRoleCode === "SALES") {
@@ -477,7 +481,7 @@ export function SidebarNavContent({
                     flyoutPlacement,
                   )}
                 >
-                  <div className="px-2 pb-2 pt-1 text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <div className="px-2 pb-2 pt-1 text-[12px] font-semibold text-content-3">
                     {item.title}
                   </div>
                   <div className="space-y-1">
@@ -568,7 +572,7 @@ export function SidebarNavContent({
               <>
                 <div
                   className={cn(
-                    "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-caption font-bold uppercase tracking-[0.12em] text-content-4",
+                    "mb-1 mt-5 flex items-center gap-2 px-3 py-1.5 text-[12px] font-semibold text-content-3",
                     isActive ? "text-primary" : "",
                     mobile ? "mt-4 px-3 text-caption" : "",
                   )}
@@ -740,7 +744,8 @@ export function SidebarNavContent({
             )}
           </div>
         );
-      }) : null}
+      })}
+      </div>
     </nav>
   );
 }

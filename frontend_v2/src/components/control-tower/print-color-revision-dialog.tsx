@@ -106,7 +106,7 @@ export function PrintColorRevisionDialog({
   return (
     <Dialog open={Boolean(order)} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[88vh] max-w-4xl flex-col overflow-hidden p-0">
-        <DialogHeader className="shrink-0 border-b border-line bg-gradient-to-r from-info-bg to-order-bg px-6 pb-5 pt-6 pr-14">
+        <DialogHeader className="shrink-0 border-b border-line bg-surface-2 px-6 pb-5 pt-6 pr-14">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-primary">
             <ShieldCheck className="h-4 w-4" /> Governed post-release change
           </div>

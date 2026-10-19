@@ -262,7 +262,7 @@ export default function EngineeringTemplatesPage() {
                 key={String(label)}
                 className="rounded-2xl border border-line bg-surface-2 px-4 py-3"
               >
-                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                <div className="text-[12px] font-semibold text-content-3">
                   {label}
                 </div>
                 <div className="mt-1 text-2xl font-semibold text-content-1">
@@ -564,7 +564,7 @@ export default function EngineeringTemplatesPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="rounded-lg border border-line bg-surface-2 px-2 py-1 text-caption font-semibold uppercase tracking-widest text-content-3">
+                        <span className="rounded-lg border border-line bg-surface-2 px-2 py-1 text-[12px] font-semibold text-content-3">
                           {t.fg_type}
                         </span>
                       </TableCell>

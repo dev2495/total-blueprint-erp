@@ -147,8 +147,8 @@ export default function LogisticsDashboard() {
     <div className="space-y-8 pb-10 max-w-7xl mx-auto block xl:px-4">
       {/* Header / Hero Section */}
       <div className="relative overflow-hidden rounded-3xl bg-surface-1 border border-line p-8 shadow-sm">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-warning-fg blur-3xl pointer-events-none" />
+        <div className="hidden absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary blur-3xl pointer-events-none" />
+        <div className="hidden absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-warning-fg blur-3xl pointer-events-none" />
 
         <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
           <div>

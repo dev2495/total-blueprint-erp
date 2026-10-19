@@ -54,7 +54,7 @@ interface FieldProps {
 function Field({ label, helper, children }: FieldProps) {
   return (
     <div className="space-y-1">
-      <Label className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         {label}
       </Label>
       {children}

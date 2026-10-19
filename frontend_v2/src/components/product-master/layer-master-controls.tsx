@@ -387,7 +387,7 @@ export function LayerAllowedGradePicker({
   }
   return (
     <div className="space-y-1.5">
-      <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         Allowed grades
       </Label>
       <div className="flex flex-wrap gap-1.5">

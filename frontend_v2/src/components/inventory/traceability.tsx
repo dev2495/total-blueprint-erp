@@ -281,7 +281,7 @@ export function TraceabilityV36() {
           <RollLabelActions rolls={[{ id: r.id, ref: r.label_id }]} />
           {/* Header card */}
           <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
-            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
+            <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-surface-2 px-5 py-4">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                   Roll header
@@ -341,7 +341,7 @@ export function TraceabilityV36() {
             <div className="border-t border-line px-5 py-4">
               <div className="flex items-center gap-2 mb-2">
                 <Weight className="h-4 w-4 text-primary" />
-                <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                <span className="text-[12px] font-semibold text-content-3">
                   Weight flow · original → consumed → current
                 </span>
               </div>
@@ -382,7 +382,7 @@ export function TraceabilityV36() {
           {/* Ancestors */}
           {ancestors.length > 0 && (
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
-              <header className="border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-3">
+              <header className="border-b border-line bg-surface-2 px-5 py-3">
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
                   Ancestor chain · oldest → this roll
                 </div>
@@ -430,7 +430,7 @@ export function TraceabilityV36() {
           {/* Two-pane: Tree + Timeline */}
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
-              <header className="border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-3">
+              <header className="border-b border-line bg-surface-2 px-5 py-3">
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
                   Genealogy tree · this roll → children
                 </div>
@@ -452,7 +452,7 @@ export function TraceabilityV36() {
             </section>
 
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
-              <header className="border-b border-line bg-gradient-to-r from-success-bg via-white to-white px-5 py-3">
+              <header className="border-b border-line bg-success-bg px-5 py-3">
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
                   Timeline · movement &amp; consumption
                 </div>
@@ -521,7 +521,7 @@ export function TraceabilityV36() {
 
           {/* Recent physical movements */}
           <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
-            <header className="flex items-center justify-between border-b border-line bg-gradient-to-r from-warning-bg via-white to-white px-5 py-3">
+            <header className="flex items-center justify-between border-b border-line bg-warning-bg px-5 py-3">
               <div>
                 <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
                   Physical movements
@@ -577,16 +577,16 @@ function Kpi({
   value: string;
 }) {
   const TONE = {
-    blue: "from-primary to-order-fg",
-    violet: "from-order-fg to-order-fg",
-    amber: "from-warning-fg to-warm",
-    emerald: "from-success-fg to-info-fg",
-    rose: "from-danger-solid to-danger-solid",
+    blue: "bg-primary",
+    violet: "bg-plate",
+    amber: "bg-warning-fg",
+    emerald: "bg-success-fg",
+    rose: "bg-danger-solid",
   }[tone];
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-lg ring-1 ring-surface-1/10",
+        "overflow-hidden rounded-2xl p-4 text-white shadow-lg ring-1 ring-surface-1/10",
         TONE,
       )}
     >
@@ -612,7 +612,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-3 py-2 ring-1 ring-line">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-sm font-bold text-content-2 truncate">

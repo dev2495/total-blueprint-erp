@@ -44,10 +44,9 @@ import { useToast } from "@/hooks/use-toast";
 import { describeApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-import { GradientHero } from "@/components/erp/gradient-hero";
-import { StepStrip } from "@/components/erp/step-strip";
-import { SectionCardV3 } from "@/components/erp/section-card";
-import { RouteTimeline } from "@/components/erp/route-timeline";
+import { SpecPlate } from "@/components/plate/spec-plate";
+import { specFromMasterLine } from "@/components/plate/spec-from-master";
+import { ChoiceCard, Pill as StatusPill, StepDot } from "@/components/plate/steps";
 import {
   ValidationFooter,
   type CheckLine,
@@ -121,7 +120,6 @@ export function StockLauncherV3Workspace() {
   const initialMaster =
     searchParams?.get("product_master") || searchParams?.get("master") || "";
 
-  const [stepId, setStepId] = React.useState("master");
   const [kindFilter, setKindFilter] = React.useState<ProductKind | "ALL">(
     "ALL",
   );
@@ -882,540 +880,343 @@ export function StockLauncherV3Workspace() {
     [masterLaunchIssues, productMasterId, validationIssues],
   );
 
+  const launchReady = !!validation?.valid && !firstBlocker;
+  const plateData = master
+    ? specFromMasterLine({
+        layers: master.layer_template,
+        size: selectedSize,
+        choices: layerValues as any,
+      })
+    : null;
+  const wipMode = !isFullRoute && !isPackagingMaster;
+
   return (
-    <div className="space-y-5">
-      <GradientHero
-        eyebrow="PLANNER · LAUNCH STOCK"
-        title="Launch stock from any Product Master"
-        subtitle="Pick what to build, choose the commitment, choose how far the route should run, confirm the spec, then send the stock order straight to production. Packaging and POD are selected as Product Masters with live catalog SKU links."
-        palette="indigo"
-        chips={[
-          {
-            label: "Master",
-            value: master?.code || "Pick one",
-            icon: <Package className="h-3.5 w-3.5" />,
-            tone: master ? "info" : undefined,
-          },
-          {
-            label: "Kind",
-            value: master?.product_kind || "Any",
-            icon: <Boxes className="h-3.5 w-3.5" />,
-            tone: isInHouseCatalogMaster ? "warn" : "violet",
-          },
-          {
-            label: "Commitment",
-            value: isInHouseCatalogMaster ? "In-house" : scope,
-            icon: <UserSquare className="h-3.5 w-3.5" />,
-            tone: scope === "GENERIC" ? "violet" : "ok",
-          },
-          {
-            label: "Build to",
-            value: isFullRoute ? "Full route" : routeStopLabel,
-            icon: <Workflow className="h-3.5 w-3.5" />,
-            tone: isFullRoute ? "ok" : "info",
-          },
-          {
-            label: "Qty",
-            value: `${quantity.toLocaleString()} ${qtyUom}`,
-            icon: <Gauge className="h-3.5 w-3.5" />,
-            tone: "info",
-          },
-          {
-            label: "Status",
-            value:
-              validation?.valid && !firstBlocker
-                ? "Ready"
-                : firstBlocker
-                  ? "Blocked"
-                  : "Pending",
-            tone:
-              validation?.valid && !firstBlocker
-                ? "ok"
-                : firstBlocker
-                  ? "error"
-                  : "warn",
-            icon:
-              validation?.valid && !firstBlocker ? (
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              ) : (
-                <AlertTriangle className="h-3.5 w-3.5" />
-              ),
-          },
-        ]}
-      >
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <HeroDecision
-            label="What to build"
-            value={master?.code || "Pick Product Master"}
-          />
-          <HeroDecision
-            label="Commitment"
-            value={
-              isInHouseCatalogMaster
-                ? "In-house production"
-                : scope.replace("_", " + ")
-            }
-          />
-          <HeroDecision
-            label="Launch"
-            value={
-              validation?.valid && !firstBlocker
-                ? "Direct to production"
-                : firstBlocker || "Validating"
-            }
-          />
+    <div className="mx-auto grid max-w-[1400px] gap-4 pb-6">
+      <header className="flex flex-wrap items-start gap-4 pt-1">
+        <div className="grid min-w-0 gap-1.5">
+          <div className="text-[12.5px] text-content-3">Plan · Launch stock</div>
+          <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-content-1">
+            {master ? `Launch ${master.name}` : "Launch stock from a product master"}
+          </h1>
+          <p className="max-w-3xl text-[13.5px] text-content-3">
+            Three decisions: what to build, who it is for, and how far the route runs. The stock order goes straight to production.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            <StatusPill tone={master ? "info" : "plain"}>{master?.code || "no master yet"}</StatusPill>
+            <StatusPill>{isInHouseCatalogMaster ? "in-house" : scope.replace("_", " + ").toLowerCase()}</StatusPill>
+            <StatusPill>{isFullRoute ? "full route" : `stop at ${routeStopLabel.toLowerCase()}`}</StatusPill>
+            <StatusPill>
+              {quantity.toLocaleString("en-IN")} {qtyUom.toLowerCase()}
+            </StatusPill>
+            <StatusPill tone={launchReady ? "ok" : firstBlocker ? "warn" : "plain"}>
+              {launchReady ? "ready to launch" : firstBlocker ? "blocked" : "checking"}
+            </StatusPill>
+            <StatusPill>{completed.length} of {STEPS.length} decided</StatusPill>
+          </div>
         </div>
-      </GradientHero>
+      </header>
 
-      <StepStrip
-        steps={STEPS}
-        currentId={stepId}
-        completedIds={completed}
-        onStepClick={setStepId}
-      />
-
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_410px]">
-        <div className="space-y-4">
-          <SectionCardV3
-            index={1}
-            title="What to build"
-            description="Pick one active Product Master. Packaging and POD live here as kind-tagged masters."
-            accent="blue"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              {KIND_FILTERS.map((filter) => (
+      {/* ── The three decisions ─────────────────────────────── */}
+      <div className="grid gap-4 xl:grid-cols-3">
+        <DecisionCard step={1} done={!!master} title="What to build" hint="one active product master">
+          <div className="flex flex-wrap gap-1.5">
+            {KIND_FILTERS.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setKindFilter(filter.id)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-medium transition",
+                  kindFilter === filter.id
+                    ? "bg-plate text-plate-fg"
+                    : "bg-surface-2 text-content-2 hover:bg-surface-3/10",
+                )}
+                title={filter.description}
+              >
+                {filter.label}
+                <span className="tabular-nums opacity-60">
+                  {filter.id === "ALL"
+                    ? masters.length
+                    : masters.filter((row) => row.product_kind === filter.id).length}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="flex h-10 items-center gap-2 rounded-[12px] border border-line-strong bg-surface-1 px-3 focus-within:border-primary focus-within:ring-4 focus-within:ring-info-bg">
+            <Search className="h-4 w-4 text-content-4" />
+            <input
+              value={masterSearch}
+              onChange={(event) => setMasterSearch(event.target.value)}
+              placeholder="Search code or name..."
+              className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-content-4"
+            />
+          </div>
+          <div className="max-h-[300px] overflow-y-auto rounded-[12px] border border-line">
+            {filteredMasters.slice(0, 9).map((candidate) => {
+              const active = candidate.id === productMasterId;
+              const issues = masterSelectIssues(candidate);
+              return (
                 <button
-                  key={filter.id}
+                  key={candidate.id}
                   type="button"
-                  onClick={() => setKindFilter(filter.id)}
+                  onClick={() => {
+                    if (!issues.length) setProductMasterId(candidate.id);
+                  }}
+                  disabled={issues.length > 0}
                   className={cn(
-                    "inline-flex h-9 items-center gap-2 rounded-full border px-3 text-xs font-semibold transition",
-                    kindFilter === filter.id
-                      ? "border-line-strong bg-surface-3 text-white shadow-sm"
-                      : "border-line bg-surface-1 text-content-3 hover:border-info-border hover:bg-info-bg",
+                    "grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2.5 border-b border-line px-3 py-2 text-left transition last:border-b-0",
+                    active ? "bg-info-bg" : "bg-surface-1 hover:bg-surface-2",
+                    issues.length ? "cursor-not-allowed opacity-55" : "",
                   )}
-                  title={filter.description}
                 >
-                  <Filter className="h-3.5 w-3.5" />
-                  {filter.label}
-                  <span className="rounded-full bg-surface-1/15 px-1.5 text-caption">
-                    {filter.id === "ALL"
-                      ? masters.length
-                      : masters.filter((row) => row.product_kind === filter.id)
-                          .length}
-                  </span>
-                </button>
-              ))}
-              <div className="ml-auto flex min-w-[220px] flex-1 items-center gap-2 rounded-xl border border-line bg-surface-1 px-3 py-2 shadow-sm sm:max-w-sm">
-                <Search className="h-4 w-4 text-content-4" />
-                <input
-                  value={masterSearch}
-                  onChange={(event) => setMasterSearch(event.target.value)}
-                  placeholder="Search code or name..."
-                  className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-content-4"
-                />
-              </div>
-            </div>
-
-            <div className="mt-3 overflow-hidden rounded-2xl border border-line bg-surface-1">
-              {filteredMasters.slice(0, 9).map((candidate) => {
-                const active = candidate.id === productMasterId;
-                const issues = masterSelectIssues(candidate);
-                return (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    onClick={() => {
-                      if (!issues.length) setProductMasterId(candidate.id);
-                    }}
-                    disabled={issues.length > 0}
+                  <span
                     className={cn(
-                      "flex w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left last:border-b-0 transition",
-                      active
-                        ? "bg-info-bg ring-1 ring-inset ring-info-border"
-                        : "bg-surface-1 hover:bg-surface-2",
-                      issues.length ? "cursor-not-allowed opacity-55" : "",
+                      "h-4 w-4 rounded-full border-2",
+                      active ? "border-primary bg-primary" : "border-line-strong bg-surface-1",
                     )}
-                  >
-                    <span
-                      className={cn(
-                        "h-4 w-4 flex-none rounded-full border-2",
-                        active
-                          ? "border-primary bg-primary"
-                          : "border-line-strong bg-surface-1",
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold text-content-1">
-                        {candidate.name}
-                      </div>
-                      <div className="font-mono text-caption font-bold text-primary">
-                        {candidate.code}
-                      </div>
-                    </div>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-caption font-semibold ring-1",
-                        KIND_TONE[candidate.product_kind] || KIND_TONE.OTHER,
-                      )}
-                    >
-                      {candidate.product_kind}
+                  />
+                  <span className="min-w-0">
+                    <span className="block truncate text-[13px] font-medium text-content-1">{candidate.name}</span>
+                    <span className="block truncate font-mono text-[11.5px] text-content-3">
+                      {candidate.code}
+                      {issues.length ? ` · ${issues.join(", ")}` : ""}
                     </span>
-                    <Pill
-                      tone={
-                        candidate.catalog_links_count
-                          ? "emerald"
-                          : candidate.product_kind === "PACKAGING" ||
-                              candidate.product_kind === "POD"
-                            ? "amber"
-                            : "slate"
-                      }
-                    >
-                      {candidate.product_kind === "PACKAGING" ||
-                      candidate.product_kind === "POD"
+                  </span>
+                  <span className="text-right text-[11.5px] text-content-3">
+                    {String(candidate.product_kind || "").toLowerCase()}
+                    <span className="block">
+                      {candidate.product_kind === "PACKAGING" || candidate.product_kind === "POD"
                         ? `${candidate.catalog_links_count || 0} SKU links`
                         : `${candidate.layer_template.length} layers`}
-                    </Pill>
-                    {issues.length ? (
-                      <span className="text-caption font-bold text-warning-fg">
-                        {issues.join(", ")}
-                      </span>
-                    ) : (
-                      <ArrowRight className="h-4 w-4 text-content-4" />
-                    )}
-                  </button>
-                );
-              })}
-              {!filteredMasters.length ? (
-                <div className="px-4 py-8 text-center text-sm font-semibold text-content-3">
-                  No matching active Product Masters.
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Live route template">
-                <div className="flex min-h-10 items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-3 py-2 shadow-sm">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-content-2">
-                      {master?.template_name ||
-                        routeInfo?.template?.name ||
-                        "No live route bound"}
-                    </div>
-                    <div className="text-caption font-semibold text-content-3">
-                      Locked from Product Master
-                    </div>
-                  </div>
-                  <Pill tone={templateId ? "emerald" : "amber"}>
-                    {templateId ? "Route locked" : "Route missing"}
-                  </Pill>
-                </div>
-              </Field>
-              <LinkedSkuPanel
-                masterKind={masterKind}
-                selectedPackaging={selectedPackaging}
-                selectedPod={selectedPod}
-                packagingOptions={linkedPackagingMaterials}
-                podOptions={linkedPodVariants}
-                packagingMaterialId={packagingMaterialId}
-                podVariantId={podVariantId}
-                onPackagingChange={(value) => {
-                  setPackagingMaterialId(value);
-                  const next = linkedPackagingMaterials.find(
-                    (row) => row.id === value,
-                  );
-                  setQtyUom(next?.base_uom === "PCS" ? "PCS" : "KG");
-                }}
-                onPodChange={setPodVariantId}
-              />
-            </div>
-
-            {master ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Pill tone="blue">{master.product_kind}</Pill>
-                <Pill tone={master.layer_template.length ? "emerald" : "amber"}>
-                  {master.layer_template.length} layers
-                </Pill>
-                <Pill tone={sizes.length ? "violet" : "amber"}>
-                  {sizes.length} sizes
-                </Pill>
-                <Pill tone={templateId ? "slate" : "amber"}>
-                  {templateId ? "Route live" : "Route missing"}
-                </Pill>
-                <Pill
-                  tone={
-                    isInHouseCatalogMaster
-                      ? catalogSkuLabel.includes("No ")
-                        ? "amber"
-                        : "emerald"
-                      : "slate"
-                  }
-                >
-                  {catalogSkuLabel}
-                </Pill>
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+            {!filteredMasters.length ? (
+              <div className="px-4 py-6 text-center text-[13px] text-content-3">
+                No matching active Product Masters.
               </div>
             ) : null}
-          </SectionCardV3>
-
-          <SectionCardV3
-            index={2}
-            title="Commitment"
-            description="Controls stock reuse. In-house Packaging/POD masters are always internal."
-            accent="violet"
-          >
-            {isInHouseCatalogMaster ? (
-              <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3 text-sm font-semibold text-success-fg">
-                <div className="flex items-center gap-2 font-semibold">
-                  <Factory className="h-4 w-4" /> In-house production master
+          </div>
+          <Field label="Live route template">
+            <div className="flex min-h-10 items-center justify-between gap-3 rounded-[12px] bg-surface-2 px-3 py-2">
+              <div className="min-w-0">
+                <div className="truncate text-[13px] font-medium text-content-1">
+                  {master?.template_name || routeInfo?.template?.name || "No live route bound"}
                 </div>
-                <p className="mt-1 text-xs leading-5">
-                  No customer or artwork lock is applied. The linked catalog SKU
-                  tells stores and packing what this production order will
-                  create.
-                </p>
+                <div className="text-[11.5px] text-content-3">Locked from Product Master</div>
               </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
-                  {[
-                    {
-                      id: "GENERIC",
-                      label: "Generic pool",
-                      icon: <Unlock className="h-4 w-4" />,
-                      text: "Widest reuse",
-                    },
-                    {
-                      id: "CUSTOMER",
-                      label: "Customer",
-                      icon: <Lock className="h-4 w-4" />,
-                      text: "Buyer locked",
-                    },
-                    {
-                      id: "ARTWORK",
-                      label: "Artwork",
-                      icon: <Palette className="h-4 w-4" />,
-                      text: "Print locked",
-                    },
-                    {
-                      id: "CUSTOMER_ARTWORK",
-                      label: "Customer + art",
-                      icon: <ShieldCheck className="h-4 w-4" />,
-                      text: "Exact only",
-                    },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setScope(item.id as CommitmentScope)}
-                      className={cn(
-                        "rounded-2xl border px-3 py-3 text-left transition",
-                        scope === item.id
-                          ? "border-primary bg-info-bg text-primary ring-2 ring-info-border"
-                          : "border-line bg-surface-1 text-content-2 hover:border-info-border",
-                      )}
-                    >
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        {item.label}
-                        {item.icon}
-                      </div>
-                      <div className="mt-1 text-caption font-semibold text-content-3">
-                        {item.text}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field label="Customer lock">
-                    <Select
-                      value={committedCustomer}
-                      onValueChange={setCommittedCustomer}
-                      disabled={scope === "GENERIC" || scope === "ARTWORK"}
-                    >
-                      <SelectTrigger className="h-10 rounded-xl border-line shadow-sm">
-                        <SelectValue
-                          placeholder={
-                            scope === "GENERIC" || scope === "ARTWORK"
-                              ? "Not needed"
-                              : "Pick customer"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.id} value={customer.id}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field label="Artwork lock">
-                    <Select
-                      value={committedArtwork || "__none"}
-                      onValueChange={(value) =>
-                        setCommittedArtwork(value === "__none" ? "" : value)
-                      }
-                      disabled={scope === "GENERIC" || scope === "CUSTOMER"}
-                    >
-                      <SelectTrigger className="h-10 rounded-xl border-line shadow-sm">
-                        <SelectValue
-                          placeholder={
-                            scope === "GENERIC" || scope === "CUSTOMER"
-                              ? "Deferred"
-                              : "Pick artwork"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none">No artwork</SelectItem>
-                        {artworks.map((artwork: any) => (
-                          <SelectItem key={artwork.id} value={artwork.id}>
-                            {artwork.design_code || artwork.name || artwork.id}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
-              </>
-            )}
-          </SectionCardV3>
+              <Pill tone={templateId ? "emerald" : "amber"}>{templateId ? "Route locked" : "Route missing"}</Pill>
+            </div>
+          </Field>
+          <LinkedSkuPanel
+            masterKind={masterKind}
+            selectedPackaging={selectedPackaging}
+            selectedPod={selectedPod}
+            packagingOptions={linkedPackagingMaterials}
+            podOptions={linkedPodVariants}
+            packagingMaterialId={packagingMaterialId}
+            podVariantId={podVariantId}
+            onPackagingChange={(value) => {
+              setPackagingMaterialId(value);
+              const next = linkedPackagingMaterials.find((row) => row.id === value);
+              setQtyUom(next?.base_uom === "PCS" ? "PCS" : "KG");
+            }}
+            onPodChange={setPodVariantId}
+          />
+          {master ? (
+            <div className="flex flex-wrap gap-1.5">
+              <Pill tone="blue">{master.product_kind}</Pill>
+              <Pill tone={master.layer_template.length ? "slate" : "amber"}>{master.layer_template.length} layers</Pill>
+              <Pill tone={sizes.length ? "slate" : "amber"}>{sizes.length} sizes</Pill>
+              <Pill tone={isInHouseCatalogMaster ? (catalogSkuLabel.includes("No ") ? "amber" : "emerald") : "slate"}>
+                {catalogSkuLabel}
+              </Pill>
+            </div>
+          ) : null}
+        </DecisionCard>
 
-          <SectionCardV3
-            index={3}
-            title="Build up to"
-            description="Choose whether this order becomes a finished stock item or a WIP pool."
-            accent="emerald"
-            actions={
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-caption font-bold ring-1 ring-inset",
-                  validation?.valid
-                    ? "bg-success-bg text-success-fg ring-success-border"
-                    : "bg-warning-bg text-warning-fg ring-warning-border",
-                )}
-              >
-                {validation?.valid
-                  ? "Stop rule valid"
-                  : "Stop rule check needed"}
-              </span>
-            }
-          >
-            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!fullRouteBlocked) setStopStep(routeLast);
-                }}
-                disabled={fullRouteBlocked}
-                className={cn(
-                  "rounded-2xl border px-4 py-3 text-left transition",
-                  isFullRoute && !fullRouteBlocked
-                    ? "border-success-border bg-success-bg ring-2 ring-success-border"
-                    : "border-line bg-surface-1 hover:border-success-border",
-                  fullRouteBlocked ? "cursor-not-allowed opacity-55" : "",
-                )}
-              >
-                <div className="flex items-center justify-between text-sm font-semibold text-content-1">
-                  Finished stock
-                  <PackageCheck className="h-4 w-4 text-success-fg" />
-                </div>
-                <p className="mt-1 text-caption font-semibold leading-5 text-content-3">
-                  Run through the full route and create final stock.
-                  Generic/customer pools cannot cross the first artwork step.
-                </p>
-                {fullRouteBlocked ? (
-                  <Pill tone="amber">
-                    Needs artwork commitment for full route
-                  </Pill>
-                ) : (
-                  <Pill tone={isFullRoute ? "emerald" : "slate"}>
-                    Stop:{" "}
-                    {steps.find((s) => s.index === routeLast)?.label ||
-                      "last step"}
-                  </Pill>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStartStep(routeFirst);
-                  setStopStep(stopBeforeArtwork);
-                }}
-                className={cn(
-                  "rounded-2xl border px-4 py-3 text-left transition",
-                  !isFullRoute
-                    ? "border-primary bg-info-bg ring-2 ring-info-border"
-                    : "border-line bg-surface-1 hover:border-info-border",
-                )}
-              >
-                <div className="flex items-center justify-between text-sm font-semibold text-content-1">
-                  WIP pool
-                  <Zap className="h-4 w-4 text-primary" />
-                </div>
-                <p className="mt-1 text-caption font-semibold leading-5 text-content-3">
-                  Stop mid-route and bank reusable rolls. Orders resume from the
-                  saved stop in WCM.
-                </p>
-                <Pill tone={!isFullRoute ? "blue" : "slate"}>
-                  Stop:{" "}
-                  {steps.find((s) => s.index === stopBeforeArtwork)?.label ||
-                    "selected step"}
-                </Pill>
-              </button>
+        <DecisionCard step={2} done={!!scope} title="Commitment" hint="controls stock reuse">
+          {isInHouseCatalogMaster ? (
+            <div className="rounded-[13px] bg-success-bg px-3.5 py-3 text-[13px] text-success-fg">
+              <div className="flex items-center gap-2 font-semibold">
+                <Factory className="h-4 w-4" /> In-house production master
+              </div>
+              <p className="mt-1 text-[12.5px] leading-5">
+                No customer or artwork lock is applied. The linked catalog SKU tells stores and packing what this production order will create.
+              </p>
             </div>
-            <RouteTimeline
-              steps={steps}
-              startIndex={activeStartStep}
-              stopIndex={activeStopStep}
-              onSelectStop={setStopStep}
-              onSelectStart={setStartStep}
-              helperText={
-                isInHouseCatalogMaster
-                  ? "Manual Packaging/POD launch goes straight to production and uses this route as the production build plan."
-                  : scope === "GENERIC"
-                    ? "Generic and customer scopes must stop before the first artwork step."
-                    : scope.includes("ARTWORK")
-                      ? "Artwork scopes must stop at or after the first artwork step."
-                      : "Customer scope must stop before the artwork step."
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                {[
+                  { id: "GENERIC", label: "Generic pool", text: "any order may use it", tag: "POOL", icon: <Unlock /> },
+                  { id: "CUSTOMER", label: "Customer", text: "held for one buyer", tag: "CUST", icon: <Lock /> },
+                  { id: "ARTWORK", label: "Artwork", text: "printed for one artwork", tag: "ART", icon: <Palette /> },
+                  { id: "CUSTOMER_ARTWORK", label: "Customer + art", text: "exact match only", tag: "C+A", icon: <ShieldCheck /> },
+                ].map((item) => (
+                  <ChoiceCard
+                    key={item.id}
+                    selected={scope === item.id}
+                    title={item.label}
+                    sub={item.text}
+                    tag={item.tag}
+                    icon={item.icon}
+                    onClick={() => setScope(item.id as CommitmentScope)}
+                  />
+                ))}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                <Field label="Customer lock">
+                  <Select
+                    value={committedCustomer}
+                    onValueChange={setCommittedCustomer}
+                    disabled={scope === "GENERIC" || scope === "ARTWORK"}
+                  >
+                    <SelectTrigger className="h-10 rounded-[11px] border-line-strong">
+                      <SelectValue
+                        placeholder={scope === "GENERIC" || scope === "ARTWORK" ? "Not needed" : "Pick customer"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Artwork lock">
+                  <Select
+                    value={committedArtwork || "__none"}
+                    onValueChange={(value) => setCommittedArtwork(value === "__none" ? "" : value)}
+                    disabled={scope === "GENERIC" || scope === "CUSTOMER"}
+                  >
+                    <SelectTrigger className="h-10 rounded-[11px] border-line-strong">
+                      <SelectValue placeholder={scope === "GENERIC" || scope === "CUSTOMER" ? "Deferred" : "Pick artwork"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">No artwork</SelectItem>
+                      {artworks.map((artwork: any) => (
+                        <SelectItem key={artwork.id} value={artwork.id}>
+                          {artwork.design_code || artwork.name || artwork.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            </>
+          )}
+        </DecisionCard>
+
+        <DecisionCard
+          step={3}
+          done={routeSelectionReady}
+          title="Build up to"
+          hint="tap where the route stops"
+          aside={
+            <span className={cn("text-[12px] font-medium", validation?.valid ? "text-success-fg" : "text-warning-fg")}>
+              {validation?.valid ? "stop rule valid" : "stop rule check needed"}
+            </span>
+          }
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <ChoiceCard
+              selected={isFullRoute && !fullRouteBlocked}
+              disabled={fullRouteBlocked}
+              title="Finished stock"
+              sub={
+                fullRouteBlocked
+                  ? "needs an artwork commitment"
+                  : `stop at ${(steps.find((s) => s.index === routeLast)?.label || "last step").toLowerCase()}`
               }
+              icon={<PackageCheck />}
+              onClick={() => {
+                if (!fullRouteBlocked) setStopStep(routeLast);
+              }}
             />
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Mini
-                label="Route start"
-                value={routeStartLabel}
-                subtle={`backend ${backendStartStep}`}
-              />
-              <Mini
-                label="Route stop"
-                value={routeStopLabel}
-                subtle={`backend ${backendStopStep}`}
-              />
-              <Mini
-                label="Launch kind"
-                value={launchKindLabel}
-                subtle={
-                  isInHouseCatalogMaster
-                    ? "catalog linked"
-                    : scope.replace("_", " + ")
-                }
-              />
-            </div>
-          </SectionCardV3>
+            <ChoiceCard
+              selected={!isFullRoute}
+              title="WIP pool"
+              sub={`stop at ${(steps.find((s) => s.index === stopBeforeArtwork)?.label || "selected step").toLowerCase()}`}
+              icon={<Zap />}
+              onClick={() => {
+                setStartStep(routeFirst);
+                setStopStep(stopBeforeArtwork);
+              }}
+            />
+          </div>
+          <RouteStopList
+            steps={steps}
+            startIndex={activeStartStep}
+            stopIndex={activeStopStep}
+            onSelectStop={setStopStep}
+            onSelectStart={setStartStep}
+          />
+          <p className="text-[12px] leading-5 text-content-3">
+            {isInHouseCatalogMaster
+              ? "Manual Packaging/POD launch goes straight to production and uses this route as the production build plan."
+              : scope === "GENERIC"
+                ? "Generic and customer scopes must stop before the first artwork step."
+                : scope.includes("ARTWORK")
+                  ? "Artwork scopes must stop at or after the first artwork step."
+                  : "Customer scope must stop before the artwork step."}
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            <Mini label="Route start" value={routeStartLabel} subtle={`backend ${backendStartStep}`} />
+            <Mini label="Route stop" value={routeStopLabel} subtle={`backend ${backendStopStep}`} />
+            <Mini
+              label="Launch kind"
+              value={launchKindLabel}
+              subtle={isInHouseCatalogMaster ? "catalog linked" : scope.replace("_", " + ")}
+            />
+          </div>
+        </DecisionCard>
+      </div>
+
+      {/* ── Spec, quantity and the safety rail ───────────────── */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid min-w-0 gap-4">
+          {master ? (
+            <SpecPlate
+              data={plateData}
+              caption="Spec · from the product master"
+              captionRight={
+                <span className="text-plate-fg-3">{selectedSize ? `size ${selectedSize.code}` : "pick a size below"}</span>
+              }
+              facts={[
+                { label: "Product size", value: `${selectedSize?.width_mm ?? 0} mm · ${selectedSize?.width_basis || "finished geometry"}` },
+                {
+                  label: isFullRoute ? "Final roll width" : "WIP roll width",
+                  value: `${displayRollWidth || selectedSizeDefaultRollWidth || 0} mm · ${isFullRoute ? "from size row" : "operator confirmed"}`,
+                },
+                {
+                  label: "Width match",
+                  value: selectedSize?.slit_policy === "EXACT_ONLY" ? "Exact only" : "Same or wider",
+                },
+                {
+                  label: "Stock form",
+                  value: `${selectedSize?.stock_form || selectedSize?.roll_form || "Not set"} · ${selectedSize?.pouch_style_master_code || selectedSize?.pouch_style || "size formula"}`,
+                },
+              ]}
+              testId="launcher-spec-plate"
+            />
+          ) : null}
 
           {master ? (
-            <SectionCardV3
-              index={4}
-              title="Spec / axes"
-              description="Size, stock form, layer stack and width math from the Product Master."
-              accent="blue"
-            >
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                    Size / roll math
-                  </Label>
-                  <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4">
+            <section className="rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-5 py-3.5">
+                <StepDot state={sizeCode ? "done" : "todo"}>4</StepDot>
+                <h2 className="text-[15.5px] font-semibold text-content-1">Size and layers</h2>
+                <span className="text-[12.5px] text-content-3">size, stock form, layer stack and width math from the product master</span>
+              </div>
+              <div className="grid gap-5 p-5">
+                <div className="grid gap-2">
+                  <div className="text-[12px] font-semibold text-content-2">Size</div>
+                  <div className="grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 2xl:grid-cols-4">
                     {sizes.map((s) => {
                       const active = s.code === sizeCode;
                       return (
@@ -1424,38 +1225,19 @@ export function StockLauncherV3Workspace() {
                           type="button"
                           onClick={() => setSizeCode(s.code)}
                           className={cn(
-                            "rounded-2xl border px-3 py-2.5 text-left shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-info-border",
+                            "rounded-[13px] border px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                             active
-                              ? "border-primary bg-gradient-to-br from-info-bg to-surface-1 ring-2 ring-info-border "
-                              : "border-line bg-surface-1 hover:border-info-border hover:shadow-md",
+                              ? "border-primary bg-info-bg shadow-[inset_0_0_0_1px_hsl(var(--primary))]"
+                              : "border-line-strong bg-surface-1 hover:border-info-border",
                           )}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="text-caption font-semibold uppercase tracking-wider text-content-4">
-                              {s.code}
-                            </div>
-                            <span
-                              className={cn(
-                                "h-3.5 w-3.5 rounded-full border-2 transition",
-                                active
-                                  ? "border-primary bg-primary shadow-sm "
-                                  : "border-line-strong bg-surface-1",
-                              )}
-                            />
-                          </div>
-                          <div className="text-sm font-bold text-content-1">
+                          <div className="font-mono text-[11px] text-content-3">{s.code}</div>
+                          <div className={cn("text-[17px] font-semibold tabular-nums tracking-[-0.01em]", active ? "text-primary" : "text-content-1")}>
                             {s.width_mm} mm
                           </div>
-                          <div className="text-caption text-content-4">
-                            {s.label || s.stock_form || "size row"}
-                          </div>
-                          <div className="mt-1 text-caption font-bold text-primary">
-                            Roll{" "}
-                            {s.roll_width_mm ||
-                              s.child_target_width_mm ||
-                              s.width_mm ||
-                              "-"}{" "}
-                            mm
+                          <div className="truncate text-[12px] text-content-3">{s.label || s.stock_form || "size row"}</div>
+                          <div className="mt-0.5 text-[12px] tabular-nums text-content-2">
+                            roll {s.roll_width_mm || s.child_target_width_mm || s.width_mm || "-"} mm
                           </div>
                         </button>
                       );
@@ -1463,223 +1245,197 @@ export function StockLauncherV3Workspace() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                  <Mini
-                    label="Product size"
-                    value={`${selectedSize?.width_mm ?? 0} mm`}
-                    subtle={selectedSize?.width_basis || "finished geometry"}
-                  />
-                  <Mini
-                    label={isFullRoute ? "Final roll width" : "WIP roll width"}
-                    value={`${displayRollWidth || selectedSizeDefaultRollWidth || 0} mm`}
-                    subtle={
-                      isFullRoute ? "from size row" : "operator confirmed"
-                    }
-                  />
-                  <Mini
-                    label="Width match"
-                    value={
-                      selectedSize?.slit_policy === "EXACT_ONLY"
-                        ? "Exact only"
-                        : "Same or wider"
-                    }
-                    subtle={selectedSize?.slit_policy || "slit policy"}
-                  />
-                  <Mini
-                    label="Stock form"
-                    value={
-                      selectedSize?.stock_form ||
-                      selectedSize?.roll_form ||
-                      "Not set"
-                    }
-                    subtle={
-                      selectedSize?.pouch_style_master_code ||
-                      selectedSize?.pouch_style ||
-                      "size formula"
-                    }
-                  />
-                </div>
-
-                {!isFullRoute && !isPackagingMaster ? (
-                  <div className="rounded-2xl border border-info-border bg-info-bg p-3 ring-1 ring-info-border">
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-                      <Field label="Interim WIP roll width">
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            min={1}
-                            step={0.01}
-                            value={wipRollWidthMm}
-                            onChange={(event) =>
-                              setWipRollWidthMm(
-                                event.target.value === ""
-                                  ? ""
-                                  : Number(event.target.value),
-                              )
-                            }
-                            className="h-11 rounded-xl border-info-border bg-surface-1 pr-12 font-mono text-sm font-semibold shadow-sm"
-                          />
-                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-content-4">
-                            mm
-                          </span>
-                        </div>
-                      </Field>
-                      <div>
-                        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
-                          Product Master roll options
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {wipRollWidthOptions.map((option) => (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => setWipRollWidthMm(option)}
-                              className={cn(
-                                "rounded-full px-3 py-1 text-caption font-semibold ring-1 transition",
-                                Number(wipRollWidthMm || 0) === option
-                                  ? "bg-primary text-white ring-primary"
-                                  : "bg-surface-1 text-primary ring-info-border hover:bg-info-bg",
-                              )}
-                            >
-                              {option} mm
-                            </button>
-                          ))}
-                        </div>
-                        <div className="mt-2 text-caption font-semibold leading-5 text-primary">
-                          This is the parked WIP roll width. Sales demand can
-                          resume from this pool when the required width is the
-                          same or lower and the size row allows slitting;
-                          too-narrow rolls are not shown in planner allocation.
-                        </div>
+                {wipMode ? (
+                  <div className="grid gap-3 rounded-[14px] bg-surface-2 p-3.5 lg:grid-cols-[240px_minmax(0,1fr)]">
+                    <Field label="Interim WIP roll width">
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={1}
+                          step={0.01}
+                          value={wipRollWidthMm}
+                          onChange={(event) =>
+                            setWipRollWidthMm(event.target.value === "" ? "" : Number(event.target.value))
+                          }
+                          className="h-11 rounded-[11px] border-line-strong bg-surface-1 pr-12 text-[16px] font-semibold tabular-nums"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-content-4">mm</span>
                       </div>
+                    </Field>
+                    <div className="grid gap-2">
+                      <div className="text-[12px] font-semibold text-content-2">Product master roll options</div>
+                      <div className="flex flex-wrap gap-2">
+                        {wipRollWidthOptions.map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setWipRollWidthMm(option)}
+                            className={cn(
+                              "rounded-full px-3 py-1 text-[12.5px] font-medium tabular-nums transition",
+                              Number(wipRollWidthMm || 0) === option
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-surface-1 text-content-2 ring-1 ring-line hover:ring-info-border",
+                            )}
+                          >
+                            {option} mm
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[12px] leading-5 text-content-3">
+                        This is the parked WIP roll width. Sales demand can resume from this pool when the required width is the same or lower and the size row allows slitting; too-narrow rolls are not shown in planner allocation.
+                      </p>
                     </div>
                   </div>
                 ) : null}
 
-                <div>
-                  <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                    Per-layer axes
-                  </Label>
-                  <div className="mt-2">
-                    <AxisLayerMatrix
-                      layers={master.layer_template}
-                      values={layerValues}
-                      fallbackWidthMm={
-                        sizes.find((s) => s.code === sizeCode)?.roll_width_mm ??
-                        undefined
-                      }
-                      showWidthColumn={false}
-                      onChange={(idx, patch) =>
-                        setLayerValues((prev) => ({
-                          ...prev,
-                          [idx]: {
-                            ...(prev[idx] || ({} as LayerRowState)),
-                            ...patch,
-                          },
-                        }))
-                      }
-                    />
-                  </div>
+                <div className="grid gap-2">
+                  <div className="text-[12px] font-semibold text-content-2">Per-layer axes</div>
+                  <AxisLayerMatrix
+                    layers={master.layer_template}
+                    values={layerValues}
+                    fallbackWidthMm={sizes.find((s) => s.code === sizeCode)?.roll_width_mm ?? undefined}
+                    showWidthColumn={false}
+                    onChange={(idx, patch) =>
+                      setLayerValues((prev) => ({
+                        ...prev,
+                        [idx]: {
+                          ...(prev[idx] || ({} as LayerRowState)),
+                          ...patch,
+                        },
+                      }))
+                    }
+                  />
                 </div>
 
-                <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-xs text-success-fg ring-1 ring-success-border">
-                  <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Stock form proof
-                  </div>
-                  <p className="mt-1 text-caption leading-5">
-                    Roll matching uses the physical form, child target width and
-                    slit policy from the size row. The operator does not pick a
-                    separate roll mode here; the Product Master size row decides
-                    whether the stock is open web, lay-flat tube or folded web.
-                  </p>
-                </div>
+                <p className="flex items-start gap-2 text-[12px] leading-5 text-content-3">
+                  <SlidersHorizontal className="mt-0.5 h-3.5 w-3.5 flex-none" />
+                  Roll matching uses the physical form, child target width and slit policy from the size row. The size row decides whether the stock is open web, lay-flat tube or folded web.
+                </p>
               </div>
-            </SectionCardV3>
+            </section>
           ) : null}
 
-          <SectionCardV3
-            index={5}
-            title="Quantity"
-            description={
-              !isFullRoute && !isPackagingMaster
-                ? "This is interim WIP roll weight. It is not the final sales-order quantity."
-                : "Only quantity and UOM are operator choices. Stock behavior below is derived from the master, route stop and commitment."
-            }
-            accent="violet"
-          >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field
-                label={
-                  !isFullRoute && !isPackagingMaster
-                    ? "Target WIP roll weight"
-                    : "Target quantity"
-                }
-              >
-                <Input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(Number(e.target.value))}
-                  className="h-10 rounded-xl border-line shadow-sm"
-                />
-              </Field>
-              <Field label="UOM">
-                <Select
-                  value={qtyUom}
-                  onValueChange={(v) => setQtyUom(v as any)}
-                >
-                  <SelectTrigger className="h-10 rounded-xl border-line shadow-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="KG">KG</SelectItem>
-                    <SelectItem value="PCS">PCS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
+          <section className="rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line px-5 py-3.5">
+              <StepDot state={quantity > 0 ? "done" : "todo"}>5</StepDot>
+              <h2 className="text-[15.5px] font-semibold text-content-1">Quantity</h2>
+              <span className="text-[12.5px] text-content-3">
+                {wipMode
+                  ? "interim WIP roll weight, not the final sales-order quantity"
+                  : "only quantity and unit are your choice; the rest follows the master, stop and commitment"}
+              </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowDerived((value) => !value)}
-              className="mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-surface-1 px-3 py-1.5 text-xs font-semibold text-content-2 shadow-sm hover:bg-surface-2"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              {showDerived ? "Hide derived behavior" : "Show derived behavior"}
-            </button>
-            {showDerived ? (
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <Mini
-                  label="Stock strategy"
-                  value={derivedStockStrategy}
-                  subtle={isFullRoute ? "full route" : "route stop"}
-                />
-                <Mini
-                  label="Planner class"
-                  value={derivedPlannerStockClass}
-                  subtle={masterKind}
-                />
-                <Mini
-                  label="Output type"
-                  value={derivedOutputType}
-                  subtle={catalogSkuLabel}
-                />
-                <Mini
-                  label="Stock owner"
-                  value="Internal"
-                  subtle="manual launcher"
-                />
+            <div className="grid gap-4 p-5">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 sm:max-w-md">
+                <Field label={wipMode ? "Target WIP roll weight" : "Target quantity"}>
+                  <Input
+                    type="number"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    className="h-12 rounded-[13px] border-line-strong text-[22px] font-semibold tabular-nums tracking-[-0.02em]"
+                  />
+                </Field>
+                <div className="inline-flex h-12 items-center rounded-[13px] border border-line-strong bg-surface-2 p-1" role="group" aria-label="UOM">
+                  {(["KG", "PCS"] as const).map((unit) => (
+                    <button
+                      key={unit}
+                      type="button"
+                      onClick={() => setQtyUom(unit)}
+                      aria-pressed={qtyUom === unit}
+                      className={cn(
+                        "h-10 rounded-[10px] px-4 text-[13px] font-semibold transition",
+                        qtyUom === unit ? "bg-surface-1 text-content-1 shadow-[var(--shadow-sm)]" : "text-content-3",
+                      )}
+                    >
+                      {unit.toLowerCase()}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : null}
-            <div className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2 text-xs font-semibold leading-5 text-primary">
-              <MapPin className="mr-1 inline h-3.5 w-3.5" />
-              Manual launches from this page create the production order
-              directly. Low-stock auto demand can still flow to planner demand
-              review, but this manual path is an explicit production release.
+              <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+                <Mini label="Stock strategy" value={derivedStockStrategy} subtle={isFullRoute ? "full route" : "route stop"} />
+                <Mini label="Planner class" value={derivedPlannerStockClass} subtle={masterKind} />
+                <Mini label="Output type" value={derivedOutputType} subtle={catalogSkuLabel} />
+                <Mini label="Stock owner" value="Internal" subtle="manual launcher" />
+              </div>
+              <p className="flex items-start gap-2 rounded-[12px] bg-info-bg px-3 py-2 text-[12.5px] leading-5 text-primary">
+                <MapPin className="mt-0.5 h-3.5 w-3.5 flex-none" />
+                Manual launches from this page create the production order directly. Low-stock auto demand can still flow to planner demand review, but this manual path is an explicit production release.
+              </p>
             </div>
-          </SectionCardV3>
+          </section>
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pb-4">
+        <aside className="grid gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pb-4">
+          {allIssues.length ? (
+            <SideCard title="Launch blockers" hint="fix these before creating stock" tone="warn">
+              <IssueList title="Release blockers" issues={allIssues} />
+            </SideCard>
+          ) : (
+            <SideCard title="Blockers" hint="nothing stops this launch" tone="ok" />
+          )}
+
+          {requiredMaterial ? (
+            <SideCard title="Primary required material" hint="to launch this stock pool">
+              <div className="grid gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="rounded-md bg-surface-2 px-2 py-0.5 font-mono text-[12px] text-content-2">{requiredMaterial.code}</span>
+                  <span className="truncate text-[13px] font-medium text-content-1">{requiredMaterial.name}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Mini label="Grade" value={requiredMaterial.grade || "GP"} />
+                  <Mini label="Thickness" value={`${requiredMaterial.thickness_micron ?? 0} μ`} />
+                  <Mini label="Width" value={`${requiredMaterial.width_mm ?? 0} mm`} />
+                </div>
+                <div className="flex items-center justify-between text-[12.5px]">
+                  <span className="text-content-3">Target qty</span>
+                  <span className="font-semibold tabular-nums text-content-1">
+                    {requiredMaterial.target_qty} {requiredMaterial.uom}
+                  </span>
+                </div>
+              </div>
+            </SideCard>
+          ) : null}
+
+          <SideCard title="Matching demand" hint="open sales lines that can pull from this pool">
+            {demandComputed ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Mini label="Eligible orders" value={`${demand?.eligible_orders ?? 0}`} subtle="Can match" />
+                <Mini label="Exact width" value={`${demand?.exact_match ?? 0}`} subtle="same stock form" />
+                <Mini label="Slit allowed" value={`${demand?.widening_allowed ?? 0}`} subtle="policy fallback" />
+                <Mini label="Wrong lock" value={`${demand?.wrong_artwork ?? 0}`} subtle="blocked" />
+              </div>
+            ) : (
+              <p className="text-[12.5px] leading-5 text-content-3">
+                Demand matching is not computed by the backend for this validation response yet. No fake order counts are shown here; the order will still create/release using live BOM, route and stock-form validation.
+              </p>
+            )}
+          </SideCard>
+
+          <SideCard title="Commitment safety" hint="what this pool will and won't match">
+            <div className="grid gap-2">
+              <SafetyRow
+                label="Customer lock"
+                value={validation?.commitment_safety?.customer_lock || (committedCustomer ? "Pending" : "None")}
+                note={committedCustomer ? "Locked to picked customer." : "Generic stock has no customer lock."}
+              />
+              <SafetyRow
+                label="Artwork lock"
+                value={validation?.commitment_safety?.artwork_lock || (committedArtwork ? "Pending" : "None")}
+                note={committedArtwork ? "Locked to picked artwork." : "No artwork commitment applied."}
+              />
+              <SafetyRow
+                label="Match window"
+                value={validation?.commitment_safety?.match_window || "Before print only"}
+                note={
+                  scope.includes("ARTWORK")
+                    ? "After artwork step — must match same artwork."
+                    : "Can match any demand before the artwork step."
+                }
+              />
+            </div>
+          </SideCard>
+
           {/* Live BOM rail — same shell as Sales Create, mapped from planner validation */}
           <LiveBomRail
             title={`Stock pool · ${master?.code || "pick a master"}`}
@@ -1700,191 +1456,33 @@ export function StockLauncherV3Workspace() {
             }))}
             routeTemplateName={master?.template_name || undefined}
           />
-
-          {allIssues.length ? (
-            <SectionCardV3
-              title="Launch blockers"
-              description="Fix these before creating stock."
-              accent="amber"
-            >
-              <IssueList title="Release blockers" issues={allIssues} />
-            </SectionCardV3>
-          ) : null}
-
-          {/* Required material — keep as compact card, planner-specific */}
-          {requiredMaterial ? (
-            <SectionCardV3
-              title="Primary required material"
-              description="To launch this stock pool"
-              accent="emerald"
-            >
-              <div className="rounded-xl bg-success-bg ring-1 ring-success-border px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-md bg-surface-1 px-2 py-0.5 text-xs font-mono font-bold text-success-fg ring-1 ring-success-border">
-                    {requiredMaterial.code}
-                  </span>
-                  <span className="text-sm font-bold text-content-2 truncate">
-                    {requiredMaterial.name}
-                  </span>
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                  <Mini label="Grade" value={requiredMaterial.grade || "GP"} />
-                  <Mini
-                    label="Thickness"
-                    value={`${requiredMaterial.thickness_micron ?? 0} μ`}
-                  />
-                  <Mini
-                    label="Width"
-                    value={`${requiredMaterial.width_mm ?? 0} mm`}
-                  />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-caption">
-                  <span className="font-bold uppercase tracking-wider text-success-fg">
-                    Target qty
-                  </span>
-                  <span className="font-mono font-semibold text-success-fg">
-                    {requiredMaterial.target_qty} {requiredMaterial.uom}
-                  </span>
-                </div>
-              </div>
-            </SectionCardV3>
-          ) : null}
-
-          {/* Matching demand — planner-only signal */}
-          <SectionCardV3
-            title="Matching demand"
-            description="Open sales lines that can pull from this pool"
-            accent="emerald"
-          >
-            {demandComputed ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Mini
-                  label="Eligible orders"
-                  value={`${demand?.eligible_orders ?? 0}`}
-                  subtle="Can match"
-                />
-                <Mini
-                  label="Exact width"
-                  value={`${demand?.exact_match ?? 0}`}
-                  subtle="same stock form"
-                />
-                <Mini
-                  label="Slit allowed"
-                  value={`${demand?.widening_allowed ?? 0}`}
-                  subtle="policy fallback"
-                />
-                <Mini
-                  label="Wrong lock"
-                  value={`${demand?.wrong_artwork ?? 0}`}
-                  subtle="blocked"
-                />
-              </div>
-            ) : (
-              <div className="rounded-xl border border-line bg-surface-2 px-3 py-3 text-xs font-semibold leading-5 text-content-3">
-                Demand matching is not computed by the backend for this
-                validation response yet. No fake order counts are shown here;
-                the order will still create/release using live BOM, route and
-                stock-form validation.
-              </div>
-            )}
-          </SectionCardV3>
-
-          {/* Commitment safety — planner-only signal */}
-          <SectionCardV3
-            title="Commitment safety"
-            description="What this pool will and won't match"
-            accent="amber"
-          >
-            <SafetyRow
-              label="Customer lock"
-              value={
-                validation?.commitment_safety?.customer_lock ||
-                (committedCustomer ? "Pending" : "None")
-              }
-              note={
-                committedCustomer
-                  ? "Locked to picked customer."
-                  : "Generic stock has no customer lock."
-              }
-            />
-            <SafetyRow
-              label="Artwork lock"
-              value={
-                validation?.commitment_safety?.artwork_lock ||
-                (committedArtwork ? "Pending" : "None")
-              }
-              note={
-                committedArtwork
-                  ? "Locked to picked artwork."
-                  : "No artwork commitment applied."
-              }
-            />
-            <SafetyRow
-              label="Match window"
-              value={
-                validation?.commitment_safety?.match_window ||
-                "Before print only"
-              }
-              note={
-                scope.includes("ARTWORK")
-                  ? "After artwork step — must match same artwork."
-                  : "Can match any demand before the artwork step."
-              }
-            />
-          </SectionCardV3>
         </aside>
       </div>
 
       <ValidationFooter
         checks={checks}
-        autosaveLabel={
-          firstBlocker
-            ? `Blocked: ${firstBlocker}`
-            : "Ready for direct production release"
-        }
+        autosaveLabel={firstBlocker ? `Blocked: ${firstBlocker}` : "Ready for direct production release"}
         secondaryActions={
-          <div className="flex max-w-[560px] flex-wrap items-center gap-1.5">
-            <Pill tone={master ? "blue" : "amber"}>
-              {master?.code || "No master"}
-            </Pill>
-            <Pill tone={!isFullRoute ? "violet" : "emerald"}>
-              {isFullRoute ? "Full route" : `Stop ${routeStopLabel}`}
-            </Pill>
-            <Pill tone={!isFullRoute ? "blue" : "slate"}>
-              {!isFullRoute && !isPackagingMaster
-                ? `${displayRollWidth || 0} mm WIP`
-                : `${displayRollWidth || 0} mm`}
+          <div className="hidden max-w-[560px] flex-wrap items-center gap-1.5 md:flex">
+            <Pill tone={master ? "blue" : "amber"}>{master?.code || "No master"}</Pill>
+            <Pill tone="slate">{isFullRoute ? "Full route" : `Stop ${routeStopLabel}`}</Pill>
+            <Pill tone="slate">
+              {wipMode ? `${displayRollWidth || 0} mm WIP` : `${displayRollWidth || 0} mm`}
             </Pill>
             <Pill tone="slate">
               {quantity.toLocaleString()} {qtyUom}
             </Pill>
-            {firstBlocker ? (
-              <Pill tone="amber">Blocker live</Pill>
-            ) : (
-              <Pill tone="emerald">No blockers</Pill>
-            )}
+            {firstBlocker ? <Pill tone="amber">Blocker live</Pill> : <Pill tone="emerald">No blockers</Pill>}
           </div>
         }
         primaryActions={
           <>
-            <Button
-              variant="outline"
-              onClick={() => validate.refetch()}
-              className="rounded-xl border-success-border bg-success-bg text-success-fg shadow-sm hover:bg-success-bg"
-            >
+            <Button variant="outline" onClick={() => validate.refetch()} className="h-10 rounded-[11px]">
               <CheckCircle2 className="mr-1.5 h-4 w-4" />
               Validate pool
             </Button>
-            <Button
-              disabled={createDisabled}
-              onClick={() => createMutation.mutate()}
-              className="gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-order-fg shadow-lg hover:shadow-xl hover:"
-            >
-              {createMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ClipboardCheck className="h-4 w-4" />
-              )}
+            <Button disabled={createDisabled} onClick={() => createMutation.mutate()} className="h-10 gap-1.5 rounded-[11px] px-5">
+              {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
               {launchTitle}
             </Button>
           </>
@@ -1894,14 +1492,161 @@ export function StockLauncherV3Workspace() {
   );
 }
 
-function HeroDecision({ label, value }: { label: string; value: string }) {
+function DecisionCard({
+  step,
+  done,
+  title,
+  hint,
+  aside,
+  children,
+}: {
+  step: number;
+  done: boolean;
+  title: string;
+  hint?: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-2xl border border-surface-1/15 bg-surface-1/10 px-3 py-2 text-white shadow-sm ring-1 ring-surface-1/10">
-      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/65">
-        {label}
+    <section className="flex min-w-0 flex-col rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 pb-2 pt-4">
+        <StepDot state={done ? "done" : "todo"}>{step}</StepDot>
+        <h2 className="text-[15.5px] font-semibold text-content-1">{title}</h2>
+        {hint ? <span className="text-[12.5px] text-content-3">{hint}</span> : null}
+        {aside ? <span className="ml-auto">{aside}</span> : null}
       </div>
-      <div className="mt-0.5 truncate text-sm font-semibold">{value}</div>
-    </div>
+      <div className="grid gap-3 px-5 pb-5 pt-1">{children}</div>
+    </section>
+  );
+}
+
+function SideCard({
+  title,
+  hint,
+  tone = "plain",
+  children,
+}: {
+  title: string;
+  hint?: string;
+  tone?: "plain" | "ok" | "warn";
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
+      <div className="grid grid-cols-[8px_minmax(0,1fr)] items-baseline gap-x-2">
+        <span
+          aria-hidden
+          className={cn(
+            "h-2 w-2 rounded-full",
+            tone === "ok" ? "bg-success-fg" : tone === "warn" ? "bg-warning-fg" : "bg-line-strong",
+          )}
+        />
+        <h3 className="text-[14px] font-semibold text-content-1">{title}</h3>
+        {hint ? <span className="col-start-2 text-[12px] leading-snug text-content-3">{hint}</span> : null}
+      </div>
+      {children ? <div className="mt-3">{children}</div> : null}
+    </section>
+  );
+}
+
+/** The route as a vertical list: tap a step to stop there, or set where the run starts. */
+function RouteStopList({
+  steps,
+  startIndex,
+  stopIndex,
+  onSelectStop,
+  onSelectStart,
+}: {
+  steps: Array<{ index: number; label: string; transition?: string; artwork_step?: boolean; branchKey?: string }>;
+  startIndex: number;
+  stopIndex: number;
+  onSelectStop: (index: number) => void;
+  onSelectStart: (index: number) => void;
+}) {
+  const stages = React.useMemo(() => {
+    const grouped = new Map<number, typeof steps>();
+    for (const step of steps) {
+      if (!grouped.has(step.index)) grouped.set(step.index, []);
+      grouped.get(step.index)!.push(step);
+    }
+    return Array.from(grouped.entries()).sort(([a], [b]) => a - b);
+  }, [steps]);
+  if (!stages.length) {
+    return (
+      <div className="rounded-[12px] bg-surface-2 px-3 py-3 text-[12.5px] text-content-3">
+        Pick a product master to see its route.
+      </div>
+    );
+  }
+  return (
+    <ol className="grid" aria-label="Route steps">
+      {stages.map(([index, stageSteps], i) => {
+        const isStop = index === stopIndex;
+        const isStart = index === startIndex;
+        const inRun = index >= startIndex && index < stopIndex;
+        const off = index > stopIndex || index < startIndex;
+        const last = i === stages.length - 1;
+        return (
+          <li key={index} className="relative">
+            {!last ? (
+              <span
+                aria-hidden
+                className={cn("absolute bottom-[-6px] left-[17px] top-[30px] w-0.5", inRun ? "bg-primary" : "bg-line")}
+              />
+            ) : null}
+            <div
+              className={cn(
+                "group grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3 rounded-[12px] px-1.5 py-2 transition",
+                isStop ? "bg-info-bg" : "hover:bg-surface-2",
+              )}
+            >
+              <button
+                type="button"
+                onClick={() => onSelectStop(index)}
+                aria-label={`Stop at stage ${index}`}
+                className={cn(
+                  "relative z-[1] grid h-6 w-6 place-items-center rounded-full border-2 text-[10.5px] font-semibold",
+                  isStop
+                    ? "border-primary bg-surface-1 text-primary"
+                    : inRun
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-line-strong bg-surface-1 text-content-3",
+                )}
+              >
+                {index}
+              </button>
+              <button type="button" onClick={() => onSelectStop(index)} className="min-w-0 text-left">
+                {stageSteps.map((step) => (
+                  <span key={`${step.index}-${step.branchKey || "MAIN"}-${step.label}`} className="block">
+                    <span className={cn("block truncate text-[13.5px] font-medium", off ? "text-content-4" : "text-content-1")}>
+                      {step.label}
+                      {step.artwork_step ? <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-semibold text-content-3">art</span> : null}
+                    </span>
+                    {step.transition && step.transition !== "—" ? (
+                      <span className="block truncate text-[11.5px] text-content-3">{step.transition.replace(/_/g, " ").toLowerCase()}</span>
+                    ) : null}
+                  </span>
+                ))}
+              </button>
+              <span className="flex items-center gap-1.5">
+                {isStart ? (
+                  <span className="text-[11.5px] font-medium text-success-fg">start</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onSelectStart(index)}
+                    className="rounded-md px-1.5 py-0.5 text-[11.5px] text-content-3 opacity-0 transition hover:bg-surface-1 hover:text-content-1 focus:opacity-100 group-hover:opacity-100"
+                  >
+                    start here
+                  </button>
+                )}
+                {isStop ? <span className="text-[11.5px] font-semibold text-primary">stop</span> : null}
+              </span>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -1990,7 +1735,7 @@ function LinkedSkuPanel({
 
   return (
     <div className="rounded-2xl border border-line bg-surface-2 px-3 py-2 shadow-sm">
-      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         Catalog SKU link
       </div>
       <div className="mt-1 text-sm font-bold text-content-2">
@@ -2013,11 +1758,9 @@ function Field({
   className?: string;
 }) {
   return (
-    <div className={className}>
-      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-        {label}
-      </Label>
-      <div className="mt-1">{children}</div>
+    <div className={cn("grid gap-1.5", className)}>
+      <Label className="text-[12px] font-semibold text-content-2">{label}</Label>
+      <div>{children}</div>
     </div>
   );
 }
@@ -2030,17 +1773,17 @@ function Pill({
   children: React.ReactNode;
 }) {
   const map: Record<string, string> = {
-    blue: "bg-info-bg text-primary ring-info-border shadow-sm",
-    violet: "bg-order-bg text-order-fg ring-order-border shadow-sm",
-    fuchsia: "bg-order-bg text-order-fg ring-order-border shadow-sm",
-    amber: "bg-warning-bg text-warning-fg ring-warning-border shadow-sm",
-    emerald: "bg-success-bg text-success-fg ring-success-border shadow-sm",
-    slate: "bg-surface-2 text-content-2 ring-line shadow-sm",
+    blue: "bg-info-bg text-primary",
+    violet: "bg-surface-2 text-content-2",
+    fuchsia: "bg-surface-2 text-content-2",
+    amber: "bg-warning-bg text-warning-fg",
+    emerald: "bg-success-bg text-success-fg",
+    slate: "bg-surface-2 text-content-2",
   };
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-caption font-bold ring-1 ring-inset",
+        "inline-flex h-6 max-w-full items-center truncate rounded-full px-2.5 text-[12px] font-medium",
         map[tone],
       )}
     >
@@ -2052,18 +1795,13 @@ function Pill({
 function IssueList({ title, issues }: { title: string; issues: string[] }) {
   if (!issues.length) return null;
   return (
-    <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-fg ring-1 ring-warning-border">
-      <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
-        <AlertTriangle className="h-3.5 w-3.5" />
-        {title}
-      </div>
-      <ul className="mt-1.5 space-y-1">
-        {issues.map((issue) => (
-          <li key={issue} className="leading-5">
-            {issue}
-          </li>
-        ))}
-      </ul>
+    <div className="grid gap-1.5" aria-label={title}>
+      {issues.map((issue) => (
+        <div key={issue} className="flex items-start gap-2 text-[13px] leading-snug text-content-1">
+          <span className="mt-[2px] grid h-[16px] w-[16px] flex-none place-items-center rounded-full bg-warning-bg text-[10px] font-bold text-warning-fg">!</span>
+          <span className="min-w-0">{issue}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -2078,13 +1816,13 @@ function Mini({
   subtle?: string;
 }) {
   return (
-    <div className="rounded-xl border border-line bg-gradient-to-br from-surface-2 to-white px-3 py-2 shadow-sm">
-      <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+    <div className="min-w-0 rounded-[11px] bg-surface-2 px-3 py-2">
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-content-3">
         {label}
       </div>
-      <div className="text-sm font-bold text-content-2">{value}</div>
+      <div className="break-words text-[13.5px] font-semibold leading-snug text-content-1">{value}</div>
       {subtle ? (
-        <div className="text-caption text-content-3">{subtle}</div>
+        <div className="break-words text-[11.5px] text-content-3">{subtle}</div>
       ) : null}
     </div>
   );
@@ -2100,14 +1838,14 @@ function SafetyRow({
   note?: string;
 }) {
   return (
-    <div className="mb-2 flex items-start justify-between rounded-xl border border-line bg-gradient-to-br from-warning-bg to-white px-3 py-2.5 shadow-sm last:mb-0">
-      <div>
-        <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+    <div className="flex items-start justify-between gap-3 rounded-[11px] bg-surface-2 px-3 py-2.5">
+      <div className="min-w-0">
+        <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-content-3">
           {label}
         </div>
-        <div className="text-sm font-bold text-content-2">{value}</div>
+        <div className="text-[13.5px] font-semibold text-content-1">{value}</div>
       </div>
-      <span className="ml-2 max-w-[120px] text-right text-caption font-medium text-content-3">
+      <span className="max-w-[150px] text-right text-[12px] leading-snug text-content-3">
         {note}
       </span>
     </div>

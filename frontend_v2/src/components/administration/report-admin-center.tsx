@@ -255,7 +255,7 @@ export function ReportAdminCenter() {
           <section className="rounded-[2rem] border border-line bg-surface-1/95 p-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)]">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Daily packs
                 </div>
                 <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-content-1">
@@ -320,7 +320,7 @@ export function ReportAdminCenter() {
                         <div className="w-full shrink-0 rounded-[1.5rem] border border-line bg-surface-1 p-4 xl:w-[280px]">
                           <div className="flex items-center justify-between gap-3">
                             <div>
-                              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                              <div className="text-[12px] font-semibold text-content-3">
                                 Archive state
                               </div>
                               <div className="mt-2 text-lg font-semibold text-content-1">
@@ -364,7 +364,7 @@ export function ReportAdminCenter() {
             <section className="rounded-[2rem] border border-line bg-surface-1/95 p-5 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.45)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Archive shelf
                   </div>
                   <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-content-1">
@@ -522,7 +522,7 @@ function MetricTile({
 }) {
   return (
     <div className="rounded-[1.6rem] border border-line bg-surface-1/88 p-4 shadow-sm">
-      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-content-1">
@@ -536,7 +536,7 @@ function MetricTile({
 function InfoPill({ title, value }: { title: string; value: string }) {
   return (
     <div className="rounded-[1rem] border border-line bg-surface-1 px-4 py-3">
-      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {title}
       </div>
       <div className="mt-2 text-sm font-semibold text-content-1">{value}</div>

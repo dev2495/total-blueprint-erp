@@ -31,34 +31,34 @@ export function ValidationFooter({
   return (
     <div
       className={cn(
-        "sticky bottom-0 z-20 mt-6 rounded-2xl border border-line bg-surface-1/95 px-4 py-3 shadow-[0_-12px_30px_-22px_rgba(15,23,42,0.5)] backdrop-blur",
+        "sticky bottom-3 z-20 mt-6 rounded-[18px] border border-line bg-surface-1/92 px-4 py-3 shadow-[0_10px_30px_-18px_rgba(16,24,40,0.35)] backdrop-blur-md",
         className,
       )}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {errorCount > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2.5 py-1 text-caption font-bold text-danger-fg ring-1 ring-danger-border">
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-danger-bg px-3 text-[12.5px] font-medium text-danger-fg">
               <XCircle className="h-3.5 w-3.5" />
-              {errorCount} blocker{errorCount === 1 ? "" : "s"}
+              {errorCount} to fix
             </span>
           ) : null}
           {warnCount > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2.5 py-1 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-warning-bg px-3 text-[12.5px] font-medium text-warning-fg">
               <AlertTriangle className="h-3.5 w-3.5" />
               {warnCount} warning{warnCount === 1 ? "" : "s"}
             </span>
           ) : null}
           {errorCount === 0 && warnCount === 0 && checks.length > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2.5 py-1 text-caption font-bold text-success-fg ring-1 ring-success-border">
+            <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-success-bg px-3 text-[12.5px] font-medium text-success-fg">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              All validations passed
+              All checks pass
             </span>
           ) : null}
           {autosaveLabel ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2.5 py-1 text-caption font-semibold text-content-3 ring-1 ring-line">
-              <FileEdit className="h-3.5 w-3.5" />
-              {autosaveLabel}
+            <span className="hidden h-7 max-w-full items-center gap-1.5 truncate rounded-full bg-surface-2 px-3 text-[12.5px] text-content-3 sm:inline-flex">
+              <FileEdit className="h-3.5 w-3.5 flex-none" />
+              <span className="truncate">{autosaveLabel}</span>
             </span>
           ) : null}
         </div>

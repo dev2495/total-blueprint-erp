@@ -98,7 +98,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
       <div className="grid gap-2">
         {/* Previous orders */}
         <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-          <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-1.5 text-[12px] font-semibold text-content-3">
             <History className="h-3 w-3" /> Recent orders
           </div>
           {ordersQuery.isLoading ? (
@@ -141,7 +141,7 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
 
         {/* Overlays */}
         <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-          <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-widest text-content-3">
+          <div className="flex items-center gap-1.5 text-[12px] font-semibold text-content-3">
             <Layers className="h-3 w-3" /> Customer overlays
           </div>
           {overlaysQuery.isLoading ? (

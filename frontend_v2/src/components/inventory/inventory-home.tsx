@@ -635,7 +635,7 @@ export function InventoryHomeV36() {
         {/* Filter rail */}
         <aside className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:overscroll-contain">
           <div className="flex items-center justify-between">
-            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Filters
             </span>
             <button
@@ -669,7 +669,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[12px] font-semibold text-content-3">
               Class
             </div>
             <div className="flex flex-col gap-1">
@@ -729,7 +729,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[12px] font-semibold text-content-3">
               Location
             </div>
             <select
@@ -747,7 +747,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4">
-            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[12px] font-semibold text-content-3">
               Aging
             </div>
             <div className="grid grid-cols-2 gap-1 text-caption">
@@ -881,7 +881,7 @@ export function InventoryHomeV36() {
       >
         <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3 px-6 py-2.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Filtered stock
             </span>
             <span className="rounded-full bg-order-bg px-2.5 py-0.5 font-bold text-order-fg ring-1 ring-order-border">
@@ -1073,7 +1073,7 @@ function RollMatrixSection({
                       "1": "bg-info-bg text-primary ring-1 ring-info-border",
                       "2": "bg-success-bg text-success-fg ring-1 ring-success-border",
                       "3": "bg-success-bg text-success-fg ring-1 ring-success-border",
-                      "4": "bg-gradient-to-br from-success-fg to-success-fg text-white shadow-sm",
+                      "4": "bg-success-fg text-white shadow-sm",
                     };
                     return (
                       <td key={col} className="px-2 py-1.5 text-center">
@@ -1104,7 +1104,7 @@ function RollMatrixSection({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[12px] font-semibold text-content-3">
                 Total
               </td>
               {matrix.cols.map((c) => (
@@ -1579,22 +1579,22 @@ function SectionShell({
   const TONE = {
     blue: {
       bar: "border-l-blue-500",
-      bg: "from-info-bg",
+      bg: "bg-surface-2",
       num: "bg-primary ring-primary",
     },
     violet: {
       bar: "border-l-violet-500",
-      bg: "from-order-bg",
+      bg: "bg-surface-2",
       num: "bg-order-fg ring-order-border",
     },
     amber: {
       bar: "border-l-amber-500",
-      bg: "from-warning-bg",
+      bg: "bg-warning-bg",
       num: "bg-warning-fg ring-warning-border",
     },
     emerald: {
       bar: "border-l-emerald-500",
-      bg: "from-success-bg",
+      bg: "bg-success-bg",
       num: "bg-success-fg ring-success-border",
     },
   }[tone];
@@ -1607,7 +1607,7 @@ function SectionShell({
     >
       <header
         className={cn(
-          "flex flex-wrap items-start justify-between gap-3 border-b border-line bg-gradient-to-r via-white to-white px-5 py-4",
+          "flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4",
           TONE.bg,
         )}
       >
@@ -1621,7 +1621,7 @@ function SectionShell({
             {icon}
           </span>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               {eyebrow}
             </div>
             <h2 className="font-display text-lg font-bold text-content-1">
@@ -1672,7 +1672,7 @@ function CellDrawer({
         className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
@@ -1714,7 +1714,7 @@ function CellDrawer({
           )}
         </div>
         <div className="px-5 py-4">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+          <div className="text-[12px] font-semibold text-content-3 mb-2">
             Individual rolls
           </div>
           {!cell || cell.rollCount === 0 ? (
@@ -1799,7 +1799,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Stock by age
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -1839,7 +1839,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Stock by class
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -1874,7 +1874,7 @@ function ChartsStrip({
       <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Movement pulse
             </div>
             <h3 className="font-display text-base font-bold text-content-1 mt-0.5">
@@ -2048,7 +2048,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
@@ -2104,7 +2104,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
 
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Vendor &amp; details
             </div>
             <div className="grid grid-cols-2 gap-2 text-caption">
@@ -2199,7 +2199,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-warning-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-warning-bg px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
@@ -2239,7 +2239,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Specs
             </div>
             <div className="grid grid-cols-2 gap-2 text-caption">
@@ -2325,7 +2325,7 @@ function Stat({
 function Field({ label, value }: { label: string; value: any }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="text-[12px] font-bold text-content-2 truncate">
@@ -2357,7 +2357,7 @@ function WorkspaceLauncher({
   const TILES = [
     {
       href: "/inventory/rolls",
-      tone: "from-order-fg via-order-fg to-danger-solid",
+      tone: "bg-plate",
       icon: "🌀",
       title: "Roll workspace",
       subtitle: "Variant × thickness · matrix / table / grid",
@@ -2368,7 +2368,7 @@ function WorkspaceLauncher({
     },
     {
       href: "/inventory/stock-conversions",
-      tone: "from-primary via-order-fg to-order-fg",
+      tone: "bg-primary",
       icon: "✂️",
       title: "Stock conversion",
       subtitle: "Open tube · split sheets · slit jumbos",
@@ -2379,7 +2379,7 @@ function WorkspaceLauncher({
     },
     {
       href: "/inventory/bulk",
-      tone: "from-success-fg via-info-fg to-info-fg",
+      tone: "bg-success-fg",
       icon: "🧪",
       title: "Bulk & chemicals",
       subtitle: "Granules · resins · code rows · plant split",
@@ -2390,7 +2390,7 @@ function WorkspaceLauncher({
     },
     {
       href: "/inventory/packaging",
-      tone: "from-warning-fg via-warm to-danger-solid",
+      tone: "bg-warning-fg",
       icon: "📦",
       title: "Packaging",
       subtitle: "Inner pouch · gunny · carton · sheet · tape",
@@ -2401,7 +2401,7 @@ function WorkspaceLauncher({
     },
     {
       href: "/inventory?tab=POD",
-      tone: "from-purple-600 via-order-fg to-order-fg",
+      tone: "bg-plate",
       icon: "🎫",
       title: "POD stock",
       subtitle: "POD sleeves only · details and stock",
@@ -2412,7 +2412,7 @@ function WorkspaceLauncher({
     },
     {
       href: "/inventory/addons",
-      tone: "from-order-fg via-order-fg to-purple-600",
+      tone: "bg-plate",
       icon: "🎨",
       title: "Inks · adhesives · solvents",
       subtitle: "Process consumables · colour swatches",
@@ -2423,7 +2423,7 @@ function WorkspaceLauncher({
     },
     {
       href: "/inventory/traceability",
-      tone: "from-primary via-info-fg to-info-fg",
+      tone: "bg-primary",
       icon: "🌳",
       title: "Roll genealogy",
       subtitle: "Trace any roll · tree · timeline · ancestors",
@@ -2431,7 +2431,7 @@ function WorkspaceLauncher({
     },
     {
       href: "/inventory/inter-plant",
-      tone: "from-surface-2 via-surface-3 to-surface-3",
+      tone: "bg-surface-2",
       icon: "🚚",
       title: "Inter-plant",
       subtitle: "Transfers · network flow · DC kanban",

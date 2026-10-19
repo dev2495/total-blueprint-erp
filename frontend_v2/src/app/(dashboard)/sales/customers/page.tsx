@@ -177,7 +177,7 @@ function CustomerForm({
             name="code"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Identity Code
                 </FormLabel>
                 <FormControl>
@@ -196,7 +196,7 @@ function CustomerForm({
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Legal Entity Name
                 </FormLabel>
                 <FormControl>
@@ -215,7 +215,7 @@ function CustomerForm({
             name="under_group"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Under Group
                 </FormLabel>
                 <FormControl>
@@ -237,7 +237,7 @@ function CustomerForm({
             name="contact_person"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Principal Liaison
                 </FormLabel>
                 <FormControl>
@@ -255,7 +255,7 @@ function CustomerForm({
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Digital Correspondence
                 </FormLabel>
                 <FormControl>
@@ -274,7 +274,7 @@ function CustomerForm({
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Communication Line
                 </FormLabel>
                 <FormControl>
@@ -294,7 +294,7 @@ function CustomerForm({
           name="contact_details"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+              <FormLabel className="text-[12px] font-semibold text-content-3">
                 Contact Details
               </FormLabel>
               <FormControl>
@@ -315,7 +315,7 @@ function CustomerForm({
             name="gst_no"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Tax Protocol ID (GST)
                 </FormLabel>
                 <FormControl>
@@ -333,7 +333,7 @@ function CustomerForm({
             name="pan_no"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   PAN No.
                 </FormLabel>
                 <FormControl>
@@ -366,7 +366,7 @@ function CustomerForm({
               name="mailing_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <FormLabel className="text-[12px] font-semibold text-content-3">
                     Mailing Name
                   </FormLabel>
                   <FormControl>
@@ -385,7 +385,7 @@ function CustomerForm({
               name="mailing_pincode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <FormLabel className="text-[12px] font-semibold text-content-3">
                     Pincode
                   </FormLabel>
                   <FormControl>
@@ -405,7 +405,7 @@ function CustomerForm({
             name="billing_address"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Primary Address
                 </FormLabel>
                 <FormControl>
@@ -424,7 +424,7 @@ function CustomerForm({
               name="mailing_state"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <FormLabel className="text-[12px] font-semibold text-content-3">
                     State
                   </FormLabel>
                   <FormControl>
@@ -442,7 +442,7 @@ function CustomerForm({
               name="mailing_country"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <FormLabel className="text-[12px] font-semibold text-content-3">
                     Country
                   </FormLabel>
                   <FormControl>
@@ -554,7 +554,7 @@ function CustomerForm({
             name="credit_days"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Credit Period (Days)
                 </FormLabel>
                 <FormControl>
@@ -577,7 +577,7 @@ function CustomerForm({
             name="credit_limit"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Credit Limit
                 </FormLabel>
                 <FormControl>
@@ -600,7 +600,7 @@ function CustomerForm({
             name="interest_calculation"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Interest Calculation
                 </FormLabel>
                 <FormControl>
@@ -622,7 +622,7 @@ function CustomerForm({
             name="bank_details"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <FormLabel className="text-[12px] font-semibold text-content-3">
                   Bank Details
                 </FormLabel>
                 <FormControl>
@@ -643,7 +643,7 @@ function CustomerForm({
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-xl border border-line bg-surface-2 px-4 py-3">
                   <div>
-                    <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                    <FormLabel className="text-[12px] font-semibold text-content-3">
                       TDS Deductable
                     </FormLabel>
                     <div className="text-xs text-content-3">
@@ -665,7 +665,7 @@ function CustomerForm({
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-xl border border-line bg-surface-2 px-4 py-3">
                   <div>
-                    <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                    <FormLabel className="text-[12px] font-semibold text-content-3">
                       TCS Deductable
                     </FormLabel>
                     <div className="text-xs text-content-3">
@@ -687,7 +687,7 @@ function CustomerForm({
               name="status"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                  <FormLabel className="text-[12px] font-semibold text-content-3">
                     Status
                   </FormLabel>
                   <Select
@@ -844,7 +844,7 @@ export default function CustomersPage() {
           <div className="flex h-[400px] items-center justify-center bg-surface-1/50 backdrop-blur-sm rounded-[2rem] border-2 border-dashed border-line">
             <div className="text-center space-y-4">
               <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
-              <p className="text-caption font-semibold uppercase tracking-widest text-content-4">
+              <p className="text-[12px] font-semibold text-content-3">
                 Synchronizing Master Data...
               </p>
             </div>
@@ -866,8 +866,8 @@ export default function CustomersPage() {
         )}
 
         {/* Decorative Elements */}
-        <div className="absolute -top-10 -right-10 w-64 h-64 bg-primary rounded-full blur-3xl -z-10" />
-        <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-primary rounded-full blur-3xl -z-10" />
+        <div className="hidden absolute -top-10 -right-10 w-64 h-64 bg-primary rounded-full blur-3xl -z-10" />
+        <div className="hidden absolute -bottom-10 -left-10 w-64 h-64 bg-primary rounded-full blur-3xl -z-10" />
       </div>
 
       {/* Edit Dialog */}

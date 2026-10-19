@@ -16,28 +16,6 @@ interface SectionCardV3Props {
   sticky?: boolean;
 }
 
-const ACCENT_BORDER: Record<
-  NonNullable<SectionCardV3Props["accent"]>,
-  string
-> = {
-  blue: "border-l-blue-500",
-  emerald: "border-l-emerald-500",
-  amber: "border-l-amber-500",
-  violet: "border-l-violet-500",
-  slate: "border-l-slate-400",
-};
-
-const ACCENT_INDEX: Record<
-  NonNullable<SectionCardV3Props["accent"]>,
-  string
-> = {
-  blue: "bg-info-bg text-primary ring-info-border",
-  emerald: "bg-success-bg text-success-fg ring-success-border",
-  amber: "bg-warning-bg text-warning-fg ring-warning-border",
-  violet: "bg-order-bg text-order-fg ring-order-border",
-  slate: "bg-surface-2 text-content-2 ring-line",
-};
-
 const ACCENT_EYEBROW: Record<
   NonNullable<SectionCardV3Props["accent"]>,
   string
@@ -53,11 +31,9 @@ const ACCENT_EYEBROW: Record<
  * V3.7 SectionCardV3 — calmer mockup-aligned section shell used by PM Edit,
  * Stock Launcher, Sales Workspace.
  *
- * - thin 3 px coloured stripe on the left
- * - flat-white header (no gradient wash) with a single bottom border
- * - small tonal-tinted numbered badge (no heavy solid colour)
- * - shadow-sm + no extra ring, so stacked cards don't visually shout
- * - coloured eyebrow line replaces the muted grey one
+ * - white card, hairline border, soft shadow; no coloured stripe
+ * - neutral numbered circle, 15px title, short grey description
+ * - only the optional eyebrow carries the accent colour
  */
 export function SectionCardV3({
   index,
@@ -74,44 +50,33 @@ export function SectionCardV3({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm border-l-[3px]",
-        ACCENT_BORDER[accent],
+        "overflow-hidden rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]",
         className,
       )}
     >
       <header
         className={cn(
-          "flex flex-wrap items-start justify-between gap-3 border-b border-line bg-surface-1 px-5 py-3 sm:px-6",
+          "flex flex-wrap items-start justify-between gap-3 border-b border-line bg-surface-1 px-5 py-3.5",
           sticky && "sticky top-0 z-10 backdrop-blur",
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
           {typeof index === "number" ? (
-            <span
-              className={cn(
-                "flex h-7 w-7 flex-none items-center justify-center rounded-lg ring-1 text-xs font-semibold",
-                ACCENT_INDEX[accent],
-              )}
-            >
+            <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-surface-2 text-[12px] font-semibold text-content-2 ring-1 ring-line">
               {index}
             </span>
           ) : null}
           <div className="min-w-0">
             {eyebrow ? (
-              <div
-                className={cn(
-                  "text-caption font-semibold uppercase tracking-[0.12em]",
-                  ACCENT_EYEBROW[accent],
-                )}
-              >
+              <div className={cn("text-[11px] font-semibold uppercase tracking-[0.09em]", ACCENT_EYEBROW[accent])}>
                 {eyebrow}
               </div>
             ) : null}
-            <h2 className="text-[14px] font-bold leading-tight text-content-1">
+            <h2 className="text-[15px] font-semibold leading-snug tracking-[-0.01em] text-content-1">
               {title}
             </h2>
             {description ? (
-              <p className="mt-0.5 text-caption leading-5 text-content-3">
+              <p className="mt-0.5 text-[12.5px] leading-5 text-content-3">
                 {description}
               </p>
             ) : null}
@@ -122,7 +87,7 @@ export function SectionCardV3({
         ) : null}
       </header>
       <div
-        className={cn("px-5 py-5 sm:px-6", bodyClassName)}
+        className={cn("px-5 py-4", bodyClassName)}
         style={
           {
             contentVisibility: "auto",

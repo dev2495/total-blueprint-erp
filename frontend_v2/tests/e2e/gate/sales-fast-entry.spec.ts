@@ -18,9 +18,9 @@ test("sales create page and Product Master expose the new product-master lanes",
   await expect(page.locator("body")).toContainText(/Sales\s*.\s*New order/i)
   await expect(page.locator("body")).toContainText(/Bill to\s*.\s*customer/i)
   await expect(page.locator("body")).toContainText(/Ship to/i)
-  await expect(page.locator("body")).toContainText(/Start the first production line/i)
-  await expect(page.locator("body")).toContainText("Cart is empty")
-  await expect(page.getByRole("button", { name: /Create \+ send to planner/i })).toBeVisible()
+  await expect(page.locator("body")).toContainText(/No lines yet/i)
+  await expect(page.getByTestId("sales-create-submit")).toBeVisible()
+  await expect(page.getByRole("button", { name: /Place order/i })).toBeVisible()
 
   await page.goto("/master/products")
   await assertHealthyPage(page)

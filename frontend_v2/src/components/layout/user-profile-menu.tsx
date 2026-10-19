@@ -79,7 +79,7 @@ export function UserProfileMenu({
           <div className="text-xs font-normal text-content-3">
             {user.email || "Email missing"}
           </div>
-          <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Role: {getCanonicalRoleLabel(roleCode, user.role_info?.name)}
           </div>
         </DropdownMenuLabel>

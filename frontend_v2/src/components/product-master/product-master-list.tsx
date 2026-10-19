@@ -401,7 +401,7 @@ export function ProductMasterListWorkspace() {
         {/* ─── Filter rail (sticky) ─── */}
         <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Filters
             </span>
             <button
@@ -440,7 +440,7 @@ export function ProductMasterListWorkspace() {
 
           {/* Kind */}
           <div className="mt-4">
-            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[12px] font-semibold text-content-3">
               Kind
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -469,7 +469,7 @@ export function ProductMasterListWorkspace() {
 
           {/* Reporting group */}
           <div className="mt-4">
-            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[12px] font-semibold text-content-3">
               Reporting group
             </div>
             <select
@@ -488,7 +488,7 @@ export function ProductMasterListWorkspace() {
 
           {/* Capabilities */}
           <div className="mt-4">
-            <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="mb-1.5 text-[12px] font-semibold text-content-3">
               Capabilities
             </div>
             <FilterCheck
@@ -920,7 +920,7 @@ function ReadinessPill({
 function Kvp({ label, v }: { label: string; v: number }) {
   return (
     <div className="bg-surface-1 px-3 py-2 text-center">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="font-display text-base font-bold text-content-1">{v}</div>

@@ -1041,7 +1041,7 @@ export default function AuditCenterPage() {
                 onClick={setView}
               />
               <div className="flex-1" />
-              <div className="flex flex-wrap items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="flex flex-wrap items-center gap-2 text-[12px] font-semibold text-content-3">
                 <span>
                   Page {page.toLocaleString()} of {pageCount.toLocaleString()}
                 </span>

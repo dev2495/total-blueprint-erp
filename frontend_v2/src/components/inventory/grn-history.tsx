@@ -747,7 +747,7 @@ export function GrnHistoryV36() {
               />
 
               <div>
-                <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-[12px] font-semibold text-content-3">
                   Vendor
                 </div>
                 <select
@@ -1084,7 +1084,7 @@ function CorrectionDrawer({
         className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
@@ -1172,7 +1172,7 @@ function CorrectionDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Corrected quantity
               </Label>
               <Input
@@ -1185,7 +1185,7 @@ function CorrectionDrawer({
               />
             </div>
             <div>
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Corrected unit rate
               </Label>
               <Input
@@ -1202,7 +1202,7 @@ function CorrectionDrawer({
               </div>
             </div>
             <div className="col-span-2">
-              <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <Label className="text-[12px] font-semibold text-content-3">
                 Reference
               </Label>
               <Input
@@ -1214,7 +1214,7 @@ function CorrectionDrawer({
             </div>
             {row.source_type === "TRADING" ? (
               <div className="col-span-2">
-                <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   Corrected plant
                 </Label>
                 <select
@@ -1232,7 +1232,7 @@ function CorrectionDrawer({
               </div>
             ) : (
               <div className="col-span-2">
-                <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   Corrected location
                 </Label>
                 <select
@@ -1259,7 +1259,7 @@ function CorrectionDrawer({
             {row.source_type === "ROLL" && (
               <>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Label ID
                   </Label>
                   <Input
@@ -1270,7 +1270,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Batch No
                   </Label>
                   <Input
@@ -1281,7 +1281,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Width mm
                   </Label>
                   <Input
@@ -1294,7 +1294,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Micron
                   </Label>
                   <Input
@@ -1307,7 +1307,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Length m
                   </Label>
                   <Input
@@ -1320,7 +1320,7 @@ function CorrectionDrawer({
                   />
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Roll form
                   </Label>
                   <select
@@ -1338,7 +1338,7 @@ function CorrectionDrawer({
             )}
           </div>
           <div>
-            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Reason code · required
             </Label>
             <select
@@ -1354,7 +1354,7 @@ function CorrectionDrawer({
             </select>
           </div>
           <div>
-            <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+            <Label className="text-[12px] font-semibold text-content-3">
               Reason · required
             </Label>
             <Textarea

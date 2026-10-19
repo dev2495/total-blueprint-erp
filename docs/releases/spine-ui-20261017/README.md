@@ -101,3 +101,36 @@ with the local test admin. Go-live only on the owner's word after that review; r
   template with a wider spec column.
 
 Checks: typecheck, lint, nav:validate, test:workspace-roles, next build; backend suite 1517 OK.
+
+## Fourth pass (19 Oct 2026) — the spec plate, step layouts, app-wide calm
+
+Approved samples: order composer, product master editor and stock launcher (artifacts linked in the session).
+
+- **Spec plate** (`components/plate/spec-plate.tsx`): one dark surface for "what is being made" — size in large
+  numerals, every layer with micron and grade, total gauge, and a cross-section drawn to scale (outer layer on
+  top, adhesive line between layers, film colours from new `--film-*` tokens). Used by the composer (open and
+  closed lines), product master editor and view, stock launcher and every `MadeCard` (order page, WC terminal,
+  machine screen, planner, packing yard). New tokens `--plate*` / `--film-*` in light and dark.
+- **Shared blocks** (`components/plate/steps.tsx`): numbered `StepSection`, `ChoiceCard`, `StatTile`,
+  `CheckRow`, `Pill`, fixed `ActionBar`. `SectionCardV3`, `ValidationFooter`, `StepStrip` and the live BOM rail
+  restyled to match (no coloured stripes, neutral numbers, readable labels).
+- **Order composer**: header with an Order / Quotation switch (quotation start screen pre-selects the customer),
+  customer card, product search bar (⌘K) with the customer's usual items as chips, line cards with the plate,
+  the open line as numbered steps (Product, Size, Layers, Quantity & rate, Print & artwork, Packing, More options
+  for lane / add-ons / wastage), live preview with readiness first, note for dispatch, readiness card and a fixed
+  place bar (Make for stock · Save as quotation · Place order ⌘↵). Rate and quantity select their text on focus.
+  Same fields, payload and checks as before.
+- **Product master editor**: page header, section list as a left column on wide screens (sticky bar below),
+  numbered sections, plain fields, layer cards and summaries without tinted gradients, pinned plate +
+  anatomy + live BOM on the right. New-master dialog uses the same numbered steps. Product master view header
+  is a summary card beside the plate.
+- **Stock launcher**: header with decision status, three decision cards side by side (What to build ·
+  Commitment · Build up to with a tap-to-stop route list that still sets start and stop), plate with stock form
+  and WIP width, size and layers card, quantity card with the derived strategy/class/output/owner always
+  visible, and a side rail for blockers, required material, matching demand, commitment safety and the BOM.
+  The control tower's duplicate tab strip is removed (the workspace bar lists the same seven tabs by role;
+  keys 1–7 still switch tabs).
+- **App-wide**: ~280 tinted gradients flattened (status colours kept), 28 decorative blur blobs hidden, 640
+  all-caps field labels made sentence case, shell uses `overflow-x-clip` so sticky rails and step lists work,
+  fixed bars start after the sidebar (`--sidebar-width`).
+- `next.config.mjs` accepts `NEXT_DIST_DIR` so a second local dev server can build into its own folder.

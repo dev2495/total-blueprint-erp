@@ -93,7 +93,7 @@ export function RollLanesPanel({
     >
       <div className="mb-2 flex items-center gap-2">
         <Layers className="h-4 w-4 text-content-3" aria-hidden />
-        <h3 className="text-caption font-semibold uppercase tracking-wider text-content-3">
+        <h3 className="text-[12px] font-semibold text-content-3">
           {isLanes ? "Rolls by lane" : "Rolls loaded"}
         </h3>
       </div>

@@ -243,19 +243,19 @@ export default function OrderProfitabilityListPage() {
         <div className="flex gap-10">
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-danger-solid shadow-sm" />
-            <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Loss Making / Critical
             </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-warning-fg shadow-sm" />
-            <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Low Margin (&lt; 15%)
             </span>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-3 h-3 rounded-full bg-success-fg shadow-sm" />
-            <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Target Margin Healthy
             </span>
           </div>

@@ -327,7 +327,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-danger-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-danger-bg px-4 py-4 sm:px-6">
       <GradientHero
         palette="rose"
         eyebrow={
@@ -415,7 +415,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
           </div>
         </section>
 
-        <section className="rounded-3xl bg-gradient-to-br from-danger-solid via-warm to-warning-fg p-6 text-white shadow-[0_20px_60px_-30px_rgba(244,63,94,0.45)]">
+        <section className="rounded-3xl bg-danger-solid p-6 text-white shadow-[0_20px_60px_-30px_rgba(244,63,94,0.45)]">
           <header className="mb-4">
             <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
               Totals
@@ -503,7 +503,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                   >
                     <div className="grid gap-3 lg:grid-cols-12">
                       <div className="lg:col-span-4">
-                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Line #{l.line_no} · Item
                         </Label>
                         <ItemPicker
@@ -528,7 +528,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                       </div>
 
                       <div className="lg:col-span-1">
-                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Qty
                         </Label>
                         <Input
@@ -552,7 +552,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         ) : null}
                       </div>
                       <div className="lg:col-span-1">
-                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           UOM
                         </Label>
                         <Input
@@ -566,7 +566,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         />
                       </div>
                       <div className="lg:col-span-2">
-                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Rate (₹)
                         </Label>
                         <Input
@@ -580,7 +580,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         />
                       </div>
                       <div className="lg:col-span-1">
-                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           GST %
                         </Label>
                         <Input
@@ -596,7 +596,7 @@ export function TradeOrderForm({ mode, initialOrder }: Props) {
                         />
                       </div>
                       <div className="lg:col-span-2 text-right">
-                        <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                        <Label className="text-[12px] font-semibold text-content-3">
                           Line total
                         </Label>
                         <div className="mt-1 font-mono text-sm font-bold text-content-1">
@@ -689,7 +689,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         {label}
       </Label>
       <div className="mt-1.5">{children}</div>
@@ -847,7 +847,7 @@ function ItemPicker({
                         <div className="font-mono text-sm font-semibold text-success-fg">
                           {formatQty(option.available_qty)}
                         </div>
-                        <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+                        <div className="text-[12px] font-semibold text-content-3">
                           {option.base_uom}
                         </div>
                       </div>

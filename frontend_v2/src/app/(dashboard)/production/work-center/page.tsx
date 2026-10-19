@@ -69,7 +69,7 @@ export default function WorkCenterListPage() {
       <div className="flex h-screen items-center justify-center bg-[#f8fafc]">
         <div className="text-center space-y-4">
           <Activity className="h-12 w-12 animate-pulse text-primary mx-auto" />
-          <p className="text-caption font-semibold uppercase tracking-widest text-content-4">
+          <p className="text-[12px] font-semibold text-content-3">
             Accessing Station Topology...
           </p>
         </div>
@@ -152,7 +152,7 @@ export default function WorkCenterListPage() {
               >
                 <CardHeader className="flex flex-row items-start justify-between gap-4 p-5 pb-3">
                   <div className="min-w-0">
-                    <h3 className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                    <h3 className="text-[12px] font-semibold text-content-3">
                       WCM terminal
                     </h3>
                     <CardTitle className="mt-2 text-xl font-semibold tracking-tight text-content-1 transition-colors group-hover:text-primary">

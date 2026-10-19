@@ -137,7 +137,7 @@ export default function MaterialPicker({
             </div>
             <div className="max-h-72 overflow-y-auto">
               {matQuery.isLoading ? (
-                <div className="px-3 py-6 text-center text-caption font-semibold uppercase tracking-widest text-content-4">
+                <div className="px-3 py-6 text-center text-[12px] font-semibold text-content-3">
                   <Loader2 className="h-4 w-4 mx-auto animate-spin" />
                 </div>
               ) : (matQuery.data || []).length === 0 ? (

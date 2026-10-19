@@ -161,7 +161,7 @@ const SELECT_NONE = "__NONE__";
 const surfaceClass =
   "rounded-[18px] border border-line bg-surface-1 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.12)]";
 const labelClass =
-  "text-caption font-bold uppercase tracking-[0.1em] text-content-3";
+  "text-[12px] font-semibold text-content-3";
 const inputClass =
   "h-10 rounded-lg border-line bg-surface-1 text-sm font-semibold text-content-1 focus-visible:ring-primary";
 
@@ -2871,7 +2871,7 @@ export default function MachineExecutionPage() {
                   <span className="sr-only">
                     Enter only the fields this step needs.
                   </span>
-                  <div className="flex flex-col gap-3 border-b border-success-border bg-gradient-to-r from-success-bg via-surface-1 to-info-bg px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-3 border-b border-success-border bg-success-bg px-5 py-5 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                       <div className="text-caption font-semibold uppercase tracking-[0.1em] text-success-fg">
                         Output logging
@@ -3076,7 +3076,7 @@ export default function MachineExecutionPage() {
                 </section>
 
                 <details className="group rounded-[18px] border border-line bg-surface-1 shadow-sm" data-testid="machine-order-drawer">
-                  <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-caption font-bold uppercase tracking-[0.1em] text-content-3">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-[12px] font-semibold text-content-3">
                     Order, spec and lineage · ऑर्डर और स्पेक
                     <span className="ml-auto text-content-4 group-open:hidden">show</span>
                     <span className="ml-auto hidden text-content-4 group-open:inline">hide</span>
@@ -3266,7 +3266,7 @@ export default function MachineExecutionPage() {
                 </div>
               </div>
               <div className="rounded-xl border border-line bg-surface-2 px-3 py-2">
-                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Remaining · बाकी
                 </div>
                 <div className="font-mono text-base font-semibold text-content-1">
@@ -3310,7 +3310,7 @@ export default function MachineExecutionPage() {
               )}
               <Button
                 type="button"
-                className="h-11 min-w-[120px] rounded-[12px] bg-gradient-to-br from-info-fg to-primary px-4 text-sm font-semibold text-white"
+                className="h-11 min-w-[120px] rounded-[12px] bg-primary px-4 text-sm font-semibold text-white"
                 data-testid="machine-log-output"
                 disabled={!canLogOutput || logOutputMutation.isPending}
                 onClick={() => logOutputMutation.mutate()}
@@ -3320,7 +3320,7 @@ export default function MachineExecutionPage() {
               </Button>
               <Button
                 type="button"
-                className="h-11 min-w-[116px] rounded-[12px] bg-gradient-to-br from-success-fg to-success-fg px-4 text-sm font-semibold text-white"
+                className="h-11 min-w-[116px] rounded-[12px] bg-success-fg px-4 text-sm font-semibold text-white"
                 data-testid="machine-finalize-step"
                 disabled={!canComplete || completeMutation.isPending}
                 onClick={() => completeMutation.mutate({})}
@@ -3355,7 +3355,7 @@ function MetricTile({
     <div className={cn("rounded-xl border px-4 py-3", classes)}>
       <div
         className={cn(
-          "text-caption font-semibold uppercase tracking-[0.1em] text-content-3",
+          "text-[12px] font-semibold text-content-3",
           tone === "blue" && "text-primary",
           tone === "amber" && "text-warning-fg",
         )}
@@ -3525,7 +3525,7 @@ function FocusedJobHero({
                 <div className="font-mono text-lg font-semibold">
                   {Math.round(safeProgress)}%
                 </div>
-                <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Done
                 </div>
               </div>
@@ -3680,7 +3680,7 @@ function MachineFocusStrip({
       data-testid="machine-focus-strip"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="min-w-0 text-[12px] font-semibold text-content-3">
           {orderNumber} · {stepName} · {customerName}
         </div>
         {jobId ? <OrderSpine jobId={jobId} current="floor" compact testId="machine-order-spine" /> : null}
@@ -3776,7 +3776,7 @@ function ReservationSummaryCard({
           <div className="font-mono text-sm font-semibold">
             {kg(reservedInputKg, 1)}
           </div>
-          <div className="mt-1 text-caption font-semibold uppercase tracking-wider text-content-4">
+          <div className="mt-1 text-[12px] font-semibold text-content-3">
             Reserved
           </div>
         </div>
@@ -3871,7 +3871,7 @@ function InputFeedCard({
                         {roll.material_name}
                       </div>
                       {roll.location_name ? (
-                        <div className="mt-0.5 break-words text-caption font-bold uppercase tracking-wider text-content-4">
+                        <div className="mt-0.5 break-words text-[12px] font-semibold text-content-3">
                           Pick from {roll.location_name}
                         </div>
                       ) : null}
@@ -3939,7 +3939,7 @@ function InputFeedCard({
                         <div className="break-words text-sm font-semibold text-content-1">
                           {row.name}
                         </div>
-                        <div className="mt-0.5 flex flex-wrap gap-1.5 text-caption font-bold uppercase tracking-wider text-content-3">
+                        <div className="mt-0.5 flex flex-wrap gap-1.5 text-[12px] font-semibold text-content-3">
                           {row.code ? <span>{row.code}</span> : null}
                           {row.category ? <span>{row.category}</span> : null}
                           <span>{row.captureMode.replaceAll("_", " ")}</span>
@@ -3960,7 +3960,7 @@ function InputFeedCard({
                             row.uom,
                           )}
                         </div>
-                        <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+                        <div className="text-[12px] font-semibold text-content-3">
                           issued
                         </div>
                       </div>
@@ -3970,7 +3970,7 @@ function InputFeedCard({
                         <div className="font-mono text-xs font-semibold">
                           {qtyLabel(row.requiredQty, row.uom, 3)}
                         </div>
-                        <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+                        <div className="text-[12px] font-semibold text-content-3">
                           Required
                         </div>
                       </div>
@@ -3978,7 +3978,7 @@ function InputFeedCard({
                         <div className="font-mono text-xs font-semibold text-success-fg">
                           {qtyLabel(row.availableQty, row.uom, 3)}
                         </div>
-                        <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+                        <div className="text-[12px] font-semibold text-content-3">
                           At source
                         </div>
                       </div>
@@ -4429,7 +4429,7 @@ function QueueRail({
             className={cn(
               "h-8 shrink-0 rounded-full px-3 text-xs font-semibold",
               queueStatusFilter === value
-                ? "border-transparent bg-gradient-to-br from-info-fg to-primary text-white"
+                ? "border-transparent bg-primary text-white"
                 : "border-line bg-surface-1 text-content-2",
             )}
             onClick={() => setQueueStatusFilter(value)}
@@ -4581,7 +4581,7 @@ function QueueRail({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Final sales order
                     </div>
                     <div className="mt-0.5 truncate text-sm font-semibold text-content-1">
@@ -4637,7 +4637,7 @@ function QueueRail({
                   </div>
                   <div className="h-1 overflow-hidden rounded-full bg-surface-1">
                     <span
-                      className="block h-full rounded-full bg-gradient-to-r from-primary to-success-fg"
+                      className="block h-full rounded-full bg-primary"
                       style={{ width: `${finalPct}%` }}
                     />
                   </div>
@@ -4649,7 +4649,7 @@ function QueueRail({
                       {jobIsPcs && finalRequired > 0 ? (
                         <div className="font-mono text-caption text-content-3">{kg(finalRequired, 0)}</div>
                       ) : null}
-                      <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Required
                       </div>
                     </div>
@@ -4660,7 +4660,7 @@ function QueueRail({
                       {jobIsPcs ? (
                         <div className="font-mono text-caption text-content-3">{kg(finalProduced, 1)}</div>
                       ) : null}
-                      <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Done
                       </div>
                     </div>
@@ -4671,7 +4671,7 @@ function QueueRail({
                       {jobIsPcs ? (
                         <div className="font-mono text-caption text-content-3">{kg(finalRemaining, 0)}</div>
                       ) : null}
-                      <div className="text-caption font-bold uppercase tracking-wider text-content-4">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Balance
                       </div>
                     </div>
@@ -4768,13 +4768,13 @@ function RouteStepper({
           </div>
         </div>
         <div className="min-w-[170px] rounded-[16px] border border-line bg-surface-1 p-3 shadow-sm">
-          <div className="flex items-center justify-between text-caption font-bold uppercase tracking-[0.1em] text-content-4">
+          <div className="flex items-center justify-between text-[12px] font-semibold text-content-3">
             <span>Progress</span>
             <span>{Math.round(progressPct)}%</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-2">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-info-fg to-success-fg"
+              className="h-full rounded-full bg-primary"
               style={{ width: `${Math.max(0, Math.min(100, progressPct))}%` }}
             />
           </div>
@@ -4790,7 +4790,7 @@ function RouteStepper({
             Upstream done, current process live, downstream pending.
           </div>
         </div>
-        <span className="inline-flex w-fit rounded-full border border-line bg-surface-2 px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-content-3">
+        <span className="inline-flex w-fit rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[12px] font-semibold text-content-3">
           {stepName} · {behaviorLabel(behavior)}
         </span>
       </div>
@@ -4840,7 +4840,7 @@ function ProcessRouteStrip({
                 step.state === "done" &&
                   "border-success-border bg-success-bg text-success-fg",
                 step.state === "current" &&
-                  "border-transparent bg-gradient-to-br from-info-fg to-primary text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.9)]",
+                  "border-transparent bg-primary text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.9)]",
                 step.state === "pending" &&
                   "border-line bg-surface-2 text-content-3",
               )}
@@ -5216,7 +5216,7 @@ function ProcessLogForm(props: any) {
           <div>
             <div className="flex items-center justify-between gap-2">
               <Label className={labelClass}>Default output width</Label>
-              <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <span className="text-[12px] font-semibold text-content-3">
                 {outputWidthPolicyLabel}
               </span>
             </div>
@@ -5295,7 +5295,7 @@ function ProcessLogForm(props: any) {
           <div>
             <div className="flex items-center justify-between gap-2">
               <Label className={labelClass}>Output width (mm) · चौड़ाई</Label>
-              <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+              <span className="text-[12px] font-semibold text-content-3">
                 {outputWidthPolicyLabel}
               </span>
             </div>
@@ -5412,7 +5412,7 @@ function ProcessLogForm(props: any) {
               </Button>
               <Button
                 type="button"
-                className="h-10 rounded-[10px] bg-gradient-to-br from-info-fg to-primary px-3 text-sm font-semibold text-white"
+                className="h-10 rounded-[10px] bg-primary px-3 text-sm font-semibold text-white"
                 data-testid="machine-add-create-row"
                 onClick={addCreateRollRow}
               >
@@ -5587,7 +5587,7 @@ function ProcessLogForm(props: any) {
             </div>
             <Button
               type="button"
-              className="h-9 rounded-[10px] bg-gradient-to-br from-info-fg to-primary text-xs font-semibold text-white"
+              className="h-9 rounded-[10px] bg-primary text-xs font-semibold text-white"
               onClick={addSplitRow}
             >
               <Plus className="mr-1 h-3 w-3" />
@@ -6054,7 +6054,7 @@ function HistoryPanel({
         </div>
       </div>
       <div className="mt-5 overflow-hidden rounded-xl border border-line">
-        <div className="grid min-w-[760px] grid-cols-[1.2fr_1.1fr_0.8fr_0.8fr_0.8fr] bg-surface-2 px-4 py-3 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="grid min-w-[760px] grid-cols-[1.2fr_1.1fr_0.8fr_0.8fr_0.8fr] bg-surface-2 px-4 py-3 text-[12px] font-semibold text-content-3">
           <div>Product</div>
           <div>Completed</div>
           <div>Output</div>
@@ -6267,7 +6267,7 @@ function SublogDialog(props: any) {
                 Cancel
               </Button>
               <Button
-                className="bg-gradient-to-br from-danger-solid to-danger-solid text-white"
+                className="bg-danger-solid text-white"
                 disabled={scrapMutationPending}
                 onClick={onSaveScrap}
               >
@@ -6347,7 +6347,7 @@ function SublogDialog(props: any) {
                 Cancel
               </Button>
               <Button
-                className="bg-gradient-to-br from-warning-fg to-warm text-white"
+                className="bg-warning-fg text-white"
                 disabled={downtimeMutationPending}
                 onClick={onSaveDowntime}
               >
@@ -6466,7 +6466,7 @@ function SublogDialog(props: any) {
                 Cancel
               </Button>
               <Button
-                className="bg-gradient-to-br from-primary to-primary text-white"
+                className="bg-primary text-white"
                 disabled={consumptionPending}
                 onClick={onSaveConsumption}
               >
@@ -6532,7 +6532,7 @@ function SublogDialog(props: any) {
                 Cancel
               </Button>
               <Button
-                className="bg-gradient-to-br from-info-fg to-info-fg text-white"
+                className="bg-primary text-white"
                 disabled={qualityPending}
                 onClick={onSaveQuality}
               >
@@ -6567,7 +6567,7 @@ function ReasonChips({
             className={cn(
               "h-9 rounded-full text-xs font-semibold",
               value === reason
-                ? "border-transparent bg-gradient-to-br from-info-fg to-primary text-white"
+                ? "border-transparent bg-primary text-white"
                 : "bg-surface-1",
             )}
             onClick={() => onChange(reason)}
@@ -6634,7 +6634,7 @@ function ReasonMasterPickerBody({
         className={cn(
           "h-9 rounded-full px-3 text-xs font-semibold",
           selected
-            ? "border-transparent bg-gradient-to-br from-info-fg to-primary text-white"
+            ? "border-transparent bg-primary text-white"
             : "bg-surface-1",
         )}
         onClick={() =>

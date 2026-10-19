@@ -72,7 +72,7 @@ export function GeneralReceiptDetail({ id }: { id: string }) {
       <section className="rounded-2xl border border-line bg-surface-1 p-4 print:border-0 print:p-0">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">General receipt · {receipt.receipt_type_label}</div>
+            <div className="text-[12px] font-semibold text-content-3">General receipt · {receipt.receipt_type_label}</div>
             <h1 className="font-mono text-[22px] font-semibold text-content-1">{receipt.number}</h1>
             <div className="text-[13px] text-content-3">{receipt.plant_name}</div>
           </div>

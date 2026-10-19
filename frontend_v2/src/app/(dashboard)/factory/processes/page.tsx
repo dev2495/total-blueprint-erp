@@ -879,7 +879,7 @@ export default function ProcessesPage() {
                         </Badge>
                       ))}
                     </div>
-                    <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Mode{" "}
                       {(process.stock_form_output_mode || "PRESERVE").replace(
                         /_/g,

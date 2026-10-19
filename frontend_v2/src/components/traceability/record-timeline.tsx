@@ -97,7 +97,7 @@ export function RecordTimelinePanel({
         <CardHeader className="flex flex-col gap-4 border-b border-line px-5 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1 text-[12px] font-semibold text-content-3">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 Timeline
               </div>
@@ -134,7 +134,7 @@ export function RecordTimelinePanel({
                   key={item.label}
                   className="rounded-[1.4rem] border border-line bg-surface-2 px-4 py-4"
                 >
-                  <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     {item.label}
                   </div>
                   <div className="mt-2 break-words text-lg font-semibold tracking-tight text-content-1">
@@ -206,7 +206,7 @@ export function RecordTimelinePanel({
                                 {formatTimestamp(event.timestamp)}
                               </div>
                               {event.actor ? (
-                                <div className="mt-0.5 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                                <div className="mt-0.5 text-[12px] font-semibold text-content-3">
                                   {event.actor}
                                 </div>
                               ) : null}
@@ -285,7 +285,7 @@ export function RecordTimelinePanel({
                             {record.type ? (
                               <Badge
                                 variant="outline"
-                                className="rounded-full border-line bg-surface-2 px-2.5 py-0.5 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
+                                className="rounded-full border-line bg-surface-2 px-2.5 py-0.5 text-[12px] font-semibold text-content-3"
                               >
                                 {record.type}
                               </Badge>

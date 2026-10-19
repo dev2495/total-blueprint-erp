@@ -119,7 +119,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
   const canCancel = order.status === "DRAFT" || order.status === "CONFIRMED";
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-danger-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-danger-bg px-4 py-4 sm:px-6">
       <GradientHero
         palette="rose"
         eyebrow={`TRADE ORDER · ${order.code}`}
@@ -175,7 +175,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
           </header>
           <div className="overflow-hidden rounded-2xl ring-1 ring-line">
             <table className="w-full text-[12px]">
-              <thead className="bg-surface-2 text-left text-caption font-semibold uppercase tracking-wider text-content-3">
+              <thead className="bg-surface-2 text-left text-[12px] font-semibold text-content-3">
                 <tr>
                   <th className="px-3 py-2">#</th>
                   <th className="px-3 py-2">Item</th>
@@ -236,7 +236,7 @@ export function TradeOrderDetail({ id }: { id: string }) {
         </section>
 
         <section className="space-y-4">
-          <div className="rounded-3xl bg-gradient-to-br from-danger-solid via-warm to-warning-fg p-6 text-white shadow-[0_20px_60px_-30px_rgba(244,63,94,0.45)]">
+          <div className="rounded-3xl bg-danger-solid p-6 text-white shadow-[0_20px_60px_-30px_rgba(244,63,94,0.45)]">
             <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
               Totals
             </div>

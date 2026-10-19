@@ -29,7 +29,7 @@ export function StepStrip({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-line bg-surface-1/90 px-5 py-4 shadow-sm",
+        "rounded-[16px] border border-line bg-surface-1 px-4 py-3 shadow-[var(--shadow-sm)]",
         className,
       )}
     >
@@ -47,15 +47,15 @@ export function StepStrip({
               >
                 <span
                   className={cn(
-                    "flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs font-bold transition",
+                    "flex h-7 w-7 flex-none items-center justify-center rounded-full text-[12px] font-semibold transition",
                     isCurrent
-                      ? "bg-primary text-white shadow ring-4 ring-info-border"
+                      ? "bg-primary text-primary-foreground"
                       : isDone
-                        ? "bg-success-fg text-white shadow"
-                        : "bg-surface-2 text-content-3",
+                        ? "bg-success-bg text-success-fg"
+                        : "bg-surface-2 text-content-3 ring-1 ring-line",
                   )}
                 >
-                  {isDone ? <Check className="h-4 w-4" /> : i + 1}
+                  {isDone ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : i + 1}
                 </span>
                 <span className="leading-tight">
                   <span
@@ -69,7 +69,7 @@ export function StepStrip({
                     {s.label}
                   </span>
                   {s.description ? (
-                    <span className="block text-caption font-medium uppercase tracking-wider text-content-4">
+                    <span className="block text-[11.5px] text-content-3">
                       {s.description}
                     </span>
                   ) : null}

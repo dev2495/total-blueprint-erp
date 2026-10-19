@@ -80,7 +80,7 @@ export default function ProductionPreviewCard({
   if (!data && !previewMut.isPending) {
     return (
       <div className="rounded-xl border border-dashed border-line-strong p-4 bg-surface-2">
-        <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-content-3">
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
           <Factory className="h-3.5 w-3.5" />
           Production preview
         </div>
@@ -92,10 +92,10 @@ export default function ProductionPreviewCard({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-gradient-to-br from-white to-info-bg p-4 space-y-3">
+    <div className="rounded-xl border border-line bg-surface-1 p-4 space-y-3">
       <div className="flex items-center gap-2">
         <Factory className="h-3.5 w-3.5 text-info-fg" />
-        <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           Production preview
         </span>
         {previewMut.isPending ? (
@@ -138,7 +138,7 @@ export default function ProductionPreviewCard({
           </div>
           {data.material_availability.length > 0 ? (
             <div className="border-t border-line pt-3 space-y-1">
-              <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Material availability
               </div>
               {data.material_availability.map((row) => (
@@ -190,7 +190,7 @@ function Cell({
 }) {
   return (
     <div className="rounded-lg bg-surface-1 ring-1 ring-line px-2 py-1.5">
-      <div className="flex items-center gap-1 text-caption font-semibold uppercase tracking-widest text-content-3">
+      <div className="flex items-center gap-1 text-[12px] font-semibold text-content-3">
         {icon}
         {label}
       </div>

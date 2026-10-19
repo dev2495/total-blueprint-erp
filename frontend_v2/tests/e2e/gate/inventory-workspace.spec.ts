@@ -31,7 +31,14 @@ test("unified inventory workspace renders stock sections and keeps compatibility
   await switchRole(page, "Store", "/inventory", { allowCookieFallback: true })
   await page.goto("/inventory", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page, { requireAuth: true })
+  // The sidebar shows the seven workspaces; the per-screen links live under "All screens".
+  await expect(page.getByTestId("sidebar-workspace-stock").first()).toBeVisible()
+  const allScreens = page.getByTestId("sidebar-all-screens-toggle").first()
+  if ((await allScreens.getAttribute("aria-expanded")) !== "true") await allScreens.click()
   await expect(page.getByTestId("sidebar-link-inventory").first()).toBeVisible()
+  // Move the pointer off the hover-expanded sidebar so it folds back before the page is used.
+  await page.mouse.move(1100, 420)
+  await page.waitForTimeout(400)
   await expect(page.getByTestId("sidebar-link-inventory-grn-v36").first()).toBeHidden()
   await expect(page.locator("body")).toContainText("Stock workspace")
   await expect(page.locator("body")).toContainText("Stock by age")

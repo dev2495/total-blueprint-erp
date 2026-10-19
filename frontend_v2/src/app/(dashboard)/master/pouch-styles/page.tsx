@@ -42,7 +42,7 @@ export default function PouchStylesListPage() {
   const usedSum = styles.reduce((sum, s) => sum + (s.sizes_count || 0), 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="indigo"
         eyebrow="MASTER · POUCH STYLES"
@@ -133,7 +133,7 @@ export default function PouchStylesListPage() {
           </div>
         ) : (
           <table className="w-full text-[12px]">
-            <thead className="bg-surface-2 text-left text-caption font-semibold uppercase tracking-wider text-content-3">
+            <thead className="bg-surface-2 text-left text-[12px] font-semibold text-content-3">
               <tr>
                 <th className="px-4 py-2">Code</th>
                 <th className="px-4 py-2">Name</th>

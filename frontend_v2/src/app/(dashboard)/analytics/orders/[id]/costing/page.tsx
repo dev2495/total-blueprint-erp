@@ -95,7 +95,7 @@ export default function OrderProfitabilityPage() {
         <div className="space-y-1">
           <Link
             href="/analytics/costing"
-            className="inline-flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-4 hover:text-primary transition-colors mb-4 group"
+            className="inline-flex items-center gap-2 text-[12px] font-semibold text-content-3 hover:text-primary transition-colors mb-4 group"
           >
             <ArrowLeft className="h-3 w-3 group-hover:-translate-x-1 transition-transform" />{" "}
             Back to Center
@@ -134,7 +134,7 @@ export default function OrderProfitabilityPage() {
             <Target className="h-32 w-32" />
           </div>
           <div>
-            <p className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <p className="text-[12px] font-semibold text-content-3 mb-2">
               Net Profit Margin
             </p>
             <h2 className="text-6xl font-semibold tracking-tighter italic">
@@ -194,7 +194,7 @@ export default function OrderProfitabilityPage() {
               >
                 <kpi.icon className="h-6 w-6" />
               </div>
-              <p className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4 mb-1">
+              <p className="text-[12px] font-semibold text-content-3 mb-1">
                 {kpi.label}
               </p>
               <h3 className="text-2xl font-semibold text-content-1 uppercase tracking-tighter tabular-nums">

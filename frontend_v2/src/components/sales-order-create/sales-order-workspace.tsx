@@ -9,11 +9,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  ArrowRight,
   CheckCircle2,
   ClipboardCheck,
   Factory,
   Loader2,
+  Plus,
+  Search,
   Sparkles,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ import { QuickStartBand } from "./quick-start-band";
 import { CustomerContextPanel } from "./customer-context-panel";
 import { buildSalesAxisValues } from "./axis-values";
 import { INP, MONO, SoField, SoSelect } from "./ui";
+import { ActionBar, Pill } from "@/components/plate/steps";
 
 export function SalesOrderV34Workspace() {
   const router = useRouter();
@@ -235,15 +237,17 @@ export function SalesOrderV34Workspace() {
     return out;
   }, [draft.lines, masters]);
 
+  const firstBlocker = combinedBlockingIssues[0];
+
   return (
     <div
-      className="sales-create-shell mx-auto max-w-[1600px] space-y-3 px-3 pb-32 sm:px-4"
+      className="sales-create-shell mx-auto grid max-w-[1400px] gap-4 pb-36"
       data-testid="sales-order-v34-workspace"
     >
-      <SubtleHero
+      <ComposerHeader
         customer={customer}
-        customerCount={customers.length}
-        draft={draft}
+        customerId={draft.customer}
+        lineCount={draft.lines.length}
         cartTotalKg={cartTotalKg}
         cartTotalValue={cartTotalValue}
         isReady={combinedReadyToSubmit}
@@ -262,59 +266,39 @@ export function SalesOrderV34Workspace() {
       />
 
       {draft.customer ? (
-        <details className="group rounded-[18px] border border-line bg-surface-1 shadow-sm">
-          <summary
-            className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-caption font-bold text-content-3"
-            data-testid="sales-quick-start-toggle"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-order-fg" />
-            Quick start · repeat orders · customer overlays
-            <span className="ml-auto text-caption font-bold text-content-4 group-open:hidden">
-              expand
-            </span>
-            <span className="ml-auto hidden text-caption font-bold text-content-4 group-open:inline">
-              collapse
-            </span>
-          </summary>
-          <div className="grid gap-3 border-t border-line p-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-            <QuickStartBand
-              customerId={draft.customer}
-              customerName={customer?.name}
-              masters={masters}
-              onAdd={(seed) => addLine(seed)}
-            />
-            <CustomerContextPanel
-              customerId={draft.customer}
-              customerName={customer?.name}
-            />
-          </div>
-        </details>
+        <AddLineBar
+          masters={masters}
+          customerId={draft.customer}
+          customerName={customer?.name}
+          onAdd={(seed) => addLine(seed)}
+        />
       ) : null}
 
-      <section className="grid gap-3">
-        <Cart
-          draft={draft}
-          masters={masters}
-          onAddLine={() => addLine()}
-          onRemoveLine={removeLine}
-          onDuplicateLine={duplicateLine}
-          onUpdateLine={updateLine}
-          onExpandLine={expandLine}
-          perLineIssues={perLineIssues}
-        />
-      </section>
+      <Cart
+        draft={draft}
+        masters={masters}
+        onAddLine={() => addLine()}
+        onRemoveLine={removeLine}
+        onDuplicateLine={duplicateLine}
+        onUpdateLine={updateLine}
+        onExpandLine={expandLine}
+        perLineIssues={perLineIssues}
+      />
 
       {draft.lines.length > 0 ? (
-        <section className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
-          <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-            <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-              Client note · prints on the dispatch slip when written
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+          <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
+            <Label className="text-[14px] font-semibold text-content-1">
+              Note for dispatch
             </Label>
+            <div className="text-[12.5px] text-content-3">
+              Client note · prints on the dispatch slip when written
+            </div>
             <Textarea
               value={draft.remarks}
               onChange={(e) => setRemarks(e.target.value)}
               placeholder="What the customer asked for on delivery, e.g. 'Deliver before 11 am, call Ramesh at the gate'. Shown on the order page and on the dispatch slip."
-              className="mt-1 min-h-[72px] rounded-xl border-line shadow-sm"
+              className="mt-2 min-h-[72px] rounded-[12px] border-line-strong"
             />
           </div>
           <BlockerPanel
@@ -336,114 +320,91 @@ export function SalesOrderV34Workspace() {
         onSubmit={submitOrder}
         customerId={draft.customer}
         firstMasterId={draft.lines[0]?.product_master || ""}
+        firstBlocker={firstBlocker}
       />
     </div>
   );
 }
 
-// ─── Subtle hero ─────────────────────────────────────────────────
+// ─── Header ─────────────────────────────────────────────────────
 
-function SubtleHero({
+function ComposerHeader({
   customer,
-  customerCount,
-  draft,
+  customerId,
+  lineCount,
   cartTotalKg,
   cartTotalValue,
   isReady,
   blockerCount,
 }: {
   customer: Customer | undefined;
-  customerCount: number;
-  draft: any;
+  customerId: string;
+  lineCount: number;
   cartTotalKg: number;
   cartTotalValue: number;
   isReady: boolean;
   blockerCount: number;
 }) {
+  const quoteHref = customerId
+    ? `/sales/quotations/new?customer=${encodeURIComponent(customerId)}`
+    : "/sales/quotations/new";
   return (
-    <section className="erp-hero relative overflow-hidden rounded-[16px] p-4 md:p-5">
-      <div className="hidden" />
-      <div className="relative flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center text-caption font-medium text-content-3">
-            <span className="mr-2 inline-block h-2 w-2 rounded-full bg-success-fg" />
-            Sales · New order
-          </div>
-          <h1 className="mt-1 text-[22px] font-semibold leading-7 tracking-[-0.02em] text-content-1 md:text-[24px] md:leading-8">
-            {customer
-              ? `${customer.name} order workspace`
-              : "New sales order"}
-          </h1>
-          <p className="mt-1 max-w-4xl text-[13px] leading-relaxed text-content-3 md:text-[13.5px]">
-            {customer
-              ? "Add the lines for this customer. Each line carries its product, artwork, packing and quantity; the material list updates as you go."
-              : `Choose the customer first (${customerCount} on file), then add the lines.`}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-caption font-medium">
-            <span
-              className={cn(
-                "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
-                customer
-                  ? "bg-success-bg text-success-fg ring-success-border"
-                  : "bg-warning-bg text-warning-fg ring-warning-border",
-              )}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" /> Customer{" "}
-              {customer ? "set" : "pending"}
-            </span>
-            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-content-2 ring-1 ring-line">
-              Lines{" "}
-              <span className="font-mono tabular-nums">
-                {draft.lines.length}
-              </span>
-            </span>
-            <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-content-2 ring-1 ring-line">
-              KG{" "}
-              <span className="font-mono tabular-nums">
-                {cartTotalKg ? cartTotalKg.toLocaleString() : "—"}
-              </span>
-            </span>
-            {cartTotalValue > 0 ? (
-              <span className="inline-flex h-8 items-center gap-1 rounded-full bg-surface-2 px-3 text-content-2 ring-1 ring-line">
-                Value{" "}
-                <span className="font-mono tabular-nums">
-                  ₹{Math.round(cartTotalValue).toLocaleString()}
-                </span>
-              </span>
-            ) : null}
-            <span
-              className={cn(
-                "inline-flex h-8 items-center gap-1 rounded-full px-3 ring-1",
-                isReady
-                  ? "bg-success-bg text-success-fg ring-success-border"
-                  : blockerCount > 0
-                    ? "bg-danger-bg text-danger-fg ring-danger-border"
-                    : "bg-warning-bg text-warning-fg ring-warning-border",
-              )}
-            >
-              {isReady
-                ? "Ready"
-                : `${blockerCount} blocker${blockerCount === 1 ? "" : "s"}`}
-            </span>
-          </div>
+    <header className="flex flex-wrap items-start gap-4 pt-1">
+      <div className="grid min-w-0 gap-1.5">
+        <div className="text-[12.5px] text-content-3">
+          Sales · New order
         </div>
-        <div className="hidden rounded-[12px] border border-line bg-surface-2 p-3 md:block">
-          <div className="text-caption font-medium text-content-3">
-            Flow
-          </div>
-          <div className="mt-2 grid gap-1 text-xs font-medium text-content-2">
-            <span>1. Header</span>
-            <span>2. Line tabs</span>
-            <span>3. Axes + artwork</span>
-            <span>4. BOM + blockers</span>
-          </div>
+        <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.025em] text-content-1">
+          {customer ? `New order for ${customer.name}` : "New order"}
+        </h1>
+        <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-content-3">
+          <Pill tone={customer ? "ok" : "warn"}>
+            <CheckCircle2 className="h-3 w-3" /> customer {customer ? "set" : "needed"}
+          </Pill>
+          <Pill>
+            {lineCount} line{lineCount === 1 ? "" : "s"}
+          </Pill>
+          {cartTotalKg > 0 ? <Pill>{cartTotalKg.toLocaleString("en-IN")} kg</Pill> : null}
+          {cartTotalValue > 0 ? (
+            <Pill>₹{Math.round(cartTotalValue).toLocaleString("en-IN")}</Pill>
+          ) : null}
+          {lineCount > 0 ? (
+            <Pill tone={isReady ? "ok" : "warn"}>
+              {isReady ? "ready to place" : `${blockerCount} to fix`}
+            </Pill>
+          ) : null}
         </div>
       </div>
-    </section>
+      <div className="ml-auto flex items-center gap-2">
+        <nav
+          aria-label="Document kind"
+          className="inline-flex h-10 items-center rounded-[12px] border border-line-strong bg-surface-2 p-1"
+        >
+          <span
+            aria-current="page"
+            className="inline-flex h-8 items-center gap-2 rounded-[9px] bg-plate px-3 text-[13px] font-semibold text-plate-fg"
+          >
+            <span className="font-mono text-[10.5px] opacity-70">SO</span>Order
+          </span>
+          <Link
+            href={quoteHref}
+            className="inline-flex h-8 items-center gap-2 rounded-[9px] px-3 text-[13px] font-semibold text-content-3 transition hover:text-content-1"
+            data-testid="sales-create-switch-quotation"
+          >
+            <span className="font-mono text-[10.5px] opacity-70">QT</span>Quotation
+          </Link>
+        </nav>
+      </div>
+    </header>
   );
 }
 
 // ─── Customer header strip ───────────────────────────────────────
+
+function initials(name?: string) {
+  const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return (words[0]?.[0] || "?").toUpperCase() + (words[1]?.[0] || "").toUpperCase();
+}
 
 function CustomerHeaderStrip({
   customers,
@@ -466,8 +427,31 @@ function CustomerHeaderStrip({
 }) {
   const savedShipAddress = shipToAddress(customers, draft, customer);
   return (
-    <section className="rounded-[18px] border border-line bg-surface-1 p-3 shadow-sm">
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-6">
+    <section className="overflow-hidden rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
+      <div className="flex flex-wrap items-center gap-3.5 px-4 py-3.5 sm:px-5">
+        <span className="grid h-11 w-11 flex-none place-items-center rounded-[12px] bg-plate text-[15px] font-semibold text-plate-fg">
+          {customer ? initials(customer.name) : "?"}
+        </span>
+        <div className="min-w-[200px] flex-1">
+          <div className="truncate text-[17px] font-semibold tracking-[-0.015em] text-content-1">
+            {customer ? customer.name : "Who is this order for?"}
+          </div>
+          <div className="flex flex-wrap gap-x-2 text-[12.5px] text-content-3">
+            {customer ? (
+              <>
+                <span className="font-mono">{customer.code || "—"}</span>
+                {customer.gst_no ? <span>· GST {customer.gst_no}</span> : null}
+                {customer.credit_days ? <span>· {customer.credit_days} days credit</span> : null}
+                <span>· price basis kg by default</span>
+              </>
+            ) : (
+              <span>Type two letters to find a customer, or pick from the list.</span>
+            )}
+          </div>
+        </div>
+        {customer ? <Pill tone="ok" className="hidden sm:inline-flex">customer items resolve on save</Pill> : null}
+      </div>
+      <div className="grid grid-cols-1 gap-3 border-t border-line px-4 py-3.5 sm:grid-cols-2 sm:px-5 md:grid-cols-6">
         <SoField label="Bill to · customer" className="md:col-span-2">
           <CustomerQuickPick
             customers={customers}
@@ -505,12 +489,6 @@ function CustomerHeaderStrip({
               />
             </svg>
           </div>
-          {customer ? (
-            <div className="mt-1 truncate font-mono text-caption font-bold text-content-3">
-              {customer.code || "—"}
-              {customer.gst_no ? ` · GST ${customer.gst_no}` : ""}
-            </div>
-          ) : null}
         </SoField>
         <SoField label="Ship to">
           <SoSelect
@@ -525,14 +503,6 @@ function CustomerHeaderStrip({
               </option>
             ))}
           </SoSelect>
-        </SoField>
-        <SoField label="Order name">
-          <input
-            value={draft.order_name}
-            onChange={(e) => onSetOrderName(e.target.value)}
-            placeholder="e.g. ABC May order"
-            className={INP}
-          />
         </SoField>
         <SoField label="Promised dispatch">
           <input
@@ -552,12 +522,18 @@ function CustomerHeaderStrip({
             <Factory className="h-3.5 w-3.5 text-content-4" /> Auto · planner
           </div>
         </SoField>
-      </div>
-
-      <div className="mt-2.5 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)]">
+        <SoField label="Order name" hint="optional">
+          <input
+            value={draft.order_name}
+            onChange={(e) => onSetOrderName(e.target.value)}
+            placeholder="e.g. ABC May order"
+            className={INP}
+          />
+        </SoField>
         <SoField
           label="Ship address"
-          hint="editable · blank uses saved address"
+          hint="blank uses the saved address"
+          className="sm:col-span-2 md:col-span-6"
         >
           <textarea
             value={draft.address_override}
@@ -565,31 +541,144 @@ function CustomerHeaderStrip({
             placeholder={
               savedShipAddress || "Type the ship-to address manually"
             }
+            rows={2}
             className={cn(
               INP,
-              "h-[66px] resize-none py-2 text-[12px] font-semibold leading-5",
+              "h-auto min-h-[58px] resize-y py-2 leading-5",
             )}
           />
-          <div className="mt-1 truncate text-caption font-semibold text-content-3">
+          <div className="mt-1 truncate text-[12px] text-content-3">
             Saved ship address:{" "}
             {savedShipAddress || "not set for selected customer"}
           </div>
         </SoField>
       </div>
+    </section>
+  );
+}
 
-      {customer ? (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-caption font-bold">
-          <span className="rounded-full bg-success-bg px-2 py-0.5 text-success-fg ring-1 ring-success-border">
-            customer · {customer.name}
-          </span>
-          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-content-2 ring-1 ring-line">
-            price basis · KG (default)
-          </span>
-          <span className="rounded-full bg-order-bg px-2 py-0.5 text-order-fg ring-1 ring-order-border">
-            overlays resolved on save
-          </span>
+// ─── Add a line ──────────────────────────────────────────────────
+
+/** Find a product master and add it as a new line; the customer's usual items sit underneath. */
+function AddLineBar({
+  masters,
+  customerId,
+  customerName,
+  onAdd,
+}: {
+  masters: any[];
+  customerId: string;
+  customerName?: string;
+  onAdd: (seed?: any) => void;
+}) {
+  const [query, setQuery] = React.useState("");
+  const [open, setOpen] = React.useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const needle = query.trim().toLowerCase();
+  const matches = React.useMemo(() => {
+    if (!needle) return [];
+    return masters
+      .filter((m) => `${m.code} ${m.name} ${m.display_code || ""}`.toLowerCase().includes(needle))
+      .slice(0, 8);
+  }, [masters, needle]);
+  React.useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const pick = (id: string) => {
+    onAdd({ product_master: id });
+    setQuery("");
+    setOpen(false);
+  };
+  return (
+    <section className="rounded-[18px] border border-line bg-surface-1 p-3 shadow-[var(--shadow-sm)] sm:p-4" data-testid="sales-add-line-bar">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="relative">
+          <div className="flex h-12 items-center gap-3 rounded-[14px] border border-line-strong bg-surface-1 px-3.5 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-info-bg">
+            <Search className="h-[18px] w-[18px] flex-none text-content-3" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && matches[0]) {
+                  e.preventDefault();
+                  pick(String(matches[0].id));
+                }
+                if (e.key === "Escape") setOpen(false);
+              }}
+              placeholder="Add a line: type a product master code or name"
+              aria-label="Find a product to add"
+              className="min-w-0 flex-1 bg-transparent text-[15px] text-content-1 outline-none placeholder:text-content-4"
+              data-testid="sales-add-line-search"
+            />
+            <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 font-mono text-[11px] text-content-4 sm:inline">⌘ K</kbd>
+          </div>
+          {open && matches.length ? (
+            <ul
+              role="listbox"
+              aria-label="Matching products"
+              className="absolute z-30 mt-1.5 max-h-80 w-full overflow-y-auto rounded-[14px] border border-line bg-surface-1 p-1.5 shadow-[var(--shadow-lg)]"
+            >
+              {matches.map((m) => (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pick(String(m.id))}
+                    className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[10px] px-3 py-2 text-left hover:bg-surface-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14px] font-medium text-content-1">{m.name}</span>
+                      <span className="block font-mono text-[12px] text-content-3">{m.code}</span>
+                    </span>
+                    <span className="text-[12px] text-content-3">
+                      {(m.layer_template || []).length} layers · {String(m.product_kind || "").toLowerCase()}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
-      ) : null}
+        <Button variant="outline" onClick={() => onAdd()} className="h-12 gap-1.5 rounded-[14px] px-4">
+          <Plus className="h-4 w-4" /> Blank line
+        </Button>
+      </div>
+      <div className="mt-3">
+        <QuickStartBand
+          customerId={customerId}
+          customerName={customerName}
+          masters={masters}
+          onAdd={(seed) => onAdd(seed)}
+        />
+      </div>
+      <details className="group mt-3">
+        <summary
+          className="inline-flex cursor-pointer list-none items-center gap-1.5 text-[12.5px] font-medium text-content-3 hover:text-content-1"
+          data-testid="sales-quick-start-toggle"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          <span className="group-open:hidden">Show this customer&apos;s history</span>
+          <span className="hidden group-open:inline">Hide this customer&apos;s history</span>
+        </summary>
+        <div className="mt-2">
+          <CustomerContextPanel customerId={customerId} customerName={customerName} />
+        </div>
+      </details>
     </section>
   );
 }
@@ -679,67 +768,42 @@ function BlockerPanel({
   isReady: boolean;
 }) {
   return (
-    <section
-      className={cn(
-        "rounded-[18px] border p-4 shadow-sm",
-        isReady
-          ? "border-success-border bg-success-bg"
-          : "border-danger-border bg-danger-bg",
-      )}
-    >
-      <div className="flex items-center gap-2">
+    <section className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]" data-testid="sales-create-readiness">
+      <div className="flex items-center gap-2.5">
         <span
           className={cn(
-            "grid h-8 w-8 place-items-center rounded-xl text-white",
-            isReady ? "bg-success-fg" : "bg-danger-solid",
+            "grid h-8 w-8 place-items-center rounded-full",
+            isReady ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg",
           )}
         >
-          {isReady ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertTriangle className="h-4 w-4" />
-          )}
+          {isReady ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
         </span>
         <div>
-          <div
-            className={cn(
-              "text-caption font-semibold uppercase tracking-[0.12em]",
-              isReady ? "text-success-fg" : "text-danger-fg",
-            )}
-          >
-            {isReady ? "Ready to send" : "Submit blockers"}
+          <div className="text-[14px] font-semibold text-content-1">
+            {isReady ? "Ready to place" : "Before you place"}
           </div>
-          <div className="text-sm font-semibold text-content-1">
+          <div className="text-[12.5px] text-content-3">
             {isReady
-              ? "BOM and order checks are clear"
-              : `${blockingIssues.length} item${blockingIssues.length === 1 ? "" : "s"} need attention`}
+              ? "Customer, lines, artwork, packing and material plan are clear."
+              : `${blockingIssues.length} thing${blockingIssues.length === 1 ? "" : "s"} to fix`}
           </div>
         </div>
       </div>
       {blockingIssues.length ? (
-        <ul className="mt-3 space-y-1.5 text-xs font-bold text-danger-fg">
-          {blockingIssues.slice(0, 5).map((issue, index) => (
-            <li
-              key={`${issue}-${index}`}
-              className="rounded-lg bg-surface-1/80 px-2.5 py-1.5 ring-1 ring-danger-border"
-            >
-              {issue}
+        <ul className="mt-3 grid gap-1.5">
+          {blockingIssues.slice(0, 6).map((issue, index) => (
+            <li key={`${issue}-${index}`} className="flex items-start gap-2 text-[13px] text-content-1">
+              <span className="mt-[3px] grid h-[16px] w-[16px] flex-none place-items-center rounded-full bg-warning-bg text-[10px] font-bold text-warning-fg">!</span>
+              <span className="min-w-0">{issue}</span>
             </li>
           ))}
-          {blockingIssues.length > 5 ? (
-            <li className="px-2.5 text-caption text-danger-fg">
-              + {blockingIssues.length - 5} more blockers in the sticky bar
-            </li>
+          {blockingIssues.length > 6 ? (
+            <li className="pl-6 text-[12.5px] text-content-3">+ {blockingIssues.length - 6} more</li>
           ) : null}
         </ul>
-      ) : (
-        <div className="mt-3 rounded-lg bg-surface-1/80 px-2.5 py-2 text-xs font-bold text-success-fg ring-1 ring-success-border">
-          Customer, line axes, quantity, artwork/ink guards, packing and BOM
-          requirements are clear.
-        </div>
-      )}
+      ) : null}
       {warnings.length ? (
-        <div className="mt-2 rounded-lg bg-warning-bg px-2.5 py-2 text-xs font-bold text-warning-fg ring-1 ring-warning-border">
+        <div className="mt-3 rounded-[12px] bg-surface-2 px-3 py-2 text-[12.5px] text-content-2">
           {warnings[0]}
         </div>
       ) : null}
@@ -747,7 +811,7 @@ function BlockerPanel({
   );
 }
 
-// ─── Sticky cart bar ─────────────────────────────────────────────
+// ─── Place bar ───────────────────────────────────────────────────
 
 function StickyCartBar({
   lineCount,
@@ -760,6 +824,7 @@ function StickyCartBar({
   onSubmit,
   customerId,
   firstMasterId,
+  firstBlocker,
 }: {
   lineCount: number;
   cartTotalKg: number;
@@ -771,97 +836,66 @@ function StickyCartBar({
   isReady: boolean;
   isSubmitting: boolean;
   onSubmit: () => void;
+  firstBlocker?: string;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface-1/92 px-4 py-3 shadow-[0_-8px_24px_-16px_rgba(16,24,40,0.18)] backdrop-blur-md sm:px-6 lg:left-[var(--sidebar-width,16rem)]">
-      <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-caption font-medium text-content-3">
-              Cart
-            </span>
-            <span className="rounded-full bg-info-bg px-2.5 py-0.5 text-xs font-semibold text-primary ring-1 ring-info-border">
-              {lineCount} {lineCount === 1 ? "line" : "lines"}
-            </span>
-            {cartTotalKg > 0 ? (
-              <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-semibold text-success-fg ring-1 ring-success-border">
-                {cartTotalKg.toLocaleString()} KG
-              </span>
-            ) : null}
-            {cartTotalValue > 0 ? (
-              <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-content-2 ring-1 ring-line">
-                ₹{Math.round(cartTotalValue).toLocaleString()}
-              </span>
-            ) : null}
-          </div>
-          {blockingIssues.length > 0 || warnings.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-1.5 text-caption">
-              {blockingIssues.slice(0, 2).map((b, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 rounded-full bg-danger-bg px-2 py-0.5 font-medium text-danger-fg ring-1 ring-danger-border"
-                >
-                  <AlertTriangle className="h-3 w-3" />
-                  {b}
-                </span>
-              ))}
-              {blockingIssues.length > 2 ? (
-                <span className="text-danger-fg">
-                  + {blockingIssues.length - 2} more
-                </span>
-              ) : null}
-              {warnings.slice(0, 1).map((w, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 rounded-full bg-warning-bg px-2 py-0.5 font-medium text-warning-fg ring-1 ring-warning-border"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  {w}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Side exits: Confirm is the main road; a quotation or a stock order start from the same place. */}
-          <Button asChild variant="outline" className="h-11 rounded-xl" data-testid="sales-create-save-quotation">
-            <Link href={customerId ? `/sales/quotations/new?customer=${encodeURIComponent(customerId)}` : "/sales/quotations/new"}>
-              Save as quotation
-            </Link>
-          </Button>
-          <Button asChild variant="ghost" className="h-11 rounded-xl text-content-2" data-testid="sales-create-make-for-stock">
-            <Link href={firstMasterId ? `/dashboard/planner/control-tower/stock-launcher?master=${encodeURIComponent(firstMasterId)}` : "/dashboard/planner/control-tower/stock-launcher"}>
-              Make for stock
-            </Link>
-          </Button>
-          <Button
-            data-testid="sales-create-submit"
-            onClick={onSubmit}
-            disabled={!isReady || isSubmitting}
-            className={cn(
-              "h-11 gap-1.5 rounded-[10px]",
-              isReady
-                ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                : "bg-line text-content-3 shadow-none",
-            )}
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ClipboardCheck className="h-4 w-4" />
-            )}
-            Create + send to planner
-            <span className="hidden rounded-[4px] bg-white/15 px-1.5 py-0.5 text-caption font-medium sm:inline">
-              ⌘↵
-            </span>
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
+    <ActionBar testId="sales-create-bar">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-[22px] font-semibold tabular-nums tracking-[-0.025em] text-content-1">
+          {cartTotalValue > 0 ? `₹${Math.round(cartTotalValue).toLocaleString("en-IN")}` : "₹ —"}
+        </span>
+        <span className="text-[13px] text-content-2">
+          {lineCount} {lineCount === 1 ? "line" : "lines"}
+          {cartTotalKg > 0 ? ` · ${cartTotalKg.toLocaleString("en-IN")} kg` : ""}
+        </span>
+        {blockingIssues.length ? (
+          <Pill tone="warn" className="max-w-[min(420px,60vw)]">
+            <AlertTriangle className="h-3 w-3 flex-none" />
+            <span className="truncate">{firstBlocker}</span>
+            {blockingIssues.length > 1 ? <span className="flex-none">+{blockingIssues.length - 1}</span> : null}
+          </Pill>
+        ) : lineCount > 0 ? (
+          <Pill tone="ok">all lines ready</Pill>
+        ) : null}
+        {!blockingIssues.length && warnings.length ? (
+          <Pill className="max-w-[320px]">
+            <Sparkles className="h-3 w-3 flex-none" />
+            <span className="truncate">{warnings[0]}</span>
+          </Pill>
+        ) : null}
       </div>
-    </div>
+      <div className="grid w-full grid-cols-2 items-center gap-2 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap">
+        {/* Side exits: placing the order is the main road; a quotation or a stock order start from the same place. */}
+        <Button asChild variant="ghost" className="h-10 rounded-[11px] text-content-2" data-testid="sales-create-make-for-stock">
+          <Link href={firstMasterId ? `/dashboard/planner/control-tower/stock-launcher?master=${encodeURIComponent(firstMasterId)}` : "/dashboard/planner/control-tower/stock-launcher"}>
+            Make for stock
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="h-10 rounded-[11px]" data-testid="sales-create-save-quotation">
+          <Link href={customerId ? `/sales/quotations/new?customer=${encodeURIComponent(customerId)}` : "/sales/quotations/new"}>
+            Save as quotation
+          </Link>
+        </Button>
+        <Button
+          data-testid="sales-create-submit"
+          onClick={onSubmit}
+          disabled={!isReady || isSubmitting}
+          className="order-first col-span-2 h-11 gap-2 rounded-[11px] px-5 sm:order-none sm:h-10"
+        >
+          {isSubmitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ClipboardCheck className="h-4 w-4" />
+          )}
+          Place order
+          <span className="hidden rounded-[5px] bg-white/15 px-1.5 py-0.5 text-[11px] font-medium sm:inline">
+            ⌘↵
+          </span>
+        </Button>
+      </div>
+    </ActionBar>
   );
 }
-
 
 const RECENT_CUSTOMERS_KEY = "erp.sales.recentCustomers";
 

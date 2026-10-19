@@ -1012,7 +1012,7 @@ export function RollsWorkspaceV36() {
             />
 
             <div>
-              <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+              <div className="mb-1.5 text-[12px] font-semibold text-content-3">
                 Location
               </div>
               <select
@@ -1215,7 +1215,7 @@ function MatrixView({
                       "1": "bg-info-bg text-primary ring-1 ring-info-border",
                       "2": "bg-success-bg text-success-fg ring-1 ring-success-border",
                       "3": "bg-success-bg text-success-fg ring-1 ring-success-border",
-                      "4": "bg-gradient-to-br from-success-fg to-success-fg text-white shadow-sm",
+                      "4": "bg-success-fg text-white shadow-sm",
                     };
                     return (
                       <td key={col} className="px-2 py-1.5 text-center">
@@ -1246,7 +1246,7 @@ function MatrixView({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-4 py-2 text-right text-[12px] font-semibold text-content-3">
                 Total
               </td>
               {matrix.cols.map((c: number) => (
@@ -1308,7 +1308,7 @@ function TableView({
   }) => (
     <th
       className={cn(
-        "px-3 py-2 text-caption font-semibold uppercase tracking-wider text-content-3",
+        "px-3 py-2 text-[12px] font-semibold text-content-3",
         align || "text-left",
       )}
     >
@@ -1346,7 +1346,7 @@ function TableView({
               <Th k="roll_role" label="Role" />
               <Th k="location_code" label="Location" />
               <Th k="created_at" label="Created" />
-              <th className="px-3 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
+              <th className="px-3 py-2 text-right text-[12px] font-semibold text-content-3">
                 Action
               </th>
             </tr>
@@ -1605,7 +1605,7 @@ function CellDrawer({
         className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
@@ -1647,7 +1647,7 @@ function CellDrawer({
           )}
         </div>
         <div className="px-5 py-4">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+          <div className="text-[12px] font-semibold text-content-3 mb-2">
             Individual rolls
           </div>
           {!cell || cell.rollCount === 0 ? (
@@ -1700,7 +1700,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
         className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-info-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
@@ -1779,7 +1779,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Where
             </div>
             <div className="grid grid-cols-2 gap-2 text-caption">
@@ -1802,7 +1802,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Lifecycle
             </div>
             <div className="rounded-xl border border-line bg-surface-2 p-3 space-y-1 text-caption">
@@ -1850,7 +1850,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold text-content-1">
@@ -1871,7 +1871,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

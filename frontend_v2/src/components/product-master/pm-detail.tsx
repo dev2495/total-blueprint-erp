@@ -54,6 +54,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { SpecPlate } from "@/components/plate/spec-plate";
+import { specFromMasterLine } from "@/components/plate/spec-from-master";
 import { describeApiError } from "@/lib/api";
 import {
   productMasterService,
@@ -444,8 +446,8 @@ function TopBar({
   isToggling: boolean;
 }) {
   return (
-    <header className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-2xl border border-order-border bg-gradient-to-r from-white via-order-bg to-order-bg px-5 py-3 shadow-sm ring-1 ring-surface-1/40 backdrop-blur">
-      <div className="absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b from-order-fg via-order-fg to-order-fg" />
+    <header className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-2xl border border-order-border bg-surface-1 px-5 py-3 shadow-sm ring-1 ring-surface-1/40 backdrop-blur">
+      <div className="absolute inset-y-0 left-0 w-1.5 bg-plate" />
       <div className="relative flex items-center gap-3 min-w-0 pl-2">
         <Link
           href="/master/products"
@@ -468,8 +470,8 @@ function TopBar({
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-caption font-semibold tracking-wide ring-1 shadow-sm",
             master.active
-              ? "bg-gradient-to-r from-success-bg to-success-bg text-success-fg ring-success-border"
-              : "bg-gradient-to-r from-danger-bg to-danger-bg text-danger-fg ring-danger-border",
+              ? "bg-success-bg text-success-fg ring-success-border"
+              : "bg-danger-bg text-danger-fg ring-danger-border",
           )}
         >
           <span
@@ -505,7 +507,7 @@ function TopBar({
         </button>
         <button
           onClick={onEdit}
-          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-gradient-to-r from-order-fg via-order-fg to-order-fg px-3.5 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-order-fg hover:via-order-fg hover:to-order-fg transition"
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-caption font-semibold text-primary-foreground transition"
         >
           <Edit3 className="h-3.5 w-3.5" /> Edit
         </button>
@@ -524,43 +526,43 @@ const TAB_TONES: Record<
 > = {
   overview: {
     active:
-      "bg-gradient-to-r from-order-fg via-order-fg to-order-fg text-white shadow-md ring-1 ring-order-border",
+      "bg-plate text-white shadow-md ring-1 ring-order-border",
     hover: "text-content-3 hover:bg-order-bg hover:text-order-fg",
     chip: "bg-surface-1/25 text-white",
   },
   layer: {
     active:
-      "bg-gradient-to-r from-primary to-info-fg text-white shadow-md ring-1 ring-info-border",
+      "bg-primary text-white shadow-md ring-1 ring-info-border",
     hover: "text-content-3 hover:bg-info-bg hover:text-primary",
     chip: "bg-surface-1/25 text-white",
   },
   variants: {
     active:
-      "bg-gradient-to-r from-order-fg to-purple-600 text-white shadow-md ring-1 ring-order-border",
+      "bg-plate text-white shadow-md ring-1 ring-order-border",
     hover: "text-content-3 hover:bg-order-bg hover:text-order-fg",
     chip: "bg-surface-1/25 text-white",
   },
   sizes: {
     active:
-      "bg-gradient-to-r from-success-fg to-info-fg text-white shadow-md ring-1 ring-success-border",
+      "bg-success-fg text-white shadow-md ring-1 ring-success-border",
     hover: "text-content-3 hover:bg-success-bg hover:text-success-fg",
     chip: "bg-surface-1/25 text-white",
   },
   overlays: {
     active:
-      "bg-gradient-to-r from-warning-fg to-warm text-white shadow-md ring-1 ring-warning-border",
+      "bg-warning-fg text-white shadow-md ring-1 ring-warning-border",
     hover: "text-content-3 hover:bg-warning-bg hover:text-warning-fg",
     chip: "bg-surface-1/25 text-white",
   },
   artworks: {
     active:
-      "bg-gradient-to-r from-order-fg to-danger-solid text-white shadow-md ring-1 ring-order-border",
+      "bg-plate text-white shadow-md ring-1 ring-order-border",
     hover: "text-content-3 hover:bg-order-bg hover:text-order-fg",
     chip: "bg-surface-1/25 text-white",
   },
   audit: {
     active:
-      "bg-gradient-to-r from-surface-3 to-surface-3 text-white shadow-md ring-1 ring-line-strong",
+      "bg-plate text-white shadow-md ring-1 ring-line-strong",
     hover: "text-content-3 hover:bg-surface-2 hover:text-content-1",
     chip: "bg-surface-1/25 text-white",
   },
@@ -671,123 +673,116 @@ function OverviewTab({
         .join(" · ") || "current filter";
   return (
     <div className="space-y-4">
-      {/* Rich gradient hero + 4-KPI strip side-by-side */}
-      <section className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="relative overflow-hidden rounded-3xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg px-6 py-5 shadow-lg ring-1 ring-surface-1/40">
-          {/* Decorative blurred blobs */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-order-fg blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -bottom-24 left-10 h-56 w-56 rounded-full bg-order-fg blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute top-10 right-1/3 h-32 w-32 rounded-full bg-order-bg blur-2xl"
-          />
-          {/* Left accent stripe */}
-          <div className="absolute inset-y-0 left-0 w-2 bg-gradient-to-b from-order-fg via-order-fg to-order-fg shadow-[0_0_18px_2px_rgba(139,92,246,0.45)]" />
-          <div className="relative pl-3">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-order-bg to-order-bg px-2.5 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-order-fg ring-1 ring-order-border shadow-sm">
-                <Sparkles className="h-3 w-3" />
-                {master.product_kind}
+      {/* Summary card + the spec plate side by side */}
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="grid content-start gap-4 rounded-[18px] border border-line bg-surface-1 p-5 shadow-[var(--shadow-sm)]">
+          <div className="grid gap-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-content-3">
+              <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2.5 font-medium text-content-2">
+                {String(master.product_kind || "").toLowerCase()}
               </span>
-              <span className="text-caption font-bold uppercase tracking-[0.1em] text-content-3">
-                · Product master
-              </span>
+              <span>Product master</span>
             </div>
-            <h1 className="font-display text-3xl sm:text-4xl font-semibold text-content-1 mt-2 tracking-tight bg-gradient-to-br from-surface-3 via-order-fg to-order-fg bg-clip-text text-transparent">
+            <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.025em] text-content-1">
               {master.name}
             </h1>
             {master.description ? (
-              <p className="mt-2 text-sm text-content-2 max-w-3xl leading-relaxed">
+              <p className="max-w-3xl text-[13.5px] leading-relaxed text-content-3">
                 {master.description}
               </p>
             ) : null}
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-caption">
-              <FactCell
-                label="Master code"
-                tone="indigo"
-                value={
-                  <span className="font-mono font-semibold text-order-fg">
-                    {master.display_code || master.version_group || master.code.replace(/-V\d+$/i, "")}
-                  </span>
-                }
-              />
-              <FactCell
-                label="Family"
-                tone="violet"
-                value={
-                  <span className="font-bold text-order-fg">
-                    {master.default_reporting_group} · {master.product_kind}
-                  </span>
-                }
-              />
-              <FactCell
-                label="Reusable policy"
-                tone="emerald"
-                value={
-                  <span className="font-bold text-success-fg capitalize">
-                    {master.reusable_policy.toLowerCase()}
-                  </span>
-                }
-              />
-              <FactCell
-                label="Template"
-                tone="fuchsia"
-                value={
-                  <span className="font-bold text-order-fg truncate">
-                    {templateName}
-                  </span>
-                }
-              />
-            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <FactCell
+              label="Master code"
+              value={
+                <span className="font-mono font-semibold text-content-1">
+                  {master.display_code || master.version_group || master.code.replace(/-V\d+$/i, "")}
+                </span>
+              }
+            />
+            <FactCell
+              label="Family"
+              value={
+                <span className="font-semibold text-content-1">
+                  {master.default_reporting_group} · {master.product_kind}
+                </span>
+              }
+            />
+            <FactCell
+              label="Reusable policy"
+              value={
+                <span className="font-semibold capitalize text-content-1">
+                  {master.reusable_policy.toLowerCase()}
+                </span>
+              }
+            />
+            <FactCell
+              label="Template"
+              value={
+                <span className="truncate font-semibold text-content-1">
+                  {templateName}
+                </span>
+              }
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <KpiTile
+              label="Variants"
+              value={variants.length}
+              sub={`${variants.filter((v) => v.active).length} active`}
+            />
+            <KpiTile
+              label="Sizes"
+              value={sizes.length}
+              sub={
+                sizes.length
+                  ? `${sizes[0].code} → ${sizes[sizes.length - 1].code}`
+                  : "—"
+              }
+            />
+            <KpiTile
+              label="Overlays"
+              value={overlays.length}
+              sub={`${overlays.filter((o) => o.active).length} active`}
+            />
+            <KpiTile
+              label="Compatible artworks"
+              value={artworks.length}
+              sub={
+                artworkFilter?.needsSize
+                  ? "pick size"
+                  : artworks.length
+                    ? artworkContextLabel
+                    : artworkFilter?.reason || "none"
+              }
+            />
           </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          <KpiTile
-            label="Variants"
-            value={variants.length}
-            sub={`${variants.filter((v) => v.active).length} active`}
-            icon="🌀"
-            tone="violet"
-          />
-          <KpiTile
-            label="Sizes"
-            value={sizes.length}
-            sub={
-              sizes.length
-                ? `${sizes[0].code} → ${sizes[sizes.length - 1].code}`
-                : "—"
-            }
-            icon="📐"
-            tone="emerald"
-          />
-          <KpiTile
-            label="Overlays"
-            value={overlays.length}
-            sub={`${overlays.filter((o) => o.active).length} active`}
-            icon="👥"
-            tone="amber"
-          />
-          <KpiTile
-            label="Compatible artworks"
-            value={artworks.length}
-            sub={
-              artworkFilter?.needsSize
-                ? "pick size"
-                : artworks.length
-                  ? artworkContextLabel
-                  : artworkFilter?.reason || "none"
-            }
-            icon="🎨"
-            tone="fuchsia"
-          />
-        </div>
+        <SpecPlate
+          data={specFromMasterLine({ layers: master.layer_template, size: sizes[0], showRanges: true })}
+          caption="Spec plate"
+          captionRight={
+            <span className="text-plate-fg-3">
+              {sizes[0] ? `first size · ${sizes[0].code}` : "no size yet"}
+            </span>
+          }
+          facts={[
+            { label: "Route", value: templateName || "" },
+            {
+              label: "Print",
+              value: master.fixed_attributes?.print_capable
+                ? master.fixed_attributes?.artwork_required
+                  ? "compulsory"
+                  : "capable"
+                : "plain",
+            },
+            { label: "Sizes", value: `${sizes.length}` },
+          ]}
+          narrow
+          testId="pm-detail-spec-plate"
+          emptyText="Add a layer and a size to see the spec."
+        />
       </section>
 
       {/* Live route preview ribbon */}
@@ -978,22 +973,22 @@ function PrintingContractSummaryCard({
 const FACT_TONES: Record<string, { bg: string; ring: string; label: string }> =
   {
     indigo: {
-      bg: "bg-gradient-to-br from-white to-order-bg",
+      bg: "bg-surface-1",
       ring: "ring-order-border",
       label: "text-order-fg",
     },
     violet: {
-      bg: "bg-gradient-to-br from-white to-order-bg",
+      bg: "bg-surface-1",
       ring: "ring-order-border",
       label: "text-order-fg",
     },
     emerald: {
-      bg: "bg-gradient-to-br from-white to-success-bg",
+      bg: "bg-surface-1",
       ring: "ring-success-border",
       label: "text-success-fg",
     },
     fuchsia: {
-      bg: "bg-gradient-to-br from-white to-order-bg",
+      bg: "bg-surface-1",
       ring: "ring-order-border",
       label: "text-order-fg",
     },
@@ -1007,30 +1002,15 @@ const FACT_TONES: Record<string, { bg: string; ring: string; label: string }> =
 function FactCell({
   label,
   value,
-  tone = "slate",
 }: {
   label: string;
   value: React.ReactNode;
   tone?: keyof typeof FACT_TONES;
 }) {
-  const t = FACT_TONES[tone] || FACT_TONES.slate;
   return (
-    <div
-      className={cn(
-        "rounded-xl px-3 py-2 ring-1 shadow-sm backdrop-blur",
-        t.bg,
-        t.ring,
-      )}
-    >
-      <div
-        className={cn(
-          "text-caption font-semibold uppercase tracking-[0.1em]",
-          t.label,
-        )}
-      >
-        {label}
-      </div>
-      <div className="mt-0.5 truncate">{value}</div>
+    <div className="min-w-0 rounded-[12px] bg-surface-2 px-3 py-2">
+      <div className="text-[11px] font-medium text-content-3">{label}</div>
+      <div className="mt-0.5 truncate text-[13px]">{value}</div>
     </div>
   );
 }
@@ -1047,47 +1027,47 @@ const KPI_TONES: Record<
   }
 > = {
   violet: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-purple-50/60",
+    wrap: "border-order-border bg-surface-2",
     iconBg:
-      "bg-gradient-to-br from-order-fg to-purple-500 text-white shadow-md",
+      "bg-plate text-white shadow-md",
     label: "text-order-fg",
     value: "text-order-fg",
     sub: "text-order-fg",
-    stripe: "bg-gradient-to-r from-order-fg to-purple-500",
+    stripe: "bg-plate",
   },
   emerald: {
-    wrap: "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg",
+    wrap: "border-success-border bg-success-bg",
     iconBg:
-      "bg-gradient-to-br from-success-fg to-success-bg0 text-white shadow-md",
+      "bg-success-fg text-white shadow-md",
     label: "text-success-fg",
     value: "text-success-fg",
     sub: "text-success-fg",
-    stripe: "bg-gradient-to-r from-success-fg to-success-bg0",
+    stripe: "bg-success-fg",
   },
   amber: {
-    wrap: "border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm",
-    iconBg: "bg-gradient-to-br from-warning-fg to-warm text-white shadow-md",
+    wrap: "border-warning-border bg-warning-bg",
+    iconBg: "bg-warning-fg text-white shadow-md",
     label: "text-warning-fg",
     value: "text-warning-fg",
     sub: "text-warning-fg",
-    stripe: "bg-gradient-to-r from-warning-fg to-warm",
+    stripe: "bg-warning-fg",
   },
   fuchsia: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-danger-bg",
+    wrap: "border-order-border bg-surface-2",
     iconBg:
-      "bg-gradient-to-br from-order-fg to-danger-solid text-white shadow-md",
+      "bg-plate text-white shadow-md",
     label: "text-order-fg",
     value: "text-order-fg",
     sub: "text-order-fg",
-    stripe: "bg-gradient-to-r from-order-fg to-danger-solid",
+    stripe: "bg-plate",
   },
   indigo: {
-    wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-info-bg",
-    iconBg: "bg-gradient-to-br from-order-fg to-primary text-white shadow-md",
+    wrap: "border-order-border bg-surface-2",
+    iconBg: "bg-plate text-white shadow-md",
     label: "text-order-fg",
     value: "text-order-fg",
     sub: "text-order-fg",
-    stripe: "bg-gradient-to-r from-order-fg to-primary",
+    stripe: "bg-plate",
   },
 };
 
@@ -1095,8 +1075,6 @@ function KpiTile({
   label,
   value,
   sub,
-  icon,
-  tone = "indigo",
 }: {
   label: string;
   value: number | string;
@@ -1104,51 +1082,16 @@ function KpiTile({
   icon?: string;
   tone?: keyof typeof KPI_TONES;
 }) {
-  const t = KPI_TONES[tone] || KPI_TONES.indigo;
   return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-2xl border p-3 shadow-sm ring-1 ring-surface-1/40",
-        t.wrap,
-      )}
-    >
-      <div className={cn("absolute inset-x-0 top-0 h-1", t.stripe)} />
-      <div className="flex items-start justify-between">
-        <div
-          className={cn(
-            "text-caption font-semibold uppercase tracking-[0.1em]",
-            t.label,
-          )}
-        >
-          {label}
-        </div>
-        {icon ? (
-          <span
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-xl text-sm",
-              t.iconBg,
-            )}
-          >
-            {icon}
-          </span>
-        ) : null}
-      </div>
-      <div
-        className={cn(
-          "mt-1.5 font-display text-3xl font-semibold tabular-nums tracking-tight",
-          t.value,
-        )}
-      >
+    <div className="min-w-0 rounded-[12px] border border-line px-3 py-2.5">
+      <div className="text-[11px] font-medium text-content-3">{label}</div>
+      <div className="text-[22px] font-semibold leading-tight tabular-nums tracking-[-0.02em] text-content-1">
         {value}
       </div>
-      {sub ? (
-        <div className={cn("text-caption font-bold truncate", t.sub)}>{sub}</div>
-      ) : null}
+      {sub ? <div className="truncate text-[12px] text-content-3">{sub}</div> : null}
     </div>
   );
 }
-
-// ─── Overview · Layer template card ───────────────────────────────
 
 function LayerTemplateCard({ master }: { master: ProductMaster }) {
   const layers = normalizedMasterLayers(master);
@@ -1204,7 +1147,7 @@ function LayerTemplateCard({ master }: { master: ProductMaster }) {
                     >
                       L{i + 1}
                     </span>
-                    <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
+                    <span className="text-[12px] font-semibold text-content-3">
                       {l.role || `layer-${i + 1}`}
                       {variable ? " · variable" : ""}
                     </span>
@@ -1323,7 +1266,7 @@ function ChemistryDefaultsCard({ master }: { master: ProductMaster }) {
                 !configured && "border-line bg-surface-2",
               )}
             >
-              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 {row.label}
               </div>
               <div className="mt-1 font-mono text-sm font-semibold text-content-1">
@@ -2069,7 +2012,7 @@ function RoutePreviewCard({
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
       <header className="flex items-center justify-between border-b border-line px-5 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-order-fg to-order-fg text-white shadow-sm">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-plate text-white shadow-sm">
             ⇆
           </span>
           <div>
@@ -2095,7 +2038,7 @@ function RoutePreviewCard({
           </div>
         ) : (
           <div className="flex flex-wrap items-stretch gap-2">
-            <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-line-strong px-3 text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="flex h-14 min-w-[64px] flex-col items-center justify-center rounded-xl border border-dashed border-line-strong px-3 text-[12px] font-semibold text-content-3">
               <span>🚩</span>
               <span className="mt-0.5">Start</span>
             </div>
@@ -2436,7 +2379,7 @@ function VariantInventoryLinkPanel({
   return (
     <>
       {link ? (
-        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-success-bg via-white to-success-bg px-2 py-1.5 ring-1 ring-success-border">
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-success-bg px-2 py-1.5 ring-1 ring-success-border">
           <div className="min-w-0">
             <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
               Catalog SKU
@@ -2629,7 +2572,7 @@ function RecentActivityCard({
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
       <header className="border-b border-line px-4 py-3">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Recent activity
         </div>
         <h3 className="font-display text-sm font-bold text-content-1">
@@ -2684,7 +2627,7 @@ function QuickLinksCard({ master }: { master: ProductMaster }) {
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
       <header className="border-b border-line px-4 py-3">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Quick links
         </div>
       </header>
@@ -2699,7 +2642,7 @@ function QuickLinksCard({ master }: { master: ProductMaster }) {
         ) : (
           <Link
             href={kind === "PACKAGING" ? "/master/packaging" : "/master/pod"}
-            className="flex items-center justify-between rounded-lg bg-gradient-to-r from-order-bg to-order-bg hover:from-order-bg hover:to-order-bg px-3 py-2 font-bold text-order-fg ring-1 ring-order-border"
+            className="flex items-center justify-between rounded-lg bg-surface-2 hover:from-order-bg hover:to-order-bg px-3 py-2 font-bold text-order-fg ring-1 ring-order-border"
           >
             Open catalog ·{" "}
             {kind === "PACKAGING" ? "/master/packaging" : "/master/pod"}{" "}
@@ -2743,7 +2686,7 @@ function OwnershipCard({
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
       <header className="border-b border-line px-4 py-3">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Ownership
         </div>
       </header>
@@ -2813,13 +2756,13 @@ function LayerTab({ master }: { master: ProductMaster }) {
         icon={<Layers className="h-5 w-5" />}
       />
       <LayerTemplateCard master={master} />
-      <div className="relative overflow-hidden rounded-2xl border border-info-border bg-gradient-to-br from-info-bg via-white to-info-bg p-5 text-[12px] text-primary shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-info-border bg-surface-2 p-5 text-[12px] text-primary shadow-sm">
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-info-bg blur-3xl"
+          className="hidden pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-info-bg blur-3xl"
         />
         <div className="relative flex items-start gap-3">
-          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-primary to-info-fg text-white shadow-md">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-primary text-white shadow-md">
             <BookOpen className="h-4 w-4" />
           </span>
           <div>
@@ -2868,53 +2811,53 @@ function TabBanner({
     }
   > = {
     blue: {
-      wrap: "border-info-border bg-gradient-to-br from-info-bg via-white to-info-bg",
-      stripe: "bg-gradient-to-b from-primary to-info-fg",
-      iconBg: "bg-gradient-to-br from-primary to-info-fg text-white shadow-md",
+      wrap: "border-info-border bg-surface-2",
+      stripe: "bg-primary",
+      iconBg: "bg-primary text-white shadow-md",
       eyebrow: "text-primary",
       subtitle: "text-primary",
       blob: "bg-info-bg",
     },
     violet: {
-      wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-purple-50/60",
-      stripe: "bg-gradient-to-b from-order-fg to-purple-500",
+      wrap: "border-order-border bg-surface-2",
+      stripe: "bg-plate",
       iconBg:
-        "bg-gradient-to-br from-order-fg to-purple-500 text-white shadow-md",
+        "bg-plate text-white shadow-md",
       eyebrow: "text-order-fg",
       subtitle: "text-order-fg",
       blob: "bg-order-bg",
     },
     emerald: {
-      wrap: "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg",
-      stripe: "bg-gradient-to-b from-success-fg to-success-bg0",
+      wrap: "border-success-border bg-success-bg",
+      stripe: "bg-success-fg",
       iconBg:
-        "bg-gradient-to-br from-success-fg to-success-bg0 text-white shadow-md",
+        "bg-success-fg text-white shadow-md",
       eyebrow: "text-success-fg",
       subtitle: "text-success-fg",
       blob: "bg-success-bg",
     },
     amber: {
-      wrap: "border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm",
-      stripe: "bg-gradient-to-b from-warning-fg to-warm",
-      iconBg: "bg-gradient-to-br from-warning-fg to-warm text-white shadow-md",
+      wrap: "border-warning-border bg-warning-bg",
+      stripe: "bg-warning-fg",
+      iconBg: "bg-warning-fg text-white shadow-md",
       eyebrow: "text-warning-fg",
       subtitle: "text-warning-fg",
       blob: "bg-warning-bg",
     },
     fuchsia: {
-      wrap: "border-order-border bg-gradient-to-br from-order-bg via-white to-danger-bg",
-      stripe: "bg-gradient-to-b from-order-fg to-danger-solid",
+      wrap: "border-order-border bg-surface-2",
+      stripe: "bg-plate",
       iconBg:
-        "bg-gradient-to-br from-order-fg to-danger-solid text-white shadow-md",
+        "bg-plate text-white shadow-md",
       eyebrow: "text-order-fg",
       subtitle: "text-order-fg",
       blob: "bg-order-bg",
     },
     slate: {
-      wrap: "border-line bg-gradient-to-br from-surface-2 via-white to-surface-2",
-      stripe: "bg-gradient-to-b from-surface-2 to-surface-3",
+      wrap: "border-line bg-surface-2",
+      stripe: "bg-surface-2",
       iconBg:
-        "bg-gradient-to-br from-surface-2 to-surface-3 text-white shadow-md",
+        "bg-plate text-plate-fg",
       eyebrow: "text-content-2",
       subtitle: "text-content-2",
       blob: "bg-line",
@@ -2931,7 +2874,7 @@ function TabBanner({
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full blur-3xl",
+          "hidden pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full blur-3xl",
           t.blob,
         )}
       />
@@ -3000,7 +2943,7 @@ function VariantsTab({
         right={
           <Link
             href={`/master/products/${master.id}/variants/new`}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-order-fg to-purple-600 px-3.5 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-order-fg hover:to-purple-700 transition"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-caption font-semibold text-primary-foreground transition"
           >
             <Plus className="h-3.5 w-3.5" /> Create variant
           </Link>
@@ -3012,7 +2955,7 @@ function VariantsTab({
         sizes={sizes}
       />
       <section className="rounded-2xl border border-order-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
-        <header className="flex items-center justify-end gap-2 border-b border-order-border bg-gradient-to-r from-white via-order-bg to-purple-50/30 px-5 py-2.5">
+        <header className="flex items-center justify-end gap-2 border-b border-order-border bg-surface-1 px-5 py-2.5">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-success-fg animate-pulse" />{" "}
             live preview
@@ -3078,7 +3021,7 @@ function MaterialBreakdownSection({
   const kind = String(master?.product_kind || "").toUpperCase();
   const isPackOrPod = kind === "PACKAGING" || kind === "POD";
   return (
-    <section className="rounded-2xl border border-success-border bg-gradient-to-br from-white via-success-bg to-success-bg shadow-sm overflow-hidden ring-1 ring-surface-1/40">
+    <section className="rounded-2xl border border-success-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
       <header className="flex items-center justify-between border-b border-success-border px-5 py-3">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-bg text-success-fg">
@@ -3205,7 +3148,7 @@ function MaterialBreakdownCard({
 
       {/* Layer table */}
       <div className="px-4 py-3">
-        <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-2">
+        <div className="text-[12px] font-semibold text-content-3 mb-2">
           Layer stack (top → bottom)
         </div>
         <div className="space-y-1.5">
@@ -3253,14 +3196,14 @@ function MaterialBreakdownCard({
 
       {/* Geometry */}
       <div className="border-t border-line bg-surface-2 px-4 py-3">
-        <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-2">
+        <div className="text-[12px] font-semibold text-content-3 mb-2">
           Geometry preview
         </div>
         <div className="flex items-center gap-3">
           <div className="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-dashed border-line-strong bg-surface-1">
             {widthMm && heightMm ? (
               <div
-                className="bg-gradient-to-br from-order-bg to-order-bg ring-1 ring-order-border"
+                className="bg-surface-2 ring-1 ring-order-border"
                 style={{
                   width: `${Math.min(48, widthMm / 6)}px`,
                   height: `${Math.min(54, heightMm / 6)}px`,
@@ -3359,7 +3302,7 @@ function SizesTab({
       <section className="rounded-2xl border border-success-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
         {sizes.length === 0 ? (
           <div className="p-10 text-center">
-            <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-success-bg to-success-bg flex items-center justify-center text-2xl">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-success-bg flex items-center justify-center text-2xl">
               📐
             </div>
             <div className="mt-3 text-sm font-bold text-content-2">
@@ -3372,7 +3315,7 @@ function SizesTab({
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
-              <thead className="border-b border-success-border bg-gradient-to-r from-success-bg via-success-bg to-info-bg text-success-fg">
+              <thead className="border-b border-success-border bg-success-bg text-success-fg">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.08em] text-caption">
                     Code
@@ -3428,7 +3371,7 @@ function SizesTab({
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-caption">
-                      <span className="rounded-md bg-gradient-to-r from-success-bg to-info-bg px-2 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
+                      <span className="rounded-md bg-success-bg px-2 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
                         {isRoll ? s.roll_form || "—" : s.pouch_style || "—"}
                       </span>
                     </td>
@@ -3507,7 +3450,7 @@ function OverlaysTab({
         right={
           <button
             onClick={onAdd}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-gradient-to-r from-warning-fg to-warm px-3.5 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-warning-fg hover:to-warm transition"
+            className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-warning-fg px-3.5 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-warning-fg hover:to-warm transition"
           >
             <Plus className="h-3.5 w-3.5" /> Add overlay
           </button>
@@ -3515,13 +3458,13 @@ function OverlaysTab({
       />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section className="rounded-2xl border border-warning-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
-          <header className="flex items-center justify-between border-b border-warning-border bg-gradient-to-r from-warning-bg via-white to-warm px-5 py-2.5">
+          <header className="flex items-center justify-between border-b border-warning-border bg-warning-bg px-5 py-2.5">
             <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">
               Cards · click for live BOM preview
             </div>
             <button
               onClick={onAdd}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-gradient-to-r from-warning-fg to-warm px-3 text-caption font-bold text-white shadow-sm hover:shadow-md transition"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-warning-fg px-3 text-caption font-bold text-white shadow-sm hover:shadow-md transition"
             >
               <Plus className="h-3.5 w-3.5" /> Add overlay
             </button>
@@ -3661,10 +3604,10 @@ function ArtworksTab({
 }) {
   if (!master.fixed_attributes?.print_capable) {
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-surface-2 via-white to-surface-2 p-10 text-center shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-line bg-surface-2 p-10 text-center shadow-sm">
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-line blur-3xl"
+          className="hidden pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-line blur-3xl"
         />
         <Palette className="relative mx-auto h-10 w-10 text-content-4" />
         <div className="relative mt-3 font-display text-sm font-bold text-content-2">
@@ -3696,7 +3639,7 @@ function ArtworksTab({
       <section className="rounded-2xl border border-order-border bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
         {artworks.length === 0 ? (
           <div className="p-10 text-center">
-            <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-order-bg to-danger-bg flex items-center justify-center">
+            <div className="mx-auto h-12 w-12 rounded-2xl bg-surface-2 flex items-center justify-center">
               <Palette className="h-5 w-5 text-order-fg" />
             </div>
             <div className="mt-3 text-sm font-bold text-content-2">
@@ -3714,11 +3657,11 @@ function ArtworksTab({
             {artworks.map((a) => (
               <div
                 key={a.id}
-                className="group relative overflow-hidden rounded-2xl border border-order-border bg-gradient-to-br from-white via-order-bg to-danger-bg p-4 shadow-sm transition hover:shadow-lg hover:border-order-border hover:-translate-y-0.5"
+                className="group relative overflow-hidden rounded-2xl border border-order-border bg-surface-1 p-4 shadow-sm transition hover:shadow-lg hover:border-order-border hover:-translate-y-0.5"
               >
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute -top-10 -right-10 h-24 w-24 rounded-full bg-danger-bg blur-2xl transition group-hover:bg-danger-fg"
+                  className="hidden pointer-events-none absolute -top-10 -right-10 h-24 w-24 rounded-full bg-danger-bg blur-2xl transition group-hover:bg-danger-fg"
                 />
                 <div className="relative flex items-center justify-between">
                   <span className="font-mono text-xs font-semibold text-order-fg truncate">
@@ -3767,17 +3710,17 @@ function AuditPlaceholder({ masterId }: { masterId: string }) {
         subtitle="Master / variant / overlay edits all stream into the system audit centre"
         icon={<ShieldCheck className="h-5 w-5" />}
       />
-      <section className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-surface-2 via-white to-order-bg p-10 text-center shadow-sm ring-1 ring-surface-1/40">
+      <section className="relative overflow-hidden rounded-2xl border border-line bg-surface-2 p-10 text-center shadow-sm ring-1 ring-surface-1/40">
         <div
           aria-hidden
-          className="pointer-events-none absolute -top-16 -left-16 h-48 w-48 rounded-full bg-order-bg blur-3xl"
+          className="hidden pointer-events-none absolute -top-16 -left-16 h-48 w-48 rounded-full bg-order-bg blur-3xl"
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-line blur-3xl"
+          className="hidden pointer-events-none absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-line blur-3xl"
         />
         <div className="relative">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-surface-2 to-surface-3 text-white shadow-md">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-plate text-plate-fg">
             <ShieldCheck className="h-6 w-6" />
           </div>
           <div className="mt-4 font-display text-base font-semibold text-content-1">
@@ -3790,7 +3733,7 @@ function AuditPlaceholder({ masterId }: { masterId: string }) {
           </p>
           <Link
             href={`/system/audit?ref=product-master&id=${masterId}`}
-            className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-surface-3 to-surface-3 px-4 py-2 text-caption font-semibold text-white shadow-md hover:shadow-lg hover:from-surface-3 hover:to-black transition"
+            className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-caption font-semibold text-primary-foreground transition"
           >
             Open audit centre <ArrowRight className="h-3.5 w-3.5" />
           </Link>
@@ -3845,9 +3788,9 @@ function ProductionCatalogMapCard({
   const sample = linked.slice(0, 4);
   return (
     <section className="rounded-2xl border border-order-border bg-surface-1 shadow-sm overflow-hidden">
-      <header className="flex items-center justify-between border-b border-order-border bg-gradient-to-r from-order-bg via-white to-order-bg px-5 py-3">
+      <header className="flex items-center justify-between border-b border-order-border bg-surface-2 px-5 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-order-fg to-order-fg text-white shadow-sm">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-plate text-white shadow-sm">
             <Database className="h-4 w-4" />
           </span>
           <div>
@@ -3877,7 +3820,7 @@ function ProductionCatalogMapCard({
       <div className="p-5 space-y-3">
         {/* KPI strip */}
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg to-white px-3 py-2">
+          <div className="rounded-xl border border-order-border bg-surface-2 px-3 py-2">
             <div className="text-caption font-semibold uppercase tracking-wider text-order-fg">
               Variants
             </div>
@@ -3885,7 +3828,7 @@ function ProductionCatalogMapCard({
               {variants.length}
             </div>
           </div>
-          <div className="rounded-xl border border-success-border bg-gradient-to-br from-success-bg to-white px-3 py-2">
+          <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2">
             <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
               Linked SKUs
             </div>
@@ -3893,7 +3836,7 @@ function ProductionCatalogMapCard({
               {linked.length}
             </div>
           </div>
-          <div className="rounded-xl border border-warning-border bg-gradient-to-br from-warning-bg to-white px-3 py-2">
+          <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2">
             <div className="text-caption font-semibold uppercase tracking-wider text-warning-fg">
               Total stock
             </div>
@@ -3906,7 +3849,7 @@ function ProductionCatalogMapCard({
         {/* Sample of linked variants */}
         {sample.length > 0 ? (
           <div className="space-y-1.5">
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Sample · first {sample.length} of {linked.length}
             </div>
             {sample.map((v) => (
@@ -4015,9 +3958,9 @@ function PackagingContractCard({
 
   return (
     <section className="rounded-2xl border border-success-border bg-surface-1 shadow-sm overflow-hidden">
-      <header className="flex items-center justify-between border-b border-success-border bg-gradient-to-r from-success-bg via-white to-success-bg px-5 py-3">
+      <header className="flex items-center justify-between border-b border-success-border bg-success-bg px-5 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-success-fg to-success-bg0 text-white shadow-sm">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-fg text-white shadow-sm">
             <Package className="h-4 w-4" />
           </span>
           <div>
@@ -4042,7 +3985,7 @@ function PackagingContractCard({
         {/* Inner pouch — POUCH only */}
         {kind === "POUCH" ? (
           innerCodes.length > 0 ? (
-            <div className="rounded-xl border border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm px-3 py-2.5 ring-1 ring-warning-border">
+            <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 ring-1 ring-warning-border">
               <div className="flex items-center justify-between gap-2">
                 <div className="text-caption font-semibold uppercase tracking-wider text-warning-fg">
                   Inner pouch · axis-pickable
@@ -4092,7 +4035,7 @@ function PackagingContractCard({
 
         {/* POD — all kinds */}
         {podCodes.length > 0 ? (
-          <div className="rounded-xl border border-order-border bg-gradient-to-br from-order-bg via-white to-danger-bg px-3 py-2.5 ring-1 ring-order-border">
+          <div className="rounded-xl border border-order-border bg-surface-2 px-3 py-2.5 ring-1 ring-order-border">
             <div className="flex items-center justify-between gap-2">
               <div className="text-caption font-semibold uppercase tracking-wider text-order-fg">
                 POD · axis-pickable · sales picks per order
@@ -4128,13 +4071,13 @@ function PackagingContractCard({
         ) : null}
 
         {/* Outer / EOD-tagged · informational, never editable from this page */}
-        <div className="rounded-xl border border-line bg-gradient-to-br from-surface-2 via-white to-surface-2 px-3 py-2.5">
+        <div className="rounded-xl border border-line bg-surface-2 px-3 py-2.5">
           <div className="flex items-start gap-2">
-            <span className="flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-surface-2 to-surface-3 text-white">
+            <span className="flex h-7 w-7 flex-none items-center justify-center rounded-lg bg-plate text-plate-fg">
               <Package className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Outer + EOD extras · packing yard tags per order
               </div>
               <div className="mt-0.5 text-caption text-content-3">
@@ -4715,10 +4658,10 @@ function CreateOverlayDialog({
     >
       <DialogContent className="max-w-6xl max-h-[92vh] rounded-2xl p-0 overflow-hidden flex flex-col">
         {/* Gradient header */}
-        <div className="flex-none border-b border-order-border bg-gradient-to-r from-order-bg via-white to-success-bg px-6 py-4">
+        <div className="flex-none border-b border-order-border bg-surface-2 px-6 py-4">
           <DialogHeader>
             <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-order-fg to-success-fg text-white shadow-sm">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-plate text-white shadow-sm">
                 <Users className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1">
@@ -4751,7 +4694,7 @@ function CreateOverlayDialog({
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Customer <span className="text-danger-fg">*</span>
                   </Label>
                   <Select value={customer} onValueChange={setCustomer}>
@@ -4769,7 +4712,7 @@ function CreateOverlayDialog({
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Customer item code
                   </Label>
                   <Input
@@ -4782,7 +4725,7 @@ function CreateOverlayDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Display name (customer-facing)
                   </Label>
                   <Input
@@ -4793,7 +4736,7 @@ function CreateOverlayDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Price basis
                   </Label>
                   <Select
@@ -4810,7 +4753,7 @@ function CreateOverlayDialog({
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Minimum order (kg)
                   </Label>
                   <Input
@@ -4849,7 +4792,7 @@ function CreateOverlayDialog({
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Default size lock
                   </Label>
                   <Select
@@ -4875,7 +4818,7 @@ function CreateOverlayDialog({
                 </div>
                 {podAllowed.length > 0 ? (
                   <div>
-                    <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                    <Label className="text-[12px] font-semibold text-content-3">
                       Default POD
                     </Label>
                     <Select
@@ -4902,7 +4845,7 @@ function CreateOverlayDialog({
                 ) : null}
               </div>
               {packagingAxes.length > 0 ? (
-                <div className="mt-3 rounded-2xl border border-warning-border bg-gradient-to-br from-warning-bg via-white to-warm p-3 shadow-sm">
+                <div className="mt-3 rounded-2xl border border-warning-border bg-warning-bg p-3 shadow-sm">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg">
                       Inner pouch (only packing on master)
@@ -4938,7 +4881,7 @@ function CreateOverlayDialog({
                     return (
                       <div key={key} className="space-y-2">
                         <div>
-                          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                          <Label className="text-[12px] font-semibold text-content-3">
                             Default inner pouch SKU
                           </Label>
                           <Select
@@ -5080,7 +5023,7 @@ function CreateOverlayDialog({
                       const value = overrideValues[key] || "";
                       return (
                         <div key={key}>
-                          <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                          <Label className="text-[12px] font-semibold text-content-3">
                             {ax.label || key}
                           </Label>
                           {allowed.length > 0 ? (
@@ -5140,7 +5083,7 @@ function CreateOverlayDialog({
                 eyebrow="3 · Artwork"
                 title="Customer-facing approved artwork"
               >
-                <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+                <Label className="text-[12px] font-semibold text-content-3">
                   Default approved artwork
                 </Label>
                 <Select
@@ -5242,7 +5185,7 @@ function CreateOverlayDialog({
             <Button
               disabled={!customer || createMutation.isPending}
               onClick={() => createMutation.mutate()}
-              className="rounded-xl bg-gradient-to-r from-order-fg to-success-fg text-white shadow-md hover:shadow-lg"
+              className="rounded-xl bg-plate text-white shadow-md hover:shadow-lg"
             >
               {createMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -5271,7 +5214,7 @@ function OverlaySection({
 }) {
   return (
     <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden">
-      <header className="border-b border-line bg-gradient-to-r from-surface-2 via-white to-white px-4 py-2.5 flex items-center justify-between">
+      <header className="border-b border-line bg-surface-2 px-4 py-2.5 flex items-center justify-between">
         <div>
           <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
             {eyebrow}

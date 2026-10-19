@@ -162,7 +162,7 @@ export default function LineBomCostEditor({
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-[1040px] w-full text-xs">
-                <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-wider text-content-4">
+                <thead className="bg-surface-2 text-[12px] font-semibold text-content-3">
                   <tr>
                     <th className="px-3 py-2 text-left">BOM item</th>
                     <th className="px-3 py-2 text-left">Qty basis</th>
@@ -181,7 +181,7 @@ export default function LineBomCostEditor({
                       <tr key={`${row.role}-${row.sequence}-${row.material_id}`} className="align-top">
                         <td className="px-3 py-2.5">
                           <div className="font-semibold text-content-1">{row.code || row.name}</div>
-                          <div className="text-caption font-bold uppercase tracking-wider text-content-4">{row.role} · {row.name}</div>
+                          <div className="text-[12px] font-semibold text-content-3">{row.role} · {row.name}</div>
                         </td>
                         <td className="px-3 py-2.5 font-mono font-bold">{money(row.qty)} {row.uom}</td>
                         <td className="px-3 py-2.5">

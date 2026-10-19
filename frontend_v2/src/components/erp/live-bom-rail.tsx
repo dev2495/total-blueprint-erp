@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Sparkles,
   ArrowRight,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PreviewBomResult } from "@/services/product-master";
@@ -169,22 +170,22 @@ export function LiveBomRail({
   return (
     <aside
       className={cn(
-        "flex flex-col rounded-2xl border border-order-border bg-gradient-to-b from-order-bg via-white to-white shadow-md overflow-hidden",
+        "flex flex-col overflow-hidden rounded-[18px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]",
         sticky ? "max-h-[calc(100vh-6rem)] lg:sticky lg:top-4" : "",
         className,
       )}
     >
       {/* ─── Header pill row ─── */}
-      <header className="flex items-center justify-between gap-2 border-b border-order-border bg-gradient-to-r from-order-bg via-white to-success-bg px-5 py-3">
+      <header className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-order-fg to-success-fg text-white shadow-sm">
-            ⚡
+          <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-plate text-plate-fg">
+            <Boxes className="h-3.5 w-3.5" aria-hidden />
           </span>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+            <div className="text-[12px] font-medium text-content-3">
               {effectiveTitle}
             </div>
-            <div className="font-display text-sm font-bold text-content-1 leading-tight">
+            <div className="text-[14px] font-semibold leading-tight text-content-1">
               {empty
                 ? loading
                   ? "Computing preview…"
@@ -223,7 +224,7 @@ export function LiveBomRail({
       {/* ─── Body ─── */}
       <div
         className={cn(
-          "flex-1 px-5 py-3 space-y-3",
+          "flex-1 space-y-3 px-4 py-3",
           sticky && "overflow-y-auto",
         )}
       >
@@ -257,15 +258,15 @@ function RouteRibbon({
   templateName?: string;
 }) {
   const TONE: Record<string, string> = {
-    EXTRUSION: "bg-info-bg text-primary ring-info-border",
-    PRINTING: "bg-danger-bg text-danger-fg ring-danger-border",
-    ROTO: "bg-danger-bg text-danger-fg ring-danger-border",
-    FLEXO: "bg-danger-bg text-danger-fg ring-danger-border",
-    LAMINATION: "bg-warning-bg text-warning-fg ring-warning-border",
-    SLITTING: "bg-info-bg text-info-fg ring-info-border",
-    POUCHING: "bg-success-bg text-success-fg ring-success-border",
-    PACKING: "bg-order-bg text-order-fg ring-order-border",
-    DEFAULT: "bg-surface-2 text-content-2 ring-line-strong",
+    EXTRUSION: "bg-surface-1 text-content-2 ring-line",
+    PRINTING: "bg-surface-1 text-content-2 ring-line",
+    ROTO: "bg-surface-1 text-content-2 ring-line",
+    FLEXO: "bg-surface-1 text-content-2 ring-line",
+    LAMINATION: "bg-surface-1 text-content-2 ring-line",
+    SLITTING: "bg-surface-1 text-content-2 ring-line",
+    POUCHING: "bg-surface-1 text-content-2 ring-line",
+    PACKING: "bg-surface-1 text-content-2 ring-line",
+    DEFAULT: "bg-surface-1 text-content-2 ring-line",
   };
   const toneFor = (name?: string, code?: string) => {
     const key = (code || name || "").toUpperCase();
@@ -276,9 +277,9 @@ function RouteRibbon({
     );
   };
   return (
-    <section className="rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-3 shadow-sm">
+    <section className="rounded-[14px] bg-surface-2 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-caption font-bold uppercase tracking-wider text-order-fg">
+        <div className="text-[12px] font-semibold text-content-2">
           Live route{templateName ? ` · ${templateName}` : ""}
         </div>
         <span className="text-caption font-bold text-content-3">
@@ -427,11 +428,11 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
   if (fgType === "ROLL") {
     return (
       <section className="rounded-2xl border border-line bg-surface-1 p-3">
-        <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
+        <div className="text-[12px] font-semibold text-content-2 mb-2">
           Quantity conversion
         </div>
         <div className="rounded-xl bg-surface-2 px-3 py-2 ring-1 ring-line">
-          <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+          <div className="text-[12px] font-semibold text-content-2">
             Roll order
           </div>
           <div className="font-mono text-sm font-semibold text-content-1">
@@ -474,7 +475,7 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+        <div className="text-[12px] font-semibold text-content-2">
           Quantity conversion
         </div>
         {primary.material_code ? (
@@ -489,7 +490,7 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
             key={cell.label}
             className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line"
           >
-            <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="text-[12px] font-semibold text-content-2">
               {cell.label}
             </div>
             <div className="font-mono text-sm font-bold tabular-nums text-content-1">
@@ -511,11 +512,11 @@ function QuantityConversion({ preview }: { preview: PreviewBomResult }) {
 function IdentityCard({ preview }: { preview: PreviewBomResult }) {
   const tuple = summariseTuple(preview);
   return (
-    <section className="rounded-2xl bg-gradient-to-br from-order-bg via-order-bg to-white ring-1 ring-order-border px-3 py-2.5 shadow-sm">
-      <div className="text-caption font-bold uppercase tracking-[0.1em] text-order-fg">
+    <section className="rounded-[14px] bg-surface-2 px-3 py-2.5">
+      <div className="text-[12px] font-semibold text-content-2">
         Selected tuple
       </div>
-      <div className="mt-1 font-mono text-[12px] font-bold leading-snug text-order-fg break-words">
+      <div className="mt-1 break-words font-mono text-[12px] font-semibold leading-snug text-content-1">
         {tuple}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption">
@@ -616,7 +617,7 @@ function PouchRender({ preview }: { preview: PreviewBomResult }) {
     .slice(0, 4);
   return (
     <section className="rounded-2xl border border-line bg-surface-1 px-3 py-3">
-      <div className="flex items-center justify-between text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
+      <div className="flex items-center justify-between text-[12px] font-semibold text-content-2 mb-2">
         <span>Visual</span>
         <span className="font-mono">{kind}</span>
       </div>
@@ -997,7 +998,7 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
     });
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3">
-      <div className="text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
+      <div className="text-[12px] font-semibold text-content-2 mb-2">
         Geometry
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -1011,7 +1012,7 @@ function GeometryStrip({ preview }: { preview: PreviewBomResult }) {
                 : "bg-surface-2 ring-line",
             )}
           >
-            <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+            <div className="text-[12px] font-semibold text-content-2">
               {c.label}
             </div>
             <div
@@ -1037,25 +1038,25 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
     (s: number, l: any) => s + Math.max(Number(l?.thickness_micron || 0), 0),
     0,
   );
-  // Bright, saturated gradient bars so each layer is visually distinct.
+  // Film colours match the cross-section on the spec plate.
   // Ordered most-specific first so e.g. MET-PET hits MET (slate) not PET (blue).
   const FILM_COLOR_ORDER: Array<[string, string]> = [
-    ["MET", "from-surface-2 to-surface-2"],
-    ["METALLIZED", "from-surface-2 to-surface-2"],
-    ["ALU", "from-surface-2 to-surface-2"],
-    ["LDPE", "from-success-fg to-success-fg"],
-    ["LD-NAT", "from-success-fg to-success-fg"],
-    ["LD", "from-success-fg to-success-fg"],
-    ["HDPE", "from-success-fg to-success-fg"],
-    ["BOPP", "from-info-fg to-info-fg"],
-    ["BOPA", "from-order-fg to-order-fg"],
-    ["BOPE", "from-order-fg to-order-fg"],
-    ["PET", "from-info-fg to-primary"],
-    ["NYL", "from-order-fg to-order-fg"],
-    ["NYLON", "from-order-fg to-order-fg"],
-    ["PP", "from-info-fg to-info-fg"],
-    ["PE", "from-success-fg to-success-fg"],
-    ["PAPER", "from-warning-fg to-warning-fg"],
+    ["MET", "bg-film-met"],
+    ["METALLIZED", "bg-film-met"],
+    ["ALU", "bg-film-al"],
+    ["LDPE", "bg-film-pe"],
+    ["LD-NAT", "bg-film-pe"],
+    ["LD", "bg-film-pe"],
+    ["HDPE", "bg-film-pe"],
+    ["BOPP", "bg-film-pp"],
+    ["BOPA", "bg-film-ny"],
+    ["BOPE", "bg-film-pe"],
+    ["PET", "bg-film-pet"],
+    ["NYL", "bg-film-ny"],
+    ["NYLON", "bg-film-ny"],
+    ["PP", "bg-film-pp"],
+    ["PE", "bg-film-pe"],
+    ["PAPER", "bg-film-paper"],
   ];
   const colorOf = (code: string): string => {
     const upper = String(code || "").toUpperCase();
@@ -1065,13 +1066,11 @@ function LayerStack({ preview }: { preview: PreviewBomResult }) {
         upper.includes(`-${k}-`) ||
         upper.includes(`-${k}`),
     );
-    return found
-      ? `bg-gradient-to-r ${found[1]}`
-      : "bg-gradient-to-r from-surface-2 to-surface-2";
+    return found ? found[1] : "bg-film-other";
   };
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3 shadow-sm">
-      <div className="flex items-center justify-between text-caption font-bold uppercase tracking-wider text-content-3 mb-2">
+      <div className="flex items-center justify-between text-[12px] font-semibold text-content-2 mb-2">
         <span>Layer stack</span>
         <span className="font-mono text-success-fg font-semibold">
           total {total} μ
@@ -1352,7 +1351,7 @@ function MaterialBreakdown({
   return (
     <section className="rounded-2xl border border-line bg-surface-1 overflow-hidden">
       <header className="flex items-center justify-between border-b border-line px-3 py-2">
-        <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+        <div className="text-[12px] font-semibold text-content-2">
           Material breakdown
         </div>
         <span className="text-caption text-content-4">
@@ -1489,7 +1488,7 @@ function StockSourceBar({ preview }: { preview: PreviewBomResult }) {
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+        <div className="text-[12px] font-semibold text-content-2">
           Where will it ship from
         </div>
         <span className="text-caption text-content-4">
@@ -1544,7 +1543,7 @@ function ChecksList({ preview }: { preview: PreviewBomResult }) {
   if (!checks.length && !warnings.length && !blockers.length) return null;
   return (
     <section className="rounded-2xl border border-line bg-surface-1 p-3 space-y-1.5">
-      <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-2">
         Checks
       </div>
       {checks.map((c, i) => (
@@ -1597,7 +1596,7 @@ function LineFooter({
   const pouches =
     unitG > 0 && totalKg > 0 ? Math.round((totalKg * 1000) / unitG) : 0;
   return (
-    <footer className="bg-success-fg px-5 py-3 text-white sticky bottom-0">
+    <footer className="sticky bottom-0 bg-plate px-5 py-3 text-plate-fg">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="text-caption font-bold uppercase tracking-[0.1em] text-success-border">

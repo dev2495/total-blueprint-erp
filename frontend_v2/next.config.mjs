@@ -12,6 +12,9 @@ const configDir = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     outputFileTracingRoot: configDir,
+    // A second local dev server can build into its own folder (NEXT_DIST_DIR) so it never
+    // overwrites the production build that another local server is running from.
+    ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
     poweredByHeader: false,
     allowedDevOrigins: ["127.0.0.1", "localhost"],
     // Validation is run explicitly by `npm run build` before `next build`.

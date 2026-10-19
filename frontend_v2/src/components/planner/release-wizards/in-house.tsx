@@ -246,7 +246,7 @@ export function InHouseWizard({ kind, onClose }: InHouseWizardProps) {
 
       {step === "confirm" && selected ? (
         <section className="space-y-3">
-          <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+          <h3 className="text-[12px] font-semibold text-content-3">
             Review
           </h3>
           <div className="rounded-lg border border-line bg-surface-1 p-3 text-[12px]">

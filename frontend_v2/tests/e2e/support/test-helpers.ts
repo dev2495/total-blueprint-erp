@@ -361,7 +361,8 @@ export async function assertNoHorizontalOverflow(page: Page) {
 
 export async function collectSidebarRoutes(page: Page) {
   await page.getByTestId("sidebar-nav").first().waitFor({ state: "visible", timeout: 30_000 })
-  return page.locator("[data-testid='sidebar-nav'] a[href]").evaluateAll((nodes) => {
+  // The seven workspace links sit above the per-screen list; the route inventory is the per-screen list.
+  return page.locator("[data-testid='sidebar-nav'] a[href]:not([data-workspace-link])").evaluateAll((nodes) => {
     const routes = nodes
       .map((node) => (node instanceof HTMLElement ? node.dataset.route || node.getAttribute("href") || "" : ""))
       .filter(Boolean)

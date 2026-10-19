@@ -162,7 +162,7 @@ export function PurchaseOrderForm({ mode, initial }: Props) {
     items.every((i) => i.material && parseFloat(i.qty_ordered) > 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <div className="mx-auto max-w-6xl space-y-5">
         <div className="erp-hero rounded-2xl border p-5 text-white">
           <h1 className="text-xl font-semibold">

@@ -124,7 +124,7 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-order-bg via-white to-order-bg px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="indigo"
         eyebrow="SYSTEM · GOVERNANCE"
@@ -247,10 +247,10 @@ function KpiTile({
   palette: "indigo" | "emerald" | "rose" | "amber";
 }) {
   const BG: Record<string, string> = {
-    indigo: "from-order-fg to-order-bg",
-    emerald: "from-success-fg to-success-bg",
-    rose: "from-danger-solid to-danger-bg",
-    amber: "from-warning-fg to-warning-bg",
+    indigo: "bg-plate",
+    emerald: "bg-success-fg",
+    rose: "bg-danger-solid",
+    amber: "bg-warning-fg",
   };
   const TEXT: Record<string, string> = {
     indigo: "text-order-fg",
@@ -261,7 +261,7 @@ function KpiTile({
   return (
     <div
       className={cn(
-        "rounded-3xl bg-gradient-to-br p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line",
+        "rounded-3xl p-5 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line",
         BG[palette],
       )}
     >
@@ -274,7 +274,7 @@ function KpiTile({
         >
           <Icon className="h-4 w-4" />
         </div>
-        <span className="text-caption font-bold uppercase tracking-widest text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           {label}
         </span>
       </div>
@@ -324,7 +324,7 @@ function UserCard({ user, canManage }: { user: User; canManage: boolean }) {
     >
       <div
         className={cn(
-          "absolute inset-x-0 top-0 h-1 bg-gradient-to-r",
+          "absolute inset-x-0 top-0 h-1 ",
           palette.stripe,
         )}
       />

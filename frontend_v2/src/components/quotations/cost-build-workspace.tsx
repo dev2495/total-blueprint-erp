@@ -165,7 +165,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
 
   return (
     <section className="rounded-2xl bg-surface-1 ring-1 ring-line shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)] overflow-hidden">
-      <div className="border-b border-line bg-gradient-to-r from-brand-navy to-order-fg px-5 py-4 text-white">
+      <div className="border-b border-line bg-plate px-5 py-4 text-white">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.1em] text-order-border"><Calculator className="h-4 w-4" /> Quote-level Cost Build</div>
@@ -201,7 +201,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
                 const overrideKey = row.component_key || `${row.quotation_item_id}-${row.role}-${row.material_id}`;
                 const override = overrides[overrideKey];
                 return <tr key={`${row.quotation_item_id}-${row.material_id}-${row.role}`} className="align-top">
-                  <td className="px-3 py-3"><div className="font-semibold text-content-1">{row.material_code || row.label}</div><div className="text-caption font-bold text-content-3">{lineName(row.quotation_item_id)}</div><div className="text-caption font-bold uppercase tracking-wider text-content-4">{row.role}</div></td>
+                  <td className="px-3 py-3"><div className="font-semibold text-content-1">{row.material_code || row.label}</div><div className="text-caption font-bold text-content-3">{lineName(row.quotation_item_id)}</div><div className="text-[12px] font-semibold text-content-3">{row.role}</div></td>
                   <td className="px-3 py-3"><div className="font-mono font-bold">{row.source_type}</div><div className="text-content-3">{row.source_lot_ref || row.source_ref || "Source required"}</div><div className="text-content-4">{row.source_effective_at ? new Date(row.source_effective_at).toLocaleDateString("en-IN") : "No effective date"}</div></td>
                   <td className="px-3 py-3 text-right font-mono font-semibold">₹ {money(row.baseline_rate)} / {row.baseline_uom || "—"}</td>
                   <td className="px-3 py-3 text-right font-mono"><b>{money(row.quote_quantity)} {row.quote_uom}</b><div className="text-content-4">avail {money(row.baseline_available_qty)} {row.baseline_uom}</div></td>
@@ -254,8 +254,8 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
         </div>
 
         <div className="grid gap-3 rounded-xl border border-line bg-surface-2 p-4 md:grid-cols-4">
-          <label className="text-caption font-semibold uppercase tracking-wider text-content-3">Pricing method<select disabled={!editable} value={definition} onChange={(event) => setDefinition(event.target.value as typeof definition)} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-2 text-xs font-bold"><option value="GROSS_MARGIN_ON_SALES">Gross margin on net sales</option><option value="MARKUP_ON_COST">Markup on cost</option></select></label>
-          <label className="text-caption font-semibold uppercase tracking-wider text-content-3">Target %<input disabled={!editable} type="number" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-3 text-right font-mono text-sm" /></label>
+          <label className="text-[12px] font-semibold text-content-3">Pricing method<select disabled={!editable} value={definition} onChange={(event) => setDefinition(event.target.value as typeof definition)} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-2 text-xs font-bold"><option value="GROSS_MARGIN_ON_SALES">Gross margin on net sales</option><option value="MARKUP_ON_COST">Markup on cost</option></select></label>
+          <label className="text-[12px] font-semibold text-content-3">Target %<input disabled={!editable} type="number" value={target} onChange={(event) => setTarget(Number(event.target.value))} className="mt-1 h-10 w-full rounded-lg border border-line bg-surface-1 px-3 text-right font-mono text-sm" /></label>
           <Metric label="Target price" value={`₹ ${money(result?.target_price)}`} />
           <Metric label="Actual line price" value={`₹ ${money(result?.list_price)}`} />
         </div>
@@ -293,7 +293,7 @@ export default function CostBuildWorkspace({ quote }: { quote: QuotationListItem
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-lg border border-line bg-surface-1 p-3"><div className="text-caption font-semibold uppercase tracking-widest text-content-4">{label}</div><div className="mt-1 font-mono text-sm font-semibold text-content-1">{value}</div></div>;
+  return <div className="rounded-lg border border-line bg-surface-1 p-3"><div className="text-[12px] font-semibold text-content-3">{label}</div><div className="mt-1 font-mono text-sm font-semibold text-content-1">{value}</div></div>;
 }
 
 function CostModeButton({ active, disabled, icon, title, caption, onClick }: { active: boolean; disabled: boolean; icon: ReactNode; title: string; caption: string; onClick: () => void }) {

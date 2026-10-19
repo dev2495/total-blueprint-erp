@@ -746,7 +746,7 @@ export function AddonsWorkspaceV36() {
                 }))}
               />
               <div>
-                <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-[12px] font-semibold text-content-3">
                   Location
                 </div>
                 <select
@@ -1133,7 +1133,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-order-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-3 min-w-0">
               {swatch ? (
@@ -1179,7 +1179,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Lot details
             </div>
             <div className="grid grid-cols-2 gap-2 text-caption">
@@ -1271,7 +1271,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

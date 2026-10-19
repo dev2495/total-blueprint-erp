@@ -488,7 +488,7 @@ export function ProductSizeWorkspace({
       data-output-kind={normalizedOutput}
       onKeyDown={handleWorkspaceKeyDown}
     >
-      <div className="flex flex-col gap-3 rounded-2xl border border-success-border bg-gradient-to-r from-success-bg via-white to-success-bg p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border border-success-border bg-success-bg p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-success-fg text-white shadow-sm">
             <FileSpreadsheet className="h-4 w-4" />

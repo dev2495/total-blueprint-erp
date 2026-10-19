@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { RouteTimeline } from "@/components/erp/route-timeline";
+import { ChoiceCard, StepSection } from "@/components/plate/steps";
 import { templateService } from "@/services/templates";
 import {
   productMasterService,
@@ -305,282 +306,213 @@ export function ProductMasterCreateModal({
     createMutation.mutate();
   };
 
+  const LABEL_CLS = "text-[12px] font-semibold text-content-2";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-3xl border-none p-0 shadow-2xl sm:max-h-[calc(100dvh-2rem)]">
-        <div className="shrink-0 bg-gradient-to-br from-primary via-order-fg to-order-fg px-6 py-5 text-white">
-          <DialogHeader className="space-y-1 border-none pb-0">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/70">
-              Master · Product
+      <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col gap-0 overflow-hidden rounded-[20px] border border-line p-0 shadow-[var(--shadow-lg)] sm:max-h-[calc(100dvh-2rem)]">
+        <div className="shrink-0 border-b border-line px-6 pb-4 pt-5">
+          <DialogHeader className="space-y-1 border-none pb-0 text-left">
+            <div className="text-[12.5px] text-content-3">
+              Products · New product master
             </div>
-            <DialogTitle className="font-display text-2xl font-bold leading-tight text-white">
+            <DialogTitle className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-content-1">
               New Product Master
             </DialogTitle>
-            <DialogDescription className="text-white/80">
-              Capture only the stable starting contract: identity, live route,
-              and layer count. Film, grade, thickness, sizes, add-ons, POD,
-              packing, artwork, and overlays continue in the workspace.
+            <DialogDescription className="text-[13px] text-content-3">
+              Start with what it is and the route it runs on. Films, grades, thickness, sizes, add-ons, packing and artwork open in the workspace right after.
             </DialogDescription>
           </DialogHeader>
         </div>
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <div className="space-y-2">
-            <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-              Product kind
-            </Label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {KIND_CARDS.map((k) => {
-                const isActive = k.id === kind;
-                return (
-                  <button
-                    key={k.id}
-                    type="button"
-                    onClick={() => setKind(k.id)}
-                    className={cn(
-                      "flex items-start gap-2 rounded-xl border px-3 py-2.5 text-left shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-info-border",
-                      isActive
-                        ? "border-primary bg-gradient-to-br from-info-bg to-surface-1 ring-2 ring-info-border "
-                        : "border-line bg-surface-1 hover:border-info-border hover:shadow-md",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md ring-1 ring-inset",
-                        isActive
-                          ? "bg-primary text-white ring-primary shadow-sm "
-                          : k.accent,
-                      )}
-                    >
-                      {k.icon}
-                    </span>
-                    <div>
-                      <div className="text-sm font-bold text-content-1">
-                        {k.label}
-                      </div>
-                      <div className="text-caption leading-4 text-content-3">
-                        {k.summary}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-1">
+          <StepSection step={1} state={kind ? "done" : "todo"} title="Product kind" hint="what this master produces">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {KIND_CARDS.map((k) => (
+                <ChoiceCard
+                  key={k.id}
+                  selected={k.id === kind}
+                  title={k.label}
+                  sub={k.summary}
+                  icon={k.icon}
+                  onClick={() => setKind(k.id)}
+                />
+              ))}
             </div>
-
-            {/* Per-kind info banner — sets correct expectations after kind selection */}
             {kind === "POD" && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-order-border bg-order-bg px-3 py-2.5 text-xs text-order-fg ring-1 ring-order-border">
-                <PackageCheck className="mt-0.5 h-3.5 w-3.5 flex-none text-order-fg" />
+              <div className="flex items-start gap-2 rounded-[12px] bg-surface-2 px-3 py-2.5 text-[12.5px] text-content-2">
+                <PackageCheck className="mt-0.5 h-3.5 w-3.5 flex-none text-content-3" />
                 <div>
-                  <div className="font-bold text-order-fg">
-                    POD recipe — manual fixed-SKU link
-                  </div>
-                  <div className="text-order-fg">
-                    Define axes (width, thickness, grade) once. Create the POD
-                    variant here, then manually link it to an existing fixed POD
-                    roll SKU in{" "}
-                    <span className="font-mono font-bold">/master/pod</span>.
-                  </div>
+                  <span className="font-semibold text-content-1">POD recipe, manual fixed-SKU link.</span>{" "}
+                  Define axes (width, thickness, grade) once. Create the POD variant here, then link it to an existing fixed POD roll SKU in{" "}
+                  <span className="font-mono">/master/pod</span>.
                 </div>
               </div>
             )}
             {kind === "PACKAGING" && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2.5 text-xs text-warning-fg ring-1 ring-warning-border">
-                <Boxes className="mt-0.5 h-3.5 w-3.5 flex-none text-warning-fg" />
+              <div className="flex items-start gap-2 rounded-[12px] bg-surface-2 px-3 py-2.5 text-[12.5px] text-content-2">
+                <Boxes className="mt-0.5 h-3.5 w-3.5 flex-none text-content-3" />
                 <div>
-                  <div className="font-bold text-warning-fg">
-                    Packaging recipe — manual fixed-SKU link
-                  </div>
-                  <div className="text-warning-fg">
-                    Define axes (capacity, thickness, grade). Create the
-                    packaging variant here, then manually link it to an existing
-                    fixed packaging SKU in{" "}
-                    <span className="font-mono font-bold">
-                      /master/packaging
-                    </span>
-                    .
-                  </div>
+                  <span className="font-semibold text-content-1">Packaging recipe, manual fixed-SKU link.</span>{" "}
+                  Define axes (capacity, thickness, grade). Create the packaging variant here, then link it to an existing fixed packaging SKU in{" "}
+                  <span className="font-mono">/master/packaging</span>.
                 </div>
               </div>
             )}
-          </div>
+          </StepSection>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                Master code
-              </Label>
-              <Input
-                placeholder="e.g. PM-DRY-PET-LD"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                className="mt-1 h-10 rounded-xl"
-              />
-            </div>
-            <div>
-              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                Reporting group
-              </Label>
-              <Select
-                value={reportingGroup}
-                onValueChange={(v) => setReportingGroup(v as ReportingGroup)}
-              >
-                <SelectTrigger className="mt-1 h-10 rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {REPORTING_GROUPS.map((g) => (
-                    <SelectItem key={g} value={g}>
-                      {g}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="sm:col-span-2">
-              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                Master name
-              </Label>
-              <Input
-                placeholder="e.g. Dry Fruit Standup Pouch — PET/LD food-grade"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1 h-10 rounded-xl"
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                Live route / template
-              </Label>
-              <Select
-                value={templateId}
-                onValueChange={(v) => setTemplateId(v)}
-              >
-                <SelectTrigger className="mt-1 h-10 rounded-xl">
-                  <SelectValue placeholder="Required: pick the route template this master will use" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t: any) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name || t.code}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!templateId && (
-                <div className="mt-1 text-caption font-semibold text-warning-fg">
-                  Required. Sales/planner BOM and WCM steps come from this
-                  template.
-                </div>
-              )}
-              <div className="mt-3">
-                {templateId && routePreviewLoading ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-3 text-xs font-semibold text-content-3">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading route preview...
-                  </div>
-                ) : templateId && routeTimelineSteps.length ? (
-                  <RouteTimeline
-                    steps={routeTimelineSteps}
-                    helperText="This is the live route that sales, planner, WCM, and BOM preview will use after create."
-                  />
-                ) : templateId ? (
-                  <div className="flex items-start gap-2 rounded-xl border border-warning-border bg-warning-bg px-4 py-3 text-xs font-semibold text-warning-fg">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
-                    Template is selected but has no route steps yet. You can
-                    still create the master, but planner/WCM will need the
-                    template route fixed before go-live use.
-                  </div>
-                ) : null}
+          <StepSection
+            step={2}
+            state={code.trim() && name.trim() ? "done" : "todo"}
+            title="Name and code"
+            hint="what sales and the planner see"
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label className={LABEL_CLS}>Master code</Label>
+                <Input
+                  placeholder="e.g. PM-DRY-PET-LD"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  className="h-10 rounded-[11px] font-mono"
+                />
               </div>
-            </div>
-            <div className="space-y-3 rounded-2xl border border-info-border bg-info-bg p-3 sm:col-span-2">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
-                    Number of layers
-                  </Label>
-                  <div className="mt-0.5 text-caption text-primary">
-                    This creates blank layer slots only. The edit workspace
-                    selects the real film, allowed grades, thickness options,
-                    and layer axes.
-                  </div>
-                </div>
-                <span className="rounded-full bg-surface-1 px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-primary ring-1 ring-info-border">
-                  workspace setup
-                </span>
-              </div>
-              <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-info-border bg-surface-1 p-3 shadow-sm">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 w-10 rounded-xl p-0"
-                  disabled={layerCount <= 1}
-                  onClick={() => setLayerCount((n) => Math.max(1, n - 1))}
+              <div className="grid gap-1.5">
+                <Label className={LABEL_CLS}>Reporting group</Label>
+                <Select
+                  value={reportingGroup}
+                  onValueChange={(v) => setReportingGroup(v as ReportingGroup)}
                 >
-                  -
-                </Button>
-                <div className="text-center">
-                  <div className="font-display text-3xl font-semibold text-content-1">
-                    {layerCount}
-                  </div>
-                  <div className="text-caption font-semibold text-content-3">
-                    layer slot{layerCount === 1 ? "" : "s"} opened in edit
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-10 w-10 rounded-xl p-0"
-                  onClick={() => setLayerCount((n) => Math.min(9, n + 1))}
-                >
-                  +
-                </Button>
+                  <SelectTrigger className="h-10 rounded-[11px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REPORTING_GROUPS.map((g) => (
+                      <SelectItem key={g} value={g}>
+                        {g}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption font-semibold text-warning-fg">
-                New masters stay inactive until the layer materials and
-                required axes are configured. Sales and planner only see active
-                active masters.
+              <div className="grid gap-1.5 sm:col-span-2">
+                <Label className={LABEL_CLS}>Master name</Label>
+                <Input
+                  placeholder="e.g. Dry Fruit Standup Pouch — PET/LD food-grade"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="h-11 rounded-[11px] text-[15px] font-medium"
+                />
               </div>
             </div>
-            <div className="sm:col-span-2">
-              <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
-                Description (optional)
-              </Label>
-              <Textarea
-                placeholder="What this master covers, special constraints, notes for sales/planner."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="mt-1 min-h-[64px] rounded-xl"
+          </StepSection>
+
+          <StepSection
+            step={3}
+            state={templateId ? "done" : "todo"}
+            title="Live route"
+            hint="sales, planner, floor and the BOM follow this template"
+          >
+            <Select value={templateId} onValueChange={(v) => setTemplateId(v)}>
+              <SelectTrigger className="h-10 rounded-[11px]">
+                <SelectValue placeholder="Required: pick the route template this master will use" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((t: any) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name || t.code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!templateId ? (
+              <div className="text-[12.5px] text-warning-fg">
+                Required. Sales/planner BOM and WCM steps come from this template.
+              </div>
+            ) : null}
+            {templateId && routePreviewLoading ? (
+              <div className="flex items-center gap-2 rounded-[12px] bg-surface-2 px-4 py-3 text-[12.5px] text-content-3">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading route preview...
+              </div>
+            ) : templateId && routeTimelineSteps.length ? (
+              <RouteTimeline
+                steps={routeTimelineSteps}
+                helperText="This is the live route that sales, planner, WCM, and BOM preview will use after create."
               />
-            </div>
-            <div className="flex items-center justify-between rounded-xl border border-warning-border bg-warning-bg px-3 py-2 sm:col-span-2">
-              <div>
-                <div className="text-sm font-bold text-warning-fg">
-                  Created inactive until configured
+            ) : templateId ? (
+              <div className="flex items-start gap-2 rounded-[12px] bg-warning-bg px-4 py-3 text-[12.5px] text-warning-fg">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />
+                Template is selected but has no route steps yet. You can still create the master, but planner/WCM will need the template route fixed before go-live use.
+              </div>
+            ) : null}
+          </StepSection>
+
+          <StepSection
+            step={4}
+            state="done"
+            title="Number of layers"
+            hint="blank slots now; films, grades and microns are set in the workspace"
+          >
+            <div className="flex items-center gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-11 rounded-[12px] p-0 text-lg"
+                disabled={layerCount <= 1}
+                onClick={() => setLayerCount((n) => Math.max(1, n - 1))}
+                aria-label="One layer fewer"
+              >
+                -
+              </Button>
+              <div className="min-w-[96px] text-center">
+                <div className="text-[34px] font-semibold leading-none tabular-nums tracking-[-0.03em] text-content-1">
+                  {layerCount}
                 </div>
-                <div className="text-caption text-warning-fg">
-                  Activate from the edit workspace after films, axes, sizes and
-                  policies pass validation.
+                <div className="mt-1 text-[12px] text-content-3">
+                  layer slot{layerCount === 1 ? "" : "s"}
                 </div>
               </div>
-              <span className="rounded-full bg-surface-1 px-3 py-1 text-caption font-semibold uppercase tracking-[0.1em] text-warning-fg ring-1 ring-warning-border">
-                hidden
-              </span>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-11 rounded-[12px] p-0 text-lg"
+                onClick={() => setLayerCount((n) => Math.min(9, n + 1))}
+                aria-label="One layer more"
+              >
+                +
+              </Button>
+              <div className="ml-2 flex min-w-0 flex-1 items-center gap-1" aria-hidden>
+                {Array.from({ length: layerCount }).map((_, i) => (
+                  <span key={i} className="h-8 flex-1 rounded-md bg-surface-2 ring-1 ring-line" />
+                ))}
+              </div>
             </div>
-          </div>
+          </StepSection>
+
+          <StepSection step={5} state="idle" title="Description" hint="optional" last>
+            <Textarea
+              placeholder="What this master covers, special constraints, notes for sales/planner."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="min-h-[64px] rounded-[11px]"
+            />
+            <div className="rounded-[12px] bg-surface-2 px-3 py-2.5 text-[12.5px] text-content-3">
+              <span className="font-semibold text-content-2">Created inactive until configured.</span>{" "}
+              Sales and the planner only see active masters. Activate from the workspace after films, axes, sizes and policies pass validation.
+            </div>
+          </StepSection>
         </div>
-        <DialogFooter className="shrink-0 border-t border-line bg-surface-2 px-6 py-4">
+        <DialogFooter className="shrink-0 border-t border-line px-6 py-4">
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="rounded-xl"
+            className="h-10 rounded-[11px]"
           >
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={!valid || createMutation.isPending}
-            className="gap-1.5 rounded-xl bg-gradient-to-r from-primary to-order-fg shadow-lg hover:shadow-xl hover:"
+            className="h-10 gap-1.5 rounded-[11px] px-5"
           >
             {createMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

@@ -297,6 +297,28 @@
     --accent-order-border: var(--p-violet-200);
     --accent-critical: var(--p-red);
     --accent-warm: var(--p-orange);
+
+    /* Spec plate: the one dark surface that carries size, layers and gauge on every
+       order, product master and stock screen. Stays dark in both themes. */
+    --plate: #111626;
+    --plate-2: #1a2135;
+    --plate-fg: #f3f5fb;
+    --plate-fg-2: #aab3c9;
+    --plate-fg-3: #7d88a4;
+    --plate-line: #2a3350;
+    --plate-glow: rgba(124, 157, 255, 0.18);
+    /* Film colours for the to-scale cross-section. */
+    --film-pet: #9fd0ff;
+    --film-met: #d9dde6;
+    --film-pe: #fff2d6;
+    --film-pp: #c9f0d8;
+    --film-ny: #f6d1f0;
+    --film-al: #b9bec9;
+    --film-paper: #ead9bf;
+    --film-other: #dfe3ec;
+    --film-adh: #f0b35e;
+    --film-ink-pet: #1b2a44;
+    --film-ink-pe: #5a4a24;
   }
 
   .dark {
@@ -461,6 +483,11 @@
     --accent-order-border: rgba(150, 172, 255, 0.34);
     --accent-critical: #ff7f91;
     --accent-warm: #ffbd7a;
+
+    --plate: #1a1f30;
+    --plate-2: #232a40;
+    --plate-line: #34405f;
+    --plate-glow: rgba(124, 157, 255, 0.14);
   }
 }
 

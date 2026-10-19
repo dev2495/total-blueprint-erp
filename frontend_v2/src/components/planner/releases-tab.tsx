@@ -91,7 +91,7 @@ export function ReleasesTab({ context: _context }: ReleasesTabProps) {
       </header>
 
       <section className="space-y-2">
-        <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+        <h3 className="text-[12px] font-semibold text-content-3">
           For sales demand
         </h3>
         <div className="grid gap-3 md:grid-cols-3">
@@ -132,7 +132,7 @@ export function ReleasesTab({ context: _context }: ReleasesTabProps) {
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+        <h3 className="text-[12px] font-semibold text-content-3">
           In-house demand
         </h3>
         <div className="grid gap-3 md:grid-cols-2">

@@ -70,7 +70,7 @@ export default function TradeOrdersListPage() {
   ).length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-danger-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-danger-bg px-4 py-4 sm:px-6">
       <GradientHero
         palette="rose"
         eyebrow="SALES · TRADE ORDERS"
@@ -202,7 +202,7 @@ function OrderCard({ o }: { o: TradeOrder }) {
           </Badge>
         </header>
         <div className="mt-4 flex items-baseline justify-between rounded-2xl bg-surface-2 px-3 py-2">
-          <div className="text-caption font-bold uppercase tracking-wider text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Grand total
           </div>
           <div className="font-mono text-base font-bold text-content-1">

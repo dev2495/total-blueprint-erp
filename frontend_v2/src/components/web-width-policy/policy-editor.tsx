@@ -219,7 +219,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
   }, [draft]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="violet"
         eyebrow={isNew ? "NEW WEB-WIDTH POLICY" : "WEB-WIDTH POLICY"}
@@ -500,7 +500,7 @@ export function PolicyEditor({ id, initialMode }: Props) {
                 </div>
               </Field>
               <label className="flex flex-col gap-1 self-end">
-                <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                <div className="text-[12px] font-semibold text-content-3">
                   Allocation preference
                 </div>
                 <label className="mt-1 flex items-center gap-2 text-[12px]">
@@ -733,7 +733,7 @@ function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <div className="mb-1 text-caption font-semibold uppercase tracking-widest text-content-3">
+      <div className="mb-1 text-[12px] font-semibold text-content-3">
         {label}
       </div>
       {children}

@@ -238,7 +238,7 @@ export default function PackingConsumptionPage() {
       className="mx-auto max-w-[1600px] space-y-5 p-4 lg:p-6"
       data-testid="packing-consumption-page"
     >
-      <section className="overflow-hidden rounded-[22px] border border-success-border bg-gradient-to-br from-success-fg via-info-fg to-primary p-5 text-white shadow-xl">
+      <section className="overflow-hidden rounded-[22px] border border-success-border bg-success-fg p-5 text-white shadow-xl">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/70">
@@ -398,7 +398,7 @@ export default function PackingConsumptionPage() {
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full border-separate border-spacing-y-2">
                 <thead>
-                  <tr className="text-left text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                  <tr className="text-left text-[12px] font-semibold text-content-3">
                     <th className="px-3 py-2">Material</th>
                     <th className="px-3 py-2">Location</th>
                     <th className="px-3 py-2 text-right">Book</th>
@@ -490,7 +490,7 @@ export default function PackingConsumptionPage() {
           </div>
 
           <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Count note
             </div>
             <Textarea
@@ -558,7 +558,7 @@ export default function PackingConsumptionPage() {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Rows
                   </div>
                   <div className="text-xl font-semibold">
@@ -566,7 +566,7 @@ export default function PackingConsumptionPage() {
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Txns
                   </div>
                   <div className="text-xl font-semibold">
@@ -574,7 +574,7 @@ export default function PackingConsumptionPage() {
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Consumed
                   </div>
                   <div className="text-xl font-semibold">
@@ -582,7 +582,7 @@ export default function PackingConsumptionPage() {
                   </div>
                 </div>
                 <div className="rounded-[12px] bg-surface-1 p-3">
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Mapped SO
                   </div>
                   <div className="text-xl font-semibold">

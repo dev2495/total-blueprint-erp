@@ -712,7 +712,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                 </div>
                 <Badge
                   variant="outline"
-                  className="rounded-full border-line bg-surface-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
+                  className="rounded-full border-line bg-surface-1 text-[12px] font-semibold text-content-3"
                 >
                   {stepsList.length} stages · {mappedByCategoryList.size}{" "}
                   categories mapped
@@ -1080,7 +1080,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                     </div>
                                     <div className="mt-2 grid gap-2 md:grid-cols-2">
                                       <div className="rounded-xl border border-info-border bg-surface-1 px-3 py-2">
-                                        <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+                                        <div className="text-[12px] font-semibold text-content-3">
                                           Lane A
                                         </div>
                                         <div className="mt-1 text-xs font-bold text-content-2">
@@ -1092,7 +1092,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                                         </div>
                                       </div>
                                       <div className="rounded-xl border border-info-border bg-surface-1 px-3 py-2">
-                                        <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+                                        <div className="text-[12px] font-semibold text-content-3">
                                           Lane B
                                         </div>
                                         <div className="mt-1 text-xs font-bold text-content-2">
@@ -1112,7 +1112,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                               </div>
 
                               <div className="rounded-2xl border border-line bg-surface-1 p-4">
-                                <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                                <Label className="text-[12px] font-semibold text-content-3">
                                   Mapped inputs
                                 </Label>
                                 {stepMaterials.length === 0 ? (
@@ -1173,7 +1173,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
             <section className="rounded-3xl border border-line bg-surface-2 p-4">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <Label className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Material mapping
                   </Label>
                   <p className="mt-1 text-xs font-semibold text-content-3">
@@ -1183,7 +1183,7 @@ export function TemplateBomEditor({ template }: TemplateBomEditorProps) {
                 </div>
                 <Badge
                   variant="outline"
-                  className="rounded-full border-line bg-surface-1 text-caption font-semibold uppercase tracking-[0.1em] text-content-3"
+                  className="rounded-full border-line bg-surface-1 text-[12px] font-semibold text-content-3"
                 >
                   {categoryOptions.length} categories
                 </Badge>

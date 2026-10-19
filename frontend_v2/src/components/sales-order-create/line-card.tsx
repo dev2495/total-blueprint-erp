@@ -93,7 +93,7 @@ export function LineCard({
             "flex h-8 w-8 flex-none items-center justify-center rounded-xl text-xs font-semibold shadow-sm ring-1",
             hasIssue
               ? "bg-danger-solid text-white ring-danger-border"
-              : "bg-gradient-to-br from-primary to-order-fg text-white ring-primary",
+              : "bg-primary text-white ring-primary",
           )}
         >
           {index + 1}
@@ -134,7 +134,7 @@ export function LineCard({
         <div className="flex flex-none flex-col items-end gap-0.5 text-right">
           <div className="font-display text-base font-bold text-content-1">
             {formatNumber(line.qty_value)}
-            <span className="ml-0.5 text-caption font-bold uppercase tracking-wider text-content-4">
+            <span className="ml-0.5 text-[12px] font-semibold text-content-3">
               {line.qty_uom}
             </span>
           </div>

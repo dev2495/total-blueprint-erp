@@ -807,7 +807,7 @@ function LineLayerBomCard({ line, index }: { line: SalesOrderLine; index: number
 
       {spec.layers.length ? (
         <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-caption font-semibold uppercase tracking-wider text-content-4">
+          <div className="mb-1 flex items-center justify-between text-[12px] font-semibold text-content-3">
             <span>Layer stack</span>
             <span>{totalThickness ? `${fmtKg(totalThickness, 1)}u total` : `${spec.layers.length} layer${spec.layers.length === 1 ? "" : "s"}`}</span>
           </div>
@@ -839,7 +839,7 @@ function LineLayerBomCard({ line, index }: { line: SalesOrderLine; index: number
           </div>
         ) : null}
         <div className="rounded-xl border border-line bg-surface-1 p-3">
-          <div className="text-caption font-semibold uppercase tracking-wider text-content-4">{recipeRows.length ? "Recipe inputs" : "BOM inputs"}</div>
+          <div className="text-[12px] font-semibold text-content-3">{recipeRows.length ? "Recipe inputs" : "BOM inputs"}</div>
           {(recipeRows.length ? recipeRows : filmRows).slice(0, 8).map((row) => (
             <div key={row.key} className="mt-2 flex items-center justify-between gap-3 text-xs">
               <span className="min-w-0 truncate font-mono font-semibold text-content-1">{row.label}</span>
@@ -1045,7 +1045,7 @@ function ArtworkThumb({ preview, compact = false }: { preview: ReturnType<typeof
         )}
       </div>
       <div className="min-w-0">
-        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Artwork</div>
+        <div className="text-[12px] font-semibold text-content-3">Artwork</div>
         <div className="truncate font-mono text-caption font-semibold text-order-fg">{label}</div>
         {preview.colorCount ? <div className="text-caption font-bold text-content-3">{preview.colorCount} colors</div> : null}
       </div>
@@ -1086,7 +1086,7 @@ function OrderFlowBar({ lines }: { lines: SalesOrderLine[] }) {
     <div className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Order fulfillment</div>
+          <div className="text-[12px] font-semibold text-content-3">Order fulfillment</div>
           <div className="mt-1 font-mono text-lg font-semibold text-content-1">{fmtKg(totalKg)} kg</div>
         </div>
         <div className="text-right font-mono text-sm font-semibold text-content-1">{Math.round(completePct)}%</div>
@@ -1198,11 +1198,13 @@ function MetricTile({ label, value, sub, tone = "slate", icon }: { label: string
               ? "bg-order-bg text-order-fg ring-order-border"
               : "bg-surface-2 text-content-2 ring-line";
   return (
-    <div className="min-w-0 rounded-xl border border-line bg-surface-1 p-4 shadow-sm">
-      <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg ring-1", toneClass)}>{icon}</div>
-      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
-      <div className="mt-1 font-mono text-xl font-semibold text-content-1">{value}</div>
-      {sub ? <div className="mt-1 text-caption font-semibold text-content-3">{sub}</div> : null}
+    <div className="min-w-0 rounded-[16px] border border-line bg-surface-1 px-4 py-3.5 shadow-[var(--shadow-sm)]">
+      <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
+        <span className={cn("flex h-6 w-6 flex-none items-center justify-center rounded-full [&>svg]:h-3.5 [&>svg]:w-3.5", toneClass.replace(/ring-\S+/g, ""))}>{icon}</span>
+        {label}
+      </div>
+      <div className="mt-1.5 text-[22px] font-semibold tabular-nums tracking-[-0.02em] text-content-1">{value}</div>
+      {sub ? <div className="mt-0.5 text-[12px] text-content-3">{sub}</div> : null}
     </div>
   );
 }
@@ -1218,7 +1220,7 @@ function ProgressBar({ metrics, tone }: { metrics: ReturnType<typeof lineMetrics
   });
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+      <div className="mb-1 flex items-center justify-between text-[12px] font-semibold text-content-3">
         <span>Ready · dispatched · WIP · open</span>
         <span>{Math.round(bands.completePct)}%</span>
       </div>
@@ -1253,7 +1255,7 @@ function RouteGraph({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
           <Route className="h-4 w-4 text-primary" /> Route graph
         </div>
         <div className="flex flex-wrap gap-2 text-caption font-semibold uppercase">
@@ -1367,7 +1369,7 @@ function MiniStat({ label, value, tone = "slate" }: { label: string; value: stri
     tone === "blue" ? "text-primary" : tone === "green" ? "text-success-fg" : tone === "amber" ? "text-warning-fg" : tone === "rose" ? "text-danger-fg" : tone === "violet" ? "text-order-fg" : "text-content-1";
   return (
     <div className="rounded-lg border border-line bg-surface-1 px-3 py-2">
-      <div className="text-caption font-semibold uppercase tracking-wide text-content-4">{label}</div>
+      <div className="text-[12px] font-semibold text-content-3">{label}</div>
       <div className={cn("mt-1 font-mono text-sm font-semibold", text)}>{value}</div>
     </div>
   );
@@ -1393,7 +1395,7 @@ function BatchInspector({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
         <MiniStat label="Scrap" value={`${fmtKg(jobs.reduce((sum, job) => sum + safeNumber(job.scrap_kg), 0))} kg`} tone="amber" />
       </div>
       <div>
-        <div className="mb-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Batches</div>
+        <div className="mb-2 text-[12px] font-semibold text-content-3">Batches</div>
         <div className="space-y-2">
           {batches.length ? batches.slice(0, 6).map((batch) => (
             <div key={batch.id || batch.batch_number} className="rounded-lg border border-line bg-surface-1 px-3 py-2">
@@ -1416,7 +1418,7 @@ function BatchInspector({ line, jobs }: { line: SalesOrderLine; jobs: any[] }) {
         </div>
       </div>
       <div>
-        <div className="mb-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Layer stack / BOM</div>
+        <div className="mb-2 text-[12px] font-semibold text-content-3">Layer stack / BOM</div>
         <div className="space-y-2">
           {spec.layers.length ? spec.layers.slice(0, 5).map((layer, layerIndex) => (
             <div key={`layer-${layer.index}-${layerIndex}`} className="flex items-center justify-between gap-3 rounded-lg border border-info-border bg-info-bg px-3 py-2 text-xs">
@@ -1470,7 +1472,7 @@ function LineTrackerSection({ line, index, tracking }: { line: SalesOrderLine; i
         <ArtworkThumb preview={artwork} compact />
         <div className="text-right">
           <div className="font-mono text-2xl font-semibold text-content-1">{Math.round(metrics.completionPct)}%</div>
-          <div className="text-caption font-semibold uppercase tracking-wide text-content-4">complete</div>
+          <div className="text-[12px] font-semibold text-content-3">complete</div>
         </div>
       </div>
       <div className="grid min-w-0 grid-cols-1 items-start gap-0 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -1513,7 +1515,7 @@ function SectionTitle({ icon, label, sub }: { icon: ReactNode; label: string; su
     <div className="mb-3 flex items-start gap-2">
       <div className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-info-bg text-primary ring-1 ring-info-border">{icon}</div>
       <div>
-        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">{label}</div>
+        <div className="text-[12px] font-semibold text-content-3">{label}</div>
         {sub ? <div className="mt-0.5 text-xs font-semibold text-content-3">{sub}</div> : null}
       </div>
     </div>
@@ -1560,7 +1562,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
 
   return (
     <section className="erp-virtual-card erp-stable-row overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-sm" style={{ borderLeftColor: tone.fill, borderLeftWidth: 4 }}>
-      <div className="border-b border-line bg-gradient-to-r from-surface-2 via-surface-1 to-success-bg/70 px-5 py-4 dark:to-success-bg/20">
+      <div className="border-b border-line bg-surface-2 px-5 py-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -1585,7 +1587,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
             <SectionTitle icon={<Scale className="h-4 w-4" />} label="Geometry and production form" sub="Only the dimensions that apply to this pouch/roll style are shown." />
             <div className="mt-3 flex flex-col gap-4 rounded-xl bg-surface-1 p-3 ring-1 ring-line lg:flex-row lg:items-center">
-              <div className="grid place-items-center rounded-xl bg-gradient-to-br from-info-bg via-surface-1 to-success-bg p-3 ring-1 ring-line dark:from-info-bg/30 dark:to-success-bg/20">
+              <div className="grid place-items-center rounded-xl bg-surface-2 p-3 ring-1 ring-line">
                 <svg viewBox="0 0 240 190" width="210" height="165" className="max-w-full">
                   <defs>
                     <linearGradient id={`geom-fill-${index}`} x1="0" x2="1" y1="0" y2="1">
@@ -1672,7 +1674,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl border border-line bg-gradient-to-br from-surface-2 via-surface-1 to-info-bg/70 p-4 dark:to-info-bg/20">
+          <div className="rounded-2xl border border-line bg-surface-2 p-4">
             <SectionTitle
               icon={<Layers className="h-4 w-4" />}
               label="Layer architecture"
@@ -1732,7 +1734,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                         <span className="text-caption font-bold text-content-3">{group.rows.length} row{group.rows.length === 1 ? "" : "s"}</span>
                       </div>
                       <div className="overflow-hidden rounded-xl border border-line bg-surface-1">
-                        <div className="grid grid-cols-[minmax(0,1fr)_72px_90px_92px] gap-2 border-b border-line bg-surface-2 px-2.5 py-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+                        <div className="grid grid-cols-[minmax(0,1fr)_72px_90px_92px] gap-2 border-b border-line bg-surface-2 px-2.5 py-1.5 text-[12px] font-semibold text-content-3">
                           <div>Material</div>
                           <div className="text-right">g/pc</div>
                           <div className="text-right">Order qty</div>
@@ -1755,7 +1757,7 @@ function TechnicalLine({ line, index, order }: { line: SalesOrderLine; index: nu
                 })}
                 {stepSummary.length ? (
                   <div className="pt-1">
-                    <div className="mb-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-4">BOM by route step</div>
+                    <div className="mb-2 text-[12px] font-semibold text-content-3">BOM by route step</div>
                     <div className="flex flex-wrap items-center gap-1.5 text-caption font-bold">
                       {stepSummary.map((step, stepIndex) => {
                         const stepTone = LINE_PROGRESS_TONES[stepIndex % LINE_PROGRESS_TONES.length];
@@ -1858,7 +1860,7 @@ function DocumentsTab({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-line bg-gradient-to-br from-info-bg via-surface-1 to-success-bg/70 p-5 shadow-sm dark:from-info-bg/30 dark:to-success-bg/20">
+      <section className="rounded-2xl border border-line bg-surface-2 p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-lg font-semibold text-content-1">
@@ -2067,7 +2069,7 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg via-surface-1 to-warning-bg/70 p-5 shadow-sm dark:from-success-bg/20 dark:to-warning-bg/20">
+      <section className="rounded-2xl border border-success-border bg-success-bg p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-lg font-semibold text-content-1">
@@ -2109,7 +2111,7 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           <div className="rounded-xl border border-line bg-surface-2 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-caption font-semibold uppercase tracking-wider text-content-4">Yield efficiency</div>
+              <div className="text-[12px] font-semibold text-content-3">Yield efficiency</div>
               <span className="font-mono text-sm font-semibold text-success-fg">{Math.round(yieldPct)}%</span>
             </div>
             <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
@@ -2122,7 +2124,7 @@ function MaterialAuditTab({ order, tracking }: { order: SalesOrder; tracking?: O
           </div>
           <div className="rounded-xl border border-line bg-surface-2 p-3">
             <div className="flex items-center justify-between">
-              <div className="text-caption font-semibold uppercase tracking-wider text-content-4">Material consumption</div>
+              <div className="text-[12px] font-semibold text-content-3">Material consumption</div>
               <span className="font-mono text-sm font-semibold text-warning-fg">{fmtKg(materialConsumed)} / {fmtKg(materialRequired)} kg</span>
             </div>
             <div className="mt-2 flex h-3 overflow-hidden rounded-full bg-surface-1 ring-1 ring-line">
@@ -2356,7 +2358,7 @@ function CommercialHead({ order }: { order: SalesOrder }) {
   if (!rows.length && !note) return null;
   return (
     <details className="group mt-4 rounded-xl border border-line bg-surface-1" data-testid="order-commercial-head">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[12px] font-semibold text-content-3">
         <ReceiptText className="h-3.5 w-3.5 text-primary" /> Commercial head
         {note ? <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal text-warning-fg">note prints on slip</span> : null}
         <span className="ml-auto text-content-4 group-open:hidden">show</span>
@@ -2419,7 +2421,7 @@ export default function SalesOrderDetailPage() {
       <div className="flex h-[70vh] items-center justify-center">
         <div className="text-center">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
-          <div className="mt-3 text-caption font-semibold uppercase tracking-[0.12em] text-content-4">Loading sales order tracker</div>
+          <div className="mt-3 text-[12px] font-semibold text-content-3">Loading sales order tracker</div>
         </div>
       </div>
     );
@@ -2479,12 +2481,12 @@ export default function SalesOrderDetailPage() {
             <div className="min-w-0 border-t border-line bg-surface-2 p-4 sm:p-5 xl:border-l xl:border-t-0">
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Fulfillment truth</div>
+                  <div className="text-[12px] font-semibold text-content-3">Fulfillment truth</div>
                   <div className="mt-1 text-xs font-semibold text-content-3">Ready output, customer dispatch, live route WIP, and open demand.</div>
                 </div>
                 <div className="flex-none text-right">
                   <div className="font-mono text-3xl font-semibold text-primary">{Math.round(completePct)}%</div>
-                  <div className="text-caption font-semibold uppercase tracking-wide text-content-4">complete</div>
+                  <div className="text-[12px] font-semibold text-content-3">complete</div>
                 </div>
               </div>
               <div className="mt-4">

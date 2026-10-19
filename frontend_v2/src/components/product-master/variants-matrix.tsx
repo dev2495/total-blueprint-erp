@@ -349,7 +349,7 @@ export function VariantsMatrixV37({
 
       {/* ─── Saved views + filters row ─── */}
       <div className="flex flex-wrap items-center gap-2 text-caption">
-        <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           Views
         </span>
         <button
@@ -386,7 +386,7 @@ export function VariantsMatrixV37({
         </button>
         {filters.length ? (
           <>
-            <span className="ml-3 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="ml-3 text-[12px] font-semibold text-content-3">
               Filters
             </span>
             {filters.map((f) => (
@@ -715,7 +715,7 @@ function PivotMatrix({
           </tbody>
           <tfoot className="bg-surface-2">
             <tr>
-              <td className="sticky left-0 bg-surface-2 px-2 py-2 text-right text-caption font-semibold uppercase tracking-wider text-content-3">
+              <td className="sticky left-0 bg-surface-2 px-2 py-2 text-right text-[12px] font-semibold text-content-3">
                 per-thickness count
               </td>
               {xs.map((x) => {

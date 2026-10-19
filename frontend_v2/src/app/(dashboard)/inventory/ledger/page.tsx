@@ -239,7 +239,7 @@ export default function LedgerPage() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-caption font-semibold uppercase tracking-widest text-content-4">
+              <p className="text-[12px] font-semibold text-content-3">
                 Syncing Ledger...
               </p>
             </div>

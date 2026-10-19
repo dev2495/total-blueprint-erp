@@ -251,7 +251,7 @@ export default function CatalogLinePicker({
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-line p-3">
-        <div className="text-caption font-semibold uppercase tracking-widest text-content-3 mb-2">
+        <div className="text-[12px] font-semibold text-content-3 mb-2">
           {title}
         </div>
         {helper ? (
@@ -310,7 +310,7 @@ export default function CatalogLinePicker({
             </div>
             <div className="max-h-64 overflow-y-auto">
               {pmQuery.isLoading ? (
-                <div className="px-3 py-4 text-center text-caption font-semibold uppercase tracking-widest text-content-4">
+                <div className="px-3 py-4 text-center text-[12px] font-semibold text-content-3">
                   <Loader2 className="h-4 w-4 mx-auto animate-spin" />
                 </div>
               ) : productMasters.length === 0 ? (
@@ -372,7 +372,7 @@ export default function CatalogLinePicker({
 
       {valuePmId ? (
         <div className="rounded-xl border border-line p-3">
-          <div className="text-caption font-semibold uppercase tracking-widest text-content-3 mb-2">
+          <div className="text-[12px] font-semibold text-content-3 mb-2">
             {sizeTitle}
           </div>
           {sizeHelper ? (
@@ -413,7 +413,7 @@ export default function CatalogLinePicker({
                 ))}
               </div>
               <div className="my-3 border-t border-line" />
-              <div className="mb-2 text-caption font-semibold uppercase tracking-widest text-content-4">Saved sizes</div>
+              <div className="mb-2 text-[12px] font-semibold text-content-3">Saved sizes</div>
             </div>
           ) : null}
           {sizeQuery.isLoading ? (
@@ -451,7 +451,7 @@ export default function CatalogLinePicker({
                         <span className="font-mono text-caption text-content-3 truncate">
                           {size.code}
                         </span>
-                        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-semibold uppercase tracking-widest text-content-3 ring-1 ring-line">
+                        <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[12px] font-semibold text-content-3 ring-1 ring-line">
                           {style}
                         </span>
                       </div>
@@ -470,7 +470,7 @@ export default function CatalogLinePicker({
                             : ""}
                         </div>
                       ) : null}
-                      <div className="mt-1 flex flex-wrap gap-1 text-caption font-semibold uppercase tracking-wider text-content-3">
+                      <div className="mt-1 flex flex-wrap gap-1 text-[12px] font-semibold text-content-3">
                         {childWeb > 0 ? (
                           <span className="rounded bg-info-bg px-1.5 py-0.5 text-info-fg ring-1 ring-info-border">
                             child {childWeb.toFixed(0)} mm

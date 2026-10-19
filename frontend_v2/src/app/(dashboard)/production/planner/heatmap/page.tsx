@@ -149,7 +149,7 @@ export default function FactoryHeatmap() {
             className="bg-surface-1/80 backdrop-blur-sm border border-line rounded-3xl p-6 flex items-center justify-between group hover:border-info-border transition-all cursor-default"
           >
             <div className="space-y-1">
-              <p className="text-caption font-semibold uppercase tracking-widest text-content-4">
+              <p className="text-[12px] font-semibold text-content-3">
                 {stat.label}
               </p>
               <h3 className="text-2xl font-semibold text-content-1">
@@ -189,7 +189,7 @@ export default function FactoryHeatmap() {
                     Work-center load, active jobs, and route-pressure status
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-4 text-caption font-semibold uppercase tracking-widest text-content-4">
+                <div className="flex items-center gap-4 text-[12px] font-semibold text-content-3">
                   <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-surface-2" />{" "}
                     IDLE
@@ -403,7 +403,7 @@ export default function FactoryHeatmap() {
 
           {/* Quick Stats */}
           <Card className="border-none shadow-premium rounded-[2.5rem] bg-surface-1 p-8">
-            <h4 className="text-caption font-semibold uppercase tracking-widest text-content-4 mb-6">
+            <h4 className="text-[12px] font-semibold text-content-3 mb-6">
               Capacity Health Matrix
             </h4>
             <div className="space-y-8">

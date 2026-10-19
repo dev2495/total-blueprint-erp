@@ -215,8 +215,8 @@ export default function QuotationListPage() {
     <main className="mx-auto max-w-[1480px] px-5 py-7 lg:px-8 lg:py-8 space-y-6">
       {/* Hero */}
       <section className="erp-hero relative overflow-hidden rounded-[28px] p-6 text-white">
-        <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-surface-1/10 blur-3xl" />
-        <div className="absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-order-fg blur-3xl" />
+        <div className="hidden absolute -right-20 -top-20 h-72 w-72 rounded-full bg-surface-1/10 blur-3xl" />
+        <div className="hidden absolute -left-10 -bottom-20 h-56 w-56 rounded-full bg-order-fg blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-border">
@@ -254,7 +254,7 @@ export default function QuotationListPage() {
                 key={s}
                 className="rounded-2xl bg-surface-1 ring-1 ring-line p-4 shadow-[0_18px_42px_-34px_rgba(15,23,42,0.32)]"
               >
-                <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-content-3">
+                <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
                   <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                   {style.label}
                 </div>
@@ -309,7 +309,7 @@ export default function QuotationListPage() {
         <div className="flex flex-wrap gap-3 items-center">
           <div className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5 text-content-4" />
-            <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Date
             </span>
           </div>
@@ -407,7 +407,7 @@ export default function QuotationListPage() {
             </button>
           </div>
         ) : filtered.length === 0 && quotes.length === 0 ? (
-          <div className="rounded-2xl bg-gradient-to-br from-order-bg via-white to-order-bg ring-1 ring-order-border p-12 text-center">
+          <div className="rounded-2xl bg-surface-2 ring-1 ring-order-border p-12 text-center">
             <div className="erp-hero mx-auto h-20 w-20 rounded-3xl flex items-center justify-center text-white shadow-md">
               <Sparkles className="h-9 w-9" />
             </div>
@@ -420,7 +420,7 @@ export default function QuotationListPage() {
             </p>
             <Link
               href="/sales/quotations/new"
-              className="mt-5 inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-gradient-to-br from-order-fg via-order-fg to-order-fg text-white font-semibold text-sm hover:opacity-95 shadow-md"
+              className="mt-5 inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-95"
             >
               <Plus className="h-4 w-4" strokeWidth={2.5} />
               Start your first quote
@@ -548,7 +548,7 @@ export default function QuotationListPage() {
                     className="flex items-center gap-3"
                   >
                     <div className="text-right">
-                      <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Total
                       </div>
                       <div className="font-mono text-lg font-semibold text-content-1">

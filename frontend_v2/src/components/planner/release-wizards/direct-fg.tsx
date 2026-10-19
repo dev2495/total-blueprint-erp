@@ -184,7 +184,7 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
 
       {step === "pick-line" ? (
         <section className="space-y-2">
-          <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+          <h3 className="text-[12px] font-semibold text-content-3">
             Sales lines awaiting plan
           </h3>
           <DemandLineList
@@ -220,7 +220,7 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
               tone={remaining > 0 ? "warn" : "success"}
             />
           </div>
-          <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+          <h3 className="text-[12px] font-semibold text-content-3">
             Finished pool matches
           </h3>
           {finishedOptions.length === 0 ? (
@@ -299,7 +299,7 @@ export function DirectFgWizard({ seedOrderKey, onClose }: DirectFgWizardProps) {
 
       {step === "confirm" && selected ? (
         <section className="space-y-3">
-          <h3 className="text-caption font-semibold uppercase tracking-wide text-content-3">
+          <h3 className="text-[12px] font-semibold text-content-3">
             Review
           </h3>
           <div className="rounded-lg border border-line bg-surface-1 p-3 text-[12px]">

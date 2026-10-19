@@ -52,7 +52,7 @@ export function GateSetup() {
   return (
     <div className="mx-auto max-w-[920px] space-y-6 pb-6">
       <header className="px-1 pt-1">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">Admin · Owner</div>
+        <div className="text-[12px] font-semibold text-content-3">Admin · Owner</div>
         <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-content-1">Gate setup</h1>
         <p className="mt-1 max-w-[680px] text-[15px] leading-relaxed text-content-2 [text-wrap:pretty]">
           Every factory in the plant master already has its gate and its own visitor QR — created automatically with the plant. There is

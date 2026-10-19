@@ -83,7 +83,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
       <CardContent className="flex-1 p-6 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Machine
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">
@@ -91,7 +91,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Work Center
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">
@@ -99,7 +99,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Target
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">
@@ -107,7 +107,7 @@ export function ExecutionPanel({ job, onUpdate }: ExecutionPanelProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-2 p-4">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Current Process
             </div>
             <div className="mt-2 text-sm font-bold text-content-1">

@@ -1234,11 +1234,11 @@ export function InventoryWorkspaceShell() {
       <div className="mx-auto max-w-[1440px] space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-success-fg to-info-fg text-base font-semibold text-white shadow-sm">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-success-fg text-base font-semibold text-white shadow-sm">
               T
             </div>
             <div>
-              <div className="text-caption font-bold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Total Poly Print ERP
               </div>
               <div className="text-sm font-semibold text-content-1">Inventory</div>
@@ -1276,7 +1276,7 @@ export function InventoryWorkspaceShell() {
 
         <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="mb-1 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <div className="mb-1 text-[12px] font-semibold text-content-3">
               Inventory · {tab === "grn" ? "Audit" : title}
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-content-1">
@@ -2108,7 +2108,7 @@ export function InventoryFilterBar({
             <div className="rounded-xl bg-surface-2 px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                  <div className="text-[12px] font-semibold text-content-3">
                     My saved views
                   </div>
                   <div className="mt-0.5 text-xs font-semibold text-content-3">
@@ -2242,7 +2242,7 @@ export function InventoryFilterBar({
       </div>
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
         <DialogContent className="rounded-[24px] border-line bg-surface-1 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] sm:max-w-lg">
-          <div className="rounded-t-[24px] bg-gradient-to-br from-success-bg via-white to-info-bg px-6 py-5">
+          <div className="rounded-t-[24px] bg-success-bg px-6 py-5">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-content-1">
                 <BookmarkPlus className="h-5 w-5 text-success-fg" />
@@ -2275,7 +2275,7 @@ export function InventoryFilterBar({
               />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-3">
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Current filter snapshot
               </div>
               <div className="mt-1 text-sm font-bold leading-6 text-content-2">
@@ -2382,8 +2382,8 @@ function FilterTextInput({
       className={cn(
         "h-10 w-[150px] rounded-full px-4 text-xs font-semibold transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-success-border",
         active
-          ? "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg text-success-fg placeholder:text-success-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
-          : "border-info-border bg-gradient-to-br from-white via-info-bg to-success-bg text-content-2 placeholder:text-content-3 hover:border-success-border hover:from-success-bg hover:via-white hover:to-info-bg hover:text-success-fg",
+          ? "border-success-border bg-success-bg text-success-fg placeholder:text-success-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
+          : "border-info-border bg-surface-1 text-content-2 placeholder:text-content-3 hover:border-success-border hover:from-success-bg hover:via-white hover:to-info-bg hover:text-success-fg",
       )}
     />
   );
@@ -2411,8 +2411,8 @@ function FilterDateInput({
       className={cn(
         "h-10 w-[148px] rounded-full px-4 text-xs font-semibold transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_10px_24px_rgba(15,23,42,0.055)] focus-visible:ring-2 focus-visible:ring-success-border",
         active
-          ? "border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg text-success-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
-          : "border-info-border bg-gradient-to-br from-white via-info-bg to-success-bg text-content-2 hover:border-success-border hover:from-success-bg hover:via-white hover:to-info-bg hover:text-success-fg",
+          ? "border-success-border bg-success-bg text-success-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_28px_rgba(16,185,129,0.14)]"
+          : "border-info-border bg-surface-1 text-content-2 hover:border-success-border hover:from-success-bg hover:via-white hover:to-info-bg hover:text-success-fg",
       )}
     />
   );
@@ -2748,7 +2748,7 @@ function InventoryKpiCard({
       <div className={cn("absolute left-0 top-0 h-full w-1", accent)} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             {label}
           </div>
           <div className="mt-2 text-2xl font-semibold tracking-tight text-content-1">
@@ -2797,7 +2797,7 @@ function FreshnessBandCard({
   return (
     <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Freshness Bands
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -2843,7 +2843,7 @@ function StageDistributionCard({
   return (
     <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Stage Distribution
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -2920,7 +2920,7 @@ function LargestPositionsCard({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Largest Positions
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -3088,7 +3088,7 @@ function CssDonut({ data }: { data: Array<{ name: string; value: number }> }) {
       >
         <div className="grid h-28 w-28 place-items-center rounded-full bg-surface-1 shadow-inner">
           <div className="text-center">
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               Total
             </div>
             <div className="text-2xl font-semibold text-content-1">
@@ -3150,7 +3150,7 @@ export function AgeHeatmap({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="text-[12px] font-semibold text-content-3">
           Age Heatmap
         </div>
         <CardTitle className="text-base font-semibold text-content-1">
@@ -3319,7 +3319,7 @@ export function InventoryHeatmap({
   return (
     <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
           <Thermometer className="h-4 w-4 text-danger-fg" />
           Size / Variant Matrix
         </div>
@@ -3335,7 +3335,7 @@ export function InventoryHeatmap({
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[620px] space-y-2">
-              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="grid grid-cols-[180px_repeat(8,minmax(80px,1fr))] gap-2 text-[12px] font-semibold text-content-3">
                 <div>Variant</div>
                 {matrix.cols.map((col) => (
                   <div key={col} className="truncate text-center">

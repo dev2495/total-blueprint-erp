@@ -152,7 +152,7 @@ export function SavedViewsBar<T>({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
-      <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
+      <span className="text-[12px] font-semibold text-content-3 mr-1">
         Views
       </span>
       {views.map((v) => (
@@ -342,7 +342,7 @@ export function FilterBar({
 
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mr-1">
+          <span className="text-[12px] font-semibold text-content-3 mr-1">
             <Filter className="inline-block h-3 w-3 mr-1 -mt-0.5" />
             Active
           </span>
@@ -393,7 +393,7 @@ export function FilterGroup({
 }: FilterGroupProps) {
   return (
     <div>
-      <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="mb-1.5 text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div
@@ -467,7 +467,7 @@ export function MultiSelectPills({
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-2.5">
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           {label}
         </span>
         {selected.length > 0 && (
@@ -580,7 +580,7 @@ export function RangeFilter({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="text-caption font-semibold uppercase tracking-wider text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           {label}
         </span>
         <span className="font-mono text-caption text-content-2">
@@ -624,7 +624,7 @@ export function FilterRail({
   return (
     <aside className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto rounded-2xl border border-line bg-surface-1 p-4 shadow-sm space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           <Sparkles className="inline-block h-3 w-3 mr-1 -mt-0.5" />
           Smart filters
         </span>
@@ -657,27 +657,27 @@ export function WorkspaceSection({
   const TONE: Record<string, { bar: string; bg: string; num: string }> = {
     blue: {
       bar: "border-l-blue-500",
-      bg: "from-info-bg",
+      bg: "bg-surface-2",
       num: "bg-primary text-white",
     },
     violet: {
       bar: "border-l-violet-500",
-      bg: "from-order-bg",
+      bg: "bg-surface-2",
       num: "bg-order-fg text-white",
     },
     amber: {
       bar: "border-l-amber-500",
-      bg: "from-warning-bg",
+      bg: "bg-warning-bg",
       num: "bg-warning-fg text-white",
     },
     emerald: {
       bar: "border-l-emerald-500",
-      bg: "from-success-bg",
+      bg: "bg-success-bg",
       num: "bg-success-fg text-white",
     },
     rose: {
       bar: "border-l-rose-500",
-      bg: "from-danger-bg",
+      bg: "bg-danger-bg",
       num: "bg-danger-solid text-white",
     },
   };
@@ -691,7 +691,7 @@ export function WorkspaceSection({
     >
       <header
         className={cn(
-          "flex flex-wrap items-start justify-between gap-3 border-b border-line bg-gradient-to-r via-white to-white px-5 py-3",
+          "flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-3",
           t.bg,
         )}
       >
@@ -708,7 +708,7 @@ export function WorkspaceSection({
           )}
           <div>
             {eyebrow && (
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 {eyebrow}
               </div>
             )}
@@ -747,16 +747,16 @@ export function KpiTileV36({
   delta?: { v: string; positive: boolean };
 }) {
   const TONE = {
-    blue: "from-primary via-order-fg to-order-fg",
-    violet: "from-order-fg via-order-fg to-danger-solid",
-    amber: "from-warning-fg via-warm to-danger-solid",
-    emerald: "from-success-fg via-info-fg to-info-fg",
-    rose: "from-danger-solid via-danger-solid to-order-fg",
+    blue: "bg-primary",
+    violet: "bg-plate",
+    amber: "bg-warning-fg",
+    emerald: "bg-success-fg",
+    rose: "bg-danger-solid",
   }[tone];
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl bg-gradient-to-br p-4 text-white shadow-xl ring-1 ring-surface-1/10 transition hover:-translate-y-0.5 hover:shadow-2xl",
+        "overflow-hidden rounded-2xl p-4 text-white shadow-xl ring-1 ring-surface-1/10 transition hover:-translate-y-0.5 hover:shadow-2xl",
         TONE,
       )}
     >

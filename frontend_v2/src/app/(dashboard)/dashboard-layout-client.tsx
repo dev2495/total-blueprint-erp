@@ -11,7 +11,7 @@ import { WorkspaceBar } from "@/components/layout/workspace-bar";
 import { HelpPageBanner } from "@/components/help/help-page-banner";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { isWatchmanUser } from "@/components/gate/gate-access";
 
@@ -63,7 +63,12 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden erp-canvas">
+    <div
+      // overflow-x-clip (not hidden) so sticky headers, step lists and preview rails keep working.
+      className="min-h-screen w-full overflow-x-clip erp-canvas"
+      // Fixed bottom bars (place order, save master, launch stock) start after the sidebar.
+      style={{ "--sidebar-width": isPinned ? "304px" : "86px" } as React.CSSProperties}
+    >
       <RouteProgress />
       <Sidebar />
       <div
@@ -73,7 +78,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         )}
       >
         <Header />
-        <main className="z-10 flex w-full min-w-0 flex-col overflow-x-hidden px-3 pb-6 pt-[10.75rem] sm:px-4 sm:pb-8 sm:pt-[11rem] lg:px-6 lg:pb-10 lg:pt-5 xl:px-8">
+        <main className="z-10 flex w-full min-w-0 flex-col overflow-x-clip px-3 pb-6 pt-[10.75rem] sm:px-4 sm:pb-8 sm:pt-[11rem] lg:px-6 lg:pb-10 lg:pt-5 xl:px-8">
           <HelpPageBanner />
           <WorkspaceBar />
           <div className="w-full min-w-0">{children}</div>

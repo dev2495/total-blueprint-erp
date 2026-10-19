@@ -41,7 +41,7 @@ export function StalledJobsPanel({
     <section
       data-testid="wcm-stalled-panel"
       className={cn(
-        "overflow-hidden rounded-3xl bg-gradient-to-br from-warning-bg to-warm p-5 shadow-sm ring-1 ring-warning-border",
+        "overflow-hidden rounded-3xl bg-warning-bg p-5 shadow-sm ring-1 ring-warning-border",
         className,
       )}
     >

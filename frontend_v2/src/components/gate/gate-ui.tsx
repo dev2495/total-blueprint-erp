@@ -95,7 +95,7 @@ export function SectionHeading({ eyebrow, title, action }: { eyebrow?: string; t
     <div className="mb-2.5 flex items-end justify-between gap-3 px-1">
       <div>
         {eyebrow ? (
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">{eyebrow}</div>
+          <div className="text-[12px] font-semibold text-content-3">{eyebrow}</div>
         ) : null}
         <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-content-1">{title}</h2>
       </div>

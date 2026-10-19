@@ -153,8 +153,8 @@ export default function AlertsCenterPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <section className="relative overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 p-6 shadow-[0_30px_80px_-42px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-danger-solid via-warning-fg to-info-fg" />
-        <div className="pointer-events-none absolute -right-10 -top-8 h-36 w-36 rounded-full bg-danger-solid blur-3xl" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-danger-solid" />
+        <div className="hidden pointer-events-none absolute -right-10 -top-8 h-36 w-36 rounded-full bg-danger-solid blur-3xl" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-danger-border bg-danger-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-danger-fg">
@@ -452,7 +452,7 @@ export default function AlertsCenterPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+              <div className="text-[12px] font-semibold text-content-3">
                 Alert
               </div>
               <div className="mt-1 text-sm font-bold text-content-1">

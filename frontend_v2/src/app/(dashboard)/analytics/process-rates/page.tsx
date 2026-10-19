@@ -185,7 +185,7 @@ export default function ProcessRatesPage() {
             <div className="p-8 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Target Process
                   </Label>
                   <Select
@@ -206,7 +206,7 @@ export default function ProcessRatesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
+                  <Label className="text-[12px] font-semibold text-content-3">
                     Specific Machine (Optional)
                   </Label>
                   <Select
@@ -229,7 +229,7 @@ export default function ProcessRatesPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
+                    <Label className="text-[12px] font-semibold text-content-3">
                       Power/hr
                     </Label>
                     <Input
@@ -245,7 +245,7 @@ export default function ProcessRatesPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
+                    <Label className="text-[12px] font-semibold text-content-3">
                       Labor/hr
                     </Label>
                     <Input
@@ -261,7 +261,7 @@ export default function ProcessRatesPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-caption font-semibold uppercase tracking-widest text-content-4">
+                    <Label className="text-[12px] font-semibold text-content-3">
                       Overhead/hr
                     </Label>
                     <Input

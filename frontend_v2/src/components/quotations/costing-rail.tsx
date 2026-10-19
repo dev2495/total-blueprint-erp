@@ -76,14 +76,14 @@ export default function CostingRail({
       ) : null}
       {/* Material rows */}
       <div className="rounded-xl border border-line p-4">
-        <div className="text-caption font-semibold uppercase tracking-widest text-content-3 mb-2">
+        <div className="text-[12px] font-semibold text-content-3 mb-2">
           Material cost
         </div>
         <div className="space-y-1.5 text-[12px] font-semibold text-content-2">
           {(result?.breakdown?.materials || []).map((row, idx) => (
             <div key={idx} className="flex items-center justify-between gap-2">
               <span className="truncate">
-                <span className="text-caption font-semibold uppercase tracking-widest text-content-4 mr-1">
+                <span className="text-[12px] font-semibold text-content-3 mr-1">
                   {row.kind || "MAT"}
                 </span>
                 {row.name}
@@ -99,7 +99,7 @@ export default function CostingRail({
           ) : null}
         </div>
         <div className="mt-3 pt-3 border-t border-line flex items-center justify-between">
-          <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+          <span className="text-[12px] font-semibold text-content-3">
             Total ₹/kg
           </span>
           <span className="font-mono font-semibold text-content-1">
@@ -111,7 +111,7 @@ export default function CostingRail({
       {/* Conversion */}
       <div className="rounded-xl border border-line p-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Process cost
           </div>
           {result?.is_indicative ? (
@@ -132,7 +132,7 @@ export default function CostingRail({
           ))}
         </div>
         <div className="mt-3 pt-3 border-t border-line flex items-center justify-between">
-          <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+          <span className="text-[12px] font-semibold text-content-3">
             Total ₹/kg
           </span>
           <span className="font-mono font-semibold text-content-1">
@@ -142,7 +142,7 @@ export default function CostingRail({
       </div>
 
       {/* Sale rate card */}
-      <div className="rounded-xl bg-gradient-to-br from-success-fg to-info-fg text-white p-4 shadow-[0_18px_42px_-24px_rgba(16,185,129,0.6)]">
+      <div className="rounded-xl bg-success-fg text-white p-4 shadow-[0_18px_42px_-24px_rgba(16,185,129,0.6)]">
         <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-widest text-success-border mb-1">
           <BadgeIndianRupee className="h-3.5 w-3.5" />
           Suggested sale rate
@@ -164,7 +164,7 @@ export default function CostingRail({
       {/* Lock toggle + manual overrides */}
       <div className="rounded-xl border border-line p-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Pricing mode
           </div>
           <button
@@ -181,7 +181,7 @@ export default function CostingRail({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <label className={`block ${marginLock ? "" : "opacity-60"}`}>
-            <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Margin %
             </span>
             <input
@@ -193,7 +193,7 @@ export default function CostingRail({
             />
           </label>
           <label className={`block ${marginLock ? "opacity-60" : ""}`}>
-            <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Rate ₹/kg
             </span>
             <input

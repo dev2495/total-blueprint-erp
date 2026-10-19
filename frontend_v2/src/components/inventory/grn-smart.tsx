@@ -1247,7 +1247,7 @@ export function GrnSmartV36() {
             className="flex min-h-[40px] flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-surface-1 px-3 py-1 shadow-sm"
             data-testid="smart-grn-class-compact"
           >
-            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Stock class
             </span>
             <div
@@ -1682,7 +1682,7 @@ export function GrnSmartV36() {
                   </div>
                   <div className="mt-3 overflow-x-auto rounded-xl border border-success-border bg-surface-1">
                     <table className="min-w-[1360px] text-left text-caption">
-                      <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+                      <thead className="bg-surface-2 text-[12px] font-semibold text-content-3">
                         <tr>
                           {[
                             "Row",
@@ -2080,7 +2080,7 @@ export function GrnSmartV36() {
       <GrnFooterBar isPinned={isPinned}>
         <div className="mx-auto grid max-w-none gap-2 px-3 py-2 sm:px-5">
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
-            <span className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+            <span className="text-[12px] font-semibold text-content-3">
               Live totals
             </span>
             <span className="rounded-full bg-surface-2 px-2.5 py-0.5 font-bold uppercase text-content-2 ring-1 ring-line">
@@ -2177,7 +2177,7 @@ export function GrnSmartV36() {
                   data-testid="smart-grn-submit"
                   onClick={() => submitMutation.mutate()}
                   disabled={!valid || submitMutation.isPending}
-                  className="gap-1.5 rounded-xl bg-gradient-to-r from-success-fg to-info-fg shadow-md"
+                  className="gap-1.5 rounded-xl bg-success-fg shadow-md"
                 >
                   {submitMutation.isPending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2303,27 +2303,27 @@ function Section({
   const TONE = {
     blue: {
       bar: "border-l-blue-500",
-      bg: "from-info-bg",
+      bg: "bg-surface-2",
       num: "bg-primary ring-primary",
     },
     violet: {
       bar: "border-l-violet-500",
-      bg: "from-order-bg",
+      bg: "bg-surface-2",
       num: "bg-order-fg ring-order-border",
     },
     emerald: {
       bar: "border-l-emerald-500",
-      bg: "from-success-bg",
+      bg: "bg-success-bg",
       num: "bg-success-fg ring-success-border",
     },
     amber: {
       bar: "border-l-amber-500",
-      bg: "from-warning-bg",
+      bg: "bg-warning-bg",
       num: "bg-warning-fg ring-warning-border",
     },
     slate: {
       bar: "border-l-slate-400",
-      bg: "from-surface-2",
+      bg: "bg-surface-2",
       num: "bg-line ring-line-strong",
     },
   }[tone];
@@ -2336,7 +2336,7 @@ function Section({
     >
       <header
         className={cn(
-          "flex items-start justify-between gap-3 border-b border-line bg-gradient-to-r via-white to-white px-5 py-3.5",
+          "flex items-start justify-between gap-3 border-b border-line px-5 py-3.5",
           TONE.bg,
         )}
       >
@@ -2350,7 +2350,7 @@ function Section({
             {idx}
           </span>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               {eyebrow}
             </div>
             <h2 className="text-[15px] font-bold text-content-1">{title}</h2>
@@ -2388,7 +2388,7 @@ function ClassTile({
       className={cn(
         "flex flex-col gap-2 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
         active
-          ? "border-success-border bg-gradient-to-br from-success-bg to-white ring-2 ring-success-border"
+          ? "border-success-border bg-success-bg ring-2 ring-success-border"
           : "border-line bg-surface-1",
       )}
     >
@@ -2421,7 +2421,7 @@ function Field({
 }) {
   return (
     <div className={col2 ? "sm:col-span-2" : ""}>
-      <Label className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         {label}
         {required && <span className="text-danger-fg"> *</span>}
       </Label>
@@ -2448,7 +2448,7 @@ function Toggle({
       className={cn(
         "rounded-lg px-3 py-1.5 text-xs font-bold shadow-sm transition",
         active
-          ? "bg-gradient-to-r from-success-fg to-info-fg text-white"
+          ? "bg-success-fg text-white"
           : "bg-surface-1 text-content-2 ring-1 ring-line",
       )}
     >
@@ -2932,7 +2932,7 @@ function RollFastEntryGrid({
       </div>
       <div className="max-h-[64vh] overflow-auto">
         <table className="min-w-[1940px] text-left text-caption">
-          <thead className="sticky top-0 z-10 bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
+          <thead className="sticky top-0 z-10 bg-surface-2 text-[12px] font-semibold text-content-3 shadow-sm">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[260px] px-2 py-2">Film variant</th>
@@ -3691,7 +3691,7 @@ function ReceiptFastEntryGrid({
       </div>
       <div className="max-h-[64vh] overflow-auto">
         <table className="min-w-[1520px] text-left text-caption">
-          <thead className="sticky top-0 z-10 bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3 shadow-sm">
+          <thead className="sticky top-0 z-10 bg-surface-2 text-[12px] font-semibold text-content-3 shadow-sm">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[340px] px-2 py-2">Material</th>
@@ -4315,7 +4315,7 @@ function ItemEditor({
 
       {klass === "ROLL" && (
         <div className="mt-3 rounded-xl border border-line bg-surface-2 p-3">
-          <div className="text-caption font-semibold uppercase tracking-wider text-content-3 mb-2">
+          <div className="text-[12px] font-semibold text-content-3 mb-2">
             Roll-specific fields
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -4608,7 +4608,7 @@ function TradingReceiptPanel({
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[1660px] text-left text-caption">
-          <thead className="bg-surface-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <thead className="bg-surface-2 text-[12px] font-semibold text-content-3">
             <tr>
               <th className="w-12 px-2 py-2">#</th>
               <th className="w-[360px] px-2 py-2">Trading good</th>
@@ -4755,7 +4755,7 @@ function TradingReceiptPanel({
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Cost details
               </div>
               <div className="mt-1 text-lg font-semibold text-content-1">
@@ -4845,7 +4845,7 @@ function TradingReceiptPanel({
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Receipt guards
           </div>
           <div className="mt-3 grid gap-2">
@@ -4926,7 +4926,7 @@ function TradingCostMetric({
           : "border-line bg-surface-2",
       )}
     >
-      <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div

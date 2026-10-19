@@ -154,7 +154,7 @@ export default function MachineSelectorPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-surface-2 to-surface-2 flex items-center justify-center">
+      <div className="min-h-screen bg-surface-2 flex items-center justify-center">
         <div className="text-lg text-content-3">Loading machines...</div>
       </div>
     );
@@ -162,7 +162,7 @@ export default function MachineSelectorPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-surface-2 to-surface-2 flex items-center justify-center">
+      <div className="min-h-screen bg-surface-2 flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-16 h-16 mx-auto mb-4 text-danger-fg" />
           <h2 className="text-xl font-semibold text-content-2 mb-2">
@@ -179,7 +179,7 @@ export default function MachineSelectorPage() {
 
   if (machines.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-surface-2 to-surface-2 flex items-center justify-center">
+      <div className="min-h-screen bg-surface-2 flex items-center justify-center">
         <div className="text-center">
           <Server className="w-16 h-16 mx-auto mb-4 text-content-4" />
           <h2 className="text-xl font-semibold text-content-2 mb-2">
@@ -384,7 +384,7 @@ export default function MachineSelectorPage() {
                   </CardHeader>
 
                   <CardContent className="flex flex-1 flex-col gap-4 px-5 pb-5">
-                    <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-wide text-content-3">
+                    <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
                       <Package className="h-3.5 w-3.5 text-content-4" />
                       <span>{machine.work_center_name}</span>
                       <span className="mx-0.5 text-content-4">|</span>

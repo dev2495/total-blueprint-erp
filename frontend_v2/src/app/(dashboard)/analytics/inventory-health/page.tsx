@@ -326,7 +326,7 @@ export default function InventoryHealthPage() {
         <Card className="border-0 bg-surface-1 shadow-xl rounded-2xl overflow-hidden flex flex-col items-center justify-center p-6 relative">
           <div className="absolute top-4 left-4 flex items-center gap-2">
             <Gauge className="h-4 w-4 text-content-4" strokeWidth={1.5} />
-            <span className="text-caption font-bold uppercase tracking-widest text-content-4">
+            <span className="text-[12px] font-semibold text-content-3">
               System Integrity
             </span>
           </div>
@@ -352,7 +352,7 @@ export default function InventoryHealthPage() {
               <div className="text-5xl font-semibold tracking-tighter text-content-1">
                 {integrityScore === null ? "—" : `${integrityScore}%`}
               </div>
-              <div className="text-caption font-bold uppercase tracking-widest text-content-3 mt-1">
+              <div className="text-[12px] font-semibold text-content-3 mt-1">
                 Network State
               </div>
             </div>
@@ -367,7 +367,7 @@ export default function InventoryHealthPage() {
                 className="h-6 w-6 text-danger-fg mb-4"
                 strokeWidth={1.5}
               />
-              <p className="text-caption font-bold uppercase tracking-widest text-content-3 mb-1">
+              <p className="text-[12px] font-semibold text-content-3 mb-1">
                 Critical Anomalies
               </p>
               <p className="text-4xl font-semibold tracking-tight text-content-1">
@@ -387,7 +387,7 @@ export default function InventoryHealthPage() {
                 className="h-6 w-6 text-warm mb-4"
                 strokeWidth={1.5}
               />
-              <p className="text-caption font-bold uppercase tracking-widest text-content-3 mb-1">
+              <p className="text-[12px] font-semibold text-content-3 mb-1">
                 High Priority
               </p>
               <p className="text-4xl font-semibold tracking-tight text-content-1">
@@ -411,7 +411,7 @@ export default function InventoryHealthPage() {
                 } mb-4`}
                 strokeWidth={1.5}
               />
-              <p className="text-caption font-bold uppercase tracking-widest text-content-3 mb-1">
+              <p className="text-[12px] font-semibold text-content-3 mb-1">
                 Total Outstanding
               </p>
               <p className="text-4xl font-semibold tracking-tight text-content-1">

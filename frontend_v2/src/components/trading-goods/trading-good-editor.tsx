@@ -153,7 +153,7 @@ export function TradingGoodEditor({ mode, id }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-success-bg via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-success-bg px-4 py-4 sm:px-6">
       <GradientHero
         palette="emerald"
         eyebrow={
@@ -546,7 +546,7 @@ function StockBreakdownCard({
       )}
 
       {/* CTA → inventory workspace */}
-      <div className="mt-6 rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-5">
+      <div className="mt-6 rounded-2xl border border-order-border bg-surface-2 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-widest text-order-fg">
@@ -585,7 +585,7 @@ function Field({
 }) {
   return (
     <div className={className}>
-      <Label className="text-caption font-bold uppercase tracking-wider text-content-3">
+      <Label className="text-[12px] font-semibold text-content-3">
         {label}
       </Label>
       <div className="mt-1.5">{children}</div>

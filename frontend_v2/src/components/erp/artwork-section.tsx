@@ -336,7 +336,7 @@ function CompactArtworkPreview({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-1 px-4 py-3">
         <ArtworkThumb url={assignment.cover_url} accent={assignment.accent_hex} size={52} />
         <div className="min-w-0 flex-1">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">Selected artwork</div>
+          <div className="text-[12px] font-semibold text-content-3">Selected artwork</div>
           <div className="truncate text-sm font-semibold text-content-1">
             {assignment.colorway_name || assignment.design_family_name || assignment.artwork_id}
           </div>
@@ -406,14 +406,14 @@ function OverlayDefaultPanel({
     );
   }
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-info-border bg-gradient-to-r from-info-bg via-white to-order-bg px-4 py-3">
+    <div className="flex items-center gap-4 rounded-xl border border-info-border bg-surface-2 px-4 py-3">
       <ArtworkThumb
         url={overlayDefault.thumbnail_url}
         accent={overlayDefault.accent_hex}
         size={56}
       />
       <div className="min-w-0 flex-1">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+        <div className="text-[12px] font-semibold text-content-3">
           Customer overlay default
         </div>
         <div className="truncate text-sm font-bold text-content-1">
@@ -495,7 +495,7 @@ function ArtworkPickerPanel({
             </div>
           )}
           <div className="min-w-0">
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+            <div className="text-[12px] font-semibold text-content-3">
               Approved artwork
             </div>
             <div className="truncate text-sm font-bold text-content-1">
@@ -649,7 +649,7 @@ function ArtworkPreviewPanel({
           size={88}
         />
         <div className="min-w-0 flex-1">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+          <div className="text-[12px] font-semibold text-content-3">
             Selected artwork
           </div>
           <div className="truncate text-base font-bold text-content-1">
@@ -736,7 +736,7 @@ function ColorSlots({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-2 text-left text-caption font-semibold uppercase tracking-[0.12em] text-content-3 hover:bg-surface-2"
+        className="flex w-full items-center justify-between px-4 py-2 text-left text-[12px] font-semibold text-content-3 hover:bg-surface-2"
       >
         {title}
         <ChevronDown

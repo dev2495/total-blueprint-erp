@@ -394,7 +394,7 @@ export default function ReorderPolicyPage() {
           ) : (
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-surface-2 text-left text-caption font-bold uppercase tracking-wide text-content-3">
+                <tr className="border-b border-line bg-surface-2 text-left text-[12px] font-semibold text-content-3">
                   <th className="px-4 py-3">Material</th>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Stock</th>
@@ -445,14 +445,14 @@ function StatCard({
 }) {
   const toneClasses =
     tone === "critical"
-      ? "border-danger-border bg-gradient-to-br from-danger-bg to-white"
+      ? "border-danger-border bg-danger-bg"
       : tone === "warn"
-        ? "border-warning-border bg-gradient-to-br from-warning-bg to-white"
+        ? "border-warning-border bg-warning-bg"
         : "border-line bg-surface-1";
   return (
     <Card className={`rounded-2xl ${toneClasses}`}>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-[0.1em] text-content-3">
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
           {icon}
           {label}
         </div>

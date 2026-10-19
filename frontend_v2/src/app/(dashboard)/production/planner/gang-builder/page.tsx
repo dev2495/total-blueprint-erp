@@ -143,7 +143,7 @@ export default function GangBuilderPage() {
   }, [eligibleGroups, visibleGroups, activeGroupKey]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="indigo"
         eyebrow="PLANNER · COMBINE ORDERS"
@@ -748,7 +748,7 @@ function SlitLayoutPreview({
     selectedJobs.length > 0 ? selectedJobs : group.jobs.slice(0, 4);
   const stepName = processLabel(group.process_code);
   return (
-    <div className="rounded-2xl border border-line bg-gradient-to-br from-white via-surface-2 to-order-bg p-5 shadow-sm">
+    <div className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-order-bg text-order-fg">
@@ -789,12 +789,12 @@ function SlitLayoutPreview({
         ) : (
           jobsToRender.map((j, idx) => {
             const colorTones = [
-              "from-order-bg to-order-bg text-order-fg",
-              "from-order-bg to-order-bg text-order-fg",
-              "from-success-bg to-success-bg text-success-fg",
-              "from-warning-bg to-warning-bg text-warning-fg",
-              "from-info-bg to-info-bg text-info-fg",
-              "from-danger-bg to-danger-bg text-danger-fg",
+              "bg-surface-2 text-order-fg",
+              "bg-surface-2 text-order-fg",
+              "bg-success-bg text-success-fg",
+              "bg-warning-bg text-warning-fg",
+              "bg-surface-2 text-info-fg",
+              "bg-danger-bg text-danger-fg",
             ];
             const tone = colorTones[idx % colorTones.length];
             const widthMm = j.target_width_mm || 0;
@@ -810,7 +810,7 @@ function SlitLayoutPreview({
                 key={j.job_id}
                 style={{ flexBasis }}
                 className={cn(
-                  "flex min-w-[80px] flex-col items-center justify-center rounded-md bg-gradient-to-b p-2 ring-1 ring-surface-1",
+                  "flex min-w-[80px] flex-col items-center justify-center rounded-md p-2 ring-1 ring-surface-1",
                   tone,
                 )}
               >

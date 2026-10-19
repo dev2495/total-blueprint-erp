@@ -155,10 +155,10 @@ export function TradingReportPage() {
         : "text-danger-fg";
   const marginBg =
     marginPct >= 20
-      ? "from-success-fg to-success-fg"
+      ? "bg-success-fg"
       : marginPct >= 10
-        ? "from-warning-fg to-warning-fg"
-        : "from-danger-fg to-danger-solid";
+        ? "bg-warning-fg"
+        : "bg-danger-solid";
 
   const revenueDelta = Number(summary.trade_revenue_delta_pct || 0);
   const handleExport = () => {
@@ -174,9 +174,9 @@ export function TradingReportPage() {
   return (
     <div className="space-y-6 p-4 md:p-6">
       {/* HERO */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-success-fg via-info-fg to-info-fg p-6 text-white shadow-[0_20px_60px_-30px_rgba(16,185,129,0.6)]">
-        <div className="absolute -top-20 -right-20 h-72 w-72 rounded-full bg-success-fg blur-3xl" />
-        <div className="absolute -bottom-24 -left-12 h-64 w-64 rounded-full bg-info-fg blur-3xl" />
+      <div className="relative overflow-hidden rounded-3xl bg-success-fg p-6 text-white shadow-[0_20px_60px_-30px_rgba(16,185,129,0.6)]">
+        <div className="hidden absolute -top-20 -right-20 h-72 w-72 rounded-full bg-success-fg blur-3xl" />
+        <div className="hidden absolute -bottom-24 -left-12 h-64 w-64 rounded-full bg-info-fg blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-white/80">
@@ -271,14 +271,14 @@ export function TradingReportPage() {
           value={fmtINR(Number(summary.total_tradeable_value_inr || 0))}
           sub={`${fmtNum(Number(summary.trading_goods_count || 0))} trading goods · ${fmtNum(Number(summary.sellable_materials_count || 0))} sellable materials`}
           icon={<Package className="h-5 w-5" />}
-          accent="from-success-fg to-success-fg"
+          accent="bg-success-fg"
         />
         <KPI
           title="Open Trade Orders"
           value={fmtNum(Number(summary.open_trade_orders || 0))}
           sub={`${fmtNum(Number(summary.draft_count || 0))} draft · ${fmtNum(Number(summary.confirmed_count || 0))} confirmed`}
           icon={<Repeat className="h-5 w-5" />}
-          accent="from-success-fg to-success-fg"
+          accent="bg-success-fg"
         />
         <KPI
           title={`Revenue (${preset === "custom" ? "Range" : preset[0].toUpperCase() + preset.slice(1)})`}
@@ -299,7 +299,7 @@ export function TradingReportPage() {
             </span>
           }
           icon={<IndianRupee className="h-5 w-5" />}
-          accent="from-info-fg to-info-fg"
+          accent="bg-primary"
         />
         <KPI
           title="Gross Margin %"
@@ -648,7 +648,7 @@ export function TradingReportPage() {
       </div>
 
       {/* SLOW MOVERS */}
-      <Card className="rounded-3xl ring-1 ring-warning-border shadow-[0_20px_60px_-30px_rgba(245,158,11,0.3)] bg-gradient-to-br from-warning-bg via-white to-white">
+      <Card className="rounded-3xl ring-1 ring-warning-border shadow-[0_20px_60px_-30px_rgba(245,158,11,0.3)] bg-warning-bg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-display text-base text-warning-fg">
             <AlertTriangle className="h-4 w-4" /> Slow movers — held stock with
@@ -790,7 +790,7 @@ function KPI({
     <div className="relative overflow-hidden rounded-3xl bg-surface-1 p-5 ring-1 ring-line shadow-[0_20px_60px_-30px_rgba(15,23,42,0.2)]">
       <div
         className={cn(
-          "absolute -top-12 -right-12 h-32 w-32 rounded-full bg-gradient-to-br opacity-30 blur-2xl",
+          "hidden absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-30 blur-2xl",
           accent,
         )}
       />
@@ -811,7 +811,7 @@ function KPI({
         </div>
         <div
           className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-md",
+            "flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-md",
             accent,
           )}
         >

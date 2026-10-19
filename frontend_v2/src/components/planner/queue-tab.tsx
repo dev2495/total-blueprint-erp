@@ -303,7 +303,7 @@ export function QueueTab({ context }: { context: TowerTabContext }) {
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-line bg-surface-1 px-3 py-2">
-      <div className="text-caption font-semibold uppercase tracking-wide text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono-token text-[13px] text-content-1">

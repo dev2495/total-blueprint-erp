@@ -974,7 +974,7 @@ function SummaryCard({
   return (
     <Card className="rounded-[1.7rem] border border-line bg-surface-1/90 shadow-sm">
       <CardContent className="min-w-0 p-4 md:p-5">
-        <div className="truncate text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+        <div className="truncate text-[12px] font-semibold text-content-3">
           {label}
         </div>
         <div className="mt-2 break-words text-[1.7rem] font-semibold leading-none text-content-1 md:text-[1.95rem]">

@@ -256,7 +256,7 @@ export default function OrderItemTechnicalEditor({
     <div className="grid gap-4 2xl:grid-cols-2">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-line bg-surface-1 px-4 py-3 shadow-[0_14px_34px_-30px_rgba(15,23,42,0.35)] sm:px-5 2xl:col-span-2">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+          <div className="text-[12px] font-semibold text-content-3">
             Builder Flow
           </div>
           <div className="mt-1 text-sm font-bold text-content-1">
@@ -478,7 +478,7 @@ export default function OrderItemTechnicalEditor({
                 />
               </div>
               <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-content-3">
-                <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                <div className="text-[12px] font-semibold text-content-3">
                   Effective Contract
                 </div>
                 <div className="mt-2 font-semibold">
@@ -662,7 +662,7 @@ export default function OrderItemTechnicalEditor({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                      <div className="text-[12px] font-semibold text-content-3">
                         Layer {index + 1}
                       </div>
                       <div className="mt-1 text-sm font-semibold text-content-2">
@@ -1737,7 +1737,7 @@ export default function OrderItemTechnicalEditor({
               </div>
               <div className="flex items-end">
                 <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-                  <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                  <div className="text-[12px] font-semibold text-content-3">
                     Previewing for
                   </div>
                   <div className="mt-1 text-sm font-semibold text-content-1">
@@ -1751,7 +1751,7 @@ export default function OrderItemTechnicalEditor({
             </div>
             <div className="flex flex-col gap-3 rounded-[1.45rem] border border-line bg-surface-2 px-4 py-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="space-y-2">
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-4">
+                <div className="text-[12px] font-semibold text-content-3">
                   Preview context
                 </div>
                 <div className="text-sm font-semibold text-content-2">

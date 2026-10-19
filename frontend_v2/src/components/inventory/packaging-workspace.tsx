@@ -630,7 +630,7 @@ export function PackagingWorkspaceV36() {
           ) : null}
         </div>
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Unassigned count short
           </div>
           <div className="mt-1 font-display text-2xl font-semibold text-content-1">
@@ -761,7 +761,7 @@ export function PackagingWorkspaceV36() {
       {/* Kind breakdown grid */}
       {mode === "browse" && kindBreakdown.length > 0 && (
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-3">
+          <div className="text-[12px] font-semibold text-content-3 mb-3">
             Mix · by kind
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9">
@@ -769,14 +769,14 @@ export function PackagingWorkspaceV36() {
               const tone = KIND_COLOR[b.kind] || "slate";
               const TONE: Record<string, string> = {
                 amber:
-                  "from-warning-bg to-warm ring-warning-border text-warning-fg",
+                  "bg-warning-bg ring-warning-border text-warning-fg",
                 violet:
-                  "from-order-bg to-order-bg ring-order-border text-order-fg",
-                blue: "from-info-bg to-order-bg ring-info-border text-primary",
-                rose: "from-danger-bg to-danger-bg ring-danger-border text-danger-fg",
+                  "bg-surface-2 ring-order-border text-order-fg",
+                blue: "bg-surface-2 ring-info-border text-primary",
+                rose: "bg-danger-bg ring-danger-border text-danger-fg",
                 emerald:
-                  "from-success-bg to-success-bg ring-success-border text-success-fg",
-                slate: "from-surface-2 to-surface-2 ring-line text-content-1",
+                  "bg-success-bg ring-success-border text-success-fg",
+                slate: "bg-surface-2 ring-line text-content-1",
               };
               return (
                 <button
@@ -785,7 +785,7 @@ export function PackagingWorkspaceV36() {
                     setFilters((f) => ({ ...f, kind: b.kind as Kind }))
                   }
                   className={cn(
-                    "rounded-xl bg-gradient-to-br p-3 ring-1",
+                    "rounded-xl p-3 ring-1",
                     TONE[tone],
                   )}
                 >
@@ -892,7 +892,7 @@ export function PackagingWorkspaceV36() {
                 }))}
               />
               <div>
-                <div className="mb-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
+                <div className="mb-1.5 text-[12px] font-semibold text-content-3">
                   Location
                 </div>
                 <select
@@ -1221,7 +1221,7 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-line bg-gradient-to-r from-warning-bg via-white to-white px-5 py-4">
+        <div className="sticky top-0 z-10 border-b border-line bg-warning-bg px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
@@ -1257,7 +1257,7 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
         </div>
         <div className="px-5 py-4 space-y-4">
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-content-3 mb-2">
+            <div className="text-[12px] font-semibold text-content-3 mb-2">
               Specs
             </div>
             <div className="grid grid-cols-2 gap-2 text-caption">
@@ -1351,7 +1351,7 @@ function Field({
 }) {
   return (
     <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 ring-1 ring-line">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 flex items-center gap-1 text-xs font-bold text-content-2 truncate">

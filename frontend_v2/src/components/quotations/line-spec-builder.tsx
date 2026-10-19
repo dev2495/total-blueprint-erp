@@ -147,7 +147,7 @@ function FieldLabel({
   modified?: boolean;
 }) {
   return (
-    <span className="text-caption font-semibold uppercase tracking-widest text-content-3 inline-flex items-center gap-1.5">
+    <span className="text-[12px] font-semibold text-content-3 inline-flex items-center gap-1.5">
       {children}
       <ModChip active={Boolean(modified)} />
     </span>
@@ -376,7 +376,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<Ruler className="h-4 w-4 text-order-fg" />}
         title="Pouch style & size geometry"
-        accent="from-order-bg to-surface-1"
+        accent="bg-surface-2"
       >
         <div className="mb-3 grid grid-cols-1 md:grid-cols-4 gap-2">
           <InfoPill label="Size" value={selectedSize} />
@@ -458,7 +458,7 @@ export default function LineSpecBuilder({
               </label>
             </div>
             {selectedPouchStyle ? (
-              <div className="mt-2 flex flex-wrap gap-1.5 text-caption font-semibold uppercase tracking-widest text-content-3">
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[12px] font-semibold text-content-3">
                 <span className="rounded-full bg-surface-1 px-2 py-1 text-content-2 ring-1 ring-line">
                   {selectedPouchStyle.code}
                 </span>
@@ -550,7 +550,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<Layers3 className="h-4 w-4 text-order-fg" />}
         title="Film bill of materials"
-        accent="from-order-bg to-surface-1"
+        accent="bg-surface-2"
         action={
           <button
             onClick={() =>
@@ -582,7 +582,7 @@ export default function LineSpecBuilder({
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="grid grid-cols-[36px_minmax(0,1fr)_78px_86px_92px_auto] gap-2 px-1 text-caption font-semibold uppercase tracking-widest text-content-4">
+            <div className="grid grid-cols-[36px_minmax(0,1fr)_78px_86px_92px_auto] gap-2 px-1 text-[12px] font-semibold text-content-3">
               <span>L</span>
               <span>Film material</span>
               <span className="text-right">Thickness</span>
@@ -738,7 +738,7 @@ export default function LineSpecBuilder({
           <SectionCard
             icon={<Droplets className="h-4 w-4 text-info-fg" />}
             title="Adhesive · manual GSM"
-            accent="from-info-bg to-surface-1"
+            accent="bg-surface-2"
           >
             <div className="mb-2 text-caption font-semibold text-content-3">
               Shown because this stack has more than one film layer. Enter GSM
@@ -815,7 +815,7 @@ export default function LineSpecBuilder({
           <SectionCard
             icon={<Droplets className="h-4 w-4 text-content-4" />}
             title="Adhesive"
-            accent="from-surface-2 to-surface-1"
+            accent="bg-surface-2"
           >
             <div className="text-caption font-bold text-content-4">
               Hidden for single-layer stacks. Adhesive costing starts only when
@@ -828,7 +828,7 @@ export default function LineSpecBuilder({
           <SectionCard
             icon={<Droplets className="h-4 w-4 text-warning-fg" />}
             title="Solvent · governed RM"
-            accent="from-warning-bg to-surface-1"
+            accent="bg-warning-bg"
           >
             <div className="mb-2 text-caption font-semibold text-content-3">
               Select solvent independently from adhesive. Its baseline and any quote-only assumption are controlled in Cost Build.
@@ -864,7 +864,7 @@ export default function LineSpecBuilder({
             </label>
           </SectionCard>
         ) : (
-          <SectionCard icon={<Droplets className="h-4 w-4 text-content-4" />} title="Solvent" accent="from-surface-2 to-surface-1">
+          <SectionCard icon={<Droplets className="h-4 w-4 text-content-4" />} title="Solvent" accent="bg-surface-2">
             <div className="text-caption font-bold text-content-4">Available for laminated multi-layer structures.</div>
           </SectionCard>
         )}
@@ -873,7 +873,7 @@ export default function LineSpecBuilder({
           <SectionCard
             icon={<Paintbrush className="h-4 w-4 text-danger-fg" />}
             title="Ink · artwork or manual GSM"
-            accent="from-danger-bg to-surface-1"
+            accent="bg-danger-bg"
           >
           <ArtworkSelector
             productMasterId={artworkProductMasterId || ""}
@@ -921,7 +921,7 @@ export default function LineSpecBuilder({
             <span className="inline-flex h-6 items-center rounded-full bg-danger-bg px-2 text-caption font-semibold uppercase tracking-widest text-danger-fg ring-1 ring-danger-border">
               {value.artwork_id ? "Artwork ink GSM" : "Manual GSM fallback"}
             </span>
-            <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-caption font-semibold uppercase tracking-widest text-content-3 ring-1 ring-line">
+            <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-[12px] font-semibold text-content-3 ring-1 ring-line">
               {value.artwork_id
                 ? `${value.artwork_code || "Artwork"} selected`
                 : "Use manual only for estimate-only quotes"}
@@ -991,7 +991,7 @@ export default function LineSpecBuilder({
           <SectionCard
             icon={<Paintbrush className="h-4 w-4 text-content-4" />}
             title="Ink"
-            accent="from-surface-2 to-surface-1"
+            accent="bg-surface-2"
           >
             <div className="text-caption font-bold text-content-4">
               {value.origin === "AD_HOC"
@@ -1021,7 +1021,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<Sparkles className="h-4 w-4 text-warning-fg" />}
         title="Addons"
-        accent="from-warning-bg to-surface-1"
+        accent="bg-warning-bg"
         action={
           <div className="flex flex-wrap gap-1">
             {catalogAddons.map((qa) => (
@@ -1157,7 +1157,7 @@ export default function LineSpecBuilder({
       <SectionCard
         icon={<PackageCheck className="h-4 w-4 text-success-fg" />}
         title="Optional inner packing"
-        accent="from-success-bg to-surface-1"
+        accent="bg-success-bg"
         action={
           value.optional_inner_pack ? (
             <button
@@ -1419,7 +1419,7 @@ function ArtworkSelector({
     <div className="rounded-lg border border-line bg-surface-2 p-2">
       <div className="mb-1 flex items-center justify-between gap-2">
         <FieldLabel>Approved artwork</FieldLabel>
-        <span className="text-caption font-semibold uppercase tracking-widest text-content-4">
+        <span className="text-[12px] font-semibold text-content-3">
           {data?.context?.print_type || "PRINT"} · {data?.context?.substrate_mode || sizeCode || "FORM"}
         </span>
       </div>
@@ -1486,7 +1486,7 @@ function SectionCard({
     <div className="rounded-xl ring-1 ring-line bg-surface-1 overflow-hidden">
       <div
         className={cn(
-          "px-3 py-2 border-b border-line flex items-center gap-2 bg-gradient-to-r",
+          "px-3 py-2 border-b border-line flex items-center gap-2 ",
           accent,
         )}
       >
@@ -1504,7 +1504,7 @@ function SectionCard({
 function InfoPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg border border-line bg-surface-2 px-3 py-2">
-      <div className="text-caption font-semibold uppercase tracking-widest text-content-4">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 truncate text-[12px] font-semibold text-content-1">
@@ -1568,7 +1568,7 @@ function roundMm(value: number): number {
 function Totals({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="font-mono text-sm font-semibold text-content-1">

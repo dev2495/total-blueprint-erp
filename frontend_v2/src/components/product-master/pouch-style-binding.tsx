@@ -220,7 +220,7 @@ export function PouchStyleBinding({
   return (
     <section
       className={cn(
-        "rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-4",
+        "rounded-2xl border border-order-border bg-surface-2 p-4",
         className,
       )}
     >
@@ -249,7 +249,7 @@ export function PouchStyleBinding({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Pouch style master
           </div>
           <Select
@@ -461,7 +461,7 @@ export function PouchStyleBinding({
         <div className="space-y-2">
           {/* AUTO computed (always shown) */}
           <div>
-            <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+            <div className="text-[12px] font-semibold text-content-3">
               {selected
                 ? "Auto child width (from formula)"
                 : "Current child width (legacy/manual)"}
@@ -493,7 +493,7 @@ export function PouchStyleBinding({
           {/* OVERRIDE input (always visible) */}
           <div>
             <div className="flex items-center justify-between">
-              <div className="text-caption font-semibold uppercase tracking-widest text-content-3">
+              <div className="text-[12px] font-semibold text-content-3">
                 Override (optional)
               </div>
               {row.child_target_override ? (
@@ -588,7 +588,7 @@ export function PouchStyleBinding({
 function StockMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-line bg-surface-1 px-2.5 py-2">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-caption font-semibold text-content-1">
@@ -760,7 +760,7 @@ function FormulaInputGrid({
           return (
             <label key={key} className="block">
               <div className="mb-0.5 flex items-center justify-between gap-2">
-                <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+                <span className="text-[12px] font-semibold text-content-3">
                   {def.label || key}
                   {required ? " *" : ""}
                 </span>
@@ -801,7 +801,7 @@ function ManualFallbackInputs({
   return (
     <div className="mt-2 grid gap-2 sm:grid-cols-2">
       <label className="block">
-        <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           Final width *
         </span>
         <Input
@@ -820,7 +820,7 @@ function ManualFallbackInputs({
         />
       </label>
       <label className="block">
-        <span className="text-caption font-bold uppercase tracking-wider text-content-3">
+        <span className="text-[12px] font-semibold text-content-3">
           Final height *
         </span>
         <Input

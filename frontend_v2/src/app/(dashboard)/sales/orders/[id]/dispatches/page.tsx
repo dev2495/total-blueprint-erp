@@ -299,14 +299,14 @@ function StatPill({
 }) {
   const cls =
     tone === "ok"
-      ? "border-success-border bg-gradient-to-br from-success-bg to-white"
+      ? "border-success-border bg-success-bg"
       : tone === "warn"
-        ? "border-warning-border bg-gradient-to-br from-warning-bg to-white"
+        ? "border-warning-border bg-warning-bg"
         : "border-line bg-surface-1";
   return (
     <Card className={`rounded-2xl ${cls}`}>
       <CardContent className="p-5">
-        <div className="flex items-center gap-2 text-caption font-bold uppercase tracking-[0.1em] text-content-3">
+        <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
           {icon}
           {label}
         </div>

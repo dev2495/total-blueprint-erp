@@ -473,7 +473,7 @@ function PulseKpiTile({
         )}
       />
       <div className="flex items-start justify-between gap-2 pl-1">
-        <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3 truncate">
+        <div className="text-[12px] font-semibold text-content-3 truncate">
           {label}
         </div>
         {icon && (
@@ -571,7 +571,7 @@ function MicroStat({ label, value, sub, tone = "default" }: PulseStat) {
   }[tone];
   return (
     <div className="border-l-2 border-line pl-3">
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div
@@ -1058,8 +1058,8 @@ export function SubtleHero({
   actions?: React.ReactNode;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-white via-surface-2 to-order-bg px-5 py-4 shadow-sm">
-      <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-order-fg via-order-fg to-order-fg" />
+    <section className="relative overflow-hidden rounded-2xl border border-line bg-surface-1 px-5 py-4 shadow-sm">
+      <div className="absolute inset-y-0 left-0 w-1 bg-plate" />
       <div className="flex flex-wrap items-start justify-between gap-3 pl-2">
         <div className="min-w-0">
           <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">

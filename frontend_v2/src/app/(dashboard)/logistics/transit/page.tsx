@@ -43,7 +43,7 @@ export default function TransitPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <section className="relative overflow-hidden rounded-[2rem] border border-surface-1/70 bg-surface-1/85 p-6 shadow-[0_30px_80px_-42px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-r from-info-fg via-primary to-success-fg" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-primary" />
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-info-border bg-info-bg px-3 py-1 text-caption font-semibold uppercase tracking-[0.12em] text-info-fg">
@@ -149,7 +149,7 @@ export default function TransitPage() {
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <div className="rounded-2xl bg-surface-1 px-4 py-3">
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       ETA / queue
                     </div>
                     <div className="mt-1 text-sm font-bold text-content-1">
@@ -157,7 +157,7 @@ export default function TransitPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl bg-surface-1 px-4 py-3">
-                    <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-4">
+                    <div className="text-[12px] font-semibold text-content-3">
                       Packed units
                     </div>
                     <div className="mt-1 text-sm font-bold text-content-1">

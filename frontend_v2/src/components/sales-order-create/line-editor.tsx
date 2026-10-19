@@ -10,6 +10,7 @@ import {
   Box,
   ChevronRight,
   Hash,
+  Lock,
   Layers,
   Package,
   PackageCheck,
@@ -42,7 +43,10 @@ import {
   type ArtworkColorway,
 } from "@/components/erp/artwork-section";
 import { SalesPreviewRail } from "./sales-preview-rail";
-import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
+import { specFromSource } from "@/components/spine/spec-block";
+import { SpecPlate, type PlateFact } from "@/components/plate/spec-plate";
+import { specFromMasterLine } from "@/components/plate/spec-from-master";
+import { Pill, StepSection } from "@/components/plate/steps";
 
 import {
   productMasterService,
@@ -626,343 +630,317 @@ export function LineEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeInkFamily, artworks.length, line.artwork_assignment?.artwork_id]);
 
+  const plateData = previewForRail
+    ? specFromSource(previewForRail)
+    : master
+      ? specFromMasterLine({
+          layers: master.layer_template,
+          size: selectedSize,
+          choices: line.layer_values,
+        })
+      : null;
+  const unitWeightG = Number((previewForRail as any)?.unit_weight_g || 0);
+  const printCapable = !!master?.fixed_attributes?.print_capable;
+  const artworkWord =
+    line.artwork_mode === "DEFER"
+      ? "artwork later"
+      : line.artwork_assignment?.design_family_code ||
+        line.artwork_assignment?.colorway_name ||
+        "";
+  const plateFacts: PlateFact[] = master
+    ? [
+        { label: "Route", value: master.template_name || "" },
+        {
+          label: "Print",
+          value: printCapable
+            ? [
+                line.print_type,
+                line.artwork_assignment?.color_count
+                  ? `${line.artwork_assignment.color_count} colours`
+                  : "",
+                artworkWord,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            : "plain",
+        },
+        {
+          label: "Web",
+          value:
+            childTargetWidthMm > 0
+              ? `${activeLaneCount}-up · ${Math.round(childTargetWidthMm)} → ${Math.round(plannedParentWidthMm || 0)} mm`
+              : "",
+        },
+        {
+          label: "Weight",
+          value: unitWeightG > 0 ? `${fmtCompact(unitWeightG)} g per pouch` : "",
+        },
+        {
+          label: "Order",
+          value:
+            line.qty_value > 0
+              ? `${Number(line.qty_value).toLocaleString("en-IN")} ${line.qty_uom.toLowerCase()}`
+              : "",
+        },
+      ]
+    : [];
+  const rateOk = (parseFloat(line.unit_price || "0") || 0) > 0 && line.qty_value > 0;
+  const hasSizeStep = !!master && (sizes.length > 0 || !!sizeAxis);
+  const hasLayerStep = !!master && master.layer_template.length > 0;
+  const addonsRequired = !!addonAxis?.required;
+  let stepNo = 0;
+  const nextStep = () => ++stepNo;
+  const lanePlanSummary = [
+    `${activeLaneCount}-up`,
+    plannedParentWidthMm ? `parent ${Math.round(plannedParentWidthMm)} mm` : "",
+    trimOverride ? `trim ${trimOverride} mm` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const addonSummary = line.addons.length
+    ? `${line.addons.length} add-on${line.addons.length === 1 ? "" : "s"}`
+    : "no add-ons";
+  const policySummary = (line.issue_policy_overrides || []).length
+    ? `${(line.issue_policy_overrides || []).length} wastage override${(line.issue_policy_overrides || []).length === 1 ? "" : "s"}`
+    : "wastage: master defaults";
+  const moreOpenByDefault = webWidthPlan.warnings.length > 0;
+
+  const addonsBlock = addonAxis ? (
+    <AddonPicker
+      addons={allowedAddonMasters}
+      selected={line.addons}
+      selectedSize={selectedSize}
+      orderQty={line.qty_value}
+      orderUom={line.qty_uom}
+      onChange={(addons) => onPatch({ addons })}
+    />
+  ) : (
+    <div className="rounded-xl bg-surface-2 px-3 py-2.5 text-[12.5px] text-content-3">
+      No add-ons are declared on this product master.
+    </div>
+  );
+
   return (
-    <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_440px]">
-      {/* ───────────────── LEFT: section cards ───────────────── */}
-      <div className="space-y-3">
-        <div className="rounded-[16px] border border-line bg-surface-1 px-4 py-3 shadow-sm" data-testid="line-editor-spec-card">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary text-sm font-semibold text-white">
-              {(lineIndex ?? 0) + 1}
+    <div className="min-w-0" data-testid="line-editor">
+      <div className="px-4 sm:px-5">
+        <SpecPlate
+          data={plateData}
+          caption={
+            <span className="normal-case tracking-normal" data-testid="line-editor-spec-card">
+              <span className="text-plate-fg-3">Line label · </span>
+              <span className="font-medium text-plate-fg-2" title={liveLineLabel || undefined}>
+                {liveLineLabel || "builds as you pick the product, size and layers"}
+              </span>
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-medium text-content-3">
-                Line label · used by planner, WCM, packing and dispatch
-              </div>
-              <div className="mt-0.5 line-clamp-2 text-[14px] font-semibold leading-5 text-content-1" title={liveLineLabel || undefined}>
-                {liveLineLabel || "Enter quantity, price and Product Master to build label"}
-              </div>
-            </div>
-            {master ? (
-              <span className="rounded-full bg-success-bg px-2.5 py-1 text-caption font-semibold text-success-fg ring-1 ring-success-border">
-                order-ready master
-              </span>
-            ) : null}
-          </div>
-          {previewForRail ? (
-            <SpecBlock data={specFromSource(previewForRail)} size="lg" className="mt-3" testId={`line-editor-spec-${(lineIndex ?? 0) + 1}`} />
-          ) : null}
-        </div>
-
-        <SectionCard
-          icon={<Hash className="h-3.5 w-3.5" />}
-          tone="amber"
-          title="1. Qty + price"
-          hint="start here · rate required to place"
-        >
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <SoField label="Qty">
-              <input
-                type="number"
-                aria-label="Quantity"
-                value={line.qty_value || ""}
-                onChange={(e) => onPatch({ qty_value: Number(e.target.value) })}
-                className={cn(INP, MONO)}
-              />
-            </SoField>
-            <SoField label="UOM">
-              <SoSelect
-                aria-label="UOM"
-                value={line.qty_uom}
-                onChange={(v) => onPatch({ qty_uom: v as any })}
-              >
-                <option value="KG">KG</option>
-                <option value="PCS">PCS</option>
-              </SoSelect>
-              {master && String((master as any).product_kind || "").toUpperCase() === "POUCH" && line.qty_uom === "KG" ? (
-                <button
-                  type="button"
-                  onClick={() => onPatch({ qty_uom: "PCS", price_basis: "PCS" } as any)}
-                  className="mt-1 text-caption font-semibold text-primary underline-offset-2 hover:underline"
-                  data-testid="sales-line-use-pieces"
-                >
-                  Pouches: use pieces
-                </button>
-              ) : null}
-            </SoField>
-            <SoField label={`Rate / ${line.price_basis}`}>
-              <input
-                value={line.unit_price}
-                aria-label="Unit price"
-                onChange={(e) => onPatch({ unit_price: e.target.value })}
-                placeholder="₹"
-                className={cn(INP, MONO)}
-              />
-            </SoField>
-            <SoField label="Basis">
-              <SoSelect
-                aria-label="Price basis"
-                value={line.price_basis}
-                onChange={(v) => onPatch({ price_basis: v as any })}
-              >
-                <option value="KG">KG</option>
-                <option value="PCS">PCS</option>
-              </SoSelect>
-            </SoField>
-            <SoField label="Subtotal">
-              <SoReadout
-                className={cn(
-                  MONO,
-                  "border-success-border bg-success-bg text-success-fg",
-                )}
-              >
-                {subtotal > 0
-                  ? `₹${Math.round(subtotal).toLocaleString("en-IN")}`
-                  : "—"}
-              </SoReadout>
-            </SoField>
-          </div>
-        </SectionCard>
-
-        {/* Overlay match banner (when customer has an overlay for this master) */}
-        {selectedOverlay ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-success-border bg-success-bg px-4 py-2.5 text-caption shadow-sm">
-            <span className="rounded-full bg-success-fg px-2 py-0.5 text-caption font-bold text-white">
-              overlay applied
-            </span>
-            <span className="font-mono font-bold text-success-fg">
-              {selectedOverlay.customer_item_code ||
-                selectedOverlay.customer_display_name ||
-                "—"}
-            </span>
-            {selectedOverlay.default_price_basis ? (
-              <span className="rounded-full bg-surface-1 px-2 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
-                basis · {selectedOverlay.default_price_basis}
-              </span>
-            ) : null}
-            {selectedOverlay.size_variant_code ? (
-              <span className="rounded-full bg-surface-1 px-2 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
-                size · {selectedOverlay.size_variant_code}
-              </span>
-            ) : null}
-            {selectedOverlay.default_artwork_design_code ? (
-              <span className="rounded-full bg-surface-1 px-2 py-0.5 font-bold text-success-fg ring-1 ring-success-border">
-                art · {selectedOverlay.default_artwork_design_code}
-              </span>
-            ) : null}
-            <button
-              onClick={() => onPatch({ customer_product_overlay: undefined })}
-              className="ml-auto rounded-md px-1.5 py-0.5 text-caption font-bold text-success-fg hover:bg-success-bg"
-            >
-              Clear
-            </button>
-          </div>
-        ) : availableOverlays.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-order-border bg-order-bg px-4 py-2.5 text-caption shadow-sm">
-            <span className="rounded-full bg-order-fg px-2 py-0.5 text-caption font-bold text-white">
-              customer overlay available
-            </span>
-            <span className="text-order-fg">
-              {availableOverlays[0].customer_item_code ||
-                availableOverlays[0].customer_display_name ||
-                "Customer defaults"}
-            </span>
-            <button
-              onClick={() => applyOverlay(availableOverlays[0], onPatch)}
-              className="ml-auto rounded-md bg-order-fg px-2 py-1 text-caption font-bold text-white hover:bg-order-fg"
-            >
-              Apply overlay
-            </button>
-          </div>
-        ) : null}
-
-        {/* 2. Product master */}
-        <SectionCard
-          icon={<Package className="h-3.5 w-3.5" />}
-          tone="indigo"
-          title="2. Current Product Master"
-          badge={
-            master ? (
-              <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 font-mono text-caption font-bold text-content-3">
-                {master.code}
-              </span>
-            ) : (
-              <span className="text-caption font-semibold uppercase tracking-wider text-danger-fg">
-                required
-              </span>
-            )
           }
-        >
-          <MasterPicker
-            masters={masters}
-            value={line.product_master}
-            onChange={(id) =>
-              onPatch({
-                product_master: id,
-                size_code: "",
-                layer_values: {},
-                axis_values: {},
-                addons: [],
-                artwork_assignment: undefined,
-                customer_product_overlay: undefined,
-              })
-            }
-          />
-          {master ? (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-caption font-bold text-content-3">
-              <span>
-                {master.layer_template.length} layers ·{" "}
-                {(master.variant_axes || []).length} axes
+          facts={plateFacts}
+          testId={`line-editor-spec-${(lineIndex ?? 0) + 1}`}
+          emptyText="Pick a product master below. Size, layers and gauge appear here as you go."
+        />
+      </div>
+
+      <div className="mt-4 grid items-start border-t border-line xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="min-w-0 px-4 pb-3 sm:px-5 xl:border-r xl:border-line">
+          {selectedOverlay ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[13px] bg-success-bg px-3.5 py-2.5 text-[12.5px] text-success-fg">
+              <span className="font-semibold">Customer item applied</span>
+              <span className="font-mono">
+                {selectedOverlay.customer_item_code ||
+                  selectedOverlay.customer_display_name ||
+                  "—"}
               </span>
-              {master.template_name ? (
-                <span className="rounded-full bg-surface-2 px-2 py-0.5 text-content-3">
-                  route · {master.template_name}
+              {selectedOverlay.default_price_basis ? (
+                <span className="rounded-full bg-surface-1 px-2 py-0.5">
+                  basis {selectedOverlay.default_price_basis}
                 </span>
               ) : null}
-              {master.fixed_attributes?.print_capable ? (
-                <span className="rounded-full bg-order-bg px-2 py-0.5 text-order-fg ring-1 ring-order-border">
-                  print-capable
+              {selectedOverlay.size_variant_code ? (
+                <span className="rounded-full bg-surface-1 px-2 py-0.5">
+                  size {selectedOverlay.size_variant_code}
                 </span>
               ) : null}
+              {selectedOverlay.default_artwork_design_code ? (
+                <span className="rounded-full bg-surface-1 px-2 py-0.5">
+                  art {selectedOverlay.default_artwork_design_code}
+                </span>
+              ) : null}
+              <button
+                onClick={() => onPatch({ customer_product_overlay: undefined })}
+                className="ml-auto rounded-md px-2 py-0.5 font-semibold hover:bg-surface-1"
+              >
+                Clear
+              </button>
+            </div>
+          ) : availableOverlays.length > 0 ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[13px] bg-info-bg px-3.5 py-2.5 text-[12.5px] text-primary">
+              <span className="font-semibold">This customer has a saved item</span>
+              <span>
+                {availableOverlays[0].customer_item_code ||
+                  availableOverlays[0].customer_display_name ||
+                  "Customer defaults"}
+              </span>
+              <button
+                onClick={() => applyOverlay(availableOverlays[0], onPatch)}
+                className="ml-auto rounded-lg bg-primary px-2.5 py-1 font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                Apply overlay
+              </button>
             </div>
           ) : null}
-        </SectionCard>
 
-        {master ? (
-          <>
-            {/* 3. Size axis */}
-            {sizes.length > 0 || sizeAxis ? (
-              <SectionCard
-                icon={<Ruler className="h-3.5 w-3.5" />}
-                tone="violet"
-                title="Size axis"
-                hint={
-                  sizeAxisAllowsAdHoc
-                    ? "master allowed · saved or new"
-                    : "master-allowed sizes"
-                }
-              >
-                <SizeAxis
-                  sizes={sizes}
-                  value={line.size_code}
-                  line={line}
-                  allowAdHoc={sizeAxisAllowsAdHoc}
-                  onChange={(c) =>
-                    onPatch({
-                      size_code: c,
-                      axis_values: clearAdHocSize(line.axis_values),
-                    })
-                  }
-                  onPatch={onPatch}
-                />
-                <div className="mt-2 rounded-xl bg-order-bg px-3 py-2 text-caption font-semibold leading-5 text-order-fg ring-1 ring-order-border">
-                  The real axes are <b>Size</b>, the <b>per-layer</b> stack and{" "}
-                  <b>add-ons</b> — generated from the template&rsquo;s layer
-                  structure and constrained to the values this master allows.
-                  Roll / web width is derived from size × pouch-style, not
-                  picked here.
-                </div>
-              </SectionCard>
+          <StepSection
+            step={nextStep()}
+            state={master ? "done" : "todo"}
+            title="Product"
+            hint="product master and the route it runs on"
+            aside={
+              master ? (
+                <span className="font-mono text-[12px] text-content-3">{master.code}</span>
+              ) : (
+                <span className="font-medium text-warning-fg">required</span>
+              )
+            }
+          >
+            <MasterPicker
+              masters={masters}
+              value={line.product_master}
+              onChange={(id) =>
+                onPatch({
+                  product_master: id,
+                  size_code: "",
+                  layer_values: {},
+                  axis_values: {},
+                  addons: [],
+                  artwork_assignment: undefined,
+                  customer_product_overlay: undefined,
+                })
+              }
+            />
+            {master ? (
+              <div className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-content-3">
+                {master.template_name ? <Pill>route · {master.template_name}</Pill> : null}
+                <Pill>
+                  {master.layer_template.length} layer{master.layer_template.length === 1 ? "" : "s"} ·{" "}
+                  {(master.variant_axes || []).length} choices
+                </Pill>
+                {printCapable ? <Pill tone="info">print capable</Pill> : <Pill>plain</Pill>}
+              </div>
             ) : null}
+          </StepSection>
 
-            {/* 4. Per-layer axes */}
-            {master.layer_template.length > 0 ? (
-              <SectionCard
-                icon={<Layers className="h-3.5 w-3.5" />}
-                tone="emerald"
-                title="Per-layer axes"
-                hint={
-                  selectableLayerCount > 0
-                    ? `${selectableLayerCount} layer dropdown${selectableLayerCount === 1 ? "" : "s"} · PM approved`
-                    : layerMaterialAxisEnabled
-                      ? "layer axis on · single film per layer"
-                      : "locked by master"
+          {hasSizeStep ? (
+            <StepSection
+              step={nextStep()}
+              state={line.size_code ? "done" : "todo"}
+              title="Size"
+              hint={
+                sizeAxisAllowsAdHoc
+                  ? "saved sizes, or a new one within the master's bounds"
+                  : "sizes allowed on this product master"
+              }
+              aside="web width comes from size × pouch style"
+            >
+              <SizeAxis
+                sizes={sizes}
+                value={line.size_code}
+                line={line}
+                allowAdHoc={sizeAxisAllowsAdHoc}
+                onChange={(c) =>
+                  onPatch({
+                    size_code: c,
+                    axis_values: clearAdHocSize(line.axis_values),
+                  })
                 }
-              >
-                <div className="overflow-hidden rounded-xl ring-1 ring-line">
-                  <div
-                    className={cn(
-                      "grid grid-cols-[40px_1fr_104px_120px] gap-2 bg-surface-2 px-3 py-1.5",
-                      LABEL,
-                    )}
-                  >
-                    <div>L</div>
-                    <div>Film variant</div>
-                    <div className="text-right">Thick µ</div>
-                    <div>Grade</div>
-                  </div>
-                  {master.layer_template.map((row, i) => {
-                    const idx = i + 1;
-                    const st = (line.layer_values[idx] || {}) as LayerRowState;
-                    const selectedFilmCode =
-                      st.film_variant_code || row.film_variant_code || "";
-                    const allowedFilms = layerAllowedFilmCodes(
-                      row,
-                      selectedFilmCode,
-                    );
-                    const canPickFilm = allowedFilms.length > 1;
-                    const grades = Array.isArray(row.grade_options)
-                      ? row.grade_options
-                      : [];
-                    const toneBadge =
-                      i === 0
-                        ? "bg-surface-3"
-                        : i === master.layer_template.length - 1
-                          ? "bg-line"
-                          : "bg-warning-fg";
-                    return (
-                      <div
-                        key={i}
-                        className="grid grid-cols-[40px_1fr_104px_120px] items-center gap-2 border-t border-line px-3 py-1.5 text-xs font-bold"
-                      >
-                        <span
-                          className={cn(
-                            "inline-flex h-6 items-center justify-center rounded-full px-2 text-caption font-semibold text-white",
-                            toneBadge,
-                          )}
-                        >
-                          L{idx}
-                        </span>
-                        {canPickFilm ? (
-                          <SoSelect
-                            aria-label={`Layer film L${idx}`}
-                            value={selectedFilmCode}
-                            onChange={(value) =>
-                              onPatch({
-                                layer_values: {
-                                  ...line.layer_values,
-                                  [idx]: {
-                                    ...(line.layer_values[idx] ||
-                                      ({} as LayerRowState)),
-                                    role: row.role,
-                                    film_variant_code: value,
-                                    thickness_micron:
-                                      st.thickness_micron ??
-                                      row.thickness_micron,
-                                    grade: st.grade || row.default_grade,
-                                  },
+                onPatch={onPatch}
+              />
+            </StepSection>
+          ) : null}
+
+          {hasLayerStep && master ? (
+            <StepSection
+              step={nextStep()}
+              state="done"
+              title="Layers"
+              hint="film · micron · grade, outer to inner"
+              aside={
+                selectableLayerCount > 0
+                  ? `${selectableLayerCount} layer${selectableLayerCount === 1 ? "" : "s"} you can change`
+                  : "fixed on the product master"
+              }
+            >
+              <div className="overflow-hidden rounded-[14px] border border-line">
+                <div
+                  className={cn(
+                    "grid grid-cols-[44px_minmax(0,1fr)_120px_minmax(0,0.8fr)] gap-2.5 bg-surface-2 px-3 py-2",
+                    LABEL,
+                  )}
+                >
+                  <div>Layer</div>
+                  <div>Film</div>
+                  <div className="text-right">Micron</div>
+                  <div>Grade</div>
+                </div>
+                {master.layer_template.map((row, i) => {
+                  const idx = i + 1;
+                  const st = (line.layer_values[idx] || {}) as LayerRowState;
+                  const selectedFilmCode =
+                    st.film_variant_code || row.film_variant_code || "";
+                  const allowedFilms = layerAllowedFilmCodes(
+                    row,
+                    selectedFilmCode,
+                  );
+                  const canPickFilm = allowedFilms.length > 1;
+                  const grades = Array.isArray(row.grade_options)
+                    ? row.grade_options
+                    : [];
+                  return (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[44px_minmax(0,1fr)_120px_minmax(0,0.8fr)] items-center gap-2.5 border-t border-line px-3 py-2"
+                    >
+                      <span className="font-mono text-[12.5px] font-semibold text-content-3">
+                        L{idx}
+                      </span>
+                      {canPickFilm ? (
+                        <SoSelect
+                          aria-label={`Layer film L${idx}`}
+                          value={selectedFilmCode}
+                          onChange={(value) =>
+                            onPatch({
+                              layer_values: {
+                                ...line.layer_values,
+                                [idx]: {
+                                  ...(line.layer_values[idx] ||
+                                    ({} as LayerRowState)),
+                                  role: row.role,
+                                  film_variant_code: value,
+                                  thickness_micron:
+                                    st.thickness_micron ??
+                                    row.thickness_micron,
+                                  grade: st.grade || row.default_grade,
                                 },
-                              })
-                            }
-                            className="h-[32px] rounded-lg font-mono text-caption"
-                          >
-                            {allowedFilms.map((code) => (
-                              <option key={code} value={code}>
-                                {code}
-                              </option>
-                            ))}
-                          </SoSelect>
-                        ) : (
-                          <span className="inline-flex w-fit items-center rounded-md bg-info-bg px-2 py-1 font-mono text-caption font-bold text-primary ring-1 ring-info-border">
-                            {selectedFilmCode || "—"}
-                          </span>
-                        )}
+                              },
+                            })
+                          }
+                          className="h-9"
+                        >
+                          {allowedFilms.map((code) => (
+                            <option key={code} value={code}>
+                              {code}
+                            </option>
+                          ))}
+                        </SoSelect>
+                      ) : (
+                        <span className="flex h-9 min-w-0 items-center gap-2 rounded-[10px] bg-surface-2 px-3 text-[13px] font-medium text-content-2">
+                          <Lock className="h-3 w-3 flex-none text-content-4" aria-hidden />
+                          <span className="truncate">{selectedFilmCode || "—"}</span>
+                        </span>
+                      )}
+                      <div className="relative">
                         <input
                           type="number"
                           aria-label={`Thickness L${idx}`}
-                          value={
-                            st.thickness_micron ?? row.thickness_micron ?? ""
-                          }
+                          value={st.thickness_micron ?? row.thickness_micron ?? ""}
                           onChange={(e) =>
                             onPatch({
                               layer_values: {
@@ -975,295 +953,241 @@ export function LineEditor({
                               },
                             })
                           }
-                          className={cn(INP, MONO, "h-[32px] text-right")}
+                          className={cn(
+                            INP,
+                            MONO,
+                            "h-9 pr-7 text-right text-[17px] font-semibold tracking-[-0.01em]",
+                          )}
                         />
-                        {grades.length > 0 ? (
-                          <SoSelect
-                            aria-label={`Grade L${idx}`}
-                            value={st.grade || row.default_grade || ""}
-                            onChange={(v) =>
-                              onPatch({
-                                layer_values: {
-                                  ...line.layer_values,
-                                  [idx]: {
-                                    ...(line.layer_values[idx] ||
-                                      ({} as LayerRowState)),
-                                    grade: v,
-                                  },
+                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px] text-content-3">
+                          µ
+                        </span>
+                      </div>
+                      {grades.length > 0 ? (
+                        <SoSelect
+                          aria-label={`Grade L${idx}`}
+                          value={st.grade || row.default_grade || ""}
+                          onChange={(v) =>
+                            onPatch({
+                              layer_values: {
+                                ...line.layer_values,
+                                [idx]: {
+                                  ...(line.layer_values[idx] ||
+                                    ({} as LayerRowState)),
+                                  grade: v,
                                 },
-                              })
-                            }
-                            className="h-[32px]"
-                          >
-                            {grades.map((gr) => (
-                              <option key={gr} value={gr}>
-                                {gr}
-                              </option>
-                            ))}
-                          </SoSelect>
-                        ) : (
-                          <span className="text-center text-caption font-bold text-content-4">
-                            n/a
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 text-caption font-semibold leading-5 text-content-3">
-                  Per-layer axes are <b>film variant · thickness · grade</b>.
-                  A film dropdown appears only when that layer has more than
-                  one PM-approved film; grade options stay visible for
-                  extrudable/recipe layers only. Roll / web width is derived
-                  from size × pouch-style, not picked per layer.
-                </div>
-              </SectionCard>
-            ) : null}
-
-            {/* 5. Production lane (lane-up) */}
-            <SectionCard
-              icon={<Split className="h-3.5 w-3.5" />}
-              tone="blue"
-              title="Production lane"
-              badge={
-                <span className="inline-flex h-6 items-center rounded-full bg-surface-2 px-2 text-caption font-bold text-content-3">
-                  policy {webWidthPolicy?.code || "default"}
-                </span>
-              }
-            >
-              <div className="flex gap-2">
-                {allowedLaneCounts.map((lane) => {
-                  const parent = computeWebWidthPlan(
-                    childTargetWidthMm,
-                    lane,
-                    webWidthPolicy,
-                  ).planned_parent_width_mm;
-                  const on = activeLaneCount === lane;
-                  return (
-                    <button
-                      key={lane}
-                      type="button"
-                      onClick={() =>
-                        onPatch({
-                          preferred_lane_count: lane,
-                          lane_count_source: "OPERATOR_CHOICE",
-                        })
-                      }
-                      className={cn(
-                        "flex-1 rounded-xl border p-2 text-center transition",
-                        on
-                          ? "border-order-border bg-gradient-to-b from-order-bg to-white ring-[3px] ring-order-border"
-                          : "border-line bg-surface-1 hover:border-order-border",
+                              },
+                            })
+                          }
+                          className="h-9"
+                        >
+                          {grades.map((gr) => (
+                            <option key={gr} value={gr}>
+                              {gr}
+                            </option>
+                          ))}
+                        </SoSelect>
+                      ) : (
+                        <span className="text-[12.5px] text-content-4">bought film · no grade</span>
                       )}
-                    >
-                      <div className="text-sm font-semibold text-content-1">
-                        {lane}-up
-                      </div>
-                      <div
-                        className={cn(
-                          "text-caption",
-                          MONO,
-                          on ? "text-order-fg" : "text-content-3",
-                        )}
-                      >
-                        {parent ? `${Math.round(parent)} mm` : "—"}
-                      </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <SoField label="Child target">
-                  <SoReadout className={MONO}>
-                    {childTargetWidthMm
-                      ? `${Math.round(childTargetWidthMm)} mm`
-                      : "—"}
-                  </SoReadout>
-                </SoField>
-                <SoField label="Planned parent">
-                  <SoReadout className={MONO}>
-                    {plannedParentWidthMm
-                      ? `${Math.round(plannedParentWidthMm)} mm`
-                      : "—"}
-                  </SoReadout>
-                </SoField>
-                <SoField
-                  label="Trim"
-                  hint={trimOverride ? "override" : "master/policy"}
+            </StepSection>
+          ) : null}
+
+          <StepSection
+            step={nextStep()}
+            state={rateOk ? "done" : "warn"}
+            title="Quantity & rate"
+            hint="rate is needed to place the order"
+            aside={
+              subtotal > 0 ? (
+                <span className="text-[20px] font-semibold tabular-nums tracking-[-0.02em] text-content-1">
+                  ₹{Math.round(subtotal).toLocaleString("en-IN")}
+                </span>
+              ) : null
+            }
+          >
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <SoField label="Quantity">
+                <input
+                  type="number"
+                  aria-label="Quantity"
+                  onFocus={(e) => e.currentTarget.select()}
+                  value={line.qty_value || ""}
+                  onChange={(e) => onPatch({ qty_value: Number(e.target.value) })}
+                  className={cn(INP, MONO, "h-11 text-[18px] font-semibold")}
+                />
+              </SoField>
+              <SoField label="Unit">
+                <SoSelect
+                  aria-label="UOM"
+                  value={line.qty_uom}
+                  onChange={(v) => onPatch({ qty_uom: v as any })}
+                  className="h-11"
                 >
+                  <option value="KG">kg</option>
+                  <option value="PCS">pcs</option>
+                </SoSelect>
+                {master && String((master as any).product_kind || "").toUpperCase() === "POUCH" && line.qty_uom === "KG" ? (
+                  <button
+                    type="button"
+                    onClick={() => onPatch({ qty_uom: "PCS", price_basis: "PCS" } as any)}
+                    className="mt-1 text-[12px] font-medium text-primary underline-offset-2 hover:underline"
+                    data-testid="sales-line-use-pieces"
+                  >
+                    Pouches: use pieces
+                  </button>
+                ) : null}
+              </SoField>
+              <SoField label={`Rate per ${line.price_basis.toLowerCase()}`}>
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-content-3">₹</span>
                   <input
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    aria-label="Lane trim mm"
-                    value={line.lane_trim_mm_override ?? ""}
-                    onChange={(e) =>
-                      onPatch({ lane_trim_mm_override: e.target.value })
-                    }
-                    placeholder={`${fmtCompact(masterTrimMm)} mm`}
-                    className={cn(INP, MONO)}
+                    value={line.unit_price}
+                    aria-label="Unit price"
+                    inputMode="decimal"
+                    onFocus={(e) => e.currentTarget.select()}
+                    onChange={(e) => onPatch({ unit_price: e.target.value })}
+                    placeholder="0.00"
+                    className={cn(
+                      INP,
+                      MONO,
+                      "h-11 pl-7 text-[18px] font-semibold",
+                      !rateOk && "border-warning-border",
+                    )}
                   />
-                </SoField>
-                <SoField label="Std / rem">
-                  <SoReadout className={cn(MONO, "text-[12px]")}>
-                    {webWidthPlan.selected_standard_parent_width_mm
-                      ? `${Math.round(webWidthPlan.selected_standard_parent_width_mm)} mm`
-                      : webWidthPlan.remainder_mm
-                        ? `${Math.round(webWidthPlan.remainder_mm)} ${webWidthPlan.remainder_disposition.toLowerCase()}`
-                        : "calc"}
-                  </SoReadout>
-                </SoField>
-              </div>
-              {webWidthPlan.warnings.length ? (
-                <div className="mt-2 rounded-lg border border-warning-border bg-warning-bg px-2 py-1.5 text-caption font-semibold text-warning-fg">
-                  {webWidthPlan.warnings.join(" ")}
                 </div>
+              </SoField>
+              <SoField label="Price basis">
+                <SoSelect
+                  aria-label="Price basis"
+                  value={line.price_basis}
+                  onChange={(v) => onPatch({ price_basis: v as any })}
+                  className="h-11"
+                >
+                  <option value="KG">per kg</option>
+                  <option value="PCS">per pcs</option>
+                </SoSelect>
+              </SoField>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-[12.5px] text-content-3">
+              <span>
+                Subtotal{" "}
+                <b className="font-semibold tabular-nums text-content-1">
+                  {subtotal > 0 ? `₹${Math.round(subtotal).toLocaleString("en-IN")}` : "—"}
+                </b>
+              </span>
+              {selectedOverlay?.default_price_basis ? (
+                <span>customer basis {selectedOverlay.default_price_basis}</span>
               ) : null}
-            </SectionCard>
+            </div>
+          </StepSection>
 
-            {/* 6. Artwork & print (print-capable masters only) */}
-            {master.fixed_attributes?.print_capable ? (
-              <SectionCard
-                icon={<Palette className="h-3.5 w-3.5" />}
-                tone="fuchsia"
-                title="Artwork & print"
-                hint="optional · cylinder + colorway"
-              >
-                <ArtworkSection
-                  compact
-                  mode={line.artwork_mode}
-                  onModeChange={(m) =>
+          {master && printCapable ? (
+            <StepSection
+              step={nextStep()}
+              state={artworkReady ? "done" : "warn"}
+              title="Print & artwork"
+              hint="optional · artwork can follow before release"
+            >
+              <ArtworkSection
+                compact
+                mode={line.artwork_mode}
+                onModeChange={(m) =>
+                  onPatch({
+                    artwork_mode: m,
+                    artwork_assignment:
+                      m === "DEFER" ? undefined : line.artwork_assignment,
+                  })
+                }
+                printType={line.print_type}
+                onPrintTypeChange={(t) => onPatch({ print_type: t })}
+                filmType={line.film_type}
+                onFilmTypeChange={(t) => onPatch({ film_type: t })}
+                inkBaseFamily={activeInkFamily}
+                filterSummary={`Approved · ${line.print_type} · ${line.film_type}`}
+                options={artworkOptions}
+                assignment={
+                  line.artwork_mode === "DEFER"
+                    ? undefined
+                    : line.artwork_assignment
+                }
+                overlayDefault={overlayDefault}
+                onSelectColorway={(cw) => {
+                  const artwork = artworks.find((item) => item.id === cw.id);
+                  if (artwork) {
                     onPatch({
-                      artwork_mode: m,
-                      artwork_assignment:
-                        m === "DEFER" ? undefined : line.artwork_assignment,
-                    })
+                      artwork_assignment: artworkToAssignment(
+                        artwork,
+                        activeInkFamily,
+                      ),
+                      print_type:
+                        artwork.print_type === "FLEXO" ? "FLEXO" : "ROTO",
+                      film_type: artworkFilmType(artwork),
+                      artwork_mode: "APPROVED",
+                    });
                   }
-                  printType={line.print_type}
-                  onPrintTypeChange={(t) => onPatch({ print_type: t })}
-                  filmType={line.film_type}
-                  onFilmTypeChange={(t) => onPatch({ film_type: t })}
-                  inkBaseFamily={activeInkFamily}
-                  filterSummary={`Approved · ${line.print_type} · ${line.film_type}`}
-                  options={artworkOptions}
-                  assignment={
-                    line.artwork_mode === "DEFER"
-                      ? undefined
-                      : line.artwork_assignment
+                }}
+                onPickArtwork={() => {
+                  // Opens the master's Artworks tab in a new tab so the user can review the full
+                  // approved-artwork grid without losing the in-progress order draft.
+                  if (master?.id && typeof window !== "undefined") {
+                    window.open(
+                      `/master/products/${master.id}?tab=artworks`,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  } else if (master?.id) {
+                    router.push(`/master/products/${master.id}`);
                   }
-                  overlayDefault={overlayDefault}
-                  onSelectColorway={(cw) => {
-                    const artwork = artworks.find((item) => item.id === cw.id);
-                    if (artwork) {
-                      onPatch({
-                        artwork_assignment: artworkToAssignment(
-                          artwork,
-                          activeInkFamily,
-                        ),
-                        print_type:
-                          artwork.print_type === "FLEXO" ? "FLEXO" : "ROTO",
-                        film_type: artworkFilmType(artwork),
-                        artwork_mode: "APPROVED",
-                      });
-                    }
-                  }}
-                  onPickArtwork={() => {
-                    // Opens the master's Artworks tab in a new tab so the user can review the full
-                    // approved-artwork grid without losing the in-progress order draft.
-                    if (master?.id && typeof window !== "undefined") {
-                      window.open(
-                        `/master/products/${master.id}?tab=artworks`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    } else if (master?.id) {
-                      router.push(`/master/products/${master.id}`);
-                    }
-                  }}
-                  onReplaceColor={() => {
-                    if (typeof window !== "undefined")
-                      window.open(
-                        "/master/inks",
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                  }}
-                  disabled={!master.fixed_attributes?.print_capable}
-                />
-                <div className="mt-3 rounded-xl border border-info-border bg-info-bg px-3 py-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className={LABEL}>PM chemistry · read only</div>
-                      <div className="mt-1 text-caption font-semibold leading-5 text-primary">
-                        Ink GSM comes from linked artwork. Adhesive + solvent
-                        comes from the selected Product Master and is condensed
-                        into the line label.
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {masterChemistry.parts.length ? (
-                        masterChemistry.parts.map((part) => (
-                          <span
-                            key={part.label}
-                            className="rounded-full bg-surface-1 px-2 py-1 font-mono text-caption font-semibold text-primary ring-1 ring-info-border"
-                          >
-                            {part.label}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-content-3 ring-1 ring-line">
-                          no PM chemistry
-                        </span>
-                      )}
-                      {masterChemistry.label ? (
-                        <span className="rounded-full bg-primary px-2 py-1 font-mono text-caption font-semibold text-white">
-                          {masterChemistry.label}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </SectionCard>
-            ) : null}
+                }}
+                onReplaceColor={() => {
+                  if (typeof window !== "undefined")
+                    window.open(
+                      "/master/inks",
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                }}
+                disabled={!printCapable}
+              />
+              <div className="flex flex-wrap items-center gap-2 rounded-[12px] bg-surface-2 px-3 py-2 text-[12.5px] text-content-3">
+                <span className="font-medium text-content-2">Adhesive &amp; solvent from the master</span>
+                {masterChemistry.parts.length ? (
+                  masterChemistry.parts.map((part) => (
+                    <span
+                      key={part.label}
+                      className="rounded-full bg-surface-1 px-2 py-0.5 font-mono text-[12px] text-content-2 ring-1 ring-line"
+                    >
+                      {part.label}
+                    </span>
+                  ))
+                ) : (
+                  <span>none set</span>
+                )}
+                {masterChemistry.label ? (
+                  <span className="rounded-full bg-primary px-2 py-0.5 font-mono text-[12px] text-primary-foreground">
+                    {masterChemistry.label}
+                  </span>
+                ) : null}
+                <span className="basis-full text-[12px] text-content-4">
+                  Ink weight comes from the linked artwork.
+                </span>
+              </div>
+            </StepSection>
+          ) : null}
 
-            {/* 7. Add-ons */}
-            <SectionCard
-              icon={<Plus className="h-3.5 w-3.5" />}
-              tone="rose"
-              title="Add-ons"
-              hint={
-                addonAxis
-                  ? addonAxis.required
-                    ? "required"
-                    : "optional · usage preview live"
-                  : "master axis not declared"
-              }
+          {master ? (
+            <StepSection
+              step={nextStep()}
+              state={packingReady ? "done" : "warn"}
+              title="Packing"
+              hint="inner pouch, pieces per inner and the packing note"
             >
-              {addonAxis ? (
-                <AddonPicker
-                  addons={allowedAddonMasters}
-                  selected={line.addons}
-                  selectedSize={selectedSize}
-                  orderQty={line.qty_value}
-                  orderUom={line.qty_uom}
-                  onChange={(addons) => onPatch({ addons })}
-                />
-              ) : (
-                <div className="rounded-xl border border-line bg-surface-2 px-3 py-3 text-xs font-semibold text-content-3">
-                  No add-ons are declared on this Product Master, so no add-on
-                  selector or BOM add-on row is shown.
-                </div>
-              )}
-            </SectionCard>
-
-            {/* 8. Packaging — inner-pouch selection + override + catalog (POD) + packing note */}
-            <SectionCard
-              icon={<Box className="h-3.5 w-3.5" />}
-              tone="teal"
-              title="Packaging"
-              hint="inner pouch · override · packing note"
-            >
-              <div className="space-y-3">
+              <div className="grid gap-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {hasInnerPackagingAxis(master) ? (
                     <InnerPouchSelect
@@ -1279,8 +1203,8 @@ export function LineEditor({
                   />
                 </div>
                 {isPouchOutput(master) && canUseInnerPacking ? (
-                  <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
-                    <SoField label="Pcs per inner pouch" hint="override">
+                  <div className="grid gap-3 sm:grid-cols-[200px_1fr] sm:items-end">
+                    <SoField label="Pieces per inner pouch" hint="override">
                       <input
                         type="number"
                         min={1}
@@ -1297,24 +1221,18 @@ export function LineEditor({
                         className={cn(INP, MONO)}
                       />
                     </SoField>
-                    <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption leading-5 text-warning-fg">
-                      <span className="font-semibold uppercase tracking-wider text-warning-fg">
-                        BOM rule
-                      </span>
-                      <div>
-                        Inner pack demand = ceil(total pouches / pcs per inner).{" "}
-                        {line.inner_pouch_pcs_per_pack
-                          ? `Sales override: ${line.inner_pouch_pcs_per_pack} pcs / inner.`
-                          : innerPackFallback
-                            ? `Fallback in use: ${innerPackFallback} pcs / inner.`
-                            : "Pick an inner pouch/default first, then override if needed."}
-                      </div>
+                    <div className="rounded-[12px] bg-surface-2 px-3 py-2 text-[12.5px] leading-5 text-content-3">
+                      Inner pouches needed = total pouches ÷ pieces per inner, rounded up.{" "}
+                      {line.inner_pouch_pcs_per_pack
+                        ? `Using ${line.inner_pouch_pcs_per_pack} per inner for this order.`
+                        : innerPackFallback
+                          ? `Using the default ${innerPackFallback} per inner.`
+                          : "Pick an inner pouch first, then override if needed."}
                     </div>
                   </div>
                 ) : isPouchOutput(master) ? (
-                  <div className="rounded-xl border border-line bg-surface-2 px-3 py-2 text-caption font-semibold text-content-3">
-                    Inner pouch packing is not declared on this Product Master,
-                    so no inner-pouch axis or pcs/inner override is shown.
+                  <div className="rounded-[12px] bg-surface-2 px-3 py-2 text-[12.5px] text-content-3">
+                    Inner pouch packing is not set on this product master.
                   </div>
                 ) : null}
                 <SoField
@@ -1329,161 +1247,264 @@ export function LineEditor({
                   />
                 </SoField>
               </div>
-            </SectionCard>
+            </StepSection>
+          ) : null}
 
-            <IssuePolicyCard
-              line={line}
-              onPatch={onPatch}
-              livePreview={livePreview}
-            />
+          {master && addonsRequired ? (
+            <StepSection
+              step={nextStep()}
+              state={line.addons.length ? "done" : "warn"}
+              title="Add-ons"
+              hint="required on this product master"
+            >
+              {addonsBlock}
+            </StepSection>
+          ) : null}
 
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-2 pb-1">
+          {master ? (
+            <StepSection step={nextStep()} state="idle" title="More options" last>
+              <details
+                className="group rounded-[14px] border border-line bg-surface-2/60 open:bg-surface-1"
+                open={moreOpenByDefault || undefined}
+                data-testid="sales-line-more-options"
+              >
+                <summary className="flex cursor-pointer list-none items-center gap-3 px-3.5 py-3 text-[13px]">
+                  <span className="font-semibold text-content-1">Lane, add-ons and wastage</span>
+                  <span className="min-w-0 flex-1 truncate text-content-3">
+                    {[lanePlanSummary, addonsRequired ? "" : addonSummary, policySummary]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                  <ChevronRight className="h-4 w-4 flex-none text-content-3 transition-transform group-open:rotate-90" />
+                </summary>
+                <div className="grid gap-6 border-t border-line px-3.5 pb-4 pt-4">
+                  <div className="grid gap-3">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <h4 className="text-[14px] font-semibold text-content-1">Production lane</h4>
+                      <span className="text-[12.5px] text-content-3">
+                        pouches across the parent web · policy {webWidthPolicy?.code || "default"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {allowedLaneCounts.map((lane) => {
+                        const parent = computeWebWidthPlan(
+                          childTargetWidthMm,
+                          lane,
+                          webWidthPolicy,
+                        ).planned_parent_width_mm;
+                        const on = activeLaneCount === lane;
+                        return (
+                          <button
+                            key={lane}
+                            type="button"
+                            onClick={() =>
+                              onPatch({
+                                preferred_lane_count: lane,
+                                lane_count_source: "OPERATOR_CHOICE",
+                              })
+                            }
+                            className={cn(
+                              "min-w-[92px] flex-1 rounded-[12px] border px-3 py-2 text-center transition",
+                              on
+                                ? "border-primary bg-info-bg shadow-[inset_0_0_0_1px_hsl(var(--primary))]"
+                                : "border-line-strong bg-surface-1 hover:border-info-border",
+                            )}
+                          >
+                            <div className={cn("text-[14px] font-semibold", on ? "text-primary" : "text-content-1")}>
+                              {lane}-up
+                            </div>
+                            <div className={cn("text-[12px] tabular-nums", on ? "text-primary" : "text-content-3")}>
+                              {parent ? `${Math.round(parent)} mm` : "—"}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <SoField label="Child target">
+                        <SoReadout className={MONO}>
+                          {childTargetWidthMm
+                            ? `${Math.round(childTargetWidthMm)} mm`
+                            : "—"}
+                        </SoReadout>
+                      </SoField>
+                      <SoField label="Planned parent">
+                        <SoReadout className={MONO}>
+                          {plannedParentWidthMm
+                            ? `${Math.round(plannedParentWidthMm)} mm`
+                            : "—"}
+                        </SoReadout>
+                      </SoField>
+                      <SoField
+                        label="Trim"
+                        hint={trimOverride ? "override" : "master/policy"}
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.1}
+                          aria-label="Lane trim mm"
+                          value={line.lane_trim_mm_override ?? ""}
+                          onChange={(e) =>
+                            onPatch({ lane_trim_mm_override: e.target.value })
+                          }
+                          placeholder={`${fmtCompact(masterTrimMm)} mm`}
+                          className={cn(INP, MONO)}
+                        />
+                      </SoField>
+                      <SoField label="Std / rem">
+                        <SoReadout className={cn(MONO, "text-[12.5px]")}>
+                          {webWidthPlan.selected_standard_parent_width_mm
+                            ? `${Math.round(webWidthPlan.selected_standard_parent_width_mm)} mm`
+                            : webWidthPlan.remainder_mm
+                              ? `${Math.round(webWidthPlan.remainder_mm)} ${webWidthPlan.remainder_disposition.toLowerCase()}`
+                              : "calc"}
+                        </SoReadout>
+                      </SoField>
+                    </div>
+                    {webWidthPlan.warnings.length ? (
+                      <div className="rounded-[12px] bg-warning-bg px-3 py-2 text-[12.5px] text-warning-fg">
+                        {webWidthPlan.warnings.join(" ")}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {!addonsRequired ? (
+                    <div className="grid gap-3">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <h4 className="text-[14px] font-semibold text-content-1">Add-ons</h4>
+                        <span className="text-[12.5px] text-content-3">
+                          {addonAxis ? "optional · usage preview updates live" : "not declared on this master"}
+                        </span>
+                      </div>
+                      {addonsBlock}
+                    </div>
+                  ) : null}
+
+                  <IssuePolicyCard
+                    line={line}
+                    onPatch={onPatch}
+                    livePreview={livePreview}
+                  />
+                </div>
+              </details>
+            </StepSection>
+          ) : null}
+
+          {master ? (
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pb-2 pt-4">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={onCollapse}
-                className="rounded-lg gap-1 border-line text-caption font-bold"
+                className="h-9 rounded-[10px] text-content-2"
               >
-                Cancel line
+                Done with this line
               </Button>
               {onAdd ? (
                 <Button
                   size="sm"
+                  variant="outline"
                   disabled={addDisabled}
                   onClick={onAdd}
-                  className="rounded-lg gap-1 bg-success-fg text-[12px] font-bold text-white shadow-sm hover:bg-success-fg"
+                  className="h-9 gap-1 rounded-[10px]"
                 >
-                  + Add line to cart
+                  <Plus className="h-3.5 w-3.5" /> Add another line
                 </Button>
               ) : null}
             </div>
-          </>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
 
-      {/* ───────────────── RIGHT: live preview rail ───────────────── */}
-      <SalesPreviewRail
-        preview={previewForRail}
-        loading={livePreviewLoading}
-        masterCode={master?.code}
-        sizeCode={line.size_code}
-        qty={line.qty_value}
-        uom={line.qty_uom}
-        lane={{
-          childTargetMm: childTargetWidthMm,
-          laneCount: activeLaneCount,
-          plannedParentMm: plannedParentWidthMm,
-          trimMm: webWidthPlan.trim_mm,
-          remainderMm: webWidthPlan.remainder_mm,
-          remainderDisposition: webWidthPlan.remainder_disposition,
-        }}
-        readiness={[
-          {
-            label: "Product + axes resolved",
-            ok: !!master && axisBuild.missingRequired.length === 0,
-          },
-          { label: "Size + geometry", ok: !!line.size_code },
-          {
-            label: "Material plan",
-            ok: hasMaterialPlan,
-            hint: hasMaterialPlan
-              ? `${materialEvidenceCount} sources`
-              : "waiting for BOM",
-          },
-          {
-            label: "Artwork / ink GSM",
-            ok: artworkReady,
-            hint: master?.fixed_attributes?.print_capable
-              ? line.artwork_mode === "DEFER"
-                ? "deferred"
-                : activeInkFamily
-              : undefined,
-          },
-          {
-            label: "Packing override",
-            ok: packingReady,
-            hint: isPouchOutput(master)
-              ? line.inner_pouch_pcs_per_pack
-                ? `${line.inner_pouch_pcs_per_pack} pcs/inner`
-                : innerPackFallback
-                  ? `${innerPackFallback} pcs default`
-                  : "catalog/default"
-              : undefined,
-          },
-          {
-            label: "BOM resolved",
-            ok: bomReady,
-            hint: hasBomIssues ? "resolver issue" : undefined,
-          },
-        ]}
-        printCapable={!!master?.fixed_attributes?.print_capable}
-        artworkDeferred={line.artwork_mode === "DEFER"}
-        selectedAddons={selectedAddonRows}
-        selectedSize={selectedSize}
-      />
+        {/* ───────────────── RIGHT: live preview rail ───────────────── */}
+        <div className="min-w-0 border-t border-line p-4 sm:p-5 xl:sticky xl:top-20 xl:border-t-0">
+          <SalesPreviewRail
+            preview={previewForRail}
+            loading={livePreviewLoading}
+            masterCode={master?.code}
+            sizeCode={line.size_code}
+            qty={line.qty_value}
+            uom={line.qty_uom}
+            lane={{
+              childTargetMm: childTargetWidthMm,
+              laneCount: activeLaneCount,
+              plannedParentMm: plannedParentWidthMm,
+              trimMm: webWidthPlan.trim_mm,
+              remainderMm: webWidthPlan.remainder_mm,
+              remainderDisposition: webWidthPlan.remainder_disposition,
+            }}
+            readiness={[
+              {
+                label: "Product + axes resolved",
+                ok: !!master && axisBuild.missingRequired.length === 0,
+              },
+              { label: "Size + geometry", ok: !!line.size_code },
+              {
+                label: "Material plan",
+                ok: hasMaterialPlan,
+                hint: hasMaterialPlan
+                  ? `${materialEvidenceCount} sources`
+                  : "waiting for BOM",
+              },
+              {
+                label: "Artwork / ink GSM",
+                ok: artworkReady,
+                hint: master?.fixed_attributes?.print_capable
+                  ? line.artwork_mode === "DEFER"
+                    ? "deferred"
+                    : activeInkFamily
+                  : undefined,
+              },
+              {
+                label: "Packing override",
+                ok: packingReady,
+                hint: isPouchOutput(master)
+                  ? line.inner_pouch_pcs_per_pack
+                    ? `${line.inner_pouch_pcs_per_pack} pcs/inner`
+                    : innerPackFallback
+                      ? `${innerPackFallback} pcs default`
+                      : "catalog/default"
+                  : undefined,
+              },
+              {
+                label: "BOM resolved",
+                ok: bomReady,
+                hint: hasBomIssues ? "resolver issue" : undefined,
+              },
+            ]}
+            printCapable={!!master?.fixed_attributes?.print_capable}
+            artworkDeferred={line.artwork_mode === "DEFER"}
+            selectedAddons={selectedAddonRows}
+            selectedSize={selectedSize}
+          />
+        </div>
+      </div>
     </div>
   );
 }
 
 // ─── Field wrappers ─────────────────────────────────────────────
 
+/** A quiet sub-section inside the line editor (used inside "More options"). */
 function SectionCard({
-  icon,
-  tone,
   title,
   hint,
   badge,
   children,
 }: {
-  icon: React.ReactNode;
-  tone:
-    | "indigo"
-    | "violet"
-    | "emerald"
-    | "blue"
-    | "fuchsia"
-    | "rose"
-    | "teal"
-    | "slate"
-    | "amber";
+  icon?: React.ReactNode;
+  tone?: string;
   title: string;
   hint?: string;
   badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const toneBg: Record<string, string> = {
-    indigo: "bg-order-fg",
-    violet: "bg-order-fg",
-    emerald: "bg-success-fg",
-    blue: "bg-primary",
-    fuchsia: "bg-order-fg",
-    rose: "bg-danger-solid",
-    teal: "bg-success-fg",
-    slate: "bg-line",
-    amber: "bg-warning-fg",
-  };
   return (
-    <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
-        <span
-          className={cn(
-            "grid h-[30px] w-[30px] place-items-center rounded-[10px] text-white",
-            toneBg[tone] || "bg-line",
-          )}
-        >
-          {icon}
-        </span>
-        <span className="font-display text-sm font-semibold text-content-1">
-          {title}
-        </span>
-        {badge ? (
-          <span className="ml-auto">{badge}</span>
-        ) : hint ? (
-          <span className="ml-auto text-caption font-bold text-content-4">
-            {hint}
-          </span>
-        ) : null}
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h4 className="text-[14px] font-semibold text-content-1">{title}</h4>
+        {hint ? <span className="text-[12.5px] text-content-3">{hint}</span> : null}
+        {badge ? <span className="ml-auto">{badge}</span> : null}
       </div>
       {children}
     </div>
@@ -1566,7 +1587,7 @@ function IssuePolicyCard({
     <SectionCard
       icon={<AlertTriangle className="h-3.5 w-3.5" />}
       tone="amber"
-      title="9. Wastage / issue policy"
+      title="Wastage / issue policy"
       hint="material row override"
     >
       <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-caption font-semibold leading-5 text-warning-fg">
@@ -1725,7 +1746,7 @@ function PolicyReadout({
           : "bg-surface-2 text-content-2 ring-line",
       )}
     >
-      <div className="text-caption font-semibold uppercase tracking-wider text-content-3">
+      <div className="text-[12px] font-semibold text-content-3">
         {label}
       </div>
       <div className="font-mono text-caption font-semibold">{value}</div>
@@ -1933,7 +1954,7 @@ function MasterPicker({
               onClick={() => onChange(m.id)}
               className="group flex w-full items-center gap-3 border-t border-line px-3 py-2.5 text-left transition hover:bg-order-bg"
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-order-fg to-order-fg text-white shadow-sm">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-plate text-white shadow-sm">
                 <Package className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">

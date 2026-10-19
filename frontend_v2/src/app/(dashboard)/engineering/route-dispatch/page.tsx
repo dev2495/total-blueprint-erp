@@ -78,7 +78,7 @@ const POLICY_HINTS: Record<SelectionPolicy, string> = {
 };
 
 const labelClassName =
-  "text-caption font-semibold uppercase tracking-[0.1em] text-content-4";
+  "text-[12px] font-semibold text-content-3";
 
 function initialDraft(row: RouteDispatchRow): DispatchDraft {
   return {

@@ -1,19 +1,20 @@
 "use client";
 
 /**
- * Sticky step bar for the long product master edit page. Every section stays where it
- * is; the bar jumps to it and shows which one is in view.
+ * Section list for the product master editor. On wide screens it is a vertical list in its
+ * own column; on smaller screens it becomes a sticky bar above the form. Every section stays
+ * where it is; the list jumps to it and shows which one is in view.
  */
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-/** Every section keeps its place on the page; the bar groups them under the three questions a
+/** Every section keeps its place on the page; the list groups them under the three questions a
  *  master answers: what it is, what is fixed, what sales may choose. */
 const GROUPS: Array<{ key: string; label: string }> = [
-  { key: "what", label: "1 · What it is" },
-  { key: "fixed", label: "2 · What is fixed" },
-  { key: "sales", label: "3 · What sales choose" },
+  { key: "what", label: "What it is" },
+  { key: "fixed", label: "What is fixed" },
+  { key: "sales", label: "What sales choose" },
 ];
 
 const STEPS: Array<{ id: string; label: string; group: string }> = [
@@ -27,7 +28,7 @@ const STEPS: Array<{ id: string; label: string; group: string }> = [
   { id: "pm-addons", label: "Add-ons & packing", group: "sales" },
 ];
 
-export function PmStepNav() {
+export function PmStepNav({ className }: { className?: string }) {
   const [present, setPresent] = useState<string[]>([]);
   const [active, setActive] = useState<string>("pm-basics");
 
@@ -55,15 +56,23 @@ export function PmStepNav() {
   return (
     <nav
       aria-label="Product master sections"
-      className="sticky top-2 z-20 -mx-1 overflow-x-auto rounded-2xl border border-line bg-surface-1/95 px-2 py-2 shadow-sm backdrop-blur"
+      className={cn(
+        "sticky top-2 z-20 -mx-1 self-start overflow-x-auto rounded-[16px] border border-line bg-surface-1/95 px-2 py-2 shadow-[var(--shadow-sm)] backdrop-blur",
+        "2xl:top-20 2xl:mx-0 2xl:overflow-visible 2xl:border-0 2xl:bg-transparent 2xl:px-0 2xl:py-0 2xl:shadow-none 2xl:backdrop-blur-none",
+        className,
+      )}
       data-testid="pm-step-nav"
     >
-      <ol className="flex min-w-max items-center gap-1.5">
+      <ol className="flex min-w-max items-center gap-1.5 2xl:min-w-0 2xl:flex-col 2xl:items-stretch 2xl:gap-0.5">
         {steps.map((step, index) => (
-          <li key={step.id} className="flex items-center gap-1.5">
+          <li key={step.id} className="flex items-center gap-1.5 2xl:block">
             {index === 0 || steps[index - 1].group !== step.group ? (
               <span
-                className="ml-1 mr-0.5 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.12em] text-content-4"
+                className={cn(
+                  "ml-1 mr-0.5 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.09em] text-content-4",
+                  "2xl:mx-0 2xl:block 2xl:px-2.5 2xl:pb-1.5",
+                  index > 0 && "2xl:pt-4",
+                )}
                 data-testid={`pm-step-group-${step.group}`}
               >
                 {GROUPS.find((g) => g.key === step.group)?.label}
@@ -78,14 +87,17 @@ export function PmStepNav() {
               }}
               aria-current={active === step.id ? "step" : undefined}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-                active === step.id ? "bg-primary text-primary-foreground" : "text-content-2 hover:bg-surface-2",
+                "inline-flex items-center gap-2.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors",
+                "2xl:flex 2xl:w-full 2xl:rounded-[10px] 2xl:px-2.5 2xl:py-2",
+                active === step.id
+                  ? "bg-primary text-primary-foreground 2xl:bg-surface-1 2xl:text-content-1 2xl:shadow-[var(--shadow-md)]"
+                  : "text-content-2 hover:bg-surface-2",
               )}
             >
               <span
                 className={cn(
-                  "inline-flex h-4 min-w-4 items-center justify-center rounded-full text-[10px]",
-                  active === step.id ? "bg-white/20" : "bg-surface-2 text-content-3",
+                  "inline-flex h-5 min-w-5 items-center justify-center rounded-full text-[10.5px] font-semibold",
+                  active === step.id ? "bg-white/20 2xl:bg-info-bg 2xl:text-primary" : "bg-surface-2 text-content-3 ring-1 ring-line",
                 )}
               >
                 {index + 1}

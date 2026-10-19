@@ -499,7 +499,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-surface-2 via-white to-surface-2 px-4 py-4 sm:px-6">
+    <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="indigo"
         eyebrow={isNew ? "MASTER · POUCH STYLE · NEW" : "MASTER · POUCH STYLE"}
@@ -1383,7 +1383,7 @@ function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <div className="mb-1 text-caption font-semibold uppercase tracking-widest text-content-3">
+      <div className="mb-1 text-[12px] font-semibold text-content-3">
         {label}
       </div>
       {children}
@@ -1802,7 +1802,7 @@ function VisualLinearBuilder({
   );
 
   return (
-    <div className="rounded-2xl border border-success-border bg-gradient-to-br from-success-bg via-white to-success-bg p-3">
+    <div className="rounded-2xl border border-success-border bg-success-bg p-3">
       {/* Preset bar */}
       <div className="mb-3 rounded-xl border border-success-border bg-surface-1 px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between">
@@ -1865,7 +1865,7 @@ function VisualLinearBuilder({
 
         {/* Trim row */}
         <div className="flex items-center gap-2 rounded-2xl bg-surface-2 px-3 py-2 ring-1 ring-line-strong">
-          <span className="text-caption font-semibold uppercase tracking-widest text-content-3">
+          <span className="text-[12px] font-semibold text-content-3">
             trim constant
           </span>
           <input
@@ -1932,7 +1932,7 @@ function FormulaPolicyPanel({
   onPatch: (patch: Record<string, any>) => void;
 }) {
   return (
-    <div className="mt-3 grid gap-3 rounded-2xl border border-info-border bg-gradient-to-br from-info-bg via-white to-info-bg p-3 lg:grid-cols-[1.2fr_1fr]">
+    <div className="mt-3 grid gap-3 rounded-2xl border border-info-border bg-surface-2 p-3 lg:grid-cols-[1.2fr_1fr]">
       <div>
         <div className="text-caption font-semibold uppercase tracking-widest text-info-fg">
           Roll axis policy
@@ -2004,7 +2004,7 @@ function StockAreaPolicyPanel({
   onPatch: (patch: Record<string, any>) => void;
 }) {
   return (
-    <div className="mt-3 rounded-2xl border border-order-border bg-gradient-to-br from-order-bg via-white to-order-bg p-3">
+    <div className="mt-3 rounded-2xl border border-order-border bg-surface-2 p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-caption font-semibold uppercase tracking-widest text-order-fg">

@@ -618,7 +618,7 @@ export function SalesOverflowChipGroup({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <span className="inline-flex h-9 shrink-0 items-center text-caption font-semibold uppercase tracking-[0.12em] text-content-3">
+      <span className="inline-flex h-9 shrink-0 items-center text-[12px] font-semibold text-content-3">
         {label}
       </span>
       {renderButton(null)}
@@ -640,7 +640,7 @@ export function SalesOverflowChipGroup({
             align="start"
             className="max-h-[22rem] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-line p-2"
           >
-            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-[12px] font-semibold text-content-3">
               {label} options
             </DropdownMenuLabel>
             {hiddenOptions.length > 8 ? (
@@ -746,7 +746,7 @@ export function SalesSmartRangeFilter({
             align="start"
             className="max-h-[20rem] w-[min(18rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-line p-2"
           >
-            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-[12px] font-semibold text-content-3">
               {label} presets
             </DropdownMenuLabel>
             <DropdownMenuItem
@@ -904,7 +904,7 @@ export function SalesLayerTable({
         className,
       )}
     >
-      <div className="grid grid-cols-[3rem_minmax(0,1.35fr)_0.7fr_0.85fr_0.7fr] border-b border-line bg-surface-2 px-3 py-2 text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+      <div className="grid grid-cols-[3rem_minmax(0,1.35fr)_0.7fr_0.85fr_0.7fr] border-b border-line bg-surface-2 px-3 py-2 text-[12px] font-semibold text-content-3">
         <div>#</div>
         <div>Layer variant</div>
         <div>Grade</div>
@@ -979,7 +979,7 @@ export function SalesProductSpecCard({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             {title}
           </div>
           <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight text-content-1">
@@ -1016,7 +1016,7 @@ export function SalesProductSpecCard({
           </div>
         </div>
         <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3">
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             Order context
           </div>
           <div className="mt-2 text-sm font-semibold text-content-1">
@@ -1053,7 +1053,7 @@ export function SalesOutputSummaryCard({
     <section className="rounded-[1.75rem] border border-line bg-surface-1 p-5 shadow-[0_18px_50px_-40px_rgba(15,23,42,0.35)]">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+          <div className="text-[12px] font-semibold text-content-3">
             {title}
           </div>
           <h3 className="mt-1 text-xl font-semibold tracking-tight text-content-1">
@@ -1219,7 +1219,7 @@ export function SalesSavedViewsBar({
               className={cn(
                 "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-semibold transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg",
                 isActive
-                  ? "border-primary bg-gradient-to-br from-primary to-info-fg text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]"
+                  ? "border-primary bg-primary text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]"
                   : "border-line bg-surface-1 text-content-2",
               )}
             >
@@ -1265,7 +1265,7 @@ export function SalesSavedViewsBar({
               className={cn(
                 "inline-flex h-9 items-center gap-2 rounded-full border px-4 text-xs font-semibold transition hover:-translate-y-0.5 hover:border-info-border hover:bg-info-bg",
                 isActive
-                  ? "border-primary bg-gradient-to-br from-primary to-info-fg text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]"
+                  ? "border-primary bg-primary text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.7)]"
                   : "border-line bg-surface-1 text-content-2",
               )}
             >
@@ -1309,7 +1309,7 @@ export function SalesSavedViewsBar({
             align="end"
             className="w-[min(28rem,calc(100vw-2rem))] rounded-2xl border-line p-2 shadow-[0_24px_58px_-28px_rgba(15,23,42,0.38)]"
           >
-            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-[12px] font-semibold text-content-3">
               Starter views
             </DropdownMenuLabel>
             {starters.map((view) => (
@@ -1330,7 +1330,7 @@ export function SalesSavedViewsBar({
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-caption font-semibold uppercase tracking-[0.1em] text-content-3">
+            <DropdownMenuLabel className="text-[12px] font-semibold text-content-3">
               My saved views
             </DropdownMenuLabel>
             {!savedViews.length ? (

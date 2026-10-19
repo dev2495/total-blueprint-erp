@@ -3,7 +3,9 @@
 // Right rail for live geometry, material BOM, lane-up, and readiness evidence.
 
 import * as React from "react";
+import { PackageSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CheckRow, StatTile } from "@/components/plate/steps";
 import type { Addon } from "@/services/master-data";
 import type {
   PreviewBomResult,
@@ -617,7 +619,7 @@ function BomLineRow({ row }: { row: BomRow }) {
   return (
     <div
       className={cn(
-        "grid grid-cols-[1fr_auto] items-center gap-2 border-t border-line px-3 py-1.5 text-xs font-bold",
+        "grid grid-cols-[1fr_auto] items-center gap-2 border-t border-line px-3 py-2 text-[12.5px] font-medium",
         row.madeInHouse && "opacity-70",
       )}
       title={row.madeInHouse ? "Made in the plant from the granules above; not added to the totals." : undefined}
@@ -640,7 +642,7 @@ function BomLineRow({ row }: { row: BomRow }) {
             {CAT_LABEL[row.cat]}
           </span>
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[9.5px] font-bold uppercase tracking-wide text-content-4">
+        <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-content-3">
           <span className="truncate">{row.name}</span>
           {row.basis ? (
             <span className="shrink-0 rounded bg-surface-2 px-1">
@@ -674,7 +676,7 @@ function BomLineRow({ row }: { row: BomRow }) {
           ) : null}
         </div>
         {row.theoreticalQty || row.plannedIssueQty ? (
-          <div className="mt-0.5 text-[9.5px] font-semibold text-content-4">
+          <div className="mt-0.5 text-[11px] text-content-3">
             theory {fmtWeightSmart(row.theoreticalQty || 0, row.uom)} · issue{" "}
             {fmtWeightSmart(row.plannedIssueQty || row.qty, row.uom)}
             {row.policyMode ? ` · ${row.policyMode.replace(/_/g, " ")}` : ""}
@@ -683,40 +685,6 @@ function BomLineRow({ row }: { row: BomRow }) {
       </div>
       <div className="text-right font-mono tabular-nums text-content-2">
         {row.placeholder ? "mapped" : fmtWeightSmart(row.qty, row.uom)}
-      </div>
-    </div>
-  );
-}
-
-function KpiTile({
-  label,
-  value,
-  sub,
-  tone = "slate",
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  tone?: "slate" | "green" | "amber" | "red";
-}) {
-  const cls =
-    tone === "green"
-      ? "border-success-border bg-success-bg text-success-fg"
-      : tone === "amber"
-        ? "border-warning-border bg-warning-bg text-warning-fg"
-        : tone === "red"
-          ? "border-danger-border bg-danger-bg text-danger-fg"
-          : "border-line bg-surface-2 text-content-1";
-  return (
-    <div className={cn("rounded-xl border p-2.5", cls)}>
-      <div className="text-[9.5px] font-semibold uppercase tracking-[0.08em] opacity-65">
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-base font-semibold tracking-normal">
-        {value}
-      </div>
-      <div className="mt-0.5 truncate text-[10.5px] font-bold opacity-70">
-        {sub}
       </div>
     </div>
   );
@@ -833,21 +801,21 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
   const gussetMm = num(g.gusset_mm, g.bottom_gusset_mm);
   const isStandup = /STAND|ZIP|BOTTOM/.test(styleCode) || gussetMm > 0;
   return (
-    <div className="grid place-items-center rounded-xl bg-surface-2 py-3">
+    <div className="grid place-items-center rounded-[12px] bg-surface-2 py-2">
       {kind === "ROLL" ? (
         <svg
           viewBox="0 0 140 110"
           width="120"
           height="94"
-          className="drop-shadow-md"
+          className="max-w-full"
         >
           <ellipse
             cx="38"
             cy="55"
             rx="14"
             ry="44"
-            fill="#bae6fd"
-            stroke="#0284c7"
+            fill="var(--film-pet)"
+            stroke="var(--plate-fg-3)"
             strokeWidth="1.2"
           />
           <rect
@@ -855,8 +823,8 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
             y="11"
             width="74"
             height="88"
-            fill="#7dd3fc"
-            stroke="#0284c7"
+            fill="var(--film-pet)"
+            stroke="var(--plate-fg-3)"
             strokeWidth="1.2"
           />
           <ellipse
@@ -864,8 +832,8 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
             cy="55"
             rx="14"
             ry="44"
-            fill="#38bdf8"
-            stroke="#0284c7"
+            fill="var(--film-met)"
+            stroke="var(--plate-fg-3)"
             strokeWidth="1.2"
           />
           <ellipse
@@ -873,8 +841,8 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
             cy="55"
             rx="6"
             ry="18"
-            fill="#f8fafc"
-            stroke="#0369a1"
+            fill="var(--surface-1)"
+            stroke="var(--plate-fg-3)"
             strokeWidth="0.9"
             opacity="0.9"
           />
@@ -884,7 +852,7 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
               y="107"
               textAnchor="middle"
               fontSize="8"
-              fill="#475569"
+              fill="var(--text-3)"
               fontWeight="700"
             >
               {rollWidth} mm
@@ -896,7 +864,7 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
           viewBox="0 0 180 190"
           width="132"
           height="140"
-          className="drop-shadow-md"
+          className="max-w-full"
           role="img"
           aria-label="Pouch preview"
         >
@@ -908,15 +876,15 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
               y1="0"
               y2="1"
             >
-              <stop offset="0%" stopColor="#bbf7d0" />
-              <stop offset="55%" stopColor="#86efac" />
-              <stop offset="100%" stopColor="#5eead4" />
+              <stop offset="0%" stopColor="var(--film-pet)" />
+              <stop offset="55%" stopColor="var(--film-met)" />
+              <stop offset="100%" stopColor="var(--film-pe)" />
             </linearGradient>
           </defs>
           <path
             d="M 46 18 L 134 18 L 143 28 L 143 165 L 37 165 L 37 28 Z"
             fill={`url(#spr-${gradientId})`}
-            stroke="#047857"
+            stroke="var(--plate-fg-3)"
             strokeWidth="1.4"
           />
           <rect
@@ -925,7 +893,7 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
             width="96"
             height="8"
             rx="2"
-            fill="#047857"
+            fill="var(--plate-fg-3)"
             opacity="0.28"
           />
           <rect
@@ -934,14 +902,14 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
             width="94"
             height="11"
             rx="3"
-            fill="#065f46"
+            fill="var(--plate)"
             opacity={isStandup ? 0.26 : 0.12}
           />
           {isStandup ? (
             <path
               d="M 48 159 C 71 171 109 171 132 159"
               fill="none"
-              stroke="#064e3b"
+              stroke="var(--plate)"
               strokeWidth="1.3"
               opacity="0.5"
             />
@@ -952,7 +920,7 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
               y="181"
               textAnchor="middle"
               fontSize="8"
-              fill="#475569"
+              fill="var(--text-3)"
               fontWeight="700"
             >
               {width} mm
@@ -963,7 +931,7 @@ function Visual({ preview }: { preview: PreviewBomResult }) {
               x="16"
               y="103"
               fontSize="8"
-              fill="#475569"
+              fill="var(--text-3)"
               fontWeight="700"
               transform="rotate(-90 16 103)"
             >
@@ -990,32 +958,24 @@ export function SalesPreviewRail({
   selectedAddons = [],
   selectedSize,
 }: SalesPreviewRailProps) {
-  const card = "rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm";
-  const label =
-    "text-[9.5px] font-semibold uppercase tracking-[0.08em] text-content-3";
+  const card = "grid gap-3";
+  const label = "text-[12px] font-semibold text-content-2";
 
   if (!preview) {
     return (
-      <aside className="space-y-3 xl:sticky xl:top-4">
-        <div
-          className={cn(
-            card,
-            "grid min-h-[220px] place-items-center text-center",
-          )}
-        >
+      <aside className="grid gap-4">
+        <div className="grid min-h-[200px] place-items-center rounded-[14px] border border-dashed border-line-strong px-4 text-center">
           <div>
-            <div className="text-2xl">📦</div>
-            <div className="mt-2 text-sm font-semibold text-content-2">
-              {loading
-                ? "Computing live preview…"
-                : "Pick a master, size & axes"}
+            <PackageSearch className="mx-auto h-7 w-7 text-content-4" aria-hidden />
+            <div className="mt-2 text-[14px] font-semibold text-content-2">
+              {loading ? "Working out the material plan…" : "Live preview"}
             </div>
-            <p className="mx-auto mt-1 max-w-[220px] text-caption font-semibold text-content-3">
-              Geometry, weight, material-wise BOM and the lane-up plan compute
-              here in real time.
+            <p className="mx-auto mt-1 max-w-[240px] text-[12.5px] text-content-3">
+              Weight per pouch, the material list and the lane plan appear here once the product and size are picked.
             </p>
           </div>
         </div>
+        <ReadinessBlock readiness={readiness} label={label} />
       </aside>
     );
   }
@@ -1098,191 +1058,119 @@ export function SalesPreviewRail({
   })).filter((group) => group.rows.length);
 
   return (
-    <aside className="space-y-3 xl:sticky xl:top-4">
+    <aside className="grid gap-5">
+      <ReadinessBlock readiness={readiness} label={label} />
+
       <div className={card}>
-        <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <div className={label}>Live preview</div>
             {masterSizeLabel ? (
-              <div className="truncate font-mono text-caption font-bold text-content-4">
+              <div className="truncate font-mono text-[11.5px] text-content-4">
                 {masterSizeLabel}
               </div>
             ) : null}
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-2 py-0.5 text-[11.5px] font-medium text-success-fg">
             <span className="h-1.5 w-1.5 rounded-full bg-success-fg" /> live
           </span>
         </div>
-        <div className="flex gap-3">
-          <div className="w-28 shrink-0">
-            <Visual preview={preview} />
-          </div>
-          <div className="grid flex-1 grid-cols-2 gap-1.5 text-xs">
-            <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
-              <div className={label}>W x H</div>
-              <div className="font-mono font-semibold text-content-1">
-                {width > 0 ? `${width} x ${height || 0}` : "—"}
+        <div className="grid grid-cols-[112px_minmax(0,1fr)] items-center gap-3">
+          <Visual preview={preview} />
+          <dl className="grid gap-0 text-[12.5px]">
+            {[
+              ["W × H", width > 0 ? `${width} × ${height || 0} mm` : "—"],
+              ["Thickness", totalUm > 0 ? `${totalUm} µ` : "—"],
+              ["Child web", childWeb > 0 ? `${Math.round(childWeb)} mm` : "—"],
+              ["Roll form", rollType || "—"],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-2 border-b border-line py-1.5 last:border-b-0">
+                <dt className="text-content-3">{k}</dt>
+                <dd className="text-right font-medium tabular-nums text-content-1">{v}</dd>
               </div>
-            </div>
-            <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
-              <div className={label}>Thickness</div>
-              <div className="font-mono font-semibold text-content-1">
-                {totalUm > 0 ? `${totalUm} micron` : "—"}
-              </div>
-            </div>
-            <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
-              <div className={label}>Child web</div>
-              <div className="font-mono font-semibold text-content-1">
-                {childWeb > 0 ? `${Math.round(childWeb)} mm` : "—"}
-              </div>
-            </div>
-            <div className="rounded-lg bg-info-bg p-2 ring-1 ring-info-border">
-              <div className={cn(label, "text-primary")}>FG material total</div>
-              <div className="font-mono font-semibold text-primary">
-                {totalKg > 0
-                  ? fmtWeightSmart(totalKg, "KG")
-                  : unitG > 0
-                    ? "calc after qty"
-                    : "Needs unit wt"}
-              </div>
-            </div>
-            <div className="rounded-lg bg-success-bg p-2 ring-1 ring-success-border">
-              <div className={cn(label, "text-success-fg")}>FG wt / pouch</div>
-              <div className="font-mono font-semibold text-success-fg">
-                {unitG > 0 ? `${fmtNum(unitG, 4)} g` : "—"}
-              </div>
-            </div>
-            <div className="rounded-lg bg-order-bg p-2 ring-1 ring-order-border">
-              <div className={cn(label, "text-order-fg")}>Roll form</div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono font-semibold text-order-fg">
-                  {rollType || "—"}
-                </span>
-              </div>
-            </div>
-            <div className="rounded-lg bg-surface-2 p-2 ring-1 ring-line">
-              <div className={label}>Film requirement</div>
-              <div className="font-mono font-semibold text-content-1">
-                {substrateSubtotal > 0
-                  ? fmtWeightSmart(substrateSubtotal, "KG")
-                  : "—"}
-              </div>
-            </div>
-            <div className="col-span-2 rounded-lg bg-order-bg p-2 ring-1 ring-order-border">
-              <div className={cn(label, "text-order-fg")}>BOM geometry</div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono font-semibold text-order-fg">
-                  {calcAxis}
-                </span>
-                {pouches ? (
-                  <span className="text-caption font-bold text-order-fg">
-                    {fmtNum(pouches)} pcs basis
-                  </span>
-                ) : null}
-              </div>
-            </div>
-          </div>
+            ))}
+          </dl>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <KpiTile
+        <div className="grid grid-cols-2 gap-2">
+          <StatTile
+            label="Per pouch"
+            value={unitG > 0 ? `${fmtNum(unitG, 4)} g` : "—"}
+            sub="finished weight"
+          />
+          <StatTile
+            label="Order total"
+            value={
+              totalKg > 0
+                ? fmtWeightSmart(totalKg, "KG")
+                : unitG > 0
+                  ? "after qty"
+                  : "needs unit wt"
+            }
+            sub={pouches ? `${fmtNum(pouches)} pcs` : "finished goods"}
+          />
+          <StatTile
+            label="Film needed"
+            value={substrateSubtotal > 0 ? fmtWeightSmart(substrateSubtotal, "KG") : "—"}
+            sub="substrate subtotal"
+          />
+          <StatTile label="BOM geometry" value={calcAxis} sub={pouches ? `${fmtNum(pouches)} pcs basis` : undefined} />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <StatTile
             label="BOM rows"
             value={rows.length ? `${realRows}/${rows.length}` : "0"}
-            sub={
-              rows.length ? `${materialFamilies} families` : "No material plan"
-            }
-            tone={
-              rows.length && realRows === rows.length
-                ? "green"
-                : rows.length
-                  ? "amber"
-                  : "red"
-            }
+            sub={rows.length ? `${materialFamilies} families` : "no plan"}
+            tone={rows.length && realRows === rows.length ? "plain" : rows.length ? "warn" : "bad"}
           />
-          <KpiTile
-            label="Readiness"
-            value={`${readinessOk}/${readiness.length}`}
-            sub={
-              readinessOk === readiness.length
-                ? "Planner-ready"
-                : "Needs action"
-            }
-            tone={readinessOk === readiness.length ? "green" : "amber"}
-          />
-          <KpiTile
+          <StatTile
             label="Lane use"
             value={lanePct > 0 ? `${lanePct}%` : "—"}
-            sub={
-              lane.plannedParentMm > 0
-                ? `${lane.laneCount}-up on ${Math.round(lane.plannedParentMm)}mm`
-                : "Pick lane"
-            }
-            tone={lanePct > 0 && lanePct <= 100 ? "green" : "slate"}
+            sub={lane.plannedParentMm > 0 ? `${lane.laneCount}-up · ${Math.round(lane.plannedParentMm)}` : "pick lane"}
           />
-          <KpiTile
+          <StatTile
             label={printCapable ? "Ink map" : "Packing"}
-            value={
-              printCapable
-                ? artworkDeferred
-                  ? "Deferred"
-                  : `${inkRows.length}`
-                : packSummary || "—"
-            }
+            value={printCapable ? (artworkDeferred ? "later" : `${inkRows.length}`) : packSummary || "—"}
             sub={
               printCapable
                 ? inkRows.length
-                  ? "Mapped colors visible"
-                  : "No ink rows yet"
-                : firstPackNote || "Overrides included"
+                  ? "colours mapped"
+                  : "no ink rows"
+                : firstPackNote || "overrides in"
             }
-            tone={
-              printCapable
-                ? artworkDeferred
-                  ? "amber"
-                  : inkRows.length
-                    ? "green"
-                    : "red"
-                : "slate"
-            }
+            tone={printCapable && !artworkDeferred && !inkRows.length ? "warn" : "plain"}
           />
         </div>
       </div>
 
       <div className={card}>
-        <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className={label}>
-            BOM · material-wise · for {fmtNum(qty)} {uom}
+            Materials for {fmtNum(qty)} {String(uom || "").toLowerCase()}
           </div>
-          <span className="rounded-full bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
-            live
-          </span>
+          <span className="text-[11.5px] text-content-4">material-wise · no cost here</span>
         </div>
         {bomIssues.length ? (
-          <div className="mb-2 rounded-lg bg-warning-bg px-3 py-2 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
+          <div className="rounded-[10px] bg-warning-bg px-3 py-2 text-[12.5px] text-warning-fg">
             {bomIssues.slice(0, 2).join(" · ")}
           </div>
         ) : null}
         {rows.length === 0 ? (
-          <div className="rounded-lg bg-surface-2 px-3 py-2 text-caption font-semibold text-content-3 ring-1 ring-line">
-            BOM resolves once axes + size are set.
+          <div className="rounded-[10px] bg-surface-2 px-3 py-2 text-[12.5px] text-content-3">
+            The material list appears once the size and choices are set.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-2">
             {stepGroups.length ? (
-              <div className="rounded-xl bg-order-bg px-3 py-2 ring-1 ring-order-border">
-                <div className="mb-1.5 grid grid-cols-[1fr_auto] gap-2 text-caption font-semibold uppercase tracking-wider text-order-fg">
-                  <div>Issue route summary</div>
-                  <div className="text-right">{stepGroups.length} steps</div>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {stepGroups.map((group) => (
-                    <span
-                      key={group.step}
-                      className="rounded-full bg-surface-1 px-2 py-1 text-caption font-bold text-order-fg ring-1 ring-order-border"
-                    >
-                      {group.step} · {group.rows.length}
-                    </span>
-                  ))}
-                </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-content-3">
+                <span className="font-medium text-content-2">Issued at</span>
+                {stepGroups.map((group) => (
+                  <span
+                    key={group.step}
+                    className="rounded-full bg-surface-2 px-2 py-0.5 text-content-2"
+                  >
+                    {group.step} · {group.rows.length}
+                  </span>
+                ))}
               </div>
             ) : null}
             {groupedRows.map((group) => {
@@ -1290,20 +1178,12 @@ export function SalesPreviewRail({
               return (
                 <details
                   key={group.category}
-                  className="group overflow-hidden rounded-xl ring-1 ring-line"
+                  className="group overflow-hidden rounded-[12px] border border-line"
                   open
                 >
-                  <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-caption font-semibold uppercase tracking-wider text-content-3">
-                    <div>
-                      {CAT_TITLE[group.category]}
-                      <span className="ml-1 text-content-4 group-open:hidden">
-                        expand
-                      </span>
-                      <span className="ml-1 hidden text-content-4 group-open:inline">
-                        collapse
-                      </span>
-                    </div>
-                    <div className="text-right">
+                  <summary className="grid cursor-pointer list-none grid-cols-[1fr_auto] gap-2 bg-surface-2 px-3 py-1.5 text-[12px] font-semibold text-content-2">
+                    <div>{CAT_TITLE[group.category]}</div>
+                    <div className="text-right font-medium tabular-nums text-content-3">
                       {groupTotal || `${group.rows.length} rows`}
                     </div>
                   </summary>
@@ -1314,40 +1194,37 @@ export function SalesPreviewRail({
               );
             })}
             {substrateSubtotal > 0 ? (
-              <div className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl bg-surface-2 px-3 py-1.5 text-xs font-semibold ring-1 ring-line">
-                <div className="text-content-1">Substrate subtotal</div>
-                <div className="text-right font-mono tabular-nums text-order-fg">
+              <div className="flex items-center justify-between rounded-[12px] bg-surface-2 px-3 py-2 text-[12.5px]">
+                <span className="font-medium text-content-2">Substrate subtotal</span>
+                <span className="font-semibold tabular-nums text-content-1">
                   {fmtWeightSmart(substrateSubtotal, "KG")}
-                </div>
+                </span>
               </div>
             ) : null}
           </div>
         )}
-        <div className="mt-1.5 text-caption font-semibold text-content-4">
-          Material-wise only — no cost / margin on this page.
-        </div>
       </div>
 
       <div className={card}>
-        <div className={cn(label, "mb-2")}>
-          Lane-up plan · parent{" "}
+        <div className={label}>
+          Lane plan · parent{" "}
           {lane.plannedParentMm > 0
             ? `${Math.round(lane.plannedParentMm)} mm`
             : "—"}
         </div>
-        <div className="flex h-9 gap-0.5 overflow-hidden rounded-lg ring-1 ring-line">
+        <div className="flex h-9 gap-0.5 overflow-hidden rounded-[10px] ring-1 ring-line">
           {Array.from({ length: Math.max(1, lane.laneCount) }).map((_, i) => (
             <div
               key={i}
-              className="grid place-items-center bg-order-fg text-caption font-semibold text-white"
+              className="grid place-items-center bg-plate text-[11.5px] font-medium text-plate-fg"
               style={{ flex: childWeb > 0 ? childWeb : 1 }}
             >
-              {lane.laneCount <= 3 ? `${Math.round(childWeb)}mm` : ""}
+              {lane.laneCount <= 3 ? `${Math.round(childWeb)} mm` : ""}
             </div>
           ))}
           {lane.plannedParentMm > childWeb * lane.laneCount + 1 ? (
             <div
-              className="grid flex-1 place-items-center bg-line text-caption font-bold text-content-3"
+              className="grid flex-1 place-items-center bg-surface-2 text-[11.5px] text-content-3"
               style={{
                 flex: Math.max(
                   0.001,
@@ -1359,7 +1236,7 @@ export function SalesPreviewRail({
             </div>
           ) : null}
         </div>
-        <div className="mt-1.5 text-caption font-bold text-content-3">
+        <div className="text-[12px] text-content-3">
           {lane.laneCount}-up · child{" "}
           {childWeb > 0 ? `${Math.round(childWeb)} mm` : "—"} · trim{" "}
           {Math.round(lane.trimMm || 0)} mm
@@ -1368,25 +1245,33 @@ export function SalesPreviewRail({
             : ""}
         </div>
       </div>
-
-      <div className={card}>
-        <div className={cn(label, "mb-2")}>Line readiness</div>
-        <div className="space-y-1 text-[12px] font-bold">
-          {readiness.map((r, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className={r.ok ? "text-success-fg" : "text-warning-fg"}>
-                {r.ok ? "✓" : "○"}
-              </span>
-              <span className={r.ok ? "text-content-2" : "text-content-3"}>
-                {r.label}
-              </span>
-              {r.hint ? (
-                <span className="font-semibold text-content-4">· {r.hint}</span>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </div>
     </aside>
+  );
+}
+
+function ReadinessBlock({
+  readiness,
+  label,
+}: {
+  readiness: Array<{ label: string; ok: boolean; hint?: string }>;
+  label: string;
+}) {
+  const okCount = readiness.filter((item) => item.ok).length;
+  return (
+    <div className="grid gap-2.5" data-testid="sales-line-readiness">
+      <div className="flex items-center justify-between">
+        <div className={label}>Line readiness</div>
+        <span className={cn("text-[12px] font-medium tabular-nums", okCount === readiness.length ? "text-success-fg" : "text-warning-fg")}>
+          {okCount}/{readiness.length}
+        </span>
+      </div>
+      <div className="grid gap-1.5">
+        {readiness.map((r, i) => (
+          <CheckRow key={i} ok={r.ok} hint={r.hint}>
+            {r.label}
+          </CheckRow>
+        ))}
+      </div>
+    </div>
   );
 }
