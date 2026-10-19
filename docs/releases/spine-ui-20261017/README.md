@@ -134,3 +134,23 @@ Approved samples: order composer, product master editor and stock launcher (arti
   all-caps field labels made sentence case, shell uses `overflow-x-clip` so sticky rails and step lists work,
   fixed bars start after the sidebar (`--sidebar-width`).
 - `next.config.mjs` accepts `NEXT_DIST_DIR` so a second local dev server can build into its own folder.
+
+### Local test data on the live masters (19 Oct 2026)
+
+Two local-only commands (both refuse a production settings profile; both are safe to re-run):
+
+- `python manage.py seed_local_live_masters --catalog <export.json>` loads a read-only export of
+  the live master tables (processes, work centres, machines, materials, recipes with thickness
+  bands, routes, templates, pouch styles, lane policies, active product masters and sizes). Codes
+  are matched the way the models normalise them; when a template name has a LIVE version and a
+  newer draft, the LIVE one is loaded. No customers, orders, stock or users are in the export.
+- `python manage.py seed_local_demo_orders [--dry-run]` adds ten synthetic `DEMO-` customers,
+  opening stock in plant 01 (purchased film rolls labelled `LIVE-DEMO-`, granules, inks, adhesive,
+  solvent, purchased add-ons, packaging) and thirteen `DEMO LIVE ·` orders on the live masters,
+  saved through `SalesOrderService` exactly as the create-order API does: ten placed (planner
+  queue, printed lines with artwork deferred) and three drafts. Sizes sold by the kilo get kilo
+  quantities and rates.
+
+UI fixes found while checking this data: the orders list columns are rebalanced so the quantity
+tiles, line chips and status pill no longer overlap at desktop width; the "what is to be made"
+plate on a multi-line order shows line 1's kilos with the order total in brackets.

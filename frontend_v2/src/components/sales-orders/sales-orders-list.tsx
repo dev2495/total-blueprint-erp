@@ -1842,7 +1842,7 @@ export function SalesOrdersListWorkspace() {
         ) : (
           <>
             {/* Desktop column headers — hidden on mobile */}
-            <div className="hidden md:grid grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,2.4fr)_7rem_minmax(240px,1.1fr)_8rem] gap-3 border-b border-line bg-surface-2 px-4 py-2.5 text-[12.5px] font-medium text-content-3">
+            <div className="hidden md:grid grid-cols-[2.5rem_minmax(170px,1fr)_minmax(0,2.2fr)_6.5rem_minmax(270px,1.25fr)_10rem] gap-3 border-b border-line bg-surface-2 px-4 py-2.5 text-[12.5px] font-medium text-content-3">
               <div>
                 <input
                   type="checkbox"
@@ -3237,11 +3237,11 @@ function FulfillmentMiniCards({
     { label: "Open", value: openKg, className: "border-line bg-surface-2 text-content-3" },
   ];
   return (
-    <div className="mt-1.5 grid grid-cols-2 gap-1.5 xl:grid-cols-4">
+    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
       {cards.map((card) => (
-        <div key={card.label} className={cn("rounded-lg border px-2.5 py-1.5", card.className)}>
-          <div className="text-caption font-semibold uppercase tracking-wide opacity-75">{card.label}</div>
-          <div className="font-mono text-[12px] font-semibold">{fmtKg(card.value)} KG</div>
+        <div key={card.label} className={cn("min-w-0 rounded-lg border px-2.5 py-1.5", card.className)}>
+          <div className="truncate text-caption font-semibold uppercase tracking-wide opacity-75">{card.label}</div>
+          <div className="truncate font-mono text-[12px] font-semibold">{fmtKg(card.value)} KG</div>
         </div>
       ))}
     </div>
@@ -3667,6 +3667,7 @@ function OrderRow({
           <Link
             href={`/sales/orders/${order.id}`}
             title="Open order tracker"
+            aria-label={`Open order ${order.order_number || ""}`.trim()}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
           >
             ↗
@@ -3686,7 +3687,7 @@ function OrderRow({
       {/* Desktop layout (table-ish) */}
       <div
         className={cn(
-          "hidden md:grid grid-cols-[2.5rem_minmax(0,0.85fr)_minmax(0,2.4fr)_7rem_minmax(240px,1.1fr)_8rem] gap-3 px-4 items-center",
+          "hidden md:grid grid-cols-[2.5rem_minmax(170px,1fr)_minmax(0,2.2fr)_6.5rem_minmax(270px,1.25fr)_10rem] gap-3 px-4 items-center",
           rowPad,
         )}
       >
@@ -3714,8 +3715,8 @@ function OrderRow({
             <div className="text-[13px] font-bold text-content-1 truncate">
               {order.customer_name || "—"}
             </div>
-            <div className="flex items-center gap-1.5 mt-0.5 text-caption">
-              <span className="font-mono font-semibold text-order-fg">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption">
+              <span className="whitespace-nowrap font-mono font-semibold text-order-fg">
                 {order.order_number}
               </span>
               {(order as any).customer_code ? (
@@ -3796,10 +3797,10 @@ function OrderRow({
             />
           ) : null}
         </div>
-        <div className="flex items-center justify-end gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
           <span
             className={cn(
-              "rounded-md px-2 py-0.5 text-caption font-semibold ring-1",
+              "whitespace-nowrap rounded-md px-2 py-0.5 text-caption font-semibold ring-1",
               STATUS_PILL_TONE[statusKey] || STATUS_PILL_TONE.DRAFT,
             )}
           >
@@ -3808,6 +3809,7 @@ function OrderRow({
           <Link
             href={`/sales/orders/${order.id}`}
             title="Open order tracker"
+            aria-label={`Open order ${order.order_number || ""}`.trim()}
             className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2"
           >
             ↗
@@ -3815,6 +3817,7 @@ function OrderRow({
           {canCancel ? (
             <button
               title="Cancel"
+              aria-label={`Cancel order ${order.order_number || ""}`.trim()}
               onClick={(e) => {
                 e.stopPropagation();
                 onCancel();

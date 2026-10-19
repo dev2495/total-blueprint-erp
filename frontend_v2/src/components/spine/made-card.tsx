@@ -44,10 +44,14 @@ export function MadeCard({
   const printText = first?.print_method
     ? [first.print_method, made.colours ? `${made.colours} colour${made.colours === 1 ? "" : "s"}` : "", made.artwork].filter(Boolean).join(" · ")
     : made.print && made.print !== "plain" ? made.print : "plain";
+  // The plate describes line 1, so its weight is line 1's; the order total follows when there are more lines.
+  const kg = (value: number) => `${value.toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg`;
+  const lineKg = extraLines && first ? first.total_kg : made.total_kg;
+  const orderKg = extraLines && made.total_kg ? ` (order ${kg(made.total_kg)})` : "";
   const weight = made.unit_weight_g
-    ? `${made.unit_weight_g.toLocaleString("en-IN", { maximumFractionDigits: 3 })} g each${made.total_kg ? ` · ${made.total_kg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg` : ""}`
-    : made.total_kg
-      ? `${made.total_kg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg`
+    ? `${made.unit_weight_g.toLocaleString("en-IN", { maximumFractionDigits: 3 })} g each${lineKg ? ` · ${kg(lineKg)}` : ""}${orderKg}`
+    : lineKg
+      ? `${kg(lineKg)}${orderKg}`
       : "";
   return (
     <SpecPlate
