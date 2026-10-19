@@ -1881,9 +1881,11 @@
   .auth-stat-value {
     margin-top: 8px;
     font-family: var(--font-display);
-    font-size: 30px;
+    /* Three cards share the hero column: scale the words so "controlled" fits a narrow card. */
+    font-size: clamp(19px, 2.1vw, 30px);
     font-weight: 700;
-    line-height: 1;
+    line-height: 1.05;
+    overflow-wrap: break-word;
     color: #fff;
   }
 

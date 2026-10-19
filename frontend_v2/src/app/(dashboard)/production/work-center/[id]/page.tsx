@@ -326,8 +326,10 @@ function assignmentHasMachineStart(assignment: any) {
   const assignmentStatus = String(assignment?.status || "").toUpperCase();
   const state = String(job?.job_state || "").toUpperCase();
   const status = String(job?.status || "").toUpperCase();
+  // Started work counts as running whether the WCM pressed release or the operator started it
+  // straight from the machine terminal (allowed once a machine is assigned).
   return (
-    assignmentStatus === "EXECUTION_READY" &&
+    ["EXECUTION_READY", "ASSIGNED", "WC_READY"].includes(assignmentStatus) &&
     Boolean(assignment?.assigned_machine) &&
     (state === "EXECUTING" || state === "PAUSED" || status === "RUNNING")
   );
@@ -6388,7 +6390,13 @@ export default function WCMTerminal() {
                     )
                       ? (assignment as any).allocated_roll_details
                       : [];
-                    const queueRollCount = queueRollDetails.length;
+                    // The queue list comes as a summary with roll ids only; details arrive with the open job.
+                    const queueRollCount = Math.max(
+                      queueRollDetails.length,
+                      Array.isArray((assignment as any)?.allocated_rolls)
+                        ? (assignment as any).allocated_rolls.length
+                        : 0,
+                    );
                     const queueBlockers = [
                       materialBlocked
                         ? materialBlockReason || "Material gate blocked"

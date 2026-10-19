@@ -26,6 +26,7 @@ from apps.inventory.models import InventoryLocation
 from apps.materials.models import InventoryMaterial, PouchStyleMaster, ProductMaster, ProductMasterSize, WebWidthPolicy
 from apps.recipes.models import ExtrusionRecipe, ExtrusionRecipeComponent, RecipeGrade
 from apps.routing.models import RoutingRule
+from apps.sales.models import SalesOrderItem
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 
 try:  # the same code normaliser the models apply on save
@@ -168,7 +169,8 @@ class Command(BaseCommand):
             wc = wcs.get(row.get("wc_code") or "")
             if wc is None:
                 continue
-            self._upsert("machines", Machine, {"code": row["code"]}, row, exclude={"work_center", "assigned_operator"}, extra={"work_center": wc})
+            # Machine codes repeat across work centres (MC-01 in MLD, SLD, EXT-1…): a machine is work centre + code.
+            self._upsert("machines", Machine, {"code": row["code"], "work_center": wc}, row, exclude={"work_center", "assigned_operator"})
 
     def _grades(self):
         for row in self.data.get("recipe_grades", []):
@@ -210,6 +212,13 @@ class Command(BaseCommand):
 
     def _routes(self):
         for row in self.data.get("routing_rules", []):
+            local = RoutingRule.objects.filter(name=row["name"]).first()
+            if local is not None and list(local.ordered_processes or []) != list(row.get("ordered_processes") or []):
+                # A local demo route took a live name with different steps: keep it under a demo name
+                # (its orders and jobs keep pointing at it) and load the live route under the live name.
+                local.name = f"{row['name']} · local demo"[:255]
+                local.save(update_fields=["name"])
+                self._count("routing_rules_kept_as_local_demo", True)
             self._upsert("routing_rules", RoutingRule, {"name": row["name"]}, row)
 
     def _pouch_styles(self):
@@ -238,6 +247,14 @@ class Command(BaseCommand):
                                              exclude={"routing_rule", "source_template", "superseded_by", "commercial_family"},
                                              extra={"routing_rule": route})
             if not created:
+                # Point a live template at the live route when an earlier run linked it to a demo route
+                # that took the same name; only while no order line uses the template yet.
+                if (route is not None and template.routing_rule_id != route.id and template.routing_rule is not None
+                        and template.routing_rule.name.endswith(" · local demo")
+                        and not SalesOrderItem.objects.filter(template=template).exists()):
+                    template.routing_rule = route
+                    template.save(update_fields=["routing_rule"])
+                    self._count("templates_relinked_to_live_route", True)
                 continue
             for step in row.get("steps", []):
                 process = procs.get(step.get("process_code") or "")
@@ -279,9 +296,31 @@ class Command(BaseCommand):
                                                     "layer_template", "canonical_layer_stack", "fixed_attributes"},
                                            extra=extra)
             if not created:
+                self._fill_missing_links(master, layers, fixed)
                 continue
             for size in row.get("sizes") or []:
                 values = self._fields(ProductMasterSize, size, exclude={"product_master", "pouch_style_master"})
                 values["pouch_style_master"] = styles.get(norm(size.get("pouch_style_code")))
                 ProductMasterSize.objects.create(product_master=master, **values)
                 self._count("product_master_sizes", True)
+
+    def _fill_missing_links(self, master, layers, fixed):
+        """An earlier run may have left a film or chemistry link empty (a live code it could not match
+        yet). Fill only links that are empty locally; never overwrite one that is set."""
+        changed = []
+        current = list(master.layer_template or [])
+        if len(current) == len(layers):
+            for here, there in zip(current, layers):
+                if not here.get("film_variant_id") and there.get("film_variant_id") and here.get("film_variant_code") == there.get("film_variant_code"):
+                    here["film_variant_id"] = there["film_variant_id"]
+                    changed.append("layer_template")
+        attrs = dict(master.fixed_attributes or {})
+        for key, value in fixed.items():
+            if key.endswith("_material_id") and value and not attrs.get(key):
+                attrs[key] = value
+                changed.append("fixed_attributes")
+        if changed:
+            master.layer_template = current
+            master.fixed_attributes = attrs
+            master.save(update_fields=sorted(set(changed)))
+            self._count("product_master_links_filled", True)

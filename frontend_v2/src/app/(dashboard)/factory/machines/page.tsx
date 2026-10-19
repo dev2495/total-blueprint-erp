@@ -650,15 +650,12 @@ export default function MachinesPage() {
                       <Zap className="h-6 w-6" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="secondary"
-                          className="h-6 bg-surface-3 px-2.5 text-caption font-bold tracking-[0.1em] text-white"
-                        >
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="inline-flex h-6 items-center whitespace-nowrap rounded-md bg-surface-2 px-2 font-mono text-[12px] font-semibold text-content-1 ring-1 ring-line">
                           {machine.code}
-                        </Badge>
-                        <span className="text-xs font-medium uppercase tracking-[0.1em] text-content-4">
-                          {wc?.code || "NO-WC"}
+                        </span>
+                        <span className="whitespace-nowrap text-xs font-medium text-content-3">
+                          {wc?.code || "No work centre"}
                         </span>
                       </div>
                       <h3 className="mt-2 font-semibold text-lg text-content-1 leading-tight">
@@ -669,15 +666,13 @@ export default function MachinesPage() {
                           {wc?.name || "No WC"}
                         </span>
                       </div>
-                      <div className="mt-2">
-                        <Badge
-                          variant="outline"
-                          className="border-info-border text-primary"
-                        >
+                      <div className="mt-2 text-[12.5px] text-content-3">
+                        Cost group ·{" "}
+                        <span className="font-medium text-content-2">
                           {machine.cost_absorption_group_code ||
                             wc?.default_cost_absorption_group_code ||
-                            "Inherited from work center"}
-                        </Badge>
+                            "from work centre"}
+                        </span>
                       </div>
                     </div>
                   </div>

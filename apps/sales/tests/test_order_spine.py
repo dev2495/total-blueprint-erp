@@ -2,13 +2,15 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.contrib.auth import get_user_model
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.production.models import ProductionJob
 from apps.production.tests import test_roll_lane_flow as lane_tests
 from apps.production.tests.test_roll_lane_flow import RollLaneFixture
 from apps.sales.services.order_spine_service import OrderSpineService
+from apps.users.models import Role
 
 D = Decimal
 
@@ -54,11 +56,18 @@ class OrderSpineTests(RollLaneFixture, TestCase):
         self.assertEqual(from_job["order_id"], str(order.id))
         self.assertEqual(from_job["focus_job_id"], str(jobs[1].id))
 
+    def _role_client(self, code):
+        role, _ = Role.objects.get_or_create(code=code, defaults={"name": code.replace("_", " ").title()})
+        user = get_user_model().objects.create(username=f"spine-{code.lower()}", email=f"spine-{code.lower()}@example.invalid", role=role)
+        client = APIClient()
+        client.force_authenticate(user)
+        return client
+
+    @override_settings(STRICT_RBAC=True)
     def test_endpoints_return_the_spine(self, *_):
         item, jobs = self._linear(["PRT", "PCH"], fg_type="POUCH", uom="PCS", qty=D("5000"), unit_weight_g=D("6.85"),
                                   geometry={"fg_type": "POUCH", "base": {"width_mm": 160, "height_mm": 230}})
-        client = APIClient()
-        client.force_authenticate(self.user)
+        client = self._role_client("PLANNER")
         order_resp = client.get(f"/api/sales/orders/{item.sales_order_id}/spine/")
         self.assertEqual(order_resp.status_code, 200, order_resp.content[:300])
         self.assertEqual(len(order_resp.json()["stations"]), 7)
@@ -69,3 +78,15 @@ class OrderSpineTests(RollLaneFixture, TestCase):
         self.assertEqual(detail.status_code, 200)
         for field in ("bill_to_address", "customer_po_reference", "payment_terms", "delivery_terms", "remarks"):
             self.assertIn(field, detail.json())
+
+    @override_settings(STRICT_RBAC=True)
+    def test_floor_and_yard_roles_can_read_the_spine_their_screens_use(self, *_):
+        """WC terminal and machine screens read the job spine; the packing yard reads the order spine."""
+        item, jobs = self._linear(["PRT", "PCH"], fg_type="POUCH", uom="PCS", qty=D("5000"), unit_weight_g=D("6.85"),
+                                  geometry={"fg_type": "POUCH", "base": {"width_mm": 160, "height_mm": 230}})
+        for code in ("WORK_CENTER_MANAGER", "OPERATOR", "MAINTENANCE_TECH"):
+            resp = self._role_client(code).get(f"/api/production/jobs/{jobs[0].id}/spine/")
+            self.assertEqual(resp.status_code, 200, f"{code}: {resp.content[:200]}")
+        for code in ("DISPATCH", "SALES", "STORE"):
+            resp = self._role_client(code).get(f"/api/sales/orders/{item.sales_order_id}/spine/")
+            self.assertEqual(resp.status_code, 200, f"{code}: {resp.content[:200]}")

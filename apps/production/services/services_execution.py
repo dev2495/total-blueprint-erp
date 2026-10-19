@@ -534,7 +534,73 @@ class ExecutionService:
             node = None
         if node and not (node.get("predecessor_node_ids") or []):
             return 0
+        if node and cls._upstream_steps_all_skipped(job, node):
+            return 0
         return real_index
+
+    @classmethod
+    def _upstream_steps_all_skipped(cls, job, node):
+        """True when every step upstream of this job is one the line skips, so no job exists for it.
+
+        A combine step needs more layers than a one-layer line has (live sets sheet folding up like
+        lamination), so job creation leaves it out and release treats it as done. The next job is then
+        the first of its chain and takes raw/purchased rolls like step 0. A missing upstream step that
+        is NOT skipped for this line (a resumed or purchase-started route) keeps the lineage rule.
+        """
+        from apps.factory.models import Process
+        from apps.production.services.batch_route_service import RouteGraphService
+        from apps.production.services.job_services import JobService
+        from config.request_context import request_memo
+
+        rule = getattr(job, "routing_rule", None)
+        if rule is None:
+            return False
+        batch_id = str(getattr(job, "production_batch_id", "") or "")
+        item_id = str(getattr(job, "sales_order_item_id", "") or "")
+        mts_id = str(getattr(job, "mts_order_id", "") or "")
+        if not (batch_id or item_id or mts_id):
+            return False
+
+        def _existing_nodes():
+            scope = ProductionJob.objects.filter(routing_rule_id=rule.id).exclude(job_state="CANCELLED")
+            if batch_id:
+                scope = scope.filter(production_batch_id=batch_id)
+            elif item_id:
+                scope = scope.filter(sales_order_item_id=item_id)
+            else:
+                scope = scope.filter(mts_order_id=mts_id)
+            return set(scope.exclude(route_node_id="").values_list("route_node_id", flat=True))
+
+        # One query per order line / batch per request: roll pickers ask this for every job they list.
+        existing = request_memo(("gate_scope_nodes", str(rule.id), batch_id, item_id, mts_id), _existing_nodes)
+        if any(pred in existing for pred in (node.get("predecessor_node_ids") or [])):
+            return False  # the usual case: the step before has a job
+        source = getattr(job, "sales_order_item", None) or getattr(job, "mts_order", None)
+        template = getattr(job, "template", None) or getattr(source, "template", None)
+        if source is None or template is None:
+            return False
+        graph = RouteGraphService.normalize(rule)
+        processes = [n["process_code"] for n in graph["nodes"]]
+        seen, stack = set(), list(node.get("predecessor_node_ids") or [])
+        while stack:
+            node_id = stack.pop()
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+            upstream = graph["by_id"].get(node_id)
+            if node_id in existing or upstream is None:
+                return False
+            process = Process.objects.filter(code=upstream.get("process_code")).first()
+            if JobService._route_step_active_for_source(
+                source=source,
+                template=template,
+                process=process,
+                processes=processes,
+                index=RouteGraphService.step_index_for_node(upstream),
+            ):
+                return False
+            stack.extend(upstream.get("predecessor_node_ids") or [])
+        return bool(seen)
 
     @classmethod
     def _prior_combine_step_index(cls, job, process=None):

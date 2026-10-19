@@ -356,3 +356,41 @@ class SingleLaneFlowTests(RollLaneFixture, TestCase):
             # ...but more of the order's own WIP can always be queued.
             extra_own = self._roll(item, prev, self.film, 62, 80, "M-OWN", 1)
             ExecutionService.validate_roll_selection(pouch, process, existing_roll_ids=[str(rolls[0].id), str(rolls[1].id)], new_roll_ids=[str(extra_own.id)])
+
+
+@patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+@patch("apps.production.services.job_services.require_bom_ready_for_production")
+class SkippedCombineStepTests(RollLaneFixture, TestCase):
+    """A combine step a line has too few layers for gets no job (live sets sheet folding up like
+    lamination, so a one-layer bag skips it). The step after it is then the first job of the chain."""
+
+    _linear = SingleLaneFlowTests._linear
+    POUCH = {"fg_type": "POUCH", "base": {"width_mm": 160, "height_mm": 230}}
+
+    def _bought_roll(self, label, kg="120"):
+        return InventoryRoll.objects.create(
+            label_id=label, material=self.film, thickness_micron=D("62"), width_mm=D("1000"), plant=self.plant, location=self.rm,
+            original_weight_kg=D(kg), weight_kg=D(kg), net_weight_kg=D(kg), status="AVAILABLE",
+            current_step_index=0, completed_step_index=0, stage_index=0, meta_json={"roll_role": "RAW_MATERIAL"},
+        )
+
+    def test_first_job_after_a_skipped_combine_step_takes_bought_film(self, *_):
+        item, jobs = self._linear(["LAM", "PRT", "PCH"], fg_type="POUCH", uom="PCS", qty=D("10000"), unit_weight_g=D("5"), geometry=self.POUCH)
+        self.assertNotIn(0, jobs, "one layer: the combine step gets no job")
+        printing = jobs[1]
+        self.assertEqual(ExecutionService._input_gate_step_index(printing), 0)
+        bought = self._bought_roll("BOUGHT-PRT-1")
+        assignment = self._assignment(printing)
+        WCManagerService.assign_rolls(assignment.id, [str(bought.id)], user=self.user)
+        self._run(printing, assignment)
+        OperatorService.log_output_step(str(printing.id), 50, self.user, roll_outputs=[{"weight_kg": "50", "width_mm": 1000}])
+        self.assertEqual(InventoryRoll.objects.filter(created_by_job=printing).count(), 1)
+
+    def test_lineage_is_still_required_below_a_real_upstream_job(self, *_):
+        _item, jobs = self._linear(["EXT", "PRT"])
+        self.assertEqual(ExecutionService._input_gate_step_index(jobs[1]), 1)
+
+    def test_a_skipped_pass_between_two_real_jobs_keeps_lineage(self, *_):
+        _item, jobs = self._linear(["EXT", "LAM", "PRT"])
+        self.assertNotIn(1, jobs, "one layer: the combine step gets no job")
+        self.assertEqual(ExecutionService._input_gate_step_index(jobs[2]), 2, "extrusion upstream still feeds printing")

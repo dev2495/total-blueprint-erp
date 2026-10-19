@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from unittest.mock import patch
 from decimal import Decimal
 
 from django.test import TestCase
@@ -41,7 +42,10 @@ class ScheduleRulesTests(MaintenanceFixture):
         # A second run never duplicates the open job.
         self.assertEqual(MaintenanceService.generate_due_jobs(today=date(2026, 10, 14))["created"], 0)
         # Completed late on 14 Oct: next due is the next anchor step after 14 Oct, i.e. 19 Oct, not 21 Oct.
-        MaintenanceService.complete_job(job, outcome="COMPLETED", user=self.tech)
+        # The completion clock is pinned to 14 Oct so the check does not depend on the day it runs.
+        late = timezone.make_aware(datetime(2026, 10, 14, 15, 0))
+        with patch("django.utils.timezone.now", return_value=late):
+            MaintenanceService.complete_job(job, outcome="COMPLETED", user=self.tech)
         schedule.refresh_from_db()
         self.assertEqual(schedule.next_due_date, date(2026, 10, 19))
         job.refresh_from_db()

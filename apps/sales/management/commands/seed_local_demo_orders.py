@@ -116,7 +116,9 @@ class Command(BaseCommand):
             with transaction.atomic():
                 self._customers()
                 self._stock()
+                self._work_center_chemistry()
                 self._orders()
+                self._order_film_rolls()
                 if options["dry_run"]:
                     raise _DryRun()
         except _DryRun:
@@ -192,6 +194,59 @@ class Command(BaseCommand):
             f"stock in {self.plant.code}/{rm.code}: {rolls} film rolls ({len(films)} film/micron pairs), {granules} granules, "
             f"{inks} inks, {chemistry} adhesive/solvent, {addons} purchased add-ons, {packaging} packaging materials"
         )
+
+    def _work_center_chemistry(self):
+        """Machines draw adhesive, solvent and ink from their work centre's own location (stores issue
+        them there), so each work centre that is not the store itself gets a working stock."""
+        from apps.factory.models import WorkCenter
+
+        from apps.inventory.models import BulkTransaction
+
+        rm = self._location("RM")
+        locations = {wc.default_wip_location for wc in WorkCenter.objects.filter(plant=self.plant).select_related("default_wip_location")
+                     if wc.default_wip_location_id and wc.default_wip_location_id != rm.id}
+        if BulkTransaction.objects.filter(location__in=locations, reference=STOCK_REFERENCE).exists():
+            self.report.append("work-centre stock: already added")
+            return
+        materials = list(InventoryMaterial.objects.filter(category__in=["ADHESIVE", "SOLVENT", "INK"]).exclude(status="ARCHIVED"))
+        for location in locations:
+            for mat in materials:
+                qty = D("40") if mat.category == "INK" else D("250")
+                cost = D("640") if mat.category == "INK" else D("410") if mat.category == "ADHESIVE" else D("95")
+                BulkService.add_bulk(material_id=mat.id, qty=qty, plant_id=self.plant.id, location_id=location.id, cost=cost, reference=STOCK_REFERENCE)
+        self.report.append(f"work-centre stock: adhesive, solvent and {sum(1 for m in materials if m.category == 'INK')} inks at {len(locations)} work-centre location(s)")
+
+    def _order_film_rolls(self):
+        """Stores buy film at the web width an order needs: for every DEMO LIVE line, two rolls of
+        each bought-in film layer at the line's planned web width (roll pickers refuse rolls >10 % wider)."""
+        from apps.sales.models import SalesOrderItem
+
+        rm = self._location("RM")
+        made = 0
+        items = SalesOrderItem.objects.filter(sales_order__order_name__startswith=ORDER_PREFIX).select_related("product_master", "sales_order")
+        for item in items:
+            width = D(str(item.planned_parent_width_mm or 0))
+            if width <= 0 or item.product_master is None:
+                continue
+            layers = item.product_master.layer_template or []
+            for index, layer in enumerate(layers, start=1):
+                mat = self._material(layer.get("film_variant_code"), category="FILM_VARIANT")
+                micron = D(str(layer.get("thickness_micron") or 0)).quantize(D("0.1"))
+                if mat is None or mat.is_extrudable or not mat.is_purchasable or micron <= 0:
+                    continue
+                share = micron / sum((D(str(l.get("thickness_micron") or 0)) for l in layers), D("0")) if layers else D("1")
+                kg = max(D("120"), (D(str(item.total_weight_kg or 0)) * share * D("0.65")).quantize(D("1")))
+                for n in (1, 2):
+                    label = f"{ROLL_PREFIX}{item.sales_order.order_number}-L{index}-{n}"
+                    if InventoryRoll.objects.filter(label_id=label).exists():
+                        continue
+                    InventoryRoll.objects.create(
+                        label_id=label, material=mat, thickness_micron=micron, width_mm=width, plant=self.plant, location=rm,
+                        original_weight_kg=kg, weight_kg=kg, net_weight_kg=kg, status="AVAILABLE",
+                        stage_index=0, current_step_index=0, completed_step_index=0, meta_json={"roll_role": "RAW_MATERIAL"},
+                    )
+                    made += 1
+        self.report.append(f"order-width film rolls: {made} added for DEMO LIVE lines")
 
     def _material(self, code, *, category=None):
         if not code:

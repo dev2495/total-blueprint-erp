@@ -498,14 +498,10 @@ export default function PlantsPage() {
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Badge
-                        variant={
-                          plant.include_in_official_reports
-                            ? "default"
-                            : "outline"
-                        }
+                        variant="outline"
                         className={
                           plant.include_in_official_reports
-                            ? "bg-success-fg hover:bg-success-fg"
+                            ? "border-success-border bg-success-bg text-success-fg"
                             : "border-line-strong text-content-3"
                         }
                       >
