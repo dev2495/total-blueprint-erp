@@ -139,3 +139,36 @@ class InterPlantArrivalTests(ArrivalFixture, TestCase):
         self.assertEqual(body["counts"]["OUTSIDE"], 1)
         self.assertEqual(body["results"][0]["party"], "Dabhel → Kachigam")
         self.assertEqual(self.client_for(self.store).get("/api/inventory/goods-movements/", {"stage": "NOPE"}).status_code, 400)
+
+
+class GatePassArrivalTests(ArrivalFixture, TestCase):
+    def test_returnable_pass_out_back_at_gate_then_received(self):
+        from apps.gate.models import GatePass, GatePassLine
+
+        gate_pass = GatePass.objects.create(
+            number="RGP-2627-0001", kind="RETURNABLE", plant=self.plant, party_name="Baba Vishwakarma Engg",
+            purpose="REPAIR", expected_return_date=timezone.localdate(), status="OUT", out_at=timezone.now(), created_by=self.owner,
+        )
+        line = GatePassLine.objects.create(gate_pass=gate_pass, line_no=1, description="Rubber roller", quantity=Decimal("2"), uom="NOS")
+        row = self.row("RGP", gate_pass.id)
+        self.assertEqual((row["stage"], row["arrival"]["kind"]), ("OUTSIDE", "GATE_PASS"))
+        saved = self.watch.post("/api/gate/arrivals/", {"plant": str(self.plant.id), "code": make_token("GATE_PASS", gate_pass.id), "client_token": token()}, format="json")
+        self.assertEqual(saved.status_code, 201, saved.data)
+        self.assertEqual(self.row("RGP", gate_pass.id)["stage"], "AT_GATE")
+        back = self.api.post(f"/api/gate/gate-passes/{gate_pass.id}/receive-back/", {
+            "client_token": token(), "lines": [{"line_id": str(line.id), "quantity": "2"}], "reason": "Both rollers back after milling",
+        }, format="json")
+        self.assertEqual(back.status_code, 200, back.data)
+        self.assertEqual(self.row("RGP", gate_pass.id)["stage"], "DONE")
+
+    def test_non_returnable_pass_never_comes_back(self):
+        from apps.gate.models import GatePass, GatePassLine
+
+        gate_pass = GatePass.objects.create(
+            number="NRGP-2627-0001", kind="NON_RETURNABLE", plant=self.plant, party_name="Scrap buyer",
+            purpose="SCRAP_SALE", status="CLOSED", out_at=timezone.now(), closed_at=timezone.now(), created_by=self.owner,
+        )
+        GatePassLine.objects.create(gate_pass=gate_pass, line_no=1, description="Trim waste", quantity=Decimal("120"), uom="KG")
+        refused = self.watch.post("/api/gate/arrivals/", {"plant": str(self.plant.id), "code": make_token("GATE_PASS", gate_pass.id), "client_token": token()}, format="json")
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(self.row("NRGP", gate_pass.id)["stage"], "DONE")
