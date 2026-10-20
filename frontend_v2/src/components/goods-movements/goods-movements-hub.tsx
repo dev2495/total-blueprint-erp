@@ -254,7 +254,7 @@ function MovementRowItem({ row, canRecord }: { row: MovementRow; canRecord: bool
         </span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Link href={row.link} className="font-mono text-[13.5px] font-semibold text-content-1 hover:underline">
+            <Link href={row.link} className="inline-flex min-h-6 items-center font-mono text-[13.5px] font-semibold text-content-1 hover:underline">
               {row.number}
             </Link>
             <span className={cn("rounded-full px-2 py-0.5 text-[11.5px] font-medium ring-1", meta.tone)}>{meta.short}</span>
