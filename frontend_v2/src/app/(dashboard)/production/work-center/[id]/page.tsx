@@ -6915,6 +6915,24 @@ export default function WCMTerminal() {
                       <p className="mt-1 max-w-sm text-[13px] text-content-3">
                         Pick a job from the list to see what it is, what it needs and release it to a machine.
                       </p>
+                      <ol className="mt-4 grid w-full max-w-sm gap-1.5 text-left" data-testid="wcm-detail-empty-steps">
+                        {[
+                          ["Current order", "what is to be made and how much"],
+                          ["Machine assignment", "pick the machine that runs it"],
+                          ["Current-step materials", "film, granules or inks this step needs"],
+                          ["Current-step issue", "issue them from stock, then release"],
+                        ].map(([title, line], index) => (
+                          <li key={title} className="flex items-start gap-2.5 rounded-[10px] bg-surface-2 px-3 py-2 ring-1 ring-line">
+                            <span className="grid h-5 w-5 flex-none place-items-center rounded-full bg-surface-1 text-[11px] font-semibold text-content-2 ring-1 ring-line">
+                              {index + 1}
+                            </span>
+                            <span className="text-[13px] leading-5">
+                              <span className="font-semibold text-content-1">{title}</span>
+                              <span className="text-content-3"> · {line}</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
                       {activeMainTab !== "running" && visibleRunningAssignments.length > 0 ? (
                         <Button variant="outline" className="mt-4 rounded-[10px]" onClick={() => setActiveMainTab("running")}>
                           Open Running / ready · {visibleRunningAssignments.length}
