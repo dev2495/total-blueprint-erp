@@ -3844,7 +3844,7 @@ function AxisAllowedCard({
                   <button
                     type="button"
                     onClick={() => onToggleCode(entry.axis, code)}
-                    className="ml-0.5 rounded-full p-0.5 text-danger-fg hover:bg-danger-bg"
+                    className="-my-1 ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-danger-fg hover:bg-danger-bg"
                     title="Remove from allowed list"
                   >
                     <X className="h-3 w-3" />
