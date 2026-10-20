@@ -22,21 +22,17 @@ from apps.templates.models import (
 from apps.templates.serializers import TemplateProcessStepMaterialSerializer
 from apps.templates.views import TemplateBlueprintViewSet
 from apps.templates.services import TemplateGovernanceService
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 
 
 class TemplateStepContractTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.role_engineering = Role.objects.create(
-            code="ENGINEERING",
-            name="Engineering",
-            default_permissions=["templates.view", "templates.manage"],
-        )
         self.user = get_user_model().objects.create_user(
             username="template_tester",
             email="template_tester@example.com",
             password="pass1234",
-            role=self.role_engineering,
+            extra_permissions=["templates.view", "templates.manage"],
         )
         self.process_a = Process.objects.create(
             code="PROC_A",

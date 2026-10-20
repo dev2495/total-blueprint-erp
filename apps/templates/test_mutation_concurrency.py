@@ -12,14 +12,14 @@ from apps.factory.models import Plant, Process, WorkCenter, WorkCenterProcess
 from apps.routing.models import RoutingRule
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep, TemplateProcessStepMaterial
 from apps.users.models import Role
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 
 
 @override_settings(STRICT_RBAC=True)
 @skipUnlessDBFeature('has_select_for_update')
 class TemplateMutationConcurrencyTests(TransactionTestCase):
     def setUp(self):
-        role, _ = Role.objects.get_or_create(code='ENGINEERING', defaults={'name': 'Engineering'})
-        self.user = get_user_model().objects.create_user(username='template-race-engineer', role=role)
+        self.user = get_user_model().objects.create_user(username='template-race-engineer', extra_permissions=list(MASTER_DATA_GRANTS))
         self.process = Process.objects.create(
             code='TEMPLATE-RACE', name='Template race process', input_form='BULK',
             output_form='ROLL', roll_behavior='CREATE_NEW',

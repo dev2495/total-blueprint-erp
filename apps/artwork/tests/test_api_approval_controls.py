@@ -17,6 +17,7 @@ from apps.inventory.models import InventoryLocation
 from apps.inventory.models import Vendor
 from apps.tooling.models import Cylinder
 from apps.users.models import Role
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 
 
 def png_bytes():
@@ -50,16 +51,11 @@ class ArtworkApiApprovalControlTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.engineering_role = Role.objects.create(
-            code="ENGINEERING",
-            name="Engineering",
-            default_permissions=["engineering.view", "engineering.manage", "users.self_manage"],
-        )
         self.user = get_user_model().objects.create_user(
             username="engineer1",
             email="engineer1@example.com",
             password="engineerpass123",
-            role=self.engineering_role,
+            extra_permissions=list(MASTER_DATA_GRANTS),
         )
         self.client.force_authenticate(user=self.user)
         self.artwork = Artwork.objects.create(

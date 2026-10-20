@@ -6,14 +6,14 @@ from apps.factory.models import Plant
 from apps.inventory.models import InventoryLocation, Vendor
 from apps.tooling.models import Cylinder, CylinderSlotAssignment
 from apps.users.models import Role, User
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 
 
 @override_settings(STRICT_RBAC=True)
 class CylinderAssignmentIdentityTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        role = Role.objects.create(code="ENGINEERING", name="Engineering")
-        self.client.force_authenticate(User.objects.create_user(username="slot-engineer", role=role))
+        self.client.force_authenticate(User.objects.create_user(username="slot-engineer", extra_permissions=list(MASTER_DATA_GRANTS)))
         plant = Plant.objects.create(code="SLOT-PLANT", name="Slot plant")
         vendor = Vendor.objects.create(code="SLOT-VENDOR", name="Slot vendor")
         location = InventoryLocation.objects.create(plant=plant, code="SLOT-TOOL", name="Tool room", type="TOOLING")

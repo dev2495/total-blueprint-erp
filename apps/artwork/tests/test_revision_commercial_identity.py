@@ -4,14 +4,14 @@ from rest_framework.test import APIClient
 from apps.artwork.models import Artwork
 from apps.materials.models import ProductMaster
 from apps.users.models import Role, User
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 
 
 @override_settings(STRICT_RBAC=True)
 class ArtworkRevisionCommercialIdentityTests(TestCase):
     def setUp(self):
-        role = Role.objects.create(code="ENGINEERING", name="Engineering")
         self.client = APIClient()
-        self.client.force_authenticate(User.objects.create_user(username="revision-engineer", role=role))
+        self.client.force_authenticate(User.objects.create_user(username="revision-engineer", extra_permissions=list(MASTER_DATA_GRANTS)))
         self.master = ProductMaster.objects.create(code="REVISION-MASTER", name="Original product")
         self.artwork = Artwork.objects.create(
             design_code="REVISION-ART", name="Approved artwork", status="APPROVED",

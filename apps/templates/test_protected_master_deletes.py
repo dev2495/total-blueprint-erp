@@ -10,6 +10,7 @@ from apps.routing.views import RoutingRuleViewSet
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep
 from apps.templates.views import TemplateBlueprintViewSet
 from apps.users.models import Role
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 
 
 class ProtectedMasterDeleteTests(TestCase):
@@ -26,16 +27,11 @@ class ProtectedMasterDeleteTests(TestCase):
             password="pass1234",
             role=role,
         )
-        engineering_role = Role.objects.create(
-            code="ENGINEERING",
-            name="Engineering",
-            default_permissions=["factory.manage", "templates.manage"],
-        )
         self.engineering_user = get_user_model().objects.create_user(
             username="protected_delete_engineering",
             email="protected_delete_engineering@example.com",
             password="pass1234",
-            role=engineering_role,
+            extra_permissions=list(MASTER_DATA_GRANTS) + ["factory.manage"],
         )
         self.process = Process.objects.create(
             code="PROTECTED_PROC",

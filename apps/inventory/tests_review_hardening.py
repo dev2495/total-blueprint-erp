@@ -25,6 +25,7 @@ from apps.inventory.services.bulk_service import BulkService
 from apps.inventory.services.grn_history import GRNHistoryService
 from apps.inventory.services.roll_service import RollService
 from apps.inventory.tests_job_work_base import JobWorkFixtureMixin
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 from apps.users.models import Role, User
 
 
@@ -32,9 +33,8 @@ from apps.users.models import Role, User
 class InventoryWriteAuthorityTests(JobWorkFixtureMixin, TestCase):
     def setUp(self):
         super().setUp()
-        engineering = Role.objects.get_or_create(code="ENGINEERING", defaults={"name": "Engineering"})[0]
         wcm = Role.objects.get_or_create(code="WORK_CENTER_MANAGER", defaults={"name": "WCM"})[0]
-        self.engineer = User.objects.create_user(username="hard-eng", role=engineering)
+        self.engineer = User.objects.create_user(username="hard-eng", extra_permissions=list(MASTER_DATA_GRANTS))
         self.wcm = User.objects.create_user(username="hard-wcm", role=wcm)
 
     def test_non_inventory_roles_cannot_change_stock_or_locations(self):

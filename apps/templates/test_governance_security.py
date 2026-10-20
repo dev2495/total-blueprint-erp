@@ -10,6 +10,7 @@ from apps.templates.models import (
     TemplateProcessStepMaterial,
     TemplateProcessStepRollSpec,
 )
+from apps.users.permission_registry import MASTER_DATA_GRANTS
 from apps.users.models import Role
 
 
@@ -18,12 +19,16 @@ class TemplateGovernanceSecurityTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.users = {}
-        for code in ("ENGINEERING", "ADMIN", "OWNER", "SALES", "PLANNER", "WATCHMAN"):
+        for code in ("ADMIN", "OWNER", "SALES", "PLANNER", "WATCHMAN"):
             role, _ = Role.objects.get_or_create(code=code, defaults={"name": code})
             cls.users[code] = get_user_model().objects.create_user(
                 username=f"template_security_{code.lower()}",
                 role=role,
             )
+        # A non-admin account that keeps the masters through personal grants (no Engineering role).
+        cls.users["MASTER_DATA"] = get_user_model().objects.create_user(
+            username="template_security_master_data", extra_permissions=list(MASTER_DATA_GRANTS),
+        )
         cls.process = Process.objects.create(
             code="TPL_SECURITY",
             name="Template Security Process",
@@ -73,7 +78,7 @@ class TemplateGovernanceSecurityTests(TestCase):
 
     def setUp(self):
         self.client = APIClient()
-        self.client.force_authenticate(self.users["ENGINEERING"])
+        self.client.force_authenticate(self.users["MASTER_DATA"])
 
     @staticmethod
     def _detail(template):
@@ -88,7 +93,7 @@ class TemplateGovernanceSecurityTests(TestCase):
         return f"{cls._step(template, step)}materials/{material.id}/"
 
     def test_crud_create_cannot_choose_lifecycle_state_for_manage_roles(self):
-        for role in ("ENGINEERING", "ADMIN", "OWNER"):
+        for role in ("MASTER_DATA", "ADMIN", "OWNER"):
             for desired_status in ("ENGINEERING", "APPROVED", "LIVE", "OBSOLETE"):
                 with self.subTest(role=role, status=desired_status):
                     self.client.force_authenticate(self.users[role])
@@ -104,7 +109,7 @@ class TemplateGovernanceSecurityTests(TestCase):
                     self.assertIsNone(created.approved_at)
 
     def test_crud_patch_cannot_choose_lifecycle_state_but_preserves_draft_edits(self):
-        for role in ("ENGINEERING", "ADMIN", "OWNER"):
+        for role in ("MASTER_DATA", "ADMIN", "OWNER"):
             for desired_status in ("ENGINEERING", "APPROVED", "LIVE", "OBSOLETE"):
                 with self.subTest(role=role, status=desired_status):
                     self.client.force_authenticate(self.users[role])
@@ -146,7 +151,7 @@ class TemplateGovernanceSecurityTests(TestCase):
             self.assertEqual(response.status_code, 200, response.data)
             self.draft.refresh_from_db()
             self.assertEqual(self.draft.status, expected_status)
-        self.assertEqual(self.draft.approved_by_id, self.users["ENGINEERING"].id)
+        self.assertEqual(self.draft.approved_by_id, self.users["MASTER_DATA"].id)
         self.assertIsNotNone(self.draft.approved_at)
         self.live.refresh_from_db()
         self.assertEqual(self.live.status, "OBSOLETE")

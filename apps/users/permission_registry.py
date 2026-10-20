@@ -553,6 +553,27 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
 }
 
 
+# Personal grants that let a non-admin account maintain product masters, templates, routes,
+# artwork, cylinders and the tool room. There is no Engineering role any more; an admin grants
+# these per account (Users page) when someone other than admin/owner keeps the masters.
+MASTER_DATA_GRANTS: List[str] = [
+    "users.self_manage",
+    "dashboard.view",
+    "notifications.view",
+    "factory.view",
+    "master.view",
+    "master.manage",
+    "templates.view",
+    "templates.manage",
+    "routing.view",
+    "routing.manage",
+    "engineering.view",
+    "engineering.manage",
+    "tooling.view",
+    "tooling.manage",
+]
+
+
 def _candidate_paths(path: str) -> List[str]:
     raw_path = str(path or "").strip()
     if not raw_path:
