@@ -85,13 +85,23 @@ def resolve_layer_materials(layers: list[dict]) -> tuple[dict[str, Any], dict[st
     variant_ids = [value for value in variant_ids if _is_uuid(value)]
     grade_ids = [value for value in grade_ids if _is_uuid(value)]
 
+    # Lists build a spec for every line; within one read request each material and grade is
+    # fetched once (request_memo is only armed for GET/HEAD, so writes always read fresh rows).
+    from config.request_context import request_memo
+
+    def cached(cache_key, model_loader, ids):
+        cache = request_memo(cache_key, dict)
+        missing = sorted({value for value in ids if value not in cache})
+        if missing:
+            found = {str(row.id): row for row in model_loader(missing)}
+            for value in missing:
+                cache[value] = found.get(value)
+        return {value: cache[value] for value in set(ids) if cache.get(value) is not None}
+
     try:
         from apps.materials.models import InventoryMaterial
 
-        materials = {
-            str(row.id): row
-            for row in InventoryMaterial.objects.filter(id__in=sorted(set(variant_ids)))
-        }
+        materials = cached(("product_spec_materials",), lambda ids: InventoryMaterial.objects.filter(id__in=ids), variant_ids)
     except DatabaseError:
         raise
     except Exception:
@@ -100,10 +110,7 @@ def resolve_layer_materials(layers: list[dict]) -> tuple[dict[str, Any], dict[st
     try:
         from apps.recipes.models import RecipeGrade
 
-        grades = {
-            str(row.id): row
-            for row in RecipeGrade.objects.filter(id__in=sorted(set(grade_ids)))
-        }
+        grades = cached(("product_spec_grades",), lambda ids: RecipeGrade.objects.filter(id__in=ids), grade_ids)
     except DatabaseError:
         raise
     except Exception:

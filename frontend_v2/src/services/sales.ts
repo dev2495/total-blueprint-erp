@@ -565,6 +565,15 @@ export const salesService = {
         return Array.isArray(data) ? data : [];
     },
 
+    getOrderKpis: async () => {
+        // Header figures over every order, not just the rows loaded on screen.
+        const { data } = await api.get<{
+            total: number; open: number; awaiting: number; aged: number; aged_kg: number; created_today: number;
+            value_in_flight: number; avg_age: number; customers_open: number; history_count: number; cancelled_count: number;
+        }>("/api/sales/orders/kpis/");
+        return data;
+    },
+
     getRecentOrders: async () => {
         const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", { params: { limit: 12, summary: false } });
         return unwrapList<SalesOrder>(data);

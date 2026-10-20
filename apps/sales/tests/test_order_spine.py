@@ -90,3 +90,36 @@ class OrderSpineTests(RollLaneFixture, TestCase):
         for code in ("DISPATCH", "SALES", "STORE"):
             resp = self._role_client(code).get(f"/api/sales/orders/{item.sales_order_id}/spine/")
             self.assertEqual(resp.status_code, 200, f"{code}: {resp.content[:200]}")
+
+
+class OrderListKpiTests(TestCase):
+    """The orders page header counts every order, and the queue asks for open orders only."""
+
+    def test_kpis_count_every_open_order_and_the_open_filter_skips_closed_ones(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.sales.models import SalesOrder, SalesOrderItem
+
+        role, _ = Role.objects.get_or_create(code="SALES", defaults={"name": "Sales"})
+        client = APIClient()
+        client.force_authenticate(get_user_model().objects.create(username="kpi-sales", email="kpi@example.invalid", role=role))
+        from apps.routing.models import RoutingRule
+        from apps.templates.models import TemplateBlueprint
+
+        template = TemplateBlueprint.objects.create(name="KPI template", fg_type="ROLL", status="LIVE", routing_rule=RoutingRule.objects.create(name="KPI route", ordered_processes=[]))
+        for n in range(3):
+            order = SalesOrder.objects.create(customer_name=f"Open {n}", status="PLANNING_REQUIRED")
+            SalesOrderItem.objects.create(sales_order=order, template=template, mode="TEMPLATE", qty_value=D("100"), qty_uom="KG", total_weight_kg=D("100"), price_basis="KG", unit_price=D("2"))
+        old = SalesOrder.objects.create(customer_name="Old open", status="CONFIRMED")
+        SalesOrder.objects.filter(id=old.id).update(created_at=timezone.now() - timedelta(days=9))
+        SalesOrder.objects.create(customer_name="Done", status="COMPLETED")
+        SalesOrder.objects.create(customer_name="Dropped", status="CANCELLED")
+
+        kpis = client.get("/api/sales/orders/kpis/").json()
+        self.assertEqual((kpis["open"], kpis["awaiting"], kpis["aged"]), (4, 3, 1))
+        self.assertEqual(kpis["value_in_flight"], 600.0)
+        self.assertEqual((kpis["history_count"], kpis["cancelled_count"]), (1, 1))
+
+        rows = client.get("/api/sales/orders/", {"status": "OPEN", "summary": 1, "limit": 150}).json()
+        self.assertEqual(len(rows), 4)
+        self.assertNotIn("COMPLETED", {row["status"] for row in rows})

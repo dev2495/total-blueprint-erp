@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Prefetch, ProtectedError, Q
@@ -128,7 +130,10 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         request = getattr(self, "request", None)
         params = getattr(request, "query_params", {})
         status_filter = str(params.get("status") or "").strip().upper()
-        if status_filter and status_filter != "ALL":
+        if status_filter == "OPEN":
+            # The orders queue: everything not completed or cancelled, however old.
+            queryset = queryset.exclude(status__in=["COMPLETED", "CANCELLED"])
+        elif status_filter and status_filter != "ALL":
             queryset = queryset.filter(status=status_filter)
 
         customer_id = str(params.get("customer") or params.get("customer_id") or "").strip()
@@ -265,6 +270,45 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
             )
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=["get"])
+    def kpis(self, request):
+        """Header figures for the orders page over every order, not only the rows loaded on screen.
+
+        Same definitions as the page: open = not completed/cancelled; age = whole days since the
+        order was placed; value = the sum of line amounts (kg x rate, or pieces x rate for
+        piece-priced lines); aged = open and 6+ days old.
+        """
+        from django.utils import timezone
+
+        now = timezone.now()
+        orders = list(SalesOrder.objects.values_list("id", "status", "created_at", "customer_id"))
+        open_ids = {oid for oid, status_code, _, _ in orders if str(status_code or "").upper() not in {"COMPLETED", "CANCELLED"}}
+        value_by_order, kg_by_order = {}, {}
+        for item in SalesOrderItem.objects.filter(sales_order_id__in=open_ids).only(
+            "sales_order_id", "price_basis", "qty_uom", "unit_price", "qty_value", "unit_weight_g", "total_weight_kg"
+        ):
+            value_by_order[item.sales_order_id] = value_by_order.get(item.sales_order_id, Decimal("0")) + Decimal(str(item.line_amount or 0))
+            kg_by_order[item.sales_order_id] = kg_by_order.get(item.sales_order_id, Decimal("0")) + Decimal(str(item.total_weight_kg or 0))
+
+        def age(created_at):
+            return max(0, int((now - created_at).total_seconds() // 86400)) if created_at else 0
+
+        open_rows = [(oid, status_code, age(created), customer) for oid, status_code, created, customer in orders if oid in open_ids]
+        aged = [row for row in open_rows if row[2] >= 6]
+        return Response({
+            "total": len(orders),
+            "open": len(open_rows),
+            "awaiting": sum(1 for row in open_rows if str(row[1] or "").upper() == "PLANNING_REQUIRED"),
+            "aged": len(aged),
+            "aged_kg": float(sum((kg_by_order.get(row[0], Decimal("0")) for row in aged), Decimal("0"))),
+            "created_today": sum(1 for _, _, created, _ in orders if age(created) == 0),
+            "value_in_flight": float(sum(value_by_order.values(), Decimal("0"))),
+            "avg_age": round(sum(row[2] for row in open_rows) / len(open_rows), 1) if open_rows else 0,
+            "customers_open": len({row[3] for row in open_rows if row[3]}),
+            "history_count": sum(1 for _, status_code, _, _ in orders if str(status_code or "").upper() == "COMPLETED"),
+            "cancelled_count": sum(1 for _, status_code, _, _ in orders if str(status_code or "").upper() == "CANCELLED"),
+        })
 
     @action(detail=True, methods=["get"])
     def spine(self, request, pk=None):

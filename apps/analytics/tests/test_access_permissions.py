@@ -12,7 +12,7 @@ class AnalyticsAccessTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.users = {}
-        for code in ("OWNER", "ADMIN", "SALES", "PLANNER", "WORK_CENTER_MANAGER", "ENGINEERING", "STORE", "DISPATCH", "PLANT_MANAGER", "GUEST", "WATCHMAN"):
+        for code in ("OWNER", "ADMIN", "SALES", "PLANNER", "WORK_CENTER_MANAGER", "STORE", "DISPATCH", "PLANT_MANAGER", "GUEST", "WATCHMAN"):
             role, _ = Role.objects.get_or_create(code=code, defaults={"name": code})
             self.users[code] = User.objects.create(username=f"access_{code}", role=role)
 
@@ -31,10 +31,10 @@ class AnalyticsAccessTests(TestCase):
             ("STORE", "/api/analytics/reports/inventory-lineage/"),
             ("DISPATCH", "/api/analytics/reports/interplant/"),
             ("DISPATCH", "/api/analytics/reports/dispatch"),
-            ("ENGINEERING", "/api/analytics/factory-summary/"),
-            ("ENGINEERING", "/api/analytics/kpis/"),
-            ("ENGINEERING", "/api/analytics/scrap-analysis/"),
-            ("ENGINEERING", "/api/analytics/downtime-analysis/"),
+            ("PLANT_MANAGER", "/api/analytics/factory-summary/"),
+            ("PLANT_MANAGER", "/api/analytics/kpis/"),
+            ("PLANT_MANAGER", "/api/analytics/scrap-analysis/"),
+            ("PLANT_MANAGER", "/api/analytics/downtime-analysis/"),
             ("SALES", "/api/analytics/order-tracking/?order_id=test"),
             ("PLANNER", "/api/analytics/planner-dashboard/"),
             ("WORK_CENTER_MANAGER", "/api/analytics/wcm-dashboard/"),

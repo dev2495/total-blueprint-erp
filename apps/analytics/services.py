@@ -926,7 +926,8 @@ class AnalyticsService:
         inv_dist_list = [row for row in inv_dist_list if row["value"] > 0]
         
         # D. Active Shop Floor & Scrap
-        active_machines = Machine.objects.filter(status='RUNNING').count()
+        # Running = a job executing or paused on the machine (machine status is only ACTIVE/DOWN/MAINTENANCE).
+        active_machines = Machine.objects.filter(jobs__job_state__in=['EXECUTING', 'PAUSED']).distinct().count()
         total_machines = Machine.objects.count()
         utilization_rate = (active_machines / total_machines * 100) if total_machines > 0 else 0
         
@@ -1842,9 +1843,12 @@ class AnalyticsService:
         # ── 3. Work Center Capacity ──
         from apps.factory.models import WorkCenter
         wc_capacity = []
+        # A machine is running when a job is executing or paused on it (machine status only says
+        # whether it is usable: ACTIVE / DOWN / MAINTENANCE), the same rule the WCM deck uses.
         work_centers = WorkCenter.objects.annotate(
             machine_count=Count('machines', distinct=True),
-            running_count=Count('machines', filter=Q(machines__status='RUNNING'), distinct=True),
+            running_count=Count('machines', filter=Q(machines__jobs__job_state__in=['EXECUTING', 'PAUSED']), distinct=True),
+            down_count=Count('machines', filter=Q(machines__status__in=['DOWN', 'MAINTENANCE']), distinct=True),
             pending_job_count=Count(
                 'jobs',
                 filter=Q(jobs__job_state__in=['PLANNED', 'RELEASED']),
@@ -1854,7 +1858,8 @@ class AnalyticsService:
         for wc in work_centers:
             total_m = int(getattr(wc, "machine_count", 0) or 0)
             running = int(getattr(wc, "running_count", 0) or 0)
-            free = total_m - running
+            down = int(getattr(wc, "down_count", 0) or 0)
+            free = max(0, total_m - running - down)
             util = round((running / total_m * 100) if total_m > 0 else 0, 1)
             pending_jobs = int(getattr(wc, "pending_job_count", 0) or 0)
             wc_capacity.append({

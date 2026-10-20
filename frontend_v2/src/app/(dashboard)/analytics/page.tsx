@@ -211,9 +211,9 @@ export default function AnalyticsPage() {
       hint: "Audit-backed quality loss",
     },
     {
-      label: "Utilization",
+      label: "Availability",
       value: metricValue(metrics.utilization, 1, "%"),
-      hint: "Machine use ratio",
+      hint: "Machine time not lost to downtime · 7 days",
     },
     {
       label: "Efficiency",
@@ -247,7 +247,7 @@ export default function AnalyticsPage() {
       tone: "bg-primary",
     },
     {
-      label: "Utilization",
+      label: "Availability",
       value: toNullableNumber(metrics.utilization),
       target: 90,
       tone: "bg-info-fg",

@@ -321,6 +321,9 @@ function flowBandMetrics({
     completePct: orderedKg > 0 ? (covered / orderedKg) * 100 : 0,
   };
 }
+/** Open orders loaded into the queue at once (the API caps a page at 150). */
+const ORDER_QUEUE_LIMIT = 150;
+
 function isOpen(o: SalesOrder): boolean {
   const s = String(o.status || "").toUpperCase();
   return !["COMPLETED", "CANCELLED"].includes(s);
@@ -1330,17 +1333,23 @@ export function SalesOrdersListWorkspace() {
   const serverStatus = (() => {
     if (tab === "history") return "COMPLETED";
     if (tab === "cancelled") return "CANCELLED";
-    return undefined;
+    // The order queue is every open order however old, not the newest few of any status.
+    return "OPEN";
   })();
   const ordersQuery = useQuery({
-    queryKey: ["sales-orders-v37", deferredSearchText, serverStatus || "ALL"],
+    queryKey: ["sales-orders-v38", deferredSearchText, serverStatus],
     queryFn: () =>
       salesService.getOrders({
         q: deferredSearchText || undefined,
         status: serverStatus,
-        limit: 50,
+        limit: ORDER_QUEUE_LIMIT,
       }),
     staleTime: 90_000,
+  });
+  const kpiQuery = useQuery({
+    queryKey: ["sales-orders-kpis"],
+    queryFn: salesService.getOrderKpis,
+    staleTime: 60_000,
   });
   const orders = React.useMemo(
     () => unwrapOrders(ordersQuery.data),
@@ -1507,7 +1516,8 @@ export function SalesOrdersListWorkspace() {
     [queueRows, filters, masters],
   );
 
-  // KPI math
+  // KPI math: the server counts every order; the rows on screen are the fallback.
+  const serverKpis = kpiQuery.data;
   const kpis = React.useMemo(() => {
     const open = enriched.filter((r) => isOpen(r.order));
     const awaiting = open.filter((r) => r.statusKey === "PLANNING_REQUIRED");
@@ -1517,7 +1527,7 @@ export function SalesOrdersListWorkspace() {
     const avgAge = open.length
       ? open.reduce((s, r) => s + r.age, 0) / open.length
       : 0;
-    return {
+    const local = {
       open: open.length,
       awaiting: awaiting.length,
       aged: aged.length,
@@ -1533,7 +1543,21 @@ export function SalesOrdersListWorkspace() {
       cancelledCount: enriched.filter((r) => r.order.status === "CANCELLED")
         .length,
     };
-  }, [enriched]);
+    if (!serverKpis) return local;
+    return {
+      ...local,
+      open: serverKpis.open,
+      awaiting: serverKpis.awaiting,
+      aged: serverKpis.aged,
+      agedKg: serverKpis.aged_kg,
+      createdToday: serverKpis.created_today,
+      valueInFlight: serverKpis.value_in_flight,
+      avgAge: serverKpis.avg_age,
+      customersOpen: serverKpis.customers_open,
+      historyCount: serverKpis.history_count,
+      cancelledCount: serverKpis.cancelled_count,
+    };
+  }, [enriched, serverKpis]);
 
   // Status counts (open only)
   const statusCounts = React.useMemo(() => {
@@ -1828,6 +1852,12 @@ export function SalesOrdersListWorkspace() {
           density={density}
           onDensity={setDensity}
         />
+        {tab === "queue" && !deferredSearchText && serverKpis && serverKpis.open > orders.length ? (
+          <div className="border-b border-line bg-info-bg px-4 py-2 text-[12.5px] text-info-fg" data-testid="sales-orders-partial-notice">
+            Showing the {orders.length.toLocaleString("en-IN")} newest of {serverKpis.open.toLocaleString("en-IN")} open orders.
+            Search by order number, customer or product to reach any other open order; the figures above count all of them.
+          </div>
+        ) : null}
         {ordersQuery.isLoading ? (
           <div className="flex h-72 items-center justify-center">
             <div className="text-center">
