@@ -176,7 +176,7 @@ const replacements = new Map([
     "Use this as the source of truth for pouch, roll, generic stock, artwork, and planner flows. Variant SKU data should be derived from master axes, not maintained as a parallel model.",
     ["master-overview", "master-workflow"],
     "master-data-flow",
-    ["ADMIN", "OWNER", "SALES", "PLANNER", "ENGINEERING"],
+    ["ADMIN", "OWNER", "SALES", "PLANNER"],
   )],
   ["/analytics/reports/trading", guide(
     "/analytics/reports/trading",
@@ -278,7 +278,7 @@ const replacements = new Map([
     "Use it to review active pouch styles before assigning them to products or order variants.",
     [],
     "master-data-flow",
-    ["ADMIN", "OWNER", "SALES", "PLANNER", "ENGINEERING"],
+    ["ADMIN", "OWNER", "SALES", "PLANNER"],
   )],
   ["/master/pouch-styles/new", guide(
     "/master/pouch-styles/new",
@@ -288,7 +288,7 @@ const replacements = new Map([
     "Define naming, active status, and operational notes before using the style in product setup.",
     [],
     "master-data-flow",
-    ["ADMIN", "OWNER", "SALES", "PLANNER", "ENGINEERING"],
+    ["ADMIN", "OWNER", "SALES", "PLANNER"],
   )],
   ["/master/pouch-styles/[id]", guide(
     "/master/pouch-styles/[id]",
@@ -298,7 +298,7 @@ const replacements = new Map([
     "Review dependent product/order usage before changing a style already used in production.",
     [],
     "master-data-flow",
-    ["ADMIN", "OWNER", "SALES", "PLANNER", "ENGINEERING"],
+    ["ADMIN", "OWNER", "SALES", "PLANNER"],
   )],
   ["/master/trading-goods", guide(
     "/master/trading-goods",
@@ -338,7 +338,7 @@ const replacements = new Map([
     "Use this master to keep planning width checks explicit instead of relying on manual assumptions.",
     [],
     "master-data-flow",
-    ["ADMIN", "OWNER", "PLANNER", "ENGINEERING"],
+    ["ADMIN", "OWNER", "PLANNER"],
   )],
   ["/master/web-width-policies/new", guide(
     "/master/web-width-policies/new",
@@ -348,7 +348,7 @@ const replacements = new Map([
     "Enter the parent width, child width, tolerance, and active status before planner use.",
     [],
     "master-data-flow",
-    ["ADMIN", "OWNER", "PLANNER", "ENGINEERING"],
+    ["ADMIN", "OWNER", "PLANNER"],
   )],
   ["/master/web-width-policies/[id]", guide(
     "/master/web-width-policies/[id]",
@@ -358,7 +358,7 @@ const replacements = new Map([
     "Review planning impact before changing a policy already used by active demand.",
     [],
     "master-data-flow",
-    ["ADMIN", "OWNER", "PLANNER", "ENGINEERING"],
+    ["ADMIN", "OWNER", "PLANNER"],
   )],
   ["/sales/trade-orders", guide(
     "/sales/trade-orders",
@@ -528,7 +528,7 @@ const replacements = new Map([
     "Use safe template editing to correct dispatch choices, then complete review and publish so eligible pre-release orders receive the current route.",
     ["engineering-route-dispatch-workflow"],
     "master-data-flow",
-    ["ADMIN", "OWNER", "ENGINEERING", "PLANNER", "PLANT_MANAGER"],
+    ["ADMIN", "OWNER", "PLANNER", "PLANT_MANAGER"],
   )],
   ["/inventory/bulk-v36", guide(
     "/inventory/bulk-v36",

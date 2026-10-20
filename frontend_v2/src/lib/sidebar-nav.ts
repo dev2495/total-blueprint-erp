@@ -576,7 +576,7 @@ export const NAV_ITEMS: NavItem[] = [
     permissionModules: ["analytics"],
     children: [
       { title: "Reports Hub", href: "/analytics", icon: Activity, roles: ["ADMIN", "OWNER", "PLANT_MANAGER"], permissions: ["analytics.view", "analytics.manage"] },
-      { title: "Capability Matrix", href: "/analytics/capability-matrix", icon: Layers, roles: ["ADMIN", "OWNER", "PLANNER", "PLANT_MANAGER", "ENGINEERING"], permissions: ["analytics.view", "analytics.manage"] },
+      { title: "Capability Matrix", href: "/analytics/capability-matrix", icon: Layers, roles: ["ADMIN", "OWNER", "PLANNER", "PLANT_MANAGER"], permissions: ["analytics.view", "analytics.manage"] },
       {
         title: "KPI Dashboard",
         href: "/analytics/kpis",
@@ -599,16 +599,16 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Engineering",
     href: "/engineering",
     icon: Microscope,
-    roles: ["ADMIN", "OWNER", "ENGINEERING"],
+    roles: ["ADMIN", "OWNER"],
     permissionModules: ["engineering", "routing", "templates", "tooling"],
     children: [
-      { title: "Artwork Master", href: "/engineering/artworks", icon: Palette, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["engineering.view", "engineering.manage"] },
-      { title: "Cylinder Catalog", href: "/engineering/cylinders", icon: Disc, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["engineering.view", "engineering.manage"] },
-      { title: "Tool Room", href: "/engineering/tooling", icon: Settings, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["tooling.view", "tooling.manage"] },
-      { title: "Routing Studio", href: "/engineering/routing", icon: Workflow, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["routing.view", "routing.manage"] },
-      { title: "Route Dispatch", href: "/engineering/route-dispatch", icon: Factory, roles: ["ADMIN", "OWNER", "ENGINEERING", "PLANNER"], permissions: ["templates.view", "templates.manage", "factory.view"] },
-      { title: "Helper Processes", href: "/factory/processes", icon: Layers, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["factory.view", "factory.manage"] },
-      { title: "Template Studio", href: "/engineering/templates", icon: FileText, roles: ["ADMIN", "OWNER", "ENGINEERING"], permissions: ["templates.view", "templates.manage"] },
+      { title: "Artwork Master", href: "/engineering/artworks", icon: Palette, roles: ["ADMIN", "OWNER"], permissions: ["engineering.view", "engineering.manage"] },
+      { title: "Cylinder Catalog", href: "/engineering/cylinders", icon: Disc, roles: ["ADMIN", "OWNER"], permissions: ["engineering.view", "engineering.manage"] },
+      { title: "Tool Room", href: "/engineering/tooling", icon: Settings, roles: ["ADMIN", "OWNER"], permissions: ["tooling.view", "tooling.manage"] },
+      { title: "Routing Studio", href: "/engineering/routing", icon: Workflow, roles: ["ADMIN", "OWNER"], permissions: ["routing.view", "routing.manage"] },
+      { title: "Route Dispatch", href: "/engineering/route-dispatch", icon: Factory, roles: ["ADMIN", "OWNER", "PLANNER"], permissions: ["templates.view", "templates.manage", "factory.view"] },
+      { title: "Helper Processes", href: "/factory/processes", icon: Layers, roles: ["ADMIN", "OWNER"], permissions: ["factory.view", "factory.manage"] },
+      { title: "Template Studio", href: "/engineering/templates", icon: FileText, roles: ["ADMIN", "OWNER"], permissions: ["templates.view", "templates.manage"] },
     ],
   },
   {

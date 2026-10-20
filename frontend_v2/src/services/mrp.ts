@@ -78,9 +78,10 @@ export const mrpService = {
         const { data } = await api.get(`/api/mrp/plans/${id}/`);
         return data;
     },
-    getLatestPlan: async (): Promise<MRPPlan> => {
+    getLatestPlan: async (): Promise<MRPPlan | null> => {
+        // Empty until the first plan completes: a normal state, not a load failure.
         const { data } = await api.get('/api/mrp/plans/latest/');
-        return data;
+        return data && (data as any).id ? data : null;
     },
     runMRP: async (plantId?: string): Promise<MRPPlan> => {
         const { data } = await api.post('/api/mrp/plans/run/', { plant_id: plantId });

@@ -397,7 +397,6 @@ class PermissionService:
 
             # Department dashboards
             'SALES': '/sales/orders',
-            'ENGINEERING': '/engineering/artworks',
 
             # Production terminals
             'PLANNER': '/production/planner',

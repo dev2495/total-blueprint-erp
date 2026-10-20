@@ -14,7 +14,7 @@ class RoleAdministrationTests(TestCase):
         self.target = User.objects.create(username="role_target", role=self.role)
 
     def test_non_admins_cannot_retrieve_or_delete_roles_on_either_alias(self):
-        for code in ("SALES", "ENGINEERING", "STORE", "DISPATCH", "PLANNER", "WORK_CENTER_MANAGER", "GUEST", "WATCHMAN"):
+        for code in ("SALES", "PLANT_MANAGER", "STORE", "DISPATCH", "PLANNER", "WORK_CENTER_MANAGER", "GUEST", "WATCHMAN"):
             role, _ = Role.objects.get_or_create(code=code, defaults={"name": code})
             user = User.objects.create(username=f"role_actor_{code}", role=role)
             if code == "WATCHMAN":
@@ -31,7 +31,7 @@ class RoleAdministrationTests(TestCase):
         self.assertEqual(self.target.role_id, self.role.pk)
 
     def test_actual_admin_delete_is_audited_and_owner_flags_remain_supported(self):
-        for code, flags in (("ADMIN", {}), ("OWNER", {}), ("SUPER_ADMIN", {}), ("SALES", {"is_owner": True}), ("ENGINEERING", {"is_superuser": True})):
+        for code, flags in (("ADMIN", {}), ("OWNER", {}), ("SUPER_ADMIN", {}), ("SALES", {"is_owner": True}), ("PLANT_MANAGER", {"is_superuser": True})):
             role, _ = Role.objects.get_or_create(code=code, defaults={"name": code})
             user = User.objects.create(username=f"master_{code}_{len(flags)}", role=role, **flags)
             target_role = Role.objects.create(code=f"DELETE_{user.username}", name="Delete test")

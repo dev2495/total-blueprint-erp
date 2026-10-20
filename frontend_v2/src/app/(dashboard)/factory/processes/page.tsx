@@ -785,11 +785,11 @@ export default function ProcessesPage() {
                       <h3 className="font-semibold text-lg text-content-1 leading-tight">
                         {process.name}
                       </h3>
-                      <div className="flex items-center gap-1 text-xs text-content-3 mt-1">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1 text-xs text-content-3">
                         {process.roll_behavior && (
                           <Badge
                             variant="secondary"
-                            className="text-caption h-5 px-1.5 bg-info-bg text-primary"
+                            className="text-caption h-5 whitespace-nowrap px-1.5 bg-info-bg text-primary"
                           >
                             {process.roll_behavior.replace(/_/g, " ")}
                           </Badge>
@@ -807,7 +807,7 @@ export default function ProcessesPage() {
                         {needsStockFormReview ? (
                           <Badge
                             variant="outline"
-                            className="text-caption h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
+                            className="text-caption h-5 whitespace-nowrap px-1.5 border-warning-border bg-warning-bg text-warning-fg"
                           >
                             REVIEW STOCK FORMS
                           </Badge>
@@ -815,7 +815,7 @@ export default function ProcessesPage() {
                         {process.allows_optional_at_planning ? (
                           <Badge
                             variant="outline"
-                            className="text-caption h-5 px-1.5 border-warning-border bg-warning-bg text-warning-fg"
+                            className="text-caption h-5 whitespace-nowrap px-1.5 border-warning-border bg-warning-bg text-warning-fg"
                           >
                             PLANNER OPTIONAL
                           </Badge>
@@ -823,7 +823,7 @@ export default function ProcessesPage() {
                         {process.allows_skip_after_previous_output ? (
                           <Badge
                             variant="outline"
-                            className="text-caption h-5 px-1.5 border-info-border bg-info-bg text-primary"
+                            className="text-caption h-5 whitespace-nowrap px-1.5 border-info-border bg-info-bg text-primary"
                           >
                             WCM SKIPPABLE
                           </Badge>

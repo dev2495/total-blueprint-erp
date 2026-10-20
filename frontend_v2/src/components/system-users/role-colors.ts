@@ -11,7 +11,6 @@ export type RolePaletteKey =
   | "OPERATOR"
   | "STORE"
   | "DISPATCH"
-  | "ENGINEERING"
   | "PLANT_MANAGER"
   | "DEFAULT";
 
@@ -96,14 +95,6 @@ export const ROLE_PALETTE: Record<RolePaletteKey, Palette> = {
     stripe: "bg-primary",
     chipOn: "bg-info-bg text-info-fg ring-info-border",
     chipOff: "ring-info-border text-info-fg",
-  },
-  ENGINEERING: {
-    bg: "bg-purple-50",
-    text: "text-purple-700",
-    ring: "ring-purple-200",
-    stripe: "bg-plate",
-    chipOn: "bg-purple-100 text-purple-800 ring-purple-200",
-    chipOff: "ring-purple-200 text-purple-700",
   },
   PLANT_MANAGER: {
     bg: "bg-success-bg",

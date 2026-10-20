@@ -300,7 +300,7 @@ export default function ProfilePage() {
         </div>
         <div className="flex items-center gap-2">
           {profileCompleteness.complete ? (
-            <Badge className="bg-success-fg">
+            <Badge variant="success">
               <CheckCircle2 className="mr-1 h-3 w-3" /> Profile complete
             </Badge>
           ) : (

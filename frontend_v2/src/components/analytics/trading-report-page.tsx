@@ -174,33 +174,31 @@ export function TradingReportPage() {
   return (
     <div className="space-y-6 p-4 md:p-6">
       {/* HERO */}
-      <div className="relative overflow-hidden rounded-3xl bg-success-fg p-6 text-white shadow-[0_20px_60px_-30px_rgba(16,185,129,0.6)]">
-        <div className="hidden absolute -top-20 -right-20 h-72 w-72 rounded-full bg-success-fg blur-3xl" />
-        <div className="hidden absolute -bottom-24 -left-12 h-64 w-64 rounded-full bg-info-fg blur-3xl" />
+      <div className="relative overflow-hidden rounded-[18px] border border-line bg-surface-1 p-6 shadow-[var(--shadow-sm)]">
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-white/80">
-              <Repeat className="h-4 w-4" /> Trading Surface
+            <div className="flex items-center gap-2 text-[12.5px] font-medium text-content-3">
+              <Repeat className="h-4 w-4" /> Reports · trading
             </div>
-            <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight md:text-4xl">
+            <h1 className="mt-1 font-display text-[28px] font-semibold tracking-[-0.02em] text-content-1">
               Trading Pulse
             </h1>
-            <p className="mt-1 max-w-2xl text-sm text-white/80">
+            <p className="mt-1 max-w-2xl text-sm text-content-3">
               Trading goods, sellable materials, orders, revenue, margin — one
               report.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-2xl bg-surface-1/10 p-1 ring-1 ring-surface-1/20 backdrop-blur">
+            <div className="flex rounded-[12px] bg-surface-2 p-1 ring-1 ring-line">
               {(["daily", "weekly", "monthly", "custom"] as const).map((p) => (
                 <button
                   key={p}
                   onClick={() => setPreset(p)}
                   className={cn(
-                    "rounded-xl px-3 py-1.5 text-xs font-semibold capitalize transition",
+                    "rounded-[9px] px-3 py-1.5 text-xs font-medium capitalize transition",
                     preset === p
-                      ? "bg-surface-1 text-success-fg shadow"
-                      : "text-white/85 hover:bg-surface-1/10",
+                      ? "bg-surface-1 text-content-1 shadow-[var(--shadow-sm)]"
+                      : "text-content-3 hover:text-content-1",
                   )}
                 >
                   {p}
@@ -208,7 +206,7 @@ export function TradingReportPage() {
               ))}
             </div>
             <Select value={plantId} onValueChange={setPlantId}>
-              <SelectTrigger className="h-9 w-40 rounded-xl border-surface-1/20 bg-surface-1/10 text-xs text-white">
+              <SelectTrigger className="h-9 w-40 rounded-[10px] text-xs">
                 <SelectValue placeholder="All Plants" />
               </SelectTrigger>
               <SelectContent>
@@ -221,9 +219,9 @@ export function TradingReportPage() {
               </SelectContent>
             </Select>
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
-              className="rounded-xl bg-surface-1/15 text-white hover:bg-surface-1/25"
+              className="rounded-[10px]"
               onClick={() => report.refetch()}
             >
               <RefreshCw
@@ -235,9 +233,9 @@ export function TradingReportPage() {
               Refresh
             </Button>
             <Button
-              variant="secondary"
+              variant="outline"
               size="sm"
-              className="rounded-xl bg-surface-1/15 text-white hover:bg-surface-1/25"
+              className="rounded-[10px]"
               onClick={handleExport}
             >
               <Download className="mr-1 h-3.5 w-3.5" /> Export PDF
@@ -251,14 +249,14 @@ export function TradingReportPage() {
               type="date"
               value={customFrom}
               onChange={(e) => setCustomFrom(e.target.value)}
-              className="rounded-lg border border-surface-1/20 bg-surface-1/10 px-2 py-1 text-white"
+              className="rounded-[10px] border border-line bg-surface-1 px-2 py-1 text-content-1"
             />
             <span className="opacity-80">to</span>
             <input
               type="date"
               value={customTo}
               onChange={(e) => setCustomTo(e.target.value)}
-              className="rounded-lg border border-surface-1/20 bg-surface-1/10 px-2 py-1 text-white"
+              className="rounded-[10px] border border-line bg-surface-1 px-2 py-1 text-content-1"
             />
           </div>
         )}

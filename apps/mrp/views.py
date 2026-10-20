@@ -33,7 +33,8 @@ class MRPViewSet(viewsets.ReadOnlyModelViewSet):
     def latest(self, request):
         plan = MRPPlan.objects.filter(status='COMPLETED').order_by('-created_at').first()
         if not plan:
-            return Response({"detail": "No completed MRP plan found."}, status=status.HTTP_404_NOT_FOUND)
+            # No plan has run yet: a normal state for the MRP page, not an error.
+            return Response(None)
         return Response(MRPPlanSerializer(plan).data)
 
     @action(detail=True, methods=['get'])

@@ -153,7 +153,7 @@ export default function PlanningBoard() {
         );
       case "EXECUTING":
         return (
-          <Badge className="bg-success-fg uppercase text-caption font-semibold animate-pulse">
+          <Badge variant="success" className="uppercase text-caption font-semibold animate-pulse">
             Running
           </Badge>
         );
@@ -165,7 +165,7 @@ export default function PlanningBoard() {
         );
       case "COMPLETED":
         return (
-          <Badge className="bg-success-fg uppercase text-caption font-semibold">
+          <Badge variant="success" className="uppercase text-caption font-semibold">
             Completed
           </Badge>
         );

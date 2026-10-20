@@ -76,8 +76,8 @@ class RbacP0Tests(TestCase):
         )
 
         self.role_engineering = Role.objects.create(
-            code="ENGINEERING",
-            name="Engineering",
+            code="ROUTE_VIEWER",
+            name="Route viewer (custom role)",
             default_permissions=["templates.view"],
         )
         self.user_engineering = User.objects.create_user(

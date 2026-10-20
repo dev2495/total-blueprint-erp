@@ -423,83 +423,48 @@ export default function StockIntelligenceTab() {
             ) : (
                 <>
 
-            {/* Critical Action Banner — dark, prominent */}
+            {/* Critical shorts: templates whose stock is below open demand. */}
             {criticalShorts.length > 0 && (
-                <Card style={{
-                    background: "linear-gradient(135deg, #4c1d95 0%, #1e3a8a 50%, #0b1f55 100%)",
-                    color: "#fff",
-                    border: "1px solid rgba(255,255,255,.10)",
-                    boxShadow: "var(--sh-md)",
-                    overflow: "hidden",
-                    position: "relative",
-                }}>
-                    <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
-                        background: "radial-gradient(800px 300px at 100% 0%, rgba(244,63,94,.18), transparent 60%)" }} />
-                    <div style={{ position: "relative" }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <div style={{
-                                    width: 40, height: 40,
-                                    borderRadius: "var(--r-3)",
-                                    background: "rgba(244,63,94,.20)",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                }}>
-                                    <Flame size={20} color="#fda4af" />
-                                </div>
-                                <div>
-                                    <div style={{ fontSize: 10, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".10em", color: "rgba(255,255,255,.6)" }}>
-                                        Critical · Build now
-                                    </div>
-                                    <div style={{ fontFamily: "var(--f-display)", fontSize: 20, fontWeight: 700, color: "#fff", marginTop: 2 }}>
-                                        {criticalShorts.length} template{criticalShorts.length === 1 ? " is" : "s are"} short on stock vs demand
-                                    </div>
-                                </div>
+                <section className="rounded-[18px] border border-danger-border bg-danger-bg p-4 sm:p-5">
+                    <div className="mb-3 flex items-center gap-3">
+                        <span className="grid h-10 w-10 place-items-center rounded-[12px] bg-surface-1 text-danger-fg ring-1 ring-danger-border">
+                            <Flame size={20} aria-hidden />
+                        </span>
+                        <div>
+                            <div className="text-[12.5px] font-medium text-danger-fg">Critical · build now</div>
+                            <div className="font-display text-[19px] font-semibold text-content-1">
+                                {criticalShorts.length} template{criticalShorts.length === 1 ? " is" : "s are"} short on stock vs demand
                             </div>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
-                            {criticalShorts.map((b) => (
-                                <div key={b.templateId} style={{
-                                    padding: "12px 14px",
-                                    background: "rgba(255,255,255,.06)",
-                                    border: "1px solid rgba(255,255,255,.10)",
-                                    borderRadius: "var(--r-3)",
-                                }}>
-                                    <div style={{ fontSize: 11, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 4 }}>
-                                        {b.templateName}
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
-                                        <span style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 650, color: "#fda4af", lineHeight: 1 }}>
-                                            {fmt(b.deficitKg, 0)}
-                                        </span>
-                                        <span style={{ fontSize: 10, color: "rgba(255,255,255,.6)", fontWeight: 700 }}>KG SHORT</span>
-                                    </div>
-                                    <div style={{ fontSize: 10, color: "rgba(255,255,255,.55)", fontFamily: "var(--f-mono)", marginBottom: 8 }}>
-                                        {fmt(b.stockKg, 0)} / {fmt(b.demandKg, 0)} · {b.openOrders} order{b.openOrders === 1 ? "" : "s"}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => b.seed && setLauncherSeed(b.seed)}
-                                        disabled={!b.seed}
-                                        style={{
-                                            width: "100%",
-                                            padding: "7px 10px",
-                                            fontSize: 11, fontWeight: 700,
-                                            background: b.seed ? "rgba(255,255,255,.92)" : "rgba(255,255,255,.18)",
-                                            color: b.seed ? "#0b1f55" : "rgba(255,255,255,.5)",
-                                            border: "none",
-                                            borderRadius: "var(--r-pill)",
-                                            cursor: b.seed ? "pointer" : "not-allowed",
-                                            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
-                                        }}
-                                    >
-                                        <Rocket size={12} />
-                                        Build & release
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
                     </div>
-                </Card>
+                    <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
+                        {criticalShorts.map((b) => (
+                            <div key={b.templateId} className="rounded-[14px] border border-line bg-surface-1 p-3.5">
+                                <div className="truncate text-[12.5px] font-semibold text-content-1" title={b.templateName}>
+                                    {b.templateName}
+                                </div>
+                                <div className="mt-1 flex items-baseline gap-1.5">
+                                    <span className="font-display text-[22px] font-semibold leading-none tabular-nums text-danger-fg">
+                                        {fmt(b.deficitKg, 0)}
+                                    </span>
+                                    <span className="text-[12px] text-content-3">kg short</span>
+                                </div>
+                                <div className="mt-1 text-[12px] tabular-nums text-content-3">
+                                    {fmt(b.stockKg, 0)} in stock / {fmt(b.demandKg, 0)} demand · {b.openOrders} order{b.openOrders === 1 ? "" : "s"}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => b.seed && setLauncherSeed(b.seed)}
+                                    disabled={!b.seed}
+                                    className="mt-2.5 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] bg-primary text-[12.5px] font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-content-4"
+                                >
+                                    <Rocket size={13} aria-hidden />
+                                    Build & release
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </section>
             )}
 
             <Card>

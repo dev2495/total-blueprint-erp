@@ -380,7 +380,7 @@ export default function WorkCenterDashboard() {
   const runningMachines = Number(summary.machines_running || 0);
   const readinessPct = totalMachines > 0 ? (runningMachines / totalMachines) * 100 : 0;
   const generatedLabel = formatGeneratedAt(payload.generated_at || dataUpdatedAt);
-  const syncTone = isFetching ? "border-[color:rgba(37,99,235,0.22)] bg-[color:var(--br-50)] text-[color:var(--br-700)]" : "border-[color:rgba(16,185,129,0.24)] bg-[color:rgba(236,253,245,0.92)] text-[color:var(--e-700)]";
+  const syncTone = isFetching ? "border-info-border bg-info-bg text-info-fg" : "border-success-border bg-success-bg text-success-fg";
   const highActions = needsAction.filter((item) => item.priority === "HIGH").length;
   const mediumActions = needsAction.filter((item) => item.priority === "MEDIUM").length;
   const lowActions = needsAction.filter((item) => item.priority === "LOW").length;
@@ -470,25 +470,25 @@ export default function WorkCenterDashboard() {
 
   return (
     <div className="space-y-5 pb-10">
-      <section className="overflow-hidden rounded-lg border border-[color:rgba(15,23,42,0.1)] bg-[radial-gradient(circle_at_75%_-20%,rgba(37,99,235,0.42),transparent_32%),linear-gradient(135deg,#07111f,#102a50_58%,#17428b)] p-6 text-white shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+      <section className="overflow-hidden rounded-[18px] border border-line bg-surface-1 p-6 shadow-[var(--shadow-sm)]">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-[color:var(--br-200)]">Execution Command Deck</div>
-            <h1 className="mt-2 font-display text-[clamp(2rem,3.5vw,3.4rem)] font-semibold leading-none tracking-[-0.05em]">
+            <div className="text-[12.5px] font-medium text-content-3">Floor · execution command deck</div>
+            <h1 className="mt-1 font-display text-[28px] font-semibold leading-tight tracking-[-0.02em] text-content-1">
               Work Center Command Deck
             </h1>
-            <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-[color:rgba(219,234,254,0.9)]">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-content-3">
               Live WCM control for machine assignment, operator coverage, roll and ink handoff, blockers, downtime, output, scrap, and shift takeover.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button asChild className="h-11 rounded-lg bg-white text-[color:var(--text-1)] hover:bg-[color:hsl(var(--secondary))]">
+            <Button asChild className="h-10 rounded-[10px]">
               <Link href="/production/work-center">
                 <Cpu className="mr-2 h-4 w-4" />
                 Open WCM Terminal
               </Link>
             </Button>
-            <Button asChild variant="outline" className="h-11 rounded-lg border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white">
+            <Button asChild variant="outline" className="h-10 rounded-[10px]">
               <Link href="/production/machine-selector">
                 <Zap className="mr-2 h-4 w-4" />
                 Machine Terminal
@@ -502,14 +502,14 @@ export default function WorkCenterDashboard() {
             {isFetching ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             {isFetching ? "Syncing live floor" : generatedLabel}
           </Badge>
-          <Badge className="gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--text-on-dark)]">
-            <span className="h-2 w-2 rounded-full bg-[color:var(--e-500)] shadow-[0_0_0_4px_rgba(52,211,153,0.16)]" />
+          <Badge variant="secondary" className="gap-2 rounded-lg px-3 py-1.5 text-xs font-medium">
+            <span className="h-2 w-2 rounded-full bg-success-fg" />
             Shift {hero.current_shift || "A"}
           </Badge>
-          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--text-on-dark)]">
+          <Badge variant="secondary" className="rounded-lg px-3 py-1.5 text-xs font-medium">
             {fmt(activeWorkCenterCount)} assigned work centers
           </Badge>
-          <Badge className="rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-[color:var(--text-on-dark)]">
+          <Badge variant="secondary" className="rounded-lg px-3 py-1.5 text-xs font-medium">
             {fmt(needsAction.length)} open WCM actions
           </Badge>
         </div>

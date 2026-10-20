@@ -14,7 +14,6 @@ export const ROLE_OPTIONS = [
   { code: "OPERATOR", name: "Operator", landing: "/production/machine-selector" },
   { code: "STORE", name: "Store", landing: "/inventory/rolls" },
   { code: "DISPATCH", name: "Dispatch", landing: "/dashboard/logistics" },
-  { code: "ENGINEERING", name: "Engineering", landing: "/engineering/artworks" },
   { code: "SALES", name: "Sales", landing: "/sales/orders" },
 ] as const
 

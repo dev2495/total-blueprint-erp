@@ -151,9 +151,6 @@ for (const role of ROLE_OPTIONS) {
       if (role.code === "SALES" && route === "/dashboard/sales") return false
       return true
     })
-    if (role.code === "ENGINEERING" && actualRoutes.includes("/analytics") && !expectedRoutes.includes("/analytics")) {
-      expectedRoutes.unshift("/analytics")
-    }
     await attachJson(page, testInfo, `sidebar-routes-${role.code.toLowerCase()}`, {
       actualRoutes,
       expectedRoutes,

@@ -29,7 +29,6 @@ class DashboardService:
                 'OWNER': DashboardService.get_owner_stats,
                 'ADMIN': DashboardService.get_owner_stats,
                 'SALES': DashboardService.get_sales_stats,
-                'ENGINEERING': DashboardService.get_engineering_stats,
                 'PLANNER': DashboardService.get_planner_stats,
                 'WORK_CENTER_MANAGER': DashboardService.get_wcm_stats,
                 'OPERATOR': DashboardService.get_operator_stats,

@@ -361,7 +361,7 @@ export default function MachineSelectorPage() {
                       </div>
                       <div className="flex flex-col items-end gap-1.5">
                         {isLastUsed ? (
-                          <Badge className="rounded-full bg-success-fg px-2 py-0.5 text-caption font-bold">
+                          <Badge variant="success" className="rounded-full px-2 py-0.5 text-caption font-bold">
                             Last Used
                           </Badge>
                         ) : null}

@@ -42,6 +42,10 @@ export default function ProductionJobPage() {
   const progress = planned > 0 ? Math.min(100, Math.round((produced / planned) * 100)) : 0;
   const state = String(j.job_state || j.status || "").toUpperCase();
   const layers: any[] = Array.isArray(j.layers) ? j.layers : [];
+  // product_spec arrives as an object (labels, axes, size); show its readable label only.
+  const spec: any = j.product_spec && typeof j.product_spec === "object" ? j.product_spec : {};
+  const specLabel = String(spec.display_label || spec.line_label || (typeof j.product_spec === "string" ? j.product_spec : "") || j.template_name || "");
+  const productLabel = String(spec.product_master_name || j.product_name || j.template_name || "");
 
   if (job.isError) {
     return (
@@ -62,7 +66,7 @@ export default function ProductionJobPage() {
         eyebrow="Production job"
         icon={<ClipboardList />}
         title={job.data ? j.job_number : "Loading job…"}
-        description={job.data ? [j.product_name || j.template_name, j.customer_name].filter(Boolean).join(" · ") : undefined}
+        description={job.data ? [productLabel, j.customer_name].filter(Boolean).join(" · ") : undefined}
         meta={
           job.data ? (
             <>
@@ -94,7 +98,7 @@ export default function ProductionJobPage() {
           <HeroStat label="Planned" value={job.data ? qty(j.quantity, j.uom) : "—"} hint={j.total_weight_kg ? `${qty(j.total_weight_kg)} kg total` : undefined} />
           <HeroStat label="Produced" tone="good" value={job.data ? qty(j.produced_qty, j.uom) : "—"} hint={`${progress}% of plan`} />
           <HeroStat label="Remaining" value={job.data ? qty(j.remaining_qty, j.uom) : "—"} />
-          <HeroStat label="Process" value={job.data ? j.process_code || sentence(j.process_category) || "—" : "—"} hint={j.current_process || undefined} />
+          <HeroStat label="Process" value={job.data ? j.process_code || sentence(j.process_category) || "—" : "—"} hint={j.process_category ? sentence(j.process_category) : undefined} />
         </HeroStats>
       </PageHero>
 
@@ -112,14 +116,13 @@ export default function ProductionJobPage() {
                 ["Planned for", j.planned_date],
                 ["Production batch", j.production_batch_number],
                 ["Order line", j.sales_order_line_label],
-                ["From", j.from_location],
-                ["To", j.to_location],
+                ["Product master", spec.product_master_code],
                 ["Input → output", [j.input_form, j.output_form].filter(Boolean).join(" → ")],
                 ["Closed", j.closed_at ? new Date(j.closed_at).toLocaleString("en-IN") : ""],
               ].map(([label, value]) => (
                 <div key={label as string}>
                   <dt className="text-[11.5px] text-content-3">{label}</dt>
-                  <dd className="mt-0.5 font-medium text-content-1">{value ? String(value) : "—"}</dd>
+                  <dd className="mt-0.5 font-medium text-content-1">{value && typeof value !== "object" ? String(value) : "—"}</dd>
                 </div>
               ))}
             </dl>
@@ -139,18 +142,18 @@ export default function ProductionJobPage() {
               ) : null}
             </div>
           </Panel>
-          <Panel icon={<Layers />} title="Specification" description={j.product_spec || j.template_name || undefined}>
+          <Panel icon={<Layers />} title="Specification" description={specLabel || undefined}>
             {layers.length ? (
               <ul className="space-y-2">
                 {layers.map((layer: any, index: number) => (
                   <li key={index} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-[12.5px]">
                     <span className="flex items-center gap-2">
                       <span className="grid h-5 w-5 place-items-center rounded-md bg-surface-1 text-caption font-semibold text-content-3">{index + 1}</span>
-                      <span className="text-content-1">{layer.material_code || layer.material_name || layer.name || `Layer ${index + 1}`}</span>
+                      <span className="text-content-1">{layer.variant_name || layer.material_code || layer.material_name || layer.name || `Layer ${index + 1}`}</span>
                     </span>
                     <span className="tabular-nums text-content-3">
                       {layer.thickness_micron || layer.thickness_um ? `${layer.thickness_micron || layer.thickness_um} µ` : ""}
-                      {layer.grade_code ? ` · ${layer.grade_code}` : ""}
+                      {layer.grade_name || layer.grade_code ? ` · ${layer.grade_name || layer.grade_code}` : ""}
                     </span>
                   </li>
                 ))}

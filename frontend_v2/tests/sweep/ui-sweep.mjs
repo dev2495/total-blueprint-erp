@@ -45,7 +45,7 @@ for (const width of widths) {
     page.on("pageerror", (e) => issues.pageErrors.push(String(e.message || e).slice(0, 240)))
     page.on("response", (r) => {
       const u = r.url()
-      if (u.includes("/api/") && r.status() >= 400) issues.badCalls.push(`${r.status()} ${r.request().method()} ${u.replace(/^https?:\/\/[^/]+/, "").slice(0, 140)}`)
+      if (r.status() >= 400) issues.badCalls.push(`${r.status()} ${r.request().method()} ${u.replace(/^https?:\/\/[^/]+/, "").slice(0, 140)}`)
     })
     const started = Date.now()
     let status = 0

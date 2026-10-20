@@ -157,7 +157,6 @@ export default function GovernancePage() {
       "OWNER",
       "ADMIN",
       "SALES",
-      "ENGINEERING",
       "PLANNER",
       "WORK_CENTER_MANAGER",
       "STORE",
@@ -704,7 +703,7 @@ export default function GovernancePage() {
                         </TableCell>
                         <TableCell>
                           {rule.active ? (
-                            <Badge className="bg-success-fg">ACTIVE</Badge>
+                            <Badge variant="success">ACTIVE</Badge>
                           ) : (
                             <Badge variant="secondary">INACTIVE</Badge>
                           )}
@@ -912,7 +911,7 @@ export default function GovernancePage() {
                           </TableCell>
                           <TableCell>
                             {row.approved ? (
-                              <Badge className="bg-success-fg">APPROVED</Badge>
+                              <Badge variant="success">APPROVED</Badge>
                             ) : (
                               <Badge variant="secondary">PENDING</Badge>
                             )}
@@ -1011,7 +1010,7 @@ export default function GovernancePage() {
                         <TableCell>{row.pending}</TableCell>
                         <TableCell>
                           {row.ready ? (
-                            <Badge className="bg-success-fg">
+                            <Badge variant="success">
                               <CheckCircle2 className="h-3 w-3 mr-1" /> READY
                             </Badge>
                           ) : (

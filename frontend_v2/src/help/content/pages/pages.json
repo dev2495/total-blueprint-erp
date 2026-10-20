@@ -16,7 +16,6 @@
       "OPERATOR",
       "STORE",
       "DISPATCH",
-      "ENGINEERING",
       "PLANT_MANAGER"
     ],
     "summary": {
@@ -273,8 +272,7 @@
       "OWNER",
       "SUPER_ADMIN",
       "PLANNER",
-      "PLANT_MANAGER",
-      "ENGINEERING"
+      "PLANT_MANAGER"
     ],
     "summary": {
       "en": "Capability Matrix gives owners and managers report-ready numbers with traceable filters and export context.",
@@ -3242,7 +3240,6 @@
       "WORK_CENTER_MANAGER",
       "STORE",
       "DISPATCH",
-      "ENGINEERING",
       "PLANT_MANAGER"
     ],
     "summary": {
@@ -3492,8 +3489,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this dashboard to monitor live KPIs, exceptions, and quick actions.",
@@ -5280,8 +5276,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Engineering Hub keeps artwork, color, tooling, and approval readiness visible before production release.",
@@ -5405,8 +5400,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this page to govern technical definitions, approvals, and production templates.",
@@ -5532,8 +5526,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this page to govern technical definitions, approvals, and production templates.",
@@ -5657,8 +5650,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this page to govern technical definitions, approvals, and production templates.",
@@ -5785,8 +5777,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this page to govern technical definitions, approvals, and production templates.",
@@ -5913,8 +5904,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this page to govern technical definitions, approvals, and production templates.",
@@ -6041,8 +6031,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this page to govern technical definitions, approvals, and production templates.",
@@ -6169,8 +6158,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Use this page to govern technical definitions, approvals, and production templates.",
@@ -6294,8 +6282,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "SUPER_ADMIN",
-      "ENGINEERING"
+      "SUPER_ADMIN"
     ],
     "summary": {
       "en": "Tool Room keeps artwork, color, tooling, and approval readiness visible before production release.",
@@ -6420,7 +6407,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER",
       "WORK_CENTER_MANAGER"
@@ -6548,7 +6534,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER",
       "WORK_CENTER_MANAGER"
@@ -6679,7 +6664,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER",
       "WORK_CENTER_MANAGER"
@@ -6810,7 +6794,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER",
       "WORK_CENTER_MANAGER"
@@ -6941,7 +6924,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER",
       "WORK_CENTER_MANAGER"
@@ -7072,7 +7054,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER",
       "WORK_CENTER_MANAGER"
@@ -7203,7 +7184,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER",
       "WORK_CENTER_MANAGER"
@@ -7340,7 +7320,6 @@
       "OPERATOR",
       "STORE",
       "DISPATCH",
-      "ENGINEERING",
       "PLANT_MANAGER"
     ],
     "summary": {
@@ -7474,7 +7453,6 @@
       "OPERATOR",
       "STORE",
       "DISPATCH",
-      "ENGINEERING",
       "PLANT_MANAGER"
     ],
     "summary": {
@@ -7605,7 +7583,6 @@
       "OPERATOR",
       "STORE",
       "DISPATCH",
-      "ENGINEERING",
       "PLANT_MANAGER"
     ],
     "summary": {
@@ -9989,7 +9966,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -10119,7 +10095,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -10246,7 +10221,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -10500,7 +10474,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -10629,7 +10602,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -10758,7 +10730,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -10887,7 +10858,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -11016,7 +10986,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -11145,7 +11114,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -11274,8 +11242,7 @@
       "ADMIN",
       "OWNER",
       "SALES",
-      "PLANNER",
-      "ENGINEERING"
+      "PLANNER"
     ],
     "summary": {
       "en": "Product Masters define base product logic, axes, geometry, layers, templates, packing allowances, and variant derivation.",
@@ -11800,7 +11767,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -11929,7 +11895,6 @@
       "ADMIN",
       "OWNER",
       "SUPER_ADMIN",
-      "ENGINEERING",
       "PLANNER",
       "STORE"
     ],
@@ -13745,7 +13710,6 @@
       "OPERATOR",
       "STORE",
       "DISPATCH",
-      "ENGINEERING",
       "PLANT_MANAGER"
     ],
     "summary": {
@@ -17633,8 +17597,7 @@
       "ADMIN",
       "OWNER",
       "SALES",
-      "PLANNER",
-      "ENGINEERING"
+      "PLANNER"
     ],
     "summary": {
       "en": "Pouch Styles maintains pouch construction choices used by sales, product master, and packing.",
@@ -17774,8 +17737,7 @@
       "ADMIN",
       "OWNER",
       "SALES",
-      "PLANNER",
-      "ENGINEERING"
+      "PLANNER"
     ],
     "summary": {
       "en": "New Pouch Style creates a controlled pouch-style master record.",
@@ -17915,8 +17877,7 @@
       "ADMIN",
       "OWNER",
       "SALES",
-      "PLANNER",
-      "ENGINEERING"
+      "PLANNER"
     ],
     "summary": {
       "en": "Pouch Style Detail edits one pouch-style master record.",
@@ -18472,8 +18433,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "PLANNER",
-      "ENGINEERING"
+      "PLANNER"
     ],
     "summary": {
       "en": "Web Width Policies define allowed parent/child web-width planning rules.",
@@ -18612,8 +18572,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "PLANNER",
-      "ENGINEERING"
+      "PLANNER"
     ],
     "summary": {
       "en": "New Web Width Policy creates a validated width-planning rule.",
@@ -18752,8 +18711,7 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "PLANNER",
-      "ENGINEERING"
+      "PLANNER"
     ],
     "summary": {
       "en": "Web Width Policy Detail edits one web-width planning rule.",
@@ -21428,7 +21386,6 @@
     "roles": [
       "ADMIN",
       "OWNER",
-      "ENGINEERING",
       "PLANNER",
       "PLANT_MANAGER"
     ],

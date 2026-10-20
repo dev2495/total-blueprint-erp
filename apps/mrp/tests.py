@@ -227,6 +227,12 @@ class MRPViewSetFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], str(self.other_plan.id))
 
+        # Before any plan completes the page gets an empty answer, not a 404.
+        MRPPlan.objects.filter(status="COMPLETED").update(status="FAILED")
+        response = view(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data)
+
     def test_suggestions_get_queryset_filters_by_plan_and_material(self):
         included = MRPSuggestion.objects.create(
             plan=self.plan,

@@ -2,6 +2,7 @@
 
 import type { DecisionFlow, HelpLocale } from "@/help/types";
 import { localize } from "@/help/resolver";
+import { HELP_PNG_KEYS } from "@/help/screenshot-keys";
 
 export function HelpScreenshotImage({
   imageKey,
@@ -12,7 +13,7 @@ export function HelpScreenshotImage({
 }) {
   return (
     <img
-      src={`/help/screenshots/${imageKey}.png`}
+      src={`/help/screenshots/${imageKey}.${HELP_PNG_KEYS.has(imageKey) ? "png" : "svg"}`}
       alt={imageKey}
       className={
         compact
@@ -22,9 +23,9 @@ export function HelpScreenshotImage({
       loading="lazy"
       onError={(event) => {
         const image = event.currentTarget;
-        if (image.dataset.fallback === "svg") return;
-        image.dataset.fallback = "svg";
-        image.src = `/help/screenshots/${imageKey}.svg`;
+        if (image.dataset.fallback === "done") return;
+        image.dataset.fallback = "done";
+        image.src = `/help/screenshots/${imageKey}.${HELP_PNG_KEYS.has(imageKey) ? "svg" : "png"}`;
       }}
     />
   );

@@ -535,10 +535,7 @@ export const inventoryService = {
      * without requiring a new backend deploy.
      */
     getWipAging: async (params?: { plant_id?: string; klass?: string }): Promise<WipAgingResponse> => {
-        try {
-            const { data } = await api.get<WipAgingResponse>("/api/inventory/wip/aging/", { params })
-            if (data && Array.isArray((data as any).pools)) return data
-        } catch {/* fall through to local derive */}
+        // There is no dedicated backend endpoint; the view is derived from roll and bulk stock.
         return deriveWipAgingLocally(params)
     },
 

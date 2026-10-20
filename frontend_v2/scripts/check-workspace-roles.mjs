@@ -4,7 +4,7 @@ import jitiFactory from "jiti";
 const jiti = jitiFactory(new URL(import.meta.url).pathname, { alias: { "@": new URL("../src", import.meta.url).pathname }, interopDefault: true });
 const nav = jiti("../src/lib/sidebar-nav.ts");
 const ws = jiti("../src/lib/workspaces.ts");
-const ROLES = ["ADMIN", "OWNER", "SUPER_ADMIN", "SALES", "PLANNER", "WORK_CENTER_MANAGER", "OPERATOR", "STORE", "DISPATCH", "ENGINEERING", "PLANT_MANAGER", "WATCHMAN", "MAINTENANCE_TECH", "MAINTENANCE_SUPERVISOR", "ACCOUNTS"];
+const ROLES = ["ADMIN", "OWNER", "SUPER_ADMIN", "SALES", "PLANNER", "WORK_CENTER_MANAGER", "OPERATOR", "STORE", "DISPATCH", "PLANT_MANAGER", "WATCHMAN", "MAINTENANCE_TECH", "MAINTENANCE_SUPERVISOR", "ACCOUNTS"];
 let failed = 0;
 for (const role of ROLES) {
   const ctx = { currentRoleCode: role, baseRoleCode: role, isOwner: role === "OWNER", isSuperuser: false, grantedPermissions: [] };
