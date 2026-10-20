@@ -180,7 +180,7 @@ class InkFloorStockTests(TestCase):
         start_at = timezone.make_aware(datetime(2026, 6, 14, 8, 0, 0))
         count_at = start_at + timedelta(hours=5)
 
-        process = Process.objects.create(code="INK_FLOW_PRINT", name="Ink Flow Print")
+        process = Process.objects.create(code="INK_FLOW_PRINT", name="Ink Flow Print", print_capable=True, has_artwork=True)
         route = RoutingRule.objects.create(name="Ink Flow Route", ordered_processes=[process.code])
         template = TemplateBlueprint.objects.create(
             name="Ink Flow Print Template",
@@ -411,3 +411,50 @@ class InkFloorStockTests(TestCase):
         references = {row["reference"] for row in response.data}
         self.assertIn(first.reference, references)
         self.assertNotIn(second.reference, references)
+
+
+class InkTheoryPerPrintJobTests(TestCase):
+    """Theory ink is charged once per print job, for the share of the print step logged in the
+    window: three entries are not three full-order charges and pouching carries no ink."""
+
+    def test_three_entries_on_half_the_job_charge_half_the_order_ink_once(self):
+        plant = Plant.objects.create(name="Theory Plant", code="THEORY-P")
+        floor = InventoryLocation.objects.create(plant=plant, code="THEORY-FLOOR", name="Ink floor", type="WIP")
+        printing = Process.objects.create(code="THEORY_PRT", name="Printing", print_capable=True, has_artwork=True)
+        pouching = Process.objects.create(code="THEORY_PCH", name="Pouching")
+        route = RoutingRule.objects.create(name="Theory route", ordered_processes=[printing.code, pouching.code])
+        template = TemplateBlueprint.objects.create(name="Theory template", fg_type="POUCH", status="LIVE", routing_rule=route)
+        wc = WorkCenter.objects.create(plant=plant, code="THEORY-WC", name="Theory WC", default_wip_location=floor)
+        order = SalesOrder.objects.create(customer_name="Theory Customer", status="CONFIRMED", order_number="SO-THEORY-1")
+        item = SalesOrderItem.objects.create(
+            sales_order=order, template=template, qty_value=Decimal("10000"), qty_uom="PCS", unit_price=Decimal("1"),
+            bom_snapshot={"inks": [{"weight_kg": 8.0}]},
+        )
+        start_at = timezone.make_aware(datetime(2026, 6, 20, 8, 0, 0))
+        jobs = {}
+        for code, process in (("PRT", printing), ("PCH", pouching)):
+            jobs[code] = ProductionJob.objects.create(
+                job_number=f"THEORY-{code}", template=template, sales_order_item=item, routing_rule=route,
+                current_process=process, process=process, work_center=wc, from_location=floor,
+                quantity=Decimal("10000"), uom="PCS", remaining_qty=Decimal("10000"),
+            )
+        for minutes, pcs in ((10, 2000), (40, 2000), (70, 1000)):  # 5,000 of 10,000 printed
+            log = JobExecutionLog.objects.create(production_job=jobs["PRT"], quantity=Decimal(pcs), uom="PCS")
+            JobExecutionLog.objects.filter(id=log.id).update(logged_at=start_at + timedelta(minutes=minutes))
+        log = JobExecutionLog.objects.create(production_job=jobs["PCH"], quantity=Decimal("3000"), uom="PCS")
+        JobExecutionLog.objects.filter(id=log.id).update(logged_at=start_at + timedelta(minutes=90))
+
+        rows = InkFloorService._theory_rows_from_jobs(plant_id=plant.id, location_id=floor.id, start_at=start_at, end_at=start_at + timedelta(hours=4))
+
+        self.assertEqual(len(rows), 1, "one row for the print job; pouching carries no ink")
+        self.assertEqual(rows[0]["job_number"], "THEORY-PRT")
+        self.assertEqual(rows[0]["theory_ink_kg"], Decimal("4.0000"), "half the job printed = half the order's 8 kg")
+
+    def test_order_ink_comes_from_the_planning_total_not_the_per_piece_row(self):
+        item = SalesOrderItem(
+            unit_weight_g=Decimal("11.26"), total_weight_kg=Decimal("500"),
+            bom_snapshot={"inks": [{"weight_kg": 0.000281}], "planning_lines": [{"category_code": "INK", "per_unit_qty": 0.000281, "theoretical_qty": 12.4688}]},
+        )
+        self.assertEqual(InkFloorService._order_ink_kg(item), Decimal("12.4688"))
+        item.bom_snapshot = {"inks": [{"weight_kg": 0.000281}]}  # older snapshot: per piece x pieces
+        self.assertAlmostEqual(float(InkFloorService._order_ink_kg(item)), 0.000281 * 500000 / 11.26, places=3)

@@ -43,6 +43,7 @@ import { normalizeProductSpec } from "@/lib/product-spec";
 import { MadeCard } from "@/components/spine/made-card";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
+import { StepFeedCard } from "@/components/spine/step-feed";
 import type { SpineMade } from "@/services/spine";
 import {
   ALL_PRODUCTION_FACET,
@@ -3103,6 +3104,7 @@ export default function MachineExecutionPage() {
               </main>
 
               <aside className="order-3 min-w-0 space-y-4 xl:col-span-2 2xl:sticky 2xl:top-[9rem] 2xl:col-span-1 2xl:max-h-[calc(100vh-10rem)] 2xl:overflow-y-auto 2xl:pr-1">
+                <StepFeedCard feed={(context as any)?.upstream_feed} testId="machine-step-feed" />
                 <InputFeedCard
                   reservedRolls={reservedRolls}
                   wipRolls={rightRailRolls}

@@ -394,3 +394,27 @@ class SkippedCombineStepTests(RollLaneFixture, TestCase):
         _item, jobs = self._linear(["EXT", "LAM", "PRT"])
         self.assertNotIn(1, jobs, "one layer: the combine step gets no job")
         self.assertEqual(ExecutionService._input_gate_step_index(jobs[2]), 2, "extrusion upstream still feeds printing")
+
+
+@patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+@patch("apps.production.services.job_services.require_bom_ready_for_production")
+class UpstreamFeedTests(RollLaneFixture, TestCase):
+    """The feed keeps a step's own target apart from what the steps before it have handed over."""
+
+    _linear = SingleLaneFlowTests._linear
+
+    def test_next_step_can_run_only_what_the_previous_step_has_made(self, *_):
+        item, jobs = self._linear(["EXT", "PRT"], qty=D("300"))
+        ext, prt = jobs[0], jobs[1]
+        made = self._roll(item, ext, self.film, 62, 100, "FEED-100", 1)  # 100 of 300 made upstream, still running
+        feed = ExecutionService.upstream_feed(prt)
+        self.assertEqual(len(feed["steps"]), 1)
+        self.assertFalse(feed["upstream_done"])
+        self.assertEqual(feed["waiting_kg"], 100.0)
+        self.assertEqual(feed["loaded_kg"], 0.0)
+        self.assertEqual(feed["can_run_now_kg"], min(100.0, feed["step_remaining_kg"]))
+        self.assertGreater(feed["step_target_kg"], feed["can_run_now_kg"], "the step's own target stays separate")
+        assignment = self._assignment(prt)
+        WCManagerService.assign_rolls(assignment.id, [str(made.id)], user=self.user)
+        feed = ExecutionService.upstream_feed(prt)
+        self.assertEqual((feed["loaded_kg"], feed["waiting_kg"]), (100.0, 0.0))

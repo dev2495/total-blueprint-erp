@@ -453,6 +453,26 @@ class InkFloorService:
         }
         return q4(InkFloorMovement.objects.filter(**filters).aggregate(total=Sum("qty_kg")).get("total") or Decimal("0"))
 
+    @staticmethod
+    def _order_ink_kg(item) -> Decimal:
+        """Theory ink for the whole order line. The BOM's ink rows are per piece; the planning
+        lines carry the order total, so use those, else per-piece ink x pieces in the line."""
+        bom = getattr(item, "bom_snapshot", None) or {}
+        if not isinstance(bom, dict):
+            return Decimal("0")
+        planned = Decimal("0")
+        for row in bom.get("planning_lines") or []:
+            if isinstance(row, dict) and str(row.get("category_code") or "").upper() == "INK":
+                planned += Decimal(str(row.get("theoretical_qty") or row.get("planned_issue_qty") or 0))
+        if planned > 0:
+            return planned
+        inks = bom.get("inks") if isinstance(bom.get("inks"), list) else []
+        per_unit = sum((Decimal(str(row.get("weight_kg") or 0)) for row in inks if isinstance(row, dict)), Decimal("0"))
+        unit_g = Decimal(str(getattr(item, "unit_weight_g", 0) or 0))
+        total_kg = Decimal(str(getattr(item, "total_weight_kg", 0) or 0))
+        pieces = (total_kg * Decimal("1000") / unit_g) if unit_g > 0 and total_kg > 0 else Decimal("1")
+        return per_unit * pieces
+
     @classmethod
     def _theory_rows_from_jobs(cls, *, plant_id, location_id, start_at, end_at):
         try:
@@ -468,7 +488,7 @@ class InkFloorService:
         rows = []
         logs = (
             JobExecutionLog.objects.filter(logged_at__gte=start_at, logged_at__lte=end_at)
-            .select_related("production_job", "production_job__sales_order_item", "production_job__sales_order_item__sales_order")
+            .select_related("production_job", "production_job__current_process", "production_job__process", "production_job__sales_order_item", "production_job__sales_order_item__sales_order")
             .order_by("logged_at")
         )
         if plant_id:
@@ -479,23 +499,87 @@ class InkFloorService:
                 | Q(production_job__from_location_id=location_id)
                 | Q(production_job__to_location_id=location_id)
             )
+        # One theory row per print job: the order's BOM ink scaled by the share of the print step
+        # that was logged in this window. Each output entry is not a fresh full-order ink charge,
+        # and non-print steps (lamination, pouching) of a printed order carry no ink.
+        logged = {}
         for log in logs:
             job = log.production_job
-            item = getattr(job, "sales_order_item", None)
-            bom = getattr(item, "bom_snapshot", None) or {}
-            inks = bom.get("inks") if isinstance(bom, dict) else []
-            if not isinstance(inks, list):
-                inks = []
-            theory = sum((Decimal(str(row.get("weight_kg") or 0)) for row in inks if isinstance(row, dict)), Decimal("0"))
-            if theory <= 0:
+            process = getattr(job, "current_process", None) or getattr(job, "process", None)
+            if not (getattr(process, "print_capable", False) or getattr(process, "has_artwork", False)):
                 continue
+            entry = logged.setdefault(job.id, {"job": job, "same_uom": Decimal("0"), "kg": Decimal("0")})
+            qty = Decimal(str(log.quantity or 0))
+            log_uom = str(log.uom or "KG").upper()
+            if log_uom == "KG":
+                entry["kg"] += qty  # measured against the print step's own kilo target
+            elif log_uom == str(job.uom or "").upper():
+                entry["same_uom"] += qty
+            else:
+                unit_g = Decimal(str(getattr(getattr(job, "sales_order_item", None), "unit_weight_g", 0) or 0))
+                if unit_g > 0:
+                    entry["kg"] += qty * unit_g / Decimal("1000")
+                else:
+                    entry["same_uom"] += qty
+        if not logged:
+            return rows
+        from apps.production.services.services_execution import ExecutionService
+
+        for entry in logged.values():
+            job = entry["job"]
+            item = getattr(job, "sales_order_item", None)
+            order_ink = cls._order_ink_kg(item)
+            if order_ink <= 0:
+                continue
+            share = Decimal("0")
+            planned = Decimal(str(job.quantity or 0))
+            if entry["same_uom"] > 0:
+                share += entry["same_uom"] / planned if planned > 0 else Decimal("1")
+            if entry["kg"] > 0:
+                try:
+                    target = Decimal(str(ExecutionService.get_step_execution_profile(str(job.id), job=job).get("step_target_total_kg") or 0))
+                except Exception:
+                    logger.warning("Ink theory: print step target unavailable for job=%s", getattr(job, "id", None), exc_info=True)
+                    target = Decimal("0")
+                share += entry["kg"] / target if target > 0 else Decimal("1")
+            share = min(Decimal("1"), share)
             rows.append(
                 {
                     "job_number": getattr(job, "job_number", ""),
                     "job_id": str(getattr(job, "id", "") or ""),
                     "sales_order": getattr(getattr(item, "sales_order", None), "order_number", "") if item else "",
                     "sales_order_item_id": str(getattr(item, "id", "") or "") if item else "",
-                    "theory_ink_kg": theory,
+                    "printed_share": float(q4(share)),
+                    "theory_ink_kg": q4(order_ink * share),
+                }
+            )
+        return rows
+        from apps.production.services.services_execution import ExecutionService
+
+        for entry in logged.values():
+            job = entry["job"]
+            item = getattr(job, "sales_order_item", None)
+            bom = getattr(item, "bom_snapshot", None) or {}
+            inks = bom.get("inks") if isinstance(bom, dict) else []
+            if not isinstance(inks, list):
+                inks = []
+            order_ink = sum((Decimal(str(row.get("weight_kg") or 0)) for row in inks if isinstance(row, dict)), Decimal("0"))
+            if order_ink <= 0:
+                continue
+            try:
+                target = Decimal(str(ExecutionService.get_step_execution_profile(str(job.id), job=job).get("step_target_total_kg") or 0))
+            except Exception:
+                logger.warning("Ink theory: print step target unavailable for job=%s", getattr(job, "id", None), exc_info=True)
+                target = Decimal("0")
+            share = min(Decimal("1"), entry["kg"] / target) if target > 0 else Decimal("1")
+            rows.append(
+                {
+                    "job_number": getattr(job, "job_number", ""),
+                    "job_id": str(getattr(job, "id", "") or ""),
+                    "sales_order": getattr(getattr(item, "sales_order", None), "order_number", "") if item else "",
+                    "sales_order_item_id": str(getattr(item, "id", "") or "") if item else "",
+                    "printed_kg": float(q4(entry["kg"])),
+                    "theory_ink_kg": q4(order_ink * share),
                 }
             )
         return rows

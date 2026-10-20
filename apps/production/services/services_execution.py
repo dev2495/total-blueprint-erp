@@ -539,6 +539,146 @@ class ExecutionService:
         return real_index
 
     @classmethod
+    def upstream_feed(cls, job):
+        """Read-only feed figures for one step, kept apart so the floor never mixes them up.
+
+        - steps: each step before this one on the same order line / batch, with its own target,
+          produced and remaining kilos (parallel printing and extrusion show as two rows);
+        - lanes: for a lamination step, each lane's share, what it still needs and the film on hand
+          for it; the combinable output is limited by the scarcest lane (on hand / share);
+        - on_hand_kg: rolls reserved for this step plus finished output of the steps before it that
+          is still free;
+        - can_run_now_kg: what this step can produce with that input, capped at its remaining target.
+        Nothing here changes a rule; it reads the same targets and rolls the machine uses.
+        """
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        rule = getattr(job, "routing_rule", None)
+        node = None
+        try:
+            node = cls._route_node_for_job(job)
+        except Exception:
+            node = None
+        scope = ProductionJob.objects.exclude(job_state="CANCELLED").exclude(id=job.id)
+        if getattr(job, "production_batch_id", None):
+            scope = scope.filter(production_batch_id=job.production_batch_id)
+        elif getattr(job, "sales_order_item_id", None):
+            scope = scope.filter(sales_order_item_id=job.sales_order_item_id)
+        elif getattr(job, "mts_order_id", None):
+            scope = scope.filter(mts_order_id=job.mts_order_id)
+        else:
+            scope = scope.none()
+        if rule is not None:
+            scope = scope.filter(routing_rule=rule)
+        pred_ids = list((node or {}).get("predecessor_node_ids") or [])
+        graph = RouteGraphService.normalize(rule) if rule is not None else {"by_id": {}}
+        # Every step before this one: a later lamination pass can take film made several steps back.
+        ancestor_ids, stack = [], list(pred_ids)
+        while stack:
+            node_id = stack.pop()
+            if node_id in ancestor_ids:
+                continue
+            ancestor_ids.append(node_id)
+            stack.extend((graph["by_id"].get(node_id) or {}).get("predecessor_node_ids") or [])
+        ancestor_jobs = {j.route_node_id: j for j in scope.filter(route_node_id__in=ancestor_ids)} if ancestor_ids else {}
+        by_node = {node_id: ancestor_jobs[node_id] for node_id in pred_ids if node_id in ancestor_jobs}
+
+        reserved_ids = set(
+            InventoryReservation.objects.filter(job=job, status="ACTIVE").values_list("roll_id", flat=True)
+        )
+        reserved = list(InventoryRoll.objects.filter(id__in=reserved_ids).select_related("material"))
+        free_outputs = list(
+            InventoryRoll.objects.filter(created_by_job__in=list(ancestor_jobs.values()), status="AVAILABLE")
+            .exclude(id__in=reserved_ids)
+            .exclude(reservations__status="ACTIVE")
+            .select_related("material")
+            .distinct()
+        ) if ancestor_jobs else []
+        on_hand = reserved + free_outputs
+        loaded_kg = sum((cls._safe_decimal(r.weight_kg) for r in reserved), Decimal("0"))
+        waiting_kg = sum((cls._safe_decimal(r.weight_kg) for r in free_outputs), Decimal("0"))
+        on_hand_kg = loaded_kg + waiting_kg
+
+        me = cls.get_step_execution_profile(str(job.id), job=job)
+        remaining_kg = cls._safe_decimal(me.get("step_remaining_kg") or 0)
+
+        lanes = []
+        capacity_kg = on_hand_kg
+        try:
+            requirement = cls._roll_requirement(job)
+        except Exception:
+            requirement = {}
+        if (requirement or {}).get("mode") == "LANES" and len(requirement.get("lanes") or []) > 1:
+            caps = []
+            for lane in requirement["lanes"]:
+                name = str(lane.get("material_name") or "")
+                key = name.replace(" ", "-").upper()
+                share = cls._safe_decimal(lane.get("share") or 0)
+
+                def matches(roll):
+                    is_laminate = bool((roll.meta_json or {}).get("is_laminate"))
+                    if name == "Laminate from earlier pass":
+                        return is_laminate
+                    material = roll.material
+                    codes = {str(getattr(material, "name", "") or "").replace(" ", "-").upper(), str(getattr(material, "code", "") or "").replace(" ", "-").upper()}
+                    return not is_laminate and key in codes
+
+                lane_loaded = sum((cls._safe_decimal(r.weight_kg) for r in reserved if matches(r)), Decimal("0"))
+                lane_waiting = sum((cls._safe_decimal(r.weight_kg) for r in free_outputs if matches(r)), Decimal("0"))
+                lane_kg = lane_loaded + lane_waiting
+                if share > 0:
+                    caps.append(lane_kg / share)
+                lanes.append({
+                    "label": lane.get("label") or lane.get("lane_key"),
+                    "material_name": name,
+                    "share": float(share),
+                    "need_kg": float(lane.get("need_kg") or 0),
+                    "loaded_kg": float(lane_loaded.quantize(Decimal("0.001"))),
+                    "waiting_kg": float(lane_waiting.quantize(Decimal("0.001"))),
+                    "on_hand_kg": float(lane_kg.quantize(Decimal("0.001"))),
+                })
+                for feeder in ancestor_jobs.values():
+                    if feeder.route_node_id not in by_node and any(r.created_by_job_id == feeder.id and matches(r) for r in on_hand):
+                        by_node[feeder.route_node_id] = feeder
+            capacity_kg = min(caps) if caps else Decimal("0")
+        steps = []
+        ordered = pred_ids + [node_id for node_id in by_node if node_id not in pred_ids]
+        for pred_id in ordered:
+            pred = by_node.get(pred_id)
+            pred_node = graph["by_id"].get(pred_id) or {}
+            if pred is None:
+                steps.append({"node_id": pred_id, "process_code": pred_node.get("process_code") or "", "skipped": True})
+                continue
+            prof = cls.get_step_execution_profile(str(pred.id), job=pred)
+            steps.append({
+                "node_id": pred_id,
+                "job_id": str(pred.id),
+                "job_number": pred.job_number,
+                "process_code": pred_node.get("process_code") or getattr(getattr(pred, "current_process", None) or pred.process, "code", ""),
+                "job_state": pred.job_state,
+                "done": pred.job_state == "COMPLETED",
+                "target_kg": float(cls._safe_decimal(prof.get("step_target_total_kg") or 0)),
+                "produced_kg": float(cls._safe_decimal(prof.get("step_produced_kg") or 0)),
+                "remaining_kg": float(cls._safe_decimal(prof.get("step_remaining_kg") or 0)),
+                "feeds_lane": pred_id not in pred_ids,
+            })
+
+        can_run_now = max(Decimal("0"), min(capacity_kg, remaining_kg))
+        return {
+            "steps": steps,
+            "lanes": lanes,
+            "upstream_done": all(s.get("done") or s.get("skipped") for s in steps) if steps else True,
+            "step_target_kg": float(cls._safe_decimal(me.get("step_target_total_kg") or 0)),
+            "step_produced_kg": float(cls._safe_decimal(me.get("step_produced_kg") or 0)),
+            "step_remaining_kg": float(remaining_kg),
+            "loaded_kg": float(loaded_kg.quantize(Decimal("0.001"))),
+            "waiting_kg": float(waiting_kg.quantize(Decimal("0.001"))),
+            "on_hand_kg": float(on_hand_kg.quantize(Decimal("0.001"))),
+            "combinable_kg": float(capacity_kg.quantize(Decimal("0.001"))) if lanes else None,
+            "can_run_now_kg": float(can_run_now.quantize(Decimal("0.001"))),
+        }
+
+    @classmethod
     def _upstream_steps_all_skipped(cls, job, node):
         """True when every step upstream of this job is one the line skips, so no job exists for it.
 
@@ -7105,8 +7245,14 @@ class ExecutionService:
             }
 
         continuation_banner = cls._build_continuation_banner(job)
+        try:
+            upstream_feed = cls.upstream_feed(job)
+        except Exception:
+            logger.warning("upstream feed failed for job=%s", getattr(job, "id", None), exc_info=True)
+            upstream_feed = None
 
         return {
+            'upstream_feed': upstream_feed,
             'display': {
                 'template_name': job.template.name if job.template else "Custom",
                 'product_name': job.template.name if job.template else job.product_name,

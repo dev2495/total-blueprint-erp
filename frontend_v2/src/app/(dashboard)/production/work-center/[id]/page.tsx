@@ -50,6 +50,7 @@ import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/compone
 import { MadeCard } from "@/components/spine/made-card";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
+import { StepFeedCard } from "@/components/spine/step-feed";
 import {
   GranuleCodeSourcePicker,
   type GranuleCodeSourceOption,
@@ -3718,6 +3719,11 @@ export default function WCMTerminal() {
                 {rollOk && currentStepIssueOk && !detailMaterialBlocked ? "Everything in hand" : "Needs attention"}
               </span>
             }
+          />
+          <StepFeedCard
+            feed={(executionContext as any)?.upstream_feed}
+            className="mt-3"
+            testId="wcm-step-feed"
           />
           <div className="mt-3 grid gap-3 xl:grid-cols-2">
           {satisfactionStatus?.input_form === "ROLL" ? (
