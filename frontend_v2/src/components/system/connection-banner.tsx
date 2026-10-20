@@ -46,7 +46,7 @@ export function ConnectionLostBanner({
         "sticky top-0 z-50 flex items-center justify-center gap-2.5 px-4 py-2 text-sm font-bold tracking-tight shadow-sm ring-1",
         isOffline
           ? "bg-danger-solid text-white ring-danger-border"
-          : "bg-warning-fg text-warning-fg ring-warning-border",
+          : "bg-warning-bg text-warning-fg ring-warning-border",
         className,
       )}
       data-testid="connection-lost-banner"

@@ -47,12 +47,24 @@ function recordLabel(path: string): string | null {
   return match ? match[1] : null;
 }
 
-function toLabel(segment: string): string {
+// What one record is called under its list segment, for record ids in the path.
+const RECORD_BY_PARENT: Record<string, string> = {
+  machine: "Terminal",
+  "work-center": "Terminal",
+  orders: "Order",
+  jobs: "Job",
+  quotations: "Quotation",
+  customers: "Customer",
+  dispatches: "Dispatch",
+  products: "Product",
+};
+
+function toLabel(segment: string, parent = ""): string {
   const key = String(segment || "").toLowerCase();
   if (
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)
   ) {
-    return "Terminal";
+    return RECORD_BY_PARENT[String(parent || "").toLowerCase()] || "Details";
   }
   if (LABELS[key]) return LABELS[key];
   return key
@@ -87,13 +99,13 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
   }
 
   let cumulative = "";
-  const crumbs = segments.map((segment) => {
+  const crumbs = segments.map((segment, index) => {
     cumulative += `/${segment}`;
     return {
       segment,
       href: cumulative,
       target: resolveNavigableRoute(cumulative),
-      label: recordLabel(cumulative) ?? toLabel(segment),
+      label: recordLabel(cumulative) ?? toLabel(segment, segments[index - 1]),
     };
   });
 

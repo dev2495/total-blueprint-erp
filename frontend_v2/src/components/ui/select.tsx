@@ -28,7 +28,8 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     aria-labelledby={labelledBy}
-    aria-label={props["aria-label"] ?? (labelledBy ? undefined : placeholderName)}
+    // A trigger with an id is named by its <label htmlFor> (form fields), so the placeholder must not override it.
+    aria-label={props["aria-label"] ?? (labelledBy || props.id ? undefined : placeholderName)}
     className={cn(
       "flex h-10 w-full items-center justify-between rounded-[10px] border border-line bg-surface-1 px-3 py-2 text-sm text-content-1 ring-offset-background transition-[border-color,box-shadow] duration-150 ease-out hover:border-line-strong data-[placeholder]:text-content-4 focus:outline-none focus:border-primary focus:ring-2 focus:ring-focus focus:ring-offset-0 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:opacity-60 [&>span]:line-clamp-1",
       className

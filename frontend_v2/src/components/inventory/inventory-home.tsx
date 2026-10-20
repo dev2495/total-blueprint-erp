@@ -2459,12 +2459,20 @@ function WorkspaceLauncher({
             <div className="mt-0.5 text-[11.5px] leading-snug text-content-3">{t.subtitle}</div>
             {t.kpis.length > 0 && (
               <div className="mt-2.5 grid grid-cols-2 gap-1.5">
-                {t.kpis.map((k, i) => (
-                  <div key={i} className="rounded-lg bg-surface-2 px-2 py-1">
-                    <div className="text-[10.5px] text-content-3">{k.label}</div>
-                    <div className="text-[12px] font-semibold tabular-nums text-content-1">{k.value}</div>
-                  </div>
-                ))}
+                {t.kpis.map((k, i) => {
+                  // Stock held in several units (kg + metre + pcs) gets the full width, one unit per line.
+                  const parts = String(k.value).split(" + ");
+                  return (
+                    <div key={i} className={cn("rounded-lg bg-surface-2 px-2 py-1", parts.length > 1 && "col-span-2")}>
+                      <div className="text-[11px] text-content-3">{k.label}</div>
+                      <div className="text-[12px] font-semibold tabular-nums text-content-1">
+                        {parts.map((part) => (
+                          <div key={part} className="whitespace-nowrap">{part}</div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </Link>

@@ -67,8 +67,9 @@ export function useOnlineStatus(): OnlineStatus {
     const stamp = new Date()
     setLastSyncAt(stamp)
     setNow(stamp.getTime())
-    // A successful sync implies connectivity; reflect it immediately.
-    setOnline(readNavigatorOnline())
+    // A successful sync proves the server is reachable, whatever the browser's network flag says
+    // after a Wi-Fi hop, so clear the red banner straight away.
+    setOnline(true)
   }, [])
 
   const secondsSinceSync = React.useMemo(() => {

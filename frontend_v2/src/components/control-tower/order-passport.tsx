@@ -914,7 +914,7 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { i
                 ))}
             </div>
 
-            <div style={{ marginTop: "auto", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 5 }}>
+            <div style={{ marginTop: "auto", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "6px 10px" }}>
                 <SmallLog label="Jobs" value={String(jobs.length)} />
                 <SmallLog label="Target" value={totals.targetKg > 0 ? `${smartKg(totals.targetKg)} kg` : "-"} />
                 <SmallLog label="Posted" value={totals.targetKg > 0 || totals.producedKg > 0 ? `${smartKg(totals.producedKg)} kg` : "-"} />
@@ -1084,8 +1084,8 @@ function JobTraceRow({ job, order, index }: { job: any; order: PlannerControlOrd
 function SmallLog({ label, value }: { label: string; value: string }) {
     return (
         <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-4)" }}>{label}</div>
-            <div style={{ marginTop: 1, fontSize: 10, fontWeight: 650, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)" }}>{label}</div>
+            <div style={{ marginTop: 1, fontSize: 12.5, fontWeight: 650, color: "var(--text-1)", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={value}>{value}</div>
         </div>
     );
 }

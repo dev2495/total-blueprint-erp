@@ -124,8 +124,38 @@ export function SpecBlock({
         </div>
       ) : null}
       {layers.length ? (
-        <div className={cn("grid gap-1.5", stack ? "" : lg ? "sm:grid-cols-2 xl:grid-cols-3" : "sm:grid-cols-2")} data-testid={`${testId}-layers`}>
-          {layers.map((layer) => (
+        <div
+          className={cn(
+            "grid gap-1.5",
+            // Tiles fill the space they are given, so a narrow card shows one layer per row
+            // instead of breaking material names mid-word.
+            stack ? "" : lg ? "grid-cols-[repeat(auto-fill,minmax(min(100%,240px),1fr))]" : "grid-cols-[repeat(auto-fill,minmax(min(100%,220px),1fr))]",
+          )}
+          data-testid={`${testId}-layers`}
+        >
+          {layers.map((layer) =>
+            stack ? (
+              // Narrow rails: layer number and micron on top, the full material name underneath.
+              <div key={`${layer.index}-${layer.name}`} className={cn("min-w-0 rounded-xl px-2.5 py-1.5", tile)}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className={cn("font-mono text-[12px] font-semibold", muted)}>L{layer.index}</span>
+                  {layer.micron ? (
+                    <span className={cn("text-[15px] font-semibold tabular-nums", strong)}>
+                      {fmt(layer.micron)}
+                      <span className={cn("ml-0.5 text-[12px] font-medium", muted)}>µ</span>
+                    </span>
+                  ) : null}
+                </div>
+                <div className={cn("break-words text-[13.5px] font-semibold leading-snug", strong)} title={layer.name}>
+                  {layer.name}
+                </div>
+                {layer.grade || sourceWord(layer.source) ? (
+                  <div className={cn("text-[12px] leading-snug", muted)}>
+                    {[layer.grade ? `Grade ${layer.grade}` : "", sourceWord(layer.source)].filter(Boolean).join(" · ")}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
             <div key={`${layer.index}-${layer.name}`} className={cn("flex min-w-0 items-center gap-3 rounded-xl px-3", lg ? "py-2" : "py-1.5", tile)}>
               <span className={cn("flex-none font-mono text-[12px] font-semibold", muted)}>L{layer.index}</span>
               <div className="min-w-0 flex-1">
@@ -145,7 +175,8 @@ export function SpecBlock({
                 </span>
               ) : null}
             </div>
-          ))}
+            ),
+          )}
           {layers.length > 1 && total > 0 ? (
             <div className={cn("flex items-center justify-between gap-3 rounded-xl px-3", lg ? "py-2" : "py-1.5", dark ? "bg-white/5" : "bg-surface-2")}>
               <span className={cn("text-[13px] font-medium", muted)}>Total</span>

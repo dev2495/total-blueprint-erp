@@ -681,8 +681,8 @@ export default function CostingCenterPage() {
                           onClick={() => setMode(entryMode)}
                           className={`rounded-[1.25rem] border px-4 py-3 text-left transition ${mode === entryMode ? "border-line-strong bg-surface-3 text-white" : "border-line bg-surface-1 text-content-2 hover:border-line-strong"}`}
                         >
-                          <div className="text-xs font-semibold uppercase tracking-[0.1em]">
-                            {entryMode}
+                          <div className="text-[13px] font-semibold">
+                            {entryMode === "DIRECT" ? "Direct" : "Allocated"}
                           </div>
                           <div className="mt-1 text-xs leading-5">
                             {entryMode === "DIRECT"
