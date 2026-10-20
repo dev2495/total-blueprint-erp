@@ -293,6 +293,7 @@ export function JobWorkDetail({ id }: { id: string }) {
                   <span className="font-mono font-semibold">{challan.number}</span> · {fmtDateTime(challan.issued_at)}
                   {challan.issued_by_name ? ` · ${challan.issued_by_name}` : ""} · {fmtKg(challan.total_qty_kg)} · {fmtInr(challan.total_value)}
                   {challan.gate_out_at ? <Chip tone="good">Left gate {fmtDateTime(challan.gate_out_at)}</Chip> : <Chip>Not scanned at gate</Chip>}
+                  {challan.back_at_gate_at ? <Chip tone="good">Back at gate {fmtDateTime(challan.back_at_gate_at)}</Chip> : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" variant="outline" size="sm" onClick={() => void printChallan(challan.pdf_url)}>

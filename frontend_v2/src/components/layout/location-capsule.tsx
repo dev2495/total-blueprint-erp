@@ -27,6 +27,7 @@ const LABELS: Record<string, string> = {
   logistics: "Logistics",
   grn: "GRN",
   "gate-bills": "Bills & documents",
+  "goods-movements": "Goods in & out",
 };
 
 // Record pages (bills, receipts, passes, outward, job work, users) show a record label instead

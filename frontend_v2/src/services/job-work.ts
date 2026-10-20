@@ -100,6 +100,7 @@ export interface JobWorkChallan {
   line_count: number;
   gate_out_at: string | null;
   gate_out_by_name: string | null;
+  back_at_gate_at?: string | null;
   pdf_url: string;
   lines: JobWorkSentLine[];
 }

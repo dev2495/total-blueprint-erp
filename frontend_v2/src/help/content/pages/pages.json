@@ -24030,5 +24030,681 @@
       "/inventory/gate-bills/[id]",
       "/logistics/packing"
     ]
+  },
+  {
+    "routePattern": "/inventory/goods-movements",
+    "title": {
+      "en": "Goods in & out",
+      "hi": "माल आना-जाना"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANNER",
+      "PLANT_MANAGER",
+      "DISPATCH"
+    ],
+    "summary": {
+      "en": "One list of everything of ours outside a factory gate and what is due back: inter-plant transfers, job work and gate passes.",
+      "hi": "फ़ैक्टरी गेट के बाहर गया हमारा हर माल और जो वापस आना है, एक ही सूची में: इंटर-प्लांट ट्रांसफ़र, जॉब वर्क और गेट पास।"
+    },
+    "purpose": {
+      "en": "See at a glance what is outside, what is back at a gate waiting to be received, and what is late.",
+      "hi": "एक नज़र में देखें क्या बाहर है, क्या गेट पर वापस आकर रिसीव होने का इंतज़ार कर रहा है, और क्या देर से है।"
+    },
+    "prerequisites": [
+      {
+        "en": "Each paper keeps its own screen: open the row to work on the challan, job-work order or gate pass.",
+        "hi": "हर काग़ज़ की अपनी स्क्रीन है: चालान, जॉब-वर्क ऑर्डर या गेट पास पर काम करने के लिए पंक्ति खोलें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Pick a stage: Outside, Back at gate, Prepared or Done.",
+        "hi": "एक स्टेज चुनें: बाहर, गेट पर वापस, तैयार या पूरा।"
+      },
+      {
+        "en": "Use Late to see returns past their due date and loads in transit for more than two days.",
+        "hi": "तय तारीख़ से देर वाली वापसी और दो दिन से ज़्यादा रास्ते में माल देखने के लिए Late दबाएँ।"
+      },
+      {
+        "en": "If the watchman could not scan the paper, use Back at gate on the row; the store is told to receive it. Nothing moves in stock.",
+        "hi": "अगर चौकीदार काग़ज़ स्कैन नहीं कर पाया, पंक्ति पर Back at gate दबाएँ; स्टोर को रिसीव करने की सूचना जाती है। स्टॉक नहीं बदलता।"
+      },
+      {
+        "en": "New movement opens the right form: another factory, a job worker, a returnable or non-returnable gate pass, or a customer dispatch.",
+        "hi": "New movement सही फ़ॉर्म खोलता है: दूसरी फ़ैक्टरी, जॉब वर्कर, रिटर्नेबल या नॉन-रिटर्नेबल गेट पास, या ग्राहक डिस्पैच।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "outward-gate-pass-flow",
+    "commonErrors": [
+      {
+        "en": "Back at gate is refused: the paper is already received or belongs to another factory's gate.",
+        "hi": "Back at gate अस्वीकार: काग़ज़ पहले ही रिसीव हो चुका है या दूसरी फ़ैक्टरी के गेट का है।"
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/inter-plant",
+      "/inventory/job-work",
+      "/inventory/gate-passes",
+      "/inventory/outward-documents"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/dashboard/planner/control-tower/stock-launcher",
+    "title": {
+      "en": "Stock launcher",
+      "hi": "स्टॉक लॉन्चर"
+    },
+    "module": "Production",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANNER",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Plan in-house stock runs (make-to-stock) on a product master, with the same specification rules as a sales order.",
+      "hi": "प्रोडक्ट मास्टर पर इन-हाउस स्टॉक रन (स्टॉक के लिए बनाना) प्लान करें, सेल्स ऑर्डर जैसे ही स्पेसिफ़िकेशन नियमों के साथ।"
+    },
+    "purpose": {
+      "en": "Launch a stock order that goes through the same route, floor and packing as a customer order.",
+      "hi": "ऐसा स्टॉक ऑर्डर लॉन्च करें जो ग्राहक ऑर्डर की तरह ही रूट, फ़्लोर और पैकिंग से गुज़रे।"
+    },
+    "prerequisites": [
+      {
+        "en": "The product master must be active and have the size and layers you want to make.",
+        "hi": "प्रोडक्ट मास्टर सक्रिय हो और उसमें बनने वाला साइज़ और लेयर हों।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Choose the master, size and layer options; the target is worked out the same way as on an order.",
+        "hi": "मास्टर, साइज़ और लेयर विकल्प चुनें; टार्गेट ऑर्डर की तरह ही निकाला जाता है।"
+      },
+      {
+        "en": "Use the quotation exit when a customer asks for a price on the same specification.",
+        "hi": "उसी स्पेसिफ़िकेशन पर ग्राहक भाव माँगे तो कोटेशन वाला रास्ता लें।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/dashboard/planner/control-tower/plan-queue",
+      "/master/products"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/loc/[code]",
+    "title": {
+      "en": "Location scan",
+      "hi": "लोकेशन स्कैन"
+    },
+    "module": "Inventory",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "STORE",
+      "PLANNER",
+      "WORK_CENTER_MANAGER",
+      "DISPATCH",
+      "PLANT_MANAGER"
+    ],
+    "summary": {
+      "en": "Opens a stock location from its QR sticker: what is there and the quick actions for it.",
+      "hi": "QR स्टिकर से स्टॉक लोकेशन खोलता है: वहाँ क्या है और उसके त्वरित काम।"
+    },
+    "purpose": {
+      "en": "Find stock on the floor without searching.",
+      "hi": "बिना खोजे फ़्लोर पर स्टॉक ढूँढें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Scan the location's QR sticker with the phone camera.",
+        "hi": "फ़ोन कैमरे से लोकेशन का QR स्टिकर स्कैन करें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Check rolls and bulk held at the location, then open a roll to move or count it.",
+        "hi": "लोकेशन पर रखे रोल और बल्क देखें, फिर किसी रोल को खिसकाने या गिनने के लिए खोलें।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "inventory-action-flow",
+    "commonErrors": [
+      {
+        "en": "Location not found: the sticker is from another factory or was replaced; ask the store for a new one.",
+        "hi": "लोकेशन नहीं मिली: स्टिकर दूसरी फ़ैक्टरी का है या बदला गया है; स्टोर से नया माँगें।"
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/inventory/rolls"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/m/[code]",
+    "title": {
+      "en": "Machine scan",
+      "hi": "मशीन स्कैन"
+    },
+    "module": "Production",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "WORK_CENTER_MANAGER",
+      "OPERATOR",
+      "PLANT_MANAGER",
+      "MAINTENANCE_TECH",
+      "MAINTENANCE_SUPERVISOR"
+    ],
+    "summary": {
+      "en": "Opens a machine from its QR sticker: the machine terminal for operators, the machine history for maintenance.",
+      "hi": "QR स्टिकर से मशीन खोलता है: ऑपरेटर के लिए मशीन टर्मिनल, मेंटेनेंस के लिए मशीन हिस्ट्री।"
+    },
+    "purpose": {
+      "en": "Reach the right machine screen in one scan.",
+      "hi": "एक स्कैन में सही मशीन स्क्रीन तक पहुँचें।"
+    },
+    "prerequisites": [
+      {
+        "en": "A machine operator opens only the machines assigned to them.",
+        "hi": "मशीन ऑपरेटर सिर्फ़ अपने को सौंपी गई मशीनें खोल सकता है।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Scan the sticker on the machine; start, log output or report a fault from the screen that opens.",
+        "hi": "मशीन पर लगा स्टिकर स्कैन करें; खुली स्क्रीन से काम शुरू करें, आउटपुट लिखें या ख़राबी बताएँ।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [
+      {
+        "en": "This machine is not assigned to you: ask an admin to add it on the Users page.",
+        "hi": "यह मशीन आपको सौंपी नहीं गई है: एडमिन से Users पेज पर जोड़ने को कहें।"
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/production/machine-selector",
+      "/maintenance/faults"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance",
+    "title": {
+      "en": "Maintenance board",
+      "hi": "मेंटेनेंस बोर्ड"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR",
+      "MAINTENANCE_TECH",
+      "WORK_CENTER_MANAGER",
+      "OPERATOR"
+    ],
+    "summary": {
+      "en": "Today's maintenance at a glance: checks due, open faults and machines down.",
+      "hi": "आज का मेंटेनेंस एक नज़र में: बाकी जाँच, खुली ख़राबियाँ और बंद मशीनें।"
+    },
+    "purpose": {
+      "en": "Keep machines running: do the day's checks and clear faults in order.",
+      "hi": "मशीनें चालू रखें: दिन की जाँच करें और ख़राबियाँ क्रम से ठीक करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Operators see only the machines assigned to them.",
+        "hi": "ऑपरेटर सिर्फ़ अपनी सौंपी गई मशीनें देखते हैं।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Open a check or fault from the board to work on it.",
+        "hi": "काम करने के लिए बोर्ड से जाँच या ख़राबी खोलें।"
+      },
+      {
+        "en": "Report a new fault from Faults.",
+        "hi": "Faults से नई ख़राबी दर्ज करें।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/maintenance/jobs",
+      "/maintenance/faults",
+      "/maintenance/schedules"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance/jobs",
+    "title": {
+      "en": "Maintenance jobs",
+      "hi": "मेंटेनेंस जॉब"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR",
+      "MAINTENANCE_TECH",
+      "WORK_CENTER_MANAGER",
+      "OPERATOR"
+    ],
+    "summary": {
+      "en": "The list of maintenance work: daily checks, planned service and repairs.",
+      "hi": "मेंटेनेंस काम की सूची: रोज़ की जाँच, तय सर्विस और मरम्मत।"
+    },
+    "purpose": {
+      "en": "Pick up, do and close maintenance work with a record of what was done.",
+      "hi": "मेंटेनेंस काम लें, करें और जो किया उसका रिकॉर्ड रखकर बंद करें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Supervisors add jobs by hand; schedules create the routine ones.",
+        "hi": "सुपरवाइज़र हाथ से जॉब जोड़ते हैं; शेड्यूल नियमित जॉब बनाते हैं।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Filter to My jobs, open one, tick the checklist and complete it.",
+        "hi": "My jobs चुनें, एक जॉब खोलें, चेकलिस्ट पूरी करें और बंद करें।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/maintenance/jobs/[id]",
+      "/maintenance"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance/jobs/[id]",
+    "title": {
+      "en": "Maintenance job",
+      "hi": "मेंटेनेंस जॉब"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR",
+      "MAINTENANCE_TECH",
+      "WORK_CENTER_MANAGER",
+      "OPERATOR"
+    ],
+    "summary": {
+      "en": "One maintenance job: checklist, parts, photos and sign-off.",
+      "hi": "एक मेंटेनेंस जॉब: चेकलिस्ट, पुर्ज़े, फ़ोटो और साइन-ऑफ़।"
+    },
+    "purpose": {
+      "en": "Do the work and leave a clear record for the next person.",
+      "hi": "काम करें और अगले व्यक्ति के लिए साफ़ रिकॉर्ड छोड़ें।"
+    },
+    "prerequisites": [
+      {
+        "en": "Start the job before ticking checklist items.",
+        "hi": "चेकलिस्ट टिक करने से पहले जॉब शुरू करें।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Tick each checklist item, add notes or photos, then complete; some jobs need a supervisor to verify.",
+        "hi": "हर चेकलिस्ट आइटम टिक करें, नोट या फ़ोटो जोड़ें, फिर पूरा करें; कुछ जॉब में सुपरवाइज़र की पुष्टि चाहिए।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/maintenance/jobs"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance/machines/[id]",
+    "title": {
+      "en": "Machine history",
+      "hi": "मशीन हिस्ट्री"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR",
+      "MAINTENANCE_TECH",
+      "WORK_CENTER_MANAGER",
+      "OPERATOR"
+    ],
+    "summary": {
+      "en": "Everything done on one machine: faults, repairs, services and parts.",
+      "hi": "एक मशीन पर हुआ सब कुछ: ख़राबियाँ, मरम्मत, सर्विस और पुर्ज़े।"
+    },
+    "purpose": {
+      "en": "See how a machine has behaved before deciding on a repair.",
+      "hi": "मरम्मत तय करने से पहले देखें मशीन पहले कैसे चली।"
+    },
+    "prerequisites": [],
+    "keyActions": [
+      {
+        "en": "Read the timeline newest first; open a fault or job for its details.",
+        "hi": "टाइमलाइन नई से पुरानी पढ़ें; विवरण के लिए ख़राबी या जॉब खोलें।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/maintenance/faults",
+      "/maintenance/jobs"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance/faults",
+    "title": {
+      "en": "Machine faults",
+      "hi": "मशीन ख़राबियाँ"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR",
+      "MAINTENANCE_TECH",
+      "WORK_CENTER_MANAGER",
+      "OPERATOR"
+    ],
+    "summary": {
+      "en": "Report and follow machine faults until they are fixed.",
+      "hi": "मशीन की ख़राबी दर्ज करें और ठीक होने तक उस पर नज़र रखें।"
+    },
+    "purpose": {
+      "en": "Get a breakdown to the right person fast and record how it was fixed.",
+      "hi": "ख़राबी जल्दी सही व्यक्ति तक पहुँचाएँ और ठीक करने का तरीका दर्ज करें।"
+    },
+    "prerequisites": [],
+    "keyActions": [
+      {
+        "en": "Report a fault with the machine, what happened and a photo if you can.",
+        "hi": "मशीन, क्या हुआ और हो सके तो फ़ोटो के साथ ख़राबी दर्ज करें।"
+      },
+      {
+        "en": "Supervisors assign it; the technician repairs and closes it.",
+        "hi": "सुपरवाइज़र सौंपते हैं; तकनीशियन ठीक करके बंद करता है।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/maintenance",
+      "/maintenance/jobs"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance/schedules",
+    "title": {
+      "en": "Maintenance schedules",
+      "hi": "मेंटेनेंस शेड्यूल"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR"
+    ],
+    "summary": {
+      "en": "Routine maintenance plans that create jobs on their due dates.",
+      "hi": "नियमित मेंटेनेंस योजनाएँ जो तय तारीख़ पर जॉब बनाती हैं।"
+    },
+    "purpose": {
+      "en": "Make sure lubrication, cleaning and service happen on time without remembering them.",
+      "hi": "याद रखे बिना लुब्रिकेशन, सफ़ाई और सर्विस समय पर हों।"
+    },
+    "prerequisites": [],
+    "keyActions": [
+      {
+        "en": "Add a schedule per machine with how often it is due and who does it.",
+        "hi": "हर मशीन के लिए शेड्यूल जोड़ें: कितने दिन में और कौन करेगा।"
+      },
+      {
+        "en": "Generate due jobs to create today's work.",
+        "hi": "आज का काम बनाने के लिए Generate due jobs दबाएँ।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/maintenance/jobs"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance/qr",
+    "title": {
+      "en": "Machine QR stickers",
+      "hi": "मशीन QR स्टिकर"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR"
+    ],
+    "summary": {
+      "en": "Print QR stickers for machines and locations so the floor can scan them.",
+      "hi": "मशीनों और लोकेशनों के लिए QR स्टिकर छापें ताकि फ़्लोर पर स्कैन हो सके।"
+    },
+    "purpose": {
+      "en": "One scan takes people to the right machine or location screen.",
+      "hi": "एक स्कैन लोगों को सही मशीन या लोकेशन स्क्रीन पर ले जाता है।"
+    },
+    "prerequisites": [],
+    "keyActions": [
+      {
+        "en": "Pick machines or locations and print their stickers.",
+        "hi": "मशीनें या लोकेशन चुनें और उनके स्टिकर छापें।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "production-execution-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/m/[code]",
+      "/loc/[code]"
+    ],
+    "screenshotKeys": []
+  },
+  {
+    "routePattern": "/maintenance/reports",
+    "title": {
+      "en": "Maintenance reports",
+      "hi": "मेंटेनेंस रिपोर्ट"
+    },
+    "module": "Maintenance",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "PLANT_MANAGER",
+      "MAINTENANCE_SUPERVISOR"
+    ],
+    "summary": {
+      "en": "Downtime, repeat faults and maintenance done, by machine and period.",
+      "hi": "मशीन और अवधि के हिसाब से डाउनटाइम, बार-बार की ख़राबियाँ और किया गया मेंटेनेंस।"
+    },
+    "purpose": {
+      "en": "Find the machines that cost the most time and plan fixes.",
+      "hi": "सबसे ज़्यादा समय लेने वाली मशीनें पहचानें और सुधार की योजना बनाएँ।"
+    },
+    "prerequisites": [],
+    "keyActions": [
+      {
+        "en": "Choose a period and a report; open a machine for its history.",
+        "hi": "अवधि और रिपोर्ट चुनें; हिस्ट्री के लिए मशीन खोलें।"
+      }
+    ],
+    "fieldHelp": [],
+    "decisionFlowId": "analytics-decision-flow",
+    "commonErrors": [],
+    "recoverySteps": [
+      {
+        "en": "If a save times out, press the same button again — the system recognises the retry and never records twice.",
+        "hi": "सेव करते समय समय समाप्त हो तो वही बटन फिर दबाएँ — सिस्टम दोबारा भेजे गए अनुरोध को पहचानता है और दो बार दर्ज नहीं करता।"
+      },
+      {
+        "en": "If a list looks old, use Refresh before acting on it.",
+        "hi": "सूची पुरानी लगे तो कार्रवाई से पहले Refresh करें।"
+      }
+    ],
+    "relatedRoutes": [
+      "/maintenance/machines/[id]"
+    ],
+    "screenshotKeys": []
   }
 ]

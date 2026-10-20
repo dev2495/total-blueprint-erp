@@ -27,6 +27,7 @@ from apps.analytics.services import ReportingService
 from apps.routing.models import RoutingRule
 from apps.templates.models import TemplateBlueprint, TemplateProcessStep, TemplateProcessStepMaterial
 from apps.users.models import Role, User
+from apps.users.models import WorkCenterAssignment as UserWorkCenter
 
 
 class WcmAuditEventTests(TestCase):
@@ -65,6 +66,8 @@ class WcmAuditEventTests(TestCase):
             remaining_qty=Decimal("100.0000"),
         )
         self.assignment = WorkCenterAssignment.objects.create(production_job=self.job, work_center=self.work_center)
+        # A Work Center Manager acts only on the work centres assigned to them (apps.production.scope).
+        UserWorkCenter.objects.create(user=self.user, work_center=self.work_center)
         self.granule = InventoryMaterial.objects.create(code="GR-WCM", name="WCM Granule", category="GRANULE", base_uom="KG")
         self.other_granule = InventoryMaterial.objects.create(code="GR-OTHER", name="Other Granule", category="GRANULE", base_uom="KG")
         self.code_a = GranuleQualityCode.objects.create(granule=self.granule, code="GA", status="ACTIVE")

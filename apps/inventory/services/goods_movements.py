@@ -38,7 +38,18 @@ def _kg(value) -> str:
 def _iso(value):
     if value is None:
         return None
-    return timezone.localtime(value).isoformat() if hasattr(value, "tzinfo") and value.tzinfo else value.isoformat()
+    return value.astimezone(factory_zone()).isoformat() if hasattr(value, "tzinfo") and value.tzinfo else value.isoformat()
+
+
+def factory_zone():
+    from apps.gate.services import gate_zone
+
+    return gate_zone()
+
+
+def factory_today():
+    """Dates on the factory's clock (India), not the server's UTC day."""
+    return timezone.now().astimezone(factory_zone()).date()
 
 
 def _row(**kw):
@@ -63,7 +74,7 @@ def _interplant_rows(plant_ids, since, query):
     qs = qs.filter(~Q(status="RECEIVED") | Q(received_at__gte=since) | Q(updated_at__gte=since))
     if query:
         qs = qs.filter(Q(dc_no__icontains=query) | Q(from_plant__name__icontains=query) | Q(to_plant__name__icontains=query) | Q(vehicle_no__icontains=query))
-    today = timezone.localdate()
+    today = factory_today()
     rows = []
     for c in qs.order_by("-created_at")[:600]:
         if c.status == "RECEIVED":
@@ -72,7 +83,7 @@ def _interplant_rows(plant_ids, since, query):
             stage = "AT_GATE" if c.gate_in_at else "OUTSIDE"
         else:
             stage = "PREPARED"
-        late = bool(stage == "OUTSIDE" and c.dispatched_at and (today - timezone.localtime(c.dispatched_at).date()).days >= TRANSIT_LATE_DAYS)
+        late = bool(stage == "OUTSIDE" and c.dispatched_at and (today - c.dispatched_at.astimezone(factory_zone()).date()).days >= TRANSIT_LATE_DAYS)
         moved = c.dispatched_kg or c.planned_kg or 0
         job = c.target_job or c.source_job
         rows.append(_row(
@@ -170,7 +181,7 @@ def _gate_pass_rows(plant_ids, since, query):
     last_return_at = {}
     for ret in GatePassReturn.objects.filter(line__gate_pass_id__in=[p.id for p in passes]).values("line__gate_pass_id", "returned_at").order_by("line__gate_pass_id", "-returned_at"):
         last_return_at.setdefault(ret["line__gate_pass_id"], ret["returned_at"])
-    today = timezone.localdate()
+    today = factory_today()
     rows = []
     for p in passes:
         returnable = p.kind == "RETURNABLE"

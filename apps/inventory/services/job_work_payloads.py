@@ -65,7 +65,10 @@ def iso(value) -> Optional[str]:
 
 
 def today() -> date:
-    return timezone.localdate()
+    """The factory's date (India), so a return due today is not late at 00:30 or 05:00."""
+    from apps.gate.services import gate_today
+
+    return gate_today()
 
 
 def annotate_balances(queryset):
@@ -183,6 +186,12 @@ def sent_line_payload(line: JobWorkSentLine, balance: dict) -> dict:
     }
 
 
+def _latest_arrival(challan_id):
+    from apps.gate.models import GateArrival
+
+    return GateArrival.objects.filter(kind="JOBWORK_CHALLAN", object_id=challan_id).order_by("-arrived_at").values_list("arrived_at", flat=True).first()
+
+
 def challan_payload(challan: JobWorkChallan, balances: Dict[str, dict]) -> dict:
     lines = [sent_line_payload(line, balances[str(line.id)]) for line in challan.lines.all() if str(line.id) in balances]
     return {
@@ -200,6 +209,8 @@ def challan_payload(challan: JobWorkChallan, balances: Dict[str, dict]) -> dict:
         "line_count": len(lines),
         "gate_out_at": iso(challan.gate_out_at),
         "gate_out_by_name": _user_name(challan.gate_out_by),
+        # When the watchman last scanned this challan coming back in (goods at the gate to receive).
+        "back_at_gate_at": iso(_latest_arrival(challan.id)),
         "pdf_url": f"/api/inventory/job-work/{challan.order_id}/challans/{challan.id}/pdf/",
         "lines": lines,
     }
