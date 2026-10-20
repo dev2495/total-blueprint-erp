@@ -322,10 +322,32 @@ def material_rate(material) -> Decimal:
                 return Decimal(str(value))
         except (InvalidOperation, ValueError, TypeError):
             continue
+    return stock_rate(material)
+
+
+def stock_rate(material) -> Decimal:
+    """What this material cost when it came in: the average cost of its bulk stock (granules,
+    inks, adhesives), else the GRN cost per kg on its most recent rolls."""
+    from apps.inventory.models import InventoryBulk
+
+    rows = list(InventoryBulk.objects.filter(material=material, qty_kg__gt=0, avg_cost__gt=0).values_list("qty_kg", "avg_cost")[:50])
+    total = sum((Decimal(str(q)) for q, _ in rows), ZERO)
+    if total > 0:
+        return (sum((Decimal(str(q)) * Decimal(str(c)) for q, c in rows), ZERO) / total).quantize(Decimal("0.0001"))
+    for meta in InventoryRoll.objects.filter(material=material).exclude(meta_json__unit_cost_per_kg=None).order_by("-created_at").values_list("meta_json", flat=True)[:5]:
+        try:
+            value = Decimal(str((meta or {}).get("unit_cost_per_kg") or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        if value > 0:
+            return value
     return ZERO
 
 
-def roll_rate_per_kg(roll: InventoryRoll) -> Decimal:
+def roll_rate_per_kg(roll: InventoryRoll, _depth: int = 0) -> Decimal:
+    """Rate per kg for a challan value: the roll's own cost, else its material's, else what went
+    into it. A roll made in house (slit child, laminate, extruded or printed roll) carries no cost
+    of its own, so it is valued at the weighted rate of the rolls and materials it was made from."""
     meta = roll.meta_json or {}
     for key in ("unit_cost_per_kg", "unit_cost", "rate_per_kg", "rate_per_uom"):
         value = meta.get(key)
@@ -334,7 +356,48 @@ def roll_rate_per_kg(roll: InventoryRoll) -> Decimal:
                 return Decimal(str(value))
         except (InvalidOperation, ValueError, TypeError):
             continue
-    return material_rate(roll.material)
+    rate = material_rate(roll.material)
+    if rate > 0 or _depth >= 6:
+        return rate
+    return lineage_rate_per_kg(roll, _depth)
+
+
+def _weighted(pairs) -> Decimal:
+    total_kg = sum((kg for kg, _ in pairs), ZERO)
+    if total_kg <= 0:
+        return ZERO
+    return (sum((kg * rate for kg, rate in pairs), ZERO) / total_kg).quantize(Decimal("0.0001"))
+
+
+def lineage_rate_per_kg(roll: InventoryRoll, depth: int = 0) -> Decimal:
+    # Split child: worth what its parent was worth per kg.
+    if roll.parent_roll_id:
+        rate = roll_rate_per_kg(roll.parent_roll, depth + 1)
+        if rate > 0:
+            return rate
+    # Combined output (lamination): the parents linked to it, weighted by their weight.
+    parents = [link.parent_roll for link in RollLink.objects.filter(child_roll=roll).select_related("parent_roll", "parent_roll__material")[:20]]
+    pairs = [(Decimal(str(p.original_weight_kg or p.weight_kg or 0)), roll_rate_per_kg(p, depth + 1)) for p in parents]
+    rate = _weighted([(kg, r) for kg, r in pairs if kg > 0 and r > 0])
+    if rate > 0:
+        return rate
+    # Rolls consumed by the job that made it.
+    job_id = getattr(roll, "created_by_job_id", None)
+    if job_id:
+        inputs = RollConsumption.objects.filter(job_id=job_id).select_related("input_roll", "input_roll__material")[:40]
+        pairs = [(Decimal(str(c.consumed_kg or 0)) or Decimal(str(c.input_roll.original_weight_kg or 0)), roll_rate_per_kg(c.input_roll, depth + 1)) for c in inputs]
+        rate = _weighted([(kg, r) for kg, r in pairs if kg > 0 and r > 0])
+        if rate > 0:
+            return rate
+        # Extruded from granules: the materials the job needed, weighted by quantity.
+        from apps.production.models import JobMaterialRequirement
+
+        reqs = JobMaterialRequirement.objects.filter(production_job_id=job_id).select_related("material")[:40]
+        pairs = [(Decimal(str(r.required_qty or 0)), material_rate(r.material)) for r in reqs if r.material_id]
+        rate = _weighted([(kg, r) for kg, r in pairs if kg > 0 and r > 0])
+        if rate > 0:
+            return rate
+    return ZERO
 
 
 def bulk_rate(material_id, location_id) -> Decimal:

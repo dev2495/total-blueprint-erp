@@ -33,6 +33,20 @@ from apps.sales.models import Customer, SalesOrder
 from apps.sales.services.order_service import SalesOrderService
 
 ROLL_PREFIX = "LIVE-DEMO-"
+
+
+def film_cost_per_kg(material) -> str:
+    """A typical local purchase cost, so challan and stock values are not zero on demo rolls."""
+    code = f"{getattr(material, 'code', '')} {getattr(material, 'name', '')}".upper()
+    if "MET" in code:
+        return "182.00"
+    if "BOPP" in code:
+        return "148.00"
+    if "PET" in code or "POLY" in code:
+        return "156.00"
+    if "NY" in code:
+        return "310.00"
+    return "128.00"
 STOCK_REFERENCE = "local demo opening stock"
 ORDER_PREFIX = "DEMO LIVE · "
 
@@ -119,6 +133,7 @@ class Command(BaseCommand):
                 self._work_center_chemistry()
                 self._orders()
                 self._order_film_rolls()
+                self._film_costs()
                 if options["dry_run"]:
                     raise _DryRun()
         except _DryRun:
@@ -140,6 +155,18 @@ class Command(BaseCommand):
         self.report.append(f"customers: {created} created, {len(CUSTOMERS) - created} already local")
 
     # ------------------------------------------------------------------ stock
+    def _film_costs(self):
+        """Older demo rolls were made without a cost; give them the same typical cost."""
+        fixed = 0
+        for roll in InventoryRoll.objects.filter(label_id__startswith=ROLL_PREFIX).select_related("material"):
+            meta = dict(roll.meta_json or {})
+            if meta.get("unit_cost_per_kg"):
+                continue
+            meta["unit_cost_per_kg"] = film_cost_per_kg(roll.material)
+            InventoryRoll.objects.filter(id=roll.id).update(meta_json=meta)
+            fixed += 1
+        self.report.append(f"film roll costs: {fixed} demo rolls given a purchase cost")
+
     def _location(self, kind: str) -> InventoryLocation:
         found = InventoryLocation.objects.filter(plant=self.plant, type=kind).order_by("-is_system", "code").first()
         return found or InventoryLocation.objects.create(plant=self.plant, code=f"{kind}-{self.plant.code}", name=f"{kind} {self.plant.code}", type=kind, is_system=True)
@@ -169,7 +196,7 @@ class Command(BaseCommand):
                         label_id=f"{ROLL_PREFIX}{mat.code}-{int(micron)}-{width}-{n}",
                         material=mat, thickness_micron=micron, width_mm=D(width), plant=self.plant, location=rm,
                         original_weight_kg=kg, weight_kg=kg, net_weight_kg=kg, status="AVAILABLE",
-                        stage_index=0, current_step_index=0, completed_step_index=0, meta_json={"roll_role": "RAW_MATERIAL"},
+                        stage_index=0, current_step_index=0, completed_step_index=0, meta_json={"roll_role": "RAW_MATERIAL", "unit_cost_per_kg": film_cost_per_kg(mat)},
                     )
                     rolls += 1
 
@@ -243,7 +270,7 @@ class Command(BaseCommand):
                     InventoryRoll.objects.create(
                         label_id=label, material=mat, thickness_micron=micron, width_mm=width, plant=self.plant, location=rm,
                         original_weight_kg=kg, weight_kg=kg, net_weight_kg=kg, status="AVAILABLE",
-                        stage_index=0, current_step_index=0, completed_step_index=0, meta_json={"roll_role": "RAW_MATERIAL"},
+                        stage_index=0, current_step_index=0, completed_step_index=0, meta_json={"roll_role": "RAW_MATERIAL", "unit_cost_per_kg": film_cost_per_kg(mat)},
                     )
                     made += 1
         self.report.append(f"order-width film rolls: {made} added for DEMO LIVE lines")
