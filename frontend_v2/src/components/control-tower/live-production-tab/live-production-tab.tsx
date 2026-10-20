@@ -625,7 +625,7 @@ function LiveOrderCard({ order, jobs, onOpenColorRevision }: {
             {blockers.length > 0 && (
                 <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {blockers.slice(0, 4).map((blocker: any, index: number) => (
-                        <span key={index} style={{ padding: "4px 8px", borderRadius: "var(--r-pill)", background: "rgba(244,63,94,.08)", color: "var(--danger)", fontSize: 10, fontWeight: 650 }}>
+                        <span key={index} style={{ padding: "4px 8px", borderRadius: "var(--r-pill)", background: "rgba(244,63,94,.08)", color: "var(--danger-fg)", fontSize: 10, fontWeight: 650 }}>
                             {blocker.message || blocker.code || "Blocker"}
                         </span>
                     ))}

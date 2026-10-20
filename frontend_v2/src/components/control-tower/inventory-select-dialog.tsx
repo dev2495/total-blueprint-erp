@@ -759,7 +759,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                         color: "var(--text-2)",
                                     }}
                                 >
-                                    <div style={{ fontWeight: 650, color: "var(--warning)" }}>
+                                    <div style={{ fontWeight: 650, color: "var(--warning-fg)" }}>
                                         Input stock pre-selected for WCM
                                     </div>
                                     <div style={{ marginTop: 3 }}>
@@ -1018,7 +1018,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                 })}
                             </div>
                             {missingRouteDispatchSteps.length > 0 && (
-                                <div style={{ marginTop: 10, fontSize: 11, color: "var(--warning)", fontWeight: 700 }}>
+                                <div style={{ marginTop: 10, fontSize: 11, color: "var(--warning-fg)", fontWeight: 700 }}>
                                     Release is blocked until every planner-decided route step has a work center.
                                 </div>
                             )}
@@ -1172,23 +1172,23 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                 >
                     <div style={{ fontSize: 11, color: "var(--text-3)" }}>
                         {missingRouteDispatchSteps.length > 0 ? (
-                            <span style={{ color: "var(--warning)", fontWeight: 700 }}>
+                            <span style={{ color: "var(--warning-fg)", fontWeight: 700 }}>
                                 Choose {missingRouteDispatchSteps.length} route work center{missingRouteDispatchSteps.length === 1 ? "" : "s"} to proceed
                             </span>
                         ) : requiresAlloc ? (
                             totalAllocated >= requiredKg ? (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--success)" }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--success-fg)" }}>
                                     <CheckCircle2 size={12} />
                                     {expectedReturnKg > 0
                                         ? `Execute ${fmt(requiredKg)} KG · return ${fmt(expectedReturnKg)} KG`
                                         : "Fully allocated"}
                                 </span>
                             ) : selectedIsWipContinuation && totalAllocated > 0 ? (
-                                <span style={{ color: "var(--warning)" }}>
+                                <span style={{ color: "var(--warning-fg)" }}>
                                     Execute {fmt(executionKg)} KG now · {fmt(remainingAfterSelectedRun)} KG remains
                                 </span>
                             ) : totalAllocated > 0 ? (
-                                <span style={{ color: "var(--warning)" }}>
+                                <span style={{ color: "var(--warning-fg)" }}>
                                     Short by {fmt(requiredKg - totalAllocated)} KG
                                 </span>
                             ) : (
@@ -1237,7 +1237,7 @@ function ModeTile({
 }) {
     const accent = mode === "FG" ? "success" : mode === "WIP" ? "info" : "brand";
     const colors = {
-        success: { bg: "rgba(16,185,129,.10)", fg: "var(--success)", border: "rgba(16,185,129,.30)" },
+        success: { bg: "rgba(16,185,129,.10)", fg: "var(--success-fg)", border: "rgba(16,185,129,.30)" },
         info: { bg: "rgba(99,102,241,.10)", fg: "var(--i-700)", border: "rgba(99,102,241,.30)" },
         brand: { bg: "rgba(37,99,235,.08)", fg: "var(--br-700)", border: "rgba(37,99,235,.24)" },
     }[accent];
@@ -1397,7 +1397,7 @@ function RouteSpanPreview({
                                                             {branch}
                                                         </span>
                                                         {(step.is_join || step.join_key) && (
-                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 700, color: "var(--success)" }}>
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 700, color: "var(--success-fg)" }}>
                                                                 <GitMerge size={9} /> {step.join_key || "JOIN"}
                                                             </span>
                                                         )}

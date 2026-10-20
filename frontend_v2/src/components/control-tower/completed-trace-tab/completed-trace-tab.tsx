@@ -963,13 +963,13 @@ function TraceAuditBanner({ order }: { order: PlannerControlOrder }) {
     } : audit.postedWithVariance ? {
         bg: "rgba(245,158,11,.10)",
         border: "rgba(245,158,11,.25)",
-        fg: "var(--warning)",
+        fg: "var(--warning-fg)",
         title: "Short-close / variance closure",
         body: varianceKg > 0 ? `${fmt(varianceKg, 2)} kg closed as variance after WCM posting.` : "Closed with variance audit state from WCM or planner short close.",
     } : {
         bg: "rgba(16,185,129,.08)",
         border: "rgba(16,185,129,.22)",
-        fg: "var(--success)",
+        fg: "var(--success-fg)",
         title: "WCM posted closure",
         body: "Production output is backed by WCM job rows; release gates are shown as historical audit only.",
     };

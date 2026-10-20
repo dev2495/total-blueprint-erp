@@ -131,7 +131,7 @@ export function ActionDesk({ alerts, orders, jobs }: ActionDeskProps) {
                                     color: "var(--text-1)",
                                 }}
                             >
-                                <span style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--danger)" }}>
+                                <span style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--danger-fg)" }}>
                                     {o.order_number}
                                 </span>
                                 <span style={{ fontSize: 11, color: "var(--text-3)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

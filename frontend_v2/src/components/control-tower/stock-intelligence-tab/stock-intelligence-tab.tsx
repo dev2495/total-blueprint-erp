@@ -71,9 +71,9 @@ function balanceStatus(stock: number, demand: number): TemplateBalance["status"]
 
 function statusTone(s: TemplateBalance["status"]): { fg: string; bg: string; label: string } {
     switch (s) {
-        case "SHORT": return { fg: "var(--danger)", bg: "rgba(244,63,94,.10)", label: "SHORT" };
-        case "TIGHT": return { fg: "var(--warning)", bg: "rgba(245,158,11,.10)", label: "TIGHT" };
-        case "COVERED": return { fg: "var(--success)", bg: "rgba(16,185,129,.10)", label: "COVERED" };
+        case "SHORT": return { fg: "var(--danger-fg)", bg: "rgba(244,63,94,.10)", label: "SHORT" };
+        case "TIGHT": return { fg: "var(--warning-fg)", bg: "rgba(245,158,11,.10)", label: "TIGHT" };
+        case "COVERED": return { fg: "var(--success-fg)", bg: "rgba(16,185,129,.10)", label: "COVERED" };
         case "OVERSTOCK": return { fg: "var(--i-700)", bg: "rgba(99,102,241,.10)", label: "OVERSTOCK" };
         case "STOCK_ONLY": return { fg: "var(--text-3)", bg: "var(--surface-2)", label: "STOCK READY" };
     }
@@ -537,7 +537,7 @@ export default function StockIntelligenceTab() {
                                 {i < funnel.length - 1 && (
                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", color: "var(--text-3)", fontSize: 10, gap: 2 }}>
                                         <ArrowRight size={14} />
-                                        {dropoff > 0 && <span style={{ fontFamily: "var(--f-mono)", fontWeight: 700, color: "var(--danger)" }}>−{dropoff}</span>}
+                                        {dropoff > 0 && <span style={{ fontFamily: "var(--f-mono)", fontWeight: 700, color: "var(--danger-fg)" }}>−{dropoff}</span>}
                                     </div>
                                 )}
                             </div>
@@ -890,7 +890,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                 <span>Stock: <strong style={{ color: "var(--text-1)" }}>{fmt(row.stockKg, 1)} KG</strong></span>
                 <span>Demand: <strong style={{ color: "var(--text-1)" }}>{row.demandKg > 0 ? `${fmt(row.demandKg, 1)} KG` : "No open demand"}</strong></span>
                 <span>{row.deficitKg > 0
-                    ? <>Deficit: <strong style={{ color: "var(--danger)" }}>{fmt(row.deficitKg, 1)} KG</strong></>
+                    ? <>Deficit: <strong style={{ color: "var(--danger-fg)" }}>{fmt(row.deficitKg, 1)} KG</strong></>
                     : row.deficitKg < 0
                     ? <>Surplus: <strong style={{ color: "var(--i-700)" }}>{fmt(Math.abs(row.deficitKg), 1)} KG</strong></>
                     : <>Balanced</>}

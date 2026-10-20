@@ -903,7 +903,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
                     <span style={{
                         fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
                         borderRadius: "var(--r-pill)",
-                        background: "rgba(245,158,11,.12)", color: "var(--warning)",
+                        background: "rgba(245,158,11,.12)", color: "var(--warning-fg)",
                         border: "1px solid rgba(245,158,11,.25)",
                     }}>
                         Ship {fmt(o.qty_dispatchable, 0)} · Replan {fmt(o.qty_replan_remaining_kg || o.partial_shortfall_kg, 0)} KG
@@ -1242,7 +1242,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                                 {Number(order.qty_cancelled || 0) > 0 && <Chip kind="blocked">Cancelled {fmt(order.qty_cancelled, 2)}</Chip>}
                             </div>
                             {hasPartialShortfall && (
-                                <div style={{ marginTop: 8, fontSize: 11, color: "var(--warning)", fontWeight: 700 }}>
+                                <div style={{ marginTop: 8, fontSize: 11, color: "var(--warning-fg)", fontWeight: 700 }}>
                                     Final step produced {fmt(order.partial_produced_kg, 1)} KG of {fmt(order.partial_target_kg, 1)} KG. Dispatch can ship the produced balance now; Planner keeps {fmt(order.partial_shortfall_kg, 1)} KG in queue for re-release or short-close.
                                 </div>
                             )}
@@ -1519,7 +1519,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                                 <div>
-                                    <div className="t-eyebrow" style={{ color: "var(--warning)" }}>Artwork required</div>
+                                    <div className="t-eyebrow" style={{ color: "var(--warning-fg)" }}>Artwork required</div>
                                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", marginTop: 2 }}>
                                         Pick an artwork before releasing
                                     </div>
@@ -1607,7 +1607,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
 
                 {blockers.length > 0 && (
                     <div style={{ marginTop: 12, padding: "10px 12px", background: "rgba(244,63,94,.06)", border: "1px solid rgba(244,63,94,.16)", borderRadius: "var(--r-3)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--danger)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--danger-fg)", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>
                             <AlertTriangle size={12} />
                             Blockers ({blockers.length})
                         </div>
@@ -1719,8 +1719,8 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
 function BigStat({ label, value, suffix, tone }: { label: string; value: string; suffix?: string; tone: "info" | "success" | "danger" | "default" }) {
     const colors = {
         info: { fg: "var(--br-700)", bg: "rgba(255,255,255,.6)" },
-        success: { fg: "var(--success)", bg: "rgba(16,185,129,.08)" },
-        danger: { fg: "var(--danger)", bg: "rgba(244,63,94,.06)" },
+        success: { fg: "var(--success-fg)", bg: "rgba(16,185,129,.08)" },
+        danger: { fg: "var(--danger-fg)", bg: "rgba(244,63,94,.06)" },
         default: { fg: "var(--text-1)", bg: "rgba(255,255,255,.6)" },
     }[tone];
     return (
@@ -1865,7 +1865,7 @@ function LayerRow({ layer }: { layer: any }) {
 
 function SourceTinyTile({ label, count, active, tone }: { label: string; count: number; active: boolean; tone: "success" | "info" | "brand" }) {
     const colors = {
-        success: { bg: "rgba(16,185,129,.12)", fg: "var(--success)" },
+        success: { bg: "rgba(16,185,129,.12)", fg: "var(--success-fg)" },
         info: { bg: "rgba(99,102,241,.12)", fg: "var(--i-700)" },
         brand: { bg: "rgba(37,99,235,.10)", fg: "var(--br-700)" },
     }[tone];

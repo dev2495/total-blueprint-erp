@@ -239,7 +239,7 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
                                         padding: "4px 10px",
                                         fontSize: 11, fontWeight: 700,
                                         background: "rgba(244,63,94,.10)",
-                                        color: "var(--danger)",
+                                        color: "var(--danger-fg)",
                                         border: "1px solid rgba(244,63,94,.24)",
                                         borderRadius: "var(--r-pill)",
                                         cursor: "pointer",
@@ -297,7 +297,7 @@ export function QuickStockLauncherDialog({ seed, onClose, onCommitted }: QuickSt
                 }}>
                     <div style={{ fontSize: 11, color: "var(--text-3)" }}>
                         {autoRelease ? (
-                            <span style={{ color: "var(--success)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ color: "var(--success-fg)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                                 <CheckCircle2 size={12} /> Will auto-release on submit
                             </span>
                         ) : (

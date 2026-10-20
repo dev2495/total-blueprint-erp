@@ -949,9 +949,9 @@ function BigNumber({ value, suffix }: { value: string; suffix?: string }) {
 
 function ReadinessTile({ label, value, tone }: { label: string; value: number; tone: "success" | "warn" | "danger" }) {
     const colors = {
-        success: { fg: "var(--success)", bg: "rgba(16,185,129,.10)", border: "rgba(16,185,129,.22)" },
-        warn: { fg: "var(--warning)", bg: "rgba(245,158,11,.10)", border: "rgba(245,158,11,.22)" },
-        danger: { fg: "var(--danger)", bg: "rgba(244,63,94,.10)", border: "rgba(244,63,94,.22)" },
+        success: { fg: "var(--success-fg)", bg: "rgba(16,185,129,.10)", border: "rgba(16,185,129,.22)" },
+        warn: { fg: "var(--warning-fg)", bg: "rgba(245,158,11,.10)", border: "rgba(245,158,11,.22)" },
+        danger: { fg: "var(--danger-fg)", bg: "rgba(244,63,94,.10)", border: "rgba(244,63,94,.22)" },
     }[tone];
     return (
         <div style={{
