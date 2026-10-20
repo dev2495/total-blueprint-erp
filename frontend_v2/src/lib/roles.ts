@@ -26,7 +26,7 @@ export const CANONICAL_ROLE_LABELS: Record<string, string> = {
   SALES: 'Sales',
   PLANNER: 'Planner',
   WORK_CENTER_MANAGER: 'Work Center Manager',
-  OPERATOR: 'Operator',
+  OPERATOR: 'Machine Operator',
   STORE: 'Store',
   DISPATCH: 'Dispatch',
   PLANT_MANAGER: 'Plant Manager',

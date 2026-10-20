@@ -86,6 +86,11 @@ def _plant_filter(request, qs, field="machine__work_center__plant_id"):
     plant_id = request.query_params.get("plant_id")
     if plant_id:
         qs = qs.filter(**{field: plant_id})
+    # A machine operator sees only the machines assigned to them.
+    from apps.production.scope import is_operator, machine_scope
+
+    if is_operator(getattr(request, "user", None)) and field.startswith("machine__"):
+        qs = qs.filter(machine_id__in=machine_scope(request.user) or [])
     return qs
 
 
@@ -357,6 +362,34 @@ class AttachmentFileView(APIView):
         response["X-Content-Type-Options"] = "nosniff"
         response["Content-Disposition"] = f'inline; filename="{row.original_name or "attachment"}"'
         return response
+
+
+# ============================================================================ people
+class PeopleView(APIView):
+    """Accounts maintenance work can be assigned to, for the assignee pickers. Anyone who may view
+    maintenance can list them; it carries names and roles only, never contact details."""
+
+    permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
+    ASSIGNABLE_ROLES = ("MAINTENANCE_TECH", "MAINTENANCE_SUPERVISOR", "OPERATOR", "WORK_CENTER_MANAGER", "PLANT_MANAGER")
+
+    def get(self, request):
+        from django.contrib.auth import get_user_model
+
+        users = (
+            get_user_model()
+            .objects.filter(is_active=True, role__code__in=self.ASSIGNABLE_ROLES)
+            .select_related("role")
+            .order_by("first_name", "last_name", "username")[:500]
+        )
+        return Response([
+            {
+                "id": str(u.id),
+                "username": u.username,
+                "full_name": (u.get_full_name() or "").strip(),
+                "role_info": {"code": u.role.code if u.role else "", "name": u.role.name if u.role else ""},
+            }
+            for u in users
+        ])
 
 
 # ============================================================================ board + reports

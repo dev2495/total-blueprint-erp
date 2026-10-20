@@ -8,6 +8,7 @@
 import type { ElementType } from "react";
 
 import { NAV_ITEMS, canAccessNavTarget, type NavItem, type SidebarAccessContext } from "./sidebar-nav";
+import { canOpenPath } from "./page-access";
 import {
   BarChart3,
   Boxes,
@@ -147,6 +148,7 @@ export const WORKSPACES: Workspace[] = [
       { label: "Vendors", href: "/inventory/vendors", match: ["/master/vendors"] },
       { label: "Stock conversion", href: "/inventory/stock-conversions", group: "Move & convert" },
       { label: "Roll movements", href: "/inventory/movements" },
+      { label: "Goods in & out", href: "/inventory/goods-movements" },
       { label: "Inter-plant", href: "/inventory/inter-plant" },
       { label: "Adjustments", href: "/inventory/adjustments" },
       { label: "Count at rack", href: "/inventory/count" },
@@ -175,9 +177,10 @@ export const WORKSPACES: Workspace[] = [
       { label: "Packing audit", href: "/logistics/packing/audit" },
       { label: "Dispatch bay", href: "/logistics/dispatch", match: ["/logistics", "/dashboard/logistics"] },
       { label: "In transit", href: "/logistics/transit" },
+      { label: "Goods in & out", href: "/inventory/goods-movements" },
       { label: "Outward documents", href: "/inventory/outward-documents" },
       { label: "Gate passes", href: "/inventory/gate-passes" },
-      { label: "Gate terminal", href: "/gate", group: "Gate", match: ["/gate/goods", "/gate/outward", "/gate/inward-bills"] },
+      { label: "Gate terminal", href: "/gate", group: "Gate", match: ["/gate/goods", "/gate/outward", "/gate/inward-bills", "/gate/arrivals"] },
       { label: "Gate register", href: "/gate/register" },
       { label: "Visitors", href: "/gate/visitors" },
       { label: "Gate history", href: "/gate/history" },
@@ -263,8 +266,10 @@ export function navTargetFor(href: string): NavTarget | undefined {
   return navIndexCache.get(normalize(href));
 }
 
-/** A tab is open to a user when its sidebar entry is (pages not in the sidebar keep their own page guards). */
+/** A tab is open to a user when its sidebar entry is, and the page guard lets them in (master,
+ * engineering, factory and system pages; a machine operator's own screens). */
 export function canOpenTab(tab: WorkspaceTab, context: SidebarAccessContext): boolean {
+  if (!canOpenPath(tab.href, context)) return false;
   const target = navTargetFor(tab.href);
   return target ? canAccessNavTarget(target, context) : true;
 }

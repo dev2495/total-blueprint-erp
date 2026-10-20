@@ -1,5 +1,6 @@
 import type { ElementType } from "react"
 import {
+  ArrowRightLeft,
   LayoutDashboard,
   AlertTriangle,
   BarChart3,
@@ -121,6 +122,7 @@ const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
   "/inventory/adjustments": "page.inventory.adjustments.view",
   "/inventory/traceability": "page.inventory.traceability.view",
   "/inventory/inter-plant": "page.inventory.inter_plant.view",
+  "/inventory/goods-movements": "page.inventory.goods_movements.view",
   "/inventory/job-work": "page.inventory.job_work.view",
   "/inventory/vendors": "page.inventory.vendors.view",
   "/logistics/packing": "page.logistics.packing.view",
@@ -230,7 +232,8 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Operations",
     href: "/production",
     icon: Factory,
-    roles: ["ADMIN", "OWNER", "PLANNER", "WORK_CENTER_MANAGER", "OPERATOR", "PLANT_MANAGER"],
+    // A machine operator reaches only the Machine Terminal child, so the section opens on it.
+    roles: ["ADMIN", "OWNER", "PLANNER", "WORK_CENTER_MANAGER", "PLANT_MANAGER"],
     permissionModules: ["production"],
     children: [
       {
@@ -279,7 +282,7 @@ export const NAV_ITEMS: NavItem[] = [
         title: "WCM Command Deck",
         group: "Floor", href: "/dashboard/work-center",
         icon: LayoutDashboard,
-        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER", "OPERATOR"],
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER"],
         permissions: ["production.view", "production.manage"],
       },
       {
@@ -293,7 +296,7 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Machine Terminal",
         group: "Floor", href: "/production/machine-selector",
         icon: Zap,
-        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER"],
+        roles: ["ADMIN", "OWNER", "SUPER_ADMIN", "WORK_CENTER_MANAGER", "OPERATOR"],
         permissions: ["production.view", "production.manage"],
       },
     ],
@@ -448,6 +451,13 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["inventory.view", "inventory.manage"],
       },
       {
+        title: "Goods In & Out",
+        group: "Move & convert", href: "/inventory/goods-movements",
+        icon: ArrowRightLeft,
+        roles: ["ADMIN", "OWNER", "STORE", "PLANNER", "PLANT_MANAGER", "DISPATCH"],
+        permissions: ["inventory.view", "inventory.manage"],
+      },
+      {
         title: "Inter-Plant",
         group: "Move & convert", href: "/inventory/inter-plant",
         icon: Plane,
@@ -561,8 +571,10 @@ export const NAV_ITEMS: NavItem[] = [
       },
       { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
       { title: "Trade Orders", href: "/sales/trade-orders", icon: Repeat, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
-      { title: "Product Master", href: "/master/products", icon: Package, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
-      { title: "Pouch Styles", href: "/master/pouch-styles", icon: Palette, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
+      // Product masters and pouch styles are kept by admin/owner, or by an account given the
+      // master-data grant. Sales picks products in the order composer without seeing the masters.
+      { title: "Product Master", href: "/master/products", icon: Package, roles: ["ADMIN", "OWNER"], permissions: ["master.manage"] },
+      { title: "Pouch Styles", href: "/master/pouch-styles", icon: Palette, roles: ["ADMIN", "OWNER"], permissions: ["master.manage"] },
       { title: "Web-Width Policies", href: "/master/web-width-policies", icon: MoveRight, roles: ["ADMIN", "OWNER", "PLANNER"], permissions: ["sales.manage", "production.manage"] },
       { title: "Customers", href: "/sales/customers", icon: Users, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
       { title: "Quotations", href: "/sales/quotations", icon: FileText, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
@@ -588,8 +600,9 @@ export const NAV_ITEMS: NavItem[] = [
         title: "Costing Center",
         href: "/analytics/costing",
         icon: BadgePercent,
-        roles: ["ADMIN", "OWNER", "PLANNER", "PLANT_MANAGER"],
-        permissions: ["analytics.view", "analytics.manage", "costing.view", "costing.manage"],
+        // Costs are owner/admin data; any other account sees them through a costing grant.
+        roles: ["ADMIN", "OWNER"],
+        permissions: ["costing.view", "costing.manage"],
       },
       { title: "MRP Center", href: "/analytics/mrp", icon: ClipboardList, roles: ["ADMIN", "OWNER", "PLANNER"], permissions: ["mrp.view", "mrp.manage"] },
       { title: "Trading Report", href: "/analytics/reports/trading", icon: Repeat, roles: ["ADMIN", "OWNER", "SALES", "PLANT_MANAGER"], permissions: ["analytics.view", "analytics.manage"] },

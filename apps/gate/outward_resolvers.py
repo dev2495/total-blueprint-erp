@@ -230,10 +230,24 @@ def search_interplant_dc(plant, query, *, around=None, limit=10):
     return [_interplant_snapshot(obj, plant) for obj in qs.order_by("-created_at")[:limit]]
 
 
+def gate_out_interplant_dc(object_id, departed_at, user):
+    """Stamp the first matched departure of an inter-plant challan. Never moves stock (dispatch did)."""
+    from django.db import transaction
+    from django.utils import timezone
+
+    with transaction.atomic():
+        challan = InterPlantChallan.objects.select_for_update().filter(id=object_id).first()
+        if challan is None or challan.gate_out_at:
+            return
+        challan.gate_out_at = departed_at or timezone.now()
+        challan.gate_out_by = user if getattr(user, "pk", None) else None
+        challan.save(update_fields=["gate_out_at", "gate_out_by", "updated_at"])
+
+
 register_qr_kind("SALES_DC", resolve_sales_dc)
 register_qr_kind("CUSTOMER_DISPATCH", resolve_customer_dispatch)
 register_qr_kind("TRADE_ORDER", resolve_trade_order)
-register_qr_kind("INTERPLANT_DC", resolve_interplant_dc)
+register_qr_kind("INTERPLANT_DC", resolve_interplant_dc, on_gate_out=gate_out_interplant_dc)
 register_outward_search("SALES_DC", search_sales_dc)
 register_outward_search("CUSTOMER_DISPATCH", search_customer_dispatch)
 register_outward_search("TRADE_ORDER", search_trade_order)

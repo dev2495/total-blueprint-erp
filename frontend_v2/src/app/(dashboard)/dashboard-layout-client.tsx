@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { RouteProgress } from "@/components/layout/route-progress";
 import { WorkspaceBar } from "@/components/layout/workspace-bar";
 import { HelpPageBanner } from "@/components/help/help-page-banner";
+import { PageAccessGuard } from "@/components/layout/page-access-guard";
 import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
 import React, { useEffect } from "react";
@@ -81,7 +82,9 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         <main className="z-10 flex w-full min-w-0 flex-col overflow-x-clip px-3 pb-6 pt-[10.75rem] sm:px-4 sm:pb-8 sm:pt-[11rem] lg:px-6 lg:pb-10 lg:pt-5 xl:px-8">
           <HelpPageBanner />
           <WorkspaceBar />
-          <div className="w-full min-w-0">{children}</div>
+          <div className="w-full min-w-0">
+            <PageAccessGuard>{children}</PageAccessGuard>
+          </div>
         </main>
       </div>
     </div>

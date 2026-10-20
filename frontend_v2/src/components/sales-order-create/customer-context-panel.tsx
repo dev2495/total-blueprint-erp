@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { salesService } from "@/services/sales";
 import { api } from "@/lib/api";
+import { RoleLink } from "@/components/layout/role-link";
 
 interface Props {
   customerId: string;
@@ -197,12 +198,12 @@ export function CustomerContextPanel({ customerId, customerName }: Props) {
           <div className="mt-2 text-caption text-content-4">
             Lane is captured per-line at the bottom of each line editor.
             Validated against the effective{" "}
-            <Link
+            <RoleLink
               href="/master/web-width-policies"
               className="font-bold text-order-fg underline"
             >
               web-width policy
-            </Link>
+            </RoleLink>
             .
           </div>
         </div>

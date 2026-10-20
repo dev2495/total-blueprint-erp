@@ -51,6 +51,8 @@ import { salesService, type SalesOrder } from "@/services/sales";
 import { analyticsService } from "@/services/analytics";
 import { productMasterService } from "@/services/product-master";
 import { formatDisplayDate } from "@/lib/date-format";
+import { RoleLink } from "@/components/layout/role-link";
+import { useHasPermission } from "@/components/layout/use-nav-access";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Process colour map — keeps every chip/tile consistent across the page.
@@ -274,10 +276,13 @@ export function VisualFactoryV37Workspace() {
     queryFn: () => analyticsService.getDowntimeAnalysis(30),
     staleTime: 5 * 60_000,
   });
+  const can = useHasPermission();
   const { data: salesOrdersRaw } = useQuery({
     queryKey: ["sales-orders-open"],
     queryFn: () => salesService.getOrders({ limit: 40 }),
     staleTime: 120_000,
+    // Work-centre roles see the floor here without the sales book.
+    enabled: can("sales.view"),
   });
   const salesOrders: SalesOrder[] = React.useMemo(() => {
     const list = Array.isArray((salesOrdersRaw as any)?.results)
@@ -882,7 +887,7 @@ function RouteSwimlane({
                         </Link>
                       ))}
                       {list.length > 4 ? (
-                        <Link
+                        <RoleLink
                           href="/factory/machines"
                           className={cn(
                             "block rounded-lg px-2 py-1 text-center text-caption font-bold underline-offset-2 hover:underline",
@@ -890,7 +895,7 @@ function RouteSwimlane({
                           )}
                         >
                           + {list.length - 4} more · view all
-                        </Link>
+                        </RoleLink>
                       ) : null}
                     </div>
                   )}
@@ -1269,12 +1274,12 @@ function PlantsTab({
           <span className="text-[12px] font-semibold text-content-3">
             {plants.length} plants
           </span>
-          <Link
+          <RoleLink
             href="/factory/plants"
             className="rounded-full bg-surface-1 px-3 py-1 text-content-2 ring-1 ring-line hover:bg-surface-2 inline-flex items-center gap-1"
           >
             Manage plants <ExternalLink className="h-3 w-3" />
-          </Link>
+          </RoleLink>
         </div>
         <div className="flex items-center gap-2 text-caption font-bold">
           <span className="rounded-full bg-success-bg px-2 py-0.5 text-success-fg ring-1 ring-success-border">
@@ -1320,12 +1325,12 @@ function PlantsTab({
       {plants.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-surface-1 px-6 py-12 text-center text-sm text-content-3">
           No plants configured yet.{" "}
-          <Link
+          <RoleLink
             href="/factory/plants"
             className="font-bold text-order-fg underline"
           >
             Set up plants
-          </Link>{" "}
+          </RoleLink>{" "}
           in factory settings.
         </div>
       ) : (
@@ -1465,12 +1470,12 @@ function PlantBlock({
         {workCenters.length === 0 ? (
           <div className="col-span-full rounded-xl border border-dashed border-line bg-surface-2 px-3 py-4 text-center text-caption text-content-3">
             No work centers under this plant.{" "}
-            <Link
+            <RoleLink
               href="/factory/work-centers"
               className="font-bold text-order-fg underline"
             >
               Set up work centers
-            </Link>
+            </RoleLink>
             .
           </div>
         ) : (
@@ -1507,7 +1512,7 @@ function PlantBlock({
                       {wcMachines.length === 1 ? "" : "s"}
                     </div>
                   </div>
-                  <Link
+                  <RoleLink
                     href="/factory/work-centers"
                     className={cn(
                       "text-caption font-bold underline-offset-2 hover:underline",
@@ -1515,7 +1520,7 @@ function PlantBlock({
                     )}
                   >
                     edit
-                  </Link>
+                  </RoleLink>
                 </div>
                 <div className="space-y-1.5">
                   {wcMachines.length === 0 ? (

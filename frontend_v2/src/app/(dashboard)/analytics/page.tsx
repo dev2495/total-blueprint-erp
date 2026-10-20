@@ -37,6 +37,7 @@ import {
   hasMeaningfulData,
   toNullableNumber,
 } from "@/components/analytics/report-state";
+import { useAuth } from "@/components/auth-provider";
 
 function fmt(value: unknown, decimals = 1) {
   if (value === null || value === undefined || value === "") return "—";
@@ -55,6 +56,10 @@ const CATEGORY_ICONS: Record<string, any> = {
 };
 
 export default function AnalyticsPage() {
+  // Report distribution and run history are for admins / owners (the server refuses others).
+  const { user, effectiveRole } = useAuth();
+  const roleNow = String(effectiveRole || user?.entitlements?.role || user?.role_info?.code || "").toUpperCase();
+  const isReportsAdmin = Boolean(user?.entitlements?.gate_master) || roleNow === "ADMIN" || roleNow === "OWNER";
   const queryClient = useQueryClient();
   const summaryQuery = useQuery({
     queryKey: ["analytics-dashboard-summary"],
@@ -70,6 +75,7 @@ export default function AnalyticsPage() {
   const profilesQuery = useQuery({
     queryKey: ["report-distributions"],
     queryFn: analyticsApi.getReportDistributions,
+    enabled: isReportsAdmin,
     refetchInterval: 180_000,
     staleTime: 120_000,
     retry: (failureCount, error) =>
@@ -78,6 +84,7 @@ export default function AnalyticsPage() {
   const runsQuery = useQuery({
     queryKey: ["report-runs", 10],
     queryFn: () => analyticsApi.getReportRuns(10),
+    enabled: isReportsAdmin,
     refetchInterval: 180_000,
     staleTime: 120_000,
     retry: (failureCount, error) =>
@@ -151,6 +158,7 @@ export default function AnalyticsPage() {
     return `${fmt(value, decimals)}${suffix}`;
   };
   const reportAdminLocked =
+    !isReportsAdmin ||
     getApiErrorStatus(profilesQuery.error) === 403 ||
     getApiErrorStatus(runsQuery.error) === 403;
   const productionTrend = Array.isArray(trends.production)

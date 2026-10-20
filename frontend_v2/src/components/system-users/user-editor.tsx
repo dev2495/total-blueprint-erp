@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Sparkles,
   UserCog,
+  Zap,
 } from "lucide-react";
 
 import { GradientHero } from "@/components/erp/gradient-hero";
@@ -44,7 +45,7 @@ import {
   type Role,
   type PermissionCatalogEntry,
 } from "@/services/system-users";
-import { factoryService, type WorkCenter } from "@/services/factory";
+import { factoryService, type Machine, type WorkCenter } from "@/services/factory";
 import { GatePlantScopeSection } from "./gate-plant-scope";
 import { cn } from "@/lib/utils";
 import { getCanonicalRoleLabel } from "@/lib/roles";
@@ -70,6 +71,7 @@ interface FormState {
   role_id: string;
   extra_permissions: string[];
   work_center_ids: string[];
+  machine_ids: string[];
   gate_plant_ids: string[];
   password: string;
 }
@@ -85,11 +87,13 @@ const DEFAULT_FORM: FormState = {
   role_id: "",
   extra_permissions: [],
   work_center_ids: [],
+  machine_ids: [],
   gate_plant_ids: [],
   password: "",
 };
 
 const WCM_ROLE_CODE = "WORK_CENTER_MANAGER";
+const OPERATOR_ROLE_CODE = "OPERATOR";
 const WATCHMAN_ROLE_CODE = "WATCHMAN";
 
 export function UserEditor({
@@ -126,6 +130,12 @@ export function UserEditor({
     staleTime: 5 * 60_000,
   });
 
+  const machinesQuery = useQuery({
+    queryKey: ["factory-machines", "user-editor"],
+    queryFn: factoryService.getMachines,
+    staleTime: 5 * 60_000,
+  });
+
   const plantsQuery = useQuery({
     queryKey: ["factory-plants", "user-editor"],
     queryFn: factoryService.getPlants,
@@ -137,11 +147,13 @@ export function UserEditor({
   const [pwDialogOpen, setPwDialogOpen] = React.useState(false);
   const [permissionSearch, setPermissionSearch] = React.useState("");
   const [workCenterSearch, setWorkCenterSearch] = React.useState("");
+  const [machineSearch, setMachineSearch] = React.useState("");
 
   // hydrate
   React.useEffect(() => {
     if (mode === "edit" && userQuery.data) {
       const u = userQuery.data;
+      const isOperator = String(u.role_info?.code || "").toUpperCase() === OPERATOR_ROLE_CODE;
       setForm({
         username: u.username || "",
         first_name: u.first_name || "",
@@ -154,8 +166,12 @@ export function UserEditor({
         extra_permissions: Array.isArray(u.extra_permissions)
           ? [...u.extra_permissions]
           : [],
-        work_center_ids: Array.isArray(u.entitlements?.context?.work_centers)
+        // An operator's work centres are derived from their machines; only machines are saved.
+        work_center_ids: !isOperator && Array.isArray(u.entitlements?.context?.work_centers)
           ? u.entitlements.context.work_centers.map(String)
+          : [],
+        machine_ids: isOperator && Array.isArray(u.entitlements?.context?.machines)
+          ? u.entitlements.context.machines.map(String)
           : [],
         gate_plant_ids: Array.isArray((u as { gate_plant_ids?: unknown }).gate_plant_ids)
           ? ((u as { gate_plant_ids?: unknown[] }).gate_plant_ids || []).map(String)
@@ -177,6 +193,8 @@ export function UserEditor({
   const selectedRole = roles.find((r) => r.id === form.role_id) || null;
   const selectedRoleCode = String(selectedRole?.code || "").toUpperCase();
   const requiresWorkCenter = selectedRoleCode === WCM_ROLE_CODE;
+  const requiresMachine = selectedRoleCode === OPERATOR_ROLE_CODE;
+  const machines = machinesQuery.data || [];
   const isWatchmanRole = selectedRoleCode === WATCHMAN_ROLE_CODE;
   const originalGatePlantCount = Array.isArray((userQuery.data as { gate_plant_ids?: unknown[] } | undefined)?.gate_plant_ids)
     ? ((userQuery.data as { gate_plant_ids?: unknown[] }).gate_plant_ids || []).length
@@ -284,6 +302,38 @@ export function UserEditor({
     );
   }, [workCenterSearch, workCenters]);
 
+  const selectedMachineIds = React.useMemo(() => new Set(form.machine_ids.map(String)), [form.machine_ids]);
+  const visibleMachines = React.useMemo(() => {
+    const search = machineSearch.trim().toLowerCase();
+    const sorted = [...machines].sort(
+      (a, b) =>
+        String(a.work_center_name || "").localeCompare(String(b.work_center_name || "")) ||
+        String(a.name || "").localeCompare(String(b.name || "")),
+    );
+    if (!search) return sorted;
+    return sorted.filter((m) =>
+      [m.name, m.code, m.work_center_name].filter(Boolean).join(" ").toLowerCase().includes(search),
+    );
+  }, [machineSearch, machines]);
+  const toggleMachine = (machineId: string) => {
+    const normalized = String(machineId || "").trim();
+    if (!normalized) return;
+    update({
+      machine_ids: selectedMachineIds.has(normalized)
+        ? form.machine_ids.filter((id) => String(id) !== normalized)
+        : [...form.machine_ids, normalized],
+    });
+  };
+
+  // Floor scope follows the role: an operator is given machines, everyone else work centres.
+  const saveFloorScope = async (id: string) => {
+    if (requiresMachine) {
+      await systemUserService.assignMachines(id, form.machine_ids);
+    } else {
+      await systemUserService.assignWorkCenters(id, form.work_center_ids);
+    }
+  };
+
   const toggleWorkCenter = (workCenterId: string) => {
     const normalized = String(workCenterId || "").trim();
     if (!normalized) return;
@@ -311,14 +361,15 @@ export function UserEditor({
         ...gatePayload,
         ...(form.password ? { password: form.password } : {}),
       } as any);
-      await systemUserService.assignWorkCenters(saved.id, form.work_center_ids);
+      await saveFloorScope(saved.id);
       return saved;
     },
     onSuccess: (saved) => {
       toast({
         title: "User created",
-        description:
-          form.work_center_ids.length > 0
+        description: requiresMachine
+          ? `${saved.username} created with ${form.machine_ids.length} machine${form.machine_ids.length === 1 ? "" : "s"}.`
+          : form.work_center_ids.length > 0
             ? `${saved.username} created with ${form.work_center_ids.length} work center scope.`
             : saved.username,
       });
@@ -352,14 +403,15 @@ export function UserEditor({
       if (canEditOwnerToggle) payload.is_owner = isWatchmanRole ? false : form.is_owner;
       if (form.role_id) payload.role_id = form.role_id;
       const saved = await systemUserService.updateUser(userId!, payload);
-      await systemUserService.assignWorkCenters(userId!, form.work_center_ids);
+      await saveFloorScope(userId!);
       return saved;
     },
     onSuccess: (saved) => {
       toast({
         title: "User saved",
-        description:
-          form.work_center_ids.length > 0
+        description: requiresMachine
+          ? `${saved.username} saved with ${form.machine_ids.length} machine${form.machine_ids.length === 1 ? "" : "s"}.`
+          : form.work_center_ids.length > 0
             ? `${saved.username} saved with ${form.work_center_ids.length} work center scope.`
             : saved.username,
       });
@@ -400,6 +452,14 @@ export function UserEditor({
   });
 
   const onSubmit = () => {
+    if (requiresMachine && form.machine_ids.length === 0) {
+      toast({
+        title: "Machine required",
+        description: "A Machine Operator must be given at least one machine to run.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (requiresWorkCenter && form.work_center_ids.length === 0) {
       toast({
         title: "Work center required",
@@ -425,7 +485,9 @@ export function UserEditor({
   };
 
   const isPending = createMut.isPending || updateMut.isPending;
-  const saveBlocked = requiresWorkCenter && form.work_center_ids.length === 0;
+  const saveBlocked =
+    (requiresWorkCenter && form.work_center_ids.length === 0) ||
+    (requiresMachine && form.machine_ids.length === 0);
   const palette = paletteFor(selectedRole?.code);
 
   return (
@@ -671,7 +733,20 @@ export function UserEditor({
             />
           ) : null}
 
-          {isWatchmanRole ? null : <WorkCenterScopeSection
+          {requiresMachine ? (
+            <MachineScopeSection
+              canManage={canManage}
+              loading={machinesQuery.isLoading}
+              search={machineSearch}
+              onSearchChange={setMachineSearch}
+              machines={visibleMachines}
+              allMachines={machines}
+              selectedIds={selectedMachineIds}
+              onToggle={toggleMachine}
+            />
+          ) : null}
+
+          {isWatchmanRole || requiresMachine ? null : <WorkCenterScopeSection
             canManage={canManage}
             loading={workCentersQuery.isLoading}
             requiresWorkCenter={requiresWorkCenter}
@@ -855,7 +930,14 @@ export function UserEditor({
                       : `${effectivePermissions.size} total`
                   }
                 />
-                <SummaryRow
+                {requiresMachine ? (
+                  <SummaryRow
+                    label="Machines"
+                    value={form.machine_ids.length > 0 ? `${form.machine_ids.length} assigned` : "Required for operators"}
+                    tone={form.machine_ids.length > 0 ? "success" : "danger"}
+                  />
+                ) : null}
+                {requiresMachine ? null : <SummaryRow
                   label="Work-center scope"
                   value={
                     form.work_center_ids.length > 0
@@ -871,7 +953,7 @@ export function UserEditor({
                         ? "success"
                         : "default"
                   }
-                />
+                />}
               </div>
 
               {selectedWorkCenters.length > 0 ? (
@@ -1121,6 +1203,135 @@ function WorkCenterScopeSection({
       {requiresWorkCenter && selectedWorkCenters.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-danger-border bg-danger-bg p-3 text-xs font-semibold text-danger-fg">
           Select at least one work center so this WCM can open the correct WCM terminal and inherited machine list.
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function MachineScopeSection({
+  canManage,
+  loading,
+  search,
+  onSearchChange,
+  machines,
+  allMachines,
+  selectedIds,
+  onToggle,
+}: {
+  canManage: boolean;
+  loading: boolean;
+  search: string;
+  onSearchChange: (value: string) => void;
+  machines: Machine[];
+  allMachines: Machine[];
+  selectedIds: Set<string>;
+  onToggle: (machineId: string) => void;
+}) {
+  const selected = allMachines.filter((m) => selectedIds.has(String(m.id)));
+  return (
+    <section className="rounded-3xl bg-surface-1 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] ring-1 ring-line" data-testid="user-machine-scope">
+      <div className="-m-6 mb-4 h-1.5 bg-info-fg" />
+      <header className="mb-4 mt-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="grid h-9 w-9 place-items-center rounded-2xl bg-info-bg text-info-fg">
+            <Zap className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="font-display text-sm font-bold text-content-1">Machines this operator runs</h3>
+            <p className="text-caption text-content-3">
+              The operator sees and works only on these machines. Their work centres follow from the machines.
+            </p>
+          </div>
+        </div>
+        <Badge
+          className={cn(
+            "ring-1",
+            selected.length === 0 ? "bg-danger-bg text-danger-fg ring-danger-border" : "bg-success-bg text-success-fg ring-success-border",
+          )}
+        >
+          {selected.length} selected
+        </Badge>
+      </header>
+
+      <div className="relative mb-4">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
+        <Input
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search machines or work centres..."
+          aria-label="Search machines"
+          className="pl-9"
+          disabled={loading}
+        />
+      </div>
+
+      {selected.length > 0 ? (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {selected.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => canManage && onToggle(m.id)}
+              disabled={!canManage}
+              className="min-h-7 rounded-full bg-info-bg px-3 py-1 text-caption font-bold text-info-fg ring-1 ring-info-border transition hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
+              title={canManage ? "Click to remove" : undefined}
+              aria-label={`Remove ${m.name}`}
+            >
+              {m.code || m.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="flex items-center justify-center rounded-2xl border border-dashed border-line bg-surface-2 p-6 text-xs font-semibold text-content-3">
+          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+          Loading machines...
+        </div>
+      ) : machines.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-line bg-surface-2 p-6 text-xs font-semibold text-content-3">
+          No machines match this search.
+        </div>
+      ) : (
+        <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+          {machines.map((m) => {
+            const isOn = selectedIds.has(String(m.id));
+            return (
+              <label
+                key={m.id}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-2xl border p-3 transition",
+                  isOn ? "border-info-border bg-info-bg" : "border-line bg-surface-2 hover:border-line-strong",
+                  !canManage && "cursor-not-allowed opacity-60",
+                )}
+              >
+                <Checkbox
+                  checked={isOn}
+                  onCheckedChange={() => onToggle(m.id)}
+                  disabled={!canManage}
+                  className="mt-0.5"
+                  aria-label={m.name}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-display text-sm font-bold text-content-1">{m.name}</span>
+                    <code className="rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-caption text-content-2 ring-1 ring-line">{m.code}</code>
+                  </span>
+                  <span className="mt-1 block text-caption font-medium text-content-3">
+                    {m.work_center_name || "Work centre not set"}
+                    {m.status && m.status !== "ACTIVE" ? ` · ${m.status.toLowerCase()}` : ""}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      {selected.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-danger-border bg-danger-bg p-3 text-xs font-semibold text-danger-fg">
+          Select at least one machine; an operator with no machine sees nothing to run.
         </div>
       ) : null}
     </section>

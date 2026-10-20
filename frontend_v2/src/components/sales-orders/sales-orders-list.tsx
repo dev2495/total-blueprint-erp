@@ -63,6 +63,7 @@ import {
 } from "@/services/product-master";
 import { formatDisplayDate } from "@/lib/date-format";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
+import { useCanFollowLink } from "@/components/layout/use-nav-access";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -1959,6 +1960,7 @@ function Hero({
 }: {
   kpis: { open: number; awaiting: number; aged: number; customersOpen: number };
 }) {
+  const canFollowLink = useCanFollowLink();
   return (
     <section className="rounded-2xl border border-line bg-surface-1 px-5 py-4 shadow-sm sm:px-6 sm:py-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1993,12 +1995,14 @@ function Hero({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/master/products"
-            className="inline-flex h-9 items-center rounded-[10px] border border-line bg-surface-1 px-3.5 text-[13px] font-semibold text-content-2 transition-colors hover:bg-surface-2"
-          >
-            Product master
-          </Link>
+          {canFollowLink("/master/products") ? (
+            <Link
+              href="/master/products"
+              className="inline-flex h-9 items-center rounded-[10px] border border-line bg-surface-1 px-3.5 text-[13px] font-semibold text-content-2 transition-colors hover:bg-surface-2"
+            >
+              Product master
+            </Link>
+          ) : null}
           <Link
             href="/sales/orders/create"
             className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-primary px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-primary/90"

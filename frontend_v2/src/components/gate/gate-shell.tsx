@@ -318,7 +318,7 @@ function GateTopBar() {
 
 const TABS = [
   { href: "/gate", label: "Gate", icon: Home, match: (p: string) => p === "/gate" },
-  { href: "/gate/goods", label: "Goods", icon: ArrowLeftRight, match: (p: string) => p.startsWith("/gate/goods") || p.startsWith("/gate/inward-bills") || p.startsWith("/gate/outward") },
+  { href: "/gate/goods", label: "Goods", icon: ArrowLeftRight, match: (p: string) => p.startsWith("/gate/goods") || p.startsWith("/gate/inward-bills") || p.startsWith("/gate/outward") || p.startsWith("/gate/arrivals") },
   { href: "/gate/visitors", label: "Visitors", icon: Users, match: (p: string) => p.startsWith("/gate/visitors") },
   { href: "/gate/register", label: "Today", icon: ClipboardList, match: (p: string) => p.startsWith("/gate/register") },
 ];

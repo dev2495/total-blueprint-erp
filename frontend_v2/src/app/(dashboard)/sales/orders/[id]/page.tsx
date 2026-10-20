@@ -49,6 +49,7 @@ import { salesService, type SalesOrder, type SalesOrderLine } from "@/services/s
 import { MadeCard } from "@/components/spine/made-card";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
+import { useCanFollowLink } from "@/components/layout/use-nav-access";
 
 const LINE_PROGRESS_TONES = [
   { fill: "#2563eb", dark: "#1e40af", light: "rgba(37,99,235,.22)", track: "rgba(37,99,235,.10)", text: "text-primary", border: "border-info-border", bg: "bg-info-bg" },
@@ -1850,6 +1851,7 @@ function DocumentsTab({
   dispatches: CustomerDispatch[];
   dispatchLoading: boolean;
 }) {
+  const canFollowLink = useCanFollowLink();
   const customerEvidence = asArray(tracking?.customer_dispatch_evidence);
   const productionEvidence = asArray(tracking?.dispatch_evidence);
   const batches = (order.items || []).flatMap((line, index) =>
@@ -1921,11 +1923,13 @@ function DocumentsTab({
               <div className="mt-1 text-xs font-semibold text-content-3">Single page with route, batch, BOM, docs, and material audit.</div>
               <div className="mt-3"><DocAction href={`/sales/orders/${orderId}`} /></div>
             </div>
-            <div className="rounded-xl border border-line bg-surface-2 p-4">
-              <div className="font-semibold text-content-1">System audit center</div>
-              <div className="mt-1 text-xs font-semibold text-content-3">Search by order number for low-level system events.</div>
-              <div className="mt-3"><DocAction href={`/system/audit?search=${encodeURIComponent(order.order_number)}`} /></div>
-            </div>
+            {canFollowLink("/system/audit") ? (
+              <div className="rounded-xl border border-line bg-surface-2 p-4">
+                <div className="font-semibold text-content-1">System audit center</div>
+                <div className="mt-1 text-xs font-semibold text-content-3">Search by order number for low-level system events.</div>
+                <div className="mt-3"><DocAction href={`/system/audit?search=${encodeURIComponent(order.order_number)}`} /></div>
+              </div>
+            ) : null}
           </div>
         </section>
       </div>

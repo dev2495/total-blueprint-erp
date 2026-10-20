@@ -47,6 +47,8 @@ export function WorkspaceBar() {
 
   if (!resolved || tabs.length < 2) return null;
   const { workspace, tab: activeTab } = resolved;
+  // The workspace button opens its home screen, or the first screen this role may open there.
+  const home = tabs.some((tab) => tab.href === workspace.home) ? workspace.home : tabs[0].href;
   const Icon = workspace.icon;
   const index = WORKSPACES.findIndex((w) => w.key === workspace.key) + 1;
 
@@ -58,7 +60,7 @@ export function WorkspaceBar() {
       className="mb-3 flex w-full min-w-0 items-center gap-2 overflow-x-auto rounded-2xl border border-line bg-surface-1/95 px-2 py-1.5 shadow-sm backdrop-blur"
     >
       <Link
-        href={workspace.home}
+        href={home}
         className="flex flex-none items-center gap-2 rounded-xl bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-white"
         title={workspace.blurb}
         data-testid="workspace-bar-home"

@@ -144,6 +144,18 @@ export function GateHome() {
         )}
       </section>
 
+      {/* Our own papers coming back (inter-plant, job work, returnable gate pass). Full page load for the camera policy. */}
+      <a href="/gate/arrivals" className="gate-card gate-press flex min-h-[72px] items-center gap-3 px-4" data-testid="gate-arrivals-tile">
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl text-white" style={{ background: "var(--gate-in)" }}>
+          <ScanLine className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[16px] font-semibold text-content-1">Goods coming back</span>
+          <span className="block text-[13px] text-content-3">Our challan or gate pass returning · scan its QR</span>
+        </span>
+        <ChevronRight className="h-5 w-5 text-content-4" />
+      </a>
+
       <div className="grid grid-cols-2 gap-3">
         <QuickLink href="/gate/visitors" icon={<DoorOpen className="h-5 w-5" />} label="Visitors inside" />
         <QuickLink href="/gate/register" icon={<ClipboardList className="h-5 w-5" />} label="Today's register" />

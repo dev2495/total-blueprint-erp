@@ -248,6 +248,12 @@ class PermissionService:
         effective_role = get_canonical_role_code(getattr(user, "effective_role_code", actual_role))
         if "WATCHMAN" in {actual_role, effective_role}:
             wc_ids, machine_ids = [], []
+        elif actual_role == "OPERATOR":
+            # An operator runs the machines assigned to them; their work centres follow.
+            machine_ids = list(MachineAssignment.objects.filter(user=user).values_list('machine_id', flat=True))
+            wc_ids = list(
+                Machine.objects.filter(id__in=machine_ids).exclude(work_center_id=None).values_list('work_center_id', flat=True).distinct()
+            )
         else:
             wc_ids = list(WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True))
             machine_ids = list(Machine.objects.filter(work_center_id__in=wc_ids).values_list('id', flat=True))
@@ -282,6 +288,10 @@ class PermissionService:
     def assign_work_centers(user: User, wc_ids: list):
         normalized_wc_ids = PermissionService._normalize_id_list(wc_ids)
         role_code = str(getattr(getattr(user, "role", None), "code", "") or "").upper()
+        if normalized_wc_ids and get_canonical_role_code(role_code) == "OPERATOR":
+            raise ValidationError(
+                {"work_center_ids": ["A Machine Operator is given machines, not work centres. Assign machines instead."]}
+            )
 
         existing_wcs = set(
             str(pk) for pk in WorkCenter.objects.filter(id__in=normalized_wc_ids).values_list("id", flat=True)
@@ -333,13 +343,25 @@ class PermissionService:
     @staticmethod
     def assign_machines(user: User, machine_ids: list):
         normalized_machine_ids = PermissionService._normalize_id_list(machine_ids)
+        role_code = get_canonical_role_code(getattr(getattr(user, "role", None), "code", ""))
 
-        if normalized_machine_ids:
+        if normalized_machine_ids and role_code != "OPERATOR":
             raise ValidationError(
-                {"machine_ids": ["Direct machine assignment has been removed. Assign work centers to Work Center Manager users; machines are inherited from those work centers."]}
+                {"machine_ids": ["Machines are assigned to Machine Operator accounts only. A Work Center Manager gets the machines of the work centres assigned to them."]}
             )
+        try:
+            existing = {str(pk) for pk in Machine.objects.filter(id__in=normalized_machine_ids).values_list("id", flat=True)}
+        except (ValidationError, ValueError, TypeError) as exc:
+            raise ValidationError({"machine_ids": ["Machine identifiers must be valid UUIDs."]}) from exc
+        missing = sorted(set(normalized_machine_ids) - existing)
+        if missing:
+            raise ValidationError({"machine_ids": [f"Unknown machine identifiers: {', '.join(missing)}"]})
 
         with transaction.atomic():
+            if role_code == "OPERATOR":
+                # Operators are scoped by machine; a work-centre list left from an earlier role
+                # would only restrict which machines may be picked.
+                WorkCenterAssignment.objects.filter(user=user).delete()
             MachineAssignment.objects.filter(user=user).delete()
             for machine_id in normalized_machine_ids:
                 # Use model save path so clean() validation is enforced.
@@ -401,6 +423,7 @@ class PermissionService:
             # Production terminals
             'PLANNER': '/production/planner',
             'WORK_CENTER_MANAGER': '/production/work-center',
+            'OPERATOR': '/production/machine-selector',
 
             # Ops dashboards
             'STORE': '/inventory/rolls',

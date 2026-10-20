@@ -70,6 +70,7 @@ import type { SalesOrderLine } from "./types";
 import { buildPreviewBlocker, buildSalesAxisValues } from "./axis-values";
 import { buildSalesLineLabel } from "./product-label";
 import { INP, LABEL, MONO, SoField, SoSelect, SoReadout } from "./ui";
+import { useCanFollowLink } from "@/components/layout/use-nav-access";
 
 export interface LineEditorProps {
   line: SalesOrderLine;
@@ -93,6 +94,7 @@ export function LineEditor({
   lineIndex,
 }: LineEditorProps) {
   const router = useRouter();
+  const canFollowLink = useCanFollowLink();
   const master = masters.find((m) => m.id === line.product_master);
   const sizeAxis = master ? findAxis(master, "size", "geometry") : undefined;
   const sizeAxisAllowsAdHoc = axisAllowsAdHoc(sizeAxis);
@@ -1131,9 +1133,10 @@ export function LineEditor({
                     });
                   }
                 }}
-                onPickArtwork={() => {
+                onPickArtwork={!master?.id || !canFollowLink(`/master/products/${master.id}`) ? undefined : () => {
                   // Opens the master's Artworks tab in a new tab so the user can review the full
-                  // approved-artwork grid without losing the in-progress order draft.
+                  // approved-artwork grid without losing the in-progress order draft. Shown only to
+                  // accounts that may open product masters (Sales picks from the list above).
                   if (master?.id && typeof window !== "undefined") {
                     window.open(
                       `/master/products/${master.id}?tab=artworks`,
@@ -1144,7 +1147,7 @@ export function LineEditor({
                     router.push(`/master/products/${master.id}`);
                   }
                 }}
-                onReplaceColor={() => {
+                onReplaceColor={!canFollowLink("/master/inks") ? undefined : () => {
                   if (typeof window !== "undefined")
                     window.open(
                       "/master/inks",

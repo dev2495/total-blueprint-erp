@@ -39,9 +39,9 @@ function todayLocal() {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
-function initialState(source?: GatePass | null): FormState {
+function initialState(source?: GatePass | null, startKind: GatePassKind = "RETURNABLE"): FormState {
   if (!source) {
-    return { kind: "RETURNABLE", plant: "", vendor: null, party_name: "", party_address: "", party_gstin: "", purpose: GATE_PASS_DEFAULT_PURPOSE.RETURNABLE, expected_return_date: "", vehicle_number: "", carried_by: "", notes: "", lines: [newLine()] };
+    return { kind: startKind, plant: "", vendor: null, party_name: "", party_address: "", party_gstin: "", purpose: GATE_PASS_DEFAULT_PURPOSE[startKind], expected_return_date: "", vehicle_number: "", carried_by: "", notes: "", lines: [newLine()] };
   }
   return {
     kind: source.kind,
@@ -118,8 +118,8 @@ function clientErrors(state: FormState): string[] {
  * Create a draft gate pass, or edit an existing draft (version-checked).
  * `onSaved(pass, issueNow)` runs after the server stored the draft.
  */
-export function GatePassForm({ source, onSaved, onCancel }: { source?: GatePass | null; onSaved: (pass: GatePass, issueNow: boolean) => void; onCancel?: () => void }) {
-  const [state, setState] = useState<FormState>(() => initialState(source));
+export function GatePassForm({ source, startKind, onSaved, onCancel }: { source?: GatePass | null; startKind?: GatePassKind; onSaved: (pass: GatePass, issueNow: boolean) => void; onCancel?: () => void }) {
+  const [state, setState] = useState<FormState>(() => initialState(source, startKind));
   const [showErrors, setShowErrors] = useState(false);
   const issueNowRef = useRef(false);
   const optionsQ = useQuery({

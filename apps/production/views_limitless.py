@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from apps.production.models import ProductionJob
 from apps.production.services.services_execution import ExecutionService
 from apps.production.services.job_services import JobService
+from apps.production.scope import WorkCentreScopeMixin
 
-class WCMExecutionViewSet(viewsets.ViewSet):
+class WCMExecutionViewSet(WorkCentreScopeMixin, viewsets.ViewSet):
+    scope_pk = "job"
     """
     Phase 64B: WCM Execution API
     Handling Context, Roll Assignment, Start/Stop logic.

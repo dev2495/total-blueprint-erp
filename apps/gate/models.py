@@ -495,3 +495,43 @@ class GatePassReturn(models.Model):
 
     def delete(self, *args, **kwargs):
         raise TypeError("Gate pass returns are append-only.")
+
+
+ARRIVAL_KINDS = [
+    ("INTERPLANT_DC", "Inter-plant challan arriving"),
+    ("JOBWORK_CHALLAN", "Job work coming back"),
+    ("GATE_PASS", "Returnable gate pass coming back"),
+]
+
+
+class GateArrival(models.Model):
+    """Append-only gate record of one of our own papers coming back in: an inter-plant challan at
+    the receiving factory, a job worker returning material, or a returnable gate pass item.
+    It never moves stock; it tells the store the goods are at the gate and waiting to be received."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    plant = models.ForeignKey("factory.Plant", on_delete=models.PROTECT, related_name="gate_arrivals")
+    kind = models.CharField(max_length=20, choices=ARRIVAL_KINDS)
+    object_id = models.UUIDField()
+    reference = models.CharField(max_length=120, blank=True, default="")
+    party_name = models.CharField(max_length=255, blank=True, default="")
+    snapshot = models.JSONField(default=dict, blank=True)
+    vehicle_number = models.CharField(max_length=40, blank=True, default="")
+    notes = models.CharField(max_length=500, blank=True, default="")
+    arrived_at = models.DateTimeField(default=timezone.now, db_index=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="gate_arrivals")
+    objects = ImmutableQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-arrived_at", "-id"]
+        indexes = [
+            models.Index(fields=["plant", "arrived_at"], name="gate_arrival_plant_idx"),
+            models.Index(fields=["kind", "object_id"], name="gate_arrival_object_idx"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise TypeError("Gate arrivals are append-only.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise TypeError("Gate arrivals are append-only.")

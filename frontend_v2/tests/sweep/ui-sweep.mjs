@@ -4,6 +4,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import { chromium } from "playwright"
+import { adminPass, adminUser } from "./local-creds.mjs"
 
 const BASE = process.env.SWEEP_BASE || "http://127.0.0.1:3401"
 const [outDir, idsFile] = process.argv.slice(2)
@@ -28,8 +29,8 @@ const login = await browser.newContext({ viewport: { width: 1440, height: 900 } 
 const lp = await login.newPage()
 await lp.goto(`${BASE}/login`)
 await lp.locator('[data-testid="login-form"][data-client-ready="true"]').waitFor({ timeout: 30000 })
-await lp.getByTestId("login-identifier").fill(process.env.SWEEP_USER || "admin")
-await lp.getByTestId("login-password").fill(process.env.SWEEP_PASS || "admin123")
+await lp.getByTestId("login-identifier").fill(adminUser)
+await lp.getByTestId("login-password").fill(adminPass())
 await lp.getByTestId("login-submit").click()
 await lp.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 })
 const state = await login.storageState()

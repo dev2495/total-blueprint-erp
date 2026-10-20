@@ -30,6 +30,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { RoleLink } from "@/components/layout/role-link";
 
 export default function FactoryHeatmap() {
   const { data: capacity, isLoading, isFetching, refetch } = useQuery({
@@ -127,7 +128,7 @@ export default function FactoryHeatmap() {
             variant="outline"
             className="h-12 px-6 rounded-xl border-2 font-semibold text-xs uppercase tracking-widest border-line hover:bg-surface-1 active:scale-95 transition-all"
           >
-            <Link href="/factory/work-centers">Work centers</Link>
+            <RoleLink href="/factory/work-centers">Work centers</RoleLink>
           </Button>
           <Button
             onClick={() => refetch()}

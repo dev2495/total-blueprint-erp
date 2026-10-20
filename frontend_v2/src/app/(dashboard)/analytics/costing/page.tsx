@@ -43,6 +43,7 @@ import {
 } from "@/services/costing";
 import { factoryService } from "@/services/factory";
 import { HeroStat, HeroStats, PageHero } from "@/components/premium";
+import { RoleLink } from "@/components/layout/role-link";
 
 function money(value: string | number | undefined | null) {
   const numeric = Number(value || 0);
@@ -1189,7 +1190,7 @@ export default function CostingCenterPage() {
                   centers, and machine overrides in their own master screens.
                 </div>
                 <div className="mt-5 grid gap-3">
-                  <Link
+                  <RoleLink
                     href="/factory/plants"
                     className="rounded-[1.3rem] border border-surface-1/10 bg-surface-1/5 px-4 py-4 transition hover:bg-surface-1/10"
                   >
@@ -1199,8 +1200,8 @@ export default function CostingCenterPage() {
                     <div className="mt-1 text-xs leading-5 text-content-4">
                       Set plant-level fallback cost groups.
                     </div>
-                  </Link>
-                  <Link
+                  </RoleLink>
+                  <RoleLink
                     href="/factory/work-centers"
                     className="rounded-[1.3rem] border border-surface-1/10 bg-surface-1/5 px-4 py-4 transition hover:bg-surface-1/10"
                   >
@@ -1210,8 +1211,8 @@ export default function CostingCenterPage() {
                     <div className="mt-1 text-xs leading-5 text-content-4">
                       Set default operational cost groups for each WCM lane.
                     </div>
-                  </Link>
-                  <Link
+                  </RoleLink>
+                  <RoleLink
                     href="/factory/machines"
                     className="rounded-[1.3rem] border border-surface-1/10 bg-surface-1/5 px-4 py-4 transition hover:bg-surface-1/10"
                   >
@@ -1221,7 +1222,7 @@ export default function CostingCenterPage() {
                     <div className="mt-1 text-xs leading-5 text-content-4">
                       Use overrides only where the machine truly differs.
                     </div>
-                  </Link>
+                  </RoleLink>
                 </div>
               </div>
               <MasterAssignmentCard

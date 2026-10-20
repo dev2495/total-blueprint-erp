@@ -76,6 +76,10 @@ class RoleOverrideMiddleware:
                 from apps.users.permissions import RoleBasedAccessPermission
                 RoleBasedAccessPermission._log_denied(request.user, request.method, request.path, "WATCHMAN_SCOPE", request=request)
                 return JsonResponse({"detail": "Watchman access is limited to the gate terminal and your own account."}, status=403)
+            if "OPERATOR" in {actual_role, effective_role} and not self._operator_path_allowed(request):
+                from apps.users.permissions import RoleBasedAccessPermission
+                RoleBasedAccessPermission._log_denied(request.user, request.method, request.path, "OPERATOR_SCOPE", request=request)
+                return JsonResponse({"detail": "A machine operator works only on the machine terminal of the machines assigned to them."}, status=403)
 
         response = self.get_response(request)
         return response
@@ -142,6 +146,58 @@ class RoleOverrideMiddleware:
         from apps.users.permission_registry import is_public_endpoint
         if is_public_endpoint(path):
             return True
+        allowed = {
+            "GET": {"/api/users/me", "/api/auth/me", "/api/users/users/me", "/api/auth/users/me", "/api/users/profile-change-requests", "/api/auth/profile-change-requests", "/api/users/users/entitlements/validate", "/api/auth/users/entitlements/validate"},
+            "POST": {"/api/users/logout", "/api/auth/logout", "/api/users/change-password", "/api/auth/change-password", "/api/users/profile-change-requests", "/api/auth/profile-change-requests"},
+        }
+        return path in allowed.get(method, set()) or method == "OPTIONS" and path in set().union(*allowed.values())
+
+    # Machine terminal endpoints an operator may call; each view checks the machine is theirs.
+    OPERATOR_PREFIXES = (
+        "/api/production/machine/",
+        "/api/maintenance/",
+        "/api/users/notifications/",
+    )
+    OPERATOR_READ_PATHS = (
+        "/api/production/operator/machines",
+        "/api/production/scrap-reasons",
+        "/api/production/downtime-reasons",
+        "/api/production/current-shift",
+        "/api/master/library",
+        "/api/master/granule-codes",
+        "/api/inventory/rolls",
+        "/api/factory/work-centers/my-work-centers",
+        "/api/factory/plants",
+    )
+
+    @classmethod
+    def _operator_path_allowed(cls, request):
+        import re
+
+        path = str(request.path or "").rstrip("/")
+        method = str(request.method or "GET").upper()
+        if path == "/admin" or path.startswith("/admin/"):
+            return False
+        if not path.startswith("/api/"):
+            return True
+        from apps.users.permission_registry import is_public_endpoint
+        if is_public_endpoint(path):
+            return True
+        if any(path.startswith(prefix.rstrip("/")) for prefix in cls.OPERATOR_PREFIXES):
+            return True
+        read = method in {"GET", "HEAD", "OPTIONS"}
+        if read and path in cls.OPERATOR_READ_PATHS:
+            return True
+        uuid = r"[0-9a-fA-F-]{36}"
+        if read and re.fullmatch(rf"/api/production/jobs/{uuid}/spine", path):
+            return True
+        if read and re.fullmatch(rf"/api/inventory/plants/{uuid}/locations", path):
+            return True
+        # Own account: profile, password, sign-out, entitlements (same list as the watchman).
+        return cls._self_service_path(path, method)
+
+    @staticmethod
+    def _self_service_path(path, method):
         allowed = {
             "GET": {"/api/users/me", "/api/auth/me", "/api/users/users/me", "/api/auth/users/me", "/api/users/profile-change-requests", "/api/auth/profile-change-requests", "/api/users/users/entitlements/validate", "/api/auth/users/entitlements/validate"},
             "POST": {"/api/users/logout", "/api/auth/logout", "/api/users/change-password", "/api/auth/change-password", "/api/users/profile-change-requests", "/api/auth/profile-change-requests"},

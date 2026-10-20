@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,6 +15,8 @@ import { GatePassForm } from "./gate-pass-form";
 export function GatePassNew() {
   const rights = useDocumentRights();
   const router = useRouter();
+  // "New movement" on Goods in & out opens the form on the kind the user picked.
+  const startKind = useSearchParams()?.get("kind") === "NON_RETURNABLE" ? "NON_RETURNABLE" : "RETURNABLE";
   if (rights.loading) return <div className="h-40 animate-pulse rounded-3xl bg-surface-2" />;
   if (!rights.has("gatepass.manage")) {
     return (
@@ -36,6 +38,7 @@ export function GatePassNew() {
         <p className="mt-1 text-[14px] text-content-3">Saved as a draft first. Issue it to get its number and the QR the watchman scans when the items leave.</p>
       </div>
       <GatePassForm
+        startKind={startKind}
         onSaved={async (saved, issueNow) => {
           if (issueNow) {
             try {

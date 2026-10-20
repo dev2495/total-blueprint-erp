@@ -4,6 +4,7 @@
 import fs from "node:fs"
 import { createRequire } from "node:module"
 import { chromium } from "playwright"
+import { adminPass, adminUser } from "./local-creds.mjs"
 
 const require = createRequire(import.meta.url)
 const axeSource = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8")
@@ -30,8 +31,8 @@ const loginCtx = await browser.newContext({ viewport: { width: 1440, height: 900
 const lp = await loginCtx.newPage()
 await lp.goto(`${BASE}/login`)
 await lp.locator('[data-testid="login-form"][data-client-ready="true"]').waitFor({ timeout: 30000 })
-await lp.getByTestId("login-identifier").fill(process.env.SWEEP_USER || "admin")
-await lp.getByTestId("login-password").fill(process.env.SWEEP_PASS || "admin123")
+await lp.getByTestId("login-identifier").fill(adminUser)
+await lp.getByTestId("login-password").fill(adminPass())
 await lp.getByTestId("login-submit").click()
 await lp.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 })
 const state = await loginCtx.storageState()

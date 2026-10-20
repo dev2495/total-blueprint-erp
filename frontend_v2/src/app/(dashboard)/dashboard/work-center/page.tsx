@@ -29,6 +29,7 @@ import { analyticsApi } from "@/services/analytics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { RoleLink } from "@/components/layout/role-link";
 
 const BOARD_PAGE_SIZE = 10;
 
@@ -667,7 +668,7 @@ export default function WorkCenterDashboard() {
             subtitle="Execution load, blockers, output, scrap, and terminal access by work center."
             action={
               <Button asChild variant="outline" size="sm" className="rounded-lg">
-                <Link href="/factory/work-centers">Manage work centers</Link>
+                <RoleLink href="/factory/work-centers">Manage work centers</RoleLink>
               </Button>
             }
           />
@@ -837,11 +838,11 @@ export default function WorkCenterDashboard() {
               <div className="mt-3 text-sm font-semibold text-[color:var(--text-1)]">Roll and material issue</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">Verify reserved rolls, bulk, ink, returns, and scrap before takeover.</p>
             </Link>
-            <Link href="/factory/machines" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
+            <RoleLink href="/factory/machines" className="rounded-lg border border-[color:var(--border-soft)] bg-[color:var(--surface-2)] p-4 transition hover:border-[color:rgba(37,99,235,0.22)] hover:bg-[color:var(--surface-1)]">
               <ListChecks className="h-5 w-5 text-[color:var(--a-700)]" />
               <div className="mt-3 text-sm font-semibold text-[color:var(--text-1)]">Maintenance risk</div>
               <p className="mt-1 text-xs font-semibold leading-5 text-[color:var(--text-3)]">{fmt(summary.machines_down)} machines down or in maintenance.</p>
-            </Link>
+            </RoleLink>
           </div>
         </article>
       </section>

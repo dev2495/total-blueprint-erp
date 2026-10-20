@@ -97,6 +97,9 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("PUT", "/api/factory/", "factory.manage"),
     ("PATCH", "/api/factory/", "factory.manage"),
     ("DELETE", "/api/factory/", "factory.manage"),
+    # Packaging stock counts are stock figures: the packaging stock screen shows them to every
+    # account that may view stock, not only the packing yard.
+    ("GET", "/api/production/packing/material-count", "inventory.view"),
     ("GET", "/api/production/packing/", "packing.view"),
     ("POST", "/api/production/packing/", "packing.manage"),
     ("PUT", "/api/production/packing/", "packing.manage"),
@@ -286,6 +289,7 @@ FRONTEND_PAGE_PERMISSION_CATALOG: List[Dict[str, str]] = [
     {"permission": "page.inventory.adjustments.view", "route": "/inventory/adjustments", "label": "Stock adjustments"},
     {"permission": "page.inventory.traceability.view", "route": "/inventory/traceability", "label": "Traceability"},
     {"permission": "page.inventory.inter_plant.view", "route": "/inventory/inter-plant", "label": "Inter-plant transfer"},
+    {"permission": "page.inventory.goods_movements.view", "route": "/inventory/goods-movements", "label": "Goods in & out"},
     {"permission": "page.inventory.job_work.view", "route": "/inventory/job-work", "label": "Job work"},
     {"permission": "page.inventory.vendors.view", "route": "/inventory/vendors", "label": "Inventory vendors"},
     {"permission": "page.logistics.packing.view", "route": "/logistics/packing", "label": "Packing yard"},
@@ -477,6 +481,24 @@ ROLE_PERMISSION_MATRIX: Dict[str, List[str]] = {
         "analytics.view",
         "notifications.view",
         "factory.view",
+    ],
+    # Machine operator: the machine terminal for the machines assigned to them, plus reporting
+    # faults and doing the daily checks on those machines. RoleOverrideMiddleware keeps the
+    # account on the machine-terminal endpoints; the views check each machine is assigned.
+    "OPERATOR": [
+        "users.self_manage",
+        "notifications.view",
+        "page.profile.view",
+        "page.scan.machine.view",
+        "production.view",
+        "production.manage",
+        "master.view",
+        "inventory.view",
+        "factory.view",
+        "maintenance.view",
+        "maintenance.log",
+        "page.maintenance.board.view",
+        "page.maintenance.faults.view",
     ],
     "STORE": [
         "page.scan.location.view",

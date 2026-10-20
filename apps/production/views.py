@@ -13,6 +13,7 @@ from django.http import FileResponse, HttpResponse
 from django.db import connection
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from .scope import WorkCentreScopeMixin
 from .models import ProductionBatch, ProductionJob, ProductionWcmAuditEvent, WorkCenterAssignment
 from .serializers import (
     ProductionJobSerializer, JobAssignmentSerializer, JobCompletionSerializer,
@@ -47,7 +48,10 @@ class ProductionBoardPagination(PageNumberPagination):
     max_page_size = 200
 
 
-class ProductionJobViewSet(viewsets.ModelViewSet):
+class ProductionJobViewSet(WorkCentreScopeMixin, viewsets.ModelViewSet):
+    # Work Center Managers may change only jobs at their work centres; reads stay open for traceability.
+    scope_pk = "job"
+    scope_reads = False
     def get_queryset(self):
         queryset = ProductionJob.objects.select_related(
             'template', 'work_center', 'machine', 'operator', 'process', 'current_process',
@@ -524,24 +528,19 @@ class ProductionBatchViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
 
-class WorkCenterAssignmentViewSet(viewsets.ModelViewSet):
+class WorkCenterAssignmentViewSet(WorkCentreScopeMixin, viewsets.ModelViewSet):
+    scope_pk = "assignment"
     serializer_class = WorkCenterAssignmentSerializer
 
     def get_queryset(self):
         queryset = WorkCenterAssignment.objects.all().order_by('-created_at')
         
-        # Scoped Access Logic
-        user = self.request.user
-        role_code = getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST')
-        is_admin = role_code in ['ADMIN', 'SUPER_ADMIN', 'OWNER'] or user.is_owner or user.is_superuser
-        
-        if not is_admin:
-             from apps.users.models import WorkCenterAssignment as UserWCAssignment
-             # Get user's assigned WC IDs
-             user_wc_ids = UserWCAssignment.objects.filter(user=user).values_list('work_center_id', flat=True)
-             
-             # Filter Job assignments that belong to these WCs
-             queryset = queryset.filter(work_center_id__in=user_wc_ids)
+        # Work Center Managers and operators see only their own work centres.
+        from .scope import work_centre_scope
+
+        scope = work_centre_scope(self.request.user)
+        if scope is not None:
+            queryset = queryset.filter(work_center_id__in=scope)
 
         wc_id = self.request.query_params.get('work_center')
         if wc_id:
@@ -602,7 +601,8 @@ class WorkCenterAssignmentViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class OperatorViewSet(viewsets.ViewSet):
+class OperatorViewSet(WorkCentreScopeMixin, viewsets.ViewSet):
+    scope_pk = "job"
     """
     Operator Terminal API.
     Event-driven execution logic.
@@ -2097,7 +2097,8 @@ class PlannerSkuVariantViewSet(viewsets.ModelViewSet):
         return self._versioned_update(request, partial=True)
 
 
-class ExecutionViewSet(viewsets.ViewSet):
+class ExecutionViewSet(WorkCentreScopeMixin, viewsets.ViewSet):
+    scope_pk = "job"
     """
     Phase 68: Universal Flow Engine API.
     Provides endpoints for WIP pool, satisfaction status, and auto-satisfy.

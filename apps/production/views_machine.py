@@ -54,12 +54,19 @@ def _is_admin_machine_actor(user) -> bool:
 def _ensure_machine_scope(user, machine_id) -> bool:
     if _is_admin_machine_actor(user):
         return True
-    from apps.users.models import WorkCenterAssignment
+    from apps.production.scope import machine_scope
 
-    return WorkCenterAssignment.objects.filter(
-        user=user,
-        work_center_id__in=Machine.objects.filter(id=machine_id).values("work_center_id"),
-    ).exists()
+    scope = machine_scope(user)
+    # Roles without a floor scope (planner, plant manager...) keep the old rule: the machine's
+    # work centre must be assigned to them. Operators need the machine itself assigned.
+    if scope is None:
+        from apps.users.models import WorkCenterAssignment
+
+        return WorkCenterAssignment.objects.filter(
+            user=user,
+            work_center_id__in=Machine.objects.filter(id=machine_id).values("work_center_id"),
+        ).exists()
+    return str(machine_id) in scope
 
 
 def _scope_denied(machine_id):
@@ -67,7 +74,7 @@ def _scope_denied(machine_id):
         {
             "error": {
                 "code": "MACHINE_SCOPE_DENIED",
-                "message": "This machine is outside your assigned work centers.",
+                "message": "This machine is not assigned to you.",
                 "machine_id": str(machine_id),
             }
         },
@@ -810,15 +817,18 @@ def operator_machines(request):
             status='ACTIVE'
         ).select_related('work_center', 'work_center__plant')
     else:
+        from apps.production.scope import machine_scope
         from apps.users.models import WorkCenterAssignment
-        assigned_wc_ids = WorkCenterAssignment.objects.filter(
-            user=user
-        ).values_list('work_center_id', flat=True)
-        
-        machines = Machine.objects.filter(
-            work_center_id__in=assigned_wc_ids,
-            status='ACTIVE',
-        ).select_related('work_center', 'work_center__plant')
+
+        scope = machine_scope(user)
+        if scope is None:
+            # Planner, plant manager...: machines of the work centres assigned to them.
+            assigned_wc_ids = WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True)
+            machines = Machine.objects.filter(work_center_id__in=assigned_wc_ids, status='ACTIVE')
+        else:
+            # Work Center Manager: machines of their work centres. Operator: their own machines.
+            machines = Machine.objects.filter(id__in=scope, status='ACTIVE')
+        machines = machines.select_related('work_center', 'work_center__plant')
 
     if search:
         machines = machines.filter(

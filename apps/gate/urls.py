@@ -37,7 +37,7 @@ urlpatterns = [
 ]
 
 # Outward gate documents, document QR and gate passes (workstream D).
-from . import gate_pass_views, outward_views, qr_views  # noqa: E402
+from . import arrival_views, gate_pass_views, outward_views, qr_views  # noqa: E402
 
 urlpatterns += [
     path("outward-documents/", outward_views.OutwardListView.as_view()),
@@ -50,6 +50,8 @@ urlpatterns += [
     path("outward-documents/<uuid:pk>/resolve/", outward_views.OutwardActionView.as_view(), {"action": "resolve"}),
     path("outward-documents/<uuid:pk>/void/", outward_views.OutwardActionView.as_view(), {"action": "void"}),
     path("qr/resolve/", qr_views.QRResolveView.as_view()),
+    path("arrivals/", arrival_views.ArrivalListView.as_view()),
+    path("arrivals/preview/", arrival_views.ArrivalPreviewView.as_view()),
     path("qr/token/", qr_views.QRTokenView.as_view()),
     path("qr/label.pdf", qr_views.QRLabelView.as_view()),
     path("gate-passes/", gate_pass_views.GatePassListView.as_view()),

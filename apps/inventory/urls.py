@@ -13,6 +13,7 @@ from .views import (
     InventoryV36CoverageView, InventoryV36SnapshotTrendView, InventoryV36ExportView,
 )
 from .views_masters import VendorViewSet
+from .views_goods_movements import GoodsMovementRegisterView
 from .views_adjustment import StockAdjustmentViewSet
 from .views_audit import (
     InventoryAuditBatchViewSet,
@@ -54,6 +55,7 @@ router.register(r'adjustments', StockAdjustmentViewSet, basename='stock-adjustme
 
 urlpatterns = [
     path('plants/<uuid:pk>/locations/', PlantLocationListView.as_view(), name='plant-location-list'),
+    path('goods-movements/', GoodsMovementRegisterView.as_view(), name='inventory-goods-movements'),
     path('saved-views/', InventoryV36SavedViewsView.as_view(), name='inventory-v36-saved-views'),
     path('saved-views/<uuid:pk>/', InventoryV36SavedViewDetail.as_view(), name='inventory-v36-saved-view-detail'),
     path('rolls/v36/', InventoryV36ClassSnapshotView.as_view(klass='rolls'), name='inventory-v36-rolls'),

@@ -10,6 +10,7 @@ router.register(r"faults", views.MachineFaultViewSet, basename="maintenance-faul
 
 urlpatterns = [
     path("board/", views.BoardView.as_view(), name="maintenance-board"),
+    path("people/", views.PeopleView.as_view(), name="maintenance-people"),
     path("reports/<slug:report>/", views.ReportsView.as_view(), name="maintenance-report"),
     path("machines/<uuid:machine_id>/history/", views.MachineHistoryView.as_view(), name="maintenance-machine-history"),
     path("attachments/", views.AttachmentUploadView.as_view(), name="maintenance-attachment-upload"),

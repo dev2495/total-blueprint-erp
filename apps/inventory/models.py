@@ -874,6 +874,12 @@ class DeliveryChallan(models.Model):
         related_name='target_interplant_challans'
     )
     is_system_generated = models.BooleanField(default=False)
+    # Gate evidence (never moves stock): when the truck left the sending factory, matched from the
+    # watchman's outward photo or QR scan, and when it reached the receiving factory's gate.
+    gate_out_at = models.DateTimeField(null=True, blank=True)
+    gate_out_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='gated_out_interplant_challans')
+    gate_in_at = models.DateTimeField(null=True, blank=True)
+    gate_in_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='gated_in_interplant_challans')
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

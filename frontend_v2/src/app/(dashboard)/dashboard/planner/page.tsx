@@ -33,6 +33,7 @@ import {
 
 import { analyticsApi } from "@/services/analytics";
 import styles from "./planner.module.css";
+import { useCanFollowLink } from "@/components/layout/use-nav-access";
 
 function fmt(value: unknown, decimals = 0) {
   if (value === null || value === undefined) return "—";
@@ -147,6 +148,7 @@ const PIE_COLORS = [
 ];
 
 export default function PlannerDashboardPage() {
+  const canFollowLink = useCanFollowLink();
   const [countdown, setCountdown] = useState(120);
 
   const query = useQuery({
@@ -842,10 +844,12 @@ export default function PlannerDashboardPage() {
                 <span>Stock launcher</span>
                 <span>Launch</span>
               </Link>
-              <Link href="/master/products" className={styles.actionCard}>
-                <span>Product Master</span>
-                <span>Configure</span>
-              </Link>
+              {canFollowLink("/master/products") ? (
+                <Link href="/master/products" className={styles.actionCard}>
+                  <span>Product Master</span>
+                  <span>Configure</span>
+                </Link>
+              ) : null}
             </div>
           </div>
         </aside>

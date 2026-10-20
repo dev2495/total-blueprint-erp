@@ -7,10 +7,23 @@
  * lamination, each lane's film with the lane that limits the output marked. Figures come from
  * the job context's upstream_feed; nothing here changes a rule.
  */
+import Link from "next/link";
+
 import { cn } from "@/lib/utils";
+
+export interface JobWorkerHold {
+  order_id: string;
+  order_number: string;
+  vendor: string;
+  status: string;
+  sent_kg: number;
+  at_vendor_kg: number;
+  link: string;
+}
 
 export interface StepFeedStep {
   node_id: string;
+  at_job_worker?: JobWorkerHold | null;
   job_number?: string;
   process_code?: string;
   job_state?: string;
@@ -33,6 +46,7 @@ export interface StepFeedLane {
 }
 
 export interface UpstreamFeed {
+  at_job_worker?: JobWorkerHold | null;
   steps: StepFeedStep[];
   lanes: StepFeedLane[];
   upstream_done: boolean;
@@ -100,6 +114,19 @@ export function StepFeedCard({
         </span>
       </div>
 
+      {feed.at_job_worker ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-[12px] bg-order-bg px-3 py-2 text-[13px] text-order-fg ring-1 ring-order-border" data-testid={`${testId}-at-job-worker`}>
+          <span>
+            <span className="font-semibold">This step is at a job worker</span> · {feed.at_job_worker.vendor} ·{" "}
+            <span className="tabular-nums">{kg(feed.at_job_worker.at_vendor_kg)}</span> still there of{" "}
+            <span className="tabular-nums">{kg(feed.at_job_worker.sent_kg)}</span> sent
+          </span>
+          <Link href={feed.at_job_worker.link} className="font-semibold underline-offset-2 hover:underline">
+            {feed.at_job_worker.order_number || "Job-work order"}
+          </Link>
+        </div>
+      ) : null}
+
       <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {figures.map(([label, value, tone]) => (
           <div
@@ -133,8 +160,10 @@ export function StepFeedCard({
                     </span>
                     <span className="tabular-nums text-content-2">
                       {kg(step.produced_kg)} of {kg(step.target_kg)}
-                      <span className={cn("ml-2 rounded-full px-2 py-0.5 text-[11.5px]", step.done ? "bg-success-bg text-success-fg" : "bg-surface-1 text-content-3 ring-1 ring-line")}>
-                        {STATE_LABEL[String(step.job_state || "").toUpperCase()] || String(step.job_state || "").toLowerCase()}
+                      <span className={cn("ml-2 rounded-full px-2 py-0.5 text-[11.5px]", step.done ? "bg-success-bg text-success-fg" : step.at_job_worker ? "bg-order-bg text-order-fg ring-1 ring-order-border" : "bg-surface-1 text-content-3 ring-1 ring-line")}>
+                        {step.at_job_worker && !step.done
+                          ? `at ${step.at_job_worker.vendor} · ${kg(step.at_job_worker.at_vendor_kg)} out`
+                          : STATE_LABEL[String(step.job_state || "").toUpperCase()] || String(step.job_state || "").toLowerCase()}
                       </span>
                     </span>
                   </div>

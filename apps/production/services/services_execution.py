@@ -539,6 +539,33 @@ class ExecutionService:
         return real_index
 
     @classmethod
+    def _open_job_work_by_job(cls, job_ids):
+        """{job_id: {order, vendor, status, sent_kg, at_vendor_kg, link}} for jobs with an open job-work order."""
+        if not job_ids:
+            return {}
+        try:
+            from apps.inventory.models import JOBWORK_OPEN_STATUSES, JobWorkOrder
+            from apps.inventory.services.job_work_payloads import annotate_balances
+        except Exception:
+            return {}
+        rows = annotate_balances(
+            JobWorkOrder.objects.filter(production_job_id__in=job_ids, status__in=list(JOBWORK_OPEN_STATUSES)).select_related("vendor")
+        ).order_by("created_at")
+        out = {}
+        for order in rows:
+            at_vendor = max(Decimal(str(getattr(order, "at_vendor_kg_total", 0) or 0)), Decimal("0"))
+            out[str(order.production_job_id)] = {
+                "order_id": str(order.id),
+                "order_number": order.number or "",
+                "vendor": order.vendor.name if order.vendor_id else order.vendor_name,
+                "status": "PARTLY_RETURNED" if order.status == "PARTIAL" else order.status,
+                "sent_kg": float(Decimal(str(getattr(order, "sent_kg_total", 0) or 0)).quantize(Decimal("0.001"))),
+                "at_vendor_kg": float(at_vendor.quantize(Decimal("0.001"))),
+                "link": f"/inventory/job-work/{order.id}",
+            }
+        return out
+
+    @classmethod
     def upstream_feed(cls, job):
         """Read-only feed figures for one step, kept apart so the floor never mixes them up.
 
@@ -663,8 +690,14 @@ class ExecutionService:
                 "feeds_lane": pred_id not in pred_ids,
             })
 
+        # A step handed to a job worker shows who has it and how much is still out there.
+        at_vendor = cls._open_job_work_by_job([s["job_id"] for s in steps if s.get("job_id")] + [str(job.id)])
+        for step in steps:
+            if step.get("job_id"):
+                step["at_job_worker"] = at_vendor.get(step["job_id"])
         can_run_now = max(Decimal("0"), min(capacity_kg, remaining_kg))
         return {
+            "at_job_worker": at_vendor.get(str(job.id)),
             "steps": steps,
             "lanes": lanes,
             "upstream_done": all(s.get("done") or s.get("skipped") for s in steps) if steps else True,

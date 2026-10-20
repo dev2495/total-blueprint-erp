@@ -64,6 +64,7 @@ import {
   PulseViewV36,
 } from "./pulse-view";
 import { formatDisplayDateTime } from "@/lib/date-format";
+import { useHasPermission } from "@/components/layout/use-nav-access";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -234,10 +235,13 @@ export function GrnHistoryV36() {
     staleTime: 30_000,
   });
 
+  const can = useHasPermission();
   const tradingQuery = useQuery({
     queryKey: ["grn-history-trading"],
     queryFn: () => tradingGoodReceiptService.list(),
     staleTime: 30_000,
+    // Trading-good receipts are procurement records; stock viewers see the stock GRNs only.
+    enabled: can("procurement.view"),
   });
 
   const allRows = React.useMemo(() => {

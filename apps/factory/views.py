@@ -86,17 +86,13 @@ class WorkCenterViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='my-work-centers')
     def my_work_centers(self, request):
-        user = request.user
-        role_code = getattr(user, 'effective_role_code', user.role.code if user.role else 'GUEST')
-        is_admin = role_code in ['ADMIN', 'SUPER_ADMIN', 'OWNER'] or user.is_owner or user.is_superuser
+        # Work Center Managers see their assigned work centres, operators the work centres of
+        # their machines; admin, planner and plant manager see every work centre.
+        from apps.production.scope import work_centre_scope
 
-        if is_admin:
-            return Response(WorkCenterSerializer(self.queryset, many=True).data)
-        
-        from apps.users.models import WorkCenterAssignment
-        assigned_ids = WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True)
-        wcs = WorkCenter.objects.filter(id__in=assigned_ids)
-        return Response(WorkCenterSerializer(wcs, many=True).data)
+        scope = work_centre_scope(request.user)
+        wcs = WorkCenter.objects.all() if scope is None else WorkCenter.objects.filter(id__in=scope)
+        return Response(WorkCenterSerializer(wcs.order_by("code", "name"), many=True).data)
 
 class MachineViewSet(viewsets.ModelViewSet):
     serializer_class = MachineSerializer

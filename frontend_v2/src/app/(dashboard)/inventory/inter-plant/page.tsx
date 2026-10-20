@@ -40,6 +40,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import { inventoryService, DeliveryChallan } from "@/services/inventory";
 import { factoryService, Plant } from "@/services/factory";
+import { RoleLink } from "@/components/layout/role-link";
 
 export default function InterPlantPage() {
   const { data: challans, isLoading, isError, refetch } = useQuery({
@@ -107,7 +108,7 @@ export default function InterPlantPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button asChild variant="outline">
-            <Link href="/factory/plants">Plant Legal Profiles</Link>
+            <RoleLink href="/factory/plants">Plant Legal Profiles</RoleLink>
           </Button>
           <CreateChallanDialog />
         </div>

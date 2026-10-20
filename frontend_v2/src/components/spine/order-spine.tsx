@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Check, CircleDot, Minus, OctagonAlert } from "lucide-react";
 
+import { useCanFollowLink } from "@/components/layout/use-nav-access";
 import { cn } from "@/lib/utils";
 import { spineService, type OrderSpine as OrderSpinePayload, type SpineStation } from "@/services/spine";
 
@@ -66,6 +67,7 @@ export function OrderSpineStrip({
   className?: string;
   testId?: string;
 }) {
+  const canFollow = useCanFollowLink();
   if (!stations.length) return null;
   return (
     <nav
@@ -80,6 +82,8 @@ export function OrderSpineStrip({
     >
       {stations.map((station, index) => {
         const state: SpineStation["state"] = current && station.key === current && station.state !== "blocked" ? "active" : station.state;
+        // A station whose page is not part of this role stays as plain text.
+        const href = station.href && canFollow(station.href) ? station.href : "";
         const palette = dark ? DARK_STATE_CLASS : STATE_CLASS;
         const body = (
           <>
@@ -95,12 +99,12 @@ export function OrderSpineStrip({
           compact ? "px-3 py-1.5" : "px-4 py-2.5",
           index < stations.length - 1 && (dark ? "border-r border-white/15" : "border-r border-line"),
           palette[state],
-          station.href && (dark ? "hover:bg-white/15" : "hover:bg-surface-2"),
+          href && (dark ? "hover:bg-white/15" : "hover:bg-surface-2"),
         );
-        return station.href ? (
+        return href ? (
           <Link
             key={station.key}
-            href={station.href}
+            href={href}
             title={station.detail || station.label}
             aria-current={state === "active" ? "step" : undefined}
             data-testid={`${testId}-${station.key}`}

@@ -11,13 +11,14 @@ export function useMaintenanceUsers() {
   return useQuery({
     queryKey: ["maintenance", "users"],
     queryFn: async () => {
-      for (const url of ["/api/users/users/", "/api/users/"]) {
+      // Every maintenance viewer may read the maintenance people list; older servers without it
+      // fall back to the admin user list.
+      for (const url of ["/api/maintenance/people/", "/api/users/users/"]) {
         try {
           const { data } = await api.get(url, { params: { page_size: 300 } });
-          const rows = (Array.isArray(data) ? data : data?.results || data?.data || []) as UserRow[];
-          if (rows.length) return rows;
+          return (Array.isArray(data) ? data : data?.results || data?.data || []) as UserRow[];
         } catch {
-          // try the next shape
+          // try the next source
         }
       }
       return [] as UserRow[];

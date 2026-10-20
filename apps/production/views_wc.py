@@ -3,6 +3,8 @@ from datetime import timedelta
 from decimal import Decimal
 
 from rest_framework import viewsets, status
+
+from apps.production.scope import WorkCentreScopeMixin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
@@ -146,7 +148,8 @@ def _validate_wcm_material_confirmations(job, material_confirmations):
             lock=True,
         )
 
-class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
+class WCQueueViewSet(WorkCentreScopeMixin, viewsets.ReadOnlyModelViewSet):
+    scope_wc_kwarg = "wc_id"
     """
     Get WC queue: job info, template name, SO, customer, qty, specs snapshot, assignment status.
     """
@@ -753,7 +756,8 @@ class WCQueueViewSet(viewsets.ReadOnlyModelViewSet):
             'total_active': waiting_count + running_count + executing_count
         })
 
-class JobAllocationViewSet(viewsets.ViewSet):
+class JobAllocationViewSet(WorkCentreScopeMixin, viewsets.ViewSet):
+    scope_pk = "job"
     """
     Endpoints for machine assignment, roll allocation, and marking execution ready.
     """

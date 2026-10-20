@@ -10,6 +10,7 @@ CANONICAL_ROLE_LABELS = {
     "SALES": "Sales",
     "PLANNER": "Planner",
     "WORK_CENTER_MANAGER": "Work Center Manager",
+    "OPERATOR": "Machine Operator",
     "STORE": "Store",
     "DISPATCH": "Dispatch",
     "PLANT_MANAGER": "Plant Manager",
@@ -22,7 +23,6 @@ CANONICAL_ROLE_LABELS = {
 LEGACY_ROLE_CODE_ALIASES = {
     "SUPER_ADMIN": "ADMIN",
     "WC_MANAGER": "WORK_CENTER_MANAGER",
-    "OPERATOR": "WORK_CENTER_MANAGER",
     "INVENTORY": "STORE",
     "PRODUCTION_MANAGER": "PLANT_MANAGER",
 }
@@ -34,6 +34,7 @@ CANONICAL_ROLE_ORDER = [
     "SALES",
     "PLANNER",
     "WORK_CENTER_MANAGER",
+    "OPERATOR",
     "STORE",
     "DISPATCH",
     "PLANT_MANAGER",
