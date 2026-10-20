@@ -354,7 +354,7 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
                                     <div style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 700, color: "var(--text-1)", lineHeight: 1 }}>
                                         {fmt(ready, 0)}
                                     </div>
-                                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
+                                    <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
                                         ready rows
                                     </div>
                                 </div>
@@ -423,7 +423,7 @@ function SourceMixCard({ sourceMix, replenishmentMix, queueKpis, alerts }: any) 
                                 <div style={{ fontFamily: "var(--f-display)", fontSize: 22, fontWeight: 700, color: "var(--text-1)", lineHeight: 1 }}>
                                     {fmt(allocatable, 0)}
                                 </div>
-                                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
+                                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
                                     KG ready
                                 </div>
                             </div>
@@ -529,7 +529,7 @@ function DemandPipelineCard({ demand }: { demand: any[] }) {
                                             fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)",
                                             whiteSpace: "nowrap",
                                         }}>
-                                            {fmt(d.pending_kg, 0)} <span style={{ fontSize: 9, color: "var(--text-4)" }}>/ {fmt(d.ordered_kg, 0)} KG</span>
+                                            {fmt(d.pending_kg, 0)} <span style={{ fontSize: 10.5, color: "var(--text-4)" }}>/ {fmt(d.ordered_kg, 0)} KG</span>
                                         </span>
                                     </div>
                                     <div style={{ position: "relative", height: 6, background: "var(--surface-2)", borderRadius: 999, overflow: "hidden" }}>
@@ -543,7 +543,7 @@ function DemandPipelineCard({ demand }: { demand: any[] }) {
                                 </div>
                                 <div style={{
                                     width: 84, textAlign: "right",
-                                    fontSize: 9, fontWeight: 700,
+                                    fontSize: 10.5, fontWeight: 700,
                                     textTransform: "uppercase", letterSpacing: ".04em",
                                     color: due.tone === "danger" ? "var(--danger)" : due.tone === "warn" ? "var(--warning)" : due.tone === "info" ? "var(--info)" : "var(--text-4)",
                                     flexShrink: 0,
@@ -609,7 +609,7 @@ function JobDistributionCard({ distribution, statusStrip }: { distribution: any[
                                     borderRadius: "var(--r-2)",
                                 }}
                             >
-                                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: STATE_TONES[d.state]?.fg || "var(--text-3)" }}>
+                                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: STATE_TONES[d.state]?.fg || "var(--text-3)" }}>
                                     {d.state}
                                 </div>
                                 <div style={{ fontFamily: "var(--f-mono)", fontSize: 14, fontWeight: 700, color: "var(--text-1)", marginTop: 1 }}>
@@ -793,7 +793,7 @@ function ActionDeskCard({ alerts, statusStrip, queueKpis, activeCount }: any) {
 function DeskMiniStat({ label, value }: { label: string; value: string }) {
     return (
         <div style={{ background: "rgba(255,255,255,.05)", padding: "8px 10px", borderRadius: "var(--r-2)" }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "rgba(255,255,255,.55)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "rgba(255,255,255,.55)" }}>
                 {label}
             </div>
             <div style={{ fontFamily: "var(--f-mono)", fontSize: 14, fontWeight: 700, color: "#fff", marginTop: 2 }}>
@@ -884,7 +884,7 @@ function RecentActivityCard({ activity }: { activity: any[] }) {
                                 }}
                             >
                                 <span style={{
-                                    fontSize: 9, fontWeight: 700,
+                                    fontSize: 10.5, fontWeight: 700,
                                     padding: "2px 7px",
                                     borderRadius: "var(--r-pill)",
                                     background: tone.bg, color: tone.fg,
@@ -939,7 +939,7 @@ function BigNumber({ value, suffix }: { value: string; suffix?: string }) {
                 {value}
             </div>
             {suffix && (
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginTop: 2 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginTop: 2 }}>
                     {suffix}
                 </div>
             )}
@@ -961,7 +961,7 @@ function ReadinessTile({ label, value, tone }: { label: string; value: number; t
             borderRadius: "var(--r-3)",
             textAlign: "center",
         }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: colors.fg }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: colors.fg }}>
                 {label}
             </div>
             <div style={{ fontFamily: "var(--f-display)", fontSize: 18, fontWeight: 700, color: "var(--text-1)", marginTop: 2 }}>
@@ -974,7 +974,7 @@ function ReadinessTile({ label, value, tone }: { label: string; value: number; t
 function MiniStatTile({ label, value }: { label: string; value: string }) {
     return (
         <div style={{ padding: "8px 10px", background: "var(--surface-2)", borderRadius: "var(--r-2)" }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)" }}>
                 {label}
             </div>
             <div style={{ fontFamily: "var(--f-mono)", fontSize: 14, fontWeight: 700, color: "var(--text-1)", marginTop: 1 }}>

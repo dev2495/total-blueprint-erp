@@ -422,7 +422,7 @@ export function BillWorkspace({ document: doc, headerActions, defaultMode, child
               >
                 <FileImage className="h-4 w-4 text-info-fg" aria-hidden />
                 <span className="rotate-180 text-[12px] font-semibold [writing-mode:vertical-rl]">Show bill</span>
-                <kbd className="rounded border border-line bg-surface-2 px-1 font-mono text-[9.5px] text-content-3">Alt+B</kbd>
+                <kbd className="rounded border border-line bg-surface-2 px-1 font-mono text-[11px] text-content-3">Alt+B</kbd>
               </button>
             )}
           </div>,

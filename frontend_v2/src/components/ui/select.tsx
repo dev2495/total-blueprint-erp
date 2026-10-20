@@ -5,6 +5,7 @@ import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useLabelledBy } from "@/components/ui/field-label"
 
 const Select = SelectPrimitive.Root
 
@@ -15,9 +16,19 @@ const SelectValue = SelectPrimitive.Value
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => {
+  const labelledBy = useLabelledBy(props)
+  // Last resort for a trigger with no label at all: name it after its placeholder.
+  let placeholderName: string | undefined
+  React.Children.forEach(children, (child) => {
+    const placeholder = React.isValidElement(child) ? (child.props as { placeholder?: unknown }).placeholder : undefined
+    if (typeof placeholder === "string" && placeholder.trim()) placeholderName = placeholder.trim()
+  })
+  return (
   <SelectPrimitive.Trigger
     ref={ref}
+    aria-labelledby={labelledBy}
+    aria-label={props["aria-label"] ?? (labelledBy ? undefined : placeholderName)}
     className={cn(
       "flex h-10 w-full items-center justify-between rounded-[10px] border border-line bg-surface-1 px-3 py-2 text-sm text-content-1 ring-offset-background transition-[border-color,box-shadow] duration-150 ease-out hover:border-line-strong data-[placeholder]:text-content-4 focus:outline-none focus:border-primary focus:ring-2 focus:ring-focus focus:ring-offset-0 disabled:cursor-not-allowed disabled:bg-surface-2 disabled:opacity-60 [&>span]:line-clamp-1",
       className
@@ -29,7 +40,8 @@ const SelectTrigger = React.forwardRef<
       <ChevronDown className="h-4 w-4 opacity-50" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
-))
+  )
+})
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName
 
 const SelectScrollUpButton = React.forwardRef<

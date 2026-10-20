@@ -384,14 +384,14 @@ function ComposerHeader({
             aria-current="page"
             className="inline-flex h-8 items-center gap-2 rounded-[9px] bg-plate px-3 text-[13px] font-semibold text-plate-fg"
           >
-            <span className="font-mono text-[10.5px] opacity-70">SO</span>Order
+            <span className="font-mono text-[10.5px]">SO</span>Order
           </span>
           <Link
             href={quoteHref}
             className="inline-flex h-8 items-center gap-2 rounded-[9px] px-3 text-[13px] font-semibold text-content-3 transition hover:text-content-1"
             data-testid="sales-create-switch-quotation"
           >
-            <span className="font-mono text-[10.5px] opacity-70">QT</span>Quotation
+            <span className="font-mono text-[10.5px]">QT</span>Quotation
           </Link>
         </nav>
       </div>
@@ -507,6 +507,7 @@ function CustomerHeaderStrip({
         <SoField label="Promised dispatch">
           <input
             type="date"
+            aria-label="Promised dispatch"
             value={draft.delivery_date}
             onChange={(e) => onSetDeliveryDate(e.target.value)}
             className={cn(INP, MONO)}

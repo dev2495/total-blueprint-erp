@@ -815,7 +815,7 @@ function RangeRow({ label, minValue, maxValue, onMinChange, onMaxChange }: {
 }) {
     return (
         <div>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)", marginBottom: 4 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)", marginBottom: 4 }}>
                 {label}
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -883,7 +883,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
 
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8, marginBottom: 8, flexWrap: "wrap" }}>
                 <span style={{
-                    fontSize: 9, fontWeight: 650, padding: "2px 8px",
+                    fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
                     borderRadius: "var(--r-pill)",
                     background: sourceTag.bg, color: sourceTag.fg,
                 }}>
@@ -891,7 +891,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
                 </span>
                 {o.line_status_display && (
                     <span style={{
-                        fontSize: 9, fontWeight: 650, padding: "2px 8px",
+                        fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
                         borderRadius: "var(--r-pill)",
                         background: "var(--surface-2)", color: "var(--text-2)",
                         border: "1px solid var(--border-soft)",
@@ -901,7 +901,7 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
                 )}
                 {partialReplan && (
                     <span style={{
-                        fontSize: 9, fontWeight: 650, padding: "2px 8px",
+                        fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
                         borderRadius: "var(--r-pill)",
                         background: "rgba(245,158,11,.12)", color: "var(--warning)",
                         border: "1px solid rgba(245,158,11,.25)",
@@ -1134,7 +1134,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                                 if (Number.isNaN(placedDate.getTime())) return null;
                                 return (
                                     <>
-                                        <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)" }}>
+                                        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)" }}>
                                             Order placed
                                         </div>
                                         <div style={{
@@ -1366,7 +1366,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                                                 fontSize: 11, fontWeight: 600,
                                                 opacity: inRange ? 1 : 0.6,
                                             }}>
-                                                <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, marginRight: 4, color: inRange ? "var(--br-600)" : "var(--text-4)" }}>
+                                                <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, marginRight: 4, color: inRange ? "var(--br-600)" : "var(--text-4)" }}>
                                                     {step.sequence_number}
                                                 </span>
                                                 {step.process_name || step.step_name || step.process_code}
@@ -1482,7 +1482,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                                             <div style={{ fontWeight: 600, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                 {m.material_name}
                                             </div>
-                                            <div style={{ fontFamily: "var(--f-mono)", fontSize: 9, color: "var(--text-4)" }}>
+                                            <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-4)" }}>
                                                 {m.material_code} · {m.category_code}
                                             </div>
                                         </div>
@@ -1725,7 +1725,7 @@ function BigStat({ label, value, suffix, tone }: { label: string; value: string;
     }[tone];
     return (
         <div style={{ padding: "10px 12px", background: colors.bg, borderRadius: "var(--r-3)", border: "1px solid var(--border-soft)" }}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
                 {label}
             </div>
             <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 4 }}>
@@ -1793,14 +1793,14 @@ function ArtworkPreviewTile({ preview }: { preview: NonNullable<PlannerControlOr
                     )}
                 </div>
                 <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 9, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--br-700)" }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--br-700)" }}>
                         Artwork
                     </div>
                     <div style={{ marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 650, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {code || "Assigned"}
                     </div>
                     {(name || colors > 0) && (
-                        <div style={{ marginTop: 1, fontSize: 9, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ marginTop: 1, fontSize: 10.5, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {[name, colors > 0 ? `${colors} color${colors === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
                         </div>
                     )}
@@ -1852,7 +1852,7 @@ function LayerRow({ layer }: { layer: any }) {
                             <span style={{ fontSize: 11, marginLeft: 1 }}>μ</span>
                         </div>
                         {density != null && (
-                            <div style={{ fontSize: 9, color: "var(--text-4)", fontFamily: "var(--f-mono)", marginTop: 2 }}>
+                            <div style={{ fontSize: 10.5, color: "var(--text-4)", fontFamily: "var(--f-mono)", marginTop: 2 }}>
                                 ρ {Number(density).toFixed(2)}
                             </div>
                         )}
@@ -1876,7 +1876,7 @@ function SourceTinyTile({ label, count, active, tone }: { label: string; count: 
             color: active ? colors.fg : "var(--text-4)",
             border: `1px solid ${active ? colors.fg : "var(--border-soft)"}`,
             borderRadius: "var(--r-pill)",
-            fontSize: 9, fontWeight: 700,
+            fontSize: 10.5, fontWeight: 700,
             textTransform: "uppercase", letterSpacing: ".06em",
             display: "inline-flex", alignItems: "center", gap: 4,
             opacity: active ? 1 : 0.6,
@@ -1939,7 +1939,7 @@ function CandidateRow({ option, accentColor, onAllocate }: { option: PlannerInve
                 <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)" }}>
                     {fmt(option.allocatable_qty_kg, 1)} KG
                 </div>
-                <div style={{ fontSize: 9, color: "var(--text-4)", fontFamily: "var(--f-mono)" }}>
+                <div style={{ fontSize: 10.5, color: "var(--text-4)", fontFamily: "var(--f-mono)" }}>
                     of {fmt(option.quantity_kg, 1)}
                 </div>
             </div>

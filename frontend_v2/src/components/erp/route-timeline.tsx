@@ -25,6 +25,21 @@ export interface RouteTimelineStep {
   skipReason?: string;
 }
 
+/** Engine roll behaviours in floor words (the code stays in the tooltip). */
+const ROLL_BEHAVIOUR_WORDS: Record<string, string> = {
+  CREATE_NEW: "makes new rolls",
+  MODIFY_EXISTING: "works on the same roll",
+  MULTI_INPUT_COMBINE: "combines rolls",
+  SPLIT: "slits into narrower rolls",
+  NONE: "makes pieces / bulk",
+};
+
+function behaviourWords(tag?: string) {
+  const key = String(tag || "").trim().toUpperCase();
+  if (!key) return "";
+  return ROLL_BEHAVIOUR_WORDS[key] || key.toLowerCase().replace(/_/g, " ");
+}
+
 interface RouteTimelineProps {
   steps: RouteTimelineStep[];
   startIndex?: number;
@@ -362,8 +377,8 @@ function RouteStepButton({
         </span>
       </span>
       {step.transition || step.tag ? (
-        <span className="mt-2 text-[12px] font-semibold text-content-3">
-          {step.transition || step.tag}
+        <span className="mt-2 text-[12px] font-semibold text-content-3" title={step.tag || undefined}>
+          {step.transition || behaviourWords(step.tag)}
         </span>
       ) : null}
       {isStop ? (

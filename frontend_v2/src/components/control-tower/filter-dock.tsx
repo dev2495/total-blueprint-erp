@@ -126,9 +126,8 @@ export function PlannerFilterDock({
                     min-width: 0;
                     padding: 12px;
                     border-radius: var(--r-4);
-                    border: 1px solid var(--ct-tone-border);
-                    background: linear-gradient(180deg, var(--ct-tone-bg), rgba(255,255,255,.72));
-                    box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 10px 26px var(--ct-tone-glow);
+                    border: 1px solid var(--border-soft, var(--line));
+                    background: var(--surface-1);
                 }
                 .ct-filter-chip {
                     display: inline-flex;
@@ -209,8 +208,7 @@ export function PlannerFilterDock({
                     background: rgba(8,13,25,.42);
                 }
                 .dark .ct-filter-group {
-                    background: linear-gradient(180deg, color-mix(in srgb, var(--ct-tone-bg) 72%, var(--surface-2)), rgba(15,23,42,.76));
-                    box-shadow: inset 0 1px 0 rgba(255,255,255,.07), 0 14px 34px rgba(0,0,0,.18);
+                    background: var(--surface-2);
                 }
                 .dark .ct-filter-chip {
                     background: rgba(16,24,39,.88);
@@ -341,7 +339,7 @@ export function FilterGroup({
         >
             <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 9 }}>
                 {icon && <span style={{ color: t.fg, display: "inline-flex" }}>{icon}</span>}
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: t.fg }}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-2)" }}>
                     {label}
                 </span>
             </div>
@@ -416,7 +414,7 @@ export function FilterSelect({
 }) {
     return (
         <label style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--text-4)" }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--text-4)" }}>
                 {label}
             </span>
             <select

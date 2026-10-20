@@ -758,7 +758,7 @@ function Donut({
           y="64"
           textAnchor="middle"
           className="fill-content-3"
-          style={{ fontSize: 8, fontWeight: 700, letterSpacing: 1.2 }}
+          style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2 }}
         >
           TOTAL {unit}
         </text>

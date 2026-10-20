@@ -991,7 +991,7 @@ function TraceAuditBanner({ order }: { order: PlannerControlOrder }) {
 function MiniAuditStat({ label, value }: { label: string; value: string }) {
     return (
         <span style={{ minWidth: 76, padding: "5px 7px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-1)" }}>
-            <span style={{ display: "block", fontSize: 8, fontWeight: 700, letterSpacing: ".06em", color: "var(--text-4)", textTransform: "uppercase" }}>{label}</span>
+            <span style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", color: "var(--text-4)", textTransform: "uppercase" }}>{label}</span>
             <span style={{ display: "block", marginTop: 1, fontFamily: "var(--f-mono)", fontSize: 10, fontWeight: 700, color: "var(--text-1)" }}>{value}</span>
         </span>
     );
@@ -1000,7 +1000,7 @@ function MiniAuditStat({ label, value }: { label: string; value: string }) {
 function DetailField({ label, value, mono, accent }: { label: string; value: string; mono?: boolean; accent?: string }) {
     return (
         <div>
-            <div style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
+            <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
                 {label}
             </div>
             <div style={{ fontSize: 12, fontWeight: 600, color: accent || "var(--text-1)", marginTop: 2, fontFamily: mono ? "var(--f-mono)" : "var(--f-ui)" }}>
@@ -1036,7 +1036,7 @@ function BigNumber({ value, suffix }: { value: string; suffix?: string }) {
                 {value}
             </div>
             {suffix && (
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginTop: 2 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)", marginTop: 2 }}>
                     {suffix}
                 </div>
             )}

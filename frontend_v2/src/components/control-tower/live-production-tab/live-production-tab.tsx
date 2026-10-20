@@ -732,7 +732,7 @@ function ActionRuleNote({ order, canCancel, canShortClose }: { order: PlannerCon
 function RulePill({ label, value, enabled }: { label: string; value: string; enabled: boolean }) {
     return (
         <div style={{ padding: "8px 10px", borderRadius: "var(--r-3)", border: `1px solid ${enabled ? "rgba(37,99,235,.22)" : "var(--border-soft)"}`, background: enabled ? "rgba(37,99,235,.06)" : "var(--surface-2)" }}>
-            <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: enabled ? "var(--br-700)" : "var(--text-4)" }}>{label}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em", color: enabled ? "var(--br-700)" : "var(--text-4)" }}>{label}</div>
             <div style={{ marginTop: 3, fontSize: 10, lineHeight: 1.35, color: "var(--text-3)" }}>{value}</div>
         </div>
     );

@@ -82,7 +82,7 @@ export function HealthBar({ segments, height = 8, showLabels = false }: HealthBa
                             key={seg.key}
                             style={{
                                 flex: 1,
-                                fontSize: 9,
+                                fontSize: 10.5,
                                 fontWeight: 600,
                                 textTransform: "uppercase",
                                 letterSpacing: ".04em",

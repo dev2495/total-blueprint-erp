@@ -1025,7 +1025,7 @@ function DonutChart({
         y="64"
         textAnchor="middle"
         className="fill-content-3"
-        style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.2 }}
+        style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 1.2 }}
       >
         TOTAL
       </text>

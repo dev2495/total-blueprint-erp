@@ -121,7 +121,7 @@ export function LocationCapsule({ compact = false }: { compact?: boolean }) {
                   href={breadcrumbHref}
                   data-testid={`${compact ? "breadcrumb-link-compact" : "breadcrumb-link"}-${crumb.segment.replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`}
                   data-route={crumb.target}
-                  className="text-content-3 hover:text-content-2"
+                  className="-my-1 inline-flex min-h-6 items-center rounded px-0.5 text-content-3 hover:text-content-2"
                 >
                   {crumb.label}
                 </Link>

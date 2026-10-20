@@ -3609,7 +3609,7 @@ function UnitWeightBreakdown({
   const total = toNumber(breakdown.total_g, 0);
   return (
     <div
-      className="mt-2 rounded-xl bg-surface-1/10 px-3 py-2 text-caption text-white/85 ring-1 ring-surface-1/10"
+      className="mt-2 rounded-xl bg-surface-1/10 px-3 py-2 text-caption text-white ring-1 ring-surface-1/10"
       data-testid="machine-target-breakdown"
     >
       <span className="font-semibold uppercase tracking-[0.08em] text-order-border">Target comes from · लक्ष्य कैसे बना</span>
@@ -3849,7 +3849,7 @@ function InputFeedCard({
           and output.
         </div>
       </div>
-      <div className="max-h-[520px] space-y-4 overflow-y-auto p-4">
+      <div tabIndex={0} role="region" aria-label="Input feed" className="max-h-[520px] space-y-4 overflow-y-auto p-4">
         <div>
           <div className="mb-2 flex items-center justify-between">
             <div className={labelClass}>Reserved input rolls</div>
@@ -4868,7 +4868,7 @@ function ProcessRouteStrip({
               <div
                 className={cn(
                   "mt-1.5 text-caption font-semibold leading-4",
-                  step.state === "current" ? "text-white/85" : "text-content-3",
+                  step.state === "current" ? "text-white" : "text-content-3",
                 )}
               >
                 {step.isCurrent

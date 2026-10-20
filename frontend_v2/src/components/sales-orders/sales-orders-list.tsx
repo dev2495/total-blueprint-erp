@@ -1876,6 +1876,7 @@ export function SalesOrdersListWorkspace() {
               <div>
                 <input
                   type="checkbox"
+                  aria-label="Select all orders on this page"
                   checked={allSelected}
                   onChange={toggleAll}
                   className="h-3.5 w-3.5 rounded border-line-strong"
@@ -2388,7 +2389,7 @@ function FilterBand({
             value={filters.customer || "__all"}
             onValueChange={(v) => onPatch("customer", v === "__all" ? "" : v)}
           >
-            <SelectTrigger className="h-8 rounded-full bg-surface-1 text-xs">
+            <SelectTrigger aria-label="Filter by customer" className="h-8 rounded-full bg-surface-1 text-xs">
               <SelectValue placeholder="Any customer" />
             </SelectTrigger>
             <SelectContent>
@@ -2410,7 +2411,7 @@ function FilterBand({
             value={filters.master || "__all"}
             onValueChange={(v) => onPatch("master", v === "__all" ? "" : v)}
           >
-            <SelectTrigger className="h-8 rounded-full bg-surface-1 text-xs">
+            <SelectTrigger aria-label="Filter by product master" className="h-8 rounded-full bg-surface-1 text-xs">
               <SelectValue placeholder="Any master" />
             </SelectTrigger>
             <SelectContent>
@@ -3111,8 +3112,8 @@ function LineFulfillmentStrip({
           >
             <div
               className={cn(
-                "truncate text-caption font-semibold uppercase tracking-wide opacity-80",
-                compact && "text-[7px]",
+                "truncate text-caption font-semibold uppercase tracking-wide",
+                compact && "text-[11px]",
               )}
             >
               {row.label}
@@ -3124,7 +3125,7 @@ function LineFulfillmentStrip({
               )}
             >
               {fmtKg(row.value)}
-              <span className="ml-0.5 text-caption font-bold uppercase opacity-75">
+              <span className="ml-0.5 text-caption font-bold uppercase">
                 kg
               </span>
             </div>
@@ -3270,7 +3271,7 @@ function FulfillmentMiniCards({
     <div className="mt-1.5 grid grid-cols-2 gap-1.5">
       {cards.map((card) => (
         <div key={card.label} className={cn("min-w-0 rounded-lg border px-2.5 py-1.5", card.className)}>
-          <div className="truncate text-caption font-semibold uppercase tracking-wide opacity-75">{card.label}</div>
+          <div className="truncate text-caption font-semibold uppercase tracking-wide">{card.label}</div>
           <div className="truncate font-mono text-[12px] font-semibold">{fmtKg(card.value)} KG</div>
         </div>
       ))}
@@ -3388,7 +3389,7 @@ function LineContributionBar({
                   tone.border,
                 )}
               >
-                <LineColorIcon index={row.index} className={compact ? "h-3.5 w-3.5 text-[7px]" : "h-4 w-4"} />
+                <LineColorIcon index={row.index} className={compact ? "h-3.5 w-3.5 text-[11px]" : "h-4 w-4"} />
                 <span className="max-w-[240px] truncate">
                   {compactLineLabel(row.line, row.index)}
                 </span>
@@ -3619,6 +3620,7 @@ function OrderRow({
       >
         <input
           type="checkbox"
+          aria-label={`Select order ${order.order_number || ""}`.trim()}
           checked={selected}
           onChange={onToggleSelect}
           className="mt-1 h-3.5 w-3.5 rounded border-line-strong"
@@ -3724,6 +3726,7 @@ function OrderRow({
         <div>
           <input
             type="checkbox"
+            aria-label={`Select order ${order.order_number || ""}`.trim()}
             checked={selected}
             onChange={onToggleSelect}
             className="h-3.5 w-3.5 rounded border-line-strong"

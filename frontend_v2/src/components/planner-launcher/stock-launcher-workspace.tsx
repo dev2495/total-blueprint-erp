@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldLabelProvider } from "@/components/ui/field-label";
 import {
   Select,
   SelectContent,
@@ -938,7 +939,7 @@ export function StockLauncherV3Workspace() {
                 title={filter.description}
               >
                 {filter.label}
-                <span className="tabular-nums opacity-60">
+                <span className="tabular-nums opacity-80">
                   {filter.id === "ALL"
                     ? masters.length
                     : masters.filter((row) => row.product_kind === filter.id).length}
@@ -1381,7 +1382,7 @@ export function StockLauncherV3Workspace() {
           </section>
         </div>
 
-        <aside className="grid gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pb-4">
+        <aside tabIndex={0} aria-label="Material, demand and blockers" className="grid gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pb-4">
           {allIssues.length ? (
             <SideCard title="Launch blockers" hint="fix these before creating stock" tone="warn">
               <IssueList title="Release blockers" issues={allIssues} />
@@ -1772,10 +1773,13 @@ function Field({
   children: React.ReactNode;
   className?: string;
 }) {
+  const labelId = React.useId();
   return (
     <div className={cn("grid gap-1.5", className)}>
-      <Label className="text-[12px] font-semibold text-content-2">{label}</Label>
-      <div>{children}</div>
+      <Label id={labelId} className="text-[12px] font-semibold text-content-2">{label}</Label>
+      <div>
+        <FieldLabelProvider id={labelId}>{children}</FieldLabelProvider>
+      </div>
     </div>
   );
 }

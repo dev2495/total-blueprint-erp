@@ -417,7 +417,7 @@ function QueueFacetSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-9 min-w-[150px] flex-1 rounded-lg border border-line bg-surface-1 text-xs font-semibold text-content-2">
+      <SelectTrigger aria-label={`Filter by ${label}`} className="h-9 min-w-[150px] flex-1 rounded-lg border border-line bg-surface-1 text-xs font-semibold text-content-2">
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
@@ -3548,54 +3548,54 @@ export default function WCMTerminal() {
             {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} testId="wcm-made-card" /> : null}
           </div>
         ) : null}
-        <div className="mt-3 rounded-xl border border-surface-1/10 bg-surface-1/10 p-2.5">
+        <div className="mt-3 rounded-xl border border-line bg-surface-2 p-2.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.1em] text-info-border">
+              <div className="text-[12px] font-medium text-content-3">
                 Current step
               </div>
-              <div className="mt-1 text-base font-semibold leading-tight text-white">
+              <div className="mt-1 text-base font-semibold leading-tight text-content-1">
                 {selectedStepName}
               </div>
             </div>
-            <span className="rounded-full border border-info-border bg-info-fg px-2.5 py-1 text-xs font-semibold uppercase tracking-wider text-info-border">
+            <span className="rounded-full border border-info-border bg-info-bg px-2.5 py-1 text-xs font-semibold text-info-fg">
               {selectedStepContractLabel}
             </span>
           </div>
-          <div className="mt-2 grid gap-px overflow-hidden rounded-lg border border-surface-1/10 bg-surface-1/10 sm:grid-cols-3">
-            <div className="bg-[#0e2e58]/45 px-3 py-2">
-              <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
+          <div className="mt-2 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-3">
+            <div className="bg-surface-1 px-3 py-2">
+              <div className="text-[12px] font-medium text-content-3">
                 Step target
               </div>
-              <div className="mt-0.5 text-sm font-semibold leading-tight text-white">
+              <div className="mt-0.5 text-sm font-semibold leading-tight text-content-1">
                 {selectedStepTargetLabel}
               </div>
             </div>
-            <div className="bg-[#0e2e58]/45 px-3 py-2">
-              <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
+            <div className="bg-surface-1 px-3 py-2">
+              <div className="text-[12px] font-medium text-content-3">
                 Step remaining
               </div>
-              <div className="mt-0.5 text-sm font-semibold leading-tight text-white">
+              <div className="mt-0.5 text-sm font-semibold leading-tight text-content-1">
                 {selectedStepRemainingLabel}
               </div>
             </div>
-            <div className="bg-[#0e2e58]/45 px-3 py-2">
-              <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
+            <div className="bg-surface-1 px-3 py-2">
+              <div className="text-[12px] font-medium text-content-3">
                 Issue plan
               </div>
-              <div className="mt-0.5 text-sm font-semibold leading-tight text-white">
+              <div className="mt-0.5 text-sm font-semibold leading-tight text-content-1">
                 {selectedIssueTargetLabel || "No issue"}
               </div>
             </div>
           </div>
-          <div className="mt-2 rounded-lg border border-surface-1/10 bg-[#0e2e58]/45 px-3 py-2">
-            <div className="text-caption font-semibold uppercase tracking-wider text-info-border">
+          <div className="mt-2 rounded-lg border border-line bg-surface-1 px-3 py-2">
+            <div className="text-[12px] font-medium text-content-3">
               Step stock contract
             </div>
-            <div className="mt-1 text-sm font-semibold text-white">
+            <div className="mt-1 text-sm font-semibold text-content-1">
               {selectedContractDetailLabel || stockFormLabel(selectedTargetStockForm)}
             </div>
-            <div className="mt-1 text-caption font-semibold text-info-border">
+            <div className="mt-1 text-[12px] text-content-3">
               Input {stockFormListLabel(selectedAllowedInputForms)} · Output{" "}
               {stockFormListLabel(selectedAllowedOutputForms)} ·{" "}
               {stockFormConversionLabel}
@@ -3604,7 +3604,7 @@ export default function WCMTerminal() {
         </div>
 
         <details className="group mt-2 rounded-lg border border-white/15 bg-white/5">
-          <summary className="cursor-pointer list-none px-3 py-2 text-caption font-semibold uppercase tracking-[0.08em] text-info-border marker:hidden">
+          <summary className="cursor-pointer list-none px-3 py-2 text-[12.5px] font-medium text-content-2 marker:hidden">
             Production spec · click to expand
           </summary>
           <ProductionOrderSpecRail
@@ -4123,6 +4123,7 @@ export default function WCMTerminal() {
                 disabled={isReleasedToMachine || mutation.isPending}
               >
                 <SelectTrigger
+                  aria-label="Machine for this job"
                   data-testid="wcm-machine-select"
                   className="h-11 rounded-xl border-line bg-surface-2"
                 >
@@ -4392,7 +4393,7 @@ export default function WCMTerminal() {
                               }))
                             }
                           >
-                            <SelectTrigger className="h-10 rounded-lg border-line bg-surface-1 text-xs font-semibold">
+                            <SelectTrigger aria-label="Issue policy" className="h-10 rounded-lg border-line bg-surface-1 text-xs font-semibold">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -6906,7 +6907,21 @@ export default function WCMTerminal() {
 
               {activeMainTab !== "history" && isWideViewport ? (
                 <aside className="hidden max-h-[calc(100vh-246px)] overflow-y-auto pr-1 xl:col-span-1 xl:block">
-                  {detailPaneContent}
+                  {activeAssignment ? (
+                    detailPaneContent
+                  ) : (
+                    <div className="grid place-items-center rounded-[18px] border border-dashed border-line-strong bg-surface-1 px-6 py-12 text-center" data-testid="wcm-detail-empty">
+                      <div className="text-[15px] font-semibold text-content-1">No job selected</div>
+                      <p className="mt-1 max-w-sm text-[13px] text-content-3">
+                        Pick a job from the list to see what it is, what it needs and release it to a machine.
+                      </p>
+                      {activeMainTab !== "running" && visibleRunningAssignments.length > 0 ? (
+                        <Button variant="outline" className="mt-4 rounded-[10px]" onClick={() => setActiveMainTab("running")}>
+                          Open Running / ready · {visibleRunningAssignments.length}
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
                 </aside>
               ) : null}
             </section>

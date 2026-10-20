@@ -843,12 +843,12 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                         )}
                                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
                                                             {opt.source_bucket && (
-                                                                <span style={{ fontSize: 9, fontWeight: 650, color: "var(--i-700)", background: "rgba(99,102,241,.10)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
+                                                                <span style={{ fontSize: 10.5, fontWeight: 650, color: "var(--i-700)", background: "rgba(99,102,241,.10)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
                                                                     {String(opt.source_bucket).replace(/_/g, " ")}
                                                                 </span>
                                                             )}
                                                             {Number.isFinite(Number(opt.completed_step_index)) && (
-                                                                <span style={{ fontSize: 9, fontWeight: 650, color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
+                                                                <span style={{ fontSize: 10.5, fontWeight: 650, color: "var(--text-3)", background: "var(--surface-2)", borderRadius: "var(--r-pill)", padding: "2px 7px", textTransform: "uppercase" }}>
                                                                     Completed step {Number(opt.completed_step_index) + 1}
                                                                 </span>
                                                             )}
@@ -910,7 +910,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                                                                 MAX
                                                             </button>
                                                         </div>
-                                                        <div style={{ fontSize: 9, color: "var(--text-4)", textAlign: "right", fontFamily: "var(--f-mono)" }}>
+                                                        <div style={{ fontSize: 10.5, color: "var(--text-4)", textAlign: "right", fontFamily: "var(--f-mono)" }}>
                                                             KG to allocate
                                                         </div>
                                                     </div>
@@ -1370,11 +1370,11 @@ function RouteSpanPreview({
                                     }}
                                 >
                                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase" }}>
+                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase" }}>
                                             Stage {stage.index + 1}
                                         </span>
                                         {isParallel && (
-                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 650, color: "var(--i-700)", textTransform: "uppercase" }}>
+                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 650, color: "var(--i-700)", textTransform: "uppercase" }}>
                                                 <GitBranch size={11} /> + parallel
                                             </span>
                                         )}
@@ -1393,11 +1393,11 @@ function RouteSpanPreview({
                                                     }}
                                                 >
                                                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
-                                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 700, color: "var(--br-700)" }}>
+                                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, fontWeight: 700, color: "var(--br-700)" }}>
                                                             {branch}
                                                         </span>
                                                         {(step.is_join || step.join_key) && (
-                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 8, fontWeight: 700, color: "var(--success)" }}>
+                                                            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, fontSize: 11, fontWeight: 700, color: "var(--success)" }}>
                                                                 <GitMerge size={9} /> {step.join_key || "JOIN"}
                                                             </span>
                                                         )}

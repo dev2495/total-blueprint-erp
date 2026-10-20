@@ -317,15 +317,22 @@ export function OrderIntentKpis({ order, compact = false }: { order: PlannerCont
                     borderRadius: "var(--r-3)",
                     background: cell.tone === "success" ? "rgba(16,185,129,.07)" : cell.tone === "warn" ? "rgba(245,158,11,.08)" : cell.tone === "info" ? "rgba(37,99,235,.06)" : "var(--surface-1)",
                 }}>
-                    <div style={{ fontSize: 8, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>{cell.label}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)" }}>{cell.label}</div>
                     <div style={{ marginTop: 3, display: "flex", alignItems: "baseline", gap: 3, minWidth: 0 }}>
-                        <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 12 : 15, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {cell.value}
-                        </span>
-                        <span style={{ fontSize: 8, fontWeight: 650, color: "var(--text-3)" }}>{cell.suffix}</span>
+                        {/^[\d.,\s-]+$/.test(String(cell.value ?? "")) ? (
+                            <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 13 : 15, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {cell.value}
+                            </span>
+                        ) : (
+                            // Words (a source or state) wrap to two lines instead of being cut mid-word.
+                            <span title={String(cell.value ?? "")} style={{ fontSize: 12.5, fontWeight: 650, lineHeight: 1.25, color: "var(--text-1)", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                                {cell.value}
+                            </span>
+                        )}
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-3)" }}>{cell.suffix}</span>
                     </div>
                     {cell.sub && (
-                        <div style={{ marginTop: 2, fontSize: 8, fontWeight: 650, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div title={String(cell.sub)} style={{ marginTop: 2, fontSize: 11, fontWeight: 500, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {cell.sub}
                         </div>
                     )}
@@ -412,7 +419,7 @@ export function RouteGraphSvg({
                                             {node.sequence_number != null ? node.sequence_number : index + 1}
                                         </text>
                                         <foreignObject x="-54" y="20" width="108" height="30">
-                                            <div style={{ fontSize: 9, fontWeight: 650, lineHeight: 1.1, textAlign: "center", color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            <div style={{ fontSize: 10.5, fontWeight: 650, lineHeight: 1.1, textAlign: "center", color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis" }}>
                                                 {label}
                                             </div>
                                         </foreignObject>
@@ -815,7 +822,7 @@ function DecisionCard({ label, value, detail, tone }: { label: string; value: st
     const colors = stateColors(tone || "WAITING");
     return (
         <div style={{ padding: "9px 11px", border: `1px solid ${colors.stroke}33`, borderRadius: "var(--r-3)", background: colors.bg }}>
-            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-4)" }}>{label}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-4)" }}>{label}</div>
             <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
             <div style={{ marginTop: 2, fontSize: 10, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{detail}</div>
         </div>
@@ -884,11 +891,11 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { i
                     <div style={{ marginTop: 7, fontSize: 13, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {steps.length > 1 ? `Parallel set (${steps.length})` : primary.process_name || primary.step_name || primary.process_code}
                     </div>
-                    <div style={{ marginTop: 2, fontFamily: "var(--f-mono)", fontSize: 9, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ marginTop: 2, fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {steps.map((step) => firstText(step.input_form, "INPUT") + " -> " + firstText(step.output_form, "OUTPUT")).join(" / ")}
                     </div>
                 </div>
-                {parallel && <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: "rgba(99,102,241,.10)", color: "var(--i-700)", fontSize: 9, fontWeight: 700 }}>{maxLaneCount || steps.length} lanes</span>}
+                {parallel && <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: "rgba(99,102,241,.10)", color: "var(--i-700)", fontSize: 10.5, fontWeight: 700 }}>{maxLaneCount || steps.length} lanes</span>}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -896,7 +903,7 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { i
                     <div key={step.step_id || step.id || `${step.sequence_number}-${step.process_code}`} style={{ padding: "6px 8px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-2)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
                             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 700, color: "var(--text-1)" }}>{step.process_name || step.step_name || step.process_code}</span>
-                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 9, color: "var(--text-4)", whiteSpace: "nowrap" }}>{step.process_code || `S${step.sequence_number}`}</span>
+                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-4)", whiteSpace: "nowrap" }}>{step.process_code || `S${step.sequence_number}`}</span>
                         </div>
                         <div style={{ marginTop: 3, display: "flex", flexWrap: "wrap", gap: 4 }}>
                             {step.default_work_center_name && <MiniRouteTag>{step.default_work_center_name}</MiniRouteTag>}
@@ -931,7 +938,7 @@ function StepStatePill({ state }: { state: string }) {
                 ? "Audit only"
                 : clean(state).replace(/_/g, " ") || "Waiting";
     return (
-        <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontSize: 9, fontWeight: 700, textTransform: "uppercase" }}>
+        <span style={{ padding: "3px 7px", borderRadius: "var(--r-pill)", background: colors.bg, color: colors.text, border: `1px solid ${colors.stroke}55`, fontSize: 10.5, fontWeight: 700, textTransform: "uppercase" }}>
             {label}
         </span>
     );
@@ -939,7 +946,7 @@ function StepStatePill({ state }: { state: string }) {
 
 function MiniRouteTag({ children }: { children: React.ReactNode }) {
     return (
-        <span style={{ minWidth: 0, maxWidth: "100%", padding: "2px 6px", borderRadius: "var(--r-pill)", border: "1px solid var(--border-soft)", background: "var(--surface-1)", color: "var(--text-3)", fontSize: 8, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ minWidth: 0, maxWidth: "100%", padding: "2px 6px", borderRadius: "var(--r-pill)", border: "1px solid var(--border-soft)", background: "var(--surface-1)", color: "var(--text-3)", fontSize: 11, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {children}
         </span>
     );
@@ -986,13 +993,13 @@ function MaterialIssueCards({ lines, dense }: { lines: any[]; dense?: boolean })
                 <div key={index} style={{ padding: "8px 10px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-1)", display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
                     <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.material_name || line.material_code || "Material"}</div>
-                        <div style={{ fontFamily: "var(--f-mono)", fontSize: 9, color: "var(--text-4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.step_name || line.category_code || line.policy_key || "-"}</div>
+                        <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.step_name || line.category_code || line.policy_key || "-"}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                         <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)", whiteSpace: "nowrap" }}>
                             {fmt(line.planned_issue_qty ?? line.theoretical_qty, 3)} {line.uom || ""}
                         </div>
-                        {line.capture_mode && <div style={{ marginTop: 1, fontSize: 8, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase" }}>{line.capture_mode}</div>}
+                        {line.capture_mode && <div style={{ marginTop: 1, fontSize: 11, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase" }}>{line.capture_mode}</div>}
                     </div>
                 </div>
             ))}
@@ -1015,12 +1022,12 @@ function TraceMetric({ icon, label, value, sub, tone = "default" }: { icon: Reac
     }[tone];
     return (
         <div style={{ minWidth: 0, padding: "9px 11px", border: `1px solid ${styles.border}`, borderRadius: "var(--r-3)", background: styles.bg }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
                 {icon}
                 {label}
             </div>
             <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: styles.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
-            {sub && <div style={{ marginTop: 2, fontSize: 9, fontWeight: 700, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+            {sub && <div style={{ marginTop: 2, fontSize: 10.5, fontWeight: 700, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
         </div>
     );
 }
@@ -1066,7 +1073,7 @@ function JobTraceRow({ job, order, index }: { job: any; order: PlannerControlOrd
                 <SmallLog label={closedAt ? "Closed" : "Updated"} value={closedAt || updatedAt || "-"} />
             </div>
             {batchLabel && (
-                <div style={{ marginTop: 7, padding: "5px 7px", borderRadius: "var(--r-2)", background: "var(--surface-2)", color: "var(--text-3)", fontFamily: "var(--f-mono)", fontSize: 9, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ marginTop: 7, padding: "5px 7px", borderRadius: "var(--r-2)", background: "var(--surface-2)", color: "var(--text-3)", fontFamily: "var(--f-mono)", fontSize: 10.5, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     Batch {batchLabel}
                 </div>
             )}
@@ -1077,7 +1084,7 @@ function JobTraceRow({ job, order, index }: { job: any; order: PlannerControlOrd
 function SmallLog({ label, value }: { label: string; value: string }) {
     return (
         <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 8, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-4)" }}>{label}</div>
+            <div style={{ fontSize: 11, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-4)" }}>{label}</div>
             <div style={{ marginTop: 1, fontSize: 10, fontWeight: 650, color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
         </div>
     );

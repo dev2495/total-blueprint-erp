@@ -43,18 +43,18 @@ export function dueInfo(deliveryAt: string | null | undefined): DueInfo {
 
 export function ageToneColor(tone: AgeInfo["tone"]): { fg: string; bg: string; bgSolid: string } {
     switch (tone) {
-        case "fresh": return { fg: "var(--success)", bg: "rgba(16,185,129,.10)", bgSolid: "#10b981" };
-        case "active": return { fg: "var(--info)", bg: "rgba(14,165,233,.10)", bgSolid: "#0ea5e9" };
-        case "ageing": return { fg: "var(--warning)", bg: "rgba(245,158,11,.10)", bgSolid: "#f59e0b" };
-        case "stale": return { fg: "var(--danger)", bg: "rgba(244,63,94,.10)", bgSolid: "#f43f5e" };
+        case "fresh": return { fg: "var(--success-fg)", bg: "var(--success-bg)", bgSolid: "#10b981" };
+        case "active": return { fg: "var(--info-fg)", bg: "var(--info-bg)", bgSolid: "#0ea5e9" };
+        case "ageing": return { fg: "var(--warning-fg)", bg: "var(--warning-bg)", bgSolid: "#f59e0b" };
+        case "stale": return { fg: "var(--danger-fg)", bg: "var(--danger-bg)", bgSolid: "#f43f5e" };
     }
 }
 
 export function dueToneColor(tone: DueInfo["tone"]): { fg: string; bg: string } {
     switch (tone) {
-        case "danger": return { fg: "var(--danger)", bg: "rgba(244,63,94,.10)" };
-        case "warn": return { fg: "var(--warning)", bg: "rgba(245,158,11,.10)" };
-        case "info": return { fg: "var(--info)", bg: "rgba(14,165,233,.10)" };
+        case "danger": return { fg: "var(--danger-fg)", bg: "var(--danger-bg)" };
+        case "warn": return { fg: "var(--warning-fg)", bg: "var(--warning-bg)" };
+        case "info": return { fg: "var(--info-fg)", bg: "var(--info-bg)" };
         case "muted": return { fg: "var(--text-4)", bg: "var(--surface-2)" };
     }
 }

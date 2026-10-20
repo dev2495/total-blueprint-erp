@@ -750,7 +750,7 @@ export default function StockIntelligenceTab() {
                                                 {fmt(t.stockKg, 1)} KG · {t.rolls} rolls · {t.openOrders} open orders
                                             </div>
                                         </div>
-                                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: "var(--r-pill)", background: tone.bg, color: tone.fg }}>
+                                        <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: "var(--r-pill)", background: tone.bg, color: tone.fg }}>
                                             {tone.label}
                                         </span>
                                     </div>
@@ -804,7 +804,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                         </span>
                         {row.fgType && <Chip kind={row.fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{row.fgType}</Chip>}
                         <span style={{
-                            fontSize: 9, fontWeight: 650, padding: "2px 8px",
+                            fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
                             borderRadius: "var(--r-pill)",
                             background: tone.bg, color: tone.fg,
                         }}>
@@ -812,7 +812,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                         </span>
                         {!row.linkedToTemplate ? (
                             <span style={{
-                                fontSize: 9,
+                                fontSize: 10.5,
                                 fontWeight: 650,
                                 padding: "2px 8px",
                                 borderRadius: "var(--r-pill)",
@@ -833,7 +833,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                         <div style={{ fontFamily: "var(--f-display)", fontSize: 20, fontWeight: 700, color: tone.fg, lineHeight: 1 }}>
                             {row.coverPct == null ? "No demand" : pct(row.coverPct)}
                         </div>
-                        <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)", marginTop: 2 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--text-3)", marginTop: 2 }}>
                             {row.coverPct == null ? "stock only" : "coverage"}
                         </div>
                     </div>
@@ -988,11 +988,11 @@ function PackagingStockCard({ openCount, balances, onLaunch }: { openCount: numb
                                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                         {r.templateName}
                                     </div>
-                                    <div style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--f-mono)", marginTop: 1 }}>
+                                    <div style={{ fontSize: 10.5, color: "var(--text-3)", fontFamily: "var(--f-mono)", marginTop: 1 }}>
                                         {fmt(r.stockKg, 0)} KG · {r.rolls} rolls
                                     </div>
                                 </div>
-                                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: "var(--r-pill)", background: tone.bg, color: tone.fg }}>
+                                <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: "var(--r-pill)", background: tone.bg, color: tone.fg }}>
                                     {tone.label}
                                 </span>
                             </div>
@@ -1086,11 +1086,11 @@ function PODStockCard({ openCount, balances }: { openCount: number; balances: Te
                                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                         {r.templateName}
                                     </div>
-                                    <div style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--f-mono)", marginTop: 1 }}>
+                                    <div style={{ fontSize: 10.5, color: "var(--text-3)", fontFamily: "var(--f-mono)", marginTop: 1 }}>
                                         {fmt(r.stockKg, 0)} KG · {r.rolls} rolls
                                     </div>
                                 </div>
-                                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: "var(--r-pill)", background: tone.bg, color: tone.fg }}>
+                                <span style={{ fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: "var(--r-pill)", background: tone.bg, color: tone.fg }}>
                                     {tone.label}
                                 </span>
                             </div>
@@ -1114,7 +1114,7 @@ function PoolStat({ label, value, suffix, tone }: { label: string; value: string
             border: `1px solid ${colors.border}`,
             borderRadius: "var(--r-3)",
         }}>
-            <div style={{ fontSize: 9, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: colors.fg }}>
+            <div style={{ fontSize: 10.5, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: colors.fg }}>
                 {label}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 2 }}>

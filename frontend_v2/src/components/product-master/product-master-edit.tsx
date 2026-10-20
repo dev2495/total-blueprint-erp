@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldLabelProvider } from "@/components/ui/field-label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1521,6 +1522,7 @@ export function ProductMasterEditWorkspace({
                 <Switch
                   checked={draft.active}
                   onCheckedChange={(v) => patchDraft({ active: v })}
+                  aria-label="Master active"
                 />
               </div>
             </div>
@@ -2217,7 +2219,7 @@ export function ProductMasterEditWorkspace({
           )}
         </div>
 
-        <aside className="grid content-start gap-4 md:grid-cols-2 xl:sticky xl:top-16 xl:max-h-[calc(100vh-5rem)] xl:grid-cols-1 xl:self-start xl:overflow-y-auto xl:pr-1">
+        <aside tabIndex={0} aria-label="Live preview" className="grid content-start gap-4 md:grid-cols-2 xl:sticky xl:top-16 xl:max-h-[calc(100vh-5rem)] xl:grid-cols-1 xl:self-start xl:overflow-y-auto xl:pr-1">
           {(() => {
             const kind = String(draft.product_kind || "").toUpperCase();
             const visualKind =
@@ -2457,12 +2459,13 @@ function FormField({
   prominent?: boolean;
   children: React.ReactNode;
 }) {
+  const labelId = React.useId();
   return (
     <div className={cn("grid gap-1.5", prominent && "gap-2")}>
-      <Label className="text-[11.5px] font-semibold tracking-[0.01em] text-content-3">
+      <Label id={labelId} className="text-[11.5px] font-semibold tracking-[0.01em] text-content-3">
         {label}
       </Label>
-      {children}
+      <FieldLabelProvider id={labelId}>{children}</FieldLabelProvider>
     </div>
   );
 }
@@ -2821,8 +2824,9 @@ function LayerCard({
                                 ),
                               )
                             }
-                            className="rounded-full p-0.5 text-danger-fg hover:bg-danger-bg"
+                            className="-my-1 grid h-6 w-6 place-items-center rounded-full text-danger-fg hover:bg-danger-bg"
                             title="Remove allowed film"
+                            aria-label={`Remove ${film.code} from allowed films`}
                           >
                             <X className="h-3 w-3" />
                           </button>
@@ -3095,7 +3099,7 @@ function ToggleRow({
           <div className="text-caption text-content-3">{description}</div>
         ) : null}
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </div>
   );
 }

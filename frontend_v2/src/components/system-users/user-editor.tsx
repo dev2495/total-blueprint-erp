@@ -24,6 +24,7 @@ import { GradientHero } from "@/components/erp/gradient-hero";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldLabelProvider } from "@/components/ui/field-label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1280,12 +1281,15 @@ function Field({
   children: React.ReactNode;
   className?: string;
 }) {
+  const labelId = React.useId();
   return (
     <div className={className}>
-      <Label className="text-[12px] font-semibold text-content-3">
+      <Label id={labelId} className="text-[12px] font-semibold text-content-3">
         {label}
       </Label>
-      <div className="mt-1.5">{children}</div>
+      <div className="mt-1.5">
+        <FieldLabelProvider id={labelId}>{children}</FieldLabelProvider>
+      </div>
     </div>
   );
 }
