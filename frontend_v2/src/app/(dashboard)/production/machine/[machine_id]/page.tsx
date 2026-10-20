@@ -3296,7 +3296,7 @@ export default function MachineExecutionPage() {
                   onClick={() => setPauseDialogOpen(true)}
                 >
                   <Pause className="mr-2 h-4 w-4" />
-                  <span className="flex flex-col items-start leading-tight"><span>Pause</span><span className="text-caption font-medium opacity-90">रोकें</span></span>
+                  <span className="flex flex-col items-start leading-tight"><span>Pause</span><span className="text-caption font-medium">रोकें</span></span>
                 </Button>
               ) : (
                 <Button
@@ -3307,7 +3307,7 @@ export default function MachineExecutionPage() {
                   onClick={() => startMutation.mutate()}
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  {isPaused ? <span className="flex flex-col items-start leading-tight"><span>Resume</span><span className="text-caption font-medium opacity-90">फिर शुरू</span></span> : <span className="flex flex-col items-start leading-tight"><span>Start</span><span className="text-caption font-medium opacity-90">शुरू करें</span></span>}
+                  {isPaused ? <span className="flex flex-col items-start leading-tight"><span>Resume</span><span className="text-caption font-medium">फिर शुरू</span></span> : <span className="flex flex-col items-start leading-tight"><span>Start</span><span className="text-caption font-medium">शुरू करें</span></span>}
                 </Button>
               )}
               <Button
@@ -3318,7 +3318,7 @@ export default function MachineExecutionPage() {
                 onClick={() => logOutputMutation.mutate()}
               >
                 <Save className="mr-2 h-4 w-4" />
-                <span className="flex flex-col items-start leading-tight"><span>Log output</span><span className="text-caption font-medium opacity-90">माल लिखें</span></span>
+                <span className="flex flex-col items-start leading-tight"><span>Log output</span><span className="text-caption font-medium">माल लिखें</span></span>
               </Button>
               <Button
                 type="button"
@@ -3328,7 +3328,7 @@ export default function MachineExecutionPage() {
                 onClick={() => completeMutation.mutate({})}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                {needsForceComplete ? <span className="flex flex-col items-start leading-tight"><span>Force complete</span><span className="text-caption font-medium opacity-90">ज़बरदस्ती पूरा</span></span> : <span className="flex flex-col items-start leading-tight"><span>Complete</span><span className="text-caption font-medium opacity-90">पूरा हुआ</span></span>}
+                {needsForceComplete ? <span className="flex flex-col items-start leading-tight"><span>Force complete</span><span className="text-caption font-medium">ज़बरदस्ती पूरा</span></span> : <span className="flex flex-col items-start leading-tight"><span>Complete</span><span className="text-caption font-medium">पूरा हुआ</span></span>}
               </Button>
             </div>
           </div>
@@ -4878,7 +4878,7 @@ function ProcessRouteStrip({
                     : "Pending"}
               </div>
               {step.isCurrent ? (
-                <div className="mt-1 inline-flex w-fit items-center rounded-md bg-surface-1/20 px-1.5 py-0.5 font-mono text-caption font-bold">
+                <div className="mt-1 inline-flex w-fit items-center rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-caption font-bold text-info-fg">
                   {remainingKg > 0
                     ? `${kg(remainingKg, 1)} left`
                     : `${kg(producedKg, 1)} done`}

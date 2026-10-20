@@ -864,6 +864,7 @@ export function ProductSizeWorkspace({
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex h-9 items-center gap-2 rounded-full bg-surface-2 px-3 text-xs font-semibold text-content-3 ring-1 ring-line">
                       <Switch
+                        aria-label="Size active"
                         checked={selectedRow.active !== false}
                         onCheckedChange={(v) =>
                           onPatch(selectedIndex, { active: v })
@@ -883,6 +884,8 @@ export function ProductSizeWorkspace({
                       type="button"
                       onClick={() => handleRemove(selectedIndex)}
                       className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-danger-fg hover:bg-danger-bg"
+                      aria-label="Remove selected size"
+                      title="Remove selected size"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -1223,6 +1226,7 @@ function BulkReviewDialog({
                     </TableCell>
                     <TableCell>
                       <Input
+                        aria-label={`Size ${index + 1} label`}
                         className="h-8 text-xs"
                         value={item.row.label || ""}
                         onChange={(event) =>
@@ -1232,6 +1236,7 @@ function BulkReviewDialog({
                     </TableCell>
                     <TableCell>
                       <Input
+                        aria-label={`Size ${index + 1} width mm`}
                         type="number"
                         step="any"
                         className="h-8 text-right font-mono text-xs"
@@ -1246,6 +1251,7 @@ function BulkReviewDialog({
                     {outputKind === "POUCH" ? (
                       <TableCell>
                         <Input
+                          aria-label={`Size ${index + 1} height mm`}
                           type="number"
                           step="any"
                           className="h-8 text-right font-mono text-xs"
@@ -1263,6 +1269,7 @@ function BulkReviewDialog({
                     {outputKind === "POUCH" ? (
                       <TableCell>
                         <Input
+                          aria-label={`Size ${index + 1} gusset mm`}
                           type="number"
                           step="any"
                           className="h-8 text-right font-mono text-xs"
@@ -1287,7 +1294,7 @@ function BulkReviewDialog({
                             onPatchRow(index, { roll_form: value })
                           }
                         >
-                          <SelectTrigger className="h-8 text-xs">
+                          <SelectTrigger className="h-8 text-xs" aria-label={`Size ${index + 1} roll form`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1300,6 +1307,7 @@ function BulkReviewDialog({
                     ) : null}
                     <TableCell>
                       <Input
+                        aria-label={`Size ${index + 1} standard quantity`}
                         type="number"
                         step="any"
                         className="h-8 text-right font-mono text-xs"
@@ -1320,7 +1328,7 @@ function BulkReviewDialog({
                           onPatchRow(index, { qty_uom: value as any })
                         }
                       >
-                        <SelectTrigger className="h-8 text-xs">
+                        <SelectTrigger className="h-8 text-xs" aria-label={`Size ${index + 1} quantity unit`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

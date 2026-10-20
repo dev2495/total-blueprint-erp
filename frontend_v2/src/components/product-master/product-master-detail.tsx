@@ -1605,6 +1605,7 @@ export function ProductMasterDetailWorkspace({
                           </div>
                         </div>
                         <Switch
+                          aria-label="Master active"
                           checked={draft.active}
                           onCheckedChange={(v) => patchDraft({ active: v })}
                         />
@@ -1762,6 +1763,7 @@ export function ProductMasterDetailWorkspace({
                             />
                             <div className="mt-2 flex items-center gap-3">
                               <Switch
+                                aria-label={`Size ${i + 1} active`}
                                 checked={row.active}
                                 onCheckedChange={(v) =>
                                   patchSize(i, { active: v })
@@ -3556,6 +3558,7 @@ export function ProductMasterDetailWorkspace({
                 </div>
               </div>
               <Switch
+                aria-label="Customer defaults active"
                 checked={overlayDraft.active}
                 onCheckedChange={(v) =>
                   setOverlayDraft((d) => ({ ...d, active: v }))
@@ -3806,7 +3809,7 @@ function ToggleRow({
           <div className="text-caption text-content-3">{description}</div>
         )}
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </div>
   );
 }

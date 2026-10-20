@@ -1808,6 +1808,7 @@ export function ProductMasterEditWorkspace({
                         type="number"
                         min="0"
                         step="0.01"
+                        aria-label="Adhesive GSM"
                         className="mt-1 h-9 rounded-xl text-right text-xs"
                         value={draft.fixed_attributes?.adhesive_gsm ?? ""}
                         onChange={(e) =>
@@ -1882,6 +1883,7 @@ export function ProductMasterEditWorkspace({
                         type="number"
                         min="0"
                         step="0.01"
+                        aria-label="Solvent GSM"
                         className="mt-1 h-9 rounded-xl text-right text-xs"
                         value={draft.fixed_attributes?.solvent_gsm ?? ""}
                         onChange={(e) =>
@@ -2711,6 +2713,7 @@ function LayerCard({
               onClick={onRemove}
               className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg text-danger-fg hover:bg-danger-bg"
               title="Remove layer"
+              aria-label="Remove layer"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -3335,7 +3338,7 @@ function PrintingTwoKnob({
                 if (defaultArtworkId) onChangeDefaultArtwork("");
               }}
             >
-              <SelectTrigger className="mt-2 h-10 rounded-xl bg-surface-1">
+              <SelectTrigger className="mt-2 h-10 rounded-xl bg-surface-1" aria-label="Allowed print method">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

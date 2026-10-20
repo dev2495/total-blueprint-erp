@@ -1873,13 +1873,12 @@ function SourceTinyTile({ label, count, active, tone }: { label: string; count: 
         <div style={{
             padding: "3px 8px",
             background: active ? colors.bg : "var(--surface-2)",
-            color: active ? colors.fg : "var(--text-4)",
+            color: active ? colors.fg : "var(--text-3)",
             border: `1px solid ${active ? colors.fg : "var(--border-soft)"}`,
             borderRadius: "var(--r-pill)",
-            fontSize: 10.5, fontWeight: 700,
+            fontSize: 11, fontWeight: 700,
             textTransform: "uppercase", letterSpacing: ".06em",
             display: "inline-flex", alignItems: "center", gap: 4,
-            opacity: active ? 1 : 0.6,
         }}>
             <span>{label}</span>
             <span style={{ fontFamily: "var(--f-mono)" }}>{count}</span>

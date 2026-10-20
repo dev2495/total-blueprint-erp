@@ -1874,13 +1874,15 @@ export function SalesOrdersListWorkspace() {
             {/* Desktop column headers — hidden on mobile */}
             <div className="hidden md:grid grid-cols-[2.5rem_minmax(170px,1fr)_minmax(0,2.2fr)_6.5rem_minmax(270px,1.25fr)_10rem] gap-3 border-b border-line bg-surface-2 px-4 py-2.5 text-[12.5px] font-medium text-content-3">
               <div>
-                <input
-                  type="checkbox"
-                  aria-label="Select all orders on this page"
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  className="h-3.5 w-3.5 rounded border-line-strong"
-                />
+                <label className="-m-2 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md hover:bg-line">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all orders on this page"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="h-4 w-4 rounded border-line-strong"
+                  />
+                </label>
               </div>
               <div>Customer · Order #</div>
               <div>Product · size · layers</div>
@@ -3618,13 +3620,15 @@ function OrderRow({
           rowPad,
         )}
       >
-        <input
-          type="checkbox"
-          aria-label={`Select order ${order.order_number || ""}`.trim()}
-          checked={selected}
-          onChange={onToggleSelect}
-          className="mt-1 h-3.5 w-3.5 rounded border-line-strong"
-        />
+        <label className="-m-1.5 inline-flex h-8 w-8 flex-none cursor-pointer items-center justify-center rounded-md hover:bg-surface-2">
+          <input
+            type="checkbox"
+            aria-label={`Select order ${order.order_number || ""}`.trim()}
+            checked={selected}
+            onChange={onToggleSelect}
+            className="h-4 w-4 rounded border-line-strong"
+          />
+        </label>
         <div
           role="button"
           tabIndex={0}
@@ -3724,13 +3728,15 @@ function OrderRow({
         )}
       >
         <div>
-          <input
-            type="checkbox"
-            aria-label={`Select order ${order.order_number || ""}`.trim()}
-            checked={selected}
-            onChange={onToggleSelect}
-            className="h-3.5 w-3.5 rounded border-line-strong"
-          />
+          <label className="-m-2 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md hover:bg-surface-2">
+            <input
+              type="checkbox"
+              aria-label={`Select order ${order.order_number || ""}`.trim()}
+              checked={selected}
+              onChange={onToggleSelect}
+              className="h-4 w-4 rounded border-line-strong"
+            />
+          </label>
         </div>
         <button
           onClick={onToggleExpand}
@@ -3869,7 +3875,7 @@ function OrderRow({
       ) : (
         <button
           onClick={onToggleExpand}
-          className="hidden md:flex w-full items-center gap-1 px-4 pb-1.5 pt-0 text-caption font-bold text-content-4 hover:text-content-2"
+          className="hidden md:flex min-h-7 w-full items-center gap-1 px-4 pb-1.5 pt-0.5 text-caption font-bold text-content-3 hover:text-content-1"
         >
           <ChevronDown className="h-3 w-3" /> Expand · line items + activity
         </button>

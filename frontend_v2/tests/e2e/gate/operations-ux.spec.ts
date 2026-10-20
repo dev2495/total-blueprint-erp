@@ -69,7 +69,8 @@ test("inventory, logistics, artwork, cylinder, and tooling pages use the upgrade
   await expect(page.locator("body")).toContainText("Outbound lane board")
   await expect(page.locator("body")).toContainText("Telemetry rollout note")
 
-  await switchRole(page, "Engineering", "/engineering/artworks", { allowCookieFallback: true })
+  // Masters, artworks, cylinders and the tool room are admin/owner screens since the Engineering role was retired.
+  await switchRole(page, "Admin", "/dashboard/admin", { allowCookieFallback: true })
   await page.goto("/engineering/artworks")
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Artwork")
