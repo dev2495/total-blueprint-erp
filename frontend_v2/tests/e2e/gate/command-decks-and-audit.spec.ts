@@ -144,8 +144,10 @@ test("audit center stays admin-only while inventory keeps genealogy access", asy
   expect(storeRoutes).not.toContain("/system/audit")
   expect(storeRoutes).toContain("/inventory/traceability")
 
+  // The shared page guard answers before the audit page's own check; either way Store is refused.
   await page.goto("/system/audit", { waitUntil: "domcontentloaded" })
-  await expect(page.locator("body")).toContainText(/Audit Center is limited to owner and admin roles/i)
+  await expect(page.locator("body")).toContainText(/This page is not part of your role|Audit Center is limited to owner and admin roles/i)
+  await expect(page.getByText(/Guided search/i)).toHaveCount(0)
 
   await page.goto("/inventory/traceability", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page, { requireAuth: true })
