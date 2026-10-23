@@ -188,7 +188,33 @@ export interface ProductMasterWorkspaceSaveResponse extends ProductMaster {
         skipped?: number;
         queues_rebuilt?: number;
         queues_frozen?: number;
+        preserved?: number;
+        preserved_lines?: Array<{
+            line_id: string;
+            order_number: string;
+            line_name: string;
+            reason: string;
+        }>;
     };
+}
+
+export interface CatalogLinkOptions {
+    material: { id: string; code: string; name: string; category: string };
+    product_kind: "POD" | "PACKAGING";
+    packaging_kind: string;
+    linked: {
+        master_id: string;
+        master_code: string;
+        master_name: string;
+        variant_id: string;
+        variant_code: string;
+    } | null;
+    masters: Array<{
+        id: string;
+        code: string;
+        name: string;
+        sizes: Array<{ code: string; label: string }>;
+    }>;
 }
 
 export interface CompatibleArtworksResponse {
@@ -1414,6 +1440,28 @@ export const productMasterService = {
             payload,
         )
         return data
+    },
+
+    /** Masters (with sizes) that can make one catalog row: a POD roll or an in-house packaging row. */
+    catalogLinkOptions: async (materialId: string) => {
+        const { data } = await api.get<CatalogLinkOptions>(
+            `/api/master/products/catalog-link-options/`,
+            { params: { material: materialId } },
+        );
+        return data;
+    },
+
+    /** One step: find or make the master's variant for `size`, then link the catalog row to it. */
+    linkCatalog: async (productId: string, inventoryMaterialId: string, size?: string) => {
+        const { data } = await api.post<{
+            variant: ProductVariant;
+            variant_created: boolean;
+            material: { id: string; code: string; name: string };
+        }>(`/api/master/products/${productId}/link-catalog/`, {
+            inventory_material_id: inventoryMaterialId,
+            size: size || "",
+        });
+        return data;
     },
 
     previewBom: async (payload: PreviewBomRequest) => {

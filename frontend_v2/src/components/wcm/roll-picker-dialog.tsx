@@ -61,7 +61,7 @@ const TIER_PRESENTATION: Record<
   },
   EXACT: {
     label: "Exact",
-    subtitle: "Width fits within +10% auto window",
+    subtitle: "Width is used as it is (planned ±15 mm or up to +10%)",
     tone: "bg-success-bg text-success-fg border-success-border",
     icon: Sparkles,
   },
@@ -147,7 +147,8 @@ function slitPolicyLabel(value: any) {
 function tierTooltip(c: any, target_width_mm: number): string {
   const tier = c?.tier as Tier;
   if (tier === "EXACT") {
-    return `Width ${Math.round(c.width_mm)} mm matches target ${Math.round(target_width_mm)} mm (within 10% auto-band).`;
+    const delta = Math.round(c.width_mm - target_width_mm);
+    return `Width ${Math.round(c.width_mm)} mm is used as it is for the planned ${Math.round(target_width_mm)} mm web (${delta === 0 ? "same width" : `${delta > 0 ? "+" : "−"}${Math.abs(delta)} mm`}; no slitting).`;
   }
   if (tier === "WIDER_OK_WITH_SLIT") {
     const sp = c.slit_preview || {};
@@ -709,6 +710,14 @@ export function WcmRollPickerDialog({
                         <span className="text-content-4">Width</span>
                         <br />
                         <b>{c.width_mm.toFixed(0)} mm</b>
+                        {targetWidth > 0 &&
+                        Math.round(c.width_mm - targetWidth) !== 0 &&
+                        c.tier !== "WIDER_OK_WITH_SLIT" ? (
+                          <span className="ml-1 font-mono text-caption text-content-3">
+                            {c.width_mm > targetWidth ? "+" : "−"}
+                            {Math.abs(Math.round(c.width_mm - targetWidth))} mm
+                          </span>
+                        ) : null}
                         <div className="text-caption text-content-4">
                           {widthBasisLabel(c.width_basis)}
                         </div>

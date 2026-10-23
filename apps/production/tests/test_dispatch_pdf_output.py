@@ -805,6 +805,33 @@ class DispatchPDFOutputTests(SimpleTestCase):
                 self.assertEqual(pdf.count(f"UNIT-{index:03d}".encode("ascii")), 1)
                 self.assertEqual(pdf.count(f"SO ITEM {index} BALANCE:".encode("ascii")), 1)
 
+    def test_pouch_bag_packed_by_weight_prints_pcs_worked_out_from_the_unit_weight(self):
+        from apps.production.services.dispatch_pdf import _fill_pouch_pcs, _line_spec
+
+        item = SimpleNamespace(
+            id="line-1", geometry_snapshot={"finished_good_type": "POUCH"}, layer_snapshot=[], axis_values={},
+            product_master=SimpleNamespace(code="BGL", name="Bags (LP)"), product_variant=None, template=None,
+            customer_product_overlay=None, unit_weight_g=20, qty_uom="KG",
+        )
+        spec = _line_spec(item)
+        self.assertTrue(spec["is_pouch"])
+        row = _fill_pouch_pcs({**spec, "unit_type": "BAG", "pcs": 0, "net_kg": 120})
+        self.assertEqual((row["pcs"], row["pcs_estimated"]), (6000, True))
+        counted = _fill_pouch_pcs({**spec, "unit_type": "BAG", "pcs": 5800, "net_kg": 120})
+        self.assertEqual(counted["pcs"], 5800)
+        self.assertNotIn("pcs_estimated", counted)
+
+        printed = dict(_ready_row(1), pcs=6000, pcs_estimated=True)
+        balance = {"line": "1", "ordered": "600", "previous": "0", "current": "120", "balance": "480", "uom": "KG",
+                   "also": {"uom": "PCS", "ordered": "30000", "previous": "0", "current": "6000", "balance": "24000"}}
+        text = DispatchListPDFService.render_text(_snapshot_challan([printed], balance_rows=[balance], version=3))
+        detail = next(line for line in text.splitlines() if "UNIT-001" in line)
+        self.assertIn("~6000", detail)
+        flat = text.replace("\r\n", " ")
+        self.assertIn("BALANCE 480.00 KG", flat)
+        self.assertIn("SO ITEM 1 IN PCS: ORDER 30000 | PREVIOUS 0 | THIS 6000 | BALANCE 24000 PCS", flat)
+        self.assertTrue(all(len(line) <= DispatchListPDFService.DOT_MATRIX_COLUMNS for line in text.splitlines()))
+
     def test_long_balance_values_wrap_without_truncation(self):
         balance = {"line": "123", "ordered": "1000000000", "previous": "100000000", "current": "200000000", "balance": "700000000", "uom": "KILOGRAMS"}
         text = DispatchListPDFService.render_text(_snapshot_challan([_ready_row(1)], balance_rows=[balance], version=3))

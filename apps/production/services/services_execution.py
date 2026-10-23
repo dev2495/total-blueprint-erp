@@ -3529,15 +3529,14 @@ class ExecutionService:
             min_width = spec.get("min_width_mm")
             if min_width is not None:
                 try:
+                    from apps.production.services.roll_width import too_narrow, within_tolerance
+
                     stock_width = Decimal(str(roll_width or 0))
                     required_width = Decimal(str(min_width))
-                    if stock_width + Decimal("0.01") < required_width:
+                    if too_narrow(stock_width, required_width):
                         continue
                     slit_policy = str(spec.get("slit_policy") or "").upper()
-                    if (
-                        slit_policy == "EXACT_ONLY"
-                        and abs(stock_width - required_width) > Decimal("0.01")
-                    ):
+                    if slit_policy == "EXACT_ONLY" and not within_tolerance(stock_width, required_width):
                         continue
                 except Exception:
                     logger.warning(
@@ -6517,9 +6516,11 @@ class ExecutionService:
             width_match_mode = "WIDTH_NOT_REQUIRED"
             can_slit_to_required_width = False
             if target_width_float and stock_width_float:
-                if stock_width_float + 0.01 < target_width_float:
+                from apps.production.services.roll_width import too_narrow, usable_as_is
+
+                if too_narrow(stock_width_float, target_width_float):
                     width_match_mode = "TOO_NARROW"
-                elif abs(stock_width_float - target_width_float) <= 0.01:
+                elif usable_as_is(stock_width_float, target_width_float):
                     width_match_mode = "EXACT_WIDTH"
                 else:
                     width_match_mode = "WIDER_SLITTABLE"

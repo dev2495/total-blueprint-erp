@@ -727,10 +727,17 @@ export function ProductMasterEditWorkspace({
       queryClient.invalidateQueries({ queryKey: ["planner-control-hub-pq-v3"] });
       queryClient.invalidateQueries({ queryKey: ["planner-control-hub-ct-v3"] });
       const revision = saved.revision_summary;
+      const kept = revision?.preserved_lines || [];
+      const keptText = kept.length
+        ? ` ${kept.length} open line(s) kept the size they were ordered with because this master no longer offers it: ${kept
+            .slice(0, 3)
+            .map((line) => `${line.order_number}${line.line_name ? ` (${line.line_name})` : ""}`)
+            .join(", ")}${kept.length > 3 ? ` and ${kept.length - 3} more` : ""}.`
+        : "";
       toast({
         title: "Product Master saved",
         description: revision
-          ? `${revision.refreshed} open line(s) revised; ${revision.queues_rebuilt || 0} untouched planner queue(s) rebuilt. ${revision.skipped || 0} released, allocated, or started line(s) stayed frozen.`
+          ? `${revision.refreshed} open line(s) revised; ${revision.queues_rebuilt || 0} untouched planner queue(s) rebuilt. ${revision.skipped || 0} released, allocated, or started line(s) stayed frozen.${keptText}`
           : "Open demand follows the saved master. Released, allocated, consumed, or started work stays frozen for audit.",
       });
       router.push(`/master/products/${saved.id}`);

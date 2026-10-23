@@ -166,6 +166,56 @@ class MasterRevisionSafetyTests(MasterRevisionFixtures, TestCase):
         self.assertEqual(first.line_status, "OPEN")
         self.assertEqual(second.line_status, "OPEN")
 
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    @patch("apps.sales.services.axis_resolver.OrderResolutionService.resolve_line")
+    def test_line_whose_size_left_the_master_keeps_its_ordered_spec(self, resolve_line, preview_sales_item):
+        kept = self._item(order_status="CONFIRMED", line_status="OPEN", line_name="Ordered 1145x45")
+        other = self._item(order_status="CONFIRMED", line_status="OPEN", line_name="Ordered 965")
+        resolved = {
+            "template": str(self.template.id),
+            "product_variant": None,
+            "customer_product_overlay": None,
+            "geometry_snapshot": {"finished_good_type": "POUCH", "width_mm": 965},
+            "layer_snapshot": [],
+            "printing_snapshot": {"enabled": False},
+            "addons_snapshot": [],
+            "packaging_snapshot": {},
+        }
+
+        SalesOrderItem.objects.filter(id=kept.id).update(qty_value=77)
+
+        def resolve(payload, create_variant=False):
+            if payload.get("qty") == 77:
+                raise ValidationError({"size": ["Size is not allowed for this Product Master."]})
+            return resolved
+
+        resolve_line.side_effect = resolve
+        preview_sales_item.return_value = {"unit_weight_g": 1, "total_weight_kg": 0.1, "bom": {}}
+
+        result = SalesOrderService.refresh_open_snapshots_for_items(
+            SalesOrderItem.objects.filter(id__in=[kept.id, other.id]),
+            reason="TEST_MASTER_SIZE_EDIT",
+            raise_on_error=True,
+        )
+
+        self.assertEqual((result["preserved"], result["refreshed"], result["failed"]), (1, 1, 0), result)
+        self.assertIn("Size is not allowed", result["preserved_lines"][0]["reason"])
+        kept.refresh_from_db()
+        other.refresh_from_db()
+        self.assertNotIn("width_mm", kept.geometry_snapshot, "the kept line keeps the spec it was ordered with")
+        self.assertEqual(kept.line_status, "OPEN")
+        self.assertEqual(other.geometry_snapshot.get("width_mm"), 965)
+
+    @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
+    @patch("apps.sales.services.axis_resolver.OrderResolutionService.resolve_line")
+    def test_other_validation_failures_still_block_a_strict_edit(self, resolve_line, preview_sales_item):
+        item = self._item(order_status="CONFIRMED", line_status="OPEN")
+        resolve_line.side_effect = ValidationError({"template": ["Template is not LIVE."]})
+        with self.assertRaises(ValidationError):
+            SalesOrderService.refresh_open_snapshots_for_items(
+                SalesOrderItem.objects.filter(id=item.id), reason="TEST_STRICT", raise_on_error=True,
+            )
+
     @patch("apps.sales.services.order_service.SalesOrderService._rebuild_pristine_pre_release_jobs", side_effect=RuntimeError("queue rebuild failed"))
     @patch("apps.sales.services.order_service.SalesOrderService.preview_sales_item")
     @patch("apps.sales.services.axis_resolver.OrderResolutionService.resolve_line")

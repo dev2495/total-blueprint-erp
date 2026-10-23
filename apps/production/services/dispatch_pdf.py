@@ -231,7 +231,38 @@ def _line_spec(sales_order_item: Any, *, fallback_width: Any = None) -> dict[str
         "size": _size_label(geometry, axis_values, fallback_width=fallback_width),
         "thickness": _layer_thickness_label(layers, geometry),
         "grade": _grade_label(layers),
+        "is_pouch": _is_pouch_line(sales_order_item),
+        "unit_weight_g": _dec(getattr(sales_order_item, "unit_weight_g", 0)),
     }
+
+
+def _is_pouch_line(sales_order_item: Any) -> bool:
+    if not sales_order_item:
+        return False
+    geometry = _dict(getattr(sales_order_item, "geometry_snapshot", None))
+    fg_type = _text(
+        geometry.get("finished_good_type"),
+        getattr(getattr(sales_order_item, "template", None), "fg_type", ""),
+    ).upper()
+    return fg_type == "POUCH" or str(getattr(sales_order_item, "qty_uom", "") or "").upper() == "PCS"
+
+
+def _pcs_from_kg(net_kg: Any, unit_weight_g: Any) -> int:
+    unit = _dec(unit_weight_g)
+    if unit <= 0:
+        return 0
+    return int((_dec(net_kg) * Decimal("1000") / unit).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _fill_pouch_pcs(row: dict[str, Any]) -> dict[str, Any]:
+    """Pouches always print pcs. A bag packed by weight only gets pcs from its net kg
+    and the line's unit weight, marked as worked out (~) rather than counted."""
+    if row.get("is_pouch") and not _int(row.get("pcs")) and row.get("unit_type") != "ROLL":
+        pcs = _pcs_from_kg(row.get("net_kg"), row.get("unit_weight_g"))
+        if pcs:
+            row["pcs"] = pcs
+            row["pcs_estimated"] = True
+    return row
 
 
 def _gate_qr_token(challan: Any) -> str | None:
@@ -416,7 +447,7 @@ class DispatchListPDFService:
         gross = _dec(getattr(gonny, "gross_weight_kg", None) or getattr(gonny, "weight_kg", None) or net + tare)
         if not tare and gross > net:
             tare = gross - net
-        return {
+        return _fill_pouch_pcs({
             **spec,
             "sales_order_item_id": str(getattr(sales_order_item, "id", "") or ""),
             "sales_order_id": str(getattr(sales_order_item, "sales_order_id", "") or ""),
@@ -428,7 +459,7 @@ class DispatchListPDFService:
             "net_kg": net,
             "tare_kg": tare,
             "gross_kg": gross,
-        }
+        })
 
     @classmethod
     def _row_from_legacy_dict(cls, item: dict[str, Any]) -> dict[str, Any]:
@@ -509,7 +540,7 @@ class DispatchListPDFService:
             else:
                 spec = _line_spec(item.sales_order_item)
                 rows.append(
-                    {
+                    _fill_pouch_pcs({
                         **spec,
                         "sales_order_item_id": str(getattr(item, "sales_order_item_id", "") or ""),
                         "sales_order_id": str(
@@ -523,7 +554,7 @@ class DispatchListPDFService:
                         "net_kg": _dec(item.weight_kg),
                         "tare_kg": Decimal("0"),
                         "gross_kg": _dec(item.weight_kg),
-                    }
+                    })
                 )
         return rows
 
@@ -663,6 +694,8 @@ class DispatchListPDFService:
             "batch_ref": _text(row.get("batch_ref"), "-"),
             "location": _text(row.get("location"), "-"),
             "pcs": _int(row.get("pcs")),
+            "pcs_estimated": bool(row.get("pcs_estimated")),
+            "is_pouch": bool(row.get("is_pouch")),
             "net_kg": _compact(row.get("net_kg"), 4),
             "tare_kg": _compact(row.get("tare_kg"), 4),
             "gross_kg": _compact(row.get("gross_kg"), 4),
@@ -700,15 +733,19 @@ class DispatchListPDFService:
                 challan__status__in=["DISPATCHED", "IN_TRANSIT", "DELIVERED"],
             )
             .exclude(challan_id=challan.id)
-            .select_related("roll", "packing_unit")
+            .select_related("roll", "packing_unit", "sales_order_item__template")
         )
         for item in prior_items:
             line_id = str(getattr(item, "sales_order_item_id", "") or "")
             if not line_id:
                 continue
             bucket = prior_by_line.setdefault(line_id, {"KG": Decimal("0"), "PCS": Decimal("0")})
-            bucket["KG"] += cls._challan_item_net(item)
-            bucket["PCS"] += Decimal(str(_int(getattr(item, "qty_pcs", 0))))
+            net = cls._challan_item_net(item)
+            bucket["KG"] += net
+            pcs = _int(getattr(item, "qty_pcs", 0))
+            if not pcs and _is_pouch_line(item.sales_order_item):
+                pcs = _pcs_from_kg(net, getattr(item.sales_order_item, "unit_weight_g", 0))
+            bucket["PCS"] += Decimal(str(pcs))
 
         balance_rows: list[dict[str, str]] = []
         for index, item in enumerate(sales_order.items.select_related(
@@ -736,18 +773,35 @@ class DispatchListPDFService:
             current = current_by_line.get(line_id, {}).get(uom, Decimal("0"))
             balance = max(ordered - previous - current, Decimal("0"))
             spec = _line_spec(item)
-            balance_rows.append(
-                {
-                    "line": str(index),
-                    "sales_order_item_id": line_id,
-                    "description": _clip(spec.get("description"), 28),
-                    "uom": uom,
-                    "ordered": _compact(ordered),
-                    "previous": _compact(previous),
-                    "current": _compact(current),
-                    "balance": _compact(balance),
-                }
-            )
+            row = {
+                "line": str(index),
+                "sales_order_item_id": line_id,
+                "description": _clip(spec.get("description"), 28),
+                "uom": uom,
+                "ordered": _compact(ordered),
+                "previous": _compact(previous),
+                "current": _compact(current),
+                "balance": _compact(balance),
+            }
+            if spec.get("is_pouch"):
+                # Pouches always show both: the line's own unit, and the other one.
+                other = "PCS" if uom == "KG" else "KG"
+                unit_g = _dec(getattr(item, "unit_weight_g", 0))
+                if other == "PCS":
+                    other_ordered = Decimal(_pcs_from_kg(ordered, unit_g))
+                else:
+                    other_ordered = (ordered * unit_g / Decimal("1000")) if unit_g > 0 else Decimal("0")
+                other_prev = prior_by_line.get(line_id, {}).get(other, Decimal("0"))
+                other_cur = current_by_line.get(line_id, {}).get(other, Decimal("0"))
+                if other_ordered > 0 or other_cur > 0:
+                    row["also"] = {
+                        "uom": other,
+                        "ordered": _compact(other_ordered, 2),
+                        "previous": _compact(other_prev, 2),
+                        "current": _compact(other_cur, 2),
+                        "balance": _compact(max(other_ordered - other_prev - other_cur, Decimal("0")), 2),
+                    }
+            balance_rows.append(row)
         return balance_rows
 
     @classmethod
@@ -1038,6 +1092,18 @@ class DispatchListPDFService:
         def qty(value: Any) -> str:
             return f"{_dec(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):f}"
 
+        def pcs_cell(row: dict[str, Any]) -> str:
+            pcs = _int(row.get("pcs"))
+            if row.get("unit_type") == "ROLL" and not pcs:
+                return "N/A"
+            if not pcs:
+                return "-"
+            text = str(pcs)
+            # "~" marks pcs worked out from weight, when it still fits the column.
+            if row.get("pcs_estimated") and len(text) < col["pcs"]:
+                text = "~" + text
+            return text
+
         def weight(value: Any, key: str) -> str:
             """Fit a weight into its column by dropping decimals, never by truncating digits."""
             number = _dec(value)
@@ -1122,7 +1188,15 @@ class DispatchListPDFService:
                     f"SO ITEM {line_no} BAL: ORDER {ordered} | PREV {previous} | "
                     f"THIS {current} | BAL {remaining_qty} {uom}"
                 )
-            balance_blocks.append(wrapped_cell(text, cls.DOT_MATRIX_COLUMNS, (" | ", " ")))
+            block = wrapped_cell(text, cls.DOT_MATRIX_COLUMNS, (" | ", " "))
+            also = balance.get("also") if isinstance(balance.get("also"), dict) else None
+            if also:
+                also_text = clean(
+                    f"SO ITEM {line_no} IN {also.get('uom')}: ORDER {also.get('ordered')} | PREVIOUS {also.get('previous')} | "
+                    f"THIS {also.get('current')} | BALANCE {also.get('balance')} {also.get('uom')}"
+                )
+                block = block + wrapped_cell(also_text, cls.DOT_MATRIX_COLUMNS, (" | ", " "))
+            balance_blocks.append(block)
 
         # Treat physical rows, totals, and each SO balance as printable blocks.
         # A large balance footer can continue on additional forms after the
@@ -1139,7 +1213,7 @@ class DispatchListPDFService:
                         (counts, spec_width - len(total_label) - 1, "left"),
                         (total_label, len(total_label), "right"),
                         (weight(totals["gross"], "gross"), col["gross"], "right"),
-                        ("", col["pcs"], "right"),
+                        (str(totals["pcs"]) if totals["pcs"] and len(str(totals["pcs"])) <= col["pcs"] else "", col["pcs"], "right"),
                         (weight(totals["tare"], "tare"), col["tare"], "right"),
                         (weight(totals["net"], "net"), col["net"], "right"),
                     ]
@@ -1247,7 +1321,7 @@ class DispatchListPDFService:
                                 (part("size", continuation), col["size"], "left"),
                                 (part("thickness", continuation), col["mic"], "right"),
                                 (weight(row.get("gross_kg"), "gross") if first_line else "", col["gross"], "right"),
-                                (("N/A" if row.get("unit_type") == "ROLL" else str(_int(row.get("pcs")) or "-")) if first_line else "", col["pcs"], "right"),
+                                (pcs_cell(row) if first_line else "", col["pcs"], "right"),
                                 (weight(row.get("tare_kg"), "tare") if first_line else "", col["tare"], "right"),
                                 (weight(row.get("net_kg"), "net") if first_line else "", col["net"], "right"),
                             ]

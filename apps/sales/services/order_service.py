@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -1865,6 +1866,32 @@ def _validate_printing_snapshot_for_confirm(item, allow_missing_artwork=False):
     return printing, False, str(artwork.id)
 
 
+
+_SELECTION_PHRASES = ("not allowed for this product master", "this axis is required")
+
+
+def _selection_outside_master(exc):
+    """Reason text when a line's own selection (size, option) is no longer offered by
+    its Product Master; None for any other failure, which must still block the edit."""
+    detail = getattr(exc, "message_dict", None) or getattr(exc, "detail", None) or getattr(exc, "messages", None) or str(exc)
+    messages = []
+
+    def visit(value, prefix=""):
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                visit(nested, str(key))
+        elif isinstance(value, (list, tuple)):
+            for nested in value:
+                visit(nested, prefix)
+        elif str(value or "").strip():
+            messages.append((prefix, str(value).strip()))
+
+    visit(detail)
+    if not messages or not all(any(p in text.lower() for p in _SELECTION_PHRASES) for _, text in messages):
+        return None
+    return "; ".join(f"{key}: {text}" if key else text for key, text in messages)
+
+
 class SalesOrderService:
     @staticmethod
     def create_sales_order(payload, *, trusted_quote_snapshots=False):
@@ -2789,6 +2816,8 @@ class SalesOrderService:
             "queues_rebuilt": 0,
             "queues_frozen": 0,
             "queues_planning_required": 0,
+            "preserved": 0,
+            "preserved_lines": [],
         }
         candidate_ids = list(
             queryset.filter(
@@ -2834,7 +2863,27 @@ class SalesOrderService:
                             "printing": deepcopy(item.printing_snapshot or {}),
                             "packaging_snapshot": deepcopy(item.packaging_snapshot or {}),
                         }
-                        resolved = OrderResolutionService.resolve_line(payload, create_variant=False)
+                        try:
+                            resolved = OrderResolutionService.resolve_line(payload, create_variant=False)
+                        except (ValidationError, DRFValidationError) as exc:
+                            outside = _selection_outside_master(exc)
+                            if outside is None:
+                                raise
+                            # The customer ordered a size/value this master no
+                            # longer offers. The line keeps the spec it was
+                            # ordered with; the master edit goes ahead.
+                            stats["preserved"] += 1
+                            stats["preserved_lines"].append({
+                                "line_id": str(item.id),
+                                "order_number": str(getattr(item.sales_order, "order_number", "") or ""),
+                                "line_name": str(item.line_name or ""),
+                                "reason": outside,
+                            })
+                            logger.info(
+                                "refresh_open_snapshots_for_items kept ordered spec on item %s after %s: %s",
+                                getattr(item, "id", None), reason, outside,
+                            )
+                            continue
                         resolved_axis_values = deepcopy(resolved.get("axis_values") or item.axis_values or {})
                         template = TemplateBlueprint.objects.get(id=resolved["template"])
                         product_variant = (

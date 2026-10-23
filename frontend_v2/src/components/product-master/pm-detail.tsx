@@ -24,6 +24,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { CatalogLinkDialog, type CatalogLinkRow } from "@/components/master/catalog-link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1494,8 +1495,8 @@ function resolveAxisValues(
             !explicitAllowed.size || explicitAllowed.has(normalizeCode(v.code)),
         )
         .map((v: any) => ({
-          code: v.code,
-          label: `${v.code}${v.name && v.name !== v.code ? ` · ${v.name}` : ""}`,
+          code: podDisplayCode(v),
+          label: `${podDisplayCode(v)}${v.name && v.name !== podDisplayCode(v) ? ` · ${v.name}` : ""}`,
         }));
     }
     if (catalogSource === "addon") {
@@ -1649,6 +1650,14 @@ function AxisCard({
       ) : null}
     </div>
   );
+}
+
+/** POD SKU variants are named CORE under each roll's SKU; show the roll's code instead. */
+function podDisplayCode(v: any): string {
+  const code = String(v?.code || "");
+  const sku = String(v?.pod_sku_code || "");
+  if (!sku) return code;
+  return !code || code.toUpperCase() === "CORE" || code === sku ? sku : `${sku} · ${code}`;
 }
 
 function axisDescription(axis: VariantAxisDef): string {
@@ -3768,6 +3777,31 @@ function ProductionCatalogMapCard({
   const linked = variants.filter(
     (v) => v.inventory_link && v.inventory_link.id,
   );
+  const queryClient = useQueryClient();
+  const [pickOpen, setPickOpen] = React.useState(false);
+  const [pickQuery, setPickQuery] = React.useState("");
+  const [linkRow, setLinkRow] = React.useState<CatalogLinkRow | null>(null);
+  const masterPackagingKind = (
+    String(master.packaging_kind || "").toUpperCase() ||
+    (String((master.fixed_attributes as any)?.fg_type || "").toUpperCase() === "ROLL" ? "SHEET" : "INNER_POUCH")
+  );
+  const catalogRows = useQuery({
+    queryKey: ["catalog-rows-for-master", kind],
+    queryFn: () =>
+      kind === "PACKAGING" ? masterDataService.getPackaging() : masterDataService.getPODMaterials(),
+    enabled: pickOpen,
+    staleTime: 30_000,
+  });
+  const pickable = ((catalogRows.data as any[]) || [])
+    .filter((row) =>
+      kind === "PACKAGING"
+        ? String(row.packaging_kind || "").toUpperCase() === masterPackagingKind
+        : true,
+    )
+    .filter((row) => {
+      const q = pickQuery.trim().toLowerCase();
+      return !q || `${row.code} ${row.name}`.toLowerCase().includes(q);
+    });
   const totalStock = linked.reduce(
     (s, v) => s + Number(v.inventory_link?.stock_qty || 0),
     0,
@@ -3785,7 +3819,7 @@ function ProductionCatalogMapCard({
           `${Number(qty).toLocaleString("en-IN", { maximumFractionDigits: 0 })} ${uom}`,
       )
       .join(" · ") || "—";
-  const sample = linked.slice(0, 4);
+  const sample = linked;
   return (
     <section className="rounded-2xl border border-order-border bg-surface-1 shadow-sm overflow-hidden">
       <header className="flex items-center justify-between border-b border-order-border bg-surface-2 px-5 py-3">
@@ -3810,13 +3844,92 @@ function ProductionCatalogMapCard({
             </div>
           </div>
         </div>
-        <Link
-          href={catalogHref}
-          className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-caption font-semibold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
-        >
-          Open catalog <ArrowRight className="h-3 w-3" />
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setPickOpen(true)}>
+            Link a {kind === "PACKAGING" ? "packaging" : "POD"} row
+          </Button>
+          <Link
+            href={catalogHref}
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-surface-1 px-2.5 text-caption font-semibold text-order-fg ring-1 ring-order-border hover:bg-order-bg"
+          >
+            Open catalog <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
       </header>
+      <Dialog open={pickOpen} onOpenChange={setPickOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">
+              Which {kind === "PACKAGING" ? "packaging" : "POD"} row does {master.code} make?
+            </DialogTitle>
+            <DialogDescription className="text-caption">
+              Pick the catalog row, then the size. The variant is found or made for you.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={pickQuery}
+            onChange={(e) => setPickQuery(e.target.value)}
+            placeholder="Search code or name…"
+            aria-label="Search catalog rows"
+            className="h-9 rounded-xl"
+          />
+          <div className="max-h-[320px] space-y-1 overflow-y-auto">
+            {catalogRows.isLoading ? (
+              <div className="p-3 text-sm text-content-3">Loading…</div>
+            ) : !pickable.length ? (
+              <div className="rounded-xl border border-dashed border-line bg-surface-2 p-3 text-center text-xs text-content-3">
+                No {kind === "PACKAGING" ? masterPackagingKind.replaceAll("_", " ").toLowerCase() : "POD"} rows yet. Add one in{" "}
+                <Link href={catalogHref} className="font-semibold text-order-fg underline">
+                  {catalogHref}
+                </Link>
+                .
+              </div>
+            ) : (
+              pickable.map((row: any) => {
+                const other = row.product_master_link;
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => {
+                      setLinkRow(row);
+                      setPickOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left ring-1 ring-line hover:bg-surface-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-semibold text-content-1">{row.name}</span>
+                      <span className="block font-mono text-caption text-content-3">{row.code}</span>
+                    </span>
+                    <span
+                      className={
+                        other
+                          ? "shrink-0 rounded-full bg-success-bg px-2 py-0.5 text-caption font-semibold text-success-fg ring-1 ring-success-border"
+                          : "shrink-0 rounded-full bg-warning-bg px-2 py-0.5 text-caption font-semibold text-warning-fg ring-1 ring-warning-border"
+                      }
+                    >
+                      {other ? `Made by ${other.master_code}` : "Not linked"}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      {linkRow ? (
+        <CatalogLinkDialog
+          row={linkRow}
+          kindLabel={kind === "PACKAGING" ? "packaging" : "POD"}
+          open={!!linkRow}
+          presetMasterId={master.id}
+          onOpenChange={(open) => !open && setLinkRow(null)}
+          onLinked={() => {
+            queryClient.invalidateQueries({ queryKey: ["product-master-variants", master.id] });
+            queryClient.invalidateQueries({ queryKey: ["catalog-rows-for-master", kind] });
+          }}
+        />
+      ) : null}
       <div className="p-5 space-y-3">
         {/* KPI strip */}
         <div className="grid grid-cols-3 gap-2">
@@ -3850,7 +3963,7 @@ function ProductionCatalogMapCard({
         {sample.length > 0 ? (
           <div className="space-y-1.5">
             <div className="text-[12px] font-semibold text-content-3">
-              Sample · first {sample.length} of {linked.length}
+              Linked rows · {linked.length}
             </div>
             {sample.map((v) => (
               <div
@@ -3881,8 +3994,7 @@ function ProductionCatalogMapCard({
           </div>
         ) : variants.length === 0 ? (
           <div className="rounded-xl border border-dashed border-line bg-surface-2 px-3 py-2.5 text-caption text-content-3">
-            No variants yet. Create the production variants first, then link
-            each one to an existing fixed SKU in{" "}
+            Nothing linked yet. Use “Link a {kind === "PACKAGING" ? "packaging" : "POD"} row” above, or add the row first in{" "}
             <Link
               href={catalogHref}
               className="font-bold text-order-fg underline-offset-2 hover:underline"
@@ -3953,7 +4065,17 @@ function PackagingContractCard({
       ["POD", "POD_VARIANT", "POD_SKU_VARIANT"].includes(k)
     );
   });
-  const podCodes = podAxis ? axisAllowedCodes(podAxis) : [];
+  const podAllowed = podAxis ? axisAllowedCodes(podAxis) : [];
+  // No explicit list = every active POD roll in the catalog is allowed.
+  const podRows: any[] = podAxis
+    ? podAllowed.length
+      ? podAllowed.map(
+          (code) =>
+            podVariants.find((v: any) => v.code === code || v.id === code || v.pod_sku_code === code) || { code },
+        )
+      : podVariants.filter((v: any) => v.active !== false)
+    : [];
+  const podCodes = podRows.map((v: any) => String(v.code || ""));
   const printCapable = Boolean((master.fixed_attributes as any)?.print_capable);
 
   return (
@@ -4044,28 +4166,42 @@ function PackagingContractCard({
                 {podAxis?.required ? "required" : "optional"}
                 {(podAxis as any)?.auto_demand_in_house !== false ? " · auto-demand" : ""}
                 {" · "}
-                {podCodes.length} allowed
+                {podAllowed.length ? `${podRows.length} allowed` : `all ${podRows.length} POD rolls`}
               </span>
             </div>
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {podCodes.map((code) => {
-                const meta = podVariants.find(
-                  (v: any) => v.code === code || v.id === code,
-                );
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {podRows.map((meta: any) => {
+                const display = podDisplayCode(meta);
+                const maker = meta.material_product_master_link;
                 return (
                   <span
-                    key={code}
-                    className="inline-flex items-center gap-1 rounded-md bg-surface-1 px-1.5 py-0.5 text-caption font-mono font-bold text-order-fg ring-1 ring-order-border"
+                    key={meta.id || meta.code}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-surface-1 px-1.5 py-0.5 text-caption ring-1 ring-order-border"
                   >
-                    {code}
-                    {meta?.name && meta.name !== code ? (
-                      <span className="text-caption font-medium text-order-fg">
-                        · {meta.name}
-                      </span>
+                    <span className="font-mono font-bold text-order-fg">{display}</span>
+                    {meta.name && meta.name !== display ? (
+                      <span className="font-medium text-content-2">{meta.name}</span>
                     ) : null}
+                    <span
+                      className={
+                        maker
+                          ? "rounded bg-success-bg px-1 font-semibold text-success-fg"
+                          : "rounded bg-surface-2 px-1 font-semibold text-content-3"
+                      }
+                      title={maker ? `Made in-house by ${maker.master_code} · ${maker.variant_code}` : "No in-house master linked"}
+                    >
+                      {maker ? `made by ${maker.master_code}` : "bought"}
+                    </span>
                   </span>
                 );
               })}
+            </div>
+            <div className="mt-1.5 text-caption text-content-3">
+              Link a POD roll to the master that makes it on{" "}
+              <Link href="/master/pod" className="font-semibold text-order-fg underline-offset-2 hover:underline">
+                /master/pod
+              </Link>
+              .
             </div>
           </div>
         ) : null}

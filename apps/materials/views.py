@@ -133,6 +133,47 @@ def _variant_inventory_link_error(product, target):
     return "Only PACKAGING and POD Product Masters can link variants to catalog SKUs."
 
 
+def _apply_catalog_link(product, variant, target):
+    """Point catalog row `target` at `variant`, keeping the 1:1 link. Returns an error or None."""
+    product_kind = str(product.product_kind or "").upper()
+    validation_error = _variant_inventory_link_error(product, target)
+    if validation_error:
+        return validation_error
+    # Don't yank a target that's already linked to another variant of
+    # a different master — would silently break that master's audit.
+    existing = target.produced_by_product_variant
+    if existing and existing.id != variant.id:
+        return f"Catalog SKU {target.code} is already linked to variant {existing.code} on master {existing.master.code}. Unlink there first."
+    InventoryMaterial.objects.filter(produced_by_product_variant=variant).exclude(id=target.id).update(produced_by_product_variant=None)
+    target.produced_by_product_variant = variant
+    target.status = "ACTIVE"
+    update_fields = ["produced_by_product_variant", "status"]
+    if product_kind == "PACKAGING" and str(target.packaging_supply_mode or "").upper() == "PURCHASED":
+        # Preserve the fact that this fixed SKU can still be bought.
+        # Manual PM link adds in-house capability; it should not turn a
+        # purchased SKU into in-house-only.
+        target.packaging_supply_mode = "BOTH"
+        update_fields.append("packaging_supply_mode")
+    if product_kind == "POD":
+        defaults = {
+            "pod_is_inhouse_produced": True, "pod_type": "SINGLE", "pod_fixed_height_mm": 200,
+            "pod_thickness_micron": 30, "pod_panel_count": 1, "density_gcm3": 0.92,
+        }
+        if target.base_uom != "KG":
+            target.base_uom = "KG"
+            update_fields.append("base_uom")
+        for field, value in defaults.items():
+            if getattr(target, field) in (None, "", False):
+                setattr(target, field, value)
+                update_fields.append(field)
+    target.save(update_fields=update_fields + ["updated_at"])
+    if product_kind == "POD":
+        from .services_catalog_link import ensure_pod_sku_variant
+
+        ensure_pod_sku_variant(target)
+    return None
+
+
 def _catalog_ref(axis_values, axis_def):
     key = str((axis_def or {}).get("axis") or "").strip()
     if not key:
@@ -998,50 +1039,9 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     target = InventoryMaterial.objects.get(id=target_id)
                 except InventoryMaterial.DoesNotExist:
                     return Response({"error": "InventoryMaterial not found."}, status=404)
-            validation_error = _variant_inventory_link_error(product, target)
-            if validation_error:
-                return Response({"error": validation_error}, status=400)
-            # Don't yank a target that's already linked to another variant of
-            # a different master — would silently break that master's audit.
-            existing = target.produced_by_product_variant
-            if existing and existing.id != variant.id:
-                return Response(
-                    {"error": f"Catalog SKU {target.code} is already linked to variant {existing.code} on master {existing.master.code}. Unlink there first."},
-                    status=400,
-                )
-            InventoryMaterial.objects.filter(produced_by_product_variant=variant).exclude(id=target.id).update(produced_by_product_variant=None)
-            target.produced_by_product_variant = variant
-            target.status = "ACTIVE"
-            update_fields = ["produced_by_product_variant", "status"]
-            if product_kind == "PACKAGING" and str(target.packaging_supply_mode or "").upper() == "PURCHASED":
-                # Preserve the fact that this fixed SKU can still be bought.
-                # Manual PM link adds in-house capability; it should not turn a
-                # purchased SKU into in-house-only.
-                target.packaging_supply_mode = "BOTH"
-                update_fields.append("packaging_supply_mode")
-            if product_kind == "POD":
-                if target.base_uom != "KG":
-                    target.base_uom = "KG"
-                    update_fields.append("base_uom")
-                if not target.pod_is_inhouse_produced:
-                    target.pod_is_inhouse_produced = True
-                    update_fields.append("pod_is_inhouse_produced")
-                if not target.pod_type:
-                    target.pod_type = "SINGLE"
-                    update_fields.append("pod_type")
-                if target.pod_fixed_height_mm is None:
-                    target.pod_fixed_height_mm = 200
-                    update_fields.append("pod_fixed_height_mm")
-                if target.pod_thickness_micron is None:
-                    target.pod_thickness_micron = 30
-                    update_fields.append("pod_thickness_micron")
-                if target.pod_panel_count is None:
-                    target.pod_panel_count = 1
-                    update_fields.append("pod_panel_count")
-                if target.density_gcm3 is None:
-                    target.density_gcm3 = 0.92
-                    update_fields.append("density_gcm3")
-            target.save(update_fields=update_fields + ["updated_at"])
+            link_error = _apply_catalog_link(product, variant, target)
+            if link_error:
+                return Response({"error": link_error}, status=400)
             new_link = target
             if product_kind == "POD" and pod_sku_variant is None:
                 pod_sku_variant = PodSkuVariant.objects.select_related("pod_sku").filter(material_id=target.id, active=True).order_by("pod_sku__code", "code").first()
@@ -1065,6 +1065,74 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 if new_link else None
             ),
         })
+
+    @action(detail=False, methods=["get"], url_path="catalog-link-options")
+    def catalog_link_options(self, request):
+        """Masters (with their sizes) that can make one catalog row: POD roll or in-house packaging."""
+        from .services_catalog_link import candidate_masters, expected_master_kind
+
+        material = InventoryMaterial.objects.select_related("produced_by_product_variant__master").filter(
+            id=_safe_uuid(request.query_params.get("material"))
+        ).first()
+        if material is None:
+            return Response({"error": "Pick a POD roll or packaging row."}, status=400)
+        product_kind, packaging_kind = expected_master_kind(material)
+        if not product_kind:
+            return Response({"error": f"{material.code} is bought, not made: only POD rolls and in-house inner pouches or sheets link to a Product Master."}, status=400)
+        linked = material.produced_by_product_variant
+        masters = []
+        for master in candidate_masters(material):
+            masters.append({
+                "id": str(master.id),
+                "code": master.code,
+                "name": master.name,
+                "sizes": [
+                    {"code": size.code, "label": size.label or size.code}
+                    for size in master.sizes.all() if size.active
+                ],
+            })
+        return Response({
+            "material": {"id": str(material.id), "code": material.code, "name": material.name, "category": material.category},
+            "product_kind": product_kind,
+            "packaging_kind": packaging_kind,
+            "linked": (
+                {"master_id": str(linked.master_id), "master_code": linked.master.code, "master_name": linked.master.name,
+                 "variant_id": str(linked.id), "variant_code": linked.code}
+                if linked else None
+            ),
+            "masters": masters,
+        })
+
+    @action(detail=True, methods=["post"], url_path="link-catalog")
+    def link_catalog(self, request, pk=None):
+        """One step: find or make this master's variant for the chosen size, then link the catalog row to it."""
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError
+
+        from .services_catalog_link import expected_master_kind, find_or_create_link_variant
+
+        product = self.get_object()
+        material = InventoryMaterial.objects.filter(id=_safe_uuid(request.data.get("inventory_material_id"))).first()
+        if material is None:
+            return Response({"error": "Pick the POD roll or packaging row to link."}, status=400)
+        product_kind, _ = expected_master_kind(material)
+        if product_kind != str(product.product_kind or "").upper():
+            return Response({"error": f"{material.code} cannot be made by a {product.product_kind or 'blank'} master."}, status=400)
+        try:
+            with transaction.atomic():
+                variant, created = find_or_create_link_variant(product, material, request.data.get("size") or "")
+                link_error = _apply_catalog_link(product, variant, material)
+                if link_error:
+                    raise DjangoValidationError(link_error)
+        except DjangoValidationError as exc:
+            raise ValidationError(getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc))
+        self._audit_master_change("UPDATE", product, extra_details={"catalog_link": {"material": material.code, "variant": variant.code}})
+        _refresh_open_sales_snapshots_for_product(product, reason="PRODUCT_VARIANT_INVENTORY_LINK_EDIT")
+        return Response({
+            "variant": ProductVariantSerializer(variant).data,
+            "variant_created": created,
+            "material": {"id": str(material.id), "code": material.code, "name": material.name},
+        }, status=201 if created else 200)
 
     @action(detail=True, methods=["post"], url_path="variants/find-or-create")
     def find_or_create_variant(self, request, pk=None):
@@ -1743,11 +1811,22 @@ class ProductMasterSizeViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         size = serializer.save()
-        _refresh_open_sales_snapshots_for_product(size.product_master, reason="PRODUCT_MASTER_SIZE_CREATE")
+        self._revision_summary = _refresh_open_sales_snapshots_for_product(size.product_master, reason="PRODUCT_MASTER_SIZE_CREATE")
 
     def perform_update(self, serializer):
         size = serializer.save()
-        _refresh_open_sales_snapshots_for_product(size.product_master, reason="PRODUCT_MASTER_SIZE_EDIT")
+        self._revision_summary = _refresh_open_sales_snapshots_for_product(size.product_master, reason="PRODUCT_MASTER_SIZE_EDIT")
+
+    def _with_revision_summary(self, response):
+        if isinstance(response.data, dict) and getattr(self, "_revision_summary", None) is not None:
+            response.data["revision_summary"] = self._revision_summary
+        return response
+
+    def create(self, request, *args, **kwargs):
+        return self._with_revision_summary(super().create(request, *args, **kwargs))
+
+    def update(self, request, *args, **kwargs):
+        return self._with_revision_summary(super().update(request, *args, **kwargs))
 
     def perform_destroy(self, instance):
         product = instance.product_master
@@ -1796,7 +1875,15 @@ class PODViewSet(viewsets.ModelViewSet):
                 immutable['base_uom'] = "Core POD base_uom cannot be changed."
             if immutable:
                 raise ValidationError(immutable)
-        serializer.save()
+        material = serializer.save()
+        from .services_catalog_link import ensure_pod_sku_variant
+
+        ensure_pod_sku_variant(material)
+
+    def perform_create(self, serializer):
+        from .services_catalog_link import ensure_pod_sku_variant
+
+        ensure_pod_sku_variant(serializer.save())
 
     def perform_destroy(self, instance):
         if instance.code.startswith('POD-'):

@@ -506,9 +506,9 @@ class RollAllocationService:
         roll picker.
 
         Tiers:
-          1 EXACT             — min_width ≤ w ≤ min_width × 1.10  (auto-safe)
+          1 EXACT             — w within the as-is window (planned ± 15 mm, or up to +10%)
           2 ORDER_BOUND       — already committed to this order/job (auto-safe)
-          3 WIDER_OK_WITH_SLIT — w > min_width × 1.10, will slit + spawn remainder
+          3 WIDER_OK_WITH_SLIT — w wider than the window, will slit + spawn remainder
           4 REMAINDER_POOL    — remainder rolls, same layer sig, manual confirm
 
         Each entry: {
@@ -531,7 +531,9 @@ class RollAllocationService:
         target_stock_form = target_contract["stock_form"]
         target_slit_policy = target_contract["slit_policy"]
 
-        auto_max = target_min_w * Decimal("1.10") if target_min_w else Decimal("0")
+        from apps.production.services.roll_width import as_is_window
+
+        auto_min, auto_max = as_is_window(target_min_w) if target_min_w else (Decimal("0"), Decimal("0"))
         process_trim = resolve_process_trim_mm(process)
         min_remainder = Decimal("50")
         prefer_remainder_first = True
@@ -603,9 +605,9 @@ class RollAllocationService:
                 and getattr(job, "sales_order_item_id", None)
                 and str(soi_id) == str(job.sales_order_item_id)
             )
-            if committed_for_this_job and target_min_w and roll_w >= target_min_w:
+            if committed_for_this_job and target_min_w and roll_w >= auto_min:
                 tier = "ORDER_BOUND"
-            elif target_min_w and roll_w >= target_min_w and roll_w <= auto_max:
+            elif target_min_w and auto_min <= roll_w <= auto_max:
                 tier = "REMAINDER_POOL" if is_remainder else "EXACT"
             elif target_min_w and roll_w > auto_max:
                 if not slit_allowed:
@@ -718,6 +720,9 @@ class RollAllocationService:
             exact_full_width = len(widths) == 1 and abs(widths[0] - parent_w) <= Decimal("0.01")
             if not exact_full_width:
                 raise ValueError("Tube/folded stock must be allocated at exact width; slitting is not allowed.")
+            trim_mm = Decimal("0")
+        elif len(widths) == 1 and abs(widths[0] - parent_w) <= Decimal("0.01"):
+            # The whole roll goes to the job as it is: nothing is slit, so no slitting trim.
             trim_mm = Decimal("0")
         assigned_jobs = list(assign_jobs or [])
         if assigned_jobs and len(assigned_jobs) != len(widths):
@@ -900,13 +905,18 @@ class RollAllocationService:
                 raise ValueError("GANG mode requires a committed gang of 2+ jobs")
             return [float(w) for w in gang_widths], gang_jobs
 
-        # Auto-recognise full-roll pick (EXACT / ORDER_BOUND tier): width within
-        # +10% of target with no slit required. Single child = parent width.
-        auto_max = target_w * Decimal("1.10") if target_w else Decimal("0")
-        if target_w and parent_w >= target_w and parent_w <= auto_max:
+        # Auto-recognise full-roll pick (EXACT / ORDER_BOUND tier): width within the
+        # as-is window (planned ± tolerance, or up to +10%). Single child = parent width.
+        from apps.production.services.roll_width import usable_as_is, width_tolerance_mm
+
+        if target_w and usable_as_is(parent_w, target_w):
             return [float(parent_w)], None
+        if target_w and parent_w < target_w:
+            raise ValueError(
+                f"Roll {parent_w} mm is more than {width_tolerance_mm()} mm narrower than the planned {target_w} mm web."
+            )
         if roll_stock_form != STOCK_FORM_OPEN_WEB:
-            raise ValueError("Tube/folded stock must match the target width exactly; slitting is not allowed.")
+            raise ValueError("Tube/folded stock must be within the width tolerance of the target; slitting is not allowed.")
 
         if not target_w:
             # No planned width — fall back to one child at full parent.

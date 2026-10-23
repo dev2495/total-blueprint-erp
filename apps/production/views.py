@@ -23,6 +23,7 @@ from .serializers import (
 from .models import PlannedStockOrder, PlannedBulkStockOrder, PlannerSku, PlannerSkuVariant
 from .services import JobService, WCManagerService, OperatorService
 from .services.services_execution import ExecutionService
+from .services.roll_width import width_tolerance_mm
 from apps.factory.models import Machine
 from .renderers import EpsonRawRenderer
 
@@ -364,6 +365,7 @@ class ProductionJobViewSet(WorkCentreScopeMixin, viewsets.ModelViewSet):
             "candidates": payload,
             "target_width_mm": target_w,
             "planned_parent_width_mm": target_w,
+            "width_tolerance_mm": float(width_tolerance_mm()),
             "child_target_width_mm": child_w,
             "preferred_lane_count": lane_count,
             "target_stock_contract": target_stock_contract,

@@ -411,6 +411,8 @@ CELERY_ENABLE_UTC = True
 # WCM release and machine start only when this is on. Turn on once add-on stock
 # is received into the ERP at the plant.
 ADDON_SHORTAGE_BLOCKS = os.getenv("ADDON_SHORTAGE_BLOCKS", "False").strip().lower() in {"1", "true", "yes"}
+# Floor roll picker: a roll within this many mm of the planned web (either side) is used as it is.
+ROLL_PICK_WIDTH_TOLERANCE_MM = float(os.getenv("ROLL_PICK_WIDTH_TOLERANCE_MM", "15") or 15)
 # Packing yard check limits (percent). Within both, a closed batch is verified; outside,
 # it is held for dispatch until a supervisor accepts it with a reason.
 PACKING_VERIFY_PCS_PCT = float(os.getenv("PACKING_VERIFY_PCS_PCT", "2") or 2)

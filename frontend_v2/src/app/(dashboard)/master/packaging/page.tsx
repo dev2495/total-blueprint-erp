@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { MasterRegistryShell } from "@/components/master/master-registry-shell";
+import { CatalogLinkPanel } from "@/components/master/catalog-link";
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge";
 
 const kinds = [
@@ -600,35 +601,12 @@ export default function PackagingMasterPage() {
                     </div>
                   </div>
                   <div className="col-span-2">
-                    <div className="text-[12px] font-semibold text-content-3">
-                      Product Master Link
-                    </div>
-                    <div
-                      className={`mt-1 rounded-xl px-3 py-2 text-sm ${
-                        link
-                          ? "bg-success-bg text-success-fg ring-1 ring-success-border"
-                          : unlinkedInHouse
-                            ? "bg-danger-bg text-danger-fg ring-1 ring-danger-border"
-                            : "bg-surface-1 text-content-2 ring-1 ring-line"
-                      }`}
-                    >
-                      {link ? (
-                        <>
-                          <div className="font-semibold">
-                            {link.master_code} · {link.master_name}
-                          </div>
-                          <div className="mt-0.5 font-mono text-caption font-bold">
-                            {link.variant_code}
-                          </div>
-                        </>
-                      ) : unlinkedInHouse ? (
-                        <span className="font-bold">
-                          In-house row not linked to a Product Master variant
-                        </span>
-                      ) : (
-                        <span>Purchased/manual catalog row</span>
-                      )}
-                    </div>
+                    <CatalogLinkPanel
+                      row={row}
+                      linkable={["INNER_POUCH", "SHEET"].includes(String(row.packaging_kind || "").toUpperCase())}
+                      kindLabel="packaging"
+                      invalidateKeys={[["master-packaging"]]}
+                    />
                   </div>
                   <div className="col-span-2">
                     <div className="text-[12px] font-semibold text-content-3">
