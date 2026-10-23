@@ -219,13 +219,17 @@ export default function PackingYardPage() {
           : undefined,
       }),
     onSuccess: (data) => {
-      toast({ title: "Gonny created", description: data.message });
+      toast({ title: "Gonny packed", description: `${data.message}. Weigh it to seal.` });
       setCreateDialogOpen(false);
       setCreateBatchId("");
       setCreateQty("");
       setPrimaryPackCount("");
       setGonnyPage(1);
       invalidate();
+      // Next step of the same unit: put it on the scale and seal it.
+      setActualGross("");
+      setVarianceReason("");
+      setSealGonny(data as unknown as Gonny);
     },
     onError: (error) =>
       toast({
@@ -676,6 +680,12 @@ export default function PackingYardPage() {
   const gonnyPaging = paginate(selectedGonnies, gonnyPage);
   const rollPaging = paginate(selectedRollRows, rollPage);
 
+  // Rolls only tick what was used from the order's roll packing list.
+  const rollPlanIds: string[] = Array.from(
+    new Set(
+      releaseRolls.flatMap((roll) => (Array.isArray(roll.default_pack_lines) ? roll.default_pack_lines : []).map((line: any) => String(line.material_id || ""))).filter(Boolean),
+    ),
+  );
   const activeRollCount = releaseRolls.length;
   const activeRollNet = releaseRolls.reduce(
     (sum, roll) => sum + Number(roll.net_weight_kg || roll.weight_kg || 0),
@@ -767,17 +777,23 @@ export default function PackingYardPage() {
   }, [lineFilter, packingLineScopes.length]);
 
   const openCreateGonny = (batch: SOPackingSummary["batches"][number]) => {
+    // How the pouches came off the machine (inner packs or loose) is the order's choice, not
+    // the yard's: the dialog only asks how many go into this gonny.
+    const plan = (batch as any).packing_plan as PackingPlan | undefined;
+    const mode = (plan?.content_mode || (batch as any).default_content_mode) === "PRIMARY_PACKS" ? "PRIMARY_PACKS" : "LOOSE_POUCHES";
     setCreateBatchId(batch.id);
-    setCreateQty(String(batch.qty_pcs || ""));
-    setContentMode(
-      (batch as any).default_content_mode === "PRIMARY_PACKS"
-        ? "PRIMARY_PACKS"
-        : "LOOSE_POUCHES",
-    );
-    setPrimaryPackCount("");
-    if (!gonnyMaterialId && gonnies.length === 1) {
-      setGonnyMaterialId(String(gonnies[0].id));
+    setContentMode(mode);
+    if (mode === "PRIMARY_PACKS" && plan?.pcs_per_pack) {
+      const packs = Math.max(0, Number(plan.packs_left ?? Math.ceil(Number(batch.qty_pcs || 0) / plan.pcs_per_pack)));
+      setPrimaryPackCount(String(packs || ""));
+      setCreateQty(String(Math.min(packs * plan.pcs_per_pack, Number(batch.qty_pcs || 0)) || ""));
+    } else {
+      setPrimaryPackCount("");
+      setCreateQty(String(batch.qty_pcs || ""));
     }
+    const planned = plan?.gonny?.id && gonnies.some((item: PackagingMaterial) => String(item.id) === plan.gonny!.id) ? plan.gonny.id : "";
+    if (planned) setGonnyMaterialId(planned);
+    else if (!gonnyMaterialId && gonnies.length === 1) setGonnyMaterialId(String(gonnies[0].id));
     setCreateDialogOpen(true);
   };
 
@@ -1781,9 +1797,9 @@ export default function PackingYardPage() {
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent data-testid="packing-create-gonny-dialog" className="max-h-[90vh] max-w-xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Create gonny</DialogTitle>
+            <DialogTitle>Pack a gonny</DialogTitle>
             <DialogDescription>
-              The unit stays open until you record its actual gross weight.
+              Pouches come from the machine as the order says. Choose how many go in this gonny, then weigh it to seal it as one dispatch unit.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1797,68 +1813,22 @@ export default function PackingYardPage() {
                 Batch {selectedBatch?.batch_number || "—"} · {n(selectedBatch?.qty_pcs || 0, 0)} pcs available
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="packing-gonny-material">Gonny material</Label>
-                <select
-                  id="packing-gonny-material"
-                  data-testid="packing-gonny-material"
-                  value={gonnyMaterialId}
-                  onChange={(event) => setGonnyMaterialId(event.target.value)}
-                  className="h-10 w-full rounded-xl border border-input bg-surface-1 px-3 text-[13px]"
-                >
-                  <option value="">Select gonny</option>
-                  {gonnies.map((item: PackagingMaterial) => (
-                    <option key={item.id} value={item.id}>
-                      {item.code} • {item.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-caption text-content-3">
-                  Marked on this unit; the evening packing count takes it off stock.
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="packing-gonny-qty">Pouches to pack</Label>
-                <Input
-                  id="packing-gonny-qty"
-                  data-testid="packing-gonny-qty"
-                  type="number"
-                  min="1"
-                  max={selectedBatch?.qty_pcs || undefined}
-                  inputMode="numeric"
-                  value={createQty}
-                  onChange={(event) => setCreateQty(event.target.value)}
-                  placeholder={selectedBatch ? String(selectedBatch.qty_pcs) : "Qty pcs"}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="packing-gonny-content-mode">Content mode</Label>
-                <select
-                  id="packing-gonny-content-mode"
-                  data-testid="packing-gonny-content-mode"
-                  value={contentMode}
-                  onChange={(event) => setContentMode(event.target.value as any)}
-                  className="h-10 w-full rounded-xl border border-input bg-surface-1 px-3 text-[13px]"
-                >
-                  <option value="LOOSE_POUCHES">Loose pouches</option>
-                  <option value="PRIMARY_PACKS">Inner packs</option>
-                </select>
-              </div>
-              {contentMode === "PRIMARY_PACKS" ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="packing-gonny-inner">Inner pack count</Label>
-                  <Input
-                    id="packing-gonny-inner"
-                    type="number"
-                    min="1"
-                    value={primaryPackCount}
-                    onChange={(event) => setPrimaryPackCount(event.target.value)}
-                    placeholder="Auto from sales pcs/pack"
-                  />
-                </div>
-              ) : null}
-            </div>
+            <PackGonnyFields
+              batch={selectedBatch}
+              plan={(selectedBatch as any)?.packing_plan as PackingPlan | undefined}
+              contentMode={contentMode}
+              packs={primaryPackCount}
+              setPacks={(value) => {
+                setPrimaryPackCount(value);
+                const plan = (selectedBatch as any)?.packing_plan as PackingPlan | undefined;
+                if (plan?.pcs_per_pack) setCreateQty(String(Math.min(Number(value || 0) * plan.pcs_per_pack, Number(selectedBatch?.qty_pcs || 0)) || ""));
+              }}
+              pcs={createQty}
+              setPcs={setCreateQty}
+              gonnies={gonnies}
+              gonnyMaterialId={gonnyMaterialId}
+              setGonnyMaterialId={setGonnyMaterialId}
+            />
             {selectedBatch && Number(createQty) > Number(selectedBatch.qty_pcs || 0) ? (
               <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-[12.5px] text-warning-fg">
                 That is more than the {n(selectedBatch.qty_pcs, 0)} pcs left in this batch.
@@ -1885,7 +1855,7 @@ export default function PackingYardPage() {
               }
               onClick={() => createMutation.mutate()}
             >
-              {createMutation.isPending ? "Creating…" : "Create gonny"}
+              {createMutation.isPending ? "Packing…" : "Pack gonny · weigh next"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1954,9 +1924,16 @@ export default function PackingYardPage() {
                         <span className="text-[12px] font-medium text-content-3">Evening-count items used on this order</span>
                         <Pill tone={rollPackLines.length ? "good" : "warn"}>{rollPackLines.length} marked</Pill>
                       </div>
+                      {rollPlanIds.length ? null : (
+                        <p className="mb-2 text-caption text-warning-fg">This order has no roll packing list; any evening-count item can be ticked.</p>
+                      )}
                       <EodItemChecks
-                        materials={packingMarkMasters.filter((m: PackagingMaterial) => String(m.packaging_kind || "").toUpperCase() !== "INNER_POUCH")}
-                        planIds={(releaseRolls.find((roll) => Array.isArray(roll.default_pack_lines))?.default_pack_lines || []).map((line: any) => String(line.material_id || ""))}
+                        materials={packingMarkMasters.filter(
+                          (m: PackagingMaterial) =>
+                            String(m.packaging_kind || "").toUpperCase() !== "INNER_POUCH" &&
+                            (!rollPlanIds.length || rollPlanIds.includes(String(m.id))),
+                        )}
+                        planIds={rollPlanIds}
                         selectedIds={rollPackLines.map((line) => line.material_id)}
                         onToggle={(material) =>
                           toggleRollPackLine({
@@ -2270,6 +2247,137 @@ function EodItemChecks({
           </label>
         );
       })}
+    </div>
+  );
+}
+
+
+type PackingPlan = {
+  content_mode: "PRIMARY_PACKS" | "LOOSE_POUCHES";
+  packed_at_machine: boolean;
+  pcs_per_pack: number | null;
+  packs_left: number | null;
+  pcs_left: number;
+  net_kg_per_pcs: number;
+  inner_pouch: { id: string; code: string; name: string; weight_kg: number | null; weight_source: string } | null;
+  gonny: { id: string; code: string; name: string; weight_kg: number | null; weight_source: string } | null;
+};
+
+/** The gonny dialog body: the order decides inner packs or loose; the yard picks how many go in. */
+function PackGonnyFields({
+  batch,
+  plan,
+  contentMode,
+  packs,
+  setPacks,
+  pcs,
+  setPcs,
+  gonnies,
+  gonnyMaterialId,
+  setGonnyMaterialId,
+}: {
+  batch: any;
+  plan?: PackingPlan;
+  contentMode: "PRIMARY_PACKS" | "LOOSE_POUCHES";
+  packs: string;
+  setPacks: (value: string) => void;
+  pcs: string;
+  setPcs: (value: string) => void;
+  gonnies: PackagingMaterial[];
+  gonnyMaterialId: string;
+  setGonnyMaterialId: (value: string) => void;
+}) {
+  const inner = contentMode === "PRIMARY_PACKS";
+  const gonnyWeight = (item: PackagingMaterial) => (item as any).stock_measure?.weight_kg_per_piece as number | null | undefined;
+  const chosen = gonnies.find((item) => String(item.id) === gonnyMaterialId);
+  const productKg = Number(pcs || 0) * Number(plan?.net_kg_per_pcs || 0);
+  const pouchKg = inner ? Number(packs || 0) * Number(plan?.inner_pouch?.weight_kg || 0) : 0;
+  const gonnyKg = Number((chosen && gonnyWeight(chosen)) || 0);
+  const kgText = (value: number) => `${value.toLocaleString("en-IN", { maximumFractionDigits: 3 })} kg`;
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-line bg-surface-1 px-3.5 py-3 text-[13px]" data-testid="packing-gonny-plan">
+        <div className="font-semibold text-content-1">
+          {inner
+            ? `From the machine in inner packs of ${plan?.pcs_per_pack ?? "?"} pouches`
+            : "From the machine as loose pouches"}
+        </div>
+        <div className="mt-0.5 text-caption text-content-3">
+          {inner
+            ? `${(plan?.packs_left ?? 0).toLocaleString("en-IN")} packs left in this batch · inner pouch ${plan?.inner_pouch?.code || "—"}${plan?.inner_pouch?.weight_kg ? ` (${(plan.inner_pouch.weight_kg * 1000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} g each)` : " · weight missing on its master"}`
+            : `${Number(batch?.qty_pcs || 0).toLocaleString("en-IN")} pouches left in this batch · the order has no inner pouch`}
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {inner ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="packing-gonny-inner">Inner packs in this gonny</Label>
+            <Input
+              id="packing-gonny-inner"
+              data-testid="packing-gonny-inner"
+              type="number"
+              min="1"
+              max={plan?.packs_left ?? undefined}
+              inputMode="numeric"
+              autoFocus
+              value={packs}
+              onChange={(event) => setPacks(event.target.value)}
+            />
+            <p className="text-caption text-content-3" data-testid="packing-gonny-pcs-equivalent">
+              = {Number(pcs || 0).toLocaleString("en-IN")} pouches
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <Label htmlFor="packing-gonny-qty">Pouches in this gonny</Label>
+            <Input
+              id="packing-gonny-qty"
+              data-testid="packing-gonny-qty"
+              type="number"
+              min="1"
+              max={batch?.qty_pcs || undefined}
+              inputMode="numeric"
+              autoFocus
+              value={pcs}
+              onChange={(event) => setPcs(event.target.value)}
+            />
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="packing-gonny-material">Gonny</Label>
+          <select
+            id="packing-gonny-material"
+            data-testid="packing-gonny-material"
+            value={gonnyMaterialId}
+            onChange={(event) => setGonnyMaterialId(event.target.value)}
+            className="h-10 w-full rounded-xl border border-input bg-surface-1 px-3 text-[13px]"
+          >
+            <option value="">Select gonny</option>
+            {gonnies.map((item) => {
+              const w = gonnyWeight(item);
+              return (
+                <option key={item.id} value={item.id}>
+                  {item.code} · {w ? `${w.toLocaleString("en-IN", { maximumFractionDigits: 3 })} kg` : "weight missing"}
+                  {plan?.gonny?.id === String(item.id) ? " · on the order" : ""}
+                </option>
+              );
+            })}
+          </select>
+          <p className="text-caption text-content-3">Counted off stock at the evening packing count.</p>
+        </div>
+      </div>
+      <div className="rounded-xl border border-line bg-surface-2 px-3.5 py-3" data-testid="packing-gonny-weight-preview">
+        <div className="text-caption font-semibold text-content-3">Expected weight of this dispatch unit</div>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[13px] tabular-nums text-content-1">
+          <span>{kgText(productKg)} <span className="font-sans text-caption text-content-3">product</span></span>
+          {inner ? <span>+ {kgText(pouchKg)} <span className="font-sans text-caption text-content-3">inner pouches</span></span> : null}
+          <span>+ {kgText(gonnyKg)} <span className="font-sans text-caption text-content-3">gonny</span></span>
+          <span className="font-semibold">= {kgText(productKg + pouchKg + gonnyKg)}</span>
+        </div>
+        {chosen && !gonnyWeight(chosen) ? (
+          <p className="mt-1 text-caption text-warning-fg">This gonny has no weight on its master; enter it in Masters › Packaging.</p>
+        ) : null}
+      </div>
     </div>
   );
 }

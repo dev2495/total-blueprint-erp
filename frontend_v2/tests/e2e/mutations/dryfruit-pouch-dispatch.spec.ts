@@ -62,9 +62,14 @@ test("direct FG pouch batch can move from packing yard to dispatch bay through g
 
   await page.getByTestId(`packing-create-gonny-${batchId}`).click()
   await page.getByTestId("packing-create-gonny-dialog").waitFor({ state: "visible", timeout: 15_000 })
-  await page.getByTestId("packing-gonny-qty").fill("100")
+  // The order decides inner packs or loose; the yard only enters how many go in this gonny.
+  if (await page.getByTestId("packing-gonny-inner").isVisible().catch(() => false)) {
+    await page.getByTestId("packing-gonny-inner").fill("1")
+  } else {
+    await page.getByTestId("packing-gonny-qty").fill("100")
+  }
+  await expect(page.getByTestId("packing-gonny-weight-preview")).toBeVisible()
   await page.getByTestId("packing-gonny-material").selectOption({ index: 1 })
-  await page.getByTestId("packing-gonny-content-mode").selectOption("LOOSE_POUCHES")
 
   const createResponse = page.waitForResponse((response) => response.url().includes("/api/production/packing/create_gonny/") && response.request().method() === "POST")
   await page.getByTestId("packing-gonny-submit").click()
@@ -80,13 +85,7 @@ test("direct FG pouch batch can move from packing yard to dispatch bay through g
   expect(gonny, "new open gonny should exist after packing creation").toBeTruthy()
   expect(Number(createdSummary?.packing_pending?.open_gonnies_count || 0)).toBeGreaterThanOrEqual(beforeOpenCount + 1)
 
-  const sealButton = page.getByTestId(`packing-seal-gonny-${gonny.id}`)
-  for (let pageTurn = 0; pageTurn < 12 && !(await sealButton.isVisible().catch(() => false)); pageTurn += 1) {
-    const next = page.getByTestId("packing-gonny-work-page-next")
-    if (!(await next.isVisible().catch(() => false)) || !(await next.isEnabled().catch(() => false))) break
-    await next.click()
-  }
-  await sealButton.click()
+  // Packing a gonny goes straight on to weighing it.
   await page.getByTestId("packing-seal-gonny-dialog").waitFor({ state: "visible", timeout: 15_000 })
   await page.getByTestId("packing-gonny-seal-weight").fill("1.500")
   const varianceReason = page.getByTestId("packing-gonny-variance-reason")

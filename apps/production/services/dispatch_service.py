@@ -1254,10 +1254,13 @@ class FGDispatchService:
                 }
             )
 
+        from apps.production.services.packing_service import PackingService
+
         batch_rows = [
             {
                 "id": str(batch.id),
                 **FGDispatchService._production_batch_payload(batch),
+                "packing_plan": PackingService.packing_plan(batch),
                 "batch_number": batch.batch_number,
                 "sales_order_item_id": str(batch.sales_order_item_id) if batch.sales_order_item_id else None,
                 **FGDispatchService._sales_order_item_display_spec(batch.sales_order_item),

@@ -121,6 +121,24 @@ class InnerPouchFlowTests(RollLaneFixture, TestCase):
         self.assertEqual(D(str(booked.qty)), D("-1"))
         self.assertEqual(booked.meta_json["allocation_basis"], "MARKED")
 
+    def test_packing_plan_comes_from_the_order_and_counts_down_the_packs(self, *_):
+        _item, pouch = self._packing_setup()
+        OperatorService.log_output_step(str(pouch.id), 68.5, self.user, output_pcs=10000)
+        batch = FinishedGoodsBatch.objects.get(production_job=pouch)
+        self.gonny.packaging_defaults_json = {"weight_kg_per_base_uom": 0.22}
+        self.gonny.save(update_fields=["packaging_defaults_json"])
+        plan = PackingService.packing_plan(batch)
+        self.assertEqual((plan["content_mode"], plan["pcs_per_pack"], plan["packs_left"]), ("PRIMARY_PACKS", 100, 100))
+        self.assertTrue(plan["packed_at_machine"])
+        self.assertEqual(plan["inner_pouch"]["code"], "INNER-100")
+        self.assertAlmostEqual(plan["net_kg_per_pcs"], 0.00685, places=6)
+
+        PackingService.create_gonny.__wrapped__(
+            str(batch.id), 4000, user=self.user, gonny_material_id=str(self.gonny.id), content_mode="PRIMARY_PACKS", primary_pack_count=40,
+        )
+        batch.refresh_from_db()
+        self.assertEqual(PackingService.packing_plan(batch)["packs_left"], 60)
+
     def test_shortage_leaves_inner_pouches_for_the_evening_count_and_never_blocks_output(self, *_):
         item, pouch = self._packing_setup(inner_in_store=D("40"))
         with collect_notices() as notices:

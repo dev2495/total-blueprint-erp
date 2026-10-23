@@ -77,6 +77,58 @@ class PackingService:
         return (total_weight / Decimal(str(total_qty_pcs))) * Decimal(str(qty_pcs))
 
     @staticmethod
+    def packing_plan(fg_batch: FinishedGoodsBatch) -> dict:
+        """How this batch is packed into gonnies, from the order: pouches come off the machine
+        in inner packs (when the order has an inner pouch) or loose; the yard only chooses how
+        many go into each gonny. Weights: product from the machine's logged output, inner
+        pouch and gonny from their packaging masters (BOM for in-house pouches)."""
+        from apps.inventory.services.packaging_measure import piece_weight
+
+        snapshot = PackingService._snapshot_for_batch(fg_batch)
+        primary = dict(PackingService._primary_inner_cfg(snapshot))
+        batch_primary = PackingService._batch_primary_inner_cfg(fg_batch)
+        primary.update({key: value for key, value in batch_primary.items() if value not in (None, "")})
+        inner_enabled = bool(primary.get("enabled"))
+        pcs_per_pack = int(primary.get("pcs_per_pack") or 0) if inner_enabled else 0
+        qty_pcs = int(getattr(fg_batch, "qty_pcs", 0) or 0)
+
+        def material_row(material_id):
+            if not material_id:
+                return None
+            material = InventoryMaterial.objects.select_related("produced_by_product_variant__master").filter(id=material_id).first()
+            if material is None:
+                return None
+            weight = piece_weight(material)
+            return {
+                "id": str(material.id),
+                "code": material.code,
+                "name": material.name,
+                "weight_kg": float(weight["weight_kg"]) if weight.get("weight_kg") else None,
+                "weight_source": weight["source"],
+            }
+
+        packs_left = None
+        if inner_enabled and pcs_per_pack > 0:
+            packs_left = int(ceil(qty_pcs / pcs_per_pack)) if qty_pcs > 0 else 0
+            if batch_primary.get("consumed_at_fg") and int(batch_primary.get("pack_count") or 0) > 0:
+                assigned = sum(
+                    int(unit.primary_pack_count or 0)
+                    for unit in fg_batch.packing_units.filter(content_mode="PRIMARY_PACKS")
+                )
+                packs_left = max(int(batch_primary.get("pack_count") or 0) - assigned, 0)
+        net_per_pcs = PackingService._net_product_weight_kg(fg_batch, 1) if qty_pcs > 0 else Decimal("0")
+        return {
+            "content_mode": "PRIMARY_PACKS" if inner_enabled else "LOOSE_POUCHES",
+            "packed_at_machine": bool(batch_primary.get("consumed_at_fg")),
+            "pcs_per_pack": pcs_per_pack or None,
+            "packs_left": packs_left,
+            "pcs_left": qty_pcs,
+            "net_kg_per_pcs": float(net_per_pcs),
+            "inner_pouch": material_row(primary.get("material_id")) if inner_enabled else None,
+            "gonny": material_row(PackingService._legacy_secondary_cfg(snapshot).get("material_id")),
+        }
+
+    @staticmethod
     def _packaging_mass_kg(material_id, qty, input_uom="PCS") -> Decimal:
         """Weight a packing item adds to a dispatch unit. Only inner pouches (in-house: BOM of the
         linked variant; bought: master entry) and gonnies (master entry) weigh anything."""
