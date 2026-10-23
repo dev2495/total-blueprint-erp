@@ -48,6 +48,16 @@ class ArchiveScopeTests(TestCase):
         self.assertEqual(detail.status_code, 200, "archived records still open by link")
         self.assertEqual(self.api.get("/api/sales/orders/", {"fy": "next year"}).status_code, 400)
 
+    def test_period_codes_in_any_format_use_their_own_dates(self):
+        # Stock lifecycle may record a period under any code (a test closes 2180-2181); lists never 400.
+        InventoryFinancialPeriod.objects.create(financial_year="2180-2181", start_date="2180-04-01", end_date="2181-03-31", status="CLOSED")
+        InventoryFinancialPeriod.objects.create(financial_year="FY25", start_date="2025-04-01", end_date="2026-03-31", status="CLOSED")
+        self.assertEqual(self.numbers(), {"SO-OLD-OPEN", "SO-NEW-DONE"})
+        self.assertEqual(self.numbers(fy="FY25"), {"SO-OLD-DONE", "SO-OLD-OPEN", "SO-OLD-31MAR"})
+        years = self.api.get("/api/auth/financial-years/")
+        self.assertEqual(years.status_code, 200)
+        self.assertIn("FY25", {row["code"] for row in years.data["years"]})
+
     def test_year_list_for_the_header_picker(self):
         InventoryFinancialPeriod.objects.create(financial_year="2025-2026", start_date="2025-04-01", end_date="2026-03-31", status="CLOSED")
         data = self.api.get("/api/auth/financial-years/").data

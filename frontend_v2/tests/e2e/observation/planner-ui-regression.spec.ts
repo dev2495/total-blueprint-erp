@@ -126,7 +126,7 @@ test.describe.serial("planner live ui regression", () => {
   test("planner sku variant builder opens as a popup and keeps real layer stack inputs", async ({ page }, testInfo) => {
     await page.goto("/dashboard/planner/control-tower/stock-intelligence", { waitUntil: "domcontentloaded" })
     await assertHealthyPage(page, { requireAuth: false })
-    await expect(page.getByRole("heading", { name: /stock intelligence/i })).toBeVisible({ timeout: 120_000 })
+    await expect(page.getByRole("heading", { name: /Material readiness/i })).toBeVisible({ timeout: 120_000 })
     await expect(page.locator("body")).toContainText(/New stock order|Quick stock/i)
     await expect(page.locator("body")).toContainText(/FG|WIP|Packaging|POD/i)
     await page.goto("/production/planner/stock-launcher?mode=pod", { waitUntil: "domcontentloaded" })

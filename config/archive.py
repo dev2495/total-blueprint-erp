@@ -30,7 +30,7 @@ class ArchiveScope:
 def financial_year_dates(code: str) -> tuple[date, date]:
     try:
         start_year = int(str(code).split("-", 1)[0])
-        if not 2000 <= start_year <= 2100:
+        if not 1900 <= start_year <= 2999:
             raise ValueError
     except (TypeError, ValueError):
         raise ValidationError({"fy": "Financial year must look like 2025-2026."})
@@ -42,15 +42,28 @@ def financial_year_of(day: date) -> str:
     return f"{start_year}-{start_year + 1}"
 
 
-def closed_years() -> list[str]:
+def _periods() -> list[tuple[str, str, date, date]]:
+    """(code, status, start, end) of every recorded financial period, from its stored dates."""
     from config.request_context import request_memo
 
     def load():
         from apps.inventory.models import InventoryFinancialPeriod
 
-        return list(InventoryFinancialPeriod.objects.filter(status="CLOSED").values_list("financial_year", flat=True))
+        return list(InventoryFinancialPeriod.objects.values_list("financial_year", "status", "start_date", "end_date"))
 
-    return request_memo(("archive_closed_years",), load)
+    return request_memo(("archive_periods",), load)
+
+
+def closed_years() -> list[tuple[date, date]]:
+    return [(start, end) for _code, status, start, end in _periods() if status == "CLOSED" and start and end]
+
+
+def year_bounds(code: str) -> tuple[date, date]:
+    """Dates of a financial year: the recorded period's own dates, else parsed from the code."""
+    for period_code, _status, start, end in _periods():
+        if str(period_code).strip().lower() == str(code).strip().lower() and start and end:
+            return start, end
+    return financial_year_dates(code)
 
 
 def _range_q(scope: ArchiveScope, start: date, end: date) -> Q:
@@ -66,11 +79,10 @@ def apply_archive_scope(queryset, request, scope: ArchiveScope):
     if fy == "all":
         return queryset
     if fy and fy not in {"current", "working"}:
-        start, end = financial_year_dates(fy)
+        start, end = year_bounds(fy)
         return queryset.filter(_range_q(scope, start, end))
     archived = Q()
-    for code in closed_years():
-        start, end = financial_year_dates(code)
+    for start, end in closed_years():
         archived |= _range_q(scope, start, end)
     if not archived:
         return queryset

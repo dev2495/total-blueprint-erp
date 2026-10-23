@@ -11,12 +11,14 @@ class FinancialYearsView(APIView):
         from apps.inventory.models import InventoryFinancialPeriod
 
         current = financial_year_of(timezone.localtime(timezone.now(), timezone.get_fixed_timezone(330)).date())
-        status_by_year = dict(InventoryFinancialPeriod.objects.values_list("financial_year", "status"))
-        codes = set(status_by_year) | {current}
+        periods = {code: (status, start, end) for code, status, start, end in InventoryFinancialPeriod.objects.values_list("financial_year", "status", "start_date", "end_date")}
+        if current not in periods:
+            periods[current] = ("OPEN", *financial_year_dates(current))
         years = []
-        for code in sorted(codes, reverse=True):
-            start, end = financial_year_dates(code)
-            status = status_by_year.get(code, "OPEN")
+        for code in sorted(periods, key=lambda c: periods[c][1] or financial_year_dates(current)[0], reverse=True):
+            status, start, end = periods[code]
+            if not start or not end:
+                continue
             years.append({
                 "code": code,
                 "label": f"FY {start.year}-{str(end.year)[-2:]}",
