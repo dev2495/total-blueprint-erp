@@ -146,7 +146,7 @@ class DispatchLineageTests(SimpleTestCase):
             )
 
         self.assertEqual(record.lines[0]["material_id"], "tape-1")
-        self.assertEqual(record.lines[0]["qty"], 0.0)
+        self.assertEqual(record.lines[0]["qty"], 1.0)  # a tick = used once on this roll
         self.assertEqual(record.meta_json["consumption_capture_mode"], "DAILY_PACKING_COUNT")
 
     def test_pack_roll_accepts_explicit_lines_when_snapshot_not_configured(self):

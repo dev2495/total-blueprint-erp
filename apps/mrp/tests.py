@@ -275,7 +275,9 @@ class MRPReliabilityTests(TestCase):
         from apps.production.models import PlannedStockOrder
         a = Plant.objects.create(code='MRP-A', name='A')
         b = Plant.objects.create(code='MRP-B', name='B')
-        material = InventoryMaterial.objects.create(code='PACK-WIP', name='Sheet', category='PACKAGING', base_uom='KG', per_sheet_base_qty=Decimal('0.2'))
+        # Pieces become kg only for weighed items: a pouch also made here keeps its entered weight until linked.
+        material = InventoryMaterial.objects.create(code='PACK-WIP', name='Pouch', category='PACKAGING', base_uom='KG', per_sheet_base_qty=Decimal('0.2'),
+            packaging_kind='INNER_POUCH', packaging_supply_mode='BOTH')
         template = TemplateBlueprint.objects.create(name='Sheet', fg_type='POUCH')
         PlannedStockOrder.objects.create(template=template, plant=a, packaging_material=material,
             stock_purpose='PACKAGING', status='RELEASED', target_qty=100, produced_qty=25, quantity_uom='PCS')
