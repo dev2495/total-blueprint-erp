@@ -4896,8 +4896,8 @@
       "PLANT_MANAGER"
     ],
     "summary": {
-      "en": "Use this page to complete the current ERP workflow with validated data and clear downstream impact.",
-      "hi": "Use this page to complete the current ERP workflow with validated data and clear downstream impact."
+      "en": "Material readiness: which open demand is short of stock, by how much, and the next step (build and release, stock order, packaging or POD in-house work).",
+      "hi": "Material readiness: which open demand is short of stock, by how much, and the next step (build and release, stock order, packaging or POD in-house work)."
     },
     "purpose": {
       "en": "This guide keeps the workflow consistent, auditable, and easy to recover if a validation step fails.",
@@ -11009,6 +11009,14 @@
     ],
     "keyActions": [
       {
+        "en": "Inner pouches and sheets made in-house link to their packaging Product Master from the card's Made by Product Master box (pick master and size).",
+        "hi": "Inner pouches and sheets made in-house link to their packaging Product Master from the card's Made by Product Master box (pick master and size)."
+      },
+      {
+        "en": "Bought-only rows (gonny, carton, tape) need no link.",
+        "hi": "Bought-only rows (gonny, carton, tape) need no link."
+      },
+      {
         "en": "Review page KPIs or status cards to identify pending actions.",
         "hi": "लंबित कार्य पहचानने के लिए KPI या स्टेटस कार्ड की समीक्षा करें।"
       },
@@ -11118,8 +11126,8 @@
       "STORE"
     ],
     "summary": {
-      "en": "Use this page to maintain controlled master data used by downstream transactions.",
-      "hi": "इस पेज का उपयोग डाउनस्ट्रीम लेनदेन में उपयोग होने वाले मास्टर डेटा को नियंत्रित रूप से बनाए रखने के लिए करें।"
+      "en": "Fixed POD roll SKUs. Every roll carries its own SKU row automatically; link each in-house roll to the POD Product Master that makes it from the card's Made by Product Master box.",
+      "hi": "Fixed POD roll SKUs. Every roll carries its own SKU row automatically; link each in-house roll to the POD Product Master that makes it from the card's Made by Product Master box."
     },
     "purpose": {
       "en": "This guide helps users complete all key tasks on Master • Pod without process ambiguity.",
@@ -11136,6 +11144,18 @@
       }
     ],
     "keyActions": [
+      {
+        "en": "Add POD Roll creates the roll and its SKU row in one step.",
+        "hi": "Add POD Roll creates the roll and its SKU row in one step."
+      },
+      {
+        "en": "Link to Product Master: pick the POD master and the size it is made in; the variant is found or made and the link shows on the card.",
+        "hi": "Link to Product Master: pick the POD master and the size it is made in; the variant is found or made and the link shows on the card."
+      },
+      {
+        "en": "Change or remove a link from the same box; the master's catalog map shows every linked roll.",
+        "hi": "Change or remove a link from the same box; the master's catalog map shows every linked roll."
+      },
       {
         "en": "Review page KPIs or status cards to identify pending actions.",
         "hi": "लंबित कार्य पहचानने के लिए KPI या स्टेटस कार्ड की समीक्षा करें।"
@@ -13595,6 +13615,10 @@
       }
     ],
     "keyActions": [
+      {
+        "en": "Roll picker: a roll within 15 mm of the planned web either side (or up to 10% wider) is used as it is, with no slitting; wider rolls are slit, rolls more than 15 mm narrower are not offered.",
+        "hi": "Roll picker: a roll within 15 mm of the planned web either side (or up to 10% wider) is used as it is, with no slitting; wider rolls are slit, rolls more than 15 mm narrower are not offered."
+      },
       {
         "en": "Open the correct assignment and current production step. Review every input lane, material, grade, width, thickness and required quantity.",
         "hi": "सही असाइनमेंट और वर्तमान उत्पादन चरण खोलें। हर इनपुट, सामग्री, ग्रेड, चौड़ाई, मोटाई और जरूरी मात्रा जांचें।"
@@ -17338,6 +17362,10 @@
       }
     ],
     "keyActions": [
+      {
+        "en": "Closing a financial year also archives it: finished orders, challans, jobs and ledgers of that year leave the day-to-day lists; pick the year in the header's year picker to see them again. Open work stays in the working set.",
+        "hi": "Closing a financial year also archives it: finished orders, challans, jobs and ledgers of that year leave the day-to-day lists; pick the year in the header's year picker to see them again. Open work stays in the working set."
+      },
       {
         "en": "Open the current workspace and check the summary, filters, and selected context.",
         "hi": "Open the current workspace and check the summary, filters, and selected context."

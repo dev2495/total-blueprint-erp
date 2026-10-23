@@ -2475,8 +2475,29 @@ class FGDispatchService:
         from .dispatch_pdf import DispatchListPDFService
         challan.print_snapshot = DispatchListPDFService.build_challan_snapshot(challan)
         challan.save(update_fields=['status', 'dispatch_date', 'print_snapshot', 'updated_at'])
-        
+        FGDispatchService._refresh_line_batches({item.sales_order_item_id for item in items})
+
         return challan
+
+    @staticmethod
+    def _refresh_line_batches(sales_order_item_ids):
+        """Bring the production batches of these order lines up to date with what just left.
+
+        Batch dispatched figures and status are derived from their rolls and bags; the
+        orders list used to refresh them on every read. They are refreshed here, when
+        dispatch changes them, so lists stay read-only. A refresh failure never undoes
+        a dispatch: it is logged and the next job or detail read refreshes again.
+        """
+        from apps.production.models import ProductionBatch
+        from apps.production.services.batch_route_service import BatchExecutionService
+
+        ids = [value for value in sales_order_item_ids if value]
+        for batch in ProductionBatch.objects.filter(sales_order_item_id__in=ids):
+            try:
+                with transaction.atomic():
+                    BatchExecutionService.sync_batch_from_jobs(batch)
+            except Exception:
+                logger.warning("Batch refresh after dispatch failed batch=%s", batch.id, exc_info=True)
     
     @staticmethod
     @transaction.atomic
@@ -2648,7 +2669,11 @@ class FGDispatchService:
         
         if batch_ids:
             FinishedGoodsBatch.objects.filter(id__in=batch_ids).update(status='DISPATCHED')
-        
+
+        FGDispatchService._refresh_line_batches(
+            set(InventoryRoll.objects.filter(id__in=roll_ids or []).values_list("sales_order_item_id", flat=True))
+            | set(FinishedGoodsBatch.objects.filter(id__in=batch_ids or []).values_list("sales_order_item_id", flat=True))
+        )
         return True
     @staticmethod
     def _sales_order_row(so_id: str):

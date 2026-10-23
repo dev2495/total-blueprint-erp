@@ -504,6 +504,7 @@ export default function StockIntelligenceTab() {
                         {stockPressureOrders.map((order) => {
                             const coverage = Number(order.analytics?.coverage_pct ?? order.summary?.coverage_pct ?? 0);
                             const tone = coverage >= 80 ? "var(--success)" : coverage >= 40 ? "var(--warning)" : "var(--danger)";
+                            const toneText = coverage >= 80 ? "var(--success-fg)" : coverage >= 40 ? "var(--warning-fg)" : "var(--danger-fg)";
                             return (
                                 <div key={`${order.order_kind}:${order.order_id}:${order.sales_order_item_id || "order"}`} style={{
                                     padding: 12,
@@ -516,7 +517,7 @@ export default function StockIntelligenceTab() {
                                         <div style={{ flex: 1, height: 7, borderRadius: 999, overflow: "hidden", background: "var(--surface-2)" }}>
                                             <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, coverage))}%`, background: tone }} />
                                         </div>
-                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: tone, whiteSpace: "nowrap" }}>{pct(coverage)}</span>
+                                        <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: toneText, whiteSpace: "nowrap" }}>{pct(coverage)}</span>
                                         <Link href="/dashboard/planner/control-tower/plan-queue" style={{ textDecoration: "none" }}>
                                             <Button variant="secondary" size="sm">Plan</Button>
                                         </Link>
@@ -990,7 +991,7 @@ function PackagingStockCard({ openCount, balances, onLaunch }: { openCount: numb
                     <button
                         type="button"
                         onClick={onLaunch}
-                        style={{ background: "none", border: "none", color: "var(--v-700)", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
+                        style={{ background: "none", border: "none", color: "var(--v-700)", fontWeight: 700, cursor: "pointer", textDecoration: "underline", minHeight: 24, padding: "2px 4px" }}
                     >
                         Launch one
                     </button>

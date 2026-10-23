@@ -378,7 +378,7 @@ export function RouteGraphSvg({
     const svgHeight = Math.max(height, 34 + lanes.length * laneHeight);
     const viewWidth = 960;
     return (
-        <div style={{ width: "100%", overflowX: "auto", paddingBottom: 2 }}>
+        <div tabIndex={0} role="region" aria-label="Route steps (scroll sideways)" style={{ width: "100%", overflowX: "auto", paddingBottom: 2 }}>
             <svg role="img" aria-label="Production route graph" viewBox={`0 0 ${viewWidth} ${svgHeight}`} style={{ width: "100%", minWidth: 620, height: svgHeight, display: "block" }}>
                 <defs>
                     <filter id="ct-route-shadow" x="-10%" y="-20%" width="120%" height="160%">
@@ -845,7 +845,7 @@ function ProductionRouteLedger({ steps, jobs, materialPlan, dense, order }: { st
     }, new Map<number, PlannerProductionRouteStep[]>()).entries()).sort(([a], [b]) => a - b);
     const minWidth = Math.max(dense ? 560 : 640, groups.length * (dense ? 196 : 228));
     return (
-        <div style={{ width: "100%", overflowX: "auto", paddingBottom: 4, overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch", scrollbarGutter: "stable", scrollSnapType: dense ? "x proximity" : "none", contain: "layout paint" }}>
+        <div tabIndex={0} role="region" aria-label="Production trace steps (scroll sideways)" style={{ width: "100%", overflowX: "auto", paddingBottom: 4, overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch", scrollbarGutter: "stable", scrollSnapType: dense ? "x proximity" : "none", contain: "layout paint" }}>
             <div style={{ minWidth, display: "grid", gridTemplateColumns: `repeat(${groups.length}, minmax(${dense ? 188 : 216}px, 1fr))`, gap: 8, alignItems: "stretch" }}>
                 {groups.map(([index, group], groupIndex) => {
                     const relatedJobs = jobs.filter((job) => group.some((step) => jobMatchesStep(job, step)));
@@ -1022,12 +1022,12 @@ function TraceMetric({ icon, label, value, sub, tone = "default" }: { icon: Reac
     }[tone];
     return (
         <div style={{ minWidth: 0, padding: "9px 11px", border: `1px solid ${styles.border}`, borderRadius: "var(--r-3)", background: styles.bg }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-4)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em", color: "var(--text-3)" }}>
                 {icon}
                 {label}
             </div>
             <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: styles.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
-            {sub && <div style={{ marginTop: 2, fontSize: 10.5, fontWeight: 700, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+            {sub && <div style={{ marginTop: 2, fontSize: 10.5, fontWeight: 700, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
         </div>
     );
 }
