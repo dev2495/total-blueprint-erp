@@ -24,10 +24,11 @@ import { formatDisplayDateTime } from "@/lib/date-format";
 import { PaginationBar, usePagination } from "@/components/premium";
 
 export default function BulkTransactionsPage() {
-  const { data: transactions, isLoading } = useQuery({
+  const { data: page, isLoading } = useQuery({
     queryKey: ["bulk-transactions"],
-    queryFn: () => inventoryService.getBulkTransactions(),
+    queryFn: () => inventoryService.getBulkTransactionsPage(),
   });
+  const transactions = page?.rows;
   const pagination = usePagination(transactions, 50);
 
   const getTransactionIcon = (type: string) => {
@@ -100,6 +101,12 @@ export default function BulkTransactionsPage() {
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <History className="w-5 h-5 text-content-4" /> Recent Activity
           </CardTitle>
+          {page?.limited ? (
+            <p className="mt-1 text-caption text-content-3" role="status">
+              Showing the newest {page.rows.length.toLocaleString("en-IN")} of{" "}
+              {page.total.toLocaleString("en-IN")} entries. Pick an earlier financial year in the header to see older ones.
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
           <Table>

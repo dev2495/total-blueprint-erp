@@ -672,16 +672,19 @@ class DeliveryChallanSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['id', 'status', 'dc_no', 'created_at', 'updated_at']
 
+    @staticmethod
+    def _lines(obj):
+        # The list prefetches items with their roll/material/locations; use those rows
+        # (a filtered or re-ordered queryset would query once per challan).
+        return sorted(obj.items.all(), key=lambda line: (line.created_at, str(line.id)))
+
     def get_items(self, obj):
-        return InterPlantChallanItemSerializer(
-            obj.items.select_related('roll', 'material', 'from_location', 'to_location'),
-            many=True
-        ).data
+        return InterPlantChallanItemSerializer(self._lines(obj), many=True).data
 
     def get_transfer_summary(self, obj):
-        items_qs = obj.items.all()
-        roll_lines = items_qs.filter(line_type='ROLL').count()
-        bulk_lines = items_qs.filter(line_type='BULK').count()
+        items_qs = self._lines(obj)
+        roll_lines = sum(1 for line in items_qs if line.line_type == 'ROLL')
+        bulk_lines = sum(1 for line in items_qs if line.line_type == 'BULK')
         total_lines = roll_lines + bulk_lines
         dispatched_total = sum(float(i.dispatched_qty_kg or 0) for i in items_qs)
         received_total = sum(float(i.received_qty_kg or 0) for i in items_qs)
@@ -720,7 +723,7 @@ class DeliveryChallanSerializer(serializers.ModelSerializer):
         }
 
     def get_item_preview(self, obj):
-        rows = obj.items.select_related('roll', 'material', 'granule_code', 'from_location', 'to_location').order_by('created_at')[:3]
+        rows = self._lines(obj)[:3]
         out = []
         for line in rows:
             roll_role = resolve_roll_role(line.roll)

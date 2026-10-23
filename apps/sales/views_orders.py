@@ -19,9 +19,10 @@ from .serializers_orders import (
 from .services import SalesOrderService
 from .services.bom_preview import BOMPreviewService
 from .services.order_block_resolver import resolve_block_reasons
+from config.archive import ArchiveScope, ArchiveScopedListMixin
 
 
-class SalesOrderViewSet(viewsets.ModelViewSet):
+class SalesOrderViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
     """Sales orders.
 
     Only a DRAFT order can be edited or deleted. Once confirmed, an order is
@@ -29,6 +30,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     (whole order or lines) and the planner's short-close, never by a raw
     update or delete.
     """
+    archive_scope = ArchiveScope("created_at", Q(status__in=["COMPLETED", "CANCELLED"]))
 
     queryset = SalesOrder.objects.all().order_by("-created_at")
     serializer_class = SalesOrderSerializer
@@ -103,7 +105,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
                 "product_variant",
                 "customer_product_overlay",
                 "assigned_artwork",
-            ).prefetch_related("production_batches").order_by("created_at")
+            ).prefetch_related("production_batches", "assigned_artwork__images").order_by("created_at")
             queryset = (
                 SalesOrder.objects.all()
                 .select_related("customer", "ship_to_customer")

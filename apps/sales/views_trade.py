@@ -31,6 +31,8 @@ from apps.sales.services.trade_dispatch import (
 )
 from apps.users.permission_registry import can_with_wildcard
 from apps.users.permission_service import PermissionService
+from config.archive import ArchiveScope, ArchiveScopedListMixin
+from django.db.models import Q
 
 
 class TradingGoodViewSet(viewsets.ModelViewSet):
@@ -255,7 +257,8 @@ class TradeOrderItemOptionsView(APIView):
         return Response(rows)
 
 
-class TradeOrderViewSet(viewsets.ModelViewSet):
+class TradeOrderViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("order_date", Q(status__in=["DISPATCHED", "INVOICED", "CANCELLED"]), is_date=True)
     queryset = TradeOrder.objects.all().prefetch_related("items").order_by("-created_at")
     serializer_class = TradeOrderSerializer
 

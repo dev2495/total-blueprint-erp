@@ -94,7 +94,7 @@ export function TraceabilityV36() {
 
   const rollsQuery = useQuery({
     queryKey: ["traceability-roll-options-v36"],
-    queryFn: () => listRolls(),
+    queryFn: () => listRolls({ limit: 50 }),
     staleTime: 60_000,
   });
   const rollOptions = React.useMemo(() => {

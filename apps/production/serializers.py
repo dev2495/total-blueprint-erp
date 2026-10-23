@@ -282,16 +282,13 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         if not layers:
             return []
 
-        # Resolve IDs to human-readable names
-        grade_ids = [L.get('grade_id') for L in layers if L.get('grade_id')]
-        variant_ids = [L.get('variant_id') for L in layers if L.get('variant_id')]
-        
-        from apps.recipes.models import RecipeGrade
-        from apps.materials.models import InventoryMaterial
-        
-        # Batch fetch for efficiency
-        grades = {str(g.id): g.name for g in RecipeGrade.objects.filter(id__in=grade_ids)}
-        variants = {str(v.id): v.name for v in InventoryMaterial.objects.filter(id__in=variant_ids)}
+        # Resolve IDs to human-readable names (memoized per read request, shared by every row).
+        from apps.materials.product_spec import resolve_layer_materials
+
+        layers = [dict(L) for L in layers if isinstance(L, dict)]
+        material_by_id, grade_by_id = resolve_layer_materials(layers)
+        grades = {key: getattr(row, "name", "") for key, row in grade_by_id.items()}
+        variants = {key: getattr(row, "name", "") for key, row in material_by_id.items()}
         
         for L in layers:
             gid = L.get('grade_id')

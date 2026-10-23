@@ -147,7 +147,7 @@ class RoleOverrideMiddleware:
         if is_public_endpoint(path):
             return True
         allowed = {
-            "GET": {"/api/users/me", "/api/auth/me", "/api/users/users/me", "/api/auth/users/me", "/api/users/profile-change-requests", "/api/auth/profile-change-requests", "/api/users/users/entitlements/validate", "/api/auth/users/entitlements/validate"},
+            "GET": {"/api/users/me", "/api/auth/me", "/api/auth/financial-years", "/api/users/users/me", "/api/auth/users/me", "/api/users/profile-change-requests", "/api/auth/profile-change-requests", "/api/users/users/entitlements/validate", "/api/auth/users/entitlements/validate"},
             "POST": {"/api/users/logout", "/api/auth/logout", "/api/users/change-password", "/api/auth/change-password", "/api/users/profile-change-requests", "/api/auth/profile-change-requests"},
         }
         return path in allowed.get(method, set()) or method == "OPTIONS" and path in set().union(*allowed.values())
@@ -199,7 +199,7 @@ class RoleOverrideMiddleware:
     @staticmethod
     def _self_service_path(path, method):
         allowed = {
-            "GET": {"/api/users/me", "/api/auth/me", "/api/users/users/me", "/api/auth/users/me", "/api/users/profile-change-requests", "/api/auth/profile-change-requests", "/api/users/users/entitlements/validate", "/api/auth/users/entitlements/validate"},
+            "GET": {"/api/users/me", "/api/auth/me", "/api/auth/financial-years", "/api/users/users/me", "/api/auth/users/me", "/api/users/profile-change-requests", "/api/auth/profile-change-requests", "/api/users/users/entitlements/validate", "/api/auth/users/entitlements/validate"},
             "POST": {"/api/users/logout", "/api/auth/logout", "/api/users/change-password", "/api/auth/change-password", "/api/users/profile-change-requests", "/api/auth/profile-change-requests"},
         }
         return path in allowed.get(method, set()) or method == "OPTIONS" and path in set().union(*allowed.values())

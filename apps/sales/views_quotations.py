@@ -20,6 +20,8 @@ from .services.quotation_cost_build import QuotationCostBuildService
 from .services.quotation_lifecycle import QuotationLifecycleService, _can
 from .services.quotation_pdf import QuotationPDFService
 from .services.quotation_service import QuotationService
+from config.archive import ArchiveScope, ArchiveScopedListMixin
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +90,8 @@ def _quote_item_readiness_errors(items):
     return errors
 
 
-class QuotationViewSet(viewsets.ModelViewSet):
+class QuotationViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["REJECTED", "EXPIRED", "CANCELLED", "VOID", "CONVERTED"]))
     queryset = (
         Quotation.objects.select_related("customer", "plant", "plant__legal_profile", "converted_sales_order")
         .prefetch_related(

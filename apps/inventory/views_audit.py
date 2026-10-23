@@ -9,7 +9,6 @@ from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -926,7 +925,7 @@ def _read_opening_upload(uploaded):
 
 
 class OpeningStockCsvView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def post(self, request):
         guard = _require_permission(request, "inventory.audit.manage")
@@ -1006,7 +1005,7 @@ class OpeningStockCsvView(APIView):
 
 
 class OpeningStockManualView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def post(self, request):
         guard = _require_permission(request, "inventory.audit.manage")
@@ -1038,7 +1037,7 @@ class OpeningStockManualView(APIView):
 
 
 class OpeningStockFromCountView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def post(self, request):
         guard = _require_permission(request, "inventory.audit.manage")
@@ -1104,7 +1103,7 @@ class MasterCatalogView(APIView):
     so the lifecycle workspace can offer them for opening / counting.
     """
 
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         guard = _require_permission(request, "inventory.audit.view")

@@ -24,6 +24,8 @@ from apps.factory.models import Plant
 from apps.sales.models import Customer, SalesOrder, SalesOrderItem
 from apps.sales.models_dispatch import CustomerDispatch, CustomerDispatchLine
 from apps.sales.services.order_service import SalesOrderService
+from config.archive import ArchiveScope, ArchiveScopedListMixin
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +183,8 @@ class CustomerDispatchSerializer(serializers.ModelSerializer):
         return instance
 
 
-class CustomerDispatchViewSet(viewsets.ModelViewSet):
+class CustomerDispatchViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["DISPATCHED", "CANCELLED"]))
     queryset = (
         CustomerDispatch.objects.all()
         .select_related("sales_order", "plant", "customer")

@@ -485,7 +485,7 @@ function CreateChallanDialog() {
   });
   const { data: rolls } = useQuery({
     queryKey: ["create-challan-rolls", fromPlant],
-    queryFn: () => inventoryService.getRollStock(fromPlant),
+    queryFn: () => inventoryService.getRollStock(fromPlant, undefined, undefined, "AVAILABLE"),
     enabled: open && Boolean(fromPlant) && transferMode === "ROLL",
   });
   const { data: bulkStock } = useQuery({
@@ -1025,7 +1025,7 @@ function DispatchChallanDialog({ challan }: { challan: DeliveryChallan }) {
 
   const { data: rolls } = useQuery({
     queryKey: ["rolls", challan.from_plant],
-    queryFn: () => inventoryService.getRollStock(challan.from_plant),
+    queryFn: () => inventoryService.getRollStock(challan.from_plant, undefined, undefined, "AVAILABLE"),
     enabled: open,
   });
   const { data: bulkStock } = useQuery({

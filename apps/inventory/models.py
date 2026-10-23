@@ -372,6 +372,9 @@ class InventoryRoll(models.Model):
     class Meta:
         db_table = 'inventory_rolls'
         indexes = [
+            # Newest-first lists and the year archive (status + created_at).
+            models.Index(fields=['status', '-created_at'], name='inv_roll_status_created'),
+            models.Index(fields=['-created_at'], name='inv_roll_created'),
             models.Index(fields=['status']),
             models.Index(fields=['stage_index']),
             models.Index(fields=['location']),
@@ -466,6 +469,7 @@ class BulkTransaction(models.Model):
     class Meta:
         db_table = 'inventory_bulk_transactions'
         ordering = ['-created_at']
+        indexes = [models.Index(fields=['-created_at'], name='inv_bulk_tx_created')]
 
 
 class PackagingStock(models.Model):
@@ -529,6 +533,7 @@ class PackagingTransaction(models.Model):
     class Meta:
         db_table = 'inventory_packaging_transactions'
         ordering = ['-created_at']
+        indexes = [models.Index(fields=['-created_at'], name='inv_pack_tx_created')]
 
 
 class InventoryCorrectionAudit(models.Model):
@@ -886,6 +891,7 @@ class DeliveryChallan(models.Model):
 
     class Meta:
         db_table = 'inventory_delivery_challans'
+        indexes = [models.Index(fields=['status', '-created_at'], name='inv_ipdc_status_created')]
 
 
 class InterPlantChallanItem(models.Model):

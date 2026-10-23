@@ -148,7 +148,7 @@ class WcmStepContractTests(TestCase):
         "_resolve_step_roll_spec",
         return_value={"input_roll_count": 1},
     )
-    def test_manual_discovery_never_includes_thinner_or_narrower_rolls(
+    def test_manual_discovery_excludes_thinner_rolls_and_rolls_beyond_the_width_tolerance(
         self,
         _roll_spec,
         _target_specs,
@@ -166,18 +166,23 @@ class WcmStepContractTests(TestCase):
             original_weight_kg=Decimal("100"),
             weight_kg=Decimal("100"),
         )
-        narrower = InventoryRoll.objects.create(
-            label_id="ROLL-WCM-NARROWER",
-            material=self.material,
-            plant=self.plant,
-            location=self.rm,
-            status="AVAILABLE",
-            thickness_micron=Decimal("50"),
-            width_mm=Decimal("849"),
-            stock_form="OPEN_WEB",
-            original_weight_kg=Decimal("100"),
-            weight_kg=Decimal("100"),
-        )
+        def roll(label, width):
+            return InventoryRoll.objects.create(
+                label_id=label,
+                material=self.material,
+                plant=self.plant,
+                location=self.rm,
+                status="AVAILABLE",
+                thickness_micron=Decimal("50"),
+                width_mm=Decimal(width),
+                stock_form="OPEN_WEB",
+                original_weight_kg=Decimal("100"),
+                weight_kg=Decimal("100"),
+            )
+
+        # Within ±15 mm of the planned 850 mm web a roll is used as it is.
+        within = roll("ROLL-WCM-WITHIN-TOLERANCE", "849")
+        narrower = roll("ROLL-WCM-NARROWER", "834")
 
         eligible = RollAllocationService.get_eligible_rolls(
             self.job,
@@ -187,6 +192,7 @@ class WcmStepContractTests(TestCase):
 
         self.assertTrue(eligible.filter(id=self.exact_roll.id).exists())
         self.assertFalse(eligible.filter(id=thinner.id).exists())
+        self.assertTrue(eligible.filter(id=within.id).exists())
         self.assertFalse(eligible.filter(id=narrower.id).exists())
 
     def test_same_material_layers_keep_distinct_width_contracts(self):

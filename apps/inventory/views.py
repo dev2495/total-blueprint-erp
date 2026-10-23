@@ -73,6 +73,7 @@ from apps.materials.models import InventoryMaterial
 from apps.production.models import ProductionJob
 from apps.factory.models import Process, Machine, Plant
 from django_filters.rest_framework import DjangoFilterBackend
+from config.archive import ArchiveScope, ArchiveScopedListMixin, NewestRowsListMixin
 
 try:
     from apps.costing.models import MaterialCostSnapshot
@@ -857,14 +858,14 @@ def _stock_snapshot_payload(request):
 
 
 class InventoryV36SnapshotView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         return Response(_stock_snapshot_payload(request))
 
 
 class InventoryV36RollMatrixView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         snapshot = _stock_snapshot_payload(request)
@@ -886,7 +887,7 @@ class InventoryV36RollMatrixView(APIView):
 
 
 class InventoryV36AnomaliesView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         kind_filter = str(request.query_params.get("kind") or "").upper().strip()
@@ -923,7 +924,7 @@ class InventoryV36AnomaliesView(APIView):
 
 
 class InventoryV36ReservationsView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         ref_id = request.query_params.get("ref_id")
@@ -1024,7 +1025,7 @@ class InventoryV36SavedViewDetail(APIView):
 
 
 class InventoryV36ClassSnapshotView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     klass = ""
 
     def get(self, request):
@@ -1051,7 +1052,7 @@ class InventoryV36ClassSnapshotView(APIView):
 
 
 class InventoryV36CoverageView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         snapshot = _stock_snapshot_payload(request)
@@ -1092,7 +1093,7 @@ class InventoryV36CoverageView(APIView):
 
 
 class InventoryV36SnapshotTrendView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         days = min(max(int(request.query_params.get("days") or 14), 1), 90)
@@ -1129,7 +1130,7 @@ class InventoryV36SnapshotTrendView(APIView):
 
 
 class InventoryV36ExportView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request, klass):
         snapshot = _stock_snapshot_payload(request)
@@ -1231,7 +1232,7 @@ class LocationViewSet(viewsets.ModelViewSet):
             raise DRFValidationError("This location is referenced by other records and cannot be deleted. Close it (set it inactive) instead.")
 
 class StockViewSet(viewsets.ViewSet):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     @action(detail=False, methods=['get'])
     def bulk(self, request):
@@ -2376,7 +2377,8 @@ class GRNViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
 
-class DeliveryChallanViewSet(viewsets.ModelViewSet):
+class DeliveryChallanViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status="RECEIVED"))
     queryset = DeliveryChallan.objects.select_related(
         'from_plant',
         'to_plant',
@@ -2543,7 +2545,7 @@ def _query_uuid(params, key):
         raise DRFValidationError({key: "Must be a valid ID."})
 
 
-class RollViewSet(viewsets.ReadOnlyModelViewSet):
+class RollViewSet(ArchiveScopedListMixin, viewsets.ReadOnlyModelViewSet):
     """
     Roll lookups (list, detail, genealogy, explorer, WCM picker) and the
     store's roll operations: labels, split, stock-form conversion, location
@@ -2554,6 +2556,8 @@ class RollViewSet(viewsets.ReadOnlyModelViewSet):
     adjustment flows, each of which writes its movement trail. There is no raw
     create/update/delete.
     """
+    # Rolls used up, scrapped or written off in a closed year leave the default list.
+    archive_scope = ArchiveScope("created_at", Q(status__in=["CONSUMED", "SCRAPPED", "MISSING"]))
     queryset = InventoryRoll.objects.all().select_related(
         'material', 'material__parent_family', 'grade', 'plant', 'location',
         'created_by_job', 'created_by_job__production_batch',
@@ -2619,7 +2623,26 @@ class RollViewSet(viewsets.ReadOnlyModelViewSet):
             value = _query_decimal(params, key)
             if value is not None:
                 queryset = queryset.filter(**{lookup: value})
+        exclude_status = [part.strip().upper() for part in str(params.get("exclude_status") or "").split(",") if part.strip()]
+        if exclude_status:
+            queryset = queryset.exclude(status__in=exclude_status)
+        reserved_for_job = _query_uuid(params, "reserved_for_job")
+        if reserved_for_job is not None:
+            queryset = queryset.filter(reservations__job_id=reserved_for_job, reservations__status="ACTIVE").distinct()
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        # ?limit=N returns the newest N rolls (pickers and quick lists); without it the
+        # list is unchanged for existing callers.
+        raw_limit = request.query_params.get("limit")
+        if raw_limit in (None, ""):
+            return super().list(request, *args, **kwargs)
+        try:
+            limit = max(1, min(int(raw_limit), 500))
+        except (TypeError, ValueError):
+            raise DRFValidationError({"limit": "Enter a whole number."})
+        queryset = self.filter_queryset(self.get_queryset()).order_by("-created_at")[:limit]
+        return Response(self.get_serializer(queryset, many=True).data)
 
     @action(detail=False, methods=['get'], url_path='for-wcm')
     def for_wcm(self, request):
@@ -3121,24 +3144,26 @@ class RollViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": "Request failed"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class RollMovementListView(generics.ListAPIView):
+class RollMovementListView(NewestRowsListMixin, ArchiveScopedListMixin, generics.ListAPIView):
     """List view for roll movements (movement log page)."""
+    archive_scope = ArchiveScope("timestamp")
     queryset = RollMovement.objects.all().select_related(
         'roll', 'from_location', 'to_location', 'job', 'moved_by'
     ).order_by('-timestamp')
     serializer_class = RollMovementSerializer
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['roll', 'from_location', 'to_location', 'reason']
 
 
-class RollConsumptionListView(generics.ListAPIView):
+class RollConsumptionListView(NewestRowsListMixin, ArchiveScopedListMixin, generics.ListAPIView):
     """List view for roll consumptions (scrap report support)."""
+    archive_scope = ArchiveScope("timestamp")
     queryset = RollConsumption.objects.all().select_related(
-        'job', 'process', 'input_roll', 'output_roll', 'machine', 'operator'
+        'job', 'process', 'input_roll', 'output_roll', 'balance_roll', 'scrap_roll', 'machine', 'operator'
     ).order_by('-timestamp')
     serializer_class = RollConsumptionSerializer
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['job', 'process', 'machine']
 
@@ -3161,7 +3186,7 @@ class InventoryLedgerView(APIView):
     Response shape matches `frontend_v2/src/app/(dashboard)/inventory/ledger/page.tsx`.
     """
 
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         tx_type_filter = (request.query_params.get("tx_type") or "ALL").upper()
@@ -3339,13 +3364,14 @@ class BulkInventoryViewSet(viewsets.ReadOnlyModelViewSet):
         except (ValidationError, ValueError) as exc:
             return Response({"error": _api_error_message(exc)}, status=400)
 
-class BulkTransactionListView(generics.ListAPIView):
+class BulkTransactionListView(NewestRowsListMixin, ArchiveScopedListMixin, generics.ListAPIView):
     """Audit log for Bulk Transactions."""
+    archive_scope = ArchiveScope("created_at")
     queryset = BulkTransaction.objects.all().select_related(
         'material', 'granule_code', 'location', 'job'
     ).order_by('-created_at')
     serializer_class = BulkTransactionSerializer
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['material', 'granule_code', 'location', 'type']
 
@@ -3355,17 +3381,18 @@ class PackagingStockViewSet(viewsets.ReadOnlyModelViewSet):
         'material', 'location', 'plant'
     ).order_by('material__name')
     serializer_class = PackagingStockSerializer
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['plant', 'location', 'material']
 
 
-class PackagingTransactionListView(generics.ListAPIView):
+class PackagingTransactionListView(NewestRowsListMixin, ArchiveScopedListMixin, generics.ListAPIView):
+    archive_scope = ArchiveScope("created_at")
     queryset = PackagingTransaction.objects.all().select_related(
         'material', 'location', 'vendor', 'job', 'sales_order_item', 'mts_order'
     ).order_by('-created_at')
     serializer_class = PackagingTransactionSerializer
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['material', 'location', 'type']
 
@@ -3384,7 +3411,7 @@ class InventoryHealthView(generics.GenericAPIView):
     GET /api/inventory/health/
     Returns current inventory health metrics, alerts summary, and shortages.
     """
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     
     def get(self, request):
         plant_id = request.query_params.get('plant')
@@ -3517,7 +3544,7 @@ class RollGenealogyView(generics.GenericAPIView):
     GET /api/inventory/rolls/{id}/genealogy/
     Returns full genealogy tree for a roll.
     """
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
     
     def get(self, request, pk):
         try:
@@ -3534,7 +3561,7 @@ class RollTraceLookupView(generics.GenericAPIView):
     GET /api/inventory/roll-trace/?q=<roll-id-or-label>
     Resolve by UUID or label and return rich genealogy payload.
     """
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         query = (request.query_params.get("q") or "").strip()

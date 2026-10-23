@@ -233,7 +233,7 @@ export default function RollTraceabilityPage() {
 
   const rollsQuery = useQuery({
     queryKey: ["traceability-roll-options"],
-    queryFn: async () => listRolls(),
+    queryFn: async () => listRolls({ limit: 200 }),
     staleTime: 60_000,
   });
 

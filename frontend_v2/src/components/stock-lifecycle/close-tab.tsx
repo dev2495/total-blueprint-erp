@@ -472,6 +472,11 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
             <DialogDescription>
               This will call the live period-close endpoint, lock this FY for
               the selected plant, and generate the next-year opening snapshot.
+              Finished records of this year (completed orders, received
+              challans, closed jobs, stock ledgers) then move to the archive:
+              they leave the day-to-day lists, stay one click away in the
+              header&apos;s year picker, and every link to them still opens.
+              Open work from this year stays in the working set.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl bg-surface-2 p-4 text-sm text-content-2">

@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
+import { getFinancialYear } from "@/lib/financial-year";
 
 const normalizeBase = (value: string): string => value.replace(/\/+$/, "");
 
@@ -274,6 +275,14 @@ api.interceptors.request.use(
         }
 
         const method = String(config.method || "get").toLowerCase();
+        if (method === "get") {
+            // A financial year picked in the header scopes every long list (?fy=).
+            const year = getFinancialYear();
+            const params = (config.params || {}) as Record<string, unknown>;
+            if (year && params.fy === undefined && !String(config.url || "").includes("fy=")) {
+                config.params = { ...params, fy: year };
+            }
+        }
         if (unsafeMethods.has(method)) {
             const csrfToken = await ensureCsrfToken();
             if (csrfToken) {

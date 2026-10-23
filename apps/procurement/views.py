@@ -24,11 +24,14 @@ from apps.procurement.services.po_receipt import PurchaseOrderReceiptService
 from apps.procurement.services.purchase_order import PurchaseOrderService
 from apps.procurement.services.trading_good_receipt import TradingGoodReceiptService
 from apps.procurement.services.vendor_performance import VendorPerformanceService
+from config.archive import ArchiveScope, ArchiveScopedListMixin
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
 
-class PurchaseOrderViewSet(viewsets.ModelViewSet):
+class PurchaseOrderViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["COMPLETED", "CANCELLED"]))
     queryset = PurchaseOrder.objects.all().select_related("vendor", "plant").prefetch_related("items", "items__material")
 
     def get_serializer_class(self):
@@ -158,7 +161,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 from apps.gate.bill_services import with_bill_grn
 
 
-class PurchaseOrderReceiptViewSet(viewsets.ModelViewSet):
+class PurchaseOrderReceiptViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("received_at")
     queryset = PurchaseOrderReceipt.objects.all().select_related(
         "purchase_order", "plant"
     ).prefetch_related("lines")

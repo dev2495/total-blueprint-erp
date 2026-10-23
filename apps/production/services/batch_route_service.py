@@ -748,14 +748,22 @@ class BatchExecutionService:
         return None
 
     @classmethod
-    def line_summary(cls, so_item):
-        batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
-        if not batches and ProductionJob.objects.filter(sales_order_item=so_item).exists():
-            cls.backfill_legacy_sales_item_batch(so_item)
+    def line_summary(cls, so_item, *, sync=True):
+        """Batch progress for one order line. sync=False reads the stored batch totals
+        (prefetched) and writes nothing: list screens must never update rows on a read."""
+        if not sync:
+            batches = sorted(
+                so_item.production_batches.all(),
+                key=lambda batch: (batch.batch_sequence or 0, batch.created_at),
+            )
+        else:
             batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
-        for batch in batches:
-            cls.sync_batch_from_jobs(batch)
-        batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
+            if not batches and ProductionJob.objects.filter(sales_order_item=so_item).exists():
+                cls.backfill_legacy_sales_item_batch(so_item)
+                batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
+            for batch in batches:
+                cls.sync_batch_from_jobs(batch)
+            batches = list(so_item.production_batches.all().order_by("batch_sequence", "created_at"))
         total = len(batches)
         status_counts = {}
         produced_kg = Decimal("0")

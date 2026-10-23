@@ -250,6 +250,10 @@ export async function listRolls(params?: {
     location?: string;
     material?: string;
     is_fg?: boolean;
+    /** Newest N rolls only (max 500); use for pickers and quick lists. */
+    limit?: number;
+    /** Comma list of statuses the server leaves out, e.g. "CONSUMED,SCRAPPED". */
+    exclude_status?: string;
 }): Promise<Roll[]> {
     const response = await api.get('/api/inventory/rolls/', { params });
     return response.data;

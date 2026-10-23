@@ -9,6 +9,7 @@ import { AlertTriangle, Menu } from "lucide-react";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { LocationCapsule } from "@/components/layout/location-capsule";
 import { RoleSwitcher } from "@/components/layout/role-switcher";
+import { FinancialYearPicker } from "@/components/layout/financial-year-picker";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { ScanButton } from "@/components/scan/scan-button";
@@ -158,6 +159,7 @@ export function Header() {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3 lg:gap-4">
+          <FinancialYearPicker className="hidden xl:flex" />
           <div className="relative z-10 hidden md:block">
             <RoleSwitcher />
           </div>

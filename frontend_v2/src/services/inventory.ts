@@ -476,11 +476,23 @@ export const inventoryService = {
         return data as BulkTransaction[]
     },
 
-    getRollStock: async (plantId?: string, locationId?: string, jobId?: string) => {
+    /** Ledger rows plus whether the server returned only the newest part. */
+    getBulkTransactionsPage: async (params?: any) => {
+        const response = await api.get("/api/inventory/bulk-transactions/", { params })
+        const limited = String(response.headers?.["x-result-limited"] || "") === "1"
+        return {
+            rows: response.data as BulkTransaction[],
+            limited,
+            total: limited ? Number(response.headers?.["x-total-count"] || 0) : (response.data as BulkTransaction[]).length,
+        }
+    },
+
+    getRollStock: async (plantId?: string, locationId?: string, jobId?: string, status?: string) => {
         const params: any = {}
         if (plantId) params.plant = plantId
         if (locationId) params.location = locationId
         if (jobId) params.reserved_for_job = jobId
+        if (status) params.status = status
 
         const { data } = await api.get<MaybePaginated<Roll>>("/api/inventory/rolls/", { params })
         return unwrapList<Roll>(data)

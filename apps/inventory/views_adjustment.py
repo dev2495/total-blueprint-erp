@@ -18,6 +18,8 @@ from apps.inventory.services.adjustment import (
 )
 from apps.users.permission_registry import can_with_wildcard
 from apps.users.permission_service import PermissionService
+from config.archive import ArchiveScope, ArchiveScopedListMixin
+from django.db.models import Q
 
 
 class CanAdjustStock(BasePermission):
@@ -266,7 +268,8 @@ class StockAdjustmentSerializer(serializers.ModelSerializer):
         return instance
 
 
-class StockAdjustmentViewSet(viewsets.ModelViewSet):
+class StockAdjustmentViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["POSTED", "VOID"]))
     queryset = (
         StockAdjustment.objects.all()
         .select_related("plant", "created_by", "posted_by")

@@ -605,6 +605,13 @@ class WCQueueViewSet(WorkCentreScopeMixin, viewsets.ReadOnlyModelViewSet):
                 'mts_order',
                 'production_batch',
                 'sales_order_item__sales_order',
+                'sales_order_item__template',
+                'sales_order_item__product_master',
+                'sales_order_item__product_variant',
+                'sales_order_item__sku_variant',
+                'sales_order_item__customer_product_overlay',
+                'sales_order_item__assigned_artwork',
+                'mts_order__committed_artwork',
                 'machine',
                 'operator',
                 'closed_by',
@@ -637,7 +644,13 @@ class WCQueueViewSet(WorkCentreScopeMixin, viewsets.ReadOnlyModelViewSet):
                 Q(wcm_audit_events__payload__icontains=search)
             ).distinct()
 
-        queryset = list(queryset.order_by('-updated_at')[:limit])
+        # Pick the page by id first (DISTINCT over wide joined rows took ~0.6 s at 15k jobs),
+        # then load those rows with their joins.
+        ordered_ids = list(queryset.order_by('-updated_at').values_list('id', flat=True)[:limit])
+        by_id = ProductionJob.objects.filter(id__in=ordered_ids)
+        by_id.query.select_related = queryset.query.select_related
+        by_id = {job.id: job for job in by_id}
+        queryset = [by_id[job_id] for job_id in ordered_ids if job_id in by_id]
 
         from apps.production.serializers import ProductionJobSerializer
 

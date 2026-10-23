@@ -4,7 +4,6 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -12,6 +11,8 @@ from apps.inventory.models import InkFloorMovement, InkFloorSession
 from apps.inventory.permissions import FLOOR_MOVEMENT, InventoryActionPermission
 from apps.inventory.serializers_ink_floor import InkFloorMovementSerializer, InkFloorSessionSerializer
 from apps.inventory.services.ink_floor import InkFloorService
+from config.archive import ArchiveScope, ArchiveScopedListMixin, NewestRowsListMixin
+from django.db.models import Q
 
 
 def _api_error(exc):
@@ -30,9 +31,10 @@ def _dt(value, default=None):
     return parsed
 
 
-class InkFloorMovementListView(generics.ListAPIView):
+class InkFloorMovementListView(NewestRowsListMixin, ArchiveScopedListMixin, generics.ListAPIView):
+    archive_scope = ArchiveScope("event_at")
     serializer_class = InkFloorMovementSerializer
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get_queryset(self):
         qs = (
@@ -66,7 +68,7 @@ class InkFloorMovementListView(generics.ListAPIView):
 
 class InkFloorSessionListView(generics.ListAPIView):
     serializer_class = InkFloorSessionSerializer
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get_queryset(self):
         qs = (
@@ -179,7 +181,7 @@ class InkFloorCountView(APIView):
 
 
 class InkFloorReconcileView(APIView):
-    permission_classes = [IsAuthenticated]
+    # Default permissions: signed in AND the role map (inventory.view / production.view).
 
     def get(self, request):
         try:

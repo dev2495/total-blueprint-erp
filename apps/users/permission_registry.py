@@ -189,6 +189,7 @@ ROUTE_PERMISSION_MAP: List[Tuple[str, str, str]] = [
     ("GET", "/api/auth/notifications/", "notifications.view"),
     ("POST", "/api/auth/notifications/", "notifications.view"),
     ("GET", "/api/auth/me/", "users.self_manage"),
+    ("GET", "/api/auth/financial-years/", "users.self_manage"),
     ("POST", "/api/auth/logout/", "users.self_manage"),
     ("POST", "/api/auth/change-password/", "users.self_manage"),
     ("PATCH", "/api/auth/profile-change-requests/", "users.manage"),

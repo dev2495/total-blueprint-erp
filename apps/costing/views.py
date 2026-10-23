@@ -33,6 +33,7 @@ from .serializers import (
     ProcessCostRateSerializer,
 )
 from .services import CostingService
+from config.archive import ArchiveScope, ArchiveScopedListMixin
 
 
 def _lock_cost_month(month_id):
@@ -244,7 +245,8 @@ class JobCostViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = JobCostSerializer
 
 
-class OrderCostViewSet(viewsets.ModelViewSet):
+class OrderCostViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at")
     queryset = OrderCost.objects.select_related(
         "sales_order_item",
         "sales_order_item__sales_order",

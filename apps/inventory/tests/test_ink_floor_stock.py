@@ -44,7 +44,13 @@ class InkFloorStockTests(TestCase):
             type="WIP",
         )
         self.ink = InkMaterial.objects.create(base_type="POLY", color_name="CYAN")
-        self.user = get_user_model().objects.create_user(username="ink-floor-user", password="testpass123")
+        from apps.users.models import Role
+
+        ink_role, _ = Role.objects.get_or_create(
+            code="INK-FLOOR-TEST",
+            defaults={"name": "Ink floor test", "default_permissions": ["inventory.view", "inventory.manage", "production.view", "production.manage"]},
+        )
+        self.user = get_user_model().objects.create_user(username="ink-floor-user", password="testpass123", role=ink_role)
         BulkService.add_bulk(
             str(self.ink.id),
             Decimal("20.0000"),

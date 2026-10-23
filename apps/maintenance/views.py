@@ -45,6 +45,7 @@ from apps.users.permission_registry import can_with_wildcard
 from apps.users.permission_service import PermissionService
 from apps.users.permissions import RoleBasedAccessPermission
 from apps.users.role_catalog import get_canonical_role_code
+from config.archive import ArchiveScope, ArchiveScopedListMixin
 
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 ALLOWED_UPLOAD_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"}
@@ -137,7 +138,8 @@ class MaintenanceScheduleViewSet(viewsets.ModelViewSet):
 
 
 # ============================================================================ jobs
-class MaintenanceJobViewSet(viewsets.ModelViewSet):
+class MaintenanceJobViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["DONE", "VERIFIED", "UNABLE", "CANCELLED"]))
     permission_classes = [IsAuthenticated, RoleBasedAccessPermission, MaintenanceAccess]
     serializer_class = MaintenanceJobSerializer
     http_method_names = ["get", "post", "patch", "head", "options"]

@@ -53,7 +53,7 @@ export function RollPicker({
   const enabled = !!materialId;
   const rolls = useQuery<Roll[]>({
     queryKey: ["rolls", "for-adjustment", materialId, plantId],
-    queryFn: () => listRolls({ material: materialId || undefined }),
+    queryFn: () => listRolls({ material: materialId || undefined, exclude_status: "CONSUMED,SCRAPPED" }),
     enabled,
     staleTime: 30_000,
   });

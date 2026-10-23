@@ -26,6 +26,8 @@ from .services.services_execution import ExecutionService
 from .services.roll_width import width_tolerance_mm
 from apps.factory.models import Machine
 from .renderers import EpsonRawRenderer
+from config.archive import ArchiveScope, ArchiveScopedListMixin
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,8 @@ class ProductionBoardPagination(PageNumberPagination):
     max_page_size = 200
 
 
-class ProductionJobViewSet(WorkCentreScopeMixin, viewsets.ModelViewSet):
+class ProductionJobViewSet(ArchiveScopedListMixin, WorkCentreScopeMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(job_state__in=["COMPLETED", "CANCELLED"]))
     # Work Center Managers may change only jobs at their work centres; reads stay open for traceability.
     scope_pk = "job"
     scope_reads = False
@@ -500,7 +503,8 @@ class ProductionJobViewSet(WorkCentreScopeMixin, viewsets.ModelViewSet):
         return Response(result, status=status.HTTP_200_OK)
 
 
-class ProductionBatchViewSet(viewsets.ReadOnlyModelViewSet):
+class ProductionBatchViewSet(ArchiveScopedListMixin, viewsets.ReadOnlyModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["DISPATCHED", "COMPLETED", "CANCELLED"]))
     serializer_class = ProductionBatchSerializer
 
     def get_queryset(self):
@@ -1884,7 +1888,8 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         filename = f"material-ready-{sales_order_id}.pdf"
         return FileResponse(pdf_buffer, as_attachment=False, filename=filename, content_type="application/pdf")
 
-class PlannedStockOrderViewSet(viewsets.ModelViewSet):
+class PlannedStockOrderViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["COMPLETED", "CANCELLED"]))
     queryset = PlannedStockOrder.objects.all().order_by('-created_at')
     serializer_class = PlannedStockOrderSerializer
     filterset_fields = ['status', 'plant']
@@ -1927,7 +1932,8 @@ class PlannedStockOrderViewSet(viewsets.ModelViewSet):
         return self.release(request, pk=pk)
 
 
-class PlannedBulkStockOrderViewSet(viewsets.ModelViewSet):
+class PlannedBulkStockOrderViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
+    archive_scope = ArchiveScope("created_at", Q(status__in=["COMPLETED", "CANCELLED"]))
     queryset = PlannedBulkStockOrder.objects.all().order_by('-created_at')
     serializer_class = PlannedBulkStockOrderSerializer
     filterset_fields = ['status', 'plant', 'bulk_class', 'material']

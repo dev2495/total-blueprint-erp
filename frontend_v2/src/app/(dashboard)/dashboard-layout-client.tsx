@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { isWatchmanUser } from "@/components/gate/gate-access";
+import { FinancialYearBanner } from "@/components/layout/financial-year-picker";
 
 export function DashboardLayoutClient({
   children,
@@ -83,6 +84,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           <HelpPageBanner />
           <WorkspaceBar />
           <div className="w-full min-w-0">
+            <FinancialYearBanner />
             <PageAccessGuard>{children}</PageAccessGuard>
           </div>
         </main>

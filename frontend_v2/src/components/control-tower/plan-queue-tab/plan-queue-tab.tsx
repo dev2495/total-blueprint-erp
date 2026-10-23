@@ -6,8 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     AlertTriangle,
+    CalendarClock,
     CheckCircle2,
     ChevronRight,
+    SlidersHorizontal,
     ClipboardList,
     Image as ImageIcon,
     Layers as LayersIcon,
@@ -32,6 +34,7 @@ import { PendingPlannerRecovery } from "../pending-planner-recovery";
 import { ArtworkPickerDialog } from "../artwork-picker-dialog";
 import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
 import { ageInfo, dueInfo, ageToneColor, dueToneColor } from "../_shared/age";
+import { BulletBar, Delta, KpiRow, KpiTile, LensChips, ProductIdentity, SearchField, StackBar, StateBadge, TagChip, Toolbar, identityFrom } from "@/components/planner-kit";
 import { OrderPassportStrip, PassportDetailGrid } from "../order-passport";
 import { ChipRow, FilterChip, FilterGroup, FilterSearch, FilterSelect, PlannerFilterDock } from "../filter-dock";
 import { formatDisplayDate } from "@/lib/date-format";
@@ -459,15 +462,16 @@ export default function PlanQueueTab() {
             if (Number.isFinite(due.days) && due.days < 0) overdue++;
             totalKg += Number(o.required_qty_kg || 0);
         }
-        return [
+        return Object.assign([
             { eyebrow: "Filtered queue", value: fmt(total), sub: `${fmt(orders.length)} loaded`, accent: "default" as const },
             { eyebrow: "Ready", value: fmt(ready), sub: "release-eligible", accent: "success" as const },
             { eyebrow: "Blocked", value: fmt(blocked), sub: "with blockers", accent: blocked > 0 ? ("danger" as const) : ("default" as const) },
             { eyebrow: "Artwork pending", value: fmt(artwork), sub: "awaiting assignment", accent: artwork > 0 ? ("warn" as const) : ("default" as const) },
             { eyebrow: "Overdue", value: fmt(overdue), sub: "past due date", accent: overdue > 0 ? ("danger" as const) : ("default" as const) },
             { eyebrow: "Required KG", value: fmt(totalKg, 0), sub: "queue weight", accent: "info" as const },
-        ];
+        ], { counts: { total, ready, blocked, artwork, overdue, totalKg } });
     }, [filtered, orders.length]);
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const pillCounts = useMemo(() => {
         let hot = 0, ready = 0, blocked = 0, artwork = 0, partial = 0, aged = 0, recent = 0;
@@ -539,8 +543,61 @@ export default function PlanQueueTab() {
                         Refresh
                     </Button>
                 }
-                kpis={kpis as any}
             />
+
+            <KpiRow>
+                <KpiTile icon={CheckCircle2} label="Ready to release" value={fmt(kpis.counts.ready)} unit="lines" tone="done"
+                    viz={<BulletBar value={kpis.counts.ready} max={Math.max(kpis.counts.total, 1)} left={`${fmt(kpis.counts.ready)} ready`} right={`${fmt(kpis.counts.total)} in view`} tone="done" />}
+                    sub="release-eligible: math valid, artwork set, no blocker"
+                    onClick={() => setFilters(applyQuickPill(filters, "ready"))} pressed={activePill === "ready"} testId="pq-kpi-ready" />
+                <KpiTile icon={AlertTriangle} label="Blocked" value={fmt(kpis.counts.blocked)} unit="lines" tone={kpis.counts.blocked ? "block" : undefined}
+                    viz={<StackBar segments={[
+                        { label: "Ready", value: kpis.counts.ready, tone: "done" },
+                        { label: "Artwork", value: kpis.counts.artwork, tone: "wait" },
+                        { label: "Blocked", value: kpis.counts.blocked, tone: "block" },
+                    ]} />}
+                    sub="with blockers or invalid math"
+                    onClick={() => setFilters(applyQuickPill(filters, "blocked"))} pressed={activePill === "blocked"} testId="pq-kpi-blocked" />
+                <KpiTile icon={ImageIcon} label="Artwork pending" value={fmt(kpis.counts.artwork)} unit="lines" tone={kpis.counts.artwork ? "wait" : undefined}
+                    sub="awaiting artwork assignment"
+                    onClick={() => setFilters(applyQuickPill(filters, "artwork"))} pressed={activePill === "artwork"} testId="pq-kpi-artwork" />
+                <KpiTile icon={CalendarClock} label="Overdue" value={fmt(kpis.counts.overdue)} unit="lines" tone={kpis.counts.overdue ? "block" : undefined}
+                    delta={pillCounts.hot ? <Delta tone="bad">{fmt(pillCounts.hot)} in queue</Delta> : undefined}
+                    sub="past the delivery date"
+                    onClick={() => setFilters(applyQuickPill(filters, "hot"))} pressed={activePill === "hot"} testId="pq-kpi-overdue" />
+                <KpiTile icon={LayersIcon} label="Queue weight" value={fmt(kpis.counts.totalKg, 0)} unit="kg"
+                    viz={<BulletBar value={kpis.counts.total} max={Math.max(orders.length, 1)} left={`${fmt(kpis.counts.total)} in view`} right={`${fmt(orders.length)} loaded`} />}
+                    sub="required kg of the lines in view" testId="pq-kpi-weight" />
+            </KpiRow>
+
+            <Toolbar>
+                <LensChips
+                    value={activePill}
+                    onChange={(key) => setFilters(applyQuickPill(filters, key as QuickPill))}
+                    lenses={[
+                        { key: "all", label: "All", count: orders.length },
+                        { key: "ready", label: "Ready", count: pillCounts.ready, tone: "done" },
+                        { key: "blocked", label: "Blocked", count: pillCounts.blocked, tone: "block" },
+                        { key: "artwork", label: "Artwork", count: pillCounts.artwork, tone: "wait" },
+                        { key: "hot", label: "Overdue", count: pillCounts.hot, tone: "block" },
+                        { key: "aged", label: "Aged 30d+", count: pillCounts.aged, tone: "wait" },
+                        { key: "recent", label: "New ≤3d", count: pillCounts.recent, tone: "queued" },
+                    ]}
+                />
+                <SearchField
+                    id="plan-queue-search"
+                    value={filters.search}
+                    onChange={(value) => {
+                        setFilters((f) => ({ ...f, search: value }));
+                        setSelectedKey("");
+                    }}
+                    placeholder="Search order, customer, product, template"
+                />
+                <Button variant="ghost" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="plan-queue-filter-dock" data-testid="pq-filters-toggle">
+                    <SlidersHorizontal size={14} style={{ marginRight: 6 }} />
+                    Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
+                </Button>
+            </Toolbar>
 
             {!releaseDialogOrder && <PendingPlannerRecovery onCommitted={invalidateAll} />}
 
@@ -550,6 +607,7 @@ export default function PlanQueueTab() {
                 <Button onClick={() => void invalidateAll()}>Retry saved queue</Button>
             </Card>}
 
+            <div id="plan-queue-filter-dock" hidden={!filtersOpen}>
             <PlannerFilterDock
                 title="Release filter dock"
                 subtitle="Cut the queue by business state first, then tighten by spec, source, age, and customer."
@@ -710,6 +768,7 @@ export default function PlanQueueTab() {
                     </FilterGroup>
                 </div>
             </PlannerFilterDock>
+            </div>
 
             {/* Rebalanced grid: queue gets equal share, detail panel uses internal 2-col layout for density */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 18 }}>
@@ -849,97 +908,53 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
     const fgAvail = !!o.source_availability?.has_fg;
     const wipAvail = !!o.source_availability?.has_wip;
     const partialReplan = isPartialReplanRow(o);
-    const sourceTag: { label: string; bg: string; fg: string } = blockerCount > 0
-        ? { label: "BLOCKED", bg: "rgba(244,63,94,.14)", fg: "var(--r-700)" }
-        : fgAvail
-        ? { label: "FG MATCH", bg: "rgba(16,185,129,.14)", fg: "var(--e-700)" }
-        : wipAvail
-        ? { label: "WIP", bg: "rgba(99,102,241,.14)", fg: "var(--i-700)" }
-        : { label: "FRESH", bg: "rgba(37,99,235,.10)", fg: "var(--br-700)" };
-
-    const ageColor = age ? ageToneColor(age.tone) : null;
-    const dueColor = dueToneColor(due.tone);
+    const needsArtwork = !!o.artwork_assignment_required && !o.assigned_artwork_id;
+    const isBlocked = blockerCount > 0 || o.math_valid === false;
+    const state = isBlocked
+        ? { tone: "block" as const, label: o.math_valid === false ? "Planning required" : `Blocked${blockerCount > 1 ? ` · ${blockerCount}` : ""}` }
+        : needsArtwork
+        ? { tone: "wait" as const, label: "Artwork pending" }
+        : partialReplan
+        ? { tone: "replan" as const, label: "Replan" }
+        : { tone: "done" as const, label: "Ready to release" };
+    const source = isBlocked ? null : fgAvail ? { label: "FG match", tone: "success" as const } : wipAvail ? { label: "WIP continue", tone: "info" as const } : { label: "Fresh run", tone: "order" as const };
+    const identity = identityFrom({ ...o, customer_name: (o as any).customer_name, delivery_date: undefined });
+    const dueTone = due.tone === "danger" ? "text-danger-fg" : due.tone === "warn" ? "text-warning-fg" : "text-content-3";
+    const pcs = Number(o.required_qty_pcs || 0);
 
     return (
         <button
-            type="button" onClick={onSelect}
+            type="button"
+            onClick={onSelect}
+            aria-pressed={selected}
             data-testid={`planner-queue-row-${plannerRowKey(o)}`}
-            style={{
-                width: "100%", textAlign: "left",
-                padding: "14px 18px",
-                background: selected ? "linear-gradient(90deg, var(--br-50) 0%, var(--surface-1) 100%)" : "transparent",
-                border: "none",
-                borderBottom: "1px solid var(--border-soft)",
-                cursor: "pointer", transition: "background var(--df) var(--eo)",
-                position: "relative",
-            }}
+            className={`relative grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 border-b border-line px-4 py-3 text-left transition-colors hover:bg-surface-2 ${selected ? "bg-order-bg" : ""}`}
         >
-            {selected && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: "var(--brand-600)" }} />}
-
-            <OrderPassportStrip order={o} compact />
-
-            {/* Size, layers, thickness and grade in readable type. */}
-            <OrderSpecBlock data={specFromSource(o)} size="md" className="mt-2" testId={`planner-queue-spec-${plannerRowKey(o)}`} />
-
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                <span style={{
-                    fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
-                    borderRadius: "var(--r-pill)",
-                    background: sourceTag.bg, color: sourceTag.fg,
-                }}>
-                    {sourceTag.label}
-                </span>
-                {o.line_status_display && (
-                    <span style={{
-                        fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
-                        borderRadius: "var(--r-pill)",
-                        background: "var(--surface-2)", color: "var(--text-2)",
-                        border: "1px solid var(--border-soft)",
-                    }}>
-                        {o.line_status_display}
+            {selected ? <span className="absolute inset-y-0 left-0 w-[3px] bg-order" aria-hidden /> : null}
+            <ProductIdentity
+                data={identity}
+                meta={[age ? <span key="age" title="Days since the order was placed">placed {age.label}</span> : null]}
+            />
+            <div className="flex min-w-[150px] flex-col items-end gap-1 text-right">
+                <div className="font-mono text-sm font-semibold tabular-nums text-content-1">
+                    {fmt(o.required_qty_kg, 0)}<span className="ml-0.5 text-caption font-normal text-content-3">kg</span>
+                </div>
+                {pcs > 0 ? <div className="font-mono text-caption tabular-nums text-content-3">{fmt(pcs, 0)} pcs</div> : null}
+                <StateBadge tone={state.tone}>{state.label}</StateBadge>
+                {Number.isFinite(due.days) ? (
+                    <span className={`inline-flex items-center gap-1 font-mono text-caption font-semibold ${dueTone}`} title="Delivery due date">
+                        <CalendarClock size={12} aria-hidden />{due.label}
                     </span>
-                )}
-                {partialReplan && (
-                    <span style={{
-                        fontSize: 10.5, fontWeight: 650, padding: "2px 8px",
-                        borderRadius: "var(--r-pill)",
-                        background: "rgba(245,158,11,.12)", color: "var(--warning-fg)",
-                        border: "1px solid rgba(245,158,11,.25)",
-                    }}>
-                        Ship {fmt(o.qty_dispatchable, 0)} · Replan {fmt(o.qty_replan_remaining_kg || o.partial_shortfall_kg, 0)} KG
-                    </span>
-                )}
+                ) : null}
             </div>
-
-            {/* Age + due dual-pill row — planner mental model */}
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-                {age && ageColor && (
-                    <span title="Days since order placed" style={{
-                        display: "inline-flex", alignItems: "center", gap: 4,
-                        padding: "2px 8px",
-                        fontSize: 10, fontWeight: 700,
-                        textTransform: "uppercase", letterSpacing: ".04em",
-                        borderRadius: "var(--r-pill)",
-                        background: ageColor.bg, color: ageColor.fg,
-                    }}>
-                        <span style={{ width: 5, height: 5, borderRadius: "50%", background: ageColor.bgSolid }} />
-                        Placed {age.label}
-                    </span>
-                )}
-                {Number.isFinite(due.days) && (
-                    <span title="Delivery due date" style={{
-                        padding: "2px 8px",
-                        fontSize: 10, fontWeight: 700,
-                        textTransform: "uppercase", letterSpacing: ".04em",
-                        borderRadius: "var(--r-pill)",
-                        background: dueColor.bg, color: dueColor.fg,
-                    }}>
-                        {due.label}
-                    </span>
-                )}
+            <div className="col-span-2 flex flex-wrap items-center gap-1.5">
+                {source ? <TagChip tone={source.tone}>{source.label}</TagChip> : null}
+                {o.line_status_display ? <TagChip>{o.line_status_display}</TagChip> : null}
+                {partialReplan ? (
+                    <TagChip tone="warning">Ship {fmt(o.qty_dispatchable, 0)} · replan {fmt(o.qty_replan_remaining_kg || o.partial_shortfall_kg, 0)} kg</TagChip>
+                ) : null}
+                <div className="min-w-[160px] flex-1"><HealthBar segments={segments} /></div>
             </div>
-
-            <HealthBar segments={segments} />
         </button>
     );
 }

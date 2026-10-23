@@ -19,6 +19,8 @@ router.register(r'roles', RoleViewSet)
 router.register(r'notifications', NotificationViewSet, basename='notifications')
 router.register(r'profile-change-requests', ProfileChangeRequestViewSet, basename='profile-change-requests')
 
+from .views_years import FinancialYearsView
+
 urlpatterns = [
     path('csrf/', CsrfCookieView.as_view(), name='csrf_cookie'),
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -27,5 +29,6 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('me/', UserViewSet.as_view({'get': 'me'}), name='me'),
+    path('financial-years/', FinancialYearsView.as_view(), name='financial-years'),
     path('', include(router.urls)),
 ]

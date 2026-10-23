@@ -871,9 +871,11 @@ class SalesOrderListSerializer(SalesOrderSerializer):
 
     Detail pages still use SalesOrderSerializer and include full line snapshots.
     List screens only need order identity, first-line summary, quantities, and
-    coarse progress, so avoid returning the large items array.
+    coarse progress, so avoid returning the large items array. It reads stored
+    batch totals and prefetched lines only: no per-row query, no write on read.
     """
     line_preview = serializers.SerializerMethodField()
+    total_weight_kg = serializers.SerializerMethodField()
 
     class Meta(SalesOrderSerializer.Meta):
         fields = [
@@ -941,6 +943,8 @@ class SalesOrderListSerializer(SalesOrderSerializer):
         )
         if not items:
             return []
+        from apps.production.services.batch_route_service import BatchExecutionService
+
         item_serializer = SalesOrderItemSerializer(context=getattr(self, "context", {}))
         rows = []
         for item in items:
@@ -967,9 +971,13 @@ class SalesOrderListSerializer(SalesOrderSerializer):
                 "packaging_snapshot": item.packaging_snapshot if isinstance(getattr(item, "packaging_snapshot", None), dict) else {},
                 "product_spec": item_serializer.get_product_spec(item),
                 "artwork_preview": item_serializer.get_artwork_preview(item),
-                "production_batch_summary": item_serializer.get_production_batch_summary(item),
+                "production_batch_summary": BatchExecutionService.line_summary(item, sync=False),
             })
         return rows
+
+    def get_total_weight_kg(self, obj):
+        # Sum the prefetched lines; the model property runs one aggregate per order.
+        return sum((Decimal(str(getattr(item, "total_weight_kg", 0) or 0)) for item in self._order_items(obj)), Decimal("0"))
 
     def get_item_summary(self, obj):
         items = self._order_items(obj)
