@@ -1230,7 +1230,7 @@ export function InventoryWorkspaceShell() {
   ]);
 
   return (
-    <div className="min-h-screen rounded-[28px] bg-surface-2 px-4 py-5 text-content-1 md:px-6">
+    <div className="min-h-screen rounded-[14px] bg-surface-2 px-4 py-5 text-content-1 md:px-6">
       <div className="mx-auto max-w-[1440px] space-y-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
@@ -1785,7 +1785,7 @@ export function InventoryFilterBar({
   }
 
   return (
-    <div className="rounded-[22px] border border-line bg-surface-1/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+    <div className="rounded-[14px] border border-line bg-surface-1/95 p-3 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="relative min-w-[260px] flex-1 xl:max-w-md">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
@@ -2189,7 +2189,7 @@ export function InventoryFilterBar({
                               {view.name}
                             </span>
                             {isCurrent ? (
-                              <span className="shrink-0 rounded-full bg-surface-1 px-1.5 py-0.5 text-caption font-semibold uppercase tracking-[0.12em] text-success-fg ring-1 ring-success-border">
+                              <span className="shrink-0 rounded-full bg-surface-1 px-1.5 py-0.5 text-caption font-semibold tracking-[0.12em] text-success-fg ring-1 ring-success-border">
                                 Current
                               </span>
                             ) : null}
@@ -2241,7 +2241,7 @@ export function InventoryFilterBar({
         </Button>
       </div>
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent className="rounded-[24px] border-line bg-surface-1 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] sm:max-w-lg">
+        <DialogContent className="rounded-[14px] border-line bg-surface-1 p-0 shadow-[0_24px_80px_rgba(15,23,42,0.22)] sm:max-w-lg">
           <div className="rounded-t-[24px] bg-success-bg px-6 py-5">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-content-1">
@@ -2258,7 +2258,7 @@ export function InventoryFilterBar({
             <div className="space-y-2">
               <Label
                 htmlFor="inventory-saved-view-name"
-                className="text-xs font-semibold uppercase tracking-[0.1em] text-content-3"
+                className="text-xs font-semibold tracking-[0.1em] text-content-3"
               >
                 View name
               </Label>
@@ -2430,7 +2430,7 @@ function StockTabHeader({
   showCards?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-[20px] border border-line bg-surface-1/95 p-2 shadow-[0_14px_45px_rgba(15,23,42,0.05)] md:flex-row md:items-center md:justify-between">
+    <div className="flex flex-col gap-3 rounded-[14px] border border-line bg-surface-1/95 p-2 shadow-[0_14px_45px_rgba(15,23,42,0.05)] md:flex-row md:items-center md:justify-between">
       <Tabs value={inner} onValueChange={(value) => onChange({ view: value })}>
         <TabsList className="h-auto gap-1 rounded-2xl bg-surface-2 p-1">
           <TabsTrigger
@@ -2613,7 +2613,7 @@ export function InventoryPulsePanel({
 
   if (loading)
     return (
-      <div className="rounded-[24px] border border-line bg-surface-1 p-8 text-sm text-content-3">
+      <div className="rounded-[14px] border border-line bg-surface-1 p-8 text-sm text-content-3">
         Loading inventory pulse...
       </div>
     );
@@ -2744,7 +2744,7 @@ function InventoryKpiCard({
   accent: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[18px] border border-line bg-surface-1 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+    <div className="relative overflow-hidden rounded-[14px] border border-line bg-surface-1 p-4 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
       <div className={cn("absolute left-0 top-0 h-full w-1", accent)} />
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -2795,7 +2795,7 @@ function FreshnessBandCard({
     Aged: "Aged · > 30 days",
   };
   return (
-    <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="min-w-0 rounded-[14px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[12px] font-semibold text-content-3">
           Freshness Bands
@@ -2841,7 +2841,7 @@ function StageDistributionCard({
 }) {
   const max = Math.max(1, ...data.map((row) => row.value));
   return (
-    <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="min-w-0 rounded-[14px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[12px] font-semibold text-content-3">
           Stage Distribution
@@ -2918,7 +2918,7 @@ function LargestPositionsCard({
     });
   }, [kind, rows, packagingMaterials]);
   return (
-    <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="rounded-[14px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[12px] font-semibold text-content-3">
           Largest Positions
@@ -2974,9 +2974,9 @@ function ChartCard({
   chart: "bar" | "donut";
 }) {
   return (
-    <Card className="min-w-0 rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="min-w-0 rounded-[14px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.1em] text-content-3">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold tracking-[0.1em] text-content-3">
           <Activity className="h-4 w-4 text-success-fg" />
           {title}
         </CardTitle>
@@ -3148,7 +3148,7 @@ export function AgeHeatmap({
   }, [kind, rows]);
 
   return (
-    <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="rounded-[14px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="text-[12px] font-semibold text-content-3">
           Age Heatmap
@@ -3317,7 +3317,7 @@ export function InventoryHeatmap({
   }, [kind, rows]);
 
   return (
-    <Card className="rounded-[22px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+    <Card className="rounded-[14px] border-line bg-surface-1 shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-2 text-[12px] font-semibold text-content-3">
           <Thermometer className="h-4 w-4 text-danger-fg" />
@@ -3417,7 +3417,7 @@ export function InventoryBrowseTable({
     );
   }
   return (
-    <Card className="rounded-[22px] border-line shadow-sm">
+    <Card className="rounded-[14px] border-line shadow-sm">
       <CardContent className="p-0">
         <Table>
           <TableHeader>
@@ -3550,7 +3550,7 @@ function InventoryCard({
         ? formatKg(num(row.qty_kg))
         : formatQty(num(row.qty), packagingBaseUom(row, packagingMaterials));
   return (
-    <Card className="rounded-[20px] border-line shadow-sm">
+    <Card className="rounded-[14px] border-line shadow-sm">
       <CardContent className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -3635,7 +3635,7 @@ export function GrnHistoryTab({
 
   if (loading)
     return (
-      <div className="rounded-[24px] border border-line bg-surface-1 p-8 text-sm text-content-3">
+      <div className="rounded-[14px] border border-line bg-surface-1 p-8 text-sm text-content-3">
         Loading GRN history...
       </div>
     );
@@ -3667,7 +3667,7 @@ export function GrnHistoryTab({
           toneClassName="bg-warning-bg text-warning-fg"
         />
       </div>
-      <Card className="rounded-[22px] border-line shadow-sm">
+      <Card className="rounded-[14px] border-line shadow-sm">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -3805,7 +3805,7 @@ function CorrectionDialog({
 
   return (
     <Dialog open={Boolean(row)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-[24px]">
+      <DialogContent className="max-w-2xl rounded-[14px]">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
             Correct GRN History Row

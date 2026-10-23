@@ -83,14 +83,12 @@ const DEFAULT_VIEWS: SavedView<BulkFilterState>[] = [
   {
     id: "all-bulk",
     name: "All bulk",
-    icon: "🧪",
     pinned: true,
     state: DEFAULT_FILTERS,
   },
   {
     id: "reserved",
     name: "Has reservation",
-    icon: "🔒",
     state: { ...DEFAULT_FILTERS, onlyReserved: true },
   },
 ];
@@ -925,7 +923,7 @@ export function BulkWorkspaceV36() {
                 Purchased add-ons only
               </label>
               <div className="rounded-xl border border-success-border bg-success-bg p-3">
-                <div className="text-caption font-semibold uppercase tracking-wider text-success-fg">
+                <div className="text-caption font-semibold text-success-fg">
                   Addon badge rule
                 </div>
                 <p className="mt-1 text-caption leading-snug text-success-fg">
@@ -1061,28 +1059,28 @@ function BulkTable({
         <table className="min-w-full text-xs">
           <thead className="bg-surface-2 border-b border-line text-content-3">
             <tr>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Material
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Class
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Plant · Location
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Code
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 On hand
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Reserved
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Available
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Action
               </th>
             </tr>
@@ -1228,13 +1226,13 @@ function BulkGrid({
                     {r.material_name || ""}
                   </div>
                 </div>
-                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-bold uppercase text-content-2 ring-1 ring-line">
+                <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
                   {stockCode(r)}
                 </span>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-surface-2 p-2 text-center">
                 <div>
-                  <div className="text-caption font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold text-content-3">
                     On hand
                   </div>
                   <div className="font-mono text-sm font-bold text-content-1">
@@ -1242,7 +1240,7 @@ function BulkGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-caption font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold text-content-3">
                     Reserved
                   </div>
                   <div className="font-mono text-sm font-bold text-order-fg">
@@ -1250,7 +1248,7 @@ function BulkGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-caption font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold text-content-3">
                     Free
                   </div>
                   <div className="font-mono text-sm font-bold text-success-fg">
@@ -1310,13 +1308,13 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-success-bg px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
+              <div className="text-caption font-semibold tracking-[0.12em] text-success-fg">
                 Bulk stock row
               </div>
               <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
@@ -1337,7 +1335,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             <span className="rounded-md bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
               {cls}
             </span>
-            <span className="rounded-md bg-success-bg px-2 py-0.5 text-caption font-bold uppercase text-success-fg ring-1 ring-success-border">
+            <span className="rounded-md bg-success-bg px-2 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
               {stockUom(row)}
             </span>
           </div>
@@ -1383,7 +1381,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold tracking-[0.12em] text-order-fg mb-2">
               Sales reservations
             </div>
             {rsvQuery.isLoading && (
@@ -1443,7 +1441,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>

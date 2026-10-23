@@ -84,32 +84,27 @@ const DEFAULT_VIEWS: SavedView<PackagingFilterState>[] = [
   {
     id: "all-pkg",
     name: "All packaging",
-    icon: "📦",
     pinned: true,
     state: DEFAULT_FILTERS,
   },
   {
     id: "inner-pouches",
     name: "Inner pouches",
-    icon: "🛍️",
     state: { ...DEFAULT_FILTERS, kind: "INNER_POUCH" },
   },
   {
     id: "shipping",
     name: "Shipping (gunny/carton)",
-    icon: "📦",
     state: { ...DEFAULT_FILTERS, kind: "CARTON" },
   },
   {
     id: "pod",
     name: "POD sleeves",
-    icon: "🏷️",
     state: { ...DEFAULT_FILTERS, kind: "POD" },
   },
   {
     id: "low-stock",
     name: "Low stock",
-    icon: "⚠️",
     state: { ...DEFAULT_FILTERS, healthBucket: "LOW" },
   },
 ];
@@ -189,15 +184,15 @@ function healthOf(row: any): {
 }
 
 const KIND_ICON: Record<string, string> = {
-  INNER_POUCH: "🛍️",
-  GONNY: "🧺",
-  CARTON: "📦",
-  TAPE: "📼",
-  SHEET: "📄",
-  LABEL: "🏷️",
-  TAG: "🏷️",
-  POD: "🎫",
-  OTHER: "📦",
+  INNER_POUCH: "",
+  GONNY: "",
+  CARTON: "",
+  TAPE: "",
+  SHEET: "",
+  LABEL: "",
+  TAG: "",
+  POD: "",
+  OTHER: "",
 };
 
 const KIND_COLOR: Record<string, string> = {
@@ -578,7 +573,7 @@ export function PackagingWorkspaceV36() {
         <div className="rounded-2xl border border-success-border bg-success-bg p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
+              <div className="text-caption font-semibold tracking-[0.12em] text-success-fg">
                 EOD packing count · {countDate}
               </div>
               <div className="mt-1 text-sm font-bold text-content-2">
@@ -790,7 +785,7 @@ export function PackagingWorkspaceV36() {
                   )}
                 >
                   <div className="text-2xl">{KIND_ICON[b.kind]}</div>
-                  <div className="mt-1 text-caption font-semibold uppercase tracking-wider opacity-70">
+                  <div className="mt-1 text-caption font-semibold opacity-70">
                     {b.kind.replace("_", " ")}
                   </div>
                   <div className="font-display text-base font-semibold mt-0.5">
@@ -864,9 +859,9 @@ export function PackagingWorkspaceV36() {
                 }
                 options={[
                   { id: "ALL", label: "All" },
-                  { id: "HEALTHY", label: "Healthy ✅" },
-                  { id: "LOW", label: "Low ⚠️" },
-                  { id: "EMPTY", label: "Empty 🔥" },
+                  { id: "HEALTHY", label: "Healthy" },
+                  { id: "LOW", label: "Low" },
+                  { id: "EMPTY", label: "Empty" },
                 ]}
               />
               <FilterGroup
@@ -980,28 +975,28 @@ function PkgTable({
         <table className="min-w-full text-xs">
           <thead className="bg-surface-2 border-b border-line text-content-3">
             <tr>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Code
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Name
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Kind
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Plant · Location
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 On hand
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Reserved
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Health
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Action
               </th>
             </tr>
@@ -1151,7 +1146,7 @@ function PkgGrid({
                 <span className="text-2xl">{KIND_ICON[k]}</span>
                 <span
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase",
+                    "rounded-md px-1.5 py-0.5 text-caption font-bold ",
                     h.bucket === "HEALTHY"
                       ? "bg-success-bg text-success-fg"
                       : h.bucket === "LOW"
@@ -1218,13 +1213,13 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-warning-bg px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
+              <div className="text-caption font-semibold tracking-[0.12em] text-warning-fg">
                 Packaging item · {KIND_ICON[k]} {k.replace("_", " ")}
               </div>
               <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
@@ -1280,7 +1275,7 @@ function PkgDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold tracking-[0.12em] text-order-fg mb-2">
               SO holds
             </div>
             {rsvQuery.isLoading && (
@@ -1332,7 +1327,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>

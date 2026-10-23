@@ -229,7 +229,7 @@ export function TraceabilityV36() {
             {traceMutation.isPending ? "Tracing…" : "Trace roll →"}
           </Button>
           {result?.matched_by && (
-            <span className="rounded-md bg-info-bg px-2 py-1 text-caption font-bold uppercase tracking-wider text-primary ring-1 ring-info-border">
+            <span className="rounded-md bg-info-bg px-2 py-1 text-caption font-bold text-primary ring-1 ring-info-border">
               Matched · {result.matched_by.replace("_", " ")}
             </span>
           )}
@@ -253,29 +253,25 @@ export function TraceabilityV36() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <Kpi
               tone="blue"
-              icon="⚖️"
               label="Current weight"
               value={fmtKg(r.weight_kg)}
             />
             <Kpi
               tone="violet"
-              icon="📦"
               label="Original weight"
               value={fmtKg(r.original_weight_kg)}
             />
             <Kpi
               tone="emerald"
-              icon="🌳"
               label="Lineage children"
               value={`${childrenCount}`}
             />
             <Kpi
               tone="amber"
-              icon="🕒"
               label="Timeline events"
               value={`${timeline.length}`}
             />
-            <Kpi tone="rose" icon="🎯" label="Yield" value={`${flow.yield}%`} />
+            <Kpi tone="rose" label="Yield" value={`${flow.yield}%`} />
           </div>
 
           <RollLabelActions rolls={[{ id: r.id, ref: r.label_id }]} />
@@ -283,7 +279,7 @@ export function TraceabilityV36() {
           <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
             <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line bg-surface-2 px-5 py-4">
               <div>
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
+                <div className="text-caption font-semibold tracking-[0.12em] text-primary">
                   Roll header
                 </div>
                 <h2 className="font-display text-lg font-bold text-content-1">
@@ -296,7 +292,7 @@ export function TraceabilityV36() {
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
-                    "rounded-md px-2 py-0.5 text-caption font-bold uppercase tracking-wider ring-1",
+                    "rounded-md px-2 py-0.5 text-caption font-bold  ring-1",
                     roleTone(r.roll_role),
                   )}
                 >
@@ -304,7 +300,7 @@ export function TraceabilityV36() {
                 </span>
                 <span
                   className={cn(
-                    "rounded-md px-2 py-0.5 text-caption font-bold uppercase tracking-wider ring-1",
+                    "rounded-md px-2 py-0.5 text-caption font-bold  ring-1",
                     statusTone(r.status),
                   )}
                 >
@@ -352,7 +348,7 @@ export function TraceabilityV36() {
               />
               <div className="mt-2 grid grid-cols-3 gap-2 text-caption">
                 <div className="rounded-lg bg-info-bg px-2.5 py-1.5 ring-1 ring-info-border">
-                  <div className="text-caption font-semibold uppercase text-primary">
+                  <div className="text-caption font-semibold text-primary">
                     Current
                   </div>
                   <div className="font-mono font-bold text-primary">
@@ -360,7 +356,7 @@ export function TraceabilityV36() {
                   </div>
                 </div>
                 <div className="rounded-lg bg-danger-bg px-2.5 py-1.5 ring-1 ring-danger-border">
-                  <div className="text-caption font-semibold uppercase text-danger-fg">
+                  <div className="text-caption font-semibold text-danger-fg">
                     Consumed
                   </div>
                   <div className="font-mono font-bold text-danger-fg">
@@ -368,7 +364,7 @@ export function TraceabilityV36() {
                   </div>
                 </div>
                 <div className="rounded-lg bg-order-bg px-2.5 py-1.5 ring-1 ring-order-border">
-                  <div className="text-caption font-semibold uppercase text-order-fg">
+                  <div className="text-caption font-semibold text-order-fg">
                     Original
                   </div>
                   <div className="font-mono font-bold text-order-fg">
@@ -383,7 +379,7 @@ export function TraceabilityV36() {
           {ancestors.length > 0 && (
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
               <header className="border-b border-line bg-surface-2 px-5 py-3">
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+                <div className="text-caption font-semibold tracking-[0.12em] text-order-fg">
                   Ancestor chain · oldest → this roll
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -398,7 +394,7 @@ export function TraceabilityV36() {
                         <div className="font-mono text-xs font-bold text-order-fg">
                           {a.label_id}
                         </div>
-                        <div className="text-caption text-order-fg font-bold uppercase">
+                        <div className="text-caption text-order-fg font-bold ">
                           Stage {a.stage_index}
                         </div>
                         <div className="font-mono text-caption text-content-3">
@@ -415,7 +411,7 @@ export function TraceabilityV36() {
                     <div className="font-mono text-xs font-bold text-primary">
                       {r.label_id}
                     </div>
-                    <div className="text-caption text-primary font-bold uppercase">
+                    <div className="text-caption text-primary font-bold ">
                       This roll
                     </div>
                     <div className="font-mono text-caption text-content-3">
@@ -431,7 +427,7 @@ export function TraceabilityV36() {
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
               <header className="border-b border-line bg-surface-2 px-5 py-3">
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
+                <div className="text-caption font-semibold tracking-[0.12em] text-primary">
                   Genealogy tree · this roll → children
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -453,7 +449,7 @@ export function TraceabilityV36() {
 
             <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
               <header className="border-b border-line bg-success-bg px-5 py-3">
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
+                <div className="text-caption font-semibold tracking-[0.12em] text-success-fg">
                   Timeline · movement &amp; consumption
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -480,7 +476,7 @@ export function TraceabilityV36() {
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span
                             className={cn(
-                              "rounded-md px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wider ring-1",
+                              "rounded-md px-1.5 py-0.5 text-caption font-semibold  ring-1",
                               evt.type === "MOVEMENT"
                                 ? "bg-info-bg text-primary ring-info-border"
                                 : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -523,7 +519,7 @@ export function TraceabilityV36() {
           <section className="rounded-2xl border border-line bg-surface-1 shadow-sm">
             <header className="flex items-center justify-between border-b border-line bg-warning-bg px-5 py-3">
               <div>
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
+                <div className="text-caption font-semibold tracking-[0.12em] text-warning-fg">
                   Physical movements
                 </div>
                 <h3 className="font-display text-base font-bold text-content-1">
@@ -572,7 +568,7 @@ function Kpi({
   value,
 }: {
   tone: "blue" | "violet" | "amber" | "emerald" | "rose";
-  icon: string;
+  icon?: string;
   label: string;
   value: string;
 }) {
@@ -591,7 +587,7 @@ function Kpi({
       )}
     >
       <div className="flex items-start justify-between">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
+        <div className="text-caption font-semibold tracking-[0.12em] text-white/80">
           {label}
         </div>
         <span className="text-lg">{icon}</span>
@@ -718,7 +714,7 @@ function Node({
           <div className="flex flex-col items-end gap-1 flex-none">
             <span
               className={cn(
-                "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                 roleTone((node as any).roll_role),
               )}
             >
@@ -726,7 +722,7 @@ function Node({
             </span>
             <span
               className={cn(
-                "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                 statusTone(node.status),
               )}
             >

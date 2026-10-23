@@ -103,7 +103,7 @@ export function MaterialPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-xl border border-line shadow-xl overflow-hidden bg-surface-1"
+        className="w-[var(--radix-popover-trigger-width)] p-0 rounded-xl border border-line shadow-[var(--shadow-md)] overflow-hidden bg-surface-1"
         align="start"
         sideOffset={4}
       >
@@ -129,7 +129,7 @@ export function MaterialPicker({
               <CommandGroup
                 key={group}
                 heading={
-                  <span className="text-caption font-bold uppercase tracking-widest text-primary px-1">
+                  <span className="text-caption font-bold text-primary px-1">
                     — {group}
                   </span>
                 }
@@ -155,7 +155,7 @@ export function MaterialPicker({
                     </span>
                     {/* Category/Family badge (shown inline) */}
                     {(item.category || item.type) && (
-                      <span className="text-caption font-bold uppercase text-primary bg-info-bg px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
+                      <span className="text-caption font-bold text-primary bg-info-bg px-1.5 py-0.5 rounded shrink-0 group-aria-selected:bg-surface-1/20 group-aria-selected:text-white">
                         {item.category || item.type}
                       </span>
                     )}

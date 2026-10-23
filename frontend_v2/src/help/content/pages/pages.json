@@ -7996,6 +7996,10 @@
     ],
     "keyActions": [
       {
+        "en": "Fast entry: Enter moves to the next field and, on a line's last field, starts the next line as a copy (only weights change); Shift+Enter goes back, ↑/↓ moves to the same field on another line, Alt+↓ copies a value down, Alt+Backspace removes a line, Ctrl/⌘+Enter receives. You can also paste lines from Excel.",
+        "hi": "Fast entry: Enter moves to the next field and, on a line's last field, starts the next line as a copy (only weights change); Shift+Enter goes back, ↑/↓ moves to the same field on another line, Alt+↓ copies a value down, Alt+Backspace removes a line, Ctrl/⌘+Enter receives. You can also paste lines from Excel."
+      },
+      {
         "en": "Choose Roll, the receiving warehouse and film variant. Enter measured width, thickness, gross and tare for each physical roll.",
         "hi": "रोल, प्राप्ति गोदाम और फिल्म चुनें। हर रोल की चौड़ाई, मोटाई, सकल और टेयर वजन दर्ज करें।"
       },
@@ -16376,6 +16380,10 @@
       }
     ],
     "keyActions": [
+      {
+        "en": "Rolls by film comes first: one card per film and micron, rolls racked by width, each drawn by weight with a ring for its state (free, reserved, on a machine, away). Click a roll to open it; Browse has the table, grid and matrix.",
+        "hi": "Rolls by film comes first: one card per film and micron, rolls racked by width, each drawn by weight with a ring for its state (free, reserved, on a machine, away). Click a roll to open it; Browse has the table, grid and matrix."
+      },
       {
         "en": "Open the current workspace and check the summary, filters, and selected context.",
         "hi": "Open the current workspace and check the summary, filters, and selected context."

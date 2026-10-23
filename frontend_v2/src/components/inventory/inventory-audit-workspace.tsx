@@ -505,7 +505,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
       <section className="erp-hero rounded-[2rem] border p-6 text-white">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-3">
-            <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-caption font-semibold uppercase tracking-[0.12em] text-white">
+            <Badge className="rounded-full border-surface-1/20 bg-surface-1/10 text-caption font-semibold tracking-[0.12em] text-white">
               Inventory Audit
             </Badge>
             <div>
@@ -528,7 +528,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                 key={label}
                 className="rounded-2xl border border-surface-1/10 bg-surface-1/10 p-3"
               >
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-info-border">
+                <div className="text-caption font-semibold tracking-[0.12em] text-info-border">
                   {label}
                 </div>
                 <div className="mt-2 text-xl font-semibold">
@@ -937,7 +937,7 @@ export function InventoryAuditWorkspace({ mode }: { mode: AuditMode }) {
                   placeholder="Search sheet lines..."
                 />
               </div>
-              <div className="text-xs font-bold uppercase tracking-[0.08em] text-content-4">
+              <div className="text-xs font-bold tracking-[0.08em] text-content-4">
                 {visibleLines.length} visible line(s)
               </div>
             </div>
@@ -1110,7 +1110,7 @@ export function InventoryYearCloseWorkspace() {
 
   return (
     <div className="space-y-6 pb-10">
-      <section className="rounded-[18px] border border-line bg-surface-1 p-6 shadow-[var(--shadow-sm)]">
+      <section className="rounded-[14px] border border-line bg-surface-1 p-6 shadow-[var(--shadow-sm)]">
         <Badge className="rounded-full border-transparent bg-warning-bg text-[12px] font-semibold text-warning-fg">
           Year-End Lock
         </Badge>

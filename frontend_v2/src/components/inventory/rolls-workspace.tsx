@@ -16,6 +16,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { RollFilmBoard } from "./roll-film-board";
 import {
   ArrowRight,
   ArrowUpDown,
@@ -30,6 +31,7 @@ import {
   Plus,
   Sparkles,
   X,
+  Disc3,
 } from "lucide-react";
 
 import { GradientHero } from "@/components/erp/gradient-hero";
@@ -58,7 +60,7 @@ import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-type ViewMode = "matrix" | "table" | "grid";
+type ViewMode = "films" | "matrix" | "table" | "grid";
 type StatusFilter =
   | "ALL"
   | "AVAILABLE"
@@ -110,50 +112,42 @@ const DEFAULT_VIEWS: SavedView<RollsFilterState>[] = [
   {
     id: "all-rolls",
     name: "All rolls",
-    icon: "🌀",
     pinned: true,
     state: DEFAULT_FILTERS,
   },
   {
     id: "available-only",
     name: "Available only",
-    icon: "✅",
     state: { ...DEFAULT_FILTERS, status: "AVAILABLE" },
   },
   {
     id: "open-web",
     name: "Open web",
-    icon: "▭",
     state: { ...DEFAULT_FILTERS, stockForm: "OPEN_WEB" },
   },
   {
     id: "tubes",
     name: "Tubes",
-    icon: "▯",
     state: { ...DEFAULT_FILTERS, stockForm: "LAYFLAT_TUBE" },
   },
   {
     id: "folded",
     name: "Folded",
-    icon: "⫷",
     state: { ...DEFAULT_FILTERS, stockForm: "FOLDED_WEB" },
   },
   {
     id: "reserved",
     name: "Reserved",
-    icon: "🔒",
     state: { ...DEFAULT_FILTERS, status: "RESERVED" },
   },
   {
     id: "remainders",
     name: "Remainders",
-    icon: "♻️",
     state: { ...DEFAULT_FILTERS, role: "REMAINDER" },
   },
   {
     id: "aged-90",
     name: "Aged 90+",
-    icon: "⏰",
     state: { ...DEFAULT_FILTERS, ageBucket: "OLD" },
   },
 ];
@@ -248,7 +242,7 @@ export function RollsWorkspaceV36() {
   const [filters, setFilters] =
     React.useState<RollsFilterState>(DEFAULT_FILTERS);
   const [mode, setMode] = React.useState<"pulse" | "browse">("pulse");
-  const [viewMode, setViewMode] = React.useState<ViewMode>("matrix");
+  const [viewMode, setViewMode] = React.useState<ViewMode>("films");
   const [selectedRoll, setSelectedRoll] = React.useState<Roll | null>(null);
   const [matrixCell, setMatrixCell] = React.useState<{
     row: string;
@@ -670,7 +664,7 @@ export function RollsWorkspaceV36() {
       <GradientHero
         eyebrow="Inventory · rolls"
         title="Roll workspace"
-        subtitle="Variant × thickness matrix, every roll filterable by family, role, status, plant, age, and dimensions."
+        subtitle="Rolls by film and width first · Variant × thickness matrix, every roll filterable by family, role, status, plant, age, and dimensions."
         palette="blue"
         chips={[
           {
@@ -735,6 +729,7 @@ export function RollsWorkspaceV36() {
 
       {mode === "pulse" && (
         <PulseViewV36
+          lead={<RollFilmBoard rolls={filtered as Roll[]} loading={stockQuery.isLoading} onSelect={setSelectedRoll} />}
           kpis={[
             {
               label: "Rolls",
@@ -847,7 +842,7 @@ export function RollsWorkspaceV36() {
           onClearAll={() => setFilters(DEFAULT_FILTERS)}
           viewMode={viewMode}
           onViewModeChange={(v) => setViewMode(v)}
-          viewModes={["matrix", "table", "grid"]}
+          viewModes={["films", "matrix", "table", "grid"]}
           onExport={() =>
             window.open(
               inventoryService.getInventoryExportUrl("rolls"),
@@ -876,7 +871,7 @@ export function RollsWorkspaceV36() {
             )}
 
             <div className="rounded-xl border border-info-border bg-info-bg p-3">
-              <div className="mb-2 text-caption font-semibold uppercase tracking-wider text-primary">
+              <div className="mb-2 text-caption font-semibold text-primary">
                 Size filters
               </div>
               <div className="space-y-3">
@@ -966,7 +961,7 @@ export function RollsWorkspaceV36() {
                 { id: "ALL", label: "All" },
                 { id: "BASE", label: "Base / new" },
                 { id: "OUTPUT", label: "Output" },
-                { id: "REMAINDER", label: "Remainder ♻️" },
+                { id: "REMAINDER", label: "Remainder" },
                 { id: "SPLIT_OUTPUT", label: "Split output" },
                 { id: "FG", label: "Finished" },
               ]}
@@ -1047,7 +1042,7 @@ export function RollsWorkspaceV36() {
             />
 
             <div className="rounded-xl border border-info-border bg-info-bg p-3">
-              <div className="text-caption font-semibold uppercase tracking-wider text-primary">
+              <div className="text-caption font-semibold text-primary">
                 Quick actions
               </div>
               <div className="mt-2 grid grid-cols-2 gap-1.5">
@@ -1070,6 +1065,9 @@ export function RollsWorkspaceV36() {
 
           {/* Main content */}
           <main className="space-y-5">
+            {viewMode === "films" && (
+              <RollFilmBoard rolls={sorted as Roll[]} loading={stockQuery.isLoading} onSelect={setSelectedRoll} />
+            )}
             {viewMode === "matrix" && (
               <MatrixView
                 matrix={matrix}
@@ -1099,7 +1097,7 @@ export function RollsWorkspaceV36() {
                 onSelect={setSelectedRoll}
               />
             )}
-            {viewMode !== "matrix" && sorted.length > pageSize && (
+            {viewMode !== "matrix" && viewMode !== "films" && sorted.length > pageSize && (
               <nav aria-label="Roll inventory pages" className="flex items-center justify-end gap-3 text-sm">
                 <Button variant="outline" disabled={page === 0} onClick={() => setPage(Math.max(0, page - 1))}>Previous</Button>
                 <span>Page {Math.min(page + 1, Math.ceil(sorted.length / pageSize))} of {Math.ceil(sorted.length / pageSize)}</span>
@@ -1150,7 +1148,7 @@ function MatrixView({
       eyebrow={`${matrix.grand.rollCount} rolls · ${fmtNum(matrix.grand.totalKg, 0)} KG`}
       subtitle="Each row includes stock form. Each cell = roll count; color = stock concentration."
       tone="violet"
-      icon={<span>🌀</span>}
+      icon={<Disc3 className="h-4 w-4" aria-hidden />}
       actions={
         <div className="flex items-center gap-1.5 text-caption">
           <span className="rounded bg-success-bg px-1.5 py-0.5 font-bold text-success-fg">
@@ -1171,7 +1169,7 @@ function MatrixView({
         <table className="min-w-full text-xs">
           <thead>
             <tr className="border-b border-line text-content-3">
-              <th className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold ">
                 Variant / size
               </th>
               {matrix.cols.map((c: number) => (
@@ -1182,10 +1180,10 @@ function MatrixView({
                   {c}μ
                 </th>
               ))}
-              <th className="px-3 py-2 text-center font-bold uppercase">
+              <th className="px-3 py-2 text-center font-bold ">
                 Total
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase">KG</th>
+              <th className="px-3 py-2 text-right font-bold ">KG</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -1372,7 +1370,7 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                       stockFormTone(r.stock_form),
                     )}
                   >
@@ -1391,7 +1389,7 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                       statusTone(r.status || ""),
                     )}
                   >
@@ -1401,7 +1399,7 @@ function TableView({
                 <td className="px-3 py-2">
                   <span
                     className={cn(
-                      "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                      "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                       roleTone(r.roll_role || ""),
                     )}
                   >
@@ -1500,7 +1498,7 @@ function GridView({
               </div>
               <span
                 className={cn(
-                  "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                  "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                   statusTone(r.status || ""),
                 )}
               >
@@ -1510,7 +1508,7 @@ function GridView({
             <div className="mt-2">
               <span
                 className={cn(
-                  "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                  "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                   stockFormTone(r.stock_form),
                 )}
               >
@@ -1519,7 +1517,7 @@ function GridView({
             </div>
             <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-surface-2 p-2">
               <div className="text-center">
-                <div className="text-caption font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold text-content-3">
                   Width
                 </div>
                 <div className="font-mono text-caption font-bold text-content-1">
@@ -1528,7 +1526,7 @@ function GridView({
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-caption font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold text-content-3">
                   Thick
                 </div>
                 <div className="font-mono text-caption font-bold text-content-1">
@@ -1537,7 +1535,7 @@ function GridView({
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-caption font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold text-content-3">
                   Weight
                 </div>
                 <div className="font-mono text-caption font-bold text-content-1">
@@ -1549,7 +1547,7 @@ function GridView({
             <div className="mt-2 flex items-center justify-between text-caption">
               <span
                 className={cn(
-                  "rounded-md px-1.5 py-0.5 font-bold uppercase ring-1",
+                  "rounded-md px-1.5 py-0.5 font-bold  ring-1",
                   roleTone(r.roll_role || ""),
                 )}
               >
@@ -1602,13 +1600,13 @@ function CellDrawer({
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+              <div className="text-caption font-semibold tracking-[0.12em] text-order-fg">
                 Roll cell drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1">
@@ -1628,7 +1626,7 @@ function CellDrawer({
           {cell && (
             <div className="mt-3 grid grid-cols-2 gap-2 text-caption">
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-caption font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold text-content-3">
                   Rolls
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1636,7 +1634,7 @@ function CellDrawer({
                 </div>
               </div>
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-caption font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold text-content-3">
                   Total KG
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1697,13 +1695,13 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="text-caption font-semibold tracking-[0.12em] text-primary">
                 Roll detail
               </div>
               <div className="font-mono font-display text-lg font-bold text-primary truncate">
@@ -1723,7 +1721,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <span
               className={cn(
-                "rounded-md px-2 py-0.5 text-caption font-bold uppercase ring-1",
+                "rounded-md px-2 py-0.5 text-caption font-bold  ring-1",
                 statusTone(roll.status || ""),
               )}
             >
@@ -1731,7 +1729,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             </span>
             <span
               className={cn(
-                "rounded-md px-2 py-0.5 text-caption font-bold uppercase ring-1",
+                "rounded-md px-2 py-0.5 text-caption font-bold  ring-1",
                 roleTone(roll.roll_role || ""),
               )}
             >
@@ -1739,7 +1737,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             </span>
             <span
               className={cn(
-                "rounded-md px-2 py-0.5 text-caption font-bold uppercase ring-1",
+                "rounded-md px-2 py-0.5 text-caption font-bold  ring-1",
                 stockFormTone(roll.stock_form),
               )}
             >

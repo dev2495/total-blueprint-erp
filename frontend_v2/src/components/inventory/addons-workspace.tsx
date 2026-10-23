@@ -72,32 +72,27 @@ const DEFAULT_VIEWS: SavedView<AddonsFilterState>[] = [
   {
     id: "all-addons",
     name: "All add-ons",
-    icon: "🎨",
     pinned: true,
     state: DEFAULT_FILTERS,
   },
   {
     id: "inks",
     name: "Inks",
-    icon: "🖌️",
     state: { ...DEFAULT_FILTERS, family: "INK" },
   },
   {
     id: "adhesives",
     name: "Adhesives",
-    icon: "🧪",
     state: { ...DEFAULT_FILTERS, family: "ADHESIVE" },
   },
   {
     id: "solvents",
     name: "Solvents",
-    icon: "💧",
     state: { ...DEFAULT_FILTERS, family: "SOLVENT" },
   },
   {
     id: "low-stock",
     name: "Low stock",
-    icon: "⚠️",
     state: { ...DEFAULT_FILTERS, healthBucket: "LOW" },
   },
 ];
@@ -210,11 +205,11 @@ function healthOf(row: any): {
 }
 
 const FAMILY_ICON: Record<string, string> = {
-  INK: "🖌️",
-  ADHESIVE: "🧪",
-  SOLVENT: "💧",
-  CHEMICAL: "⚗️",
-  OTHER: "🧴",
+  INK: "",
+  ADHESIVE: "",
+  SOLVENT: "",
+  CHEMICAL: "",
+  OTHER: "",
 };
 
 export function AddonsWorkspaceV36() {
@@ -693,25 +688,25 @@ export function AddonsWorkspaceV36() {
                   { id: "ALL", label: "All" },
                   {
                     id: "INK",
-                    label: "Inks 🖌️",
+                    label: "Inks",
                     count: allRows.filter((r) => detectFamily(r) === "INK")
                       .length,
                   },
                   {
                     id: "ADHESIVE",
-                    label: "Adhesives 🧪",
+                    label: "Adhesives",
                     count: allRows.filter((r) => detectFamily(r) === "ADHESIVE")
                       .length,
                   },
                   {
                     id: "SOLVENT",
-                    label: "Solvents 💧",
+                    label: "Solvents",
                     count: allRows.filter((r) => detectFamily(r) === "SOLVENT")
                       .length,
                   },
                   {
                     id: "CHEMICAL",
-                    label: "Chemicals ⚗️",
+                    label: "Chemicals",
                     count: allRows.filter((r) => detectFamily(r) === "CHEMICAL")
                       .length,
                   },
@@ -731,9 +726,9 @@ export function AddonsWorkspaceV36() {
                 }
                 options={[
                   { id: "ALL", label: "All" },
-                  { id: "HEALTHY", label: "Healthy ✅" },
-                  { id: "LOW", label: "Low ⚠️" },
-                  { id: "CRITICAL", label: "Critical 🔥" },
+                  { id: "HEALTHY", label: "Healthy" },
+                  { id: "LOW", label: "Low" },
+                  { id: "CRITICAL", label: "Critical" },
                 ]}
               />
               <FilterGroup
@@ -834,28 +829,28 @@ function AddonsTable({
         <table className="min-w-full text-xs">
           <thead className="bg-surface-2 border-b border-line text-content-3">
             <tr>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Item
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Family
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Plant · Loc
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 On hand
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Reserved
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Available
               </th>
-              <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-left font-bold ">
                 Health
               </th>
-              <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+              <th className="px-3 py-2 text-right font-bold ">
                 Action
               </th>
             </tr>
@@ -1042,7 +1037,7 @@ function AddonsGrid({
                 )}
                 <span
                   className={cn(
-                    "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase",
+                    "rounded-md px-1.5 py-0.5 text-caption font-bold ",
                     h.bucket === "HEALTHY"
                       ? "bg-success-bg text-success-fg"
                       : h.bucket === "LOW"
@@ -1061,7 +1056,7 @@ function AddonsGrid({
               </div>
               <div className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg bg-surface-2 p-2 text-center">
                 <div>
-                  <div className="text-caption font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold text-content-3">
                     On hand
                   </div>
                   <div className="font-mono text-sm font-bold text-content-1">
@@ -1069,7 +1064,7 @@ function AddonsGrid({
                   </div>
                 </div>
                 <div>
-                  <div className="text-caption font-semibold uppercase text-content-3">
+                  <div className="text-caption font-semibold text-content-3">
                     Free
                   </div>
                   <div className="font-mono text-sm font-bold text-success-fg">
@@ -1130,7 +1125,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
@@ -1145,7 +1140,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
                 <span className="text-3xl">{FAMILY_ICON[f]}</span>
               )}
               <div className="min-w-0">
-                <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+                <div className="text-caption font-semibold tracking-[0.12em] text-order-fg">
                   {FAMILY_ICON[f]} {f}
                 </div>
                 <div className="font-mono font-display text-lg font-bold text-content-1 truncate">
@@ -1200,7 +1195,7 @@ function AddonDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold tracking-[0.12em] text-order-fg mb-2">
               Allocations
             </div>
             {rsvQuery.isLoading && (
@@ -1252,7 +1247,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold opacity-70">
         {label}
       </div>
       <div className="mt-0.5 font-display text-sm font-bold">{value}</div>

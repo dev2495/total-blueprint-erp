@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { KpiRow } from "@/components/planner-kit";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -93,6 +94,8 @@ interface PulseViewProps {
     }>;
   };
   extra?: React.ReactNode;
+  /** Shown right under the KPI tiles (e.g. the rolls-by-film board). */
+  lead?: React.ReactNode;
 }
 
 const SOFT_COLORS = [
@@ -126,15 +129,18 @@ export function PulseViewV36({
   matrix,
   topList,
   extra,
+  lead,
 }: PulseViewProps) {
   return (
     <div className="space-y-4">
       {/* KPI strip — richer, with sparklines and deltas */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <KpiRow>
         {kpis.map((k, i) => (
           <PulseKpiTile key={i} {...k} />
         ))}
-      </div>
+      </KpiRow>
+
+      {lead}
 
       {/* Optional secondary stat strip — denser micro-metrics */}
       {statRow && statRow.length > 0 && (
@@ -298,7 +304,7 @@ function PulseMatrixCard({ matrix }: { matrix: PulseMatrix }) {
         <table className="min-w-full text-caption">
           <thead>
             <tr className="text-content-3">
-              <th className="sticky left-0 bg-surface-1 pr-2 py-1 text-left font-bold uppercase tracking-wider text-caption">
+              <th className="sticky left-0 bg-surface-1 pr-2 py-1 text-left font-bold text-caption">
                 {matrix.rowLabel} \\ {matrix.colLabel}
               </th>
               {showCols.map((c) => (
@@ -443,81 +449,32 @@ function PulseKpiTile({
   delta,
 }: PulseKpi) {
   const TONE = {
-    default: {
-      stripe: "bg-order-fg",
-      icon: "bg-order-bg text-order-fg",
-      spark: "#6366f1",
-    },
-    good: {
-      stripe: "bg-success-fg",
-      icon: "bg-success-bg text-success-fg",
-      spark: "#10b981",
-    },
-    warn: {
-      stripe: "bg-warning-fg",
-      icon: "bg-warning-bg text-warning-fg",
-      spark: "#f59e0b",
-    },
-    bad: {
-      stripe: "bg-danger-fg",
-      icon: "bg-danger-bg text-danger-fg",
-      spark: "#f43f5e",
-    },
+    default: { border: "border-line", value: "text-content-1", spark: "rgb(var(--order-fg-rgb))" },
+    good: { border: "border-success-border", value: "text-success-fg", spark: "rgb(var(--success-fg-rgb))" },
+    warn: { border: "border-warning-border", value: "text-warning-fg", spark: "rgb(var(--warning-fg-rgb))" },
+    bad: { border: "border-danger-border", value: "text-danger-fg", spark: "rgb(var(--danger-fg-rgb))" },
   }[tone];
   return (
-    <div className="relative rounded-2xl border border-line bg-surface-1 p-3.5 shadow-sm">
-      <div
-        className={cn(
-          "absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl",
-          TONE.stripe,
-        )}
-      />
-      <div className="flex items-start justify-between gap-2 pl-1">
-        <div className="text-[12px] font-semibold text-content-3 truncate">
-          {label}
-        </div>
-        {icon && (
-          <span
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-lg flex-none",
-              TONE.icon,
-            )}
-          >
-            {icon}
-          </span>
-        )}
+    <div className={cn("flex min-h-[116px] min-w-0 flex-col gap-1 rounded-[14px] border bg-surface-1 px-3.5 pb-2.5 pt-3 shadow-[var(--shadow-sm)]", TONE.border)}>
+      <div className="flex items-center gap-1.5 text-caption font-medium leading-tight text-content-3">
+        {icon ? <span className="text-content-4 [&_svg]:h-3.5 [&_svg]:w-3.5" aria-hidden>{icon}</span> : null}
+        <span className="truncate">{label}</span>
       </div>
-      <div className="mt-1.5 flex items-baseline gap-1.5 pl-1">
-        <span className="font-display text-2xl font-semibold text-content-1 tabular-nums">
-          {value}
-        </span>
+      <div className={cn("flex flex-wrap items-baseline gap-x-1.5 text-xl font-semibold leading-tight tracking-tight tabular-nums", tone === "default" ? "text-content-1" : TONE.value)}>
+        {value}
         {delta && (
-          <span
-            className={cn(
-              "rounded px-1 py-0.5 text-caption font-semibold",
-              delta.positive
-                ? "bg-success-bg text-success-fg"
-                : "bg-danger-bg text-danger-fg",
-            )}
-          >
+          <span className={cn("rounded-[4px] px-1 font-mono text-[11px] font-semibold", delta.positive ? "bg-success-bg text-success-fg" : "bg-danger-bg text-danger-fg")}>
             {delta.positive ? "▲" : "▼"} {delta.v}
           </span>
         )}
       </div>
-      {sub && (
-        <div className="mt-0.5 text-caption text-content-3 truncate pl-1">
-          {sub}
-        </div>
-      )}
-      {trend && trend.length > 1 && (
-        <div className="mt-2 -mx-1">
-          <MiniSparkline data={trend} color={TONE.spark} />
-        </div>
-      )}
+      <div className="mt-auto flex min-h-7 items-end">
+        {trend && trend.length > 1 ? <MiniSparkline data={trend} color={TONE.spark} /> : null}
+      </div>
+      {sub && <div className="truncate text-[11.5px] leading-snug text-content-4">{sub}</div>}
     </div>
   );
 }
-
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const w = 120;
   const h = 24;
@@ -533,7 +490,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
     })
     .join(" ");
   const fill = `${path} L ${w} ${h} L 0 ${h} Z`;
-  const id = `spark-${color.replace("#", "")}`;
+  const id = `spark-${React.useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}
@@ -853,7 +810,7 @@ function AgeBucket({
   }[color];
   return (
     <div className={cn("rounded-lg px-2 py-1.5 ring-1", TONE)}>
-      <div className="text-caption font-semibold uppercase tracking-wider">
+      <div className="text-caption font-semibold ">
         {label}
       </div>
       <div className="font-mono text-sm font-bold tabular-nums">{fmt(n)}</div>
@@ -879,7 +836,7 @@ function LocationTile({
   const pct = (entry.value / Math.max(max, 1)) * 100;
   return (
     <div className="rounded-xl border border-line bg-surface-2 p-2.5">
-      <div className="flex items-center gap-1.5 text-caption font-bold text-content-3 uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 text-caption font-bold text-content-3 ">
         <span
           className="inline-block h-2 w-2 rounded-sm"
           style={{ backgroundColor: color }}
@@ -919,83 +876,63 @@ export function ClassTabBar({
   activeId: string;
 }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-1 p-1.5 shadow-sm overflow-x-auto">
-      <div className="inline-flex gap-1 min-w-max">
+    <nav aria-label="Inventory pages" className="overflow-x-auto border-b border-line">
+      <div className="inline-flex min-w-max gap-1">
         {tabs.map((t) => {
           const active = t.id === activeId;
           return (
             <a
               key={t.id}
               href={t.href}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold",
-                active
-                  ? "bg-surface-3 text-white shadow-sm"
-                  : "text-content-3 hover:bg-surface-2 hover:text-content-1",
+                "-mb-px inline-flex h-10 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition",
+                active ? "border-order font-semibold text-content-1" : "border-transparent text-content-3 hover:text-content-1",
               )}
             >
-              {t.icon && (
-                <span className="text-base leading-none">{t.icon}</span>
-              )}
               {t.label}
               {typeof t.badge !== "undefined" && (
-                <span
-                  className={cn(
-                    "ml-1 rounded-full px-1.5 py-0.5 text-caption font-semibold",
-                    active
-                      ? "bg-surface-1/20 text-white"
-                      : "bg-surface-2 text-content-3",
-                  )}
-                >
-                  {t.badge}
-                </span>
+                <span className="rounded-full bg-surface-2 px-1.5 font-mono text-[11px] text-content-3">{t.badge}</span>
               )}
             </a>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }
-
 export const INVENTORY_CLASS_TABS: ClassTab[] = [
-  { id: "summary", label: "Summary", icon: "🏠", href: "/inventory" },
-  { id: "rolls", label: "Roll Explorer", icon: "🌀", href: "/inventory/rolls" },
-  { id: "bulk", label: "Bulk Inventory", icon: "🧪", href: "/inventory/bulk" },
+  { id: "summary", label: "Summary", icon: "", href: "/inventory" },
+  { id: "rolls", label: "Roll Explorer", icon: "", href: "/inventory/rolls" },
+  { id: "bulk", label: "Bulk Inventory", icon: "", href: "/inventory/bulk" },
   {
     id: "packaging",
     label: "Packaging",
-    icon: "📦",
     href: "/inventory/packaging",
   },
   {
     id: "addons",
     label: "Inks · Adhesives",
-    icon: "🎨",
     href: "/inventory/addons",
   },
   {
     id: "grn",
     label: "GRN History",
-    icon: "📥",
     href: "/inventory/grn-history",
   },
   {
     id: "period",
     label: "Stock Lifecycle",
-    icon: "📅",
     href: "/inventory/stock-lifecycle",
   },
   {
     id: "trace",
     label: "Roll Genealogy",
-    icon: "🌳",
     href: "/inventory/traceability",
   },
   {
     id: "transfers",
     label: "Inter-Plant",
-    icon: "🚚",
     href: "/inventory/inter-plant",
   },
 ];
@@ -1009,34 +946,26 @@ export function ModeToggle({
   mode: "pulse" | "browse";
   onChange: (m: "pulse" | "browse") => void;
 }) {
+  const item = (value: "pulse" | "browse", label: string, Icon: typeof Activity) => (
+    <button
+      type="button"
+      aria-pressed={mode === value}
+      onClick={() => onChange(value)}
+      className={cn(
+        "inline-flex h-8 items-center gap-1.5 rounded-[7px] px-3 text-[13px] font-medium transition",
+        mode === value ? "bg-content-1 font-semibold text-surface-1" : "text-content-3 hover:bg-surface-2 hover:text-content-1",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden /> {label}
+    </button>
+  );
   return (
-    <div className="inline-flex rounded-xl bg-surface-2 p-0.5 shadow-inner">
-      <button
-        onClick={() => onChange("pulse")}
-        className={cn(
-          "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-caption font-bold",
-          mode === "pulse"
-            ? "bg-surface-1 text-success-fg shadow-sm ring-1 ring-success-border"
-            : "text-content-3 hover:text-content-1",
-        )}
-      >
-        <Activity className="h-3.5 w-3.5" /> Pulse
-      </button>
-      <button
-        onClick={() => onChange("browse")}
-        className={cn(
-          "inline-flex h-9 items-center gap-1.5 rounded-lg px-3.5 text-caption font-bold",
-          mode === "browse"
-            ? "bg-surface-1 text-content-1 shadow-sm ring-1 ring-line"
-            : "text-content-3 hover:text-content-1",
-        )}
-      >
-        <Boxes className="h-3.5 w-3.5" /> Browse
-      </button>
+    <div role="group" aria-label="View" className="inline-flex gap-0.5 rounded-[10px] border border-line bg-surface-1 p-[3px] shadow-[var(--shadow-sm)]">
+      {item("pulse", "Pulse", Activity)}
+      {item("browse", "Browse", Boxes)}
     </div>
   );
 }
-
 // ─── Subtle Hero (for inventory home) ─────────────────────────────
 
 export function SubtleHero({
@@ -1058,19 +987,12 @@ export function SubtleHero({
   actions?: React.ReactNode;
 }) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-line bg-surface-1 px-5 py-4 shadow-sm">
-      <div className="absolute inset-y-0 left-0 w-1 bg-plate" />
-      <div className="flex flex-wrap items-start justify-between gap-3 pl-2">
+    <section className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
-            {eyebrow}
-          </div>
-          <h1 className="font-display text-2xl font-semibold text-content-1 mt-0.5 tracking-tight">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="mt-1 text-xs text-content-3 max-w-2xl">{subtitle}</p>
-          )}
+          <div className="text-caption font-medium text-content-3">{eyebrow}</div>
+          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-content-1">{title}</h1>
+          {subtitle && <p className="mt-1 max-w-[72ch] text-sm text-content-3">{subtitle}</p>}
           {chips && chips.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {chips.map((c, i) => {

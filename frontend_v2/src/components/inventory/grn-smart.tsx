@@ -28,6 +28,7 @@ import {
   Save,
   Upload,
   X,
+  FolderOpen,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -329,6 +330,59 @@ function focusFastEntryCell(
   target.focus();
   target.select?.();
   return true;
+}
+
+/** The key-taking cells of one fast-entry row, in screen order. */
+function fastEntryRowCells(grid: "roll" | "receipt", rowIndex: number) {
+  return Array.from(
+    document.querySelectorAll<HTMLInputElement>(
+      `[data-grn-grid="${grid}"][data-grn-row="${rowIndex}"][data-grn-field]`,
+    ),
+  ).filter((cell) => !cell.disabled);
+}
+
+/** Enter / Shift+Enter: the next or previous cell of the same row. */
+function focusFastEntrySibling(
+  grid: "roll" | "receipt",
+  rowIndex: number,
+  field: keyof ItemDraft,
+  step: 1 | -1,
+) {
+  const cells = fastEntryRowCells(grid, rowIndex);
+  const at = cells.findIndex((cell) => cell.dataset.grnField === String(field));
+  const target = at >= 0 ? cells[at + step] : undefined;
+  if (!target) return false;
+  target.focus();
+  target.select?.();
+  return true;
+}
+
+/** Ctrl/⌘+Enter anywhere in the grid posts the GRN (same as the Receive button). */
+function submitGrnFromKeyboard() {
+  document.querySelector<HTMLButtonElement>('[data-testid="smart-grn-submit"]:not(:disabled)')?.click();
+}
+
+/** Keyboard legend for the fast-entry grids. */
+function GridKeys() {
+  const keys: Array<[string, string]> = [
+    ["Enter", "next field"],
+    ["Enter on last field", "new line (copy)"],
+    ["Shift+Enter", "back"],
+    ["↑ ↓", "same field, other line"],
+    ["Alt+↓", "copy down"],
+    ["Alt+⌫", "remove line"],
+    ["Ctrl/⌘+Enter", "receive"],
+  ];
+  return (
+    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-content-3" aria-label="Keyboard shortcuts">
+      {keys.map(([key, what]) => (
+        <span key={key} className="inline-flex items-center gap-1">
+          <kbd className="rounded-[5px] border border-line bg-surface-1 px-1.5 py-px font-mono text-[10.5px] text-content-2">{key}</kbd>
+          {what}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function stockFormLabel(value?: string) {
@@ -1140,7 +1194,7 @@ export function GrnSmartV36() {
         >
           ← Stock workspace
         </Link>
-        <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-caption font-semibold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+        <span className="rounded-full bg-success-bg px-2.5 py-0.5 text-caption font-semibold text-success-fg ring-1 ring-success-border">
           UNIFIED FORM
         </span>
       </div>
@@ -1191,7 +1245,7 @@ export function GrnSmartV36() {
           <RollLabelActions rolls={lastPosted.rolls} />
           <div className="mt-3 grid grid-cols-1 gap-2 text-caption sm:grid-cols-3">
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
-              <div className="font-semibold uppercase tracking-wider text-success-fg">
+              <div className="font-semibold text-success-fg">
                 PO linkage
               </div>
               <div className="font-mono text-content-2">
@@ -1203,7 +1257,7 @@ export function GrnSmartV36() {
               </div>
             </div>
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
-              <div className="font-semibold uppercase tracking-wider text-success-fg">
+              <div className="font-semibold text-success-fg">
                 Goods received
               </div>
               <div className="font-mono text-content-2">
@@ -1211,7 +1265,7 @@ export function GrnSmartV36() {
               </div>
             </div>
             <div className="rounded-lg border border-success-border bg-surface-1 px-2 py-1.5">
-              <div className="font-semibold uppercase tracking-wider text-success-fg">
+              <div className="font-semibold text-success-fg">
                 Invoice (dedup OK)
               </div>
               <div className="font-mono text-content-2">
@@ -1220,7 +1274,7 @@ export function GrnSmartV36() {
               </div>
             </div>
           </div>
-          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success-fg px-2.5 py-0.5 text-caption font-semibold uppercase tracking-wider text-white">
+          <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-success-fg px-2.5 py-0.5 text-caption font-semibold text-white">
             {sourceType === "PO"
               ? "FULLY MATCHED"
               : sourceType === "MANUAL_PO"
@@ -1633,7 +1687,7 @@ export function GrnSmartV36() {
                 <div className="m-3 rounded-2xl border border-success-border bg-success-bg p-4 text-sm text-success-fg shadow-sm sm:m-4">
                   <div className="flex flex-col gap-3 border-b border-success-border pb-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
+                      <div className="text-caption font-semibold tracking-[0.12em] text-success-fg">
                         Excel validated · review before posting
                       </div>
                       <div className="mt-1 font-bold">
@@ -2083,7 +2137,7 @@ export function GrnSmartV36() {
             <span className="text-[12px] font-semibold text-content-3">
               Live totals
             </span>
-            <span className="rounded-full bg-surface-2 px-2.5 py-0.5 font-bold uppercase text-content-2 ring-1 ring-line">
+            <span className="rounded-full bg-surface-2 px-2.5 py-0.5 font-bold text-content-2 ring-1 ring-line">
               {klass}
             </span>
             <span className="rounded-full bg-info-bg px-2.5 py-0.5 font-bold text-primary ring-1 ring-info-border">
@@ -2133,7 +2187,7 @@ export function GrnSmartV36() {
             <div className="flex min-w-0 flex-1 basis-[20rem] flex-wrap items-center gap-2 text-xs">
               <span
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 font-semibold uppercase ring-1 ring-inset",
+                  "rounded-full px-2.5 py-0.5 font-semibold  ring-1 ring-inset",
                   footerReady
                     ? "bg-success-bg text-success-fg ring-success-border"
                     : "bg-danger-bg text-danger-fg ring-danger-border",
@@ -2166,7 +2220,8 @@ export function GrnSmartV36() {
                 variant="outline"
                 className="rounded-xl border-info-border bg-info-bg text-primary shadow-sm"
               >
-                📂 Save draft
+                <FolderOpen className="mr-1.5 h-4 w-4" aria-hidden />
+                Save draft
               </Button>
               {klass === "TRADING" ? (
                 <span className="rounded-xl bg-order-bg px-3 py-2 text-xs font-bold text-order-fg ring-1 ring-order-border">
@@ -2300,60 +2355,24 @@ function Section({
   children: React.ReactNode;
   bodyClassName?: string;
 }) {
-  const TONE = {
-    blue: {
-      bar: "border-l-blue-500",
-      bg: "bg-surface-2",
-      num: "bg-primary ring-primary",
-    },
-    violet: {
-      bar: "border-l-violet-500",
-      bg: "bg-surface-2",
-      num: "bg-order-fg ring-order-border",
-    },
-    emerald: {
-      bar: "border-l-emerald-500",
-      bg: "bg-success-bg",
-      num: "bg-success-fg ring-success-border",
-    },
-    amber: {
-      bar: "border-l-amber-500",
-      bg: "bg-warning-bg",
-      num: "bg-warning-fg ring-warning-border",
-    },
-    slate: {
-      bar: "border-l-slate-400",
-      bg: "bg-surface-2",
-      num: "bg-line ring-line-strong",
-    },
+  // One calm card per step; the step number carries the tone.
+  const NUM = {
+    blue: "border-info-border bg-info-bg text-info-fg",
+    violet: "border-order-border bg-order-bg text-order-fg",
+    emerald: "border-success-border bg-success-bg text-success-fg",
+    amber: "border-warning-border bg-warning-bg text-warning-fg",
+    slate: "border-line bg-surface-2 text-content-2",
   }[tone];
   return (
-    <section
-      className={cn(
-        "overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-md ring-1 ring-line border-l-[3px]",
-        TONE.bar,
-      )}
-    >
-      <header
-        className={cn(
-          "flex items-start justify-between gap-3 border-b border-line px-5 py-3.5",
-          TONE.bg,
-        )}
-      >
+    <section className="overflow-hidden rounded-[14px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]" aria-label={title}>
+      <header className="flex items-start justify-between gap-3 border-b border-line px-5 py-3.5">
         <div className="flex items-start gap-3">
-          <span
-            className={cn(
-              "flex h-7 w-7 flex-none items-center justify-center rounded-lg text-white text-xs font-bold shadow-sm ring-1",
-              TONE.num,
-            )}
-          >
+          <span className={cn("flex h-7 w-7 flex-none items-center justify-center rounded-[8px] border font-mono text-xs font-semibold", NUM)} aria-hidden>
             {idx}
           </span>
           <div>
-            <div className="text-[12px] font-semibold text-content-3">
-              {eyebrow}
-            </div>
-            <h2 className="text-[15px] font-bold text-content-1">{title}</h2>
+            <div className="text-[12px] font-medium text-content-3">{eyebrow}</div>
+            <h2 className="text-[15px] font-semibold text-content-1">{title}</h2>
           </div>
         </div>
         {actions}
@@ -2487,7 +2506,7 @@ function BulkMaterialFilterChips({
 
   return (
     <div className="rounded-xl border border-order-border bg-order-bg px-3 py-2">
-      <div className="mb-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+      <div className="mb-2 text-caption font-semibold tracking-[0.12em] text-order-fg">
         Material type filter
       </div>
       <div className="flex flex-wrap gap-2">
@@ -2878,9 +2897,23 @@ function RollFastEntryGrid({
         if (moved) event.preventDefault();
         return;
       }
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        submitGrnFromKeyboard();
+        return;
+      }
+      if (event.altKey && event.key === "Backspace") {
+        event.preventDefault();
+        removeRow(index);
+        // Land on the same field of the line above (or the new first line).
+        if (key) window.setTimeout(() => focusFastEntryCell("roll", index > 0 ? index : -1, key, index > 0 ? -1 : 1), 0);
+        return;
+      }
       if (event.key === "Enter") {
         event.preventDefault();
-        cloneAfter(index);
+        // Enter walks the row; on its last cell it starts the next line (cloned from this one).
+        if (key && focusFastEntrySibling("roll", index, key, event.shiftKey ? -1 : 1)) return;
+        if (!event.shiftKey) cloneAfter(index);
         return;
       }
       if (event.altKey && event.key === "ArrowDown" && key) {
@@ -2888,7 +2921,7 @@ function RollFastEntryGrid({
         fillDown(index, key);
       }
     },
-    [cloneAfter, fillDown],
+    [cloneAfter, fillDown, removeRow],
   );
 
   return (
@@ -2898,14 +2931,12 @@ function RollFastEntryGrid({
     >
       <div className="flex flex-col gap-3 border-b border-success-border bg-success-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-success-fg">
-            Fast roll entry
+          <div className="text-[14px] font-semibold text-success-fg">Fast roll entry</div>
+          <div className="mt-0.5 text-[13px] text-content-2">
+            Fill the first roll; each next roll starts as a copy, so only weights change. Gross minus tare fills net.
+            Paste from Excel: material, stock form, width, micron, gross, tare, net, length, grade, location, rate.
           </div>
-          <div className="mt-1 text-sm font-semibold text-content-2">
-            Fill row 1, then press Enter in net kg to clone the next roll. Gross
-            minus tare auto-fills net. Paste from Excel: material, stock form,
-            width, micron, gross, tare, net, length, grade, location, rate.
-          </div>
+          <GridKeys />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -3213,7 +3244,7 @@ function RollFastEntryGrid({
                   <td className="px-2 py-2">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
+                        "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold ",
                         complete
                           ? "bg-success-bg text-success-fg"
                           : "bg-warning-bg text-warning-fg",
@@ -3299,7 +3330,7 @@ function FastStat({
         : "border-line bg-surface-1 text-content-2";
   return (
     <div className={cn("rounded-lg border px-3 py-1.5", toneClass)}>
-      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold opacity-70">
         {label}
       </div>
       <div className="font-mono text-sm font-semibold">{value}</div>
@@ -3538,9 +3569,23 @@ function ReceiptFastEntryGrid({
         if (moved) event.preventDefault();
         return;
       }
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        submitGrnFromKeyboard();
+        return;
+      }
+      if (event.altKey && event.key === "Backspace") {
+        event.preventDefault();
+        removeRow(index);
+        // Land on the same field of the line above (or the new first line).
+        if (key) window.setTimeout(() => focusFastEntryCell("receipt", index > 0 ? index : -1, key, index > 0 ? -1 : 1), 0);
+        return;
+      }
       if (event.key === "Enter") {
         event.preventDefault();
-        cloneAfter(index);
+        // Enter walks the row; on its last cell it starts the next line (cloned from this one).
+        if (key && focusFastEntrySibling("receipt", index, key, event.shiftKey ? -1 : 1)) return;
+        if (!event.shiftKey) cloneAfter(index);
         return;
       }
       if (event.altKey && event.key === "ArrowDown" && key) {
@@ -3548,7 +3593,7 @@ function ReceiptFastEntryGrid({
         fillDown(index, key);
       }
     },
-    [cloneAfter, fillDown],
+    [cloneAfter, fillDown, removeRow],
   );
 
   const handlePaste = React.useCallback(
@@ -3655,16 +3700,13 @@ function ReceiptFastEntryGrid({
     >
       <div className="flex flex-col gap-3 border-b border-order-border bg-order-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
-            {gridTitle}
+          <div className="text-[14px] font-semibold text-order-fg">{gridTitle}</div>
+          <div className="mt-0.5 text-[13px] text-content-2">
+            One row per received item. Weight rows fill net from gross minus tare; metre and piece rows take the
+            received quantity.
           </div>
-          <div className="mt-1 text-sm font-semibold text-content-2">
-            One row per received item. Weight-based rows auto-calculate net from
-            gross minus tare; METER/PCS rows use direct received quantity.
-          </div>
-          <div className="mt-1 text-caption font-semibold text-content-3">
-            {pasteHint}
-          </div>
+          <div className="mt-0.5 text-caption text-content-3">{pasteHint}</div>
+          <GridKeys />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -3972,7 +4014,7 @@ function ReceiptFastEntryGrid({
                   <td className="px-2 py-2">
                     <span
                       className={cn(
-                        "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
+                        "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold ",
                         complete
                           ? "bg-success-bg text-success-fg"
                           : "bg-warning-bg text-warning-fg",
@@ -4571,7 +4613,7 @@ function TradingReceiptPanel({
     <div className="overflow-hidden bg-surface-1 shadow-sm">
       <div className="flex flex-col gap-3 border-b border-order-border bg-order-bg px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+          <div className="text-caption font-semibold tracking-[0.12em] text-order-fg">
             Fast trading entry
           </div>
           <div className="mt-1 text-sm font-semibold text-content-2">
@@ -4738,7 +4780,7 @@ function TradingReceiptPanel({
               <td className="px-2 py-2">
                 <span
                   className={cn(
-                    "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
+                    "inline-flex rounded-full px-2 py-0.5 text-caption font-semibold ",
                     valid
                       ? "bg-success-bg text-success-fg"
                       : "bg-warning-bg text-warning-fg",
@@ -4797,7 +4839,7 @@ function TradingReceiptPanel({
                   : "border-warning-border bg-warning-bg text-warning-fg",
               )}
             >
-              <div className="font-semibold uppercase tracking-[0.1em]">
+              <div className="font-semibold tracking-[0.1em]">
                 {valid ? "Ready to post" : "Needs info"}
               </div>
               <div className="mt-0.5 font-semibold">{rateHint}</div>
@@ -4947,7 +4989,7 @@ function TradingGuardRow({ label, ok }: { label: string; ok: boolean }) {
       <span className="font-semibold text-content-2">{label}</span>
       <span
         className={cn(
-          "rounded-full px-2 py-0.5 text-caption font-semibold uppercase tracking-wider",
+          "rounded-full px-2 py-0.5 text-caption font-semibold ",
           ok ? "bg-success-bg text-success-fg" : "bg-warning-bg text-warning-fg",
         )}
       >

@@ -16,6 +16,9 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarDays,
+  Disc3,
+  FlaskConical,
+  ShoppingBag,
   CheckCircle2,
   Download,
   Edit3,
@@ -91,50 +94,42 @@ const DEFAULT_VIEWS: SavedView<GrnHistoryFilterState>[] = [
   {
     id: "30d",
     name: "Last 30 days",
-    icon: "📅",
     pinned: true,
     state: DEFAULT_FILTERS,
   },
   {
     id: "today",
     name: "Today",
-    icon: "⚡",
     state: { ...DEFAULT_FILTERS, window: "TODAY" },
   },
   {
     id: "7d",
     name: "Last 7 days",
-    icon: "📆",
     state: { ...DEFAULT_FILTERS, window: "7D" },
   },
   {
     id: "rolls",
     name: "Roll GRNs",
-    icon: "🌀",
     state: { ...DEFAULT_FILTERS, source: "ROLL" },
   },
   {
     id: "bulk",
     name: "Bulk GRNs",
-    icon: "🧪",
     state: { ...DEFAULT_FILTERS, source: "BULK" },
   },
   {
     id: "packaging",
     name: "Packaging GRNs",
-    icon: "📦",
     state: { ...DEFAULT_FILTERS, source: "PACKAGING" },
   },
   {
     id: "trading",
     name: "Trading GRNs",
-    icon: "🛒",
     state: { ...DEFAULT_FILTERS, source: "TRADING" },
   },
   {
     id: "all",
     name: "All time",
-    icon: "🗂️",
     state: { ...DEFAULT_FILTERS, window: "ALL" },
   },
 ];
@@ -201,11 +196,11 @@ function withinWindow(
   return true;
 }
 
-const SOURCE_ICON: Record<string, string> = {
-  ROLL: "🌀",
-  BULK: "🧪",
-  PACKAGING: "📦",
-  TRADING: "🛒",
+const SOURCE_ICON: Record<string, React.ReactNode> = {
+  ROLL: <Disc3 className="h-3.5 w-3.5" aria-hidden />,
+  BULK: <FlaskConical className="h-3.5 w-3.5" aria-hidden />,
+  PACKAGING: <Package className="h-3.5 w-3.5" aria-hidden />,
+  TRADING: <ShoppingBag className="h-3.5 w-3.5" aria-hidden />,
 };
 const SOURCE_TONE: Record<string, string> = {
   ROLL: "bg-success-bg text-success-fg ring-success-border",
@@ -695,28 +690,28 @@ export function GrnHistoryV36() {
                   { id: "ALL", label: "All", count: allRows.length },
                   {
                     id: "ROLL",
-                    label: "🌀 Roll",
+                    label: "Roll",
                     count: (allRows as GrnHistoryRow[]).filter(
                       (r) => r.source_type === "ROLL",
                     ).length,
                   },
                   {
                     id: "BULK",
-                    label: "🧪 Bulk",
+                    label: "Bulk",
                     count: (allRows as GrnHistoryRow[]).filter(
                       (r) => r.source_type === "BULK",
                     ).length,
                   },
                   {
                     id: "PACKAGING",
-                    label: "📦 Packaging",
+                    label: "Packaging",
                     count: (allRows as GrnHistoryRow[]).filter(
                       (r) => r.source_type === "PACKAGING",
                     ).length,
                   },
                   {
                     id: "TRADING",
-                    label: "🛒 Trading",
+                    label: "Trading",
                     count: (allRows as GrnHistoryRow[]).filter(
                       (r) => r.source_type === "TRADING",
                     ).length,
@@ -770,7 +765,7 @@ export function GrnHistoryV36() {
               </div>
 
               <div className="rounded-xl border border-order-border bg-order-bg p-3">
-                <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-order-fg">
+                <div className="flex items-center gap-1.5 text-caption font-semibold text-order-fg">
                   <ShieldCheck className="h-3 w-3" /> Correction policy
                 </div>
                 <p className="mt-1 text-caption leading-snug text-order-fg">
@@ -816,25 +811,25 @@ export function GrnHistoryV36() {
                     <table className="min-w-full text-xs">
                       <thead className="bg-surface-2 border-b border-line text-content-3">
                         <tr>
-                          <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left font-bold ">
                             Date
                           </th>
-                          <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left font-bold ">
                             Source
                           </th>
-                          <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left font-bold ">
                             Material / Ref
                           </th>
-                          <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left font-bold ">
                             Vendor
                           </th>
-                          <th className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                          <th className="px-3 py-2 text-left font-bold ">
                             Plant · Location
                           </th>
-                          <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                          <th className="px-3 py-2 text-right font-bold ">
                             Qty
                           </th>
-                          <th className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                          <th className="px-3 py-2 text-right font-bold ">
                             Action
                           </th>
                         </tr>
@@ -853,7 +848,7 @@ export function GrnHistoryV36() {
                               <td className="px-3 py-2">
                                 <span
                                   className={cn(
-                                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+                                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
                                     SOURCE_TONE[row.source_type] || "",
                                   )}
                                 >
@@ -872,13 +867,13 @@ export function GrnHistoryV36() {
                                   {row.reference || row.batch_no || "—"}
                                 </div>
                                 {row.has_correction ? (
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-success-bg px-1.5 py-0.5 text-caption font-bold uppercase tracking-wider text-success-fg ring-1 ring-success-border">
+                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-success-bg px-1.5 py-0.5 text-caption font-bold text-success-fg ring-1 ring-success-border">
                                     <ShieldCheck className="h-3 w-3" />
                                     corrected effective
                                   </div>
                                 ) : null}
                                 {row.manual_po_ref ? (
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-caption font-bold uppercase tracking-wider text-warning-fg ring-1 ring-warning-border">
+                                  <div className="mt-1 inline-flex items-center gap-1 rounded-md bg-warning-bg px-1.5 py-0.5 text-caption font-bold text-warning-fg ring-1 ring-warning-border">
                                     Manual-PO · {row.manual_po_ref}
                                   </div>
                                 ) : null}
@@ -1085,19 +1080,19 @@ function CorrectionDrawer({
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+              <div className="text-caption font-semibold tracking-[0.12em] text-order-fg">
                 Correct GRN row
               </div>
               <div className="font-display text-base font-bold text-content-1">
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1 align-middle mr-2",
+                    "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1 align-middle mr-2",
                     SOURCE_TONE[row.source_type],
                   )}
                 >
@@ -1136,7 +1131,7 @@ function CorrectionDrawer({
 
           <div className="grid grid-cols-3 gap-2 text-caption rounded-xl bg-surface-2 p-3 ring-1 ring-line">
             <div>
-              <div className="text-caption font-semibold uppercase text-content-3">
+              <div className="text-caption font-semibold text-content-3">
                 Effective qty
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">
@@ -1149,7 +1144,7 @@ function CorrectionDrawer({
               ) : null}
             </div>
             <div>
-              <div className="text-caption font-semibold uppercase text-content-3">
+              <div className="text-caption font-semibold text-content-3">
                 Effective unit rate
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">
@@ -1162,7 +1157,7 @@ function CorrectionDrawer({
               ) : null}
             </div>
             <div>
-              <div className="text-caption font-semibold uppercase text-content-3">
+              <div className="text-caption font-semibold text-content-3">
                 Line value
               </div>
               <div className="font-mono font-bold text-content-1 mt-0.5">

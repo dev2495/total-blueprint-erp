@@ -24,6 +24,7 @@ import {
   Star,
   Table2,
   X,
+  Disc3,
 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
-export type WorkspaceViewMode = "table" | "grid" | "matrix";
+export type WorkspaceViewMode = "table" | "grid" | "matrix" | "films";
 
 export interface SavedView<T> {
   id: string;
@@ -151,7 +152,7 @@ export function SavedViewsBar<T>({
   const [newName, setNewName] = React.useState("");
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-line bg-surface-1 px-3 py-2 shadow-sm">
+    <div className="flex flex-wrap items-center gap-1.5 rounded-[12px] border border-line bg-surface-1 px-3 py-2 shadow-[var(--shadow-sm)]">
       <span className="text-[12px] font-semibold text-content-3 mr-1">
         Views
       </span>
@@ -159,15 +160,15 @@ export function SavedViewsBar<T>({
         <div key={v.id} className="group relative">
           <button
             onClick={() => onSelect(v)}
+            aria-pressed={activeId === v.id}
             className={cn(
-              "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-caption font-bold transition",
+              "inline-flex min-h-7 items-center gap-1 rounded-[7px] px-2.5 py-1 text-[12.5px] font-medium transition",
               activeId === v.id
-                ? "bg-primary text-white shadow-sm"
-                : "bg-surface-2 text-content-2 ring-1 ring-line hover:bg-info-bg hover:text-primary",
+                ? "bg-content-1 text-surface-1 font-semibold"
+                : "bg-surface-1 text-content-2 ring-1 ring-line hover:bg-surface-2 hover:text-content-1",
             )}
           >
-            {v.pinned && <Star className="h-3 w-3 fill-current" />}
-            {v.icon && <span className="leading-none">{v.icon}</span>}
+            {v.pinned && <Star className="h-3 w-3 fill-current" aria-hidden />}
             {v.name}
           </button>
           {(onDelete || onTogglePin) && v.id.startsWith("user-") && (
@@ -243,7 +244,7 @@ export function SavedViewsBar<T>({
       ) : (
         <button
           onClick={() => setShowNew(true)}
-          className="inline-flex items-center gap-1 rounded-lg bg-success-bg px-2.5 py-1 text-caption font-bold text-success-fg ring-1 ring-success-border hover:bg-success-bg"
+          className="inline-flex min-h-7 items-center gap-1 rounded-[7px] px-2.5 py-1 text-[12.5px] font-medium text-order-fg ring-1 ring-order-border hover:bg-order-bg"
         >
           <BookmarkPlus className="h-3 w-3" /> Save current
         </button>
@@ -305,6 +306,8 @@ export function FilterBar({
             {viewModes.map((m) => (
               <button
                 key={m}
+                type="button"
+                aria-pressed={viewMode === m}
                 onClick={() => onViewModeChange(m)}
                 className={cn(
                   "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-caption font-bold capitalize transition",
@@ -316,6 +319,7 @@ export function FilterBar({
                 {m === "table" && <Rows3 className="h-3.5 w-3.5" />}
                 {m === "grid" && <LayoutGrid className="h-3.5 w-3.5" />}
                 {m === "matrix" && <Columns3 className="h-3.5 w-3.5" />}
+                {m === "films" && <Disc3 className="h-3.5 w-3.5" />}
                 {m}
               </button>
             ))}
@@ -654,70 +658,26 @@ export function WorkspaceSection({
   actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const TONE: Record<string, { bar: string; bg: string; num: string }> = {
-    blue: {
-      bar: "border-l-blue-500",
-      bg: "bg-surface-2",
-      num: "bg-primary text-white",
-    },
-    violet: {
-      bar: "border-l-violet-500",
-      bg: "bg-surface-2",
-      num: "bg-order-fg text-white",
-    },
-    amber: {
-      bar: "border-l-amber-500",
-      bg: "bg-warning-bg",
-      num: "bg-warning-fg text-white",
-    },
-    emerald: {
-      bar: "border-l-emerald-500",
-      bg: "bg-success-bg",
-      num: "bg-success-fg text-white",
-    },
-    rose: {
-      bar: "border-l-rose-500",
-      bg: "bg-danger-bg",
-      num: "bg-danger-solid text-white",
-    },
+  const ICON_TONE: Record<string, string> = {
+    blue: "border-info-border bg-info-bg text-info-fg",
+    violet: "border-order-border bg-order-bg text-order-fg",
+    amber: "border-warning-border bg-warning-bg text-warning-fg",
+    emerald: "border-success-border bg-success-bg text-success-fg",
+    rose: "border-danger-border bg-danger-bg text-danger-fg",
   };
-  const t = TONE[tone];
   return (
-    <section
-      className={cn(
-        "overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-md ring-1 ring-line border-l-[3px]",
-        t.bar,
-      )}
-    >
-      <header
-        className={cn(
-          "flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-3",
-          t.bg,
-        )}
-      >
-        <div className="flex items-start gap-3">
+    <section className="overflow-hidden rounded-[14px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-4 py-3">
+        <div className="flex min-w-0 items-start gap-3">
           {icon && (
-            <span
-              className={cn(
-                "flex h-8 w-8 flex-none items-center justify-center rounded-lg shadow-sm",
-                t.num,
-              )}
-            >
+            <span className={cn("flex h-8 w-8 flex-none items-center justify-center rounded-[9px] border", ICON_TONE[tone])}>
               {icon}
             </span>
           )}
-          <div>
-            {eyebrow && (
-              <div className="text-[12px] font-semibold text-content-3">
-                {eyebrow}
-              </div>
-            )}
-            <h2 className="font-display text-base font-bold text-content-1">
-              {title}
-            </h2>
-            {subtitle && (
-              <p className="mt-0.5 text-xs text-content-3">{subtitle}</p>
-            )}
+          <div className="min-w-0">
+            {eyebrow && <div className="text-[12px] font-medium text-content-3">{eyebrow}</div>}
+            <h2 className="text-[15px] font-semibold text-content-1">{title}</h2>
+            {subtitle && <p className="mt-0.5 max-w-[80ch] text-[12.5px] text-content-3">{subtitle}</p>}
           </div>
         </div>
         {actions}
@@ -727,11 +687,11 @@ export function WorkspaceSection({
   );
 }
 
-// ─── KPI tile (gradient) ──────────────────────────────────────────
+// ─── KPI tile ──────────────────────────────────────────────────────
 
+/** Stock workspace KPI tile, drawn like the planner kit's KpiTile. `icon` (legacy emoji) is ignored. */
 export function KpiTileV36({
   tone,
-  icon,
   label,
   value,
   unit,
@@ -739,52 +699,28 @@ export function KpiTileV36({
   delta,
 }: {
   tone: "blue" | "violet" | "amber" | "emerald" | "rose";
-  icon: string;
+  icon?: string;
   label: string;
   value: string;
   unit?: string;
   sub?: string;
   delta?: { v: string; positive: boolean };
 }) {
-  const TONE = {
-    blue: "bg-primary",
-    violet: "bg-plate",
-    amber: "bg-warning-fg",
-    emerald: "bg-success-fg",
-    rose: "bg-danger-solid",
-  }[tone];
+  const border = { blue: "border-line", violet: "border-line", amber: "border-warning-border", emerald: "border-success-border", rose: "border-danger-border" }[tone];
+  const valueTone = { blue: "text-content-1", violet: "text-content-1", amber: "text-warning-fg", emerald: "text-success-fg", rose: "text-danger-fg" }[tone];
   return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-2xl p-4 text-white shadow-xl ring-1 ring-surface-1/10 transition hover:-translate-y-0.5 hover:shadow-2xl",
-        TONE,
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
-          {label}
-        </div>
-        <span className="text-xl">{icon}</span>
-      </div>
-      <div className="mt-2 flex items-baseline gap-1.5">
-        <span className="font-display text-3xl font-semibold">{value}</span>
-        {unit && (
-          <span className="text-xs font-bold text-white/80">{unit}</span>
+    <div className={cn("flex min-h-[104px] min-w-0 flex-col gap-1 rounded-[14px] border bg-surface-1 px-3.5 pb-2.5 pt-3 shadow-[var(--shadow-sm)]", border)}>
+      <div className="text-caption font-medium leading-tight text-content-3">{label}</div>
+      <div className={cn("flex flex-wrap items-baseline gap-x-1.5 text-xl font-semibold leading-tight tracking-tight tabular-nums", valueTone)}>
+        {value}
+        {unit && <span className="text-caption font-medium text-content-3">{unit}</span>}
+        {delta && (
+          <span className={cn("rounded-[4px] px-1 font-mono text-[11px] font-semibold", delta.positive ? "bg-success-bg text-success-fg" : "bg-danger-bg text-danger-fg")}>
+            {delta.positive ? "▲" : "▼"} {delta.v}
+          </span>
         )}
       </div>
-      {sub && <div className="mt-0.5 text-caption text-white/80">{sub}</div>}
-      {delta && (
-        <div
-          className={cn(
-            "mt-1 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-caption font-bold",
-            delta.positive
-              ? "bg-surface-1/20 text-white"
-              : "bg-danger-bg text-danger-border",
-          )}
-        >
-          {delta.positive ? "▲" : "▼"} {delta.v}
-        </div>
-      )}
+      {sub && <div className="mt-auto text-[11.5px] leading-snug text-content-4">{sub}</div>}
     </div>
   );
 }

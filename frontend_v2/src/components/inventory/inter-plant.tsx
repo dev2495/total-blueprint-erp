@@ -191,28 +191,24 @@ export function InterPlantV36() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi
           tone="amber"
-          icon="📋"
           label="Drafts"
           value={`${drafts.length}`}
           sub="awaiting dispatch"
         />
         <Kpi
           tone="blue"
-          icon="🚚"
           label="In transit"
           value={`${inTransit.length}`}
           sub={`${fmtKg(totalKgInTransit, 0)} on road`}
         />
         <Kpi
           tone="emerald"
-          icon="✅"
           label="Received this fortnight"
           value={`${received.length}`}
           sub={`${fmtKg(totalReceivedKg, 0)} arrived`}
         />
         <Kpi
           tone="violet"
-          icon="🏭"
           label="Plants in network"
           value={`${plants.length}`}
           sub="active"
@@ -251,7 +247,7 @@ export function InterPlantV36() {
         <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="text-caption font-semibold tracking-[0.12em] text-primary">
                 Live transfers · plant → plant
               </div>
               <h3 className="font-display text-base font-bold text-content-1">
@@ -342,7 +338,7 @@ function Kpi({
   sub,
 }: {
   tone: "blue" | "violet" | "amber" | "emerald";
-  icon: string;
+  icon?: string;
   label: string;
   value: string;
   sub: string;
@@ -356,12 +352,12 @@ function Kpi({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl p-4 text-white shadow-lg ring-1 ring-surface-1/10 hover:shadow-2xl hover:-translate-y-0.5",
+        "overflow-hidden rounded-2xl p-4 text-white shadow-lg ring-1 ring-surface-1/10 hover:shadow-[var(--shadow-md)] hover:-translate-y-0.5",
         TONE,
       )}
     >
       <div className="flex items-start justify-between">
-        <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/80">
+        <div className="text-caption font-semibold tracking-[0.12em] text-white/80">
           {label}
         </div>
         <span className="text-xl">{icon}</span>
@@ -389,17 +385,17 @@ function Lane({
 }) {
   const TONE = {
     amber: {
-      bar: "border-l-amber-500",
+      bar: "",
       bg: "bg-warning-bg",
       num: "bg-warning-fg text-white",
     },
     blue: {
-      bar: "border-l-blue-500",
+      bar: "",
       bg: "bg-surface-2",
       num: "bg-primary text-white",
     },
     emerald: {
-      bar: "border-l-emerald-500",
+      bar: "",
       bg: "bg-success-bg",
       num: "bg-success-fg text-white",
     },
@@ -407,7 +403,7 @@ function Lane({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-md border-l-[3px]",
+        "overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-md",
         TONE.bar,
       )}
     >
@@ -480,7 +476,7 @@ function Card({ c, onClick }: { c: DeliveryChallan; onClick: () => void }) {
           )}
           <span
             className={cn(
-              "rounded-md px-1.5 py-0.5 text-caption font-bold uppercase ring-1",
+              "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
               statusBadge(c.status),
             )}
           >
@@ -536,7 +532,7 @@ function Pill({
         TONE,
       )}
     >
-      <span className="text-caption font-semibold uppercase opacity-70">
+      <span className="text-caption font-semibold opacity-70">
         {label}
       </span>
       <span className="font-mono text-caption font-bold">{value}</span>
@@ -556,13 +552,13 @@ function DetailDrawer({
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-lg overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="text-caption font-semibold tracking-[0.12em] text-primary">
                 Inter-plant DC
               </div>
               <div className="font-display text-lg font-bold text-content-1">
@@ -584,7 +580,7 @@ function DetailDrawer({
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             <span
               className={cn(
-                "rounded-md px-2 py-0.5 text-caption font-bold uppercase ring-1",
+                "rounded-md px-2 py-0.5 text-caption font-bold  ring-1",
                 statusBadge(challan.status),
               )}
             >
@@ -742,7 +738,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-caption font-semibold uppercase tracking-wider">
+      <div className="text-caption font-semibold ">
         {label}
       </div>
       <div className="mt-0.5 font-mono text-sm font-bold">{value}</div>

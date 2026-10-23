@@ -740,7 +740,7 @@ export function StockLifecycleWorkspace() {
   return (
     <div data-testid="stock-lifecycle-cockpit" className="mx-auto flex max-w-[1560px] flex-col gap-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-[280px] flex-1">
           <h1 className="text-2xl font-semibold text-content-1">Count and close</h1>
           <p className="mt-1 max-w-[76ch] text-sm text-content-3">
             Opening stock, stock counts on any day (month end or a period), the evening packing count, month end
@@ -763,7 +763,7 @@ export function StockLifecycleWorkspace() {
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Select value={plantId || "__none__"} onValueChange={(value) => setPlantId(value === "__none__" ? "" : value)}>
             <SelectTrigger data-testid="stock-lifecycle-plant-select" className="h-9 w-[230px] rounded-[10px] border-line bg-surface-1 text-[13px]">
               <SelectValue placeholder="Select plant" />

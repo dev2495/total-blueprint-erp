@@ -578,7 +578,7 @@ export function InventoryHomeV36() {
               href="/inventory/stock-lifecycle"
               className="inline-flex items-center gap-1.5 rounded-lg bg-surface-1 px-3 py-1.5 text-caption font-bold text-content-2 ring-1 ring-line hover:bg-surface-2"
             >
-              📅 Period
+              Period
             </Link>
           </>
         }
@@ -588,7 +588,6 @@ export function InventoryHomeV36() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <KpiTile
           tone="blue"
-          icon="🧪"
           label="Bulk granules &amp; chemicals"
           value={isLoading ? "—" : totals.bulkDisplay}
           unit=""
@@ -596,7 +595,6 @@ export function InventoryHomeV36() {
         />
         <KpiTile
           tone="violet"
-          icon="🌀"
           label="Active rolls"
           value={isLoading ? "—" : formatNumber(totals.rollCount)}
           unit={totals.rollCount === 1 ? "roll" : "rolls"}
@@ -604,7 +602,6 @@ export function InventoryHomeV36() {
         />
         <KpiTile
           tone="amber"
-          icon="📦"
           label="Packaging materials"
           value={isLoading ? "—" : totals.pkgDisplay}
           unit=""
@@ -794,7 +791,7 @@ export function InventoryHomeV36() {
           </div>
 
           <div className="mt-4 rounded-xl border border-order-border bg-order-bg p-3">
-            <div className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-wider text-order-fg">
+            <div className="flex items-center gap-1.5 text-caption font-semibold text-order-fg">
               <Sparkles className="h-3 w-3" /> Reservations
             </div>
             <p className="mt-1 text-caption leading-snug text-order-fg">
@@ -811,7 +808,7 @@ export function InventoryHomeV36() {
 
         {/* Main */}
         <main className="space-y-5">
-          {/* ★ ROLL MATRIX (the showcase) */}
+          {/* Roll matrix */}
           {(classFilter === "ALL" || classFilter === "ROLL") && (
             <RollMatrixSection
               matrix={matrix}
@@ -910,7 +907,7 @@ export function InventoryHomeV36() {
 
 interface KpiTileProps {
   tone: "blue" | "violet" | "amber" | "emerald";
-  icon: string;
+  icon?: React.ReactNode;
   label: string;
   value: string;
   unit: string;
@@ -927,7 +924,7 @@ function KpiTile({ tone, icon, label, value, unit, sub }: KpiTileProps) {
     <div className="rounded-[16px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
       <div className="flex items-start justify-between gap-3">
         <div className="text-[12px] font-medium text-content-3">{label}</div>
-        <span className={cn("grid h-8 w-8 place-items-center rounded-lg text-[15px] ring-1", ACCENT)}>{icon}</span>
+        {icon ? <span className={cn("grid h-8 w-8 place-items-center rounded-lg ring-1", ACCENT)} aria-hidden>{icon}</span> : null}
       </div>
       <div className="mt-2 flex items-baseline gap-1.5">
         <span className="text-[26px] font-semibold leading-none tracking-[-0.03em] text-content-1 tabular-nums">{value}</span>
@@ -973,7 +970,6 @@ function RollMatrixSection({
         eyebrow="0 active rolls"
         subtitle="Variant × thickness pivot — populates as rolls register."
         tone="violet"
-        icon="🌀"
       >
         <div className="rounded-xl border border-dashed border-line bg-surface-2 p-6 text-center">
           <Layers className="mx-auto h-6 w-6 text-content-4" />
@@ -993,7 +989,6 @@ function RollMatrixSection({
       eyebrow={`Rolls · ${matrix.totals.grand.rollCount} rolls · ${formatNumber(matrix.totals.grand.totalKg, 0)} KG`}
       subtitle="Each cell = roll count · color = stock concentration. Click to drill into individual rolls."
       tone="violet"
-      icon="🌀"
       actions={
         <div className="flex flex-wrap items-center gap-1.5 text-caption">
           <span className="rounded bg-success-bg px-1.5 py-0.5 font-bold text-success-fg">
@@ -1028,7 +1023,7 @@ function RollMatrixSection({
           </caption>
           <thead>
             <tr className="border-b border-line text-content-3">
-              <th scope="col" className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold uppercase tracking-wider">
+              <th scope="col" className="sticky left-0 bg-surface-1 px-4 py-2 text-left font-bold ">
                 Variant / size
               </th>
               {matrix.cols.map((c) => (
@@ -1040,10 +1035,10 @@ function RollMatrixSection({
                   {c}μ
                 </th>
               ))}
-              <th scope="col" className="px-3 py-2 text-center font-bold uppercase">
+              <th scope="col" className="px-3 py-2 text-center font-bold ">
                 Total
               </th>
-              <th scope="col" className="px-3 py-2 text-right font-bold uppercase">KG</th>
+              <th scope="col" className="px-3 py-2 text-right font-bold ">KG</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -1177,7 +1172,6 @@ function BulkSection({
       eyebrow={`${rows.length} stock rows`}
       subtitle="Aggregate on-hand by material × location. Reservations from sales orders shown."
       tone="blue"
-      icon="🧪"
     >
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-line bg-surface-2 p-6 text-center">
@@ -1202,25 +1196,25 @@ function BulkSection({
             </caption>
             <thead>
               <tr className="border-b border-line bg-surface-2 text-content-3">
-                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold ">
                   Material
                 </th>
-                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold ">
                   Code
                 </th>
-                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold ">
                   Location
                 </th>
-                <th scope="col" className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-right font-bold ">
                   On hand
                 </th>
-                <th scope="col" className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-right font-bold ">
                   Reserved
                 </th>
-                <th scope="col" className="px-3 py-2 text-right font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-right font-bold ">
                   Available
                 </th>
-                <th scope="col" className="px-3 py-2 text-left font-bold uppercase tracking-wider">
+                <th scope="col" className="px-3 py-2 text-left font-bold ">
                   Action
                 </th>
               </tr>
@@ -1330,7 +1324,6 @@ function PackagingSection({
       eyebrow={`${rows.length} SKU rows · catalog-backed`}
       subtitle="Inner pouches, gunny, cartons, sheets, tape and other packing stock. POD stock is shown separately."
       tone="amber"
-      icon="📦"
     >
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-line bg-surface-2 p-6 text-center">
@@ -1343,7 +1336,7 @@ function PackagingSection({
         <div>
           <div className="grid grid-cols-1 divide-y divide-line sm:grid-cols-2 sm:divide-x sm:divide-y-0">
             <div className="p-4">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
+              <div className="text-caption font-semibold tracking-[0.12em] text-warning-fg mb-2">
                 Inner pouches
               </div>
               {innerPouches.length ? (
@@ -1357,7 +1350,7 @@ function PackagingSection({
               )}
             </div>
             <div className="p-4">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg mb-2">
+              <div className="text-caption font-semibold tracking-[0.12em] text-warning-fg mb-2">
                 Outer / shipping
               </div>
               {outers.length ? (
@@ -1373,7 +1366,7 @@ function PackagingSection({
             {others.length > 0 && (
               <div className="p-4 sm:col-span-2 border-t border-line">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
+                  <span className="text-caption font-semibold tracking-[0.12em] text-warning-fg">
                     Other packing
                   </span>
                   <span className="text-caption text-content-3">
@@ -1563,7 +1556,7 @@ interface SectionShellProps {
   eyebrow: string;
   subtitle?: string;
   tone: "blue" | "violet" | "amber" | "emerald";
-  icon: string;
+  icon?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -1578,22 +1571,22 @@ function SectionShell({
 }: SectionShellProps) {
   const TONE = {
     blue: {
-      bar: "border-l-blue-500",
+      bar: "",
       bg: "bg-surface-2",
       num: "bg-primary ring-primary",
     },
     violet: {
-      bar: "border-l-violet-500",
+      bar: "",
       bg: "bg-surface-2",
       num: "bg-order-fg ring-order-border",
     },
     amber: {
-      bar: "border-l-amber-500",
+      bar: "",
       bg: "bg-warning-bg",
       num: "bg-warning-fg ring-warning-border",
     },
     emerald: {
-      bar: "border-l-emerald-500",
+      bar: "",
       bg: "bg-success-bg",
       num: "bg-success-fg ring-success-border",
     },
@@ -1601,7 +1594,7 @@ function SectionShell({
   return (
     <section
       className={cn(
-        "overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-md ring-1 ring-line border-l-[3px] [content-visibility:auto] [contain-intrinsic-size:520px]",
+        "overflow-hidden rounded-2xl border border-line bg-surface-1 shadow-md ring-1 ring-line [content-visibility:auto] [contain-intrinsic-size:520px]",
         TONE.bar,
       )}
     >
@@ -1669,13 +1662,13 @@ function CellDrawer({
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg">
+              <div className="text-caption font-semibold tracking-[0.12em] text-order-fg">
                 Roll cell drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1">
@@ -1695,7 +1688,7 @@ function CellDrawer({
           {cell && (
             <div className="mt-3 grid grid-cols-2 gap-2 text-caption">
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-caption font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold text-content-3">
                   Rolls
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -1703,7 +1696,7 @@ function CellDrawer({
                 </div>
               </div>
               <div className="rounded-lg bg-surface-2 px-2.5 py-1.5">
-                <div className="text-caption font-semibold uppercase text-content-3">
+                <div className="text-caption font-semibold text-content-3">
                   Total KG
                 </div>
                 <div className="font-display text-base font-bold text-content-1">
@@ -2045,13 +2038,13 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-primary">
+              <div className="text-caption font-semibold tracking-[0.12em] text-primary">
                 Bulk stock drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1 truncate">
@@ -2127,7 +2120,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold tracking-[0.12em] text-order-fg mb-2">
               Sales reservations holding this stock row
             </div>
             {rsvQuery.isLoading && (
@@ -2196,13 +2189,13 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
     <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-surface-3/40" />
       <div
-        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-2xl"
+        className="relative z-50 h-full w-full max-w-md overflow-y-auto border-l border-line bg-surface-1 shadow-[var(--shadow-md)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 border-b border-line bg-warning-bg px-5 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-caption font-semibold uppercase tracking-[0.12em] text-warning-fg">
+              <div className="text-caption font-semibold tracking-[0.12em] text-warning-fg">
                 Packaging drill-down
               </div>
               <div className="font-display text-lg font-bold text-content-1 truncate">
@@ -2253,7 +2246,7 @@ function PackagingDrawer({ row, onClose }: { row: any; onClose: () => void }) {
             </div>
           </div>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.12em] text-order-fg mb-2">
+            <div className="text-caption font-semibold tracking-[0.12em] text-order-fg mb-2">
               SO holds
             </div>
             {rsvQuery.isLoading && (
@@ -2314,7 +2307,7 @@ function Stat({
   }[tone];
   return (
     <div className={cn("rounded-lg px-2.5 py-1.5 ring-1", TONE)}>
-      <div className="text-caption font-semibold uppercase tracking-wider opacity-70">
+      <div className="text-caption font-semibold opacity-70">
         {label}
       </div>
       <div className="font-display text-sm font-bold mt-0.5">{value}</div>
@@ -2358,7 +2351,6 @@ function WorkspaceLauncher({
     {
       href: "/inventory/rolls",
       tone: "bg-plate",
-      icon: "🌀",
       title: "Roll workspace",
       subtitle: "Variant × thickness · matrix / table / grid",
       kpis: [
@@ -2369,7 +2361,6 @@ function WorkspaceLauncher({
     {
       href: "/inventory/stock-conversions",
       tone: "bg-primary",
-      icon: "✂️",
       title: "Stock conversion",
       subtitle: "Open tube · split sheets · slit jumbos",
       kpis: [
@@ -2380,7 +2371,6 @@ function WorkspaceLauncher({
     {
       href: "/inventory/bulk",
       tone: "bg-success-fg",
-      icon: "🧪",
       title: "Bulk & chemicals",
       subtitle: "Granules · resins · code rows · plant split",
       kpis: [
@@ -2391,7 +2381,6 @@ function WorkspaceLauncher({
     {
       href: "/inventory/packaging",
       tone: "bg-warning-fg",
-      icon: "📦",
       title: "Packaging",
       subtitle: "Inner pouch · gunny · carton · sheet · tape",
       kpis: [
@@ -2402,7 +2391,6 @@ function WorkspaceLauncher({
     {
       href: "/inventory?tab=POD",
       tone: "bg-plate",
-      icon: "🎫",
       title: "POD stock",
       subtitle: "POD sleeves only · details and stock",
       kpis: [
@@ -2413,7 +2401,6 @@ function WorkspaceLauncher({
     {
       href: "/inventory/addons",
       tone: "bg-plate",
-      icon: "🎨",
       title: "Inks · adhesives · solvents",
       subtitle: "Process consumables · colour swatches",
       kpis: [
@@ -2424,7 +2411,6 @@ function WorkspaceLauncher({
     {
       href: "/inventory/traceability",
       tone: "bg-primary",
-      icon: "🌳",
       title: "Roll genealogy",
       subtitle: "Trace any roll · tree · timeline · ancestors",
       kpis: [],
@@ -2432,14 +2418,13 @@ function WorkspaceLauncher({
     {
       href: "/inventory/inter-plant",
       tone: "bg-surface-2",
-      icon: "🚚",
       title: "Inter-plant",
       subtitle: "Transfers · network flow · DC kanban",
       kpis: [],
     },
   ];
   return (
-    <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
+    <div className="rounded-[14px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-[14.5px] font-semibold tracking-[-0.01em] text-content-1">Dedicated workspaces</h3>
         <span className="text-[12px] text-content-3">Filters, saved views, table or grid</span>
@@ -2452,10 +2437,9 @@ function WorkspaceLauncher({
             className="group rounded-2xl border border-line bg-surface-1 p-3.5 transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:border-line-strong hover:shadow-[var(--shadow-md)]"
           >
             <div className="flex items-start justify-between">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-2 text-[17px] ring-1 ring-line">{t.icon}</span>
-              <ArrowRight className="h-4 w-4 text-content-4 transition group-hover:translate-x-0.5 group-hover:text-content-1" />
+              <span className="text-[13.5px] font-semibold leading-tight text-content-1">{t.title}</span>
+              <ArrowRight className="h-4 w-4 text-content-4 transition group-hover:translate-x-0.5 group-hover:text-content-1" aria-hidden />
             </div>
-            <div className="mt-2.5 text-[13.5px] font-semibold leading-tight text-content-1">{t.title}</div>
             <div className="mt-0.5 text-[11.5px] leading-snug text-content-3">{t.subtitle}</div>
             {t.kpis.length > 0 && (
               <div className="mt-2.5 grid grid-cols-2 gap-1.5">
