@@ -28,6 +28,7 @@ import {
   Wheat,
   Droplets,
   FlaskConical,
+  Wallet,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -66,14 +67,16 @@ import {
 import { OpenStockTab } from "./open-stock-tab";
 import { CountTab } from "./count-tab";
 import { CloseTab } from "./close-tab";
+import { PackingCountPanel } from "./packing-count-panel";
+import { KpiRow, KpiTile, StackBar } from "@/components/planner-kit";
 import { formatDisplayDate } from "@/lib/date-format";
 
 export type StockLifecycleTab =
   | "overview"
   | "open"
   | "count"
-  | "close"
-  | "snapshots";
+  | "month"
+  | "close";
 
 interface CategoryDef {
   key: string;
@@ -139,31 +142,16 @@ const TABS: Array<{
   sub: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  {
-    key: "overview",
-    label: "Overview",
-    sub: "Valuation, ageing, movement",
-    icon: BarChart3,
-  },
-  { key: "open", label: "Open stock", sub: "FY opening balances", icon: Scale },
+  { key: "overview", label: "Overview", sub: "Value, ageing and movement", icon: BarChart3 },
+  { key: "open", label: "Opening stock", sub: "The year's opening balances", icon: Scale },
   {
     key: "count",
-    label: "Physical count",
-    sub: "Floor count and variance",
+    label: "Stock count",
+    sub: "Any day, month end or period · evening packing · ink floor",
     icon: ClipboardList,
   },
-  {
-    key: "close",
-    label: "FY close",
-    sub: "Annual lock and roll forward",
-    icon: Lock,
-  },
-  {
-    key: "snapshots",
-    label: "Month close & history",
-    sub: "Monthly snapshots, counts, stock card",
-    icon: History,
-  },
+  { key: "month", label: "Month end", sub: "Monthly close, snapshots and stock card", icon: History },
+  { key: "close", label: "Year end", sub: "Lock the year and carry the closing forward", icon: Lock },
 ];
 
 const STOCK_CLASS_COLORS: Record<string, string> = {
@@ -300,7 +288,7 @@ function reportingClass(row: Record<string, any>) {
 function normalizeTab(value: string | null): StockLifecycleTab {
   const raw = String(value || "").toLowerCase();
   if (raw === "opening" || raw === "open-stock") return "open";
-  if (raw === "physical-count" || raw === "stock-count") return "count";
+  if (raw === "physical-count" || raw === "stock-count" || raw === "packing-count" || raw === "eod") return "count";
   if (
     raw === "yearclose" ||
     raw === "year-close" ||
@@ -308,8 +296,8 @@ function normalizeTab(value: string | null): StockLifecycleTab {
     raw === "close"
   )
     return "close";
-  if (raw === "stockcard" || raw === "history" || raw === "snapshot")
-    return "snapshots";
+  if (raw === "stockcard" || raw === "history" || raw === "snapshot" || raw === "snapshots" || raw === "month-close")
+    return "month";
   if (TABS.some((tab) => tab.key === raw)) return raw as StockLifecycleTab;
   return "overview";
 }
@@ -739,236 +727,34 @@ export function StockLifecycleWorkspace() {
     [catalog, plantId, plants],
   );
 
-  return (
-    <div
-      data-testid="stock-lifecycle-cockpit"
-      className="stock-lifecycle-canvas min-h-screen rounded-[28px] px-3 py-4 sm:px-5 lg:px-7"
-    >
-      <div className="mx-auto flex max-w-[1560px] flex-col gap-4">
-        <Hero
-          plantName={
-            selectedPlant?.code
-              ? `${selectedPlant.code} ${selectedPlant.name}`
-              : selectedPlant?.name || "No plant"
-          }
-          financialYear={financialYear}
-          periodStatus={selectedPeriod?.status || "Not started"}
-          analytics={analytics}
-          deadValue={ageTotals.dead}
-          deadCount={deadRows.length}
-          lastClose={periods.find((period) => period.status === "CLOSED")}
-          rateGap={rateGap}
-          loading={plantsLoading || catalogLoading || closingFetching}
-        />
-
-        <section className="flex flex-col gap-3 xl:flex-row xl:items-center">
-          <nav className="flex min-w-0 flex-wrap gap-2">
-            {TABS.map((tab) => {
-              const Icon = tab.icon;
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  data-testid={`stock-lifecycle-tab-${tab.key}`}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={cn(
-                    "inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-line-strong",
-                    active
-                      ? "bg-surface-3 text-white shadow-[0_14px_28px_-18px_rgba(15,23,42,0.8)]"
-                      : "border border-line bg-surface-1 text-content-3 hover:border-line-strong hover:bg-surface-2",
-                  )}
-                  title={tab.sub}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row xl:justify-end">
-            <Select
-              value={plantId || "__none__"}
-              onValueChange={(value) =>
-                setPlantId(value === "__none__" ? "" : value)
-              }
-            >
-              <SelectTrigger
-                data-testid="stock-lifecycle-plant-select"
-                className="h-10 rounded-xl border-line bg-surface-1 text-xs font-bold sm:w-[250px]"
-              >
-                <SelectValue placeholder="Select plant" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Select plant</SelectItem>
-                {(plants as any[]).map((plant) => (
-                  <SelectItem key={plant.id} value={String(plant.id)}>
-                    {plant.code ? `${plant.code} - ${plant.name}` : plant.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={financialYear} onValueChange={setFinancialYear}>
-              <SelectTrigger
-                data-testid="stock-lifecycle-fy-select"
-                className="h-10 rounded-xl border-line bg-surface-1 text-xs font-bold sm:w-[210px]"
-              >
-                <SelectValue placeholder="FY period" />
-              </SelectTrigger>
-              <SelectContent>
-                {periodOptions.map((period) => (
-                  <SelectItem key={period.value} value={period.value}>
-                    {period.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              onClick={exportCurrentView}
-              className="h-10 rounded-xl bg-surface-3 px-4 text-xs font-semibold text-white hover:bg-primary"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-          </div>
-        </section>
-
-        {activeTab === "overview" ? (
-          <OverviewPanel
-            analytics={analytics}
-            ageTotals={ageTotals}
-            deadRows={deadRows}
-            topMovers={topMovers}
-            trendRows={trendRows as Array<Record<string, any>>}
-            movement={movement}
-            financialYear={financialYear}
-            plantLabel={selectedPlant?.code || selectedPlant?.name || "Plant"}
-            rateGap={rateGap}
-          />
-        ) : activeTab === "open" ? (
-          <LifecycleTabShell
-            icon={Scale}
-            title="Open stock"
-            copy="Set approved opening balances for the selected plant and FY. This is a stock lifecycle action, not a GRN."
-          >
-            {!plantId || !catalog ? (
-              <EmptyState message="Select a plant to load opening stock rows." />
-            ) : (
-              <OpenStockTab
-                plantId={plantId}
-                catalog={catalog}
-                categoryFilter={categoryFilter}
-              />
-            )}
-          </LifecycleTabShell>
-        ) : activeTab === "count" ? (
-          <LifecycleTabShell
-            icon={ClipboardList}
-            title="Physical count"
-            copy="Use the live system quantity, enter floor counts, capture reasons for variance, and post only approved differences."
-          >
-            {!plantId || !catalog ? (
-              <EmptyState message="Select a plant to load physical count rows." />
-            ) : (
-              <CountTab
-                plantId={plantId}
-                catalog={catalog}
-                categoryFilter={categoryFilter}
-              />
-            )}
-          </LifecycleTabShell>
-        ) : activeTab === "close" ? (
-          <LifecycleTabShell
-            icon={Lock}
-            title="FY close"
-            copy="Annual lock only: clear blockers, lock the Indian FY, and generate the next opening from the approved close. Monthly stock close is handled in Month close & history."
-          >
-            {!plantId || !catalog ? (
-              <EmptyState message="Select a plant to preview FY close." />
-            ) : (
-              <CloseTab
-                plantId={plantId}
-                catalog={catalog}
-                onOpenHistory={() => setActiveTab("snapshots")}
-              />
-            )}
-          </LifecycleTabShell>
-        ) : (
-          <SnapshotsPanel
-            plantId={plantId}
-            financialYear={financialYear}
-            periods={periods}
-            batches={batches as any[]}
-            trendRows={trendRows as Array<Record<string, any>>}
-            catalog={catalog}
-          />
-        )}
-
-        <CategoryRail
-          active={categoryFilter}
-          onChange={setCategoryFilter}
-          catalog={catalog}
-        />
-      </div>
-    </div>
+  const countsWaiting = (batches as any[]).filter((batch) =>
+    ["DRAFT", "SUBMITTED", "APPROVED"].includes(String(batch.status || "").toUpperCase()),
+  ).length;
+  const lastClose = periods.find((period) => period.status === "CLOSED");
+  const periodStatus = String(selectedPeriod?.status || "Not started");
+  const activeMeta = TABS.find((tab) => tab.key === activeTab) || TABS[0];
+  const [countKind, setCountKind] = React.useState<"stock" | "packing">(
+    searchParams?.get("scope") === "PACKING" ? "packing" : "stock",
   );
-}
 
-function Hero({
-  plantName,
-  financialYear,
-  periodStatus,
-  analytics,
-  deadValue,
-  deadCount,
-  lastClose,
-  rateGap,
-  loading,
-}: {
-  plantName: string;
-  financialYear: string;
-  periodStatus: string;
-  analytics: { totalValue: number; skus: number; systemQty: number };
-  deadValue: number;
-  deadCount: number;
-  lastClose?: InventoryFinancialPeriod;
-  rateGap: boolean;
-  loading: boolean;
-}) {
   return (
-    <section className="erp-hero relative overflow-hidden rounded-[26px] p-6 text-white">
-      <div className="hidden absolute -right-16 -top-16 h-60 w-60 rounded-full bg-surface-1/10 blur-3xl" />
-      <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+    <div data-testid="stock-lifecycle-cockpit" className="mx-auto flex max-w-[1560px] flex-col gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.12em] text-order-border dark:text-white/80">
-            <span className="h-2 w-2 rounded-full bg-success-fg" />
-            Stock Lifecycle · Inventory Control Cockpit
-          </div>
-          <h1 className="mt-1.5 max-w-5xl text-3xl font-semibold tracking-tight sm:text-4xl">
-            Open · Count · Close — plus the analytics that were missing.
-          </h1>
-          <p className="mt-2 max-w-4xl text-sm font-semibold leading-6 text-order-border dark:text-white/90">
-            A controller cockpit for live valuation, ageing, movement waterfall,
-            monthly snapshots, dead stock, turnover, and the full
-            open-to-count-to-close cycle keyed to a plant and FY period.
+          <h1 className="text-2xl font-semibold text-content-1">Count and close</h1>
+          <p className="mt-1 max-w-[76ch] text-sm text-content-3">
+            Opening stock, stock counts on any day (month end or a period), the evening packing count, month end
+            and year end, for one plant and financial year.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <StatusChip tone="light" icon={Factory}>
-              {plantName}
+              {selectedPlant?.code ? `${selectedPlant.code} ${selectedPlant.name}` : selectedPlant?.name || "No plant"}
             </StatusChip>
             <StatusChip tone="light" icon={CalendarRange}>
               FY {financialYear}
             </StatusChip>
-            <StatusChip
-              tone={
-                String(periodStatus).toUpperCase() === "OPEN"
-                  ? "green"
-                  : "amber"
-              }
-              icon={ShieldCheck}
-            >
-              Period {periodStatus.replace(/_/g, " ")}
+            <StatusChip tone={periodStatus.toUpperCase() === "OPEN" ? "green" : "amber"} icon={ShieldCheck}>
+              Year {periodStatus.replace(/_/g, " ").toLowerCase()}
             </StatusChip>
             {rateGap ? (
               <StatusChip tone="amber" icon={AlertTriangle}>
@@ -977,69 +763,201 @@ function Hero({
             ) : null}
           </div>
         </div>
-        <div className="grid shrink-0 grid-cols-2 gap-2 text-right sm:min-w-[430px]">
-          <HeroMetric
-            label="Stock value"
-            value={money(analytics.totalValue, true)}
-            loading={loading}
-          />
-          <HeroMetric
-            label="SKUs on hand"
-            value={qty(analytics.skus, 0)}
-            loading={loading}
-          />
-          <HeroMetric
-            label="Ageing 90d+"
-            value={money(deadValue, true)}
-            sub={`${deadCount} rows`}
-            loading={loading}
-            tone="amber"
-          />
-          <HeroMetric
-            label="Last close"
-            value={lastClose?.financial_year || "None"}
-            sub={
-              lastClose?.closed_at ? monthShort(lastClose.closed_at) : "pending"
-            }
-            loading={loading}
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={plantId || "__none__"} onValueChange={(value) => setPlantId(value === "__none__" ? "" : value)}>
+            <SelectTrigger data-testid="stock-lifecycle-plant-select" className="h-9 w-[230px] rounded-[10px] border-line bg-surface-1 text-[13px]">
+              <SelectValue placeholder="Select plant" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Select plant</SelectItem>
+              {(plants as any[]).map((plant) => (
+                <SelectItem key={plant.id} value={String(plant.id)}>
+                  {plant.code ? `${plant.code} - ${plant.name}` : plant.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={financialYear} onValueChange={setFinancialYear}>
+            <SelectTrigger data-testid="stock-lifecycle-fy-select" className="h-9 w-[170px] rounded-[10px] border-line bg-surface-1 text-[13px]">
+              <SelectValue placeholder="Financial year" />
+            </SelectTrigger>
+            <SelectContent>
+              {periodOptions.map((period) => (
+                <SelectItem key={period.value} value={period.value}>
+                  {period.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button type="button" variant="outline" onClick={exportCurrentView} className="h-9 rounded-[10px] text-[13px]">
+            <Download className="mr-1.5 h-4 w-4" aria-hidden />
+            Export
+          </Button>
         </div>
-      </div>
-    </section>
-  );
-}
+      </header>
 
-function HeroMetric({
-  label,
-  value,
-  sub,
-  tone = "default",
-  loading,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "default" | "amber";
-  loading?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl bg-surface-1/12 p-3 ring-1 ring-surface-1/15">
-      <div className="text-caption font-bold uppercase tracking-widest text-order-border dark:text-white/76">
-        {label}
-      </div>
-      <div
-        className={cn(
-          "mt-1 font-mono text-2xl font-semibold",
-          tone === "amber" && "text-warning-border",
-        )}
-      >
-        {loading ? "..." : value}
-      </div>
-      {sub ? (
-        <div className="mt-1 text-caption font-bold text-order-border dark:text-white/72">
-          {sub}
+      <KpiRow>
+        <KpiTile icon={Wallet} label="Stock value" value={plantsLoading || catalogLoading || closingFetching ? "…" : money(analytics.totalValue, true)} sub={`${qty(analytics.skus, 0)} items on hand`} testId="lifecycle-kpi-value" />
+        <KpiTile
+          icon={AlertTriangle}
+          label="Not moved in 90 days"
+          value={money(ageTotals.dead, true)}
+          sub={`${deadRows.length} rows · ${Math.round((ageTotals.dead * 100) / Math.max(ageTotals.total, 1))}% of value`}
+          tone={ageTotals.dead > 0 ? "wait" : "done"}
+          testId="lifecycle-kpi-dead"
+        />
+        <KpiTile
+          icon={ClipboardList}
+          label="Counts waiting"
+          value={countsWaiting}
+          sub={countsWaiting ? "drafts or approvals to finish before year end" : "every count is posted"}
+          tone={countsWaiting ? "wait" : "done"}
+          onClick={() => setActiveTab("count")}
+          testId="lifecycle-kpi-counts"
+        />
+        <KpiTile
+          icon={ShieldCheck}
+          label="This year"
+          value={periodStatus.replace(/_/g, " ").toLowerCase()}
+          sub={`FY ${financialYear}`}
+          tone={periodStatus.toUpperCase() === "OPEN" ? "done" : "wait"}
+          onClick={() => setActiveTab("close")}
+          testId="lifecycle-kpi-year"
+        />
+        <KpiTile
+          icon={Lock}
+          label="Last year closed"
+          value={lastClose?.financial_year || "None"}
+          sub={lastClose?.closed_at ? `closed ${monthShort(lastClose.closed_at)}` : "no year closed yet"}
+          testId="lifecycle-kpi-last-close"
+        />
+      </KpiRow>
+
+      <nav role="tablist" aria-label="Count and close steps" className="flex gap-1 overflow-x-auto border-b border-line">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              data-testid={`stock-lifecycle-tab-${tab.key}`}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "-mb-px inline-flex h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-[13.5px] font-medium transition",
+                active ? "border-order text-content-1 font-semibold" : "border-transparent text-content-3 hover:text-content-1",
+              )}
+              title={tab.sub}
+            >
+              <Icon className="h-4 w-4" aria-hidden />
+              {tab.label}
+              {tab.key === "count" && countsWaiting ? (
+                <span className="rounded-full bg-warning-bg px-1.5 font-mono text-[11px] text-warning-fg">{countsWaiting}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </nav>
+      <p className="-mt-2 text-[12.5px] text-content-3">{activeMeta.sub}</p>
+
+      {activeTab === "overview" ? (
+        <OverviewPanel
+          analytics={analytics}
+          ageTotals={ageTotals}
+          deadRows={deadRows}
+          topMovers={topMovers}
+          trendRows={trendRows as Array<Record<string, any>>}
+          movement={movement}
+          financialYear={financialYear}
+          plantLabel={selectedPlant?.code || selectedPlant?.name || "Plant"}
+          rateGap={rateGap}
+        />
+      ) : activeTab === "open" ? (
+        <LifecycleTabShell
+          icon={Scale}
+          title="Opening stock"
+          copy="Set approved opening balances for the selected plant and year. This is a stock lifecycle step, not a goods receipt."
+        >
+          {!plantId || !catalog ? (
+            <EmptyState message="Select a plant to load opening stock rows." />
+          ) : (
+            <OpenStockTab plantId={plantId} catalog={catalog} categoryFilter={categoryFilter} />
+          )}
+        </LifecycleTabShell>
+      ) : activeTab === "count" ? (
+        <div className="space-y-4">
+          <div role="group" aria-label="What to count" className="inline-flex flex-wrap gap-0.5 rounded-[10px] border border-line bg-surface-1 p-[3px] shadow-[var(--shadow-sm)]">
+            {([
+              ["stock", "Stock count · any day, month end or period"],
+              ["packing", "Evening packing count"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={countKind === key}
+                data-testid={`stock-count-kind-${key}`}
+                onClick={() => setCountKind(key)}
+                className={cn(
+                  "h-8 rounded-[7px] px-3 text-[13px] font-medium",
+                  countKind === key ? "bg-content-1 text-surface-1" : "text-content-3 hover:bg-surface-2 hover:text-content-1",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {countKind === "packing" ? (
+            <PackingCountPanel embedded />
+          ) : (
+            <LifecycleTabShell
+              icon={ClipboardList}
+              title="Stock count"
+              copy="One count for any day: a month-end count, a period count or a spot check. Use the live system quantity, enter what is on the floor, give a reason for each difference, and post only approved differences."
+            >
+              {!plantId || !catalog ? (
+                <EmptyState message="Select a plant to load stock count rows." />
+              ) : (
+                <CountTab plantId={plantId} catalog={catalog} categoryFilter={categoryFilter} />
+              )}
+            </LifecycleTabShell>
+          )}
+          <SnapshotsPanel
+            section="counts"
+            plantId={plantId}
+            financialYear={financialYear}
+            periods={periods}
+            batches={batches as any[]}
+            trendRows={trendRows as Array<Record<string, any>>}
+            catalog={catalog}
+          />
         </div>
-      ) : null}
+      ) : activeTab === "close" ? (
+        <LifecycleTabShell
+          icon={Lock}
+          title="Year end"
+          copy="Clear the blockers, lock the financial year and carry the approved closing forward as next year's opening. Month-end steps are on Month end."
+        >
+          {!plantId || !catalog ? (
+            <EmptyState message="Select a plant to preview year end." />
+          ) : (
+            <CloseTab plantId={plantId} catalog={catalog} onOpenHistory={() => setActiveTab("month")} />
+          )}
+        </LifecycleTabShell>
+      ) : (
+        <SnapshotsPanel
+          section="month"
+          plantId={plantId}
+          financialYear={financialYear}
+          periods={periods}
+          batches={batches as any[]}
+          trendRows={trendRows as Array<Record<string, any>>}
+          catalog={catalog}
+        />
+      )}
+
+      <CategoryRail active={categoryFilter} onChange={setCategoryFilter} catalog={catalog} />
     </div>
   );
 }
@@ -1055,10 +973,10 @@ function StatusChip({
 }) {
   const className =
     tone === "green"
-      ? "bg-success-fg text-success-border ring-success-border"
+      ? "bg-success-bg text-success-fg ring-success-border"
       : tone === "amber"
-        ? "bg-warning-fg text-warning-border ring-warning-border"
-        : "bg-surface-1/15 text-white ring-surface-1/20";
+        ? "bg-warning-bg text-warning-fg ring-warning-border"
+        : "bg-surface-2 text-content-2 ring-line";
   return (
     <span
       className={cn(
@@ -1148,44 +1066,29 @@ function OverviewPanel({
 
   return (
     <div data-testid="stock-overview-tab" className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <KpiCard
+      <KpiRow>
+        <KpiTile
+          icon={Wallet}
           label="Total value"
           value={money(analytics.totalValue)}
-          sub={rateGap ? "excludes rows without rates" : "from stock snapshot"}
+          sub={rateGap ? "rows without a rate are left out" : "from the stock snapshot"}
+          viz={
+            <StackBar
+              segments={[
+                { label: "Bulk", value: bulk, tone: "run" },
+                { label: "Rolls", value: rolls, tone: "done" },
+                { label: "Packing", value: packaging, tone: "wait" },
+                { label: "Other", value: other, tone: "neutral" },
+              ]}
+            />
+          }
+          wide
         />
-        <KpiCard
-          label="Bulk / granule"
-          value={money(bulk, true)}
-          sub={classSub(bulkStats, bulk, "KG")}
-        />
-        <KpiCard
-          label="Rolls / WIP"
-          value={money(rolls, true)}
-          sub={classSub(rollStats, rolls, "KG", "roll rates missing")}
-        />
-        <KpiCard
-          label="Packaging + addon"
-          value={money(packaging, true)}
-          sub={classSub(
-            packagingStats,
-            packaging,
-            "qty",
-            "packing rates missing",
-          )}
-        />
-        <KpiCard
-          label="Turnover annualised"
-          value={turnover > 0 ? `${qty(turnover, 1)}x` : "No outflow"}
-          sub="from FY movement qty"
-        />
-        <KpiCard
-          label="Dead stock 90d+"
-          value={money(ageTotals.dead, true)}
-          sub={`${deadRows.length} rows`}
-          tone="amber"
-        />
-      </div>
+        <KpiTile icon={Wheat} label="Bulk · granules, ink, chemicals" value={money(bulk, true)} sub={classSub(bulkStats, bulk, "kg")} />
+        <KpiTile icon={PackageCheck} label="Rolls and WIP" value={money(rolls, true)} sub={classSub(rollStats, rolls, "kg", "roll rates missing")} />
+        <KpiTile icon={Package} label="Packing and add-ons" value={money(packaging, true)} sub={classSub(packagingStats, packaging, "qty", "packing rates missing")} />
+        <KpiTile icon={RefreshCw} label="Turns a year" value={turnover > 0 ? `${qty(turnover, 1)}×` : "No outflow"} sub="this year's use and dispatch against closing" />
+      </KpiRow>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <ValueMix
@@ -1219,6 +1122,7 @@ function OverviewPanel({
   );
 }
 
+/** Compact figure used inside panels (proofs, drawers). */
 function KpiCard({
   label,
   value,
@@ -1233,38 +1137,15 @@ function KpiCard({
   return (
     <div
       className={cn(
-        "rounded-[18px] border p-3 shadow-sm",
-        tone === "amber"
-          ? "border-warning-border bg-warning-bg"
-          : "border-line bg-surface-1",
+        "min-w-0 rounded-[10px] border px-3 py-2.5",
+        tone === "amber" ? "border-warning-border bg-warning-bg" : "border-line bg-surface-1",
       )}
     >
-      <div
-        className={cn(
-          "text-caption font-semibold uppercase tracking-[0.08em]",
-          tone === "amber" ? "text-warning-fg" : "text-content-3",
-        )}
-      >
-        {label}
-      </div>
-      <div
-        className={cn(
-          "mt-1 font-mono text-xl font-semibold",
-          tone === "amber" ? "text-warning-fg" : "text-content-1",
-        )}
-      >
+      <div className={cn("text-[11.5px] font-medium", tone === "amber" ? "text-warning-fg" : "text-content-3")}>{label}</div>
+      <div className={cn("mt-0.5 font-mono text-[17px] font-semibold tabular-nums", tone === "amber" ? "text-warning-fg" : "text-content-1")}>
         {value}
       </div>
-      {sub ? (
-        <div
-          className={cn(
-            "mt-1 text-caption font-bold",
-            tone === "amber" ? "text-warning-fg" : "text-content-3",
-          )}
-        >
-          {sub}
-        </div>
-      ) : null}
+      {sub ? <div className={cn("mt-0.5 text-[11.5px]", tone === "amber" ? "text-warning-fg" : "text-content-4")}>{sub}</div> : null}
     </div>
   );
 }
@@ -1303,7 +1184,7 @@ function ValueMix({
               <div className="font-mono text-base font-semibold">
                 {money(total, true)}
               </div>
-              <div className="text-caption font-bold uppercase text-content-4">
+              <div className="text-caption font-bold text-content-4">
                 Total
               </div>
             </div>
@@ -1507,9 +1388,9 @@ function MovementWaterfall({
   ];
   const max = Math.max(1, ...rows.map((row) => Math.abs(row.value)));
   return (
-    <div className="rounded-[18px] border border-line bg-surface-1 p-5 shadow-sm">
+    <div className="rounded-[14px] border border-line bg-surface-1 p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+        <div className="text-caption font-semibold tracking-[0.08em] text-content-3">
           Movement this period · opening + ins - outs +/- adjustments = closing
         </div>
         <span className="inline-flex h-7 items-center rounded-full bg-surface-2 px-3 text-caption font-semibold text-content-3">
@@ -1593,8 +1474,8 @@ function DeadStock({
   }>;
 }) {
   return (
-    <div className="rounded-[18px] border border-warning-border bg-warning-bg p-4 shadow-sm">
-      <div className="mb-3 text-caption font-semibold uppercase tracking-[0.08em] text-warning-fg">
+    <div className="rounded-[14px] border border-warning-border bg-warning-bg p-4 shadow-sm">
+      <div className="mb-3 text-caption font-semibold tracking-[0.08em] text-warning-fg">
         Dead stock · no movement 90d+
       </div>
       {rows.length ? (
@@ -1639,12 +1520,10 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[18px] border border-line bg-surface-1 p-4 shadow-sm">
-      <div className="mb-3 text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
-        {title}
-      </div>
+    <section className="min-w-0 rounded-[14px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)]" aria-label={title}>
+      <h3 className="mb-3 text-[14px] font-semibold text-content-1">{title}</h3>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -1660,19 +1539,15 @@ function LifecycleTabShell({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-[22px] border border-line bg-surface-1 p-4 shadow-sm sm:p-5">
+    <section className="rounded-[14px] border border-line bg-surface-1 p-4 shadow-[var(--shadow-sm)] sm:p-5">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-surface-3 text-white">
-            <Icon className="h-5 w-5" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-order-border bg-order-bg text-order-fg">
+            <Icon className="h-[18px] w-[18px]" aria-hidden />
           </div>
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold tracking-tight text-content-1">
-              {title}
-            </h2>
-            <p className="mt-1 max-w-4xl text-sm font-semibold leading-6 text-content-3">
-              {copy}
-            </p>
+            <h2 className="text-lg font-semibold tracking-tight text-content-1">{title}</h2>
+            <p className="mt-0.5 max-w-[80ch] text-[13px] leading-6 text-content-3">{copy}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 rounded-full border border-success-border bg-success-bg px-3 py-1.5 text-caption font-semibold text-success-fg">
@@ -1686,6 +1561,7 @@ function LifecycleTabShell({
 }
 
 function SnapshotsPanel({
+  section,
   plantId,
   financialYear,
   periods,
@@ -1693,6 +1569,8 @@ function SnapshotsPanel({
   trendRows,
   catalog,
 }: {
+  /** "counts": count history and daily count proofs; "month": period locks, month tracker, stock card. */
+  section: "counts" | "month";
   plantId: string;
   financialYear: string;
   periods: InventoryFinancialPeriod[];
@@ -1735,8 +1613,9 @@ function SnapshotsPanel({
   const [selectedLedgerRow, setSelectedLedgerRow] =
     React.useState<Record<string, any> | null>(null);
   const [monthProofOpen, setMonthProofOpen] = React.useState(false);
-  const [eodDate, setEodDate] = React.useState(() => localDateInputValue());
-  const [inkDate, setInkDate] = React.useState(() => localDateInputValue());
+  const urlParams = useSearchParams();
+  const [eodDate, setEodDate] = React.useState(() => urlParams?.get("eodDate") || localDateInputValue());
+  const [inkDate, setInkDate] = React.useState(() => urlParams?.get("inkDate") || localDateInputValue());
   const batchByNumber = React.useMemo(() => {
     const map = new Map<string, Record<string, any>>();
     for (const batch of batches) {
@@ -1872,6 +1751,7 @@ function SnapshotsPanel({
 
   return (
     <div className="space-y-4">
+      {section === "month" ? (
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Panel title="Closed periods and FY locks">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -1934,7 +1814,7 @@ function SnapshotsPanel({
                 </div>
                 <div
                   className={cn(
-                    "mt-1 text-caption font-semibold uppercase",
+                    "mt-1 text-caption font-semibold ",
                     month.counted
                       ? "text-success-fg"
                       : month.snapshot
@@ -2030,11 +1910,14 @@ function SnapshotsPanel({
         </Panel>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
-        <Panel title="Audit sheet history">
+      ) : null}
+
+      <section className="grid gap-4">
+        {section === "counts" ? (
+        <Panel title="Count history">
           {actionBatches.length ? (
             <div className="mb-4 rounded-2xl border border-warning-border bg-warning-bg p-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.08em] text-warning-fg">
+              <div className="text-xs font-semibold tracking-[0.08em] text-warning-fg">
                 Action required before FY close
               </div>
               <div className="mt-2 grid gap-2">
@@ -2116,7 +1999,7 @@ function SnapshotsPanel({
           ) : (
             <div className="max-h-[460px] overflow-auto">
               <table className="w-full min-w-[620px] text-sm">
-                <thead className="sticky top-0 bg-surface-1 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+                <thead className="sticky top-0 bg-surface-1 text-left text-caption font-semibold tracking-[0.08em] text-content-3">
                   <tr>
                     <th className="py-2">Sheet</th>
                     <th>Label</th>
@@ -2165,6 +2048,7 @@ function SnapshotsPanel({
             stock adjustments must be posted only in an open financial year.
           </div>
         </Panel>
+        ) : (
         <StockCardDrill
           plantId={plantId}
           financialYear={financialYear}
@@ -2174,20 +2058,20 @@ function SnapshotsPanel({
           onOpenBatch={(batchId) => setSelectedBatchId(batchId)}
           onOpenSource={openLedgerSource}
         />
+        )}
       </section>
-      <EodPackingProofPanel
-        date={eodDate}
-        onDateChange={setEodDate}
-        snapshot={eodSnapshot}
-        loading={eodFetching}
-      />
-      <InkFloorProofPanel
-        date={inkDate}
-        onDateChange={setInkDate}
-        sessions={inkSessions}
-        movements={inkMovements}
-        loading={inkFetching}
-      />
+      {section === "counts" ? (
+        <>
+          <EodPackingProofPanel date={eodDate} onDateChange={setEodDate} snapshot={eodSnapshot} loading={eodFetching} />
+          <InkFloorProofPanel
+            date={inkDate}
+            onDateChange={setInkDate}
+            sessions={inkSessions}
+            movements={inkMovements}
+            loading={inkFetching}
+          />
+        </>
+      ) : null}
       <AuditBatchDrawer
         batchId={selectedBatchId}
         onClose={() => setSelectedBatchId(null)}
@@ -2324,7 +2208,7 @@ function StockCardDrill({
       ) : (
       <div className="max-h-[460px] overflow-auto rounded-2xl border border-line">
         <table className="w-full min-w-[860px] text-xs">
-          <thead className="sticky top-0 bg-surface-2 text-left font-semibold uppercase tracking-[0.08em] text-content-3">
+          <thead className="sticky top-0 bg-surface-2 text-left font-semibold tracking-[0.08em] text-content-3">
             <tr>
               <th className="px-3 py-2">Date</th>
               <th>Ref</th>
@@ -2538,7 +2422,7 @@ function AuditBatchDrawer({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex max-h-[92vh] max-w-[min(1180px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[24px] border-line bg-surface-1 p-0">
+      <DialogContent className="flex max-h-[92vh] max-w-[min(1180px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[14px] border-line bg-surface-1 p-0">
         <DialogHeader className="border-b border-line bg-surface-2 px-5 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
@@ -2703,7 +2587,7 @@ function AuditBatchDrawer({
                     <ProofMetric label="Line value" value={money(rowTotals.value)} />
                   </div>
                   <div className="rounded-2xl border border-line bg-surface-2 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-4">Posted proof</div>
+                    <div className="text-xs font-semibold tracking-[0.1em] text-content-4">Posted proof</div>
                     <div className="mt-3 space-y-2 text-xs font-semibold text-content-3">
                       <div className="flex justify-between gap-3">
                         <span>Rows loaded</span>
@@ -2766,7 +2650,7 @@ function ProofMiniMetric({
 }) {
   return (
     <div className="rounded-xl border border-line bg-surface-1 px-3 py-2">
-      <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-4">{label}</div>
+      <div className="text-caption font-semibold tracking-[0.08em] text-content-4">{label}</div>
       <div
         className={cn(
           "mt-1 truncate font-mono text-xs font-semibold",
@@ -2802,7 +2686,7 @@ function MonthProofDialog({
   );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl rounded-[24px] border-line bg-surface-1">
+      <DialogContent className="max-w-3xl rounded-[14px] border-line bg-surface-1">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold text-content-1">
             {month?.label || "Month"} stock proof
@@ -2818,7 +2702,7 @@ function MonthProofDialog({
         </div>
         <div className="max-h-[420px] overflow-auto rounded-2xl border border-line">
           <table className="w-full min-w-[620px] text-xs">
-            <thead className="bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+            <thead className="bg-surface-2 text-left text-caption font-semibold tracking-[0.08em] text-content-3">
               <tr>
                 <th className="px-3 py-2">Sheet</th>
                 <th>Scope</th>
@@ -2865,7 +2749,7 @@ function LedgerSourceDialog({
 }) {
   return (
     <Dialog open={Boolean(row)} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-2xl rounded-[24px] border-line bg-surface-1">
+      <DialogContent className="max-w-2xl rounded-[14px] border-line bg-surface-1">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold text-content-1">
             {row?.reference || "Stock movement proof"}
@@ -2882,7 +2766,7 @@ function LedgerSourceDialog({
               <ProofMetric label="Qty" value={qtyWithUom(row.qty, row.uom)} />
             </div>
             <div className="rounded-2xl border border-line bg-surface-2 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.1em] text-content-4">Source metadata</div>
+              <div className="text-xs font-semibold tracking-[0.1em] text-content-4">Source metadata</div>
               <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl bg-surface-1 p-3 text-caption font-semibold text-content-3">
                 {JSON.stringify(row.meta || row, null, 2)}
               </pre>
@@ -2943,7 +2827,7 @@ function EodPackingProofPanel({
       ) : (
       <div className="mt-3 max-h-[360px] overflow-auto rounded-2xl border border-line">
         <table className="w-full min-w-[900px] text-xs">
-          <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+          <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold tracking-[0.08em] text-content-3">
             <tr>
               <th className="px-3 py-2">Time</th>
               <th>Material</th>
@@ -3052,7 +2936,7 @@ function InkFloorProofPanel({
         <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
             <table className="w-full min-w-[620px] text-xs">
-              <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+              <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold tracking-[0.08em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Count</th>
                   <th>Location</th>
@@ -3081,7 +2965,7 @@ function InkFloorProofPanel({
           </div>
           <div className="max-h-[320px] overflow-auto rounded-2xl border border-line">
             <table className="w-full min-w-[760px] text-xs">
-              <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+              <thead className="sticky top-0 bg-surface-2 text-left text-caption font-semibold tracking-[0.08em] text-content-3">
                 <tr>
                   <th className="px-3 py-2">Time</th>
                   <th>Type</th>
@@ -3202,7 +3086,7 @@ function CategoryRail({
   }, [catalog?.rows]);
 
   return (
-    <section className="rounded-[18px] border border-line bg-surface-1/75 p-3 shadow-sm backdrop-blur">
+    <section className="rounded-[14px] border border-line bg-surface-1/75 p-3 shadow-sm backdrop-blur">
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

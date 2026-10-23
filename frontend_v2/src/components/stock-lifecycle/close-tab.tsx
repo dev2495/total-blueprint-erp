@@ -226,8 +226,8 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
     <div data-testid="close-stock-tab" className="flex flex-col gap-5">
       {/* Top KPI */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="erp-hero rounded-3xl p-6 text-white">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-white/85">
+        <div className="erp-hero rounded-[14px] p-6 text-white">
+          <div className="flex items-center gap-2 text-xs text-white/85">
             <ShieldCheck className="h-4 w-4" />
             Closing snapshot
           </div>
@@ -246,7 +246,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
             <div className="flex items-center gap-2 rounded-2xl bg-surface-1/15 px-3 py-2 ring-1 ring-surface-1/20">
               <Wallet className="h-4 w-4" />
               <div>
-                <div className="text-caption uppercase tracking-wide text-white/80">
+                <div className="text-caption text-white/80">
                   Total value
                 </div>
                 <div className="font-display text-xl font-semibold">
@@ -295,8 +295,8 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
         </div>
 
         {/* Blockers */}
-        <div className="rounded-3xl border border-line bg-surface-1 p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-content-3">
+        <div className="rounded-[14px] border border-line bg-surface-1 p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-xs text-content-3">
             <AlertTriangle className="h-4 w-4" />
             Annual close blockers
           </div>
@@ -349,7 +349,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
       </div>
 
       {/* Formula table */}
-      <div className="overflow-hidden rounded-3xl border border-line bg-surface-1 shadow-sm">
+      <div className="overflow-hidden rounded-[14px] border border-line bg-surface-1 shadow-sm">
         <div className="border-b border-line bg-surface-2 px-5 py-4">
           <div className="font-display text-sm font-semibold text-content-2">
             Opening + Ins − Outs ± Adjustments = Closing
@@ -361,7 +361,7 @@ export function CloseTab({ plantId, catalog, onOpenHistory }: CloseTabProps) {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-sm">
-            <thead className="bg-surface-2 text-caption uppercase tracking-wide text-content-3">
+            <thead className="bg-surface-2 text-caption text-content-3">
               <tr>
                 <th className="px-4 py-2 text-left">Class</th>
                 <th className="px-4 py-2 text-right">Opening</th>

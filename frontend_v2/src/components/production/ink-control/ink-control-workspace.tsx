@@ -620,7 +620,7 @@ export function InkControlWorkspace() {
     countMutation.isPending;
 
   const openStockLifecycle = () => {
-    window.location.assign(`/inventory/stock-lifecycle?tab=snapshots&inkDate=${lifecycleDate}`);
+    window.location.assign(`/inventory/stock-lifecycle?tab=count&inkDate=${lifecycleDate}`);
   };
 
   const refreshAll = () => {

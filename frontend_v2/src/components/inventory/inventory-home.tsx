@@ -2164,7 +2164,7 @@ function BulkDrawer({ row, onClose }: { row: any; onClose: () => void }) {
 
           <div className="pt-2 border-t border-line">
             <Link
-              href={`/inventory/stock-lifecycle?tab=snapshots&material=${row.material || row.id || ""}`}
+              href={`/inventory/stock-lifecycle?tab=month&material=${row.material || row.id || ""}`}
               className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-caption font-bold text-white hover:bg-primary"
             >
               Open stock card <ArrowRight className="h-3 w-3" />

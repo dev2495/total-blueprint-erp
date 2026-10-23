@@ -739,7 +739,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
 
         <div className="grid gap-2 md:grid-cols-4">
           <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+            <div className="text-caption font-semibold tracking-[0.08em] text-content-3">
               Posting label
             </div>
             <div className="mt-1 text-sm font-semibold text-content-1">
@@ -747,7 +747,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-line bg-surface-1 px-4 py-3">
-            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+            <div className="text-caption font-semibold tracking-[0.08em] text-content-3">
               Count boundary
             </div>
             <div className="mt-1 text-sm font-semibold text-content-1">
@@ -757,7 +757,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-success-border bg-success-bg px-4 py-3">
-            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-success-fg">
+            <div className="text-caption font-semibold tracking-[0.08em] text-success-fg">
               Posting rule
             </div>
             <div className="mt-1 text-sm font-semibold text-success-fg">
@@ -765,7 +765,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
             </div>
           </div>
           <div className="rounded-2xl border border-order-border bg-order-bg px-4 py-3">
-            <div className="text-caption font-semibold uppercase tracking-[0.08em] text-order-fg">
+            <div className="text-caption font-semibold tracking-[0.08em] text-order-fg">
               Count effective
             </div>
             <Input
@@ -1043,7 +1043,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
 
       <aside className="space-y-4">
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-content-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-content-3">
             <Layers3 className="h-4 w-4" />
             Count mode
           </div>
@@ -1072,7 +1072,7 @@ export function CountTab({ plantId, catalog, categoryFilter }: CountTabProps) {
         </div>
 
         <div className="rounded-2xl border border-line bg-surface-1 p-4 shadow-sm">
-          <div className="text-xs uppercase tracking-wide text-content-3">
+          <div className="text-xs text-content-3">
             Variance summary
           </div>
           <dl className="mt-3 space-y-2 text-sm">

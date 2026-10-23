@@ -9695,8 +9695,8 @@
   {
     "routePattern": "/logistics/packing/consumption",
     "title": {
-      "en": "Packing Material Count",
-      "hi": "Packing Material Count"
+      "en": "Evening packing count",
+      "hi": "Evening packing count"
     },
     "module": "Logistics",
     "roles": [
@@ -9730,16 +9730,12 @@
     ],
     "keyActions": [
       {
-        "en": "Open the current workspace and check the summary, filters, and selected context.",
-        "hi": "Open the current workspace and check the summary, filters, and selected context."
+        "en": "Pick the location and the count time, enter the closing quantity of each packing item, then post. The difference comes off stock and is booked to the orders that ticked or used each item that day.",
+        "hi": "Pick the location and the count time, enter the closing quantity of each packing item, then post. The difference comes off stock and is booked to the orders that ticked or used each item that day."
       },
       {
-        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
-        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
-      },
-      {
-        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
-        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+        "en": "The same count is on Count and close › Stock count › Evening packing count.",
+        "hi": "The same count is on Count and close › Stock count › Evening packing count."
       }
     ],
     "fieldHelp": [
@@ -17488,8 +17484,8 @@
   {
     "routePattern": "/inventory/stock-lifecycle",
     "title": {
-      "en": "Stock Lifecycle",
-      "hi": "Stock Lifecycle"
+      "en": "Count and close",
+      "hi": "Count and close"
     },
     "module": "Inventory",
     "roles": [
@@ -17523,20 +17519,32 @@
     ],
     "keyActions": [
       {
+        "en": "Work left to right: Opening stock, Stock count, Month end, Year end. Overview shows value, ageing and movement for the plant and year picked at the top.",
+        "hi": "Work left to right: Opening stock, Stock count, Month end, Year end. Overview shows value, ageing and movement for the plant and year picked at the top."
+      },
+      {
+        "en": "Stock count is one count for any day: a month-end count, a period count or a spot check. Enter what is on the floor, give a reason for each difference, and post only approved differences.",
+        "hi": "Stock count is one count for any day: a month-end count, a period count or a spot check. Enter what is on the floor, give a reason for each difference, and post only approved differences."
+      },
+      {
+        "en": "The evening packing count sits on Stock count too (switch at the top): closing stock of each packing item at a location; posting books the difference to the orders that used each item that day.",
+        "hi": "The evening packing count sits on Stock count too (switch at the top): closing stock of each packing item at a location; posting books the difference to the orders that used each item that day."
+      },
+      {
+        "en": "Count history, the evening packing proof and the ink floor proof for any date are under the count. Drafts and approvals waiting are counted on the Stock count tab.",
+        "hi": "Count history, the evening packing proof and the ink floor proof for any date are under the count. Drafts and approvals waiting are counted on the Stock count tab."
+      },
+      {
+        "en": "Month end: lock months in the tracker, take the month's snapshot, open the month proof and drill any item's stock card down to its source document.",
+        "hi": "Month end: lock months in the tracker, take the month's snapshot, open the month proof and drill any item's stock card down to its source document."
+      },
+      {
+        "en": "Year end: clear the blockers, lock the year and carry the closing forward as next year's opening.",
+        "hi": "Year end: clear the blockers, lock the year and carry the closing forward as next year's opening."
+      },
+      {
         "en": "Closing a financial year also archives it: finished orders, challans, jobs and ledgers of that year leave the day-to-day lists; pick the year in the header's year picker to see them again. Open work stays in the working set.",
         "hi": "Closing a financial year also archives it: finished orders, challans, jobs and ledgers of that year leave the day-to-day lists; pick the year in the header's year picker to see them again. Open work stays in the working set."
-      },
-      {
-        "en": "Open the current workspace and check the summary, filters, and selected context.",
-        "hi": "Open the current workspace and check the summary, filters, and selected context."
-      },
-      {
-        "en": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker.",
-        "hi": "Pick records from searchable selectors instead of typing stale codes wherever the UI provides a picker."
-      },
-      {
-        "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
-        "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
       }
     ],
     "fieldHelp": [

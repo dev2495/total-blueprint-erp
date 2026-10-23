@@ -889,7 +889,7 @@ export function OpenStockTab({
   return (
     <div data-testid="open-stock-tab" className="flex flex-col gap-5">
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="rounded-[20px] border border-line bg-surface-1 p-4 shadow-sm">
+        <div className="rounded-[14px] border border-line bg-surface-1 p-4 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative min-w-[260px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-4" />
@@ -936,8 +936,8 @@ export function OpenStockTab({
           </div>
         </div>
 
-        <div className="rounded-[20px] border border-line bg-surface-3 p-4 text-white shadow-sm">
-          <div className="text-caption font-semibold uppercase tracking-[0.12em] text-white/60">
+        <div className="rounded-[14px] border border-line bg-surface-3 p-4 text-white shadow-sm">
+          <div className="text-caption font-semibold tracking-[0.12em] text-white/60">
             Post readiness
           </div>
           <div className="mt-2 flex items-end justify-between">
@@ -1014,7 +1014,7 @@ export function OpenStockTab({
             <Save className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-caption font-semibold uppercase tracking-[0.1em] text-success-fg">
+            <div className="text-caption font-semibold tracking-[0.1em] text-success-fg">
               Draft recovery
             </div>
             <div className="mt-1 text-sm font-bold text-content-1">
@@ -1060,11 +1060,11 @@ export function OpenStockTab({
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-[22px] border border-line bg-surface-1 p-4 shadow-sm xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+      <div className="grid gap-4 rounded-[14px] border border-line bg-surface-1 p-4 shadow-sm xl:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="inline-flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.1em] text-order-fg">
+              <div className="inline-flex items-center gap-2 text-caption font-semibold tracking-[0.1em] text-order-fg">
                 <ClipboardList className="h-4 w-4" />
                 Fast paste
               </div>
@@ -1113,10 +1113,10 @@ export function OpenStockTab({
           </div>
         </div>
 
-        <div className="space-y-3 rounded-[18px] border border-info-border bg-info-bg p-3">
+        <div className="space-y-3 rounded-[14px] border border-info-border bg-info-bg p-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="inline-flex items-center gap-2 text-caption font-semibold uppercase tracking-[0.1em] text-primary">
+              <div className="inline-flex items-center gap-2 text-caption font-semibold tracking-[0.1em] text-primary">
                 <Upload className="h-4 w-4" />
                 Bulk upload
               </div>
@@ -1143,7 +1143,7 @@ export function OpenStockTab({
                       "noopener,noreferrer",
                     )
                   }
-                  className="inline-flex items-center gap-1 rounded-full border border-info-border bg-surface-1 px-2.5 py-1 text-caption font-semibold uppercase tracking-wide text-primary hover:bg-info-bg"
+                  className="inline-flex items-center gap-1 rounded-full border border-info-border bg-surface-1 px-2.5 py-1 text-caption font-semibold text-primary hover:bg-info-bg"
                 >
                   <Download className="h-3 w-3" />
                   {klass}
@@ -1236,7 +1236,7 @@ export function OpenStockTab({
         </div>
       </div>
 
-      <div className="rounded-[22px] border border-line bg-surface-1 p-3 shadow-sm">
+      <div className="rounded-[14px] border border-line bg-surface-1 p-3 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="text-[12px] font-semibold text-content-3">
@@ -1320,7 +1320,7 @@ export function OpenStockTab({
             return (
               <section
                 key={category}
-                className="overflow-hidden rounded-[22px] border border-line bg-surface-1 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)]"
+                className="overflow-hidden rounded-[14px] border border-line bg-surface-1 shadow-[0_10px_30px_-24px_rgba(15,23,42,0.35)]"
               >
                 <div
                   className={cn(
@@ -1337,7 +1337,7 @@ export function OpenStockTab({
                       {list.length}
                     </Badge>
                   </div>
-                  <div className="text-caption font-bold uppercase tracking-[0.1em] text-white/75">
+                  <div className="text-caption font-bold tracking-[0.1em] text-white/75">
                     {rollList.length
                       ? "physical roll entry"
                       : "pooled stock entry"}
@@ -1347,7 +1347,7 @@ export function OpenStockTab({
                 {nonRollList.length ? (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[900px] text-sm">
-                      <thead className="bg-surface-2 text-caption uppercase tracking-wide text-content-3">
+                      <thead className="bg-surface-2 text-caption text-content-3">
                         <tr>
                           <th className="px-4 py-2 text-left">Material</th>
                           <th className="px-4 py-2 text-left">
@@ -1522,7 +1522,7 @@ export function OpenStockTab({
                               className="rounded-2xl border border-info-border bg-info-bg p-3"
                             >
                               <div className="mb-2 flex items-center justify-between gap-2">
-                                <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-primary">
+                                <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.08em] text-primary">
                                   <Boxes className="h-4 w-4" />
                                   Roll {index + 1}
                                 </div>
@@ -1803,7 +1803,7 @@ function Field({
 }) {
   return (
     <label className="grid gap-1">
-      <span className="text-caption font-semibold uppercase tracking-[0.08em] text-content-3">
+      <span className="text-caption font-semibold tracking-[0.08em] text-content-3">
         {label}
       </span>
       {children}
