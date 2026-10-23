@@ -9592,6 +9592,10 @@
       {
         "en": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail.",
         "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
+      },
+      {
+        "en": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine; pouches left for the evening count, or packed in a job worker's own pouches, are settled by the count.",
+        "hi": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine; pouches left for the evening count, or packed in a job worker's own pouches, are settled by the count."
       }
     ],
     "fieldHelp": [
@@ -11031,6 +11035,10 @@
       {
         "en": "Submit action, confirm success toast, and re-check downstream impact.",
         "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
+      },
+      {
+        "en": "A packing item stocked in KG or metres needs the weight (or length) of one piece. Without it pieces cannot be taken off stock: the card shows 'Missing' and those pouches wait for the evening count.",
+        "hi": "A packing item stocked in KG or metres needs the weight (or length) of one piece. Without it pieces cannot be taken off stock: the card shows 'Missing' and those pouches wait for the evening count."
       }
     ],
     "fieldHelp": [
@@ -12842,6 +12850,10 @@
       {
         "en": "Submit action, confirm success toast, and re-check downstream impact.",
         "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
+      },
+      {
+        "en": "Inner pouches are taken off stock as you log pieces. If the store's book cannot cover them (short stock, or a bag stocked in kg without its weight per bag) the output is still logged; a yellow note says so and the evening packing count settles those pouches for the order.",
+        "hi": "Inner pouches are taken off stock as you log pieces. If the store's book cannot cover them (short stock, or a bag stocked in kg without its weight per bag) the output is still logged; a yellow note says so and the evening packing count settles those pouches for the order."
       }
     ],
     "fieldHelp": [

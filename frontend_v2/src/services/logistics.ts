@@ -398,6 +398,8 @@ export type PackingCheckSummary = {
         consumed_at_machine: number;
         used_in_units: number;
         returned?: number | null;
+        left_for_count?: number;
+        left_for_count_reason?: string;
     } | null;
     sales_order_id?: string;
     sales_order_no?: string;

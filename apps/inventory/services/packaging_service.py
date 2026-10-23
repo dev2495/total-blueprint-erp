@@ -41,8 +41,10 @@ class PackagingService:
         if incoming_uom == "PCS" and base_uom in {"KG", "METER"}:
             factor = cls._as_decimal(getattr(material, "per_sheet_base_qty", None))
             if factor <= 0:
+                measure = "weight of one piece in kg" if base_uom == "KG" else "length of one piece in metres"
                 raise ValidationError(
-                    f"Packaging material {material.code} requires a base qty per consumed unit for PCS->{base_uom} conversion."
+                    f"{material.code} is stocked in {base_uom} but its packaging master has no {measure}; "
+                    f"enter it in Masters > Packaging"
                 )
             base_qty = q4(incoming_qty * factor)
             return base_qty, {
@@ -271,6 +273,29 @@ class PackagingService:
         return transactions
 
     @classmethod
+    def draw_inner_packs(cls, *, material_id, pack_count, location_id, **kwargs):
+        """Take inner pouches off stock as output is logged; never block the output.
+
+        Inner pouches are the one packing item consumed automatically. When the stock book
+        cannot cover them (nothing booked in the plant, or a KG/METER material without the
+        weight of one piece) the output still stands and the packs are left for the evening
+        packing count, which takes the counted difference off stock for this order.
+        Returns (transactions, reason); reason is "" when the packs were taken off stock.
+        """
+        try:
+            with transaction.atomic():
+                txs = cls.consume_packaging_stock_in_plant(
+                    material_id=material_id,
+                    qty=pack_count,
+                    input_uom="PCS",
+                    location_id=location_id,
+                    **kwargs,
+                )
+            return txs, ""
+        except ValidationError as exc:
+            return [], " ".join(exc.messages)
+
+    @classmethod
     @transaction.atomic
     def return_unused_packaging_stock(
         cls,
@@ -284,6 +309,7 @@ class PackagingService:
         reference="",
         meta_json=None,
         basis="INNER_PACK_RETURN",
+        input_uom=None,
     ):
         """Put back packing material that was consumed for an order but not used (ADJUST row)."""
         meta = dict(meta_json or {})
@@ -291,6 +317,7 @@ class PackagingService:
         return cls.add_packaging_stock(
             material_id=material_id,
             qty=qty,
+            input_uom=input_uom,
             location_id=location_id,
             cost=cost,
             job_id=job_id,

@@ -309,6 +309,8 @@ export interface JobWorkActionResult {
   return_id?: string;
   return_number?: string;
   warnings?: JobWorkWarning[];
+  /** Notes about something left for later, e.g. inner pouches left for the evening count. */
+  notices?: string[];
   bill?: { id: string; status: string; resolved_at: string | null } | null;
   step?: { job_number: string; action: string; detail: string; next_jobs?: JobWorkNextJob[] } | null;
   written_off?: Array<{ line: string; qty: string; uom: string; kg: string }>;

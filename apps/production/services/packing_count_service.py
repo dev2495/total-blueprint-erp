@@ -12,7 +12,7 @@ from django.utils.dateparse import parse_date, parse_datetime
 from apps.inventory.models import InventoryLocation, PackagingStock, PackagingTransaction
 from apps.inventory.services.packaging_service import PackagingService
 from apps.materials.models import InventoryMaterial
-from apps.production.models import PackingUnit, RollDispatchPackRecord
+from apps.production.models import FinishedGoodsBatch, PackingUnit, RollDispatchPackRecord
 
 
 QTY_QUANT = Decimal("0.0001")
@@ -211,6 +211,23 @@ class PackingCountService:
             roll_records = roll_records.filter(roll__location_id=location_id)
         for record in roll_records:
             add(record.sales_order_item, record.roll.location, 1, "ROLL", getattr(record.roll, "label_id", "ROLL"), record.lines or [])
+
+        # Inner pouches the machine could not take off stock (stock book gap) are marks for
+        # this count: no packed units of their own, so other materials' allocation is unchanged.
+        left_for_count = (
+            FinishedGoodsBatch.objects.select_related("sales_order_item__sales_order", "location")
+            .filter(created_at__gte=start, created_at__lt=end, sales_order_item__isnull=False)
+            .filter(meta_json__primary_inner_pack__has_key="left_for_count")
+        )
+        if location_id:
+            left_for_count = left_for_count.filter(location_id=location_id)
+        for batch in left_for_count:
+            primary = (batch.meta_json or {}).get("primary_inner_pack") or {}
+            packs = Decimal(str(primary.get("left_for_count") or 0))
+            if packs <= 0 or not primary.get("material_id"):
+                continue
+            mark = {"material_id": primary["material_id"], "qty": float(packs), "capture_mode": "MARKED_FOR_COUNT", "basis": "INNER_POUCH_LEFT_FOR_COUNT"}
+            add(batch.sales_order_item, batch.location, 0, "INNER_POUCH", batch.batch_number, [mark])
 
         rows = []
         for row in buckets.values():

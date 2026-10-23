@@ -248,23 +248,29 @@ function PackagingForm({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>
+          <Label htmlFor="packaging-piece-measure">
             {needsUnitConversion
-              ? `Base Qty per ${unitLabel} (${baseUom})`
+              ? baseUom === "METER"
+                ? `Length of one ${unitLabel} (m)`
+                : `Weight of one ${unitLabel} (kg)`
               : "Base Qty per Unit"}
           </Label>
           {needsUnitConversion ? (
             <>
               <Input
+                id="packaging-piece-measure"
                 type="number"
                 step="0.000001"
+                min="0.000001"
+                required
                 value={perSheet}
                 onChange={(e) => setPerSheet(e.target.value)}
-                placeholder={`Enter ${baseUom.toLowerCase()} represented by one ${unitLabel}`}
+                placeholder={baseUom === "METER" ? "e.g. 1.2" : "e.g. 0.012"}
               />
               <div className="mt-1 text-xs text-content-3">
-                This is the stock conversion rule used when physical count is
-                posted for this packing SKU.
+                Stock is kept in {baseUom}; the floor uses pieces. This turns pieces into{" "}
+                {baseUom === "METER" ? "metres" : "kg"} when inner pouches are taken at the
+                machine, returned after the packing check, and in the packing weight.
               </div>
             </>
           ) : (
@@ -588,16 +594,20 @@ export default function PackagingMasterPage() {
                   </div>
                   <div>
                     <div className="text-[12px] font-semibold text-content-3">
-                      Unit Conversion
+                      {row.base_uom === "METER" ? "Length of one piece" : "Weight of one piece"}
                     </div>
                     <div className="mt-1 font-bold text-content-1">
-                      {row.base_uom !== "PCS" &&
-                      row.packaging_kind !== "TAPE" &&
-                      row.per_sheet_base_qty != null
-                        ? `${row.per_sheet_base_qty} ${row.base_uom}/${row.packaging_kind.replaceAll("_", " ").toLowerCase()}`
-                        : row.base_uom === "PCS"
-                          ? "Tracked directly in PCS"
-                          : "N/A"}
+                      {row.base_uom === "PCS"
+                        ? "Tracked directly in PCS"
+                        : row.packaging_kind === "TAPE"
+                          ? "Used in its own unit"
+                          : row.per_sheet_base_qty != null && Number(row.per_sheet_base_qty) > 0
+                            ? `${row.per_sheet_base_qty} ${row.base_uom === "METER" ? "m" : "kg"} per ${row.packaging_kind.replaceAll("_", " ").toLowerCase()}`
+                            : (
+                              <span className="font-semibold text-warning-fg" data-testid="packaging-missing-piece-weight">
+                                Missing. Edit and enter it, or pieces cannot be taken off {row.base_uom} stock
+                              </span>
+                            )}
                     </div>
                   </div>
                   <div className="col-span-2">

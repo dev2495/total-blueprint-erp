@@ -10707,10 +10707,10 @@ class ExecutionService:
                     reference = f"SO:{so_number} JOB:{job.job_number} FG_BATCH:{fg_batch.batch_number}"
                     # Inner pouches are the one packing item consumed automatically; they may sit
                     # in a packing store, so draw from anywhere in the plant (output location first).
-                    inner_txs = PackagingService.consume_packaging_stock_in_plant(
+                    # A stock-book gap never blocks the output: the packs go to the evening count.
+                    inner_txs, count_reason = PackagingService.draw_inner_packs(
                         material_id=primary_pack_runtime_meta["material_id"],
-                        qty=primary_pack_runtime_meta["pack_count"],
-                        input_uom="PCS",
+                        pack_count=primary_pack_runtime_meta["pack_count"],
                         location_id=output_location_id,
                         job_id=job.id,
                         sales_order_item_id=getattr(job, "sales_order_item_id", None),
@@ -10726,6 +10726,15 @@ class ExecutionService:
                     batch_meta = dict(fg_batch.meta_json or {})
                     batch_primary = dict(batch_meta.get("primary_inner_pack") or {})
                     batch_primary["consume_tx_ids"] = [str(tx.id) for tx in inner_txs]
+                    if count_reason:
+                        batch_primary["left_for_count"] = primary_pack_runtime_meta["pack_count"]
+                        batch_primary["left_for_count_reason"] = count_reason
+                        from config.request_context import add_notice
+
+                        add_notice(
+                            f"Output logged. {primary_pack_runtime_meta['pack_count']} inner pouches were not taken off "
+                            f"stock ({count_reason.rstrip('.')}). The evening packing count will settle them for this order."
+                        )
                     batch_meta["primary_inner_pack"] = batch_primary
                     fg_batch.meta_json = batch_meta
                     fg_batch.save(update_fields=["meta_json"])

@@ -1921,15 +1921,26 @@ def create_fg_batch(order, job, ret, fg_plan, step_index, source_labels):
         from apps.inventory.services.packaging_service import PackagingService
 
         so = getattr(getattr(job, "sales_order_item", None), "sales_order", None)
-        try:
-            PackagingService.consume_packaging_stock(
-                material_id=pack_meta["material_id"], qty=pack_meta["pack_count"], input_uom="PCS", location_id=fg_plan["location"].id,
-                job_id=job.id, sales_order_item_id=getattr(job, "sales_order_item_id", None), mts_order_id=getattr(job, "mts_order_id", None),
-                reference=f"SO:{getattr(so, 'order_number', 'N/A')} JOB:{job.job_number} FG_BATCH:{batch.batch_number}",
-                basis="PER_PACK", meta_json={"fg_batch_id": str(batch.id), "applied_at": "FG_CREATION", "pack_count": pack_meta["pack_count"], "jobwork_return": ret.number},
+        # Same rule as the machine: a stock-book gap leaves the packs for the evening count.
+        txs, count_reason = PackagingService.draw_inner_packs(
+            material_id=pack_meta["material_id"], pack_count=pack_meta["pack_count"], location_id=fg_plan["location"].id,
+            job_id=job.id, sales_order_item_id=getattr(job, "sales_order_item_id", None), mts_order_id=getattr(job, "mts_order_id", None),
+            reference=f"SO:{getattr(so, 'order_number', 'N/A')} JOB:{job.job_number} FG_BATCH:{batch.batch_number}",
+            basis="PER_PACK", meta_json={"fg_batch_id": str(batch.id), "applied_at": "FG_CREATION", "pack_count": pack_meta["pack_count"], "jobwork_return": ret.number},
+        )
+        batch_primary = dict(meta["primary_inner_pack"])
+        batch_primary["consume_tx_ids"] = [str(tx.id) for tx in txs]
+        if count_reason:
+            batch_primary["left_for_count"] = pack_meta["pack_count"]
+            batch_primary["left_for_count_reason"] = count_reason
+            from config.request_context import add_notice
+
+            add_notice(
+                f"Return received. {pack_meta['pack_count']} inner pouches were not taken off stock "
+                f"({count_reason.rstrip('.')}). The evening packing count will settle them for this order."
             )
-        except DjangoValidationError as exc:
-            raise ValidationError({"fg": f"{messages_of(exc)} Choose 'packed in the job worker's own inner packs' if the vendor used theirs."})
+        batch.meta_json = {**meta, "primary_inner_pack": batch_primary}
+        batch.save(update_fields=["meta_json"])
     return batch
 
 

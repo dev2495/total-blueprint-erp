@@ -1,3 +1,4 @@
+import contextlib
 import contextvars
 
 
@@ -49,3 +50,24 @@ def request_memo(key, build):
     value = build()
     memo[key] = value
     return value
+
+
+# Notes for the person who made an entry that went through but left something for later
+# (for example inner pouches left for the evening count). A view collects them around one
+# service call and returns them as `notices`; outside collect() they are dropped.
+_notices_ctx = contextvars.ContextVar("entry_notices", default=None)
+
+
+@contextlib.contextmanager
+def collect_notices():
+    token = _notices_ctx.set([])
+    try:
+        yield _notices_ctx.get()
+    finally:
+        _notices_ctx.reset(token)
+
+
+def add_notice(message: str) -> None:
+    bucket = _notices_ctx.get(None)
+    if bucket is not None and message and message not in bucket:
+        bucket.append(message)

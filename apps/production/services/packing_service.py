@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 from math import ceil
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
@@ -642,6 +643,8 @@ class PackingVerificationService:
             "consumed_at_machine": int(primary.get("pack_count") or 0),
             "used_in_units": used,
             "returned": primary.get("returned_unused"),
+            "left_for_count": int(primary.get("left_for_count") or 0),
+            "left_for_count_reason": primary.get("left_for_count_reason") or "",
         }
 
     _go_live_cache = None
@@ -829,7 +832,7 @@ class PackingVerificationService:
         )
         unused = max(consumed - used, 0)
         primary["packs_used"] = used
-        primary["returned_unused"] = unused
+        primary["returned_unused"] = 0
         meta["primary_inner_pack"] = primary
         fg_batch.meta_json = meta
         if unused <= 0 or not primary.get("material_id"):
@@ -847,24 +850,34 @@ class PackingVerificationService:
             .order_by("qty")
             .first()
         )
-        location_id = getattr(source, "location_id", None) or fg_batch.location_id
-        if not location_id:
+        # Only packs that were taken off stock go back: packs left for the evening count, or
+        # packed in a job worker's own pouches, never came out of our stock book.
+        if source is None or not source.location_id:
             return 0
-        PackagingService.return_unused_packaging_stock(
-            material_id=primary["material_id"],
-            qty=unused,
-            location_id=location_id,
-            cost=getattr(source, "avg_cost", 0) or 0,
-            job_id=fg_batch.production_job_id,
-            sales_order_item_id=fg_batch.sales_order_item_id,
-            reference=f"PACKING_CHECK:{fg_batch.batch_number}",
-            meta_json={
-                "fg_batch_id": str(fg_batch.id),
-                "packs_consumed_at_machine": consumed,
-                "packs_used_in_units": used,
-                "actor": getattr(user, "username", "") if getattr(user, "is_authenticated", False) else "",
-            },
-        )
+        try:
+            with transaction.atomic():
+                PackagingService.return_unused_packaging_stock(
+                    material_id=primary["material_id"],
+                    qty=unused,
+                    input_uom="PCS",
+                    location_id=source.location_id,
+                    cost=source.avg_cost or 0,
+                    job_id=fg_batch.production_job_id,
+                    sales_order_item_id=fg_batch.sales_order_item_id,
+                    reference=f"PACKING_CHECK:{fg_batch.batch_number}",
+                    meta_json={
+                        "fg_batch_id": str(fg_batch.id),
+                        "packs_consumed_at_machine": consumed,
+                        "packs_used_in_units": used,
+                        "actor": getattr(user, "username", "") if getattr(user, "is_authenticated", False) else "",
+                    },
+                )
+        except DjangoValidationError as exc:
+            # The check itself stands; the evening count puts the unused pouches right.
+            primary["return_left_for_count"] = unused
+            primary["return_left_for_count_reason"] = " ".join(exc.messages)
+            return 0
+        primary["returned_unused"] = unused
         return unused
 
     @staticmethod

@@ -296,7 +296,12 @@ class JobWorkOrderViewSet(viewsets.ViewSet):
     def returns(self, request, pk=None):
         require_jobwork_permission(request.user, "inventory.manage")
         data = self._valid(JobWorkReturnSerializer, request)
-        result = JobWorkService.receive_return(order_id=pk, user=request.user, data=data)
+        from config.request_context import collect_notices
+
+        with collect_notices() as notices:
+            result = JobWorkService.receive_return(order_id=pk, user=request.user, data=data)
+        if notices:
+            result = {**result, "notices": list(notices)}
         return self._detail_response(request, pk, result, status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"], url_path="close")

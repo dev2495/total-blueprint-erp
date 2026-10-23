@@ -354,12 +354,17 @@ function PackingCheckDialog({ fgBatchId, onClose }: { fgBatchId: string | null; 
                 <span className="tabular-nums">
                   {num(data.inner_packs.consumed_at_machine)} taken at the machine · {num(data.inner_packs.used_in_units)} used in packs
                 </span>
-                {data.inner_packs.returned != null ? (
+                {data.inner_packs.left_for_count ? null : data.inner_packs.returned != null ? (
                   <span className="tabular-nums text-success-fg"> · {num(data.inner_packs.returned)} back to stock</span>
                 ) : data.inner_packs.consumed_at_machine > data.inner_packs.used_in_units ? (
                   <span className="text-content-3">
                     {" "}· {num(data.inner_packs.consumed_at_machine - data.inner_packs.used_in_units)} unused go back to stock when the check closes
                   </span>
+                ) : null}
+                {data.inner_packs.left_for_count ? (
+                  <p className="mt-1 text-caption text-warning-fg" data-testid="packing-check-inner-packs-count">
+                    Not taken off stock at the machine ({data.inner_packs.left_for_count_reason || "stock book gap"}). The evening packing count settles these pouches for this order.
+                  </p>
                 ) : null}
               </div>
             ) : null}

@@ -2139,11 +2139,13 @@ export default function MachineExecutionPage() {
         payload,
       );
     },
-    onSuccess: async () => {
-      toast({
-        title: "Output logged",
-        description: "Progress, scrap, and inventory math refreshed.",
-      });
+    onSuccess: async (result) => {
+      const notices = ((result as any)?.notices as string[] | undefined) || [];
+      toast(
+        notices.length
+          ? { variant: "warning", title: "Output logged · one thing left for the store", description: notices.join(" ") }
+          : { title: "Output logged", description: "Progress, scrap, and inventory math refreshed." },
+      );
       await refreshAll();
     },
     onError: (err: any) =>

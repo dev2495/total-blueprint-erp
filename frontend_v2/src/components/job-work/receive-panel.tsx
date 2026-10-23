@@ -142,6 +142,7 @@ export function ReceivePanel({ order, bill, onDone, onCancel }: { order: JobWork
       if (bill) qc.invalidateQueries({ queryKey: ["inventory", "gate-bills"] });
       toast.success(`Return ${result.return_number} saved${result.replayed ? " (already saved)" : ""}.`);
       for (const warning of result.warnings || []) toast.warning(warning.message);
+      for (const notice of result.notices || []) toast.warning(notice);
       onDone(result);
     },
     onError: (error) => {

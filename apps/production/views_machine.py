@@ -451,8 +451,14 @@ def machine_log_output(request, machine_id, job_id):
             # Operator entries above the company wastage limit need a reason.
             "enforce_waste_reason": True,
         }
-        job = OperatorService.log_output_step(job_id, float(actual_qty), request.user, **payload)
-        return Response(ProductionJobSerializer(job).data)
+        from config.request_context import collect_notices
+
+        with collect_notices() as notices:
+            job = OperatorService.log_output_step(job_id, float(actual_qty), request.user, **payload)
+        data = ProductionJobSerializer(job).data
+        if notices:
+            data = {**data, "notices": list(notices)}
+        return Response(data)
     except (ValueError, ValidationError) as exc:
         message = _machine_validation_message(exc)
         logger.warning(

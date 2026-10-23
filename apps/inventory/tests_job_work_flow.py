@@ -265,6 +265,40 @@ class LaminationAndPartialReturnTests(JobWorkFixtureMixin, TestCase):
         self.assertEqual(job.completion_force_reason, "Vendor fire; 2 rolls destroyed")
 
 
+    def test_inner_pouches_on_a_return_never_block_it(self):
+        from apps.inventory.models import PackagingTransaction
+        from apps.materials.models import InventoryMaterial
+        from apps.production.services.packing_service import PackingVerificationService
+
+        inner = InventoryMaterial.objects.create(
+            code="JW-INNER", name="Inner pouch", category="PACKAGING", base_uom="PCS", packaging_kind="INNER_POUCH",
+        )
+        job = self.make_job("INNER", packaging={"primary_inner_pack": {"enabled": True, "material_id": str(inner.id), "pcs_per_pack": 100}})
+        rolls = [self.make_roll(f"PR-INNER-{i}", "100", job=job) for i in range(1, 3)]
+        order = self.create_order(job=job)
+        sent = self.dispatch(order["id"], rolls)["order"]
+
+        # Our pouches but none on the book: the return goes through and the packs wait for the count.
+        first = self.post_return(order["id"], {
+            "sent_lines": [{"sent_line_id": self.sent_line(sent, rolls[0])["id"], "disposition": "PROCESSED"}],
+            "fg": {"qty_pcs": 9000, "location_id": str(self.fg.id), "inner_pack_source": "FACTORY"},
+            "wastage": {"kg": "10"},
+        })
+        self.assertTrue(any("90 inner pouches were not taken off stock" in note for note in first.get("notices", [])), first.get("notices"))
+        ours = FinishedGoodsBatch.objects.get(production_job=job)
+        self.assertEqual(ours.meta_json["primary_inner_pack"]["left_for_count"], 90)
+
+        # The job worker's own pouches: nothing drawn, and nothing "returned" to our stock at the check.
+        self.post_return(order["id"], {
+            "sent_lines": [{"sent_line_id": self.sent_line(sent, rolls[1])["id"], "disposition": "PROCESSED"}],
+            "fg": {"qty_pcs": 9000, "location_id": str(self.fg.id), "inner_pack_source": "VENDOR"},
+            "wastage": {"kg": "10"},
+        })
+        theirs = FinishedGoodsBatch.objects.filter(production_job=job).exclude(id=ours.id).get()
+        self.assertEqual(PackingVerificationService._return_unused_inner_packs(theirs), 0)
+        self.assertEqual(PackingVerificationService._return_unused_inner_packs(ours), 0)
+        self.assertFalse(PackagingTransaction.objects.filter(material=inner).exists())
+
 class EmergencyAndBulkTests(JobWorkFixtureMixin, TestCase):
     def test_emergency_order_releases_the_job_hold_on_close(self):
         job = self.make_job("EMG", process=self.lam_process, quantity="100", uom="KG", unit_weight_g="0", fg_type="ROLL", state="RELEASED")
