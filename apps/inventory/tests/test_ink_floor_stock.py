@@ -418,6 +418,44 @@ class InkFloorStockTests(TestCase):
         self.assertIn(first.reference, references)
         self.assertNotIn(second.reference, references)
 
+    def test_movements_api_filters_by_location_and_window_and_caps_rows(self):
+        event_at = timezone.now()
+        for ref in ("ISS-A", "ISS-B", "ISS-C"):
+            InkFloorService.issue_to_floor(
+                material_id=str(self.ink.id),
+                qty_kg=Decimal("1.0000"),
+                from_location_id=str(self.store.id),
+                floor_location_id=str(self.floor.id),
+                event_at=event_at,
+                shift_code="A",
+                reference=ref,
+            )
+
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+        window = {
+            "plant": str(self.plant.id),
+            "location": str(self.floor.id),
+            "start_at": (event_at - timedelta(hours=1)).isoformat(),
+            "end_at": (event_at + timedelta(hours=1)).isoformat(),
+        }
+        response = client.get("/api/production/ink-control/movements/", window)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual({row["reference"] for row in response.data}, {"ISS-A", "ISS-B", "ISS-C"})
+        self.assertNotIn("X-Result-Limited", response)
+
+        capped = client.get("/api/production/ink-control/movements/", {**window, "limit": "2"})
+        self.assertEqual(capped.status_code, 200, capped.content)
+        self.assertEqual(len(capped.data), 2)
+        self.assertEqual(capped["X-Total-Count"], "3")
+
+        later = client.get(
+            "/api/production/ink-control/movements/",
+            {**window, "start_at": (event_at + timedelta(minutes=30)).isoformat()},
+        )
+        self.assertEqual(later.status_code, 200, later.content)
+        self.assertEqual(later.data, [])
+
 
 class InkTheoryPerPrintJobTests(TestCase):
     """Theory ink is charged once per print job, for the share of the print step logged in the

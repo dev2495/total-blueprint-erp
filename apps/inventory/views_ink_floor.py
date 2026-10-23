@@ -33,6 +33,7 @@ def _dt(value, default=None):
 
 class InkFloorMovementListView(NewestRowsListMixin, ArchiveScopedListMixin, generics.ListAPIView):
     archive_scope = ArchiveScope("event_at")
+    list_default_limit = 500
     serializer_class = InkFloorMovementSerializer
     # Default permissions: signed in AND the role map (inventory.view / production.view).
 
@@ -63,7 +64,7 @@ class InkFloorMovementListView(NewestRowsListMixin, ArchiveScopedListMixin, gene
             qs = qs.filter(event_at__gte=_dt(params.get("start_at")))
         if params.get("end_at"):
             qs = qs.filter(event_at__lte=_dt(params.get("end_at")))
-        return qs[:500]
+        return qs
 
 
 class InkFloorSessionListView(generics.ListAPIView):

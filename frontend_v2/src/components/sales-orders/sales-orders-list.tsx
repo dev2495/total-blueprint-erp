@@ -3671,9 +3671,8 @@ function OrderRow({
               <div className="flex items-center gap-1.5 mt-0.5 text-caption">
                 <span className="font-mono font-semibold text-order-fg">
                   {order.order_number}
-                <JobNameTag name={(order as any).order_name} className="ml-1.5 align-middle" />
-                  <JobNameTag name={(order as any).order_name} className="ml-1.5 align-middle" />
                 </span>
+                <JobNameTag name={(order as any).order_name} />
                 <span
                   className={cn(
                     "inline-flex items-center rounded-full px-1.5 py-0.5 text-caption font-semibold text-white",
