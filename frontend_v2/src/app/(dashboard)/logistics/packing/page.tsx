@@ -779,7 +779,7 @@ export default function PackingYardPage() {
   const openCreateGonny = (batch: SOPackingSummary["batches"][number]) => {
     // How the pouches came off the machine (inner packs or loose) is the order's choice, not
     // the yard's: the dialog only asks how many go into this gonny.
-    const plan = (batch as any).packing_plan as PackingPlan | undefined;
+    const plan = packingPlanOf(batch);
     const mode = (plan?.content_mode || (batch as any).default_content_mode) === "PRIMARY_PACKS" ? "PRIMARY_PACKS" : "LOOSE_POUCHES";
     setCreateBatchId(batch.id);
     setContentMode(mode);
@@ -1815,12 +1815,12 @@ export default function PackingYardPage() {
             </div>
             <PackGonnyFields
               batch={selectedBatch}
-              plan={(selectedBatch as any)?.packing_plan as PackingPlan | undefined}
+              plan={selectedBatch ? packingPlanOf(selectedBatch) : undefined}
               contentMode={contentMode}
               packs={primaryPackCount}
               setPacks={(value) => {
                 setPrimaryPackCount(value);
-                const plan = (selectedBatch as any)?.packing_plan as PackingPlan | undefined;
+                const plan = selectedBatch ? packingPlanOf(selectedBatch) : undefined;
                 if (plan?.pcs_per_pack) setCreateQty(String(Math.min(Number(value || 0) * plan.pcs_per_pack, Number(selectedBatch?.qty_pcs || 0)) || ""));
               }}
               pcs={createQty}
@@ -2000,7 +2000,7 @@ export default function PackingYardPage() {
                 <OrderMetric
                   label="Inner pouches"
                   value={kg(sealGonny.inner_pack_tare_kg)}
-                  sub={sealGonny.primary_pack_count ? `${n(sealGonny.primary_pack_count, 0)} pouches` : "loose"}
+                  sub={sealGonny.primary_pack_count ? `${n(sealGonny.primary_pack_count, 0)} inner packs` : "loose pouches"}
                 />
                 <OrderMetric label="Gonny" value={kg(sealGonny.secondary_pack_tare_kg)} sub="weight on its master" />
                 <OrderMetric label="Expected gross" value={kg(expected)} sub="product + pouches + gonny" tone="good" />
@@ -2046,7 +2046,7 @@ export default function PackingYardPage() {
                 </div>
               ) : null}
               <p className="text-[11.5px] text-content-3">
-                Gonny and inner-pouch stock were consumed when this unit was created · see Packing audit.
+                The gonny is counted off stock at the evening packing count. Inner pouches made in house were taken off stock at the machine; bought ones go to the evening count.
               </p>
             </div>
           ) : null}
@@ -2252,6 +2252,24 @@ function EodItemChecks({
 }
 
 
+/** The batch's packing plan from the API, or the same facts from the batch's own fields. */
+function packingPlanOf(batch: any): PackingPlan {
+  if (batch?.packing_plan) return batch.packing_plan as PackingPlan;
+  const pcsPerPack = Number(batch?.pcs_per_pack || 0) || null;
+  const inner = batch?.default_content_mode === "PRIMARY_PACKS" || Boolean(batch?.primary_pack_enabled);
+  const qty = Number(batch?.qty_pcs || 0);
+  return {
+    content_mode: inner ? "PRIMARY_PACKS" : "LOOSE_POUCHES",
+    packed_at_machine: false,
+    pcs_per_pack: pcsPerPack,
+    packs_left: inner && pcsPerPack ? Math.ceil(qty / pcsPerPack) : null,
+    pcs_left: qty,
+    net_kg_per_pcs: qty > 0 ? Number(batch?.qty_kg || 0) / qty : 0,
+    inner_pouch: null,
+    gonny: null,
+  };
+}
+
 type PackingPlan = {
   content_mode: "PRIMARY_PACKS" | "LOOSE_POUCHES";
   packed_at_machine: boolean;
@@ -2297,14 +2315,30 @@ function PackGonnyFields({
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-line bg-surface-1 px-3.5 py-3 text-[13px]" data-testid="packing-gonny-plan">
+        {inner ? (
+          <dl className="mb-2.5 grid grid-cols-3 gap-2" data-testid="packing-gonny-inner-stats">
+            {[
+              ["Inner packs available", plan?.packs_left != null ? plan.packs_left.toLocaleString("en-IN") : "—"],
+              ["Pouches per pack", plan?.pcs_per_pack ? plan.pcs_per_pack.toLocaleString("en-IN") : "—"],
+              ["Pouches available", Number(plan?.pcs_left ?? batch?.qty_pcs ?? 0).toLocaleString("en-IN")],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-[10px] border border-line bg-surface-2 px-2.5 py-2">
+                <dt className="text-[11.5px] text-content-3">{label}</dt>
+                <dd className="font-mono text-[16px] font-semibold tabular-nums text-content-1">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
         <div className="font-semibold text-content-1">
           {inner
-            ? `From the machine in inner packs of ${plan?.pcs_per_pack ?? "?"} pouches`
+            ? plan?.pcs_per_pack
+              ? `From the machine in inner packs of ${plan.pcs_per_pack} pouches`
+              : "From the machine in inner packs"
             : "From the machine as loose pouches"}
         </div>
         <div className="mt-0.5 text-caption text-content-3">
           {inner
-            ? `${(plan?.packs_left ?? 0).toLocaleString("en-IN")} packs left in this batch · inner pouch ${plan?.inner_pouch?.code || "—"}${plan?.inner_pouch?.weight_kg ? ` (${(plan.inner_pouch.weight_kg * 1000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} g each)` : " · weight missing on its master"}`
+            ? `${plan?.packs_left != null ? `${plan.packs_left.toLocaleString("en-IN")} packs left in this batch · ` : ""}inner pouch ${plan?.inner_pouch?.code || "on the order"}${plan?.inner_pouch ? (plan.inner_pouch.weight_kg ? ` (${(plan.inner_pouch.weight_kg * 1000).toLocaleString("en-IN", { maximumFractionDigits: 2 })} g each)` : " · weight missing on its master") : ""}`
             : `${Number(batch?.qty_pcs || 0).toLocaleString("en-IN")} pouches left in this batch · the order has no inner pouch`}
         </div>
       </div>
@@ -2323,9 +2357,26 @@ function PackGonnyFields({
               value={packs}
               onChange={(event) => setPacks(event.target.value)}
             />
-            <p className="text-caption text-content-3" data-testid="packing-gonny-pcs-equivalent">
-              = {Number(pcs || 0).toLocaleString("en-IN")} pouches
-            </p>
+            {plan?.pcs_per_pack ? (
+              <p className="text-caption text-content-3" data-testid="packing-gonny-pcs-equivalent">
+                = {Number(pcs || 0).toLocaleString("en-IN")} pouches
+              </p>
+            ) : (
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="packing-gonny-qty">Pouches in these packs</Label>
+                <Input
+                  id="packing-gonny-qty"
+                  data-testid="packing-gonny-qty"
+                  type="number"
+                  min="1"
+                  max={batch?.qty_pcs || undefined}
+                  inputMode="numeric"
+                  value={pcs}
+                  onChange={(event) => setPcs(event.target.value)}
+                />
+                <p className="text-caption text-warning-fg">The order has no pouches-per-pack; enter both.</p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-1.5">

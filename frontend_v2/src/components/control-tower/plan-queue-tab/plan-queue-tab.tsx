@@ -343,6 +343,11 @@ export default function PlanQueueTab() {
     const queryClient = useQueryClient();
     const { toast } = useToast();
     const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+    // Links such as ?search=SO-2026-0018 (from the packing yard or dispatch) open the queue filtered.
+    useEffect(() => {
+        const query = window.location.search;
+        if (query && new URLSearchParams(query).toString()) setFilters(queryToFilters(query));
+    }, []);
     const [selectedKey, setSelectedKey] = useState<string>("");
     const [releaseDialogOrder, setReleaseDialogOrder] = useState<PlannerControlOrder | null>(null);
     const [artworkDialogOrder, setArtworkDialogOrder] = useState<PlannerControlOrder | null>(null);

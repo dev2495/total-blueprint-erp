@@ -640,7 +640,7 @@ export default function DispatchBayPage() {
             label="Units ready"
             tone="good"
             value={board.data ? n(readyUnits, 0) : "—"}
-            hint={board.data ? `${n(totals.ready_gonnies || 0, 0)} cartons · ${n(totals.ready_rolls || 0, 0)} rolls` : "—"}
+            hint={board.data ? `${gonnies(totals.ready_gonnies || 0)} · ${rollsText(totals.ready_rolls || 0)}` : "—"}
           />
           <HeroStat label="Weight ready" value={board.data ? kg(readyGross) : "—"} hint="gross shipment weight" />
           <HeroStat
@@ -682,7 +682,7 @@ export default function DispatchBayPage() {
             onChange={setUnitFilter}
             options={[
               { value: "ALL", label: "All units", count: board.data?.orders?.length || 0 },
-              { value: "CTN", label: "Cartons", count: routeCounts.ctn },
+              { value: "CTN", label: "Gonnies", count: routeCounts.ctn },
               { value: "ROLL", label: "Rolls", count: routeCounts.roll },
             ]}
           />
@@ -790,7 +790,7 @@ export default function DispatchBayPage() {
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-content-3">
                       {Number(row.available_for_dispatch.gonnies_count || 0) ? (
-                        <span>{n(row.available_for_dispatch.gonnies_count, 0)} cartons</span>
+                        <span>{gonnies(row.available_for_dispatch.gonnies_count)}</span>
                       ) : null}
                       {Number(row.available_for_dispatch.rolls_count || 0) ? (
                         <span>{n(row.available_for_dispatch.rolls_count, 0)} rolls</span>
@@ -849,7 +849,7 @@ export default function DispatchBayPage() {
                         <JobNameTag name={(selected.sales_order as any).job_name} className="ml-1.5 align-middle" />
                       </Link>
                       <Pill tone="good" dot>
-                        {n(allUnits.length, 0)} units ready
+                        {unitsText(allUnits.length)} ready
                       </Pill>
                       <Pill tone="neutral">{titleCase(selected.sales_order.status)}</Pill>
                     </div>
@@ -873,7 +873,7 @@ export default function DispatchBayPage() {
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                  <OrderMetric label="Ready units" value={n(allUnits.length, 0)} sub={`${n(selected.rolls.length, 0)} rolls · ${n(selected.gonnies.length, 0)} cartons`} tone="good" />
+                  <OrderMetric label="Ready units" value={n(allUnits.length, 0)} sub={`${rollsText(selected.rolls.length)} · ${gonnies(selected.gonnies.length)}`} tone="good" />
                   <OrderMetric label="Ready net" value={kg(orderReadyNet)} sub={orderReadyPcs ? `${n(orderReadyPcs, 0)} pcs` : "product weight"} />
                   <OrderMetric label="Ready gross" value={kg(orderReadyGross)} sub="truck weight" />
                   <OrderMetric label="Ordered" value={n(selected.ordered_qty)} sub="sales quantity" />
@@ -912,7 +912,7 @@ export default function DispatchBayPage() {
                     >
                       <div className="text-[12.5px] font-semibold">All lines</div>
                       <div className="text-[11.5px] opacity-75">
-                        {n(allUnits.length, 0)} units · {kg(orderReadyGross)}
+                        {unitsText(allUnits.length)} · {kg(orderReadyGross)}
                       </div>
                     </button>
                     {lineScopes.map((scope, index) => (
@@ -932,7 +932,7 @@ export default function DispatchBayPage() {
                       >
                         <div className="truncate text-[12.5px] font-semibold">{scope.name}</div>
                         <div className="truncate text-[11.5px] opacity-75">
-                          {scope.spec} · {n(scope.units, 0)} units · {kg(scope.gross)}
+                          {scope.spec} · {unitsText(scope.units)} · {kg(scope.gross)}
                         </div>
                       </button>
                     ))}
@@ -1289,7 +1289,7 @@ export default function DispatchBayPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <OrderMetric label="Units" value={n(selectedUnits, 0)} sub={`${n(selectedRolls.length, 0)} rolls · ${n(selectedGonnies.length, 0)} cartons`} />
+            <OrderMetric label="Units" value={n(selectedUnits, 0)} sub={`${rollsText(selectedRolls.length)} · ${gonnies(selectedGonnies.length)}`} />
             <OrderMetric label="Gross" value={kg(selectedGross)} sub="truck weight" />
             <OrderMetric label="Net" value={kg(selectedNet)} sub="product weight" />
             <OrderMetric label="Pieces" value={n(selectedPcs, 0)} sub="packed pouches" />
@@ -1304,7 +1304,7 @@ export default function DispatchBayPage() {
                     <div className="mt-0.5 text-[11.5px] text-content-3">
                       {n(scope.units, 0)} units
                       {scope.rolls ? ` · ${n(scope.rolls, 0)} rolls` : ""}
-                      {scope.ctn ? ` · ${n(scope.ctn, 0)} cartons` : ""} · {kg(scope.gross)}
+                      {scope.ctn ? ` · ${gonnies(scope.ctn)}` : ""} · {kg(scope.gross)}
                     </div>
                   </div>
                 ))}
@@ -1401,4 +1401,20 @@ export default function DispatchBayPage() {
       </Dialog>
     </div>
   );
+}
+
+/** "1 gonny" / "3 gonnies" — pouch dispatch units are gonnies. */
+function gonnies(count: number | null | undefined) {
+  const value = Number(count || 0);
+  return `${value.toLocaleString("en-IN")} ${value === 1 ? "gonny" : "gonnies"}`;
+}
+
+function rollsText(count: number | null | undefined) {
+  const value = Number(count || 0);
+  return `${value.toLocaleString("en-IN")} ${value === 1 ? "roll" : "rolls"}`;
+}
+
+function unitsText(count: number | null | undefined) {
+  const value = Number(count || 0);
+  return `${value.toLocaleString("en-IN")} ${value === 1 ? "unit" : "units"}`;
 }
