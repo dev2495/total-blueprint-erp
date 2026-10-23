@@ -50,7 +50,7 @@ const TABS: Array<{
   },
   {
     key: "stock-intelligence",
-    label: "Stock Intelligence",
+    label: "Material readiness",
     href: "/dashboard/planner/control-tower/stock-intelligence",
     icon: BarChart3,
     eyebrow: "Tab 5",

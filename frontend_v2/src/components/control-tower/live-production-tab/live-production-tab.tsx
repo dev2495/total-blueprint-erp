@@ -4,7 +4,7 @@ import { PlannerDialogLayer } from "../planner-dialog-layer";
 
 import { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, AlertTriangle, PauseCircle, RefreshCw, X } from "lucide-react";
+import { Activity, AlertTriangle, Cog, Layers as LayersIcon, PauseCircle, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import {
     Area,
     AreaChart,
@@ -24,6 +24,7 @@ import { ChipRow, FilterChip, FilterSearch, PlannerFilterDock } from "../filter-
 import { getOrderTraceQuantitySummary, OrderPassportStrip, ProductionTracePanel } from "../order-passport";
 import { PrintColorRevisionDialog } from "../print-color-revision-dialog";
 import { PlannerReadFeedStatus } from "../read-feed-status";
+import { BulletBar, Delta, KpiRow, KpiTile, LensChips, ProductIdentity, SearchField, Sparkline, StackBar, StateBadge, Toolbar, identityFrom, toneForStatus } from "@/components/planner-kit";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -200,7 +201,7 @@ export default function LiveProductionTab() {
             producedKg += Number(order.production_trace?.produced_qty || order.partial_produced_kg || order.qty_final_output || 0);
             openKg += Number(order.production_trace?.remaining_qty || order.qty_replan_remaining_kg || order.partial_shortfall_kg || order.required_qty_kg || 0);
         }
-        return [
+        return Object.assign([
             { eyebrow: "Live lines", value: fmt(activeOrders.length), sub: "released, WCM, running", accent: "info" as const },
             { eyebrow: "Running", value: fmt(running), sub: "machine active", accent: running ? "success" as const : "default" as const },
             { eyebrow: "WCM handoff", value: fmt(released), sub: "released / ready", accent: "info" as const },
@@ -209,8 +210,27 @@ export default function LiveProductionTab() {
             { eyebrow: "Blockers", value: fmt(blockers), sub: "release / material / artwork", accent: blockers ? "danger" as const : "default" as const },
             { eyebrow: "Produced KG", value: fmt(producedKg, 0), sub: "posted output", accent: "success" as const },
             { eyebrow: "Open KG", value: fmt(openKg, 0), sub: "remaining in live lines", accent: "info" as const },
-        ];
+        ], { counts: { running, released, waiting, replan, blockers, producedKg, openKg } });
     }, [activeOrders]);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    // Machines now: the job each machine is on (running first, then paused, then next released).
+    const machinesNow = useMemo(() => {
+        const rank = (job: any) => {
+            const state = String(job?.job_state || job?.status || "").toUpperCase();
+            return state === "EXECUTING" || state === "RUNNING" ? 0 : state === "PAUSED" ? 1 : state === "RELEASED" ? 2 : 9;
+        };
+        const byMachine = new Map<string, any>();
+        for (const job of jobs) {
+            const name = String(job?.machine_name || "").trim();
+            if (!name || rank(job) === 9) continue;
+            const current = byMachine.get(name);
+            if (!current || rank(job) < rank(current)) byMachine.set(name, job);
+        }
+        return Array.from(byMachine.entries())
+            .map(([machine, job]) => ({ machine, job }))
+            .sort((a, b) => rank(a.job) - rank(b.job) || a.machine.localeCompare(b.machine));
+    }, [jobs]);
+    const postedSeries = useMemo(() => trend.map((row: any) => Number(row.output_kg || 0)).slice(-14), [trend]);
 
     const exceptions = useMemo(() => {
         return activeOrders
@@ -320,11 +340,90 @@ export default function LiveProductionTab() {
                         Refresh
                     </Button>
                 }
-                kpis={hubQ.data ? kpis as any : undefined}
             />
+
+            {hubQ.data ? (
+                <KpiRow>
+                    <KpiTile icon={Activity} label="Posted on live lines" value={fmt(kpis.counts.producedKg, 0)} unit="kg" tone="done"
+                        viz={postedSeries.length > 1 ? <Sparkline points={postedSeries} tone="done" /> : undefined}
+                        sub={postedSeries.length > 1 ? "posted output · daily trend, last 14 days" : "posted output"} testId="lp-kpi-posted" />
+                    <KpiTile icon={LayersIcon} label="Open on live lines" value={fmt(kpis.counts.openKg, 0)} unit="kg"
+                        viz={<BulletBar value={kpis.counts.producedKg} max={Math.max(kpis.counts.producedKg + kpis.counts.openKg, 1)} left={`${fmt(kpis.counts.producedKg, 0)} posted`} right={`${fmt(kpis.counts.producedKg + kpis.counts.openKg, 0)} planned`} tone="done" />}
+                        sub="still to make on released and running lines" testId="lp-kpi-open" />
+                    <KpiTile icon={Cog} label="Lines by state" value={fmt(activeOrders.length)} unit="live"
+                        viz={<StackBar segments={[
+                            { label: "Running", value: kpis.counts.running, tone: "run" },
+                            { label: "Released", value: kpis.counts.released, tone: "queued" },
+                            { label: "Waiting", value: kpis.counts.waiting, tone: "wait" },
+                            { label: "Replan", value: kpis.counts.replan, tone: "replan" },
+                        ]} />} testId="lp-kpi-states" />
+                    <KpiTile icon={AlertTriangle} label="Needs attention" value={fmt(kpis.counts.replan + exceptions.length)} unit="lines" tone={kpis.counts.replan || kpis.counts.blockers ? "wait" : undefined}
+                        delta={kpis.counts.blockers ? <Delta tone="bad">{fmt(kpis.counts.blockers)} blockers</Delta> : undefined}
+                        sub="replan or blocker signals"
+                        onClick={() => { setStateFilter("blocked"); setPage(1); }} pressed={stateFilter === "blocked"} testId="lp-kpi-attention" />
+                    <KpiTile icon={Cog} label="Machines busy" value={fmt(machinesNow.filter((m) => toneForStatus(m.job?.job_state) === "run").length)} unit={`of ${fmt(machinesNow.length)} with work`}
+                        viz={<StackBar legend={false} segments={[
+                            { label: "Running", value: machinesNow.filter((m) => toneForStatus(m.job?.job_state) === "run").length, tone: "run" },
+                            { label: "Paused", value: machinesNow.filter((m) => toneForStatus(m.job?.job_state) === "paused").length, tone: "paused" },
+                            { label: "Next job released", value: machinesNow.filter((m) => toneForStatus(m.job?.job_state) === "queued").length, tone: "queued" },
+                        ]} />}
+                        sub="running · paused · next job released" testId="lp-kpi-machines" />
+                </KpiRow>
+            ) : null}
 
             <PlannerReadFeedStatus feeds={[{ ...hubQ, label: "Live orders" }, { ...jobsQ, label: "Job cards" }, { ...dashboardQ, label: "Production trend" }]} onRetry={refreshAll} />
 
+            <Toolbar>
+                <LensChips
+                    value={stateFilter}
+                    onChange={(key) => { setStateFilter(key as typeof stateFilter); setPage(1); }}
+                    lenses={[
+                        { key: "all", label: "All live", count: activeOrders.length },
+                        { key: "running", label: "Running", count: kpis.counts.running, tone: "run" },
+                        { key: "released", label: "Released", count: kpis.counts.released, tone: "queued" },
+                        { key: "waiting", label: "Waiting / paused", count: kpis.counts.waiting, tone: "wait" },
+                        { key: "replan", label: "Replan", count: kpis.counts.replan, tone: "replan" },
+                        { key: "blocked", label: "Blockers", count: exceptions.length, tone: "block" },
+                    ]}
+                />
+                <SearchField id="live-production-search" value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Search live order, customer, product, route" />
+                <Button variant="ghost" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="live-production-filter-dock">
+                    <SlidersHorizontal size={14} style={{ marginRight: 6 }} />
+                    Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
+                </Button>
+            </Toolbar>
+
+            {machinesNow.length ? (
+                <section aria-label="Machines now" className="rounded-[14px] border border-line bg-surface-1 p-3 shadow-[var(--shadow-sm)]">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                        <h2 className="text-sm font-semibold text-content-1">Machines now</h2>
+                        <span className="font-mono text-caption text-content-4">from the job board · refreshes every 30 s</span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                        {machinesNow.map(({ machine, job }) => {
+                            const tone = toneForStatus(job?.job_state || job?.status);
+                            const target = Number(job?.quantity || 0);
+                            const done = Number(job?.produced_qty || 0);
+                            return (
+                                <div key={machine} className="grid gap-1 rounded-[10px] border border-line px-3 py-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="truncate text-sm font-semibold text-content-1">{machine}</span>
+                                        <StateBadge tone={tone} size="sm">{tone === "run" ? "Running" : tone === "paused" ? "Paused" : tone === "queued" ? "Next" : String(job?.job_state || "").toLowerCase()}</StateBadge>
+                                    </div>
+                                    <div className="truncate font-mono text-caption text-content-3">
+                                        {job?.order_number || job?.job_number} · {job?.process_code || job?.process_name || ""}
+                                    </div>
+                                    {target > 0 ? (
+                                        <BulletBar value={done} max={target} left={`${fmt(done, 0)} / ${fmt(target, 0)} ${String(job?.uom || "kg").toLowerCase()}`} right={`${Math.round((done / target) * 100)}%`} tone={tone === "paused" ? "wait" : "run"} />
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            ) : null}
+
+            <div id="live-production-filter-dock" hidden={!filtersOpen}>
             <PlannerFilterDock
                 title="Live line filter dock"
                 subtitle="Scope active production by machine state, WCM handoff path, replan pressure, and blockers."
@@ -343,38 +442,6 @@ export default function LiveProductionTab() {
                 }
             >
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12, alignItems: "start" }}>
-                    <FilterSearch
-                        value={search}
-                        onChange={(value) => {
-                            setSearch(value);
-                            setPage(1);
-                        }}
-                        placeholder="Search live order, customer, PM, route"
-                    />
-                    <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>State</div>
-                        <ChipRow>
-                            {([
-                                ["all", "All states", "brand"],
-                                ["running", "Running", "success"],
-                                ["released", "Released", "info"],
-                                ["waiting", "Waiting", "warning"],
-                                ["replan", "Replan", "warning"],
-                                ["blocked", "Blockers", "danger"],
-                            ] as const).map(([value, label, tone]) => (
-                                <FilterChip
-                                    key={value}
-                                    label={label}
-                                    active={stateFilter === value}
-                                    tone={tone}
-                                    onClick={() => {
-                                        setStateFilter(value as typeof stateFilter);
-                                        setPage(1);
-                                    }}
-                                />
-                            ))}
-                        </ChipRow>
-                    </div>
                     <div>
                         <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Route path</div>
                         <ChipRow>
@@ -399,6 +466,7 @@ export default function LiveProductionTab() {
                     </div>
                 </div>
             </PlannerFilterDock>
+            </div>
 
             <div className="ct-live-grid">
                 <div className="ct-live-list">
@@ -606,17 +674,20 @@ function LiveOrderCard({ order, jobs, onOpenColorRevision }: {
 
     return (
         <Card className="ct-live-order-card erp-virtual-card" style={{ borderColor: state === "REPLAN_REQUIRED" ? "rgba(245,158,11,.32)" : tone.border, overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 14, alignItems: "start" }}>
-                <OrderPassportStrip order={order} />
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
-                    <span style={{ padding: "4px 10px", borderRadius: "var(--r-pill)", border: `1px solid ${tone.border}`, background: tone.bg, color: tone.fg, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em", animation: tone.pulse ? "ds-pulse 1.8s var(--eo) infinite" : "none" }}>
-                        {tone.label}
-                    </span>
-                    <div style={{ fontFamily: "var(--f-mono)", fontSize: 12, fontWeight: 700, color: "var(--text-1)", whiteSpace: "nowrap" }}>
-                        {fmt(qty.producedKg, 1)} / {fmt(qty.targetKg, 1)} KG
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3.5">
+                <ProductIdentity data={identityFrom(order as any)} />
+                <div className="flex flex-col items-end gap-1.5 text-right">
+                    <StateBadge tone={toneForStatus(state)}>{tone.label}</StateBadge>
+                    <div className="font-mono text-sm font-semibold tabular-nums text-content-1">
+                        {fmt(qty.producedKg, 1)} / {fmt(qty.targetKg, 1)}<span className="ml-0.5 text-caption font-normal text-content-3">kg</span>
                     </div>
+                    <div className="font-mono text-caption text-content-3">{Math.round(Math.min(100, Math.max(0, progress)))}% posted</div>
                 </div>
             </div>
+            <details className="mt-2 text-caption text-content-3">
+                <summary className="cursor-pointer select-none font-medium text-content-2">Order passport</summary>
+                <div className="mt-2"><OrderPassportStrip order={order} /></div>
+            </details>
 
             <div style={{ marginTop: 12, height: 8, borderRadius: 999, overflow: "hidden", background: "var(--surface-2)" }}>
                 <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, progress))}%`, background: state === "REPLAN_REQUIRED" ? "var(--warning)" : "linear-gradient(90deg, var(--br-500), var(--e-500))", transition: "width var(--ds) var(--eo)" }} />

@@ -88,12 +88,19 @@ export function identityFrom(source: Record<string, any> | null | undefined): Pr
   const spec = normalizeProductSpec(raw);
   const fgType = String(raw.fg_type || spec.size.finishedGoodType || raw.geometry_snapshot?.finished_good_type || "POUCH").toUpperCase();
   const form = formFrom(raw, spec.pouchStyle || spec.size.formLabel || "", fgType);
-  const printing = (raw.printing_snapshot || raw.printing || {}) as Record<string, any>;
+  const printing = {
+    front_colors_count: raw.front_colors_count,
+    ...((raw.printing_snapshot || raw.printing || {}) as Record<string, any>),
+  } as Record<string, any>;
+  // Compact planner rows carry the spec as effective_dims + spec_summary instead of snapshots.
+  const summary = (raw.spec_summary || {}) as Record<string, any>;
+  const dims = (raw.effective_dims || {}) as Record<string, any>;
   const printEnabled = Boolean(raw.printing_enabled ?? printing.enabled ?? (printing.print_type && printing.print_type !== "NONE"));
   const printType = printEnabled ? String(raw.print_type || printing.print_type || printing.method || "").toUpperCase() : "";
-  const width = spec.size.widthMm;
-  const height = spec.size.heightMm;
-  let sizeHero = spec.size.label || "";
+  const width = spec.size.widthMm ?? (Number(summary.width_mm || dims.width_mm) || null);
+  const height = spec.size.heightMm ?? (Number(summary.height_mm || dims.height_mm) || null);
+  const capturedLabel = spec.size.label && !/not captured/i.test(spec.size.label) ? spec.size.label : "";
+  let sizeHero = width || height ? "" : capturedLabel || raw.display_geometry_label || "";
   let sizeUnit = "";
   if (width && height && fgType !== "ROLL") {
     sizeHero = `${fmt(width)} × ${fmt(height)}`;
@@ -109,12 +116,18 @@ export function identityFrom(source: Record<string, any> | null | undefined): Pr
     sizeHero: sizeHero || "Size pending",
     sizeUnit,
     gusset: spec.size.gussetMm ? `+ ${fmt(spec.size.gussetMm)} G` : undefined,
-    name: spec.productName || raw.line_label || raw.product_master_name || raw.template_name || spec.templateName || "Product",
-    layers: spec.layers.map((layer) => ({
-      name: layer.variantName || layer.variantCode || layer.label || `Layer ${layer.index}`,
-      micron: layer.thicknessMicron,
-      grade: layer.grade,
-    })),
+    name: raw.product_master_name || raw.template_name || spec.templateName || spec.productName || raw.line_label || "Product",
+    layers: spec.layers.length
+      ? spec.layers.map((layer) => ({
+          name: layer.variantName || layer.variantCode || layer.label || `Layer ${layer.index}`,
+          micron: layer.thicknessMicron,
+          grade: layer.grade,
+        }))
+      : (Array.isArray(summary.layer_recipe) ? summary.layer_recipe : []).map((layer: any, index: number) => ({
+          name: String(layer?.variant_name || layer?.label || layer?.variant_code || `Layer ${index + 1}`),
+          micron: Number(layer?.thickness_micron) || null,
+          grade: String(layer?.grade || "") || undefined,
+        })),
     printType: printType === "NONE" ? "" : printType,
     inks: printType ? inksFrom(printing) : [],
     orderNumber: raw.order_number || spec.orderNumber || undefined,

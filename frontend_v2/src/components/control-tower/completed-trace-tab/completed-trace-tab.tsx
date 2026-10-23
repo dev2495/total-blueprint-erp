@@ -3,13 +3,20 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+    AlertTriangle,
+    CheckCircle2,
     ChevronDown,
     ChevronRight,
+    ClipboardCheck,
     Download,
     History,
+    Layers as LayersIcon,
     Package,
     RefreshCw,
+    Repeat,
     Settings2,
+    SlidersHorizontal,
+    Timer,
     TrendingUp,
 } from "lucide-react";
 import {
@@ -35,6 +42,7 @@ import { ChipRow, FilterChip, FilterSearch, FilterSelect, PlannerFilterDock } fr
 import { getOrderPassport, OrderPassportStrip, PassportDetailGrid, ProductionTracePanel } from "../order-passport";
 import { formatDisplayDateTime } from "@/lib/date-format";
 import { PlannerReadFeedStatus } from "../read-feed-status";
+import { BulletBar, Delta, KpiRow, KpiTile, LensChips, ProductIdentity, SearchField, StackBar, StateBadge, TagChip, Toolbar, identityFrom } from "@/components/planner-kit";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -350,7 +358,8 @@ export default function CompletedTraceTab() {
             };
         };
 
-        return [
+        const delta = (now: number, prior: number) => (prior > 0 ? ((now - prior) / prior) * 100 : now > 0 ? 100 : 0);
+        return Object.assign([
             buildKpi("Closed lines", closedNow, closedPrior, "audit rows"),
             buildKpi("Demand KG", totalKgNow, totalKgPrior, "closed demand", 1),
             { eyebrow: "WCM posted", value: fmt(postedKg, 1), sub: `${audits.filter((audit) => audit.hasJobs).length} lines with job logs`, accent: postedKg > 0 ? "success" as const : "default" as const },
@@ -359,8 +368,16 @@ export default function CompletedTraceTab() {
             { eyebrow: "On-time", value: onTimeData.length > 0 ? pct(onTimePct) : "—", sub: `${onTimeCount} of ${onTimeData.length} measurable`, accent: onTimePct >= 80 ? "success" as const : onTimePct >= 50 ? "warn" as const : "danger" as const },
             { eyebrow: "Short close", value: fmt(varianceCount), sub: "variance closures", accent: varianceCount > 0 ? "warn" as const : "default" as const },
             { eyebrow: "Trace gaps", value: fmt(traceGapCount), sub: "needs audit follow-up", accent: traceGapCount > 0 ? "danger" as const : "success" as const },
-        ];
+        ], {
+            counts: {
+                closedNow, closedPrior, closedDelta: delta(closedNow, closedPrior),
+                totalKgNow, kgDelta: delta(totalKgNow, totalKgPrior), postedKg,
+                claimedCount, varianceCount, traceGapCount, avgCycle, medianCycle,
+                onTimeCount, onTimeTotal: onTimeData.length, onTimePct,
+            },
+        });
     }, [inPeriod, priorPeriod]);
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     // ----- Source path mix -----
     const sourceDist = useMemo(() => {
@@ -531,11 +548,68 @@ export default function CompletedTraceTab() {
                         </Button>
                     </div>
                 }
-                kpis={hubQ.data ? kpis as any : undefined}
             />
+
+            {hubQ.data ? (() => {
+                const c = kpis.counts;
+                const sign = (v: number) => `${v > 1 ? "+" : v < -1 ? "−" : "±"}${Math.abs(v).toFixed(0)}%`;
+                return (
+                    <KpiRow>
+                        <KpiTile icon={ClipboardCheck} label="Closed lines" value={fmt(c.closedNow)}
+                            delta={<Delta tone={c.closedDelta > 1 ? "up" : c.closedDelta < -1 ? "down" : "flat"}>{sign(c.closedDelta)}</Delta>}
+                            sub={`vs ${fmt(c.closedPrior)} in the prior ${periodCfg.label} window`} testId="ct-kpi-closed" />
+                        <KpiTile icon={LayersIcon} label="Demand closed" value={fmt(c.totalKgNow, 0)} unit="kg" tone="done"
+                            delta={<Delta tone={c.kgDelta > 1 ? "up" : c.kgDelta < -1 ? "down" : "flat"}>{sign(c.kgDelta)}</Delta>}
+                            viz={<BulletBar value={c.postedKg} max={Math.max(c.totalKgNow, 1)} left={`${fmt(c.postedKg, 0)} kg WCM posted`} right={`${fmt(c.totalKgNow, 0)} demand`} tone="done" />}
+                            sub="demand backed by WCM job rows" testId="ct-kpi-demand" />
+                        <KpiTile icon={CheckCircle2} label="On-time" value={c.onTimeTotal ? Math.round(c.onTimePct) : "—"} unit={c.onTimeTotal ? "%" : undefined}
+                            tone={c.onTimeTotal ? (c.onTimePct >= 80 ? "done" : c.onTimePct >= 50 ? "wait" : "block") : undefined}
+                            viz={c.onTimeTotal ? <StackBar segments={[{ label: "On time", value: c.onTimeCount, tone: "done" }, { label: "Late", value: c.onTimeTotal - c.onTimeCount, tone: "block" }]} /> : undefined}
+                            sub={`${fmt(c.onTimeCount)} of ${fmt(c.onTimeTotal)} measurable`}
+                            onClick={() => { setAuditFilter("late"); setPage(1); }} pressed={auditFilter === "late"} testId="ct-kpi-ontime" />
+                        <KpiTile icon={Timer} label="Cycle time" value={c.avgCycle > 0 ? c.avgCycle.toFixed(1) : "—"} unit={c.avgCycle > 0 ? "d avg" : undefined}
+                            tone={c.avgCycle > 14 ? "wait" : undefined}
+                            sub={`median ${c.medianCycle.toFixed(1)} d · placed → closed`} testId="ct-kpi-cycle" />
+                        <KpiTile icon={Package} label="Stock claims" value={fmt(c.claimedCount)} sub="closed without WCM rows"
+                            onClick={() => { setAuditFilter("stock_claim"); setPage(1); }} pressed={auditFilter === "stock_claim"} testId="ct-kpi-claims" />
+                        <KpiTile icon={Repeat} label="Short close" value={fmt(c.varianceCount)} tone={c.varianceCount ? "wait" : undefined} sub="variance closures"
+                            onClick={() => { setAuditFilter("variance"); setPage(1); }} pressed={auditFilter === "variance"} testId="ct-kpi-short" />
+                        <KpiTile icon={AlertTriangle} label="Trace gaps" value={fmt(c.traceGapCount)} tone={c.traceGapCount ? "block" : "done"} sub="needs audit follow-up"
+                            onClick={() => { setAuditFilter("trace_gap"); setPage(1); }} pressed={auditFilter === "trace_gap"} testId="ct-kpi-gaps" />
+                    </KpiRow>
+                );
+            })() : null}
+
+            <Toolbar>
+                <LensChips
+                    label="Filter by audit state"
+                    value={auditFilter}
+                    onChange={(key) => { setAuditFilter(key as AuditFilter); setPage(1); }}
+                    lenses={[
+                        { key: "all", label: "All audit", count: auditCounts.all },
+                        { key: "wcm_posted", label: "WCM posted", count: auditCounts.wcm_posted, tone: "done" },
+                        { key: "stock_claim", label: "Stock claim", count: auditCounts.stock_claim, tone: "queued" },
+                        { key: "variance", label: "Short close", count: auditCounts.variance, tone: "wait" },
+                        { key: "late", label: "Late", count: auditCounts.late, tone: "block" },
+                        { key: "trace_gap", label: "Trace gap", count: auditCounts.trace_gap, tone: "block" },
+                    ]}
+                />
+                <LensChips
+                    label="Closed window"
+                    value={period}
+                    onChange={(key) => { setPeriod(key as typeof period); setPage(1); }}
+                    lenses={PERIODS.map((p) => ({ key: p.key, label: p.label }))}
+                />
+                <SearchField id="completed-trace-search" value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Search order, customer, product, size, layer" />
+                <Button variant="ghost" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} aria-controls="completed-trace-filter-dock">
+                    <SlidersHorizontal size={14} style={{ marginRight: 6 }} />
+                    Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}
+                </Button>
+            </Toolbar>
 
             <PlannerReadFeedStatus feeds={[{ ...hubQ, label: "Completed trace" }]} onRetry={() => { void hubQ.refetch(); }} />
 
+            <div id="completed-trace-filter-dock" hidden={!filtersOpen}>
             <PlannerFilterDock
                 title="Trace audit filter dock"
                 subtitle="Start with the closure window, then isolate stock claims, WCM-posted lines, late jobs, or trace gaps."
@@ -554,31 +628,6 @@ export default function CompletedTraceTab() {
                 }
             >
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 250px), 1fr))", gap: 12, alignItems: "start" }}>
-                    <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Closed window</div>
-                        <ChipRow>
-                            {PERIODS.map((p) => (
-                                <FilterChip
-                                    key={p.key}
-                                    label={p.label}
-                                    active={period === p.key}
-                                    tone="brand"
-                                    onClick={() => {
-                                        setPeriod(p.key);
-                                        setPage(1);
-                                    }}
-                                />
-                            ))}
-                        </ChipRow>
-                    </div>
-                    <FilterSearch
-                        value={search}
-                        onChange={(value) => {
-                            setSearch(value);
-                            setPage(1);
-                        }}
-                        placeholder="Search order, customer, PM, size, layer"
-                    />
                     <FilterSelect
                         label={`Customer (${distinctCustomers.length})`}
                         value={customerFilter}
@@ -612,33 +661,9 @@ export default function CompletedTraceTab() {
                             })}
                         </ChipRow>
                     </div>
-                    <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--text-4)", marginBottom: 7 }}>Audit state</div>
-                        <ChipRow>
-                            {([
-                                ["all", "All audit", "brand"],
-                                ["wcm_posted", "WCM posted", "success"],
-                                ["stock_claim", "Stock claim", "info"],
-                                ["variance", "Short close", "warning"],
-                                ["late", "Late", "danger"],
-                                ["trace_gap", "Trace gap", "danger"],
-                            ] as const).map(([key, label, tone]) => (
-                                <FilterChip
-                                    key={key}
-                                    label={label}
-                                    count={auditCounts[key]}
-                                    active={auditFilter === key}
-                                    tone={tone}
-                                    onClick={() => {
-                                        setAuditFilter(key);
-                                        setPage(1);
-                                    }}
-                                />
-                            ))}
-                        </ChipRow>
-                    </div>
                 </div>
             </PlannerFilterDock>
+            </div>
 
             {/* Throughput chart + Top templates */}
             <div className="ct-completed-chart-grid">
@@ -861,50 +886,24 @@ function CompletedOrderRow({ order, expanded, onToggle }: { order: PlannerContro
                 }}
             >
                 {expanded ? <ChevronDown size={14} color="var(--text-3)" /> : <ChevronRight size={14} color="var(--text-3)" />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <OrderPassportStrip order={order} compact showKpis={false} />
+                <div className="min-w-0 flex-1">
+                    <ProductIdentity data={identityFrom(order as any)} meta={[completedAt ? <span key="closed" className="font-mono">closed {timeAgo(completedAt)}</span> : null]} />
                 </div>
-                <div className="ct-completed-row-meta" style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    <span style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-2)", whiteSpace: "nowrap" }}>
-                        {fmt(order.required_qty_kg, 1)} KG{order.required_qty_pcs != null ? ` · ${fmt(order.required_qty_pcs)} pcs` : ""}
+                <div className="flex flex-col items-end gap-1 text-right">
+                    <span className="font-mono text-sm font-semibold tabular-nums text-content-1">
+                        {fmt(order.required_qty_kg, 1)}<span className="ml-0.5 text-caption font-normal text-content-3">kg</span>
                     </span>
-                    <span title={audit.message || "Completion audit state"} style={{
-                        padding: "2px 8px", fontSize: 10, fontWeight: 650,
-                        borderRadius: "var(--r-pill)",
-                        background: audit.claimedNoWcm ? "rgba(15,118,110,.12)" : audit.postedWithVariance ? "rgba(245,158,11,.14)" : "rgba(16,185,129,.12)",
-                        color: audit.claimedNoWcm ? "#0f766e" : audit.postedWithVariance ? "var(--warning)" : "var(--success)",
-                        whiteSpace: "nowrap",
-                    }}>
-                        {audit.claimedNoWcm ? "STOCK CLAIM" : audit.postedWithVariance ? "SHORT CLOSE" : "WCM POSTED"}
-                    </span>
-                    {cycle != null && (
-                        <span title="Cycle time: placed to production complete" style={{
-                            padding: "2px 8px", fontSize: 10, fontWeight: 700,
-                            borderRadius: "var(--r-pill)",
-                            background: cycle > 14 ? "rgba(245,158,11,.12)" : "rgba(99,102,241,.12)",
-                            color: cycle > 14 ? "var(--warning)" : "var(--i-700)",
-                            whiteSpace: "nowrap", fontFamily: "var(--f-mono)",
-                        }}>
-                            {cycle.toFixed(1)}d cycle
-                        </span>
-                    )}
-                    {ot != null && (
-                        <span title={ot ? "Completed before/on delivery date" : "Completed after delivery date"} style={{
-                            padding: "2px 8px", fontSize: 10, fontWeight: 700,
-                            borderRadius: "var(--r-pill)",
-                            background: ot ? "rgba(16,185,129,.12)" : "rgba(244,63,94,.12)",
-                            color: ot ? "var(--success)" : "var(--danger)",
-                            whiteSpace: "nowrap",
-                        }}>
-                            {ot ? "ON-TIME" : "LATE"}
-                        </span>
-                    )}
-                    <span style={{ padding: "2px 10px", fontSize: 10, fontWeight: 700, borderRadius: "var(--r-pill)", background: SOURCE_COLORS[path] + "22", color: SOURCE_COLORS[path] }}>
-                        {path === "CLAIM" ? "CLAIM" : path}
-                    </span>
-                    <span style={{ fontSize: 10, color: "var(--text-4)", whiteSpace: "nowrap", fontFamily: "var(--f-mono)" }}>
-                        {timeAgo(completedAt)}
-                    </span>
+                    {order.required_qty_pcs != null ? <span className="font-mono text-caption text-content-3">{fmt(order.required_qty_pcs)} pcs</span> : null}
+                    <div className="flex flex-wrap justify-end gap-1">
+                        <StateBadge tone={audit.claimedNoWcm ? "queued" : audit.postedWithVariance ? "wait" : "done"} size="sm" title={audit.message || "Completion audit state"}>
+                            {audit.claimedNoWcm ? "Stock claim" : audit.postedWithVariance ? "Short close" : "WCM posted"}
+                        </StateBadge>
+                        {ot != null ? <StateBadge tone={ot ? "done" : "block"} size="sm">{ot ? "On time" : "Late"}</StateBadge> : null}
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-1">
+                        <TagChip tone={path === "CLAIM" ? "info" : path === "FRESH" ? "order" : "success"}>{path === "CLAIM" ? "Claim" : path === "FRESH" ? "Fresh" : path}</TagChip>
+                        {cycle != null ? <TagChip tone={cycle > 14 ? "warning" : "neutral"}>{cycle.toFixed(1)} d cycle</TagChip> : null}
+                    </div>
                 </div>
             </button>
 

@@ -31,6 +31,7 @@ import { Card, Hero, Button, EmptyState, Chip } from "@/components/_planner-ui";
 import { ageInfo, ageToneColor } from "../_shared/age";
 import { OrderPassportStrip } from "../order-passport";
 import { QuickStockLauncherDialog, type QuickStockLauncherSeed } from "../quick-stock-launcher-dialog";
+import { BulletBar, KpiRow, KpiTile, StackBar } from "@/components/planner-kit";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -286,7 +287,7 @@ export default function StockIntelligenceTab() {
         const packagingOpen = Number(replenishmentMix?.packaging_open || 0);
         const podOpen = Number(replenishmentMix?.pod_bulk_open || 0);
 
-        return [
+        return Object.assign([
             { eyebrow: "Stock KG", value: fmt(totalStockKg, 0), sub: `${fmt(totalRolls)} rolls`, accent: "info" as const },
             { eyebrow: "Demand KG", value: fmt(totalDemandKg, 0), sub: "open queue", accent: "info" as const },
             {
@@ -300,7 +301,7 @@ export default function StockIntelligenceTab() {
             { eyebrow: "FG batches", value: fmt(fgBatches), sub: "ready to ship", accent: "success" as const },
             { eyebrow: "Packaging open", value: fmt(packagingOpen), sub: "in-house production", accent: "default" as const },
             { eyebrow: "POD open", value: fmt(podOpen), sub: "bulk POD orders", accent: "default" as const },
-        ];
+        ], { counts: { totalStockKg, totalDemandKg, totalRolls, shortCount, tightCount, overCount, fgBatches, coverage, packagingOpen, podOpen, templates: balances.length } });
     }, [balances, sourceMix, replenishmentMix, stockIntelligenceReady]);
 
     const idleStockTemplates = useMemo(() => {
@@ -380,8 +381,8 @@ export default function StockIntelligenceTab() {
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <Hero
                 eyebrow="Planner Command Tower · Tab 5"
-                title="Stock Intelligence"
-                subtitle="Demand vs stock per template · packaging in-house · POD bulk · launcher direct-to-production · aged inventory."
+                title="Material readiness"
+                subtitle="Which demand is short, by how much, and the one thing to do next: stock vs demand per template, packaging and POD in-house work, aged stock."
                 actions={
                     <div style={{ display: "flex", gap: 6 }}>
                         <Link href="/production/planner/stock-launcher" style={{ textDecoration: "none" }}>
@@ -396,8 +397,31 @@ export default function StockIntelligenceTab() {
                         </Button>
                     </div>
                 }
-                kpis={kpis as any}
             />
+
+            {(kpis as any).counts ? (() => {
+                const c = (kpis as any).counts as { totalStockKg: number; totalDemandKg: number; totalRolls: number; shortCount: number; tightCount: number; overCount: number; fgBatches: number; coverage: number | null; packagingOpen: number; podOpen: number; templates: number };
+                const covered = Math.max(0, c.templates - c.shortCount - c.tightCount);
+                return (
+                    <KpiRow>
+                        <KpiTile icon={AlertTriangle} label="Templates short" value={fmt(c.shortCount)} tone={c.shortCount ? "block" : "done"} sub="stock below half of open demand" testId="mr-kpi-short" />
+                        <KpiTile icon={Clock} label="Tight" value={fmt(c.tightCount)} tone={c.tightCount ? "wait" : undefined} sub="stock covers 50–99% of demand" testId="mr-kpi-tight" />
+                        <KpiTile icon={CheckCircle2} label="Coverage" value={c.coverage == null ? "No demand" : Math.round(c.coverage)} unit={c.coverage == null ? undefined : "%"}
+                            tone={c.coverage == null ? undefined : c.coverage >= 80 ? "done" : c.coverage >= 40 ? "wait" : "block"}
+                            viz={<BulletBar value={c.totalStockKg} max={Math.max(c.totalDemandKg, c.totalStockKg, 1)} target={c.totalDemandKg || undefined} left={`${fmt(c.totalStockKg, 0)} kg stock`} right={`${fmt(c.totalDemandKg, 0)} kg demand`} tone="done" />}
+                            sub="stock vs open demand, all templates" testId="mr-kpi-coverage" />
+                        <KpiTile icon={LayersIcon} label="Templates by cover" value={fmt(c.templates)}
+                            viz={<StackBar segments={[
+                                { label: "Short", value: c.shortCount, tone: "block" },
+                                { label: "Tight", value: c.tightCount, tone: "wait" },
+                                { label: "Covered", value: covered, tone: "done" },
+                            ]} />} testId="mr-kpi-templates" />
+                        <KpiTile icon={Package} label="FG ready to ship" value={fmt(c.fgBatches)} unit="batches" tone="done" sub={`${fmt(c.totalRolls)} rolls in stock`} testId="mr-kpi-fg" />
+                        <KpiTile icon={Box} label="In-house packing & POD" value={fmt(c.packagingOpen + c.podOpen)} unit="open"
+                            viz={<StackBar segments={[{ label: "Packaging", value: c.packagingOpen, tone: "queued" }, { label: "POD", value: c.podOpen, tone: "run" }]} />} testId="mr-kpi-inhouse" />
+                    </KpiRow>
+                );
+            })() : null}
 
             {!stockIntelligenceReady ? (
                 <Card>

@@ -206,7 +206,16 @@ export function KpiTile({
 /** One row on wide screens, balanced rows below (no tile left alone on a line). */
 export function KpiRow({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("grid grid-cols-2 gap-2 sm:grid-cols-3 xl:auto-cols-fr xl:grid-flow-col xl:grid-cols-none", className)}>
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:auto-cols-fr xl:grid-flow-col xl:grid-cols-none",
+        // Odd counts: the last tile takes the free cells so no row is left with a gap.
+        "[&:has(>:nth-child(5):last-child)>:last-child]:col-span-2 [&:has(>:nth-child(7):last-child)>:last-child]:col-span-2",
+        "sm:[&:has(>:nth-child(5):last-child)>:last-child]:col-span-2 sm:[&:has(>:nth-child(7):last-child)>:last-child]:col-span-3",
+        "xl:[&>*]:!col-span-1",
+        className,
+      )}
+    >
       {children}
     </div>
   );

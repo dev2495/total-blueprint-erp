@@ -4885,8 +4885,8 @@
   {
     "routePattern": "/dashboard/planner/control-tower/stock-intelligence",
     "title": {
-      "en": "Stock Intelligence",
-      "hi": "Stock Intelligence"
+      "en": "Material readiness",
+      "hi": "Material readiness"
     },
     "module": "Production",
     "roles": [

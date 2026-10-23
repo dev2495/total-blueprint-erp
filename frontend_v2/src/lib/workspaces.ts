@@ -99,7 +99,7 @@ export const WORKSPACES: Workspace[] = [
       { label: "Plan queue", href: "/dashboard/planner/control-tower/plan-queue" },
       { label: "Live production", href: "/dashboard/planner/control-tower/live-production" },
       { label: "Completed trace", href: "/dashboard/planner/control-tower/completed-trace" },
-      { label: "Stock intelligence", href: "/dashboard/planner/control-tower/stock-intelligence" },
+      { label: "Material readiness", href: "/dashboard/planner/control-tower/stock-intelligence" },
       { label: "Combine orders", href: "/dashboard/planner/control-tower/gang-builder", match: ["/production/planner/gang-builder"] },
       { label: "Launch stock", href: "/dashboard/planner/control-tower/stock-launcher", match: ["/production/planner/stock-launcher"] },
       { label: "MRP", href: "/analytics/mrp", group: "More" },

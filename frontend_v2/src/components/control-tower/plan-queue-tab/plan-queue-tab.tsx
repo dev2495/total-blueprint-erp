@@ -628,26 +628,6 @@ export default function PlanQueueTab() {
                     />
                 }
             >
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12, alignItems: "center" }}>
-                    <ChipRow>
-                        <FilterChip label="All" count={orders.length} active={activePill === "all"} onClick={() => setFilters(applyQuickPill(filters, "all"))} tone="brand" />
-                        <FilterChip label="Hot overdue" count={pillCounts.hot} active={activePill === "hot"} onClick={() => setFilters(applyQuickPill(filters, "hot"))} tone="danger" />
-                        <FilterChip label="Ready" count={pillCounts.ready} active={activePill === "ready"} onClick={() => setFilters(applyQuickPill(filters, "ready"))} tone="success" />
-                        <FilterChip label="Blocked" count={pillCounts.blocked} active={activePill === "blocked"} onClick={() => setFilters(applyQuickPill(filters, "blocked"))} tone="danger" />
-                        <FilterChip label="Artwork" count={pillCounts.artwork} active={activePill === "artwork"} onClick={() => setFilters(applyQuickPill(filters, "artwork"))} tone="warning" />
-                        <FilterChip label="Aged 30d+" count={pillCounts.aged} active={activePill === "aged"} onClick={() => setFilters(applyQuickPill(filters, "aged"))} tone="warning" />
-                        <FilterChip label="Recent <=3d" count={pillCounts.recent} active={activePill === "recent"} onClick={() => setFilters(applyQuickPill(filters, "recent"))} tone="info" />
-                    </ChipRow>
-                    <FilterSearch
-                        value={filters.search}
-                        onChange={(value) => {
-                            setFilters((f) => ({ ...f, search: value }));
-                            setSelectedKey("");
-                        }}
-                        placeholder="Search order, customer, PM, template"
-                    />
-                </div>
-
                 <div className="ct-filter-dock__grid">
                     <FilterGroup label="Identity" tone="brand" icon={<Sparkles size={14} />}>
                         <ChipRow>
