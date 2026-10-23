@@ -4659,6 +4659,10 @@
     ],
     "keyActions": [
       {
+        "en": "Machines now shows each machine's current job and since when it runs; Today on the machines draws each job from Start to close.",
+        "hi": "Machines now shows each machine's current job and since when it runs; Today on the machines draws each job from Start to close."
+      },
+      {
         "en": "Review the live state, filters, and pending exceptions.",
         "hi": "Review the live state, filters, and pending exceptions."
       },
@@ -12820,6 +12824,14 @@
     ],
     "keyActions": [
       {
+        "en": "The route strip shows parallel steps stacked in one column with each step's own state; the step after them runs on what they have logged.",
+        "hi": "The route strip shows parallel steps stacked in one column with each step's own state; the step after them runs on what they have logged."
+      },
+      {
+        "en": "Start stamps the start time on the job; Live production shows it as 'since HH:MM' and on the machine timeline.",
+        "hi": "Start stamps the start time on the job; Live production shows it as 'since HH:MM' and on the machine timeline."
+      },
+      {
         "en": "Review page KPIs or status cards to identify pending actions.",
         "hi": "लंबित कार्य पहचानने के लिए KPI या स्टेटस कार्ड की समीक्षा करें।"
       },
@@ -13615,6 +13627,14 @@
       }
     ],
     "keyActions": [
+      {
+        "en": "Parallel steps (for example extrusion and printing feeding lamination) may run at the same time. The next step opens as soon as each of its input steps has logged output and runs on what they have logged; Mark ready names any input step that has logged nothing yet.",
+        "hi": "Parallel steps (for example extrusion and printing feeding lamination) may run at the same time. The next step opens as soon as each of its input steps has logged output and runs on what they have logged; Mark ready names any input step that has logged nothing yet."
+      },
+      {
+        "en": "Only bulk-to-roll steps (extrusion) can run several orders on one machine; every other machine runs one order at a time.",
+        "hi": "Only bulk-to-roll steps (extrusion) can run several orders on one machine; every other machine runs one order at a time."
+      },
       {
         "en": "Roll picker: a roll within 15 mm of the planned web either side (or up to 10% wider) is used as it is, with no slitting; wider rolls are slit, rolls more than 15 mm narrower are not offered.",
         "hi": "Roll picker: a roll within 15 mm of the planned web either side (or up to 10% wider) is used as it is, with no slitting; wider rolls are slit, rolls more than 15 mm narrower are not offered."

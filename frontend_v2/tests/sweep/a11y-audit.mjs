@@ -24,6 +24,7 @@ const pages = [
   ["completed trace", "/dashboard/planner/control-tower/completed-trace"],
   ["material readiness", "/dashboard/planner/control-tower/stock-intelligence"],
   ["POD master", "/master/pod"],
+  ["job names", "/sales/job-names"],
   ["packaging master", "/master/packaging"],
   ["WC terminal", `/production/work-center/${ids.wc}`],
   ["machine screen", `/production/machine/${ids.machine}`],

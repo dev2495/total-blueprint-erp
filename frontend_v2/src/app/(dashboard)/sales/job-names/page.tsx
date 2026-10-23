@@ -102,7 +102,7 @@ export default function JobNamesPage() {
               {rows.map((row) => (
                 <tr key={row.job_name} className="border-t border-line align-top" data-testid="job-name-row">
                   <td className="px-3 py-2">
-                    <Link href={`/sales/orders?q=${encodeURIComponent(row.job_name)}`} className="font-semibold text-order-fg underline-offset-2 hover:underline">
+                    <Link href={`/sales/orders?q=${encodeURIComponent(row.job_name)}`} className="inline-block min-h-6 py-0.5 font-semibold text-order-fg underline-offset-2 hover:underline">
                       {row.job_name}
                     </Link>
                     <div className="text-caption text-content-4">{row.lines} lines</div>

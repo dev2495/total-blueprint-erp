@@ -784,7 +784,7 @@ function TraceSection({ eyebrow, title, caption, children }: { eyebrow: string; 
                     <div className="t-eyebrow">{eyebrow}</div>
                     <div style={{ marginTop: 2, fontSize: 13, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
                 </div>
-                {caption && <div style={{ maxWidth: 360, fontSize: 10, lineHeight: 1.35, color: "var(--text-4)", textAlign: "right" }}>{caption}</div>}
+                {caption && <div style={{ maxWidth: 360, fontSize: 10, lineHeight: 1.35, color: "var(--text-3)", textAlign: "right" }}>{caption}</div>}
             </div>
             {children}
         </section>
@@ -824,7 +824,7 @@ function DecisionCard({ label, value, detail, tone }: { label: string; value: st
     const colors = stateColors(tone || "WAITING");
     return (
         <div style={{ padding: "9px 11px", border: `1px solid ${colors.stroke}33`, borderRadius: "var(--r-3)", background: colors.bg }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-4)" }}>{label}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-3)" }}>{label}</div>
             <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
             <div style={{ marginTop: 2, fontSize: 10, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{detail}</div>
         </div>
@@ -834,7 +834,7 @@ function DecisionCard({ label, value, detail, tone }: { label: string; value: st
 function ProductionRouteLedger({ steps, jobs, materialPlan, dense, order }: { steps: PlannerProductionRouteStep[]; jobs: any[]; materialPlan: any[]; dense?: boolean; order: PlannerControlOrder }) {
     if (!steps.length) {
         return (
-            <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-4)", fontSize: 11 }}>
+            <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-3)", fontSize: 11 }}>
                 No routing template is attached to this order line yet.
             </div>
         );
@@ -893,7 +893,7 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { i
                     <div style={{ marginTop: 7, fontSize: 13, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {steps.length > 1 ? `Parallel set (${steps.length})` : primary.process_name || primary.step_name || primary.process_code}
                     </div>
-                    <div style={{ marginTop: 2, fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ marginTop: 2, fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {steps.map((step) => firstText(step.input_form, "INPUT") + " -> " + firstText(step.output_form, "OUTPUT")).join(" / ")}
                     </div>
                 </div>
@@ -905,7 +905,7 @@ function RouteStepGroupCard({ index, steps, jobs, materials, dense, order }: { i
                     <div key={step.step_id || step.id || `${step.sequence_number}-${step.process_code}`} style={{ padding: "6px 8px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-2)" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "center" }}>
                             <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 11, fontWeight: 700, color: "var(--text-1)" }}>{step.process_name || step.step_name || step.process_code}</span>
-                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-4)", whiteSpace: "nowrap" }}>{step.process_code || `S${step.sequence_number}`}</span>
+                            <span style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-3)", whiteSpace: "nowrap" }}>{step.process_code || `S${step.sequence_number}`}</span>
                         </div>
                         <div style={{ marginTop: 3, display: "flex", flexWrap: "wrap", gap: 4 }}>
                             {step.default_work_center_name && <MiniRouteTag>{step.default_work_center_name}</MiniRouteTag>}
@@ -958,7 +958,7 @@ function JobLedgerCards({ jobs, dense, emptyMode, order, trace }: { jobs: any[];
     if (!jobs.length) {
         const audit = traceAuditInfo(trace || {});
         return (
-            <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-4)", fontSize: 11 }}>
+            <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-3)", fontSize: 11 }}>
                 {emptyMode === "completed" && audit.claimedNoWcm
                     ? "No WCM job rows are attached because this line closed through stock, packing, or planner claim. The closure remains visible as an audit record."
                     : emptyMode === "completed"
@@ -983,7 +983,7 @@ function JobLedgerCards({ jobs, dense, emptyMode, order, trace }: { jobs: any[];
 function MaterialIssueCards({ lines, dense }: { lines: any[]; dense?: boolean }) {
     if (!lines.length) {
         return (
-            <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-4)", fontSize: 11 }}>
+            <div style={{ padding: 12, border: "1px dashed var(--border-soft)", borderRadius: "var(--r-3)", color: "var(--text-3)", fontSize: 11 }}>
                 Material issue rows are not attached to this trace.
             </div>
         );
@@ -995,13 +995,13 @@ function MaterialIssueCards({ lines, dense }: { lines: any[]; dense?: boolean })
                 <div key={index} style={{ padding: "8px 10px", border: "1px solid var(--border-soft)", borderRadius: "var(--r-2)", background: "var(--surface-1)", display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 8, alignItems: "center" }}>
                     <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.material_name || line.material_code || "Material"}</div>
-                        <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-4)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.step_name || line.category_code || line.policy_key || "-"}</div>
+                        <div style={{ fontFamily: "var(--f-mono)", fontSize: 10.5, color: "var(--text-3)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.step_name || line.category_code || line.policy_key || "-"}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                         <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, fontWeight: 700, color: "var(--text-1)", whiteSpace: "nowrap" }}>
                             {fmt(line.planned_issue_qty ?? line.theoretical_qty, 3)} {line.uom || ""}
                         </div>
-                        {line.capture_mode && <div style={{ marginTop: 1, fontSize: 11, fontWeight: 650, color: "var(--text-4)", textTransform: "uppercase" }}>{line.capture_mode}</div>}
+                        {line.capture_mode && <div style={{ marginTop: 1, fontSize: 11, fontWeight: 650, color: "var(--text-3)", textTransform: "uppercase" }}>{line.capture_mode}</div>}
                     </div>
                 </div>
             ))}
