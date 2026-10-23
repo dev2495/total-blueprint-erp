@@ -164,6 +164,7 @@ const EXACT_NAVIGABLE_ROUTES = new Set<string>([
   "/profile",
   "/sales",
   "/sales/customers",
+  "/sales/job-names",
   "/sales/orders",
   "/sales/orders/create",
   "/sales/orders/new",

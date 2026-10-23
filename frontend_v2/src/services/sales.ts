@@ -518,6 +518,38 @@ export interface QuotationConvertResult {
     quotation_number: string;
 }
 
+export interface JobNameRow {
+    job_name: string;
+    orders: number;
+    open_orders: number;
+    lines: number;
+    customers: string[];
+    ordered_kg: number;
+    ordered_pcs: number;
+    dispatched_kg: number;
+    dispatched_pcs: number;
+    open_kg: number;
+    value: number;
+    on_time_pct: number | null;
+    first_order_at: string | null;
+    last_order_at: string | null;
+    order_ids: string[];
+}
+
+export interface JobNameReport {
+    rows: JobNameRow[];
+    totals: {
+        job_names: number;
+        job_names_open: number;
+        orders_named: number;
+        orders_total: number;
+        orders_unnamed: number;
+        ordered_kg: number;
+        dispatched_kg: number;
+        open_kg: number;
+    };
+}
+
 export const salesService = {
     getOrders: async (params?: { q?: string; status?: string; limit?: number; offset?: number; summary?: boolean }) => {
         const { data } = await api.get<MaybePaginated<SalesOrder>>("/api/sales/orders/", {
@@ -565,11 +597,16 @@ export const salesService = {
         return Array.isArray(data) ? data : [];
     },
 
+    getJobNames: async (params?: { customer?: string }) => {
+        const { data } = await api.get<JobNameReport>("/api/sales/orders/job-names/", { params });
+        return data;
+    },
+
     getOrderKpis: async () => {
         // Header figures over every order, not just the rows loaded on screen.
         const { data } = await api.get<{
             total: number; open: number; awaiting: number; aged: number; aged_kg: number; created_today: number;
-            value_in_flight: number; avg_age: number; customers_open: number; history_count: number; cancelled_count: number;
+            value_in_flight: number; avg_age: number; customers_open: number; history_count: number; cancelled_count: number; job_names_open?: number;
         }>("/api/sales/orders/kpis/");
         return data;
     },

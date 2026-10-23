@@ -1955,6 +1955,8 @@ def record_job_output(job, output_kg: Decimal, output_pcs: Optional[int], user) 
     JobExecutionLog.objects.create(production_job=locked, quantity=kg3(output_kg), uom="KG", logged_by=user, **build_shift_fields_for_job(locked))
     job.produced_qty, job.remaining_qty = locked.produced_qty, locked.remaining_qty
     BatchExecutionService.sync_for_job(locked)
+    # What came back is open to the next step, as with output logged in-house.
+    JobService.open_successors_in_flow(locked)
 
 
 def release_job(job, user) -> str:

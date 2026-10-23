@@ -282,8 +282,8 @@ class Machine(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
     CONCURRENCY_CHOICES = [
         ('AUTO', 'By step type (bulk→roll steps may run several orders; others one at a time)'),
-        ('ALLOW', 'Several orders may run at the same time'),
-        ('DENY', 'One order at a time'),
+        ('ALLOW', 'Several orders at once on bulk→roll steps (other steps always one at a time)'),
+        ('DENY', 'One order at a time, every step'),
     ]
     concurrency_policy = models.CharField(max_length=8, choices=CONCURRENCY_CHOICES, default='AUTO', db_default='AUTO')
     cost_absorption_group = models.ForeignKey(

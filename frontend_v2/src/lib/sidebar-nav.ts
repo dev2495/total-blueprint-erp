@@ -131,6 +131,7 @@ const PAGE_PERMISSION_BY_ROUTE: Record<string, string> = {
   "/logistics/dispatch": "page.logistics.dispatch.view",
   "/logistics/transit": "page.logistics.transit.view",
   "/sales/orders": "page.sales.orders.view",
+  "/sales/job-names": "page.sales.orders.view",
   "/sales/orders/create": "page.sales.order_create.view",
   "/sales/customers": "page.sales.customers.view",
   "/sales/quotations": "page.sales.quotations.view",
@@ -570,6 +571,7 @@ export const NAV_ITEMS: NavItem[] = [
         permissions: ["sales.view", "sales.manage"],
       },
       { title: "Sales Orders", href: "/sales/orders", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
+      { title: "Job names", href: "/sales/job-names", icon: ClipboardList, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
       { title: "Trade Orders", href: "/sales/trade-orders", icon: Repeat, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.view", "sales.manage"] },
       // Product masters and pouch styles are kept by admin/owner, or by an account given the
       // master-data grant. Sales picks products in the order composer without seeing the masters.

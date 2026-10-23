@@ -283,6 +283,8 @@ class SalesOrderViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
         """
         from django.utils import timezone
 
+        from .job_name import clean_job_name
+
         now = timezone.now()
         orders = list(SalesOrder.objects.values_list("id", "status", "created_at", "customer_id"))
         open_ids = {oid for oid, status_code, _, _ in orders if str(status_code or "").upper() not in {"COMPLETED", "CANCELLED"}}
@@ -310,6 +312,126 @@ class SalesOrderViewSet(ArchiveScopedListMixin, viewsets.ModelViewSet):
             "customers_open": len({row[3] for row in open_rows if row[3]}),
             "history_count": sum(1 for _, status_code, _, _ in orders if str(status_code or "").upper() == "COMPLETED"),
             "cancelled_count": sum(1 for _, status_code, _, _ in orders if str(status_code or "").upper() == "CANCELLED"),
+            "job_names_open": len({
+                clean_job_name(name).casefold()
+                for name in SalesOrder.objects.filter(id__in=open_ids).values_list("order_name", flat=True)
+                if clean_job_name(name)
+            }),
+        })
+
+    @action(detail=False, methods=["get"], url_path="job-names")
+    def job_names(self, request):
+        """Orders grouped by the job name sales gave them when placing the order.
+
+        Per job name: orders (open / all), lines, customers, kg and pcs ordered and dispatched,
+        open kg, value, on-time share of completed orders, first and last order. Follows the
+        header year picker (?fy=); orders without a job name are counted, not grouped.
+        """
+        from apps.production.models import DeliveryChallanItem
+        from config.archive import apply_archive_scope
+
+        from .job_name import clean_job_name
+
+        orders = apply_archive_scope(SalesOrder.objects.all(), request, self.archive_scope)
+        customer = str(request.query_params.get("customer") or "").strip()
+        if customer:
+            orders = orders.filter(customer_name__icontains=customer)
+        rows = list(orders.values_list("id", "order_name", "status", "created_at", "delivery_date", "completed_at", "customer_name"))
+        named = {oid: clean_job_name(name) for oid, name, *_ in rows}
+        ids = [oid for oid, name in named.items() if name]
+        lines = {}
+        for item in SalesOrderItem.objects.filter(sales_order_id__in=ids).exclude(line_status="CANCELLED").only(
+            "id", "sales_order_id", "qty_uom", "qty_value", "unit_weight_g", "total_weight_kg", "price_basis", "unit_price"
+        ):
+            kg = Decimal(str(item.total_weight_kg or 0))
+            if str(item.qty_uom or "").upper() == "PCS":
+                pcs = Decimal(str(item.qty_value or 0))
+            else:
+                unit = Decimal(str(item.unit_weight_g or 0))
+                pcs = (kg * Decimal("1000") / unit) if unit > 0 else Decimal("0")
+            bucket = lines.setdefault(item.sales_order_id, {"lines": 0, "kg": Decimal("0"), "pcs": Decimal("0"), "value": Decimal("0")})
+            bucket["lines"] += 1
+            bucket["kg"] += kg
+            bucket["pcs"] += pcs
+            bucket["value"] += Decimal(str(item.line_amount or 0))
+        sent = {}
+        for order_id, kg, pcs in DeliveryChallanItem.objects.filter(
+            sales_order_item__sales_order_id__in=ids,
+            challan__status__in=["DISPATCHED", "IN_TRANSIT", "DELIVERED"],
+        ).values_list("sales_order_item__sales_order_id", "weight_kg", "qty_pcs"):
+            bucket = sent.setdefault(order_id, {"kg": Decimal("0"), "pcs": 0})
+            bucket["kg"] += Decimal(str(kg or 0))
+            bucket["pcs"] += int(pcs or 0)
+
+        groups = {}
+        for oid, _name, status_code, created, due, completed, cust in rows:
+            name = named.get(oid)
+            if not name:
+                continue
+            key = name.casefold()
+            g = groups.setdefault(key, {
+                "job_name": name, "orders": 0, "open_orders": 0, "lines": 0, "customers": set(),
+                "ordered_kg": Decimal("0"), "ordered_pcs": Decimal("0"), "dispatched_kg": Decimal("0"), "dispatched_pcs": 0,
+                "value": Decimal("0"), "completed": 0, "on_time": 0, "first": created, "last": created, "order_ids": [],
+            })
+            g["orders"] += 1
+            g["order_ids"].append(str(oid))
+            is_open = str(status_code or "").upper() not in {"COMPLETED", "CANCELLED"}
+            g["open_orders"] += 1 if is_open else 0
+            if cust:
+                g["customers"].add(cust)
+            line = lines.get(oid) or {}
+            g["lines"] += line.get("lines", 0)
+            g["ordered_kg"] += line.get("kg", Decimal("0"))
+            g["ordered_pcs"] += line.get("pcs", Decimal("0"))
+            g["value"] += line.get("value", Decimal("0"))
+            out = sent.get(oid) or {}
+            g["dispatched_kg"] += out.get("kg", Decimal("0"))
+            g["dispatched_pcs"] += out.get("pcs", 0)
+            if str(status_code or "").upper() == "COMPLETED" and completed and due:
+                g["completed"] += 1
+                g["on_time"] += 1 if completed.date() <= due else 0
+            if created and (g["first"] is None or created < g["first"]):
+                g["first"] = created
+            if created and (g["last"] is None or created > g["last"]):
+                g["last"] = created
+
+        def money(value):
+            return float(value.quantize(Decimal("0.01")))
+
+        out_rows = []
+        for g in groups.values():
+            open_kg = max(g["ordered_kg"] - g["dispatched_kg"], Decimal("0"))
+            out_rows.append({
+                "job_name": g["job_name"],
+                "orders": g["orders"],
+                "open_orders": g["open_orders"],
+                "lines": g["lines"],
+                "customers": sorted(g["customers"]),
+                "ordered_kg": money(g["ordered_kg"]),
+                "ordered_pcs": int(g["ordered_pcs"]),
+                "dispatched_kg": money(g["dispatched_kg"]),
+                "dispatched_pcs": g["dispatched_pcs"],
+                "open_kg": money(open_kg),
+                "value": money(g["value"]),
+                "on_time_pct": round(g["on_time"] * 100 / g["completed"], 1) if g["completed"] else None,
+                "first_order_at": g["first"],
+                "last_order_at": g["last"],
+                "order_ids": g["order_ids"][:50],
+            })
+        out_rows.sort(key=lambda row: (-row["open_kg"], -row["ordered_kg"], row["job_name"].casefold()))
+        return Response({
+            "rows": out_rows,
+            "totals": {
+                "job_names": len(out_rows),
+                "job_names_open": sum(1 for row in out_rows if row["open_orders"]),
+                "orders_named": len(ids),
+                "orders_total": len(rows),
+                "orders_unnamed": len(rows) - len(ids),
+                "ordered_kg": money(sum((Decimal(str(r["ordered_kg"])) for r in out_rows), Decimal("0"))),
+                "dispatched_kg": money(sum((Decimal(str(r["dispatched_kg"])) for r in out_rows), Decimal("0"))),
+                "open_kg": money(sum((Decimal(str(r["open_kg"])) for r in out_rows), Decimal("0"))),
+            },
         })
 
     @action(detail=True, methods=["get"])

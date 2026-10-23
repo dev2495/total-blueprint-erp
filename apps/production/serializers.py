@@ -130,6 +130,14 @@ class ProductionBatchSerializer(serializers.ModelSerializer):
 class ProductionJobSerializer(serializers.ModelSerializer):
     customer_name = serializers.ReadOnlyField()
     order_number = serializers.ReadOnlyField(source='sales_order_no')
+    job_name = serializers.SerializerMethodField()
+
+    def get_job_name(self, obj):
+        from apps.sales.job_name import job_name_of
+
+        item = getattr(obj, 'sales_order_item', None)
+        return job_name_of(getattr(item, 'sales_order', None)) if item is not None else ''
+
     sales_order_item_id = serializers.SerializerMethodField()
     sales_order_line_label = serializers.SerializerMethodField()
     product_name = serializers.ReadOnlyField()
@@ -426,7 +434,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'work_center', 'work_center_name', 'machine', 'machine_name',
             'operator', 'operator_name', 'quantity', 'produced_qty', 'remaining_qty', 'uom',
             'closed_with_variance', 'completion_variance_kg', 'completion_force_reason', 'closed_at', 'closed_by',
-            'customer_name', 'order_number', 'product_name',
+            'customer_name', 'order_number', 'job_name', 'product_name',
             'sales_order_item_id', 'sales_order_line_label',
             'production_batch_id', 'production_batch_number', 'production_batch_status',
             'route_node', 'route_step_decision', 'runtime_skip_options', 'route_node_id', 'route_branch_key',
@@ -454,6 +462,14 @@ class ProductionJobSummaryListSerializer(serializers.ListSerializer):
 
 class ProductionJobSummarySerializer(serializers.ModelSerializer):
     order_number = serializers.ReadOnlyField(source='sales_order_no')
+    job_name = serializers.SerializerMethodField()
+
+    def get_job_name(self, obj):
+        from apps.sales.job_name import job_name_of
+
+        item = getattr(obj, 'sales_order_item', None)
+        return job_name_of(getattr(item, 'sales_order', None)) if item is not None else ''
+
     sales_order_item_id = serializers.SerializerMethodField()
     sales_order_line_label = serializers.SerializerMethodField()
     customer_name = serializers.ReadOnlyField()
@@ -522,8 +538,8 @@ class ProductionJobSummarySerializer(serializers.ModelSerializer):
         list_serializer_class = ProductionJobSummaryListSerializer
         fields = [
             'id', 'job_number', 'status', 'job_state', 'origin', 'source_type',
-            'priority', 'planned_date', 'created_at', 'updated_at', 'closed_at',
-            'template_name', 'order_number', 'customer_name', 'product_name',
+            'priority', 'planned_date', 'start_date', 'created_at', 'updated_at', 'closed_at',
+            'template_name', 'order_number', 'job_name', 'customer_name', 'product_name',
             'sales_order_item_id', 'sales_order_line_label',
             'production_batch_number', 'production_batch_status',
             'route_node', 'route_step_decision', 'runtime_skip_options', 'route_node_id', 'route_branch_key',

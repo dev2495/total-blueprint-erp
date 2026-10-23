@@ -3,7 +3,9 @@
 import * as React from "react";
 
 import { coerceColorHex } from "@/lib/color-utils";
+import { cleanJobName } from "@/lib/job-name";
 import { normalizeProductSpec } from "@/lib/product-spec";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 import { cn } from "@/lib/utils";
 
 /**
@@ -46,6 +48,7 @@ export interface ProductIdentityData {
   printType: "" | "ROTO" | "FLEXO" | string;
   inks: IdentityInk[];
   orderNumber?: string;
+  jobName?: string;
   lineLabel?: string;
   customer?: string;
 }
@@ -131,6 +134,7 @@ export function identityFrom(source: Record<string, any> | null | undefined): Pr
     printType: printType === "NONE" ? "" : printType,
     inks: printType ? inksFrom(printing) : [],
     orderNumber: raw.order_number || spec.orderNumber || undefined,
+    jobName: cleanJobName(raw.job_name ?? raw.order_name ?? raw.order_fact_sheet?.order_name) || undefined,
     lineLabel: lineIndex !== undefined && lineIndex !== null ? `L${Number(lineIndex) + (Number(lineIndex) === 0 ? 1 : 0)}` : undefined,
     customer: raw.customer_name || spec.customerName || undefined,
   };
@@ -241,6 +245,7 @@ export function ProductIdentity({
 }) {
   const metaItems: React.ReactNode[] = [];
   if (data.orderNumber) metaItems.push(<b key="o" className="font-mono font-semibold text-content-2">{data.orderNumber}</b>);
+  if (data.jobName) metaItems.push(<JobNameTag key="j" name={data.jobName} />);
   if (data.lineLabel) metaItems.push(<span key="l" className="rounded-[4px] px-1 font-mono ring-1 ring-line">{data.lineLabel}</span>);
   if (data.customer) metaItems.push(<span key="c" className="max-w-[180px] truncate text-content-3">{data.customer}</span>);
   for (const item of meta || []) if (item) metaItems.push(item);

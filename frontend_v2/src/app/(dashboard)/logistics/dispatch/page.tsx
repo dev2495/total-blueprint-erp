@@ -41,6 +41,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 import {
   HeroChip,
   HeroStat,
@@ -733,7 +734,7 @@ export default function DispatchBayPage() {
           <SelectContent>
             {cards.map((row) => (
               <SelectItem key={row.sales_order.id} value={row.sales_order.id}>
-                {row.sales_order.order_number} • {row.sales_order.customer_name}
+                {row.sales_order.order_number} <JobNameTag name={(row.sales_order as any).job_name} className="align-middle" /> • {row.sales_order.customer_name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -780,6 +781,7 @@ export default function DispatchBayPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-mono text-[12.5px] font-semibold text-content-1">{row.sales_order.order_number}</div>
+                        <JobNameTag name={(row.sales_order as any).job_name} />
                         <div className="mt-0.5 truncate text-[12px] text-content-2">{row.sales_order.customer_name}</div>
                       </div>
                       <Pill tone={units ? "good" : "warn"} dot>
@@ -844,6 +846,7 @@ export default function DispatchBayPage() {
                         className="font-mono text-[18px] font-semibold tracking-[-0.01em] text-content-1 hover:underline"
                       >
                         {selected.sales_order.order_number}
+                        <JobNameTag name={(selected.sales_order as any).job_name} className="ml-1.5 align-middle" />
                       </Link>
                       <Pill tone="good" dot>
                         {n(allUnits.length, 0)} units ready

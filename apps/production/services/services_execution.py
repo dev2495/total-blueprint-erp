@@ -566,6 +566,57 @@ class ExecutionService:
         return out
 
     @classmethod
+    def route_steps_for_job(cls, job):
+        """Every step of this job's route for its order line / batch, in route order, with each
+        step's own live state. Steps sharing a stage (route_index) are parallel: they may run at
+        the same time, and the step after them runs on what each has logged."""
+        from apps.production.services.batch_route_service import RouteGraphService
+        from apps.production.services.job_services import JobService
+
+        rule = getattr(job, "routing_rule", None)
+        if rule is None:
+            return []
+        graph = RouteGraphService.normalize(rule)
+        nodes = [node for node in graph.get("nodes") or [] if isinstance(node, dict)]
+        if not nodes:
+            return []
+        scope = JobService._route_scope(job)
+        jobs_by_node = {j.route_node_id: j for j in scope.exclude(route_node_id="")}
+        jobs_by_node[str(job.route_node_id or "")] = job
+        stage_size = {}
+        for node in nodes:
+            stage = int(node.get("route_index") or 0)
+            stage_size[stage] = stage_size.get(stage, 0) + 1
+        steps = []
+        for node in sorted(nodes, key=lambda n: (int(n.get("route_index") or 0), str(n.get("id")))):
+            stage = int(node.get("route_index") or 0)
+            row = jobs_by_node.get(str(node.get("id")))
+            if row is None:
+                state = "skipped"
+            elif row.id == job.id:
+                state = "current"
+            elif str(row.job_state).upper() == "COMPLETED":
+                state = "done"
+            elif str(row.job_state).upper() in {"EXECUTING", "PAUSED"}:
+                state = "running"
+            elif JobService.has_logged_output(row):
+                state = "logging"
+            else:
+                state = "pending"
+            steps.append({
+                "node_id": str(node.get("id") or ""),
+                "process_code": node.get("process_code") or "",
+                "name": node.get("label") or node.get("process_code") or "",
+                "stage": stage,
+                "parallel": stage_size.get(stage, 0) > 1,
+                "job_number": getattr(row, "job_number", "") if row is not None else "",
+                "state": state,
+                "produced_kg": float(getattr(row, "produced_qty", 0) or 0) if row is not None and str(getattr(row, "uom", "KG")).upper() == "KG" else None,
+                "target_kg": float(getattr(row, "quantity", 0) or 0) if row is not None and str(getattr(row, "uom", "KG")).upper() == "KG" else None,
+            })
+        return steps
+
+    @classmethod
     def upstream_feed(cls, job):
         """Read-only feed figures for one step, kept apart so the floor never mixes them up.
 
@@ -7284,9 +7335,15 @@ class ExecutionService:
         except Exception:
             logger.warning("upstream feed failed for job=%s", getattr(job, "id", None), exc_info=True)
             upstream_feed = None
+        try:
+            route_steps = cls.route_steps_for_job(job)
+        except Exception:
+            logger.warning("route steps failed for job=%s", getattr(job, "id", None), exc_info=True)
+            route_steps = []
 
         return {
             'upstream_feed': upstream_feed,
+            'route_steps': route_steps,
             'display': {
                 'template_name': job.template.name if job.template else "Custom",
                 'product_name': job.template.name if job.template else job.product_name,

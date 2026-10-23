@@ -14229,6 +14229,134 @@
     ]
   },
   {
+    "routePattern": "/sales/job-names",
+    "title": {
+      "en": "Job names",
+      "hi": "Job names"
+    },
+    "module": "Sales",
+    "roles": [
+      "ADMIN",
+      "OWNER",
+      "SUPER_ADMIN",
+      "SALES"
+    ],
+    "summary": {
+      "en": "Orders clubbed by the job name typed when the order was placed: orders open and in all, kg and pcs ordered and dispatched, open kg, value, customers and on-time share. Follows the header year picker.",
+      "hi": "Orders clubbed by the job name typed when the order was placed: orders open and in all, kg and pcs ordered and dispatched, open kg, value, customers and on-time share. Follows the header year picker."
+    },
+    "purpose": {
+      "en": "See every repeat job at a glance and open its orders in one click.",
+      "hi": "See every repeat job at a glance and open its orders in one click."
+    },
+    "prerequisites": [
+      {
+        "en": "Confirm role access and location context before making changes.",
+        "hi": "परिवर्तन करने से पहले भूमिका एक्सेस और लोकेशन संदर्भ की पुष्टि करें।"
+      },
+      {
+        "en": "Validate upstream data (master/order/job) is already approved.",
+        "hi": "सुनिश्चित करें कि अपस्ट्रीम डेटा (मास्टर/ऑर्डर/जॉब) पहले से अनुमोदित है।"
+      }
+    ],
+    "keyActions": [
+      {
+        "en": "Search a job name or customer; click a job name to open its orders.",
+        "hi": "Search a job name or customer; click a job name to open its orders."
+      },
+      {
+        "en": "Pick an earlier financial year in the header to see past years' jobs.",
+        "hi": "Pick an earlier financial year in the header to see past years' jobs."
+      },
+      {
+        "en": "Give an order a job name in the order composer (Job name field); it then shows next to the SO number everywhere.",
+        "hi": "Give an order a job name in the order composer (Job name field); it then shows next to the SO number everywhere."
+      }
+    ],
+    "fieldHelp": [
+      {
+        "field": {
+          "en": "Primary Selector",
+          "hi": "प्राथमिक चयन"
+        },
+        "help": {
+          "en": "Always choose the correct plant/work center/machine context first.",
+          "hi": "हमेशा पहले सही प्लांट/वर्क सेंटर/मशीन संदर्भ चुनें।"
+        }
+      },
+      {
+        "field": {
+          "en": "Status",
+          "hi": "स्थिति"
+        },
+        "help": {
+          "en": "Status transitions are controlled; only valid next states are allowed.",
+          "hi": "स्थिति परिवर्तन नियंत्रित हैं; केवल वैध अगली स्थिति ही अनुमत है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Audit Notes",
+          "hi": "ऑडिट नोट्स"
+        },
+        "help": {
+          "en": "Record reason codes and comments for every override decision.",
+          "hi": "हर ओवरराइड निर्णय के लिए कारण कोड और टिप्पणियाँ दर्ज करें।"
+        }
+      }
+    ],
+    "decisionFlowId": "sales-order-flow",
+    "commonErrors": [
+      {
+        "error": {
+          "en": "Permission denied / action hidden",
+          "hi": "अनुमति अस्वीकृत / कार्रवाई छिपी हुई"
+        },
+        "reason": {
+          "en": "Role matrix or governance visibility is missing for this module/action.",
+          "hi": "इस मॉड्यूल/कार्रवाई के लिए रोल मैट्रिक्स या गवर्नेंस दृश्यता सेट नहीं है।"
+        }
+      },
+      {
+        "error": {
+          "en": "Validation failed on submit",
+          "hi": "सबमिट पर वैलिडेशन विफल"
+        },
+        "reason": {
+          "en": "Mandatory fields are blank or context selection is inconsistent.",
+          "hi": "अनिवार्य फ़ील्ड खाली हैं या संदर्भ चयन असंगत है।"
+        }
+      }
+    ],
+    "recoverySteps": [
+      {
+        "en": "Refresh the page and re-open the target record from list view.",
+        "hi": "पेज रिफ्रेश करें और सूची दृश्य से लक्ष्य रिकॉर्ड फिर खोलें।"
+      },
+      {
+        "en": "Validate role override context, then retry with correct module permissions.",
+        "hi": "रोल ओवरराइड संदर्भ सत्यापित करें, फिर सही अनुमति के साथ पुनः प्रयास करें।"
+      },
+      {
+        "en": "If issue persists, raise Governance ticket with route, payload, and timestamp.",
+        "hi": "समस्या बनी रहे तो route, payload और timestamp सहित Governance टिकट उठाएँ।"
+      }
+    ],
+    "relatedRoutes": [
+      "/sales/customers",
+      "/sales/orders/[id]",
+      "/sales/orders/[id]/tracking"
+    ],
+    "screenshotKeys": [
+      "sales-orders-overview",
+      "sales-orders-workflow"
+    ],
+    "faqRefs": [
+      "faq-access-control",
+      "faq-data-refresh"
+    ]
+  },
+  {
     "routePattern": "/sales/orders/[id]",
     "title": {
       "en": "Sales • Orders • Details",

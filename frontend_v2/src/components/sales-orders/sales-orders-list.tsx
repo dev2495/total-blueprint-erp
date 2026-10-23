@@ -64,6 +64,7 @@ import {
 import { formatDisplayDate } from "@/lib/date-format";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { useCanFollowLink } from "@/components/layout/use-nav-access";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -1291,6 +1292,15 @@ export function SalesOrdersListWorkspace() {
   const [density, setDensity] = React.useState<Density>("comfortable");
   const [filters, setFilters] =
     React.useState<SavedView["filters"]>(DEFAULT_FILTERS);
+  // A link such as /sales/orders?q=<job name> opens the list already searched.
+  React.useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setFilters((prev) => ({ ...prev, searchText: q }));
+    } catch {
+      // No URL search params available: keep the default filters.
+    }
+  }, []);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [expanded, setExpanded] = React.useState<string | null>(null);
@@ -1765,7 +1775,7 @@ export function SalesOrdersListWorkspace() {
         <KpiTile
           label="Avg age"
           value={`${kpis.avgAge}d`}
-          sub={`${kpis.customersOpen} customers`}
+          sub={`${kpis.customersOpen} customers${(serverKpis as any)?.job_names_open ? ` · ${(serverKpis as any).job_names_open} job names` : ""}`}
         />
       </section>
 
@@ -3661,6 +3671,8 @@ function OrderRow({
               <div className="flex items-center gap-1.5 mt-0.5 text-caption">
                 <span className="font-mono font-semibold text-order-fg">
                   {order.order_number}
+                <JobNameTag name={(order as any).order_name} className="ml-1.5 align-middle" />
+                  <JobNameTag name={(order as any).order_name} className="ml-1.5 align-middle" />
                 </span>
                 <span
                   className={cn(
@@ -3923,6 +3935,7 @@ function OrderExpandedDrawer({ orderId }: { orderId: string }) {
               <div className="mt-1 flex flex-wrap items-center gap-2 text-caption font-bold text-content-2">
                 <span className="truncate text-content-1">{full.customer_name}</span>
                 <span className="font-mono text-order-fg">{full.order_number}</span>
+                <JobNameTag name={(full as any).order_name} className="ml-1.5" />
                 <span>{items.length} line{items.length === 1 ? "" : "s"}</span>
                 {full.delivery_date ? <span>Promise {fmtDate(full.delivery_date)}</span> : null}
               </div>

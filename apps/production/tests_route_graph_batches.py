@@ -880,6 +880,59 @@ class RouteGraphBatchExecutionTests(TestCase):
 
     @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
     @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_join_opens_on_what_both_parallel_inputs_have_logged(self, _bom_ready, _requirements):
+        """Parallel steps feed the join; it opens and can be made ready on what both have logged,
+        not only after both complete (the live 'upstream step is not completed yet' refusal)."""
+        from apps.production.models import JobExecutionLog
+
+        _template, item = self._template_and_item(qty=Decimal("500"))
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+        ProductionJob.objects.filter(id=jobs["ext"].id).update(job_state="COMPLETED", status="COMPLETED")
+        lam = jobs["lam"]
+
+        self.assertEqual({j.route_node_id for j in JobService.input_steps(lam)}, {"print", "coat"}, "only the join's own inputs count")
+        self.assertEqual({j.route_node_id for j in JobService.input_steps_without_output(lam)}, {"print", "coat"})
+
+        JobExecutionLog.objects.create(production_job=jobs["print"], quantity=Decimal("120"), uom="KG")
+        self.assertEqual([j.route_node_id for j in JobService.input_steps_without_output(lam)], ["coat"])
+        self.assertEqual(JobService.open_successors_in_flow(jobs["print"]), [], "coat has logged nothing: the join waits")
+
+        JobExecutionLog.objects.create(production_job=jobs["coat"], quantity=Decimal("80"), uom="KG")
+        self.assertEqual(JobService.input_steps_without_output(lam), [])
+        with patch.object(JobService, "release_job", side_effect=lambda job_id: ProductionJob.objects.filter(id=job_id).update(job_state="RELEASED") or job_id) as release:
+            JobService.open_successors_in_flow(jobs["coat"])
+        release.assert_called_once_with(lam.id)
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
+    def test_mark_ready_names_the_input_step_that_has_logged_nothing(self, _bom_ready, _requirements):
+        from apps.factory.models import Machine
+        from apps.production.models import JobExecutionLog, WorkCenterAssignment
+        from apps.production.services.job_services import WCManagerService
+
+        _template, item = self._template_and_item(qty=Decimal("500"))
+        JobService.create_jobs_for_so_item(item)
+        batch = item.production_batches.get()
+        jobs = {job.route_node_id: job for job in ProductionJob.objects.filter(production_batch=batch)}
+        ProductionJob.objects.filter(id=jobs["ext"].id).update(job_state="COMPLETED", status="COMPLETED")
+        JobExecutionLog.objects.create(production_job=jobs["print"], quantity=Decimal("120"), uom="KG")
+        lam = jobs["lam"]
+        wc = WorkCenter.objects.get(code="WC-LAM")
+        machine = Machine.objects.create(work_center=wc, name="Lam M1", code="LAM-M1")
+        assignment = WorkCenterAssignment.objects.create(production_job=lam, work_center=wc, assigned_machine=machine)
+        with self.assertRaisesRegex(ValueError, f"input step {jobs['coat'].job_number}.*has not logged any output"):
+            WCManagerService.mark_execution_ready(assignment.id)
+        JobExecutionLog.objects.create(production_job=jobs["coat"], quantity=Decimal("80"), uom="KG")
+        with patch("apps.production.services.services_execution.ExecutionService.top_up_bulk_source_location"), \
+             patch("apps.production.services.services_execution.ExecutionService.auto_satisfy_inputs"), \
+             patch("apps.production.services.services_execution.ExecutionService.get_satisfaction_status", return_value={"is_satisfied": False, "rolls_missing": 1}):
+            with self.assertRaisesRegex(ValueError, "requirements not satisfied"):
+                WCManagerService.mark_execution_ready(assignment.id)  # past the input guard: now the usual roll check
+
+    @patch("apps.production.services.services_execution.ExecutionService.calculate_requirements")
+    @patch("apps.production.services.job_services.require_bom_ready_for_production")
     def test_sales_line_summary_reports_one_commercial_line_with_batch_statuses(self, _bom_ready, _requirements):
         _template, item = self._template_and_item()
         JobService.create_jobs_for_so_item(item)

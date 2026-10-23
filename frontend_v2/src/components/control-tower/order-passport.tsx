@@ -7,6 +7,7 @@ import { Chip } from "@/components/_planner-ui";
 import type { ChipKind } from "@/components/_planner-ui/Chip";
 import type { PlannerControlOrder, PlannerProductionRouteStep, PlannerProductionTrace, PlannerRouteTopologyLane } from "@/services/planner";
 import { formatDisplayDateTime } from "@/lib/date-format";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 
 function fmt(value: unknown, decimals = 0): string {
     const n = Number(value);
@@ -202,6 +203,7 @@ export function OrderPassportStrip({
             <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
                 <span style={{ fontFamily: "var(--f-mono)", fontSize: compact ? 11 : 12, fontWeight: 650, color: "var(--text-1)" }}>
                     {order.order_number}
+                    <JobNameTag name={(order as any).job_name} className="ml-1.5 align-middle" />
                 </span>
                 <Chip kind={fgKind}>{p.fgType || "ORDER"}</Chip>
             </div>

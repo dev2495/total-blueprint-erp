@@ -81,6 +81,7 @@ export const WORKSPACES: Workspace[] = [
     tabs: [
       { label: "Orders", href: "/sales/orders", match: ["/orders"] },
       { label: "New order", href: "/sales/orders/create", match: ["/sales/orders/new"] },
+      { label: "Job names", href: "/sales/job-names" },
       { label: "Quotations", href: "/sales/quotations" },
       { label: "Customers", href: "/sales/customers" },
       { label: "Trade orders", href: "/sales/trade-orders" },

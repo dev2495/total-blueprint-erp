@@ -49,6 +49,7 @@ export const MAIN_NAV_ROUTES = new Set<string>([
   "/dashboard/logistics",
   "/dashboard/sales",
   "/sales/orders",
+  "/sales/job-names",
   "/sales/customers",
   "/sales/quotations",
   "/analytics",

@@ -45,6 +45,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 import {
   HeroChip,
   HeroStat,
@@ -1023,7 +1024,7 @@ export default function PackingYardPage() {
           <SelectContent>
             {cards.map((row) => (
               <SelectItem key={row.sales_order.id} value={row.sales_order.id}>
-                {row.sales_order.order_number} • {row.sales_order.customer_name}
+                {row.sales_order.order_number} <JobNameTag name={(row.sales_order as any).job_name} className="align-middle" /> • {row.sales_order.customer_name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -1211,6 +1212,7 @@ export default function PackingYardPage() {
                           className="font-mono text-[18px] font-semibold tracking-[-0.01em] text-content-1 hover:underline"
                         >
                           {selected.sales_order.order_number}
+                          <JobNameTag name={(selected.sales_order as any).job_name} className="ml-1.5 align-middle" />
                         </Link>
                         <Pill
                           dot

@@ -78,6 +78,7 @@ import { CylinderSetCard } from "@/components/machine/cylinder-artwork";
 import { PrintColorRevisionNotice } from "@/components/production/print-color-revision-notice";
 import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
 import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/components/production/roll-lanes-panel";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 
 type QueueFilter = "ALL" | "RUNNING" | "READY" | "PAUSED";
 type TerminalTab = "run" | "history";
@@ -1255,6 +1256,30 @@ export default function MachineExecutionPage() {
     ),
   );
   const routeSteps = useMemo(() => {
+    // The route as the backend sees it: every step with its own live state; steps that
+    // share a stage are parallel (they feed the next step together).
+    const liveRoute: any[] = Array.isArray((context as any)?.route_steps) ? (context as any).route_steps : [];
+    if (liveRoute.length) {
+      return liveRoute.map((step: any, index: number) => ({
+        sequence: index + 1,
+        name: firstNonEmpty(step?.name, step?.process_code, `Step ${index + 1}`),
+        state:
+          step?.state === "current"
+            ? "current"
+            : step?.state === "done"
+              ? "done"
+              : step?.state === "running" || step?.state === "logging"
+                ? "running"
+                : step?.state === "skipped"
+                  ? "skipped"
+                  : "pending",
+        stage: Number(step?.stage ?? index),
+        parallel: Boolean(step?.parallel),
+        jobNumber: String(step?.job_number || ""),
+        transform: step?.state === "current" ? stepTransform : "",
+        isCurrent: step?.state === "current",
+      }));
+    }
     const bySeq = new Map<number, { sequence: number; name: string }>();
     const otherReqs = Array.isArray(context?.all_other_requirements)
       ? context.all_other_requirements
@@ -4591,6 +4616,7 @@ function QueueRail({
                     </div>
                     <div className="mt-0.5 break-words font-mono text-caption font-bold text-primary">
                       {job.order_number || spec.orderNumber || "SO not captured"}
+                      <JobNameTag name={job.job_name} className="ml-1.5 align-middle" />
                     </div>
                     <SpecBlock data={specFromSource(job)} size="md" stack className="mt-2" testId={`machine-queue-spec-${job.id}`} />
                     {productionBatchLabel(job) || routeNodeLabel(job) ? (
@@ -4828,66 +4854,81 @@ function ProcessRouteStrip({
             isCurrent: true,
           },
         ];
+  // Steps of one stage sit in one column: parallel steps run side by side and the
+  // next step runs on what each of them has logged.
+  const stages: any[][] = [];
+  for (const step of steps) {
+    const last = stages[stages.length - 1];
+    if (last && step.stage !== undefined && last[0].stage === step.stage) last.push(step);
+    else stages.push([step]);
+  }
+  const stateWord = (step: any) =>
+    step.state === "done" ? "Completed" : step.state === "running" ? "Running · logging" : step.state === "skipped" ? "Skipped" : "Pending";
+  const card = (step: any) => (
+    <div
+      key={`${step.sequence}-${step.name}`}
+      className={cn(
+        "flex min-h-[78px] min-w-[140px] flex-col justify-between rounded-[14px] border px-3 py-2.5 transition",
+        step.state === "done" && "border-success-border bg-success-bg text-success-fg",
+        step.state === "running" && "border-info-border bg-info-bg text-info-fg",
+        step.state === "current" &&
+          "border-transparent bg-primary text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.9)]",
+        (step.state === "pending" || step.state === "skipped") && "border-line bg-surface-2 text-content-3",
+        step.state === "skipped" && "border-dashed",
+      )}
+      data-state={step.state}
+    >
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption font-semibold",
+            step.state === "current"
+              ? "bg-surface-1 text-info-fg"
+              : step.state === "done"
+                ? "bg-success-fg text-white"
+                : "bg-line text-content-3",
+          )}
+        >
+          {step.state === "done" ? "✓" : step.sequence}
+        </span>
+        <span className="truncate text-sm font-semibold leading-tight">{step.name}</span>
+      </div>
+      <div
+        className={cn(
+          "mt-1.5 text-caption font-semibold leading-4",
+          step.state === "current" ? "text-white" : "text-content-3",
+        )}
+      >
+        {step.isCurrent
+          ? `${step.transform || "current"}${behavior && behavior !== "NONE" ? ` · ${behaviorLabel(behavior)}` : ""}`
+          : stateWord(step)}
+      </div>
+      {step.isCurrent ? (
+        <div className="mt-1 inline-flex w-fit items-center rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-caption font-bold text-info-fg">
+          {remainingKg > 0 ? `${kg(remainingKg, 1)} left` : `${kg(producedKg, 1)} done`}
+        </div>
+      ) : null}
+    </div>
+  );
   return (
-    <div className="overflow-x-auto" data-testid="machine-process-route">
+    <div className="overflow-x-auto" data-testid="machine-process-route" tabIndex={0} role="region" aria-label="Route steps">
       <div className="flex min-w-max items-stretch gap-2">
-        {steps.map((step: any, index: number) => (
-          <div
-            key={`${step.sequence}-${step.name}`}
-            className="flex items-center gap-2"
-          >
-            <div
-              className={cn(
-                "flex min-h-[78px] min-w-[140px] flex-col justify-between rounded-[14px] border px-3 py-2.5 transition",
-                step.state === "done" &&
-                  "border-success-border bg-success-bg text-success-fg",
-                step.state === "current" &&
-                  "border-transparent bg-primary text-white shadow-[0_14px_28px_-18px_rgba(37,99,235,0.9)]",
-                step.state === "pending" &&
-                  "border-line bg-surface-2 text-content-3",
-              )}
-              data-state={step.state}
-            >
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn(
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-caption font-semibold",
-                    step.state === "current"
-                      ? "bg-surface-1 text-info-fg"
-                      : step.state === "done"
-                        ? "bg-success-fg text-white"
-                        : "bg-line text-content-3",
-                  )}
-                >
-                  {step.state === "done" ? "✓" : step.sequence}
-                </span>
-                <span className="truncate text-sm font-semibold leading-tight">
-                  {step.name}
-                </span>
-              </div>
+        {stages.map((stage, index) => (
+          <div key={`stage-${index}`} className="flex items-center gap-2">
+            {stage.length > 1 ? (
               <div
-                className={cn(
-                  "mt-1.5 text-caption font-semibold leading-4",
-                  step.state === "current" ? "text-white" : "text-content-3",
-                )}
+                className="flex flex-col gap-1.5 rounded-[16px] border border-dashed border-order-border bg-order-bg p-1.5"
+                data-testid="machine-route-parallel"
               >
-                {step.isCurrent
-                  ? `${step.transform || "current"}${behavior && behavior !== "NONE" ? ` · ${behaviorLabel(behavior)}` : ""}`
-                  : step.state === "done"
-                    ? "Completed"
-                    : "Pending"}
+                <span className="px-1 text-caption font-semibold text-order-fg">
+                  Parallel · {stage.length} steps feed the next step
+                </span>
+                {stage.map(card)}
               </div>
-              {step.isCurrent ? (
-                <div className="mt-1 inline-flex w-fit items-center rounded-md bg-surface-1 px-1.5 py-0.5 font-mono text-caption font-bold text-info-fg">
-                  {remainingKg > 0
-                    ? `${kg(remainingKg, 1)} left`
-                    : `${kg(producedKg, 1)} done`}
-                </div>
-              ) : null}
-            </div>
-            {index < steps.length - 1 ? (
-              <span className="shrink-0 text-content-4">→</span>
-            ) : null}
+            ) : (
+              card(stage[0])
+            )}
+            {index < stages.length - 1 ? <span className="shrink-0 text-content-4" aria-hidden>→</span> : null}
           </div>
         ))}
       </div>

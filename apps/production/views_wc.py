@@ -23,6 +23,7 @@ from .models import (
 )
 from .serializers import WorkCenterAssignmentSerializer, ProductionJobSerializer, _sales_item_display_label
 from .services.job_services import JobService, WCManagerService, MachineBusyError
+from apps.sales.job_name import job_name_of
 from .services.roll_allocation_service import RollAllocationService
 from .services.services_execution import ExecutionService
 from .services.granule_availability import GranuleAvailabilityService, GranuleStockConflict
@@ -375,6 +376,7 @@ class WCQueueViewSet(WorkCentreScopeMixin, viewsets.ReadOnlyModelViewSet):
             "uom": uom,
             "customer_name": getattr(job, "customer_name", ""),
             "order_number": getattr(job, "sales_order_no", ""),
+            "job_name": job_name_of(getattr(getattr(job, "sales_order_item", None), "sales_order", None)),
             "product_name": self._compact_product_name(job),
             "variant_code": variant_code,
             "variant_name": variant_name,

@@ -137,8 +137,8 @@ export function SalesOrderV34Workspace() {
         customer: draft.customer,
         ship_to_customer: draft.ship_to_customer || draft.customer,
         address_override: draft.address_override,
-        order_name:
-          draft.order_name || `Order ${new Date().toISOString().slice(0, 10)}`,
+        // The job name is optional: left empty, the order has none (no date filler).
+        order_name: String(draft.order_name || "").trim(),
         delivery_date: draft.delivery_date,
         remarks: draft.remarks,
         items: draft.lines.map((line) => {
@@ -523,7 +523,7 @@ function CustomerHeaderStrip({
             <Factory className="h-3.5 w-3.5 text-content-4" /> Auto · planner
           </div>
         </SoField>
-        <SoField label="Order name" hint="optional">
+        <SoField label="Job name" hint="optional · shown next to the SO number everywhere">
           <input
             value={draft.order_name}
             onChange={(e) => onSetOrderName(e.target.value)}

@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db import connection
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
+from apps.sales.job_name import clean_job_name, job_name_of
 from apps.production.models import (
     ProductionJob,
     FinishedGoodsBatch,
@@ -715,6 +716,7 @@ class FGDispatchService:
             {
                 "id": str(order.id),
                 "order_number": order.order_number,
+                "job_name": job_name_of(order),
                 "customer_name": order.customer_name,
                 "status": order.status,
                 "delivery": FGDispatchService._sales_order_delivery_context(order),
@@ -1058,6 +1060,7 @@ class FGDispatchService:
                 "sales_order": {
                     "id": str(row["id"]),
                     "order_number": row["order_number"],
+                    "job_name": row.get("job_name", ""),
                     "customer_name": row["customer_name"],
                     "status": row["status"],
                 },
@@ -1648,6 +1651,7 @@ class FGDispatchService:
             'sales_order': {
                 'id': so['id'],
                 'order_number': so['order_number'],
+                'job_name': so.get('job_name', ''),
                 'customer_name': so['customer_name'],
                 'status': so['status'],
                 'delivery': FGDispatchService._sales_order_delivery_context(sales_order),
@@ -2679,7 +2683,7 @@ class FGDispatchService:
     def _sales_order_row(so_id: str):
         with connection.cursor() as cursor:
             cursor.execute(
-                "SELECT id, order_number, customer_name, status FROM sales_orders WHERE id = %s::uuid",
+                "SELECT id, order_number, customer_name, status, order_name FROM sales_orders WHERE id = %s::uuid",
                 [str(so_id)],
             )
             row = cursor.fetchone()
@@ -2690,4 +2694,5 @@ class FGDispatchService:
             "order_number": row[1],
             "customer_name": row[2],
             "status": row[3],
+            "job_name": clean_job_name(row[4]),
         }

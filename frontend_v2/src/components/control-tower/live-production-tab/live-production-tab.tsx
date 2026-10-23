@@ -2,7 +2,7 @@
 
 import { PlannerDialogLayer } from "../planner-dialog-layer";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import React, { useDeferredValue, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, AlertTriangle, Cog, Layers as LayersIcon, PauseCircle, RefreshCw, SlidersHorizontal, X } from "lucide-react";
 import {
@@ -231,6 +231,27 @@ export default function LiveProductionTab() {
             .sort((a, b) => rank(a.job) - rank(b.job) || a.machine.localeCompare(b.machine));
     }, [jobs]);
     const postedSeries = useMemo(() => trend.map((row: any) => Number(row.output_kg || 0)).slice(-14), [trend]);
+    // Today on the machines: each job from the moment Start was pressed to its close (or now).
+    const timeline = useMemo(() => {
+        const dayStart = new Date();
+        dayStart.setHours(6, 0, 0, 0);
+        const dayEnd = new Date(dayStart.getTime() + 16 * 3600_000);
+        const now = Date.now();
+        const lanes = new Map<string, Array<{ job: any; from: number; to: number; tone: ReturnType<typeof toneForStatus> }>>();
+        for (const job of jobs) {
+            const machine = String(job?.machine_name || "").trim();
+            const started = job?.start_date ? new Date(job.start_date).getTime() : NaN;
+            if (!machine || !Number.isFinite(started)) continue;
+            const closed = job?.closed_at ? new Date(job.closed_at).getTime() : NaN;
+            const to = Number.isFinite(closed) ? closed : Math.min(now, dayEnd.getTime());
+            if (to < dayStart.getTime() || started > dayEnd.getTime()) continue;
+            const from = Math.max(started, dayStart.getTime());
+            if (!lanes.has(machine)) lanes.set(machine, []);
+            lanes.get(machine)!.push({ job, from, to: Math.max(to, from + 60_000), tone: toneForStatus(job?.job_state || job?.status) });
+        }
+        return { start: dayStart.getTime(), end: dayEnd.getTime(), now, lanes: Array.from(lanes.entries()).sort((a, b) => a[0].localeCompare(b[0])) };
+    }, [jobs]);
+    const clock = (ms: number) => new Date(ms).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
 
     const exceptions = useMemo(() => {
         return activeOrders
@@ -412,6 +433,7 @@ export default function LiveProductionTab() {
                                     </div>
                                     <div className="truncate font-mono text-caption text-content-3">
                                         {job?.order_number || job?.job_number} · {job?.process_code || job?.process_name || ""}
+                                        {job?.start_date && (tone === "run" || tone === "paused") ? ` · since ${clock(new Date(job.start_date).getTime())}` : ""}
                                     </div>
                                     {target > 0 ? (
                                         <BulletBar value={done} max={target} left={`${fmt(done, 0)} / ${fmt(target, 0)} ${String(job?.uom || "kg").toLowerCase()}`} right={`${Math.round((done / target) * 100)}%`} tone={tone === "paused" ? "wait" : "run"} />
@@ -419,6 +441,47 @@ export default function LiveProductionTab() {
                                 </div>
                             );
                         })}
+                    </div>
+                </section>
+            ) : null}
+
+            {timeline.lanes.length ? (
+                <section aria-label="Today on the machines" className="rounded-[14px] border border-line bg-surface-1 p-3 shadow-[var(--shadow-sm)]">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="text-sm font-semibold text-content-1">Today on the machines</h2>
+                        <span className="font-mono text-caption text-content-4">06:00 → 22:00 · each bar runs from Start to close · now {clock(timeline.now)}</span>
+                    </div>
+                    <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Machine timeline, scroll sideways">
+                        <div className="grid min-w-[720px] grid-cols-[120px_minmax(0,1fr)] text-caption">
+                            <div />
+                            <div className="relative mb-1 h-4 border-b border-line">
+                                {[6, 8, 10, 12, 14, 16, 18, 20, 22].map((h, i) => (
+                                    <span key={h} className="absolute top-0 font-mono text-[10px] text-content-4" style={{ left: `${(i * 2 / 16) * 100}%`, transform: i === 8 ? "translateX(-100%)" : i === 0 ? "none" : "translateX(-50%)" }}>
+                                        {String(h).padStart(2, "0")}:00
+                                    </span>
+                                ))}
+                            </div>
+                            {timeline.lanes.map(([machine, blocks]) => (
+                                <React.Fragment key={machine}>
+                                    <div className="flex h-7 items-center truncate border-b border-line pr-2 font-medium text-content-2">{machine}</div>
+                                    <div className="relative h-7 border-b border-line">
+                                        {timeline.now > timeline.start && timeline.now < timeline.end ? (
+                                            <span className="absolute inset-y-0 w-0.5 bg-danger" style={{ left: `${((timeline.now - timeline.start) / (timeline.end - timeline.start)) * 100}%` }} aria-hidden />
+                                        ) : null}
+                                        {blocks.map(({ job, from, to, tone }) => (
+                                            <span
+                                                key={job.id}
+                                                title={`${job.order_number || job.job_number} · ${job.process_code || ""} · ${clock(from)}–${job.closed_at ? clock(to) : "now"}`}
+                                                className={`absolute top-1 h-5 truncate rounded-[4px] border px-1.5 font-mono text-[10.5px] font-semibold leading-5 ${tone === "done" ? "border-success-border bg-success-bg text-success-fg" : tone === "run" ? "border-order bg-order-bg text-order-fg" : "border-warning-border bg-warning-bg text-warning-fg"}`}
+                                                style={{ left: `${((from - timeline.start) / (timeline.end - timeline.start)) * 100}%`, width: `${Math.max(1.2, ((to - from) / (timeline.end - timeline.start)) * 100)}%` }}
+                                            >
+                                                {job.order_number || job.job_number} · {job.process_code || ""}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </React.Fragment>
+                            ))}
+                        </div>
                     </div>
                 </section>
             ) : null}

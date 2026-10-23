@@ -51,6 +51,7 @@ import { MadeCard } from "@/components/spine/made-card";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import { StepFeedCard } from "@/components/spine/step-feed";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 import {
   GranuleCodeSourcePicker,
   type GranuleCodeSourceOption,
@@ -3475,6 +3476,7 @@ export default function WCMTerminal() {
             </div>
             <h2 className="mt-1 text-lg font-semibold leading-tight tracking-[-0.01em] text-content-1">
               {selectedOrderNumberLabel}
+              <JobNameTag name={(selectedJob as any)?.job_name} className="ml-2 align-middle" />
             </h2>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-content-3">
               <span>{selectedCustomerLabel}</span>

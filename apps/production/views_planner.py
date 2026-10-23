@@ -70,6 +70,7 @@ from .models import (
 )
 from .serializers import ProductionJobSerializer, ProductionJobSummarySerializer, ProductionJobBoardSerializer, PlannedBulkStockOrderSerializer
 from .services.job_services import JobService
+from apps.sales.job_name import job_name_of
 
 logger = logging.getLogger(__name__)
 
@@ -735,6 +736,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "order_id": str(getattr(parent_order, "id", "") or job.id),
                     "sales_order_item_id": str(getattr(sales_item, "id", "") or ""),
                     "order_number": str(getattr(parent_order, "order_number", "") or getattr(job, "job_number", "") or ""),
+                    "job_name": job_name_of(parent_order),
                     "customer_name": str(getattr(sales_order, "customer_name", "") or ("Internal stock" if mts_order else "")),
                     "display_name": display_name,
                     "template_id": str(getattr(template, "id", "") or ""),
@@ -6835,6 +6837,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "revision": revision,
                     "parent_status": order.status,
                     "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                     "customer_name": str(order.customer_name or "").strip(),
                     "display_name": line_label,
                     "delivery_date": order.delivery_date.isoformat() if getattr(order, "delivery_date", None) else None,
@@ -6995,6 +6998,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 "order_id": str(order.id),
                 "revision": entity_revision('stock', order),
                 "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                 "customer_name": "",
                 "display_name": str(getattr(order, "internal_name", "") or template.name or "").strip(),
                 "delivery_date": None,
@@ -7358,6 +7362,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "order_id": str(order.id),
                     "sales_order_item_id": str(so_item.id) if so_item else None,
                     "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                     "customer_name": str(order.customer_name or "").strip(),
                     "display_name": str(getattr(so_item, "line_name", "") or template.name or "").strip(),
                     "delivery_date": order.delivery_date.isoformat() if getattr(order, "delivery_date", None) else None,
@@ -7466,6 +7471,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "order_id": str(order.id),
                     "sales_order_item_id": None,
                     "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                     "customer_name": str(order.customer_name or "").strip(),
                     "display_name": str(getattr(fallback_template, "name", "") or "Sales Order").strip(),
                     "delivery_date": order.delivery_date.isoformat() if getattr(order, "delivery_date", None) else None,
@@ -7580,6 +7586,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "order_kind": "stock",
                     "order_id": str(order.id),
                     "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                     "customer_name": "",
                     "display_name": str(order.internal_name or template.name or "").strip(),
                     "delivery_date": None,
@@ -7656,6 +7663,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     "order_kind": "stock",
                     "order_id": str(order.id),
                     "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                     "customer_name": "",
                     "display_name": str(getattr(order, "internal_name", "") or getattr(template, "name", "") or "Stock Order").strip(),
                     "delivery_date": None,
@@ -9319,6 +9327,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         {
                             "order_id": str(order.id),
                             "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                             "bulk_class": order.bulk_class,
                             "material_id": str(order.material_id),
                             "material_code": str(order.material.code),
@@ -9348,6 +9357,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         {
                             "order_id": str(order.id),
                             "order_number": order.order_number,
+                    "job_name": job_name_of(order),
                             "planner_stock_class": order.planner_stock_class,
                             "packaging_material_id": str(order.packaging_material_id),
                             "packaging_material_code": str(order.packaging_material.code),

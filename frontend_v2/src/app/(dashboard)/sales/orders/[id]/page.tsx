@@ -50,6 +50,7 @@ import { MadeCard } from "@/components/spine/made-card";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import { useCanFollowLink } from "@/components/layout/use-nav-access";
+import { JobNameTag } from "@/components/spine/job-name-tag";
 
 const LINE_PROGRESS_TONES = [
   { fill: "#2563eb", dark: "#1e40af", light: "rgba(37,99,235,.22)", track: "rgba(37,99,235,.10)", text: "text-primary", border: "border-info-border", bg: "bg-info-bg" },
@@ -1886,7 +1887,7 @@ function DocumentsTab({
             <div className="rounded-xl border border-line bg-surface-2 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="font-mono text-sm font-semibold text-content-1">{order.order_number}</div>
+                  <div className="font-mono text-sm font-semibold text-content-1">{order.order_number} <JobNameTag name={(order as any).order_name} className="ml-1 align-middle" /></div>
                   <div className="mt-1 text-xs font-semibold text-content-3">Sales protocol · {order.customer_name} · {fmtDate(order.created_at)}</div>
                 </div>
                 <Badge className="rounded-full bg-info-bg text-primary ring-1 ring-info-border">{statusLabel(order.status)}</Badge>
@@ -2460,6 +2461,7 @@ export default function SalesOrderDetailPage() {
               </Button>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Badge className="rounded-full bg-info-bg px-3 py-1 font-mono text-caption font-semibold uppercase text-primary ring-1 ring-info-border">{order.order_number}</Badge>
+                <JobNameTag name={(order as any).order_name} />
                 <Badge variant="outline" className="rounded-full border-warning-border bg-warning-bg px-3 py-1 font-mono text-caption font-semibold uppercase text-content-1">{statusLabel(order.status)}</Badge>
                 {trackingQuery.isFetching ? <Badge variant="outline" className="rounded-full text-caption font-semibold uppercase"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> refreshing</Badge> : null}
               </div>

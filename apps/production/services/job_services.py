@@ -1175,6 +1175,78 @@ class JobService:
         return job
 
     @classmethod
+    def _route_scope(cls, job):
+        """Jobs of the same order line / batch / stock order on the same route (cancelled excluded)."""
+        scope = ProductionJob.objects.exclude(id=job.id).exclude(job_state="CANCELLED")
+        if getattr(job, "routing_rule_id", None):
+            scope = scope.filter(routing_rule_id=job.routing_rule_id)
+        if getattr(job, "production_batch_id", None):
+            return scope.filter(production_batch_id=job.production_batch_id)
+        if getattr(job, "sales_order_item_id", None):
+            return scope.filter(sales_order_item_id=job.sales_order_item_id)
+        if getattr(job, "mts_order_id", None):
+            return scope.filter(mts_order_id=job.mts_order_id)
+        return scope.none()
+
+    @classmethod
+    def input_steps(cls, job):
+        """The steps that feed this one: route-graph predecessors (both lanes of a parallel
+        set), or the step right before it on a route without a graph."""
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        scope = cls._route_scope(job)
+        node = RouteGraphService.node_for_job(job) if getattr(job, "routing_rule_id", None) else None
+        if node is not None:
+            pred_ids = list(node.get("predecessor_node_ids") or [])
+            return list(scope.filter(route_node_id__in=pred_ids).select_related("current_process", "process")) if pred_ids else []
+        index = int(getattr(job, "current_step_index", 0) or 0)
+        if index <= 0:
+            return []
+        return list(scope.filter(current_step_index=index - 1).select_related("current_process", "process"))
+
+    @classmethod
+    def has_logged_output(cls, job):
+        if str(getattr(job, "job_state", "") or "").upper() == "COMPLETED" or str(getattr(job, "status", "") or "").upper() == "COMPLETED":
+            return True
+        from apps.inventory.models import InventoryRoll
+
+        return (
+            JobExecutionLog.objects.filter(production_job=job, quantity__gt=0).exists()
+            or InventoryRoll.objects.filter(created_by_job=job).exists()
+        )
+
+    @classmethod
+    def input_steps_without_output(cls, job):
+        """Input steps that have neither completed nor logged any output (they block this step)."""
+        return [pred for pred in cls.input_steps(job) if not cls.has_logged_output(pred)]
+
+    @classmethod
+    def open_successors_in_flow(cls, job):
+        """After a step logs output, open the steps it feeds once every one of their input
+        steps has logged output: the next step then runs on what has been logged. Steps at
+        another plant still open on completion (their inter-plant challan goes with it)."""
+        from apps.production.services.batch_route_service import RouteGraphService
+
+        node = RouteGraphService.node_for_job(job) if getattr(job, "routing_rule_id", None) else None
+        successor_ids = list((node or {}).get("successor_node_ids") or [])
+        if not successor_ids:
+            return []
+        opened = []
+        here = cls._resolve_job_plant_id(job)
+        for successor in cls._route_scope(job).filter(route_node_id__in=successor_ids, job_state__in=["PLANNED", "WAITING"]):
+            there = cls._resolve_job_plant_id(successor)
+            if here and there and here != there:
+                continue
+            if cls.input_steps_without_output(successor):
+                continue
+            try:
+                with transaction.atomic():
+                    opened.append(cls.release_job(successor.id))
+            except ValueError as exc:
+                logger.info("Successor %s stays waiting after output on %s: %s", successor.job_number, job.job_number, exc)
+        return opened
+
+    @classmethod
     def log_output_event(cls, job, output_weight_kg, completion_meta=None, user=None):
         """
         Physics execution event: consume inputs/create outputs and update step progress.
@@ -1230,6 +1302,8 @@ class JobService:
             from apps.production.services.batch_route_service import BatchExecutionService
             BatchExecutionService.sync_for_job(job)
 
+        # What was just logged is open to the next step (both inputs of a parallel join).
+        cls.open_successors_in_flow(job)
         return job
 
     @classmethod
@@ -1635,8 +1709,8 @@ class JobService:
             conflicting = cls.machine_concurrency_block(job)
             if conflicting:
                 raise MachineBusyError(
-                    f"{job.machine.name} is running {conflicting}. This machine runs one order at a time for this step; "
-                    f"change its concurrency setting in the machine master to allow more.",
+                    f"{job.machine.name} is running {conflicting}. Only bulk-to-roll steps (extrusion) run several orders "
+                    f"on one machine; pause or finish {conflicting} first.",
                     conflicting_job_number=conflicting,
                 )
             job.status = 'RUNNING'
@@ -1915,8 +1989,8 @@ class JobService:
                 conflicting = cls.machine_concurrency_block(job)
                 if conflicting:
                     raise MachineBusyError(
-                        f"{job.machine.name} is running {conflicting}. Pause or finish it before resuming this order, "
-                        f"or allow several orders on this machine in the machine master.",
+                        f"{job.machine.name} is running {conflicting}. Pause or finish it before resuming this order; "
+                        f"only bulk-to-roll steps run several orders on one machine.",
                         conflicting_job_number=conflicting,
                     )
             cls.close_open_downtime(job, ts=now, source='PAUSE')
@@ -1940,11 +2014,11 @@ class JobService:
         machine = machine or getattr(job, 'machine', None)
         if machine is None:
             return None
+        # Only a bulk->roll step (extrusion) may run several orders on one machine, and only
+        # when the machine allows it (AUTO or ALLOW); every other step runs one order at a time.
         policy = str(getattr(machine, 'concurrency_policy', 'AUTO') or 'AUTO').upper()
-        if policy == 'ALLOW':
-            return None
         process = job.current_process or job.process
-        if policy == 'AUTO' and process is not None:
+        if process is not None and policy != 'DENY':
             input_form = str(getattr(process, 'input_form', '') or '').upper()
             output_form = str(getattr(process, 'output_form', '') or '').upper()
             if input_form == 'BULK' and output_form == 'ROLL':
@@ -2647,28 +2721,16 @@ class WCManagerService:
             raise ValueError("Machine must be assigned before marking as execution ready.")
         
         job = assignment.production_job
-        # Route integrity guard: downstream step cannot be execution-ready while
-        # any upstream lineage step is still open.
-        lineage_qs = ProductionJob.objects.exclude(id=job.id)
-        if getattr(job, "sales_order_item_id", None):
-            lineage_qs = lineage_qs.filter(sales_order_item_id=job.sales_order_item_id)
-        elif getattr(job, "mts_order_id", None):
-            lineage_qs = lineage_qs.filter(mts_order_id=job.mts_order_id)
-        elif getattr(job, "template_id", None):
-            lineage_qs = lineage_qs.filter(template_id=job.template_id)
-        else:
-            lineage_qs = lineage_qs.none()
-
-        upstream_open = lineage_qs.filter(
-            current_step_index__lt=job.current_step_index
-        ).exclude(
-            job_state__in=["COMPLETED", "CANCELLED"]
-        ).exclude(
-            status__in=["COMPLETED", "CANCELLED"]
-        ).order_by("current_step_index", "created_at").first()
-        if upstream_open:
+        # Route guard: a step runs on what its input steps have logged. Each direct
+        # input step (route graph; parallel steps both feed the join) must be
+        # completed or have logged output; other branches never block this step.
+        waiting_on = JobService.input_steps_without_output(job)
+        if waiting_on:
+            first = waiting_on[0]
+            process = getattr(getattr(first, "current_process", None) or getattr(first, "process", None), "code", "") or ""
             raise ValueError(
-                f"Cannot mark ready: upstream step {upstream_open.job_number} is not completed yet."
+                f"Cannot mark ready: input step {first.job_number}{f' ({process})' if process else ''} has not logged any output yet. "
+                "This step runs on what its input steps have logged and opens as soon as each of them has posted output."
             )
 
         # Auto-prepare inputs before readiness check.

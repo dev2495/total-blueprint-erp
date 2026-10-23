@@ -2,7 +2,7 @@
 Floor logic contracts (15 Oct 2026 review):
 - roll steps are fed by mass (any number of rolls) unless the step fixes a count;
 - a pause is downtime with a reason, closed on resume;
-- a machine's concurrency policy decides whether two orders may run together;
+- only bulk->roll steps may run two orders together on one machine (DENY stops even that);
 - add-on weight coefficients carry their basis (per 1 mm or per 10 mm);
 - add-ons without a mapped step are issued at the last step of the route;
 - a released line can be recalculated from masters only before any output.
@@ -214,11 +214,11 @@ class MachineConcurrencyTests(FloorFixtureMixin, TestCase):
         second = self.make_job("JOB-EXT-2", self.extrusion, machine=extruder)
         self.assertIsNone(JobService.machine_concurrency_block(second))
 
-    def test_allow_policy_overrides_step_type(self):
+    def test_only_bulk_to_roll_steps_run_several_orders_even_when_the_machine_allows_it(self):
         self.machine.concurrency_policy = "ALLOW"
         self.machine.save(update_fields=["concurrency_policy"])
         waiting = self.make_job("JOB-WAIT-2", self.pouching)
-        self.assertIsNone(JobService.machine_concurrency_block(waiting))
+        self.assertEqual(JobService.machine_concurrency_block(waiting), "JOB-RUN-1", "pouching runs one order at a time")
 
     def test_resume_respects_the_policy(self):
         # A paused order cannot be resumed while another order runs on a one-at-a-time machine.
