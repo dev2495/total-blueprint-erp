@@ -352,7 +352,9 @@ function PackingCheckDialog({ fgBatchId, onClose }: { fgBatchId: string | null; 
               <div className="rounded-lg border border-line bg-surface-2/60 px-3 py-2 text-sm" data-testid="packing-check-inner-packs">
                 <span className="font-semibold text-content-1">Inner pouches · </span>
                 <span className="tabular-nums">
-                  {num(data.inner_packs.consumed_at_machine)} taken at the machine · {num(data.inner_packs.used_in_units)} used in packs
+                  {data.inner_packs.capture_mode === "EVENING_COUNT"
+                    ? `${num(data.inner_packs.consumed_at_machine)} filled at the machine (bought pouches) · ${num(data.inner_packs.used_in_units)} used in packs`
+                    : `${num(data.inner_packs.consumed_at_machine)} taken at the machine · ${num(data.inner_packs.used_in_units)} used in packs`}
                 </span>
                 {data.inner_packs.left_for_count ? null : data.inner_packs.returned != null ? (
                   <span className="tabular-nums text-success-fg"> · {num(data.inner_packs.returned)} back to stock</span>
@@ -361,7 +363,11 @@ function PackingCheckDialog({ fgBatchId, onClose }: { fgBatchId: string | null; 
                     {" "}· {num(data.inner_packs.consumed_at_machine - data.inner_packs.used_in_units)} unused go back to stock when the check closes
                   </span>
                 ) : null}
-                {data.inner_packs.left_for_count ? (
+                {data.inner_packs.capture_mode === "EVENING_COUNT" ? (
+                  <p className="mt-1 text-caption text-content-3" data-testid="packing-check-inner-packs-count">
+                    Bought inner pouches are taken off stock by the evening packing count, booked to this order.
+                  </p>
+                ) : data.inner_packs.left_for_count ? (
                   <p className="mt-1 text-caption text-warning-fg" data-testid="packing-check-inner-packs-count">
                     Not taken off stock at the machine ({data.inner_packs.left_for_count_reason || "stock book gap"}). The evening packing count settles these pouches for this order.
                   </p>

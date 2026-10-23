@@ -134,6 +134,19 @@ class InHouseDemandService:
                 continue
             if mode not in {"IN_HOUSE", "BOTH"}:
                 continue
+            from apps.inventory.services.packaging_measure import auto_demand
+
+            if not auto_demand(material):
+                # Only in-house inner pouches are demanded automatically; other in-house
+                # packing items (LD sheets, packing rolls, bags) are restocked by hand.
+                skipped.append({
+                    "item_id": str(item.id),
+                    "kind": "PACKAGING",
+                    "reason": "manual_restock_from_stock_launcher",
+                    "material_id": str(material.id),
+                    "material_code": material.code,
+                })
+                continue
             if not cls._master_allows_auto_demand(item, line):
                 skipped.append({
                     "item_id": str(item.id),
@@ -372,8 +385,13 @@ class InHouseDemandService:
             return contract, None
 
         try:
-            axis_values = cls._default_packaging_axis_values(product_master, material)
-            variant, _created = find_or_create_product_variant(product_master, axis_values)
+            linked = getattr(material, "produced_by_product_variant", None) if getattr(material, "produced_by_product_variant_id", None) else None
+            if linked is not None and linked.master_id == product_master.id:
+                # The variant this packing item is linked to is the production contract.
+                variant, axis_values = linked, dict(linked.axis_values or {})
+            else:
+                axis_values = cls._default_packaging_axis_values(product_master, material)
+                variant, _created = find_or_create_product_variant(product_master, axis_values)
             geometry = variant.geometry_snapshot or {}
             layers = variant.layer_snapshot or []
             fixed = product_master.fixed_attributes if isinstance(product_master.fixed_attributes, dict) else {}

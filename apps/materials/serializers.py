@@ -804,7 +804,18 @@ class ProductVariantSerializer(serializers.ModelSerializer):
             'pod_sku_variant_id': str(pod_sku_variant.id) if pod_sku_variant else None,
             'pod_sku_variant_code': pod_sku_variant.code if pod_sku_variant else None,
             'pod_sku_code': pod_sku_variant.pod_sku.code if pod_sku_variant else None,
+            'stock_measure': self._packaging_stock_measure(link),
         }
+
+    @staticmethod
+    def _packaging_stock_measure(link):
+        """Weight of one piece from this variant's BOM and the stock rules of the linked packing row."""
+        if str(link.category or "").upper() != "PACKAGING":
+            return None
+        from apps.inventory.services.packaging_measure import describe
+
+        full = InventoryMaterial.objects.select_related("produced_by_product_variant__master").filter(id=link.id).first()
+        return describe(full) if full else None
 
 
 class ProductMasterSizeSerializer(serializers.ModelSerializer):
@@ -1398,6 +1409,7 @@ class PODSerializer(serializers.ModelSerializer):
 class PackagingSerializer(serializers.ModelSerializer):
     production_template_name = serializers.CharField(source="production_template.name", read_only=True, allow_null=True)
     product_master_link = serializers.SerializerMethodField()
+    stock_measure = serializers.SerializerMethodField()
 
     class Meta:
         model = InventoryMaterial
@@ -1414,12 +1426,19 @@ class PackagingSerializer(serializers.ModelSerializer):
             'per_sheet_base_qty',
             'status',
             'product_master_link',
+            'stock_measure',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 
     def get_product_master_link(self, obj):
         return _product_master_link_summary(obj)
+
+    def get_stock_measure(self, obj):
+        """Weight of one piece (BOM of the linked variant or the master entry) and the stock rules."""
+        from apps.inventory.services.packaging_measure import describe
+
+        return describe(obj)
 
     def validate(self, attrs):
         kind = attrs.get('packaging_kind', getattr(self.instance, 'packaging_kind', None))

@@ -415,11 +415,17 @@ def _packaging_unit_base_qty(material, line=None):
     line = line if isinstance(line, dict) else {}
     defaults = getattr(material, "packaging_defaults_json", {}) if material is not None else {}
     defaults = defaults if isinstance(defaults, dict) else {}
+    measured = None
+    if material is not None and str(getattr(material, "base_uom", "") or "").upper() != "PCS":
+        # Linked in-house items: from their Product Master variant's BOM, else the master entry.
+        from apps.inventory.services.packaging_measure import stock_qty_per_piece
+
+        measured = stock_qty_per_piece(material)
     for value in (
         line.get("unit_base_qty"),
         line.get("base_qty_per_consumed_unit"),
         line.get("per_sheet_base_qty"),
-        getattr(material, "per_sheet_base_qty", None),
+        measured,
         defaults.get("unit_base_qty"),
         defaults.get("base_qty_per_consumed_unit"),
         defaults.get("kg_per_inner_pouch"),

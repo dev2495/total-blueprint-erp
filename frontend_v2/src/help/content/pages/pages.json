@@ -9594,8 +9594,8 @@
         "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
       },
       {
-        "en": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine; pouches left for the evening count, or packed in a job worker's own pouches, are settled by the count.",
-        "hi": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine; pouches left for the evening count, or packed in a job worker's own pouches, are settled by the count."
+        "en": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine. Bought pouches and every other packing item are settled by the evening count. The Packing material audit for an order shows our product weight against the dispatch weight, the packing in between, and in-house pouches taken by weight.",
+        "hi": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine. Bought pouches and every other packing item are settled by the evening count. The Packing material audit for an order shows our product weight against the dispatch weight, the packing in between, and in-house pouches taken by weight."
       }
     ],
     "fieldHelp": [
@@ -11037,8 +11037,8 @@
         "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
       },
       {
-        "en": "A packing item stocked in KG or metres needs the weight (or length) of one piece. Without it pieces cannot be taken off stock: the card shows 'Missing' and those pouches wait for the evening count.",
-        "hi": "A packing item stocked in KG or metres needs the weight (or length) of one piece. Without it pieces cannot be taken off stock: the card shows 'Missing' and those pouches wait for the evening count."
+        "en": "Link each in-house packing item to its packaging Product Master variant: its weight per piece (or per metre for rolls) then comes from that BOM. Bought items without a link need the weight of one piece entered. Each card shows Stock (taken at the machine, or the evening count) and Restock (auto demand only for in-house inner pouches; other in-house items by hand from the Stock launcher).",
+        "hi": "Link each in-house packing item to its packaging Product Master variant: its weight per piece (or per metre for rolls) then comes from that BOM. Bought items without a link need the weight of one piece entered. Each card shows Stock (taken at the machine, or the evening count) and Restock (auto demand only for in-house inner pouches; other in-house items by hand from the Stock launcher)."
       }
     ],
     "fieldHelp": [
@@ -12852,8 +12852,8 @@
         "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
       },
       {
-        "en": "Inner pouches are taken off stock as you log pieces. If the store's book cannot cover them (short stock, or a bag stocked in kg without its weight per bag) the output is still logged; a yellow note says so and the evening packing count settles those pouches for the order.",
-        "hi": "Inner pouches are taken off stock as you log pieces. If the store's book cannot cover them (short stock, or a bag stocked in kg without its weight per bag) the output is still logged; a yellow note says so and the evening packing count settles those pouches for the order."
+        "en": "In-house inner pouches are taken off stock as you log pieces, by the weight their Product Master BOM gives. Bought inner pouches are marked for the evening packing count instead. If the book cannot cover in-house pouches the output is still logged and a yellow note says the evening count will settle them.",
+        "hi": "In-house inner pouches are taken off stock as you log pieces, by the weight their Product Master BOM gives. Bought inner pouches are marked for the evening packing count instead. If the book cannot cover in-house pouches the output is still logged and a yellow note says the evening count will settle them."
       }
     ],
     "fieldHelp": [

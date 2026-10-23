@@ -78,12 +78,13 @@ class InHouseDemandServiceTests(SimpleTestCase):
     @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
     @patch("apps.production.services.in_house_demand_service.PlannedStockOrder")
     @patch("apps.production.services.in_house_demand_service.InventoryMaterial")
-    def test_creates_packaging_demand_for_in_house_material(
+    def test_in_house_packing_roll_is_restocked_by_hand_not_demanded(
         self, mock_material_cls, mock_pso_cls, mock_demand_cls
     ):
         material = MagicMock()
         material.id = "mat-1"
         material.code = "PKG-IN-HOUSE"
+        material.packaging_kind = "SHEET"
         material.packaging_supply_mode = "IN_HOUSE"
         material.production_template_id = "tpl-1"
         material.production_template = MagicMock()
@@ -110,14 +111,11 @@ class InHouseDemandServiceTests(SimpleTestCase):
 
         result = InHouseDemandService.create_for_order(order)
 
-        self.assertEqual(len(result["created"]), 1)
-        self.assertEqual(result["created"][0]["kind"], "PACKAGING")
-        mock_pso_cls.objects.create.assert_called_once()
-        kwargs = mock_pso_cls.objects.create.call_args.kwargs
-        self.assertEqual(kwargs["stock_purpose"], "PACKAGING")
-        self.assertEqual(kwargs["stock_strategy"], "PACKAGING_STOCK")
-        self.assertEqual(kwargs["packaging_material"], material)
-        self.assertEqual(kwargs["target_qty"], Decimal("200"))
+        # Rule (23 Oct 2026): only in-house inner pouches are demanded automatically; an
+        # in-house packing roll or sheet is restocked by hand from the Stock launcher.
+        self.assertEqual(result["created"], [])
+        self.assertEqual(result["skipped"][0]["reason"], "manual_restock_from_stock_launcher")
+        mock_pso_cls.objects.create.assert_not_called()
 
     @patch("apps.production.services.in_house_demand_service._audit", lambda *a, **kw: None)
     @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
@@ -159,6 +157,7 @@ class InHouseDemandServiceTests(SimpleTestCase):
         material = MagicMock()
         material.id = "mat-primary"
         material.code = "INNER-PACK-IN-HOUSE"
+        material.packaging_kind = "INNER_POUCH"
         material.packaging_supply_mode = "IN_HOUSE"
         material.production_template_id = "tpl-pack"
         material.production_template = MagicMock()
@@ -210,6 +209,7 @@ class InHouseDemandServiceTests(SimpleTestCase):
         material = MagicMock()
         material.id = "mat-primary-kg"
         material.code = "INNER-PACK-KG"
+        material.packaging_kind = "INNER_POUCH"
         material.packaging_supply_mode = "BOTH"
         material.production_template_id = "tpl-pack"
         material.production_template = MagicMock()
@@ -250,12 +250,13 @@ class InHouseDemandServiceTests(SimpleTestCase):
     @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
     @patch("apps.production.services.in_house_demand_service.PlannedStockOrder")
     @patch("apps.production.services.in_house_demand_service.InventoryMaterial")
-    def test_packaging_lines_create_multiple_in_house_demands_from_sku_rows(
+    def test_packaging_lines_demand_only_the_in_house_inner_pouch(
         self, mock_material_cls, mock_pso_cls, mock_demand_cls
     ):
         inner = MagicMock()
         inner.id = "mat-inner"
         inner.code = "INNER-IN-HOUSE"
+        inner.packaging_kind = "INNER_POUCH"
         inner.packaging_supply_mode = "IN_HOUSE"
         inner.production_template_id = "tpl-inner"
         inner.production_template = MagicMock()
@@ -265,6 +266,7 @@ class InHouseDemandServiceTests(SimpleTestCase):
         wrap = MagicMock()
         wrap.id = "mat-wrap"
         wrap.code = "WRAP-IN-HOUSE"
+        wrap.packaging_kind = "SHEET"
         wrap.packaging_supply_mode = "BOTH"
         wrap.production_template_id = "tpl-wrap"
         wrap.production_template = MagicMock()
@@ -294,12 +296,13 @@ class InHouseDemandServiceTests(SimpleTestCase):
 
         result = InHouseDemandService.create_for_order(order)
 
-        self.assertEqual(len(result["created"]), 2)
+        # The inner pouch is demanded; the in-house wrap is left for a manual restock.
+        self.assertEqual(len(result["created"]), 1)
+        self.assertEqual([row["reason"] for row in result["skipped"]], ["manual_restock_from_stock_launcher"])
         calls = mock_pso_cls.objects.create.call_args_list
         self.assertEqual(calls[0].kwargs["target_qty"], Decimal("10"))
         self.assertEqual(calls[0].kwargs["quantity_uom"], "PCS")
-        self.assertEqual(calls[1].kwargs["target_qty"], Decimal("1.5"))
-        self.assertEqual(calls[1].kwargs["quantity_uom"], "KG")
+        self.assertEqual(len(calls), 1)
 
     @patch("apps.production.services.in_house_demand_service._audit", lambda *a, **kw: None)
     @patch("apps.production.services.in_house_demand_service.SalesOrderItemInHouseDemand")
@@ -311,6 +314,7 @@ class InHouseDemandServiceTests(SimpleTestCase):
         material = MagicMock()
         material.id = "mat-2"
         material.code = "PKG-NO-TPL"
+        material.packaging_kind = "INNER_POUCH"
         material.packaging_supply_mode = "IN_HOUSE"
         material.production_template_id = None  # ← missing template
 
@@ -341,6 +345,7 @@ class InHouseDemandServiceTests(SimpleTestCase):
         material = MagicMock()
         material.id = "mat-3"
         material.code = "PKG-IDEMPOTENT"
+        material.packaging_kind = "INNER_POUCH"
         material.packaging_supply_mode = "IN_HOUSE"
         material.production_template_id = "tpl-1"
         material.base_uom = "PCS"
@@ -379,6 +384,7 @@ class InHouseDemandServiceTests(SimpleTestCase):
         material = MagicMock()
         material.id = "mat-4"
         material.code = "PKG-BOTH"
+        material.packaging_kind = "INNER_POUCH"
         material.packaging_supply_mode = "BOTH"
         material.production_template_id = "tpl-1"
         material.base_uom = "KG"

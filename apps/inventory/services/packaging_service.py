@@ -39,12 +39,15 @@ class PackagingService:
             }
 
         if incoming_uom == "PCS" and base_uom in {"KG", "METER"}:
-            factor = cls._as_decimal(getattr(material, "per_sheet_base_qty", None))
+            # Linked in-house items take it from their Product Master variant's BOM.
+            from apps.inventory.services.packaging_measure import stock_qty_per_piece
+
+            factor = stock_qty_per_piece(material)
             if factor <= 0:
                 measure = "weight of one piece in kg" if base_uom == "KG" else "length of one piece in metres"
                 raise ValidationError(
-                    f"{material.code} is stocked in {base_uom} but its packaging master has no {measure}; "
-                    f"enter it in Masters > Packaging"
+                    f"{material.code} is stocked in {base_uom} but has no {measure}: link it to its "
+                    f"packaging Product Master variant (or enter it) in Masters > Packaging"
                 )
             base_qty = q4(incoming_qty * factor)
             return base_qty, {

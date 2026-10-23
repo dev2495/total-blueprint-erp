@@ -3988,6 +3988,9 @@ function ProductionCatalogMapCard({
                     )}{" "}
                     {v.inventory_link?.base_uom || ""}
                   </div>
+                  {(v.inventory_link as any)?.stock_measure ? (
+                    <LinkedStockMeasure measure={(v.inventory_link as any).stock_measure} />
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -5365,5 +5368,24 @@ function OverlaySection({
       </header>
       <div className="px-4 py-3">{children}</div>
     </section>
+  );
+}
+
+/** On a linked packaging row: the weight its BOM gives and how the row comes off stock. */
+function LinkedStockMeasure({ measure }: { measure: any }) {
+  const weight = measure?.weight_kg_per_piece
+    ? measure.weight_kg_per_piece < 1
+      ? `${(measure.weight_kg_per_piece * 1000).toLocaleString("en-IN", { maximumFractionDigits: 3 })} g/pc`
+      : `${measure.weight_kg_per_piece} kg/pc`
+    : measure?.kg_per_metre
+      ? `${measure.kg_per_metre} kg/m`
+      : null;
+  const rule = measure?.stock_rule === "AT_MACHINE" ? "taken at machine · auto demand" : measure?.demand_rule === "MANUAL_STOCK_LAUNCHER" ? "evening count · restock from Stock launcher" : "evening count";
+  return (
+    <div className="text-caption text-content-3" data-testid="linked-stock-measure">
+      {weight ? <span className="font-mono text-content-2">{weight}</span> : null}
+      {weight ? " · " : ""}
+      {rule}
+    </div>
   );
 }

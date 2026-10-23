@@ -309,6 +309,35 @@ export default function PackingAuditPage() {
           </div>
         </section>
 
+        {data?.weight_summary ? (
+          <section
+            className="grid gap-3 rounded-2xl border border-line bg-surface-1 p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
+            data-testid="packing-weight-summary"
+            aria-label="Product weight against dispatch weight"
+          >
+            {[
+              { label: "Our product", value: data.weight_summary.product_kg, sub: `${data.weight_summary.sealed_units} sealed units` },
+              { label: "Dispatch weight (gross)", value: data.weight_summary.dispatch_gross_kg, sub: "weighed at sealing" },
+              {
+                label: "Packing in the dispatch weight",
+                value: data.weight_summary.packing_kg,
+                sub: `inner pouch ${kgText(data.weight_summary.inner_pouch_tare_kg)} · gonny ${kgText(data.weight_summary.gonny_tare_kg)} · extras ${kgText(data.weight_summary.extras_tare_kg)}`,
+              },
+              {
+                label: "In-house inner pouches taken",
+                value: data.weight_summary.inner_pouch_taken_kg,
+                sub: "by weight at the machine; bought pouches and other packing go to the evening count",
+              },
+            ].map((tile) => (
+              <div key={tile.label} className="min-w-0">
+                <div className="text-caption font-semibold text-content-3">{tile.label}</div>
+                <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums text-content-1">{kgText(tile.value)}</div>
+                <div className="text-caption text-content-3">{tile.sub}</div>
+              </div>
+            ))}
+          </section>
+        ) : null}
+
         {/* Records */}
         <section className="rounded-2xl border border-line bg-surface-1 shadow-sm overflow-hidden ring-1 ring-surface-1/40">
           <header className="flex items-center justify-between border-b border-line bg-surface-2 px-5 py-2.5">
@@ -500,4 +529,8 @@ function KpiTile({
       </div>
     </div>
   );
+}
+
+function kgText(value: number | null | undefined) {
+  return `${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 3 })} kg`;
 }

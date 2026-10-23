@@ -10705,10 +10705,15 @@ class ExecutionService:
                         else "N/A"
                     )
                     reference = f"SO:{so_number} JOB:{job.job_number} FG_BATCH:{fg_batch.batch_number}"
-                    # Inner pouches are the one packing item consumed automatically; they may sit
-                    # in a packing store, so draw from anywhere in the plant (output location first).
-                    # A stock-book gap never blocks the output: the packs go to the evening count.
-                    inner_txs, count_reason = PackagingService.draw_inner_packs(
+                    # In-house inner pouches are the one packing item taken off stock at the machine
+                    # (by weight from their BOM); they may sit in a packing store, so draw from
+                    # anywhere in the plant (output location first). Bought inner pouches, and any
+                    # stock-book gap, go to the evening packing count; the output always stands.
+                    from apps.inventory.services.packaging_measure import taken_at_machine
+
+                    inner_material = InventoryMaterial.objects.filter(id=primary_pack_runtime_meta["material_id"]).first()
+                    at_machine = inner_material is not None and taken_at_machine(inner_material)
+                    inner_txs, count_reason = ([], "") if not at_machine else PackagingService.draw_inner_packs(
                         material_id=primary_pack_runtime_meta["material_id"],
                         pack_count=primary_pack_runtime_meta["pack_count"],
                         location_id=output_location_id,
@@ -10726,7 +10731,12 @@ class ExecutionService:
                     batch_meta = dict(fg_batch.meta_json or {})
                     batch_primary = dict(batch_meta.get("primary_inner_pack") or {})
                     batch_primary["consume_tx_ids"] = [str(tx.id) for tx in inner_txs]
-                    if count_reason:
+                    if not at_machine:
+                        batch_primary["capture_mode"] = "EVENING_COUNT"
+                        batch_primary["left_for_count"] = primary_pack_runtime_meta["pack_count"]
+                        batch_primary["left_for_count_reason"] = "bought inner pouch: the evening packing count takes it off stock"
+                    elif count_reason:
+                        batch_primary["capture_mode"] = "LEFT_FOR_COUNT"
                         batch_primary["left_for_count"] = primary_pack_runtime_meta["pack_count"]
                         batch_primary["left_for_count_reason"] = count_reason
                         from config.request_context import add_notice

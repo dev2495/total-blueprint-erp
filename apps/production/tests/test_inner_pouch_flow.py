@@ -45,11 +45,11 @@ class InnerPouchFlowTests(RollLaneFixture, TestCase):
 
     _linear = lane_tests.SingleLaneFlowTests._linear
 
-    def _packing_setup(self, *, inner_in_store=D("150"), inner_base_uom="PCS", inner_weight_kg=None):
+    def _packing_setup(self, *, inner_in_store=D("150"), inner_base_uom="PCS", inner_weight_kg=None, inner_supply="IN_HOUSE"):
         self.store = InventoryLocation.objects.create(plant=self.plant, code="PKS", name="Packing store", type="RM")
         self.inner = InventoryMaterial.objects.create(
             code="INNER-100", name="Inner pouch 100", category="PACKAGING", base_uom=inner_base_uom,
-            packaging_kind="INNER_POUCH", packaging_supply_mode="IN_HOUSE", per_sheet_base_qty=inner_weight_kg,
+            packaging_kind="INNER_POUCH", packaging_supply_mode=inner_supply, per_sheet_base_qty=inner_weight_kg,
         )
         self.gonny = InventoryMaterial.objects.create(
             code="GONNY-STD", name="Gonny", category="PACKAGING", base_uom="PCS",
@@ -100,7 +100,7 @@ class InnerPouchFlowTests(RollLaneFixture, TestCase):
         self.assertEqual(result["inner_packs"], {
             "material_id": str(self.inner.id), "pcs_per_pack": 100,
             "consumed_at_machine": 100, "used_in_units": 99, "returned": 1,
-            "left_for_count": 0, "left_for_count_reason": "",
+            "left_for_count": 0, "left_for_count_reason": "", "capture_mode": "AT_MACHINE",
         })
         self.assertEqual(_stock(self.inner, self.store), D("51"))
         back = PackagingTransaction.objects.get(material=self.inner, type="ADJUST")
@@ -154,6 +154,31 @@ class InnerPouchFlowTests(RollLaneFixture, TestCase):
         self.assertEqual(booked.sales_order_item_id, item.id)
         self.assertEqual(D(str(booked.qty)), D("-40"))
         self.assertEqual(booked.meta_json["allocation_basis"], "MARKED")
+
+    def test_bought_inner_pouches_are_marked_for_the_evening_count_not_taken_at_the_machine(self, *_):
+        item, pouch = self._packing_setup(inner_supply="PURCHASED")
+        with collect_notices() as notices:
+            OperatorService.log_output_step(str(pouch.id), 68.5, self.user, output_pcs=10000)
+        self.assertEqual(notices, [], "a bought pouch going to the count is the rule, not a problem")
+        self.assertEqual(_stock(self.inner, self.store), D("150"))
+        self.assertFalse(PackagingTransaction.objects.filter(material=self.inner, type="CONSUME").exists())
+        batch = FinishedGoodsBatch.objects.get(production_job=pouch)
+        primary = batch.meta_json["primary_inner_pack"]
+        self.assertEqual((primary["capture_mode"], primary["left_for_count"]), ("EVENING_COUNT", 100))
+
+        unit = PackingService.create_gonny.__wrapped__(
+            str(batch.id), 9860, user=self.user, gonny_material_id=str(self.gonny.id), content_mode="PRIMARY_PACKS",
+        )
+        PackingService.seal_gonny(str(unit.id), unit.expected_gross_weight_kg, user=self.user, extras=[])
+        result = PackingVerificationService.close(batch.id, user=self.user)
+        self.assertEqual(result["inner_packs"]["capture_mode"], "EVENING_COUNT")
+        self.assertFalse(PackagingTransaction.objects.filter(material=self.inner, type="ADJUST").exists())
+
+        # Evening count: 150 on the book, 50 found; the 100 used go to this order.
+        inner_stock = PackagingStock.objects.get(material=self.inner, location=self.store)
+        PackingCountService.post_count(lines=[{"stock_id": str(inner_stock.id), "counted_qty": 50}], user=self.user)
+        booked = PackagingTransaction.objects.get(material=self.inner, type="CONSUME")
+        self.assertEqual((booked.sales_order_item_id, D(str(booked.qty))), (item.id, D("-100")))
 
     def test_kg_stocked_inner_pouch_without_piece_weight_never_blocks_output(self, *_):
         # The live report: LD bags kept in KG with no weight of one bag on the master.

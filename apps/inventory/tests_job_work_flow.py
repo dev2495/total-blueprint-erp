@@ -272,6 +272,7 @@ class LaminationAndPartialReturnTests(JobWorkFixtureMixin, TestCase):
 
         inner = InventoryMaterial.objects.create(
             code="JW-INNER", name="Inner pouch", category="PACKAGING", base_uom="PCS", packaging_kind="INNER_POUCH",
+            packaging_supply_mode="IN_HOUSE",
         )
         job = self.make_job("INNER", packaging={"primary_inner_pack": {"enabled": True, "material_id": str(inner.id), "pcs_per_pack": 100}})
         rolls = [self.make_roll(f"PR-INNER-{i}", "100", job=job) for i in range(1, 3)]

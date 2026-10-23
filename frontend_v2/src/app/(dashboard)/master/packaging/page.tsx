@@ -109,6 +109,8 @@ function PackagingForm({
     : (["PURCHASED"] as const);
   const usesUnitBasedConsumption = kind !== "TAPE";
   const needsUnitConversion = usesUnitBasedConsumption && baseUom !== "PCS";
+  // Linked in-house items take the weight of one piece from their Product Master variant's BOM.
+  const bomMeasure = initial?.stock_measure?.source === "BOM" && baseUom === initial?.base_uom ? initial.stock_measure : null;
   const showUnitWeight =
     usesUnitBasedConsumption && baseUom === "PCS" && kind !== "SHEET";
   const unitLabel = kind.replaceAll("_", " ").toLowerCase();
@@ -163,7 +165,7 @@ function PackagingForm({
           production_template: null,
           packaging_defaults_json: packagingDefaults,
           per_sheet_base_qty:
-            needsUnitConversion && perSheet ? Number(perSheet) : null,
+            needsUnitConversion && !bomMeasure && perSheet ? Number(perSheet) : initial?.per_sheet_base_qty ?? null,
           status,
         });
       }}
@@ -255,7 +257,12 @@ function PackagingForm({
                 : `Weight of one ${unitLabel} (kg)`
               : "Base Qty per Unit"}
           </Label>
-          {needsUnitConversion ? (
+          {needsUnitConversion && bomMeasure ? (
+            <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-sm text-success-fg" data-testid="packaging-bom-weight">
+              <span className="font-semibold tabular-nums">{fmtPieceWeight(bomMeasure.weight_kg_per_piece)}</span> from the BOM of{" "}
+              {bomMeasure.bom?.master_code} / {bomMeasure.bom?.variant_code}. Change the size or layers on that Product Master to change it.
+            </div>
+          ) : needsUnitConversion ? (
             <>
               <Input
                 id="packaging-piece-measure"
@@ -597,18 +604,11 @@ export default function PackagingMasterPage() {
                       {row.base_uom === "METER" ? "Length of one piece" : "Weight of one piece"}
                     </div>
                     <div className="mt-1 font-bold text-content-1">
-                      {row.base_uom === "PCS"
-                        ? "Tracked directly in PCS"
-                        : row.packaging_kind === "TAPE"
-                          ? "Used in its own unit"
-                          : row.per_sheet_base_qty != null && Number(row.per_sheet_base_qty) > 0
-                            ? `${row.per_sheet_base_qty} ${row.base_uom === "METER" ? "m" : "kg"} per ${row.packaging_kind.replaceAll("_", " ").toLowerCase()}`
-                            : (
-                              <span className="font-semibold text-warning-fg" data-testid="packaging-missing-piece-weight">
-                                Missing. Edit and enter it, or pieces cannot be taken off {row.base_uom} stock
-                              </span>
-                            )}
+                      <PieceMeasure row={row} />
                     </div>
+                  </div>
+                  <div className="col-span-2 grid gap-1 text-[12.5px]" data-testid="packaging-stock-rules">
+                    <StockRules row={row} />
                   </div>
                   <div className="col-span-2">
                     <CatalogLinkPanel
@@ -677,5 +677,66 @@ export default function PackagingMasterPage() {
         </DialogContent>
       </Dialog>
     </MasterRegistryShell>
+  );
+}
+
+function fmtPieceWeight(kg: number | null | undefined) {
+  if (!kg) return "—";
+  return kg < 1 ? `${(kg * 1000).toLocaleString("en-IN", { maximumFractionDigits: 3 })} g per piece` : `${kg.toLocaleString("en-IN", { maximumFractionDigits: 4 })} kg per piece`;
+}
+
+/** Weight (or length) of one piece and where it comes from. */
+function PieceMeasure({ row }: { row: PackagingMaterial }) {
+  const m = row.stock_measure;
+  const unit = row.packaging_kind.replaceAll("_", " ").toLowerCase();
+  if (row.packaging_kind === "TAPE" && row.base_uom !== "PCS") return <>Used in its own unit</>;
+  if (m?.source === "BOM") {
+    return (
+      <span data-testid="packaging-piece-from-bom">
+        {fmtPieceWeight(m.weight_kg_per_piece)}{" "}
+        <span className="font-medium text-success-fg">· BOM of {m.bom?.master_code} / {m.bom?.variant_code}</span>
+      </span>
+    );
+  }
+  if (row.base_uom === "PCS") {
+    return (
+      <>
+        Counted in pieces
+        {m?.weight_kg_per_piece ? <span className="font-medium text-content-3"> · {fmtPieceWeight(m.weight_kg_per_piece)}{m.weight_source === "BOM" ? " (BOM)" : ""}</span> : null}
+      </>
+    );
+  }
+  if (m?.source === "MASTER" && m.per_piece) {
+    return <>{`${m.per_piece} ${row.base_uom === "METER" ? "m" : "kg"} per ${unit}`} <span className="font-medium text-content-3">· entered on this master</span></>;
+  }
+  if (m?.bom?.fg_type === "ROLL" && row.base_uom === "KG") {
+    return <>Counted in kg{m.kg_per_metre ? <span className="font-medium text-content-3"> · {m.kg_per_metre} kg per metre (BOM)</span> : null}</>;
+  }
+  return (
+    <span className="font-semibold text-warning-fg" data-testid="packaging-missing-piece-weight">
+      Missing. Link it to its packaging Product Master variant, or edit and enter it
+    </span>
+  );
+}
+
+/** When the item comes off stock, and how it is restocked. */
+function StockRules({ row }: { row: PackagingMaterial }) {
+  const m = row.stock_measure;
+  if (!m) return null;
+  const stock =
+    m.stock_rule === "AT_MACHINE"
+      ? "Taken off stock at the machine as pieces are logged (by weight), per order"
+      : "Taken off stock by the evening packing count, booked to the orders that used it";
+  const demand =
+    m.demand_rule === "AUTO"
+      ? "Demanded automatically when an order is short"
+      : m.demand_rule === "MANUAL_STOCK_LAUNCHER"
+        ? "Restocked by hand from the Stock launcher"
+        : "Bought: restocked by purchase";
+  return (
+    <>
+      <div><span className="font-semibold text-content-3">Stock · </span><span className="text-content-1">{stock}</span></div>
+      <div><span className="font-semibold text-content-3">Restock · </span><span className="text-content-1">{demand}</span></div>
+    </>
   );
 }

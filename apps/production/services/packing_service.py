@@ -105,15 +105,18 @@ class PackingService:
         if base_uom == "KG":
             return Decimal(str(base_qty or 0))
 
-        defaults = dict(getattr(material, "packaging_defaults_json", {}) or {})
-        weight_per_base_uom = Decimal(
-            str(
-                defaults.get("weight_kg_per_base_uom")
-                or defaults.get("tare_kg_per_meter")
-                or 0
-            )
-        )
-        if base_uom in {"PCS", "METER"} and weight_per_base_uom > 0:
+        # Weight of one piece (PCS) or of one metre (METER): the linked variant's BOM first,
+        # then what the packaging master says.
+        from apps.inventory.services.packaging_measure import piece_measure
+
+        measure = piece_measure(material)
+        if base_uom == "PCS":
+            weight_per_base_uom = measure.get("weight_kg") or Decimal("0")
+        elif base_uom == "METER":
+            weight_per_base_uom = measure.get("kg_per_metre") or Decimal("0")
+        else:
+            weight_per_base_uom = Decimal("0")
+        if weight_per_base_uom > 0:
             return weight_per_base_uom * Decimal(str(base_qty or 0))
         return Decimal("0")
 
@@ -645,6 +648,7 @@ class PackingVerificationService:
             "returned": primary.get("returned_unused"),
             "left_for_count": int(primary.get("left_for_count") or 0),
             "left_for_count_reason": primary.get("left_for_count_reason") or "",
+            "capture_mode": primary.get("capture_mode") or ("LEFT_FOR_COUNT" if primary.get("left_for_count") else "AT_MACHINE"),
         }
 
     _go_live_cache = None

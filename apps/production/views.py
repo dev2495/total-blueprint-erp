@@ -1415,7 +1415,52 @@ class PackingViewSet(viewsets.ViewSet):
 
         rows.extend(marked_rows)
         rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
-        return Response({"count": len(rows[:limit]), "rows": rows[:limit]})
+        payload = {"count": len(rows[:limit]), "rows": rows[:limit]}
+        if so_id or so_no:
+            payload["weight_summary"] = self._order_packing_weight_summary(so_id=so_id, so_no=so_no)
+        return Response(payload)
+
+    @staticmethod
+    def _order_packing_weight_summary(*, so_id=None, so_no=None):
+        """Our product weight against the dispatch (gross) weight of the order's sealed units.
+
+        The difference is the packing material that left with the goods. Bought inner pouches
+        and other packing items come off stock at the evening count; in-house inner pouches
+        were taken at the machine by weight (`inner_pouch_taken_kg`).
+        """
+        from decimal import Decimal
+
+        from django.db.models import Count, Sum
+        from apps.inventory.models import PackagingTransaction
+        from .models import PackingUnit
+
+        units = PackingUnit.objects.filter(gross_weight_kg__isnull=False)
+        txs = PackagingTransaction.objects.filter(material__packaging_kind="INNER_POUCH", sales_order_item__isnull=False)
+        if so_id:
+            units = units.filter(sales_order_item__sales_order_id=so_id)
+            txs = txs.filter(sales_order_item__sales_order_id=so_id)
+        else:
+            units = units.filter(sales_order_item__sales_order__order_number=so_no)
+            txs = txs.filter(sales_order_item__sales_order__order_number=so_no)
+        agg = units.aggregate(
+            units=Count("id"), net=Sum("net_product_weight_kg"), gross=Sum("gross_weight_kg"),
+            inner=Sum("inner_pack_tare_kg"), outer=Sum("secondary_pack_tare_kg"), extras=Sum("extras_tare_kg"),
+        )
+        taken = Decimal("0")
+        for tx in txs.filter(material__base_uom="KG").filter(Q(type="CONSUME") | Q(type="ADJUST", meta_json__basis="INNER_PACK_RETURN")).only("qty"):
+            taken += -Decimal(str(tx.qty or 0))
+        net = Decimal(str(agg["net"] or 0))
+        gross = Decimal(str(agg["gross"] or 0))
+        return {
+            "sealed_units": agg["units"] or 0,
+            "product_kg": float(net),
+            "dispatch_gross_kg": float(gross),
+            "packing_kg": float(gross - net) if agg["units"] else 0.0,
+            "inner_pouch_tare_kg": float(agg["inner"] or 0),
+            "gonny_tare_kg": float(agg["outer"] or 0),
+            "extras_tare_kg": float(agg["extras"] or 0),
+            "inner_pouch_taken_kg": float(taken),
+        }
 
 
 class DeliveryChallanViewSet(viewsets.ViewSet):

@@ -1920,9 +1920,14 @@ def create_fg_batch(order, job, ret, fg_plan, step_index, source_labels):
     if pack_meta and fg_plan["inner_pack_source"] == "FACTORY":
         from apps.inventory.services.packaging_service import PackagingService
 
+        from apps.inventory.services.packaging_measure import taken_at_machine
+
         so = getattr(getattr(job, "sales_order_item", None), "sales_order", None)
-        # Same rule as the machine: a stock-book gap leaves the packs for the evening count.
-        txs, count_reason = PackagingService.draw_inner_packs(
+        # Same rule as the machine: only in-house inner pouches come off stock here; bought
+        # ones, and any stock-book gap, go to the evening count.
+        inner_material = InventoryMaterial.objects.filter(id=pack_meta["material_id"]).first()
+        at_machine = inner_material is not None and taken_at_machine(inner_material)
+        txs, count_reason = ([], "") if not at_machine else PackagingService.draw_inner_packs(
             material_id=pack_meta["material_id"], pack_count=pack_meta["pack_count"], location_id=fg_plan["location"].id,
             job_id=job.id, sales_order_item_id=getattr(job, "sales_order_item_id", None), mts_order_id=getattr(job, "mts_order_id", None),
             reference=f"SO:{getattr(so, 'order_number', 'N/A')} JOB:{job.job_number} FG_BATCH:{batch.batch_number}",
@@ -1930,7 +1935,12 @@ def create_fg_batch(order, job, ret, fg_plan, step_index, source_labels):
         )
         batch_primary = dict(meta["primary_inner_pack"])
         batch_primary["consume_tx_ids"] = [str(tx.id) for tx in txs]
-        if count_reason:
+        if not at_machine:
+            batch_primary["capture_mode"] = "EVENING_COUNT"
+            batch_primary["left_for_count"] = pack_meta["pack_count"]
+            batch_primary["left_for_count_reason"] = "bought inner pouch: the evening packing count takes it off stock"
+        elif count_reason:
+            batch_primary["capture_mode"] = "LEFT_FOR_COUNT"
             batch_primary["left_for_count"] = pack_meta["pack_count"]
             batch_primary["left_for_count_reason"] = count_reason
             from config.request_context import add_notice

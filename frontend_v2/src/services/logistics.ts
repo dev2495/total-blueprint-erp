@@ -400,6 +400,7 @@ export type PackingCheckSummary = {
         returned?: number | null;
         left_for_count?: number;
         left_for_count_reason?: string;
+        capture_mode?: "AT_MACHINE" | "EVENING_COUNT" | "LEFT_FOR_COUNT";
     } | null;
     sales_order_id?: string;
     sales_order_no?: string;
@@ -642,6 +643,17 @@ export const logisticsService = {
                 ticked_by: string
                 notes: string
             }>
+            /** Only when one order is asked for: our product weight against the dispatch weight. */
+            weight_summary?: {
+                sealed_units: number
+                product_kg: number
+                dispatch_gross_kg: number
+                packing_kg: number
+                inner_pouch_tare_kg: number
+                gonny_tare_kg: number
+                extras_tare_kg: number
+                inner_pouch_taken_kg: number
+            }
         }
     },
 
