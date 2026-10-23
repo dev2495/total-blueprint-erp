@@ -9594,8 +9594,8 @@
         "hi": "Submit, confirm the toast/result, then re-open the linked stock card, order, or audit trail."
       },
       {
-        "en": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine. Bought pouches and every other packing item are settled by the evening count. The Packing material audit for an order shows our product weight against the dispatch weight, the packing in between, and in-house pouches taken by weight.",
-        "hi": "The packing check returns unused inner pouches to stock only when they were taken off stock at the machine. Bought pouches and every other packing item are settled by the evening count. The Packing material audit for an order shows our product weight against the dispatch weight, the packing in between, and in-house pouches taken by weight."
+        "en": "A pouch dispatch unit weighs our product (machine output) + its inner pouches + the gonny; the seal dialog shows each part and the expected gross. Rolls carry no packing weight: at release to dispatch tick the evening-count items used (packing layer, tape…). Ticks on a gonny or roll book that item to the order at the evening count.",
+        "hi": "A pouch dispatch unit weighs our product (machine output) + its inner pouches + the gonny; the seal dialog shows each part and the expected gross. Rolls carry no packing weight: at release to dispatch tick the evening-count items used (packing layer, tape…). Ticks on a gonny or roll book that item to the order at the evening count."
       }
     ],
     "fieldHelp": [
@@ -11037,8 +11037,8 @@
         "hi": "कार्रवाई सबमिट करें, सफलता संदेश की पुष्टि करें, और डाउनस्ट्रीम प्रभाव पुनः जांचें।"
       },
       {
-        "en": "Link each in-house packing item to its packaging Product Master variant: its weight per piece (or per metre for rolls) then comes from that BOM. Bought items without a link need the weight of one piece entered. Each card shows Stock (taken at the machine, or the evening count) and Restock (auto demand only for in-house inner pouches; other in-house items by hand from the Stock launcher).",
-        "hi": "Link each in-house packing item to its packaging Product Master variant: its weight per piece (or per metre for rolls) then comes from that BOM. Bought items without a link need the weight of one piece entered. Each card shows Stock (taken at the machine, or the evening count) and Restock (auto demand only for in-house inner pouches; other in-house items by hand from the Stock launcher)."
+        "en": "Only inner pouches and gonnies carry a weight. In-house pouches take it from the BOM of their linked Product Master variant; bought pouches and gonnies need the weight of one piece entered here (required). Sheets, rolls, tape and other items carry no weight: they are counted at the evening count, and in-house ones are restocked by hand from the Stock launcher.",
+        "hi": "Only inner pouches and gonnies carry a weight. In-house pouches take it from the BOM of their linked Product Master variant; bought pouches and gonnies need the weight of one piece entered here (required). Sheets, rolls, tape and other items carry no weight: they are counted at the evening count, and in-house ones are restocked by hand from the Stock launcher."
       }
     ],
     "fieldHelp": [

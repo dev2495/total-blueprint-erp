@@ -157,6 +157,7 @@ def _expose_packaging_and_pod_lines(
                 "unit_weight_kg": line.get("unit_weight_kg") or params.get("unit_weight_kg"),
                 "base_uom": line.get("base_uom") or params.get("base_uom"),
                 "stock_conversion_missing": bool(line.get("stock_conversion_missing") or params.get("stock_conversion_missing")),
+                "counted_in_stock_unit": bool(line.get("counted_in_stock_unit") or params.get("counted_in_stock_unit")),
                 "production_template_id": params.get("production_template_id"),
                 "produced_by_product_variant_id": params.get("produced_by_product_variant_id"),
             }
@@ -189,6 +190,7 @@ def _expose_packaging_and_pod_lines(
                 "unit_weight_kg": line.get("unit_weight_kg"),
                 "base_uom": line.get("base_uom"),
                 "stock_conversion_missing": bool(line.get("stock_conversion_missing")),
+                "counted_in_stock_unit": bool(line.get("counted_in_stock_unit")),
                 "production_template_id": line.get("production_template_id"),
                 "produced_by_product_variant_id": line.get("produced_by_product_variant_id"),
             }

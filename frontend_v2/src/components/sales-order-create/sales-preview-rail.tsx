@@ -291,11 +291,13 @@ function makeBomRow(
             : "in-house link missing"
           : supplyMode.toLowerCase(),
       );
-    if (
+    if (row?.counted_in_stock_unit)
+      packagingNoteParts.push("evening count");
+    else if (
       stockConversionMissing ||
-      (baseUom && baseUom.toUpperCase() !== "PCS" && stockQty <= 0)
+      (cat === "INNER_POUCH" && baseUom && baseUom.toUpperCase() !== "PCS" && stockQty <= 0)
     )
-      packagingNoteParts.push(`${baseUom || "stock"} conversion missing`);
+      packagingNoteParts.push(`${baseUom || "stock"} weight missing`);
   }
   return {
     cat,

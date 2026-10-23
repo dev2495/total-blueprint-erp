@@ -1720,6 +1720,10 @@ class FGDispatchService:
                 qty = Decimal("0")
             if qty < 0:
                 raise ValueError(f"Pack line {idx + 1}: quantity cannot be negative.")
+            if qty == 0:
+                # A ticked box: used once on this dispatch unit. The evening count shares the
+                # counted difference between the orders by these marks.
+                qty = Decimal("1")
             marked.append(
                 {
                     "material_id": material_id,

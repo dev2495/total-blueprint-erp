@@ -85,9 +85,15 @@ function PackagingForm({
   const [supplyMode, setSupplyMode] = useState<PackagingSupplyMode>(
     (initial?.packaging_supply_mode as PackagingSupplyMode) || "PURCHASED",
   );
-  const [perSheet, setPerSheet] = useState(
-    initial?.per_sheet_base_qty ? String(initial.per_sheet_base_qty) : "",
-  );
+  // Weight of one bought pouch or gonny: per_sheet_base_qty when stocked in kg, otherwise
+  // packaging_defaults_json.weight_kg_per_base_uom.
+  const [pieceWeight, setPieceWeight] = useState(() => {
+    const stored =
+      String(initial?.base_uom || "").toUpperCase() === "KG"
+        ? initial?.per_sheet_base_qty
+        : initial?.packaging_defaults_json?.weight_kg_per_base_uom;
+    return stored ? String(stored) : "";
+  });
   const [status, setStatus] = useState(initial?.status || "ACTIVE");
   const [brandName, setBrandName] = useState(
     String(initial?.packaging_defaults_json?.brand_name || ""),
@@ -97,23 +103,18 @@ function PackagingForm({
       ? String(initial.packaging_defaults_json?.pcs_per_pack)
       : "",
   );
-  const [weightPerBaseUnit, setWeightPerBaseUnit] = useState(
-    initial?.packaging_defaults_json?.weight_kg_per_base_uom != null
-      ? String(initial.packaging_defaults_json?.weight_kg_per_base_uom)
-      : "",
-  );
-
   const allowInHouse = ["INNER_POUCH", "SHEET"].includes(kind);
   const supplyModeOptions = allowInHouse
     ? supplyModes
     : (["PURCHASED"] as const);
-  const usesUnitBasedConsumption = kind !== "TAPE";
-  const needsUnitConversion = usesUnitBasedConsumption && baseUom !== "PCS";
-  // Linked in-house items take the weight of one piece from their Product Master variant's BOM.
-  const bomMeasure = initial?.stock_measure?.source === "BOM" && baseUom === initial?.base_uom ? initial.stock_measure : null;
-  const showUnitWeight =
-    usesUnitBasedConsumption && baseUom === "PCS" && kind !== "SHEET";
-  const unitLabel = kind.replaceAll("_", " ").toLowerCase();
+  // Only inner pouches and gonnies weigh anything in a dispatch unit. In-house pouches take
+  // it from their Product Master BOM; bought pouches and gonnies need it entered here.
+  const weighed = kind === "INNER_POUCH" || kind === "GONNY";
+  const inHousePouch = kind === "INNER_POUCH" && supplyMode === "IN_HOUSE";
+  const weightRequired = weighed && (supplyMode === "PURCHASED" || kind === "GONNY");
+  const weightEntered = weightRequired || (kind === "INNER_POUCH" && supplyMode === "BOTH");
+  const bomMeasure = initial?.stock_measure?.source === "BOM" ? initial.stock_measure : null;
+  const unitLabel = kind === "INNER_POUCH" ? "pouch" : kind.replaceAll("_", " ").toLowerCase();
 
   useEffect(() => {
     if (!allowInHouse && supplyMode !== "PURCHASED") {
@@ -126,12 +127,6 @@ function PackagingForm({
       setDefaultPcsPerPack("");
     }
   }, [kind]);
-
-  useEffect(() => {
-    if (!showUnitWeight) {
-      setWeightPerBaseUnit("");
-    }
-  }, [showUnitWeight]);
 
   return (
     <form
@@ -151,8 +146,9 @@ function PackagingForm({
         } else {
           delete packagingDefaults.pcs_per_pack;
         }
-        if (showUnitWeight && weightPerBaseUnit) {
-          packagingDefaults.weight_kg_per_base_uom = Number(weightPerBaseUnit);
+        const keepWeight = weightEntered && Number(pieceWeight) > 0;
+        if (keepWeight && baseUom !== "KG") {
+          packagingDefaults.weight_kg_per_base_uom = Number(pieceWeight);
         } else {
           delete packagingDefaults.weight_kg_per_base_uom;
         }
@@ -164,8 +160,7 @@ function PackagingForm({
           packaging_supply_mode: supplyMode,
           production_template: null,
           packaging_defaults_json: packagingDefaults,
-          per_sheet_base_qty:
-            needsUnitConversion && !bomMeasure && perSheet ? Number(perSheet) : initial?.per_sheet_base_qty ?? null,
+          per_sheet_base_qty: keepWeight && baseUom === "KG" ? Number(pieceWeight) : null,
           status,
         });
       }}
@@ -251,40 +246,41 @@ function PackagingForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="packaging-piece-measure">
-            {needsUnitConversion
-              ? baseUom === "METER"
-                ? `Length of one ${unitLabel} (m)`
-                : `Weight of one ${unitLabel} (kg)`
-              : "Base Qty per Unit"}
+            {weighed ? `Weight of one ${unitLabel} (kg)` : "Weight"}
           </Label>
-          {needsUnitConversion && bomMeasure ? (
-            <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-sm text-success-fg" data-testid="packaging-bom-weight">
-              <span className="font-semibold tabular-nums">{fmtPieceWeight(bomMeasure.weight_kg_per_piece)}</span> from the BOM of{" "}
-              {bomMeasure.bom?.master_code} / {bomMeasure.bom?.variant_code}. Change the size or layers on that Product Master to change it.
-            </div>
-          ) : needsUnitConversion ? (
+          {inHousePouch ? (
+            bomMeasure ? (
+              <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2 text-sm text-success-fg" data-testid="packaging-bom-weight">
+                <span className="font-semibold tabular-nums">{fmtPieceWeight(bomMeasure.weight_kg_per_piece)}</span> from the BOM of{" "}
+                {bomMeasure.bom?.master_code} / {bomMeasure.bom?.variant_code}. Change the size or layers on that Product Master to change it.
+              </div>
+            ) : (
+              <div className="rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-sm text-warning-fg">
+                In-house pouches weigh what their Product Master BOM says. Save, then link this pouch to its packaging Product Master variant.
+              </div>
+            )
+          ) : weightEntered ? (
             <>
               <Input
                 id="packaging-piece-measure"
                 type="number"
                 step="0.000001"
                 min="0.000001"
-                required
-                value={perSheet}
-                onChange={(e) => setPerSheet(e.target.value)}
-                placeholder={baseUom === "METER" ? "e.g. 1.2" : "e.g. 0.012"}
+                required={weightRequired}
+                value={pieceWeight}
+                onChange={(e) => setPieceWeight(e.target.value)}
+                placeholder="e.g. 0.012"
               />
               <div className="mt-1 text-xs text-content-3">
-                Stock is kept in {baseUom}; the floor uses pieces. This turns pieces into{" "}
-                {baseUom === "METER" ? "metres" : "kg"} when inner pouches are taken at the
-                machine, returned after the packing check, and in the packing weight.
+                Goes into each dispatch unit&apos;s weight: product + inner pouches + gonny.
+                {baseUom === "KG" ? " Also turns pouches into kg of stock." : ""}
+                {supplyMode === "BOTH" ? " Once linked to its Product Master, the BOM weight is used instead." : ""}
               </div>
             </>
           ) : (
             <div className="rounded-xl border border-line bg-surface-2 px-3 py-2 text-sm text-content-3">
-              {usesUnitBasedConsumption
-                ? "Not needed when this packaging stock is already tracked directly in PCS."
-                : "This packaging kind is normally consumed directly in its base UOM, so no unit conversion is needed."}
+              No weight. Counted in {baseUom} at the evening packing count
+              {supplyMode !== "PURCHASED" ? "; its Product Master BOM only says how to make it" : ""}.
             </div>
           )}
         </div>
@@ -301,23 +297,6 @@ function PackagingForm({
           </Select>
         </div>
       </div>
-
-      {showUnitWeight ? (
-        <div>
-          <Label>Weight per {unitLabel} (kg)</Label>
-          <Input
-            type="number"
-            step="0.000001"
-            value={weightPerBaseUnit}
-            onChange={(e) => setWeightPerBaseUnit(e.target.value)}
-            placeholder={`Optional tare / gross-weight helper per ${unitLabel}`}
-          />
-          <div className="mt-1 text-xs text-content-3">
-            Used only for gross-weight breakdown in Packing Yard when this
-            packaging item is stocked and consumed in PCS.
-          </div>
-        </div>
-      ) : null}
 
       {supplyMode !== "PURCHASED" ? (
         <div className="rounded-xl border border-order-border bg-order-bg px-3 py-2 text-xs text-order-fg">
@@ -601,7 +580,7 @@ export default function PackagingMasterPage() {
                   </div>
                   <div>
                     <div className="text-[12px] font-semibold text-content-3">
-                      {row.base_uom === "METER" ? "Length of one piece" : "Weight of one piece"}
+                      Weight of one piece
                     </div>
                     <div className="mt-1 font-bold text-content-1">
                       <PieceMeasure row={row} />
@@ -685,12 +664,13 @@ function fmtPieceWeight(kg: number | null | undefined) {
   return kg < 1 ? `${(kg * 1000).toLocaleString("en-IN", { maximumFractionDigits: 3 })} g per piece` : `${kg.toLocaleString("en-IN", { maximumFractionDigits: 4 })} kg per piece`;
 }
 
-/** Weight (or length) of one piece and where it comes from. */
+/** Weight of one inner pouch or gonny and where it comes from; other items carry none. */
 function PieceMeasure({ row }: { row: PackagingMaterial }) {
   const m = row.stock_measure;
-  const unit = row.packaging_kind.replaceAll("_", " ").toLowerCase();
-  if (row.packaging_kind === "TAPE" && row.base_uom !== "PCS") return <>Used in its own unit</>;
-  if (m?.source === "BOM") {
+  if (!m || m.source === "NOT_WEIGHED") {
+    return <span className="font-medium text-content-2">No weight · counted in {row.base_uom}</span>;
+  }
+  if (m.source === "BOM") {
     return (
       <span data-testid="packaging-piece-from-bom">
         {fmtPieceWeight(m.weight_kg_per_piece)}{" "}
@@ -698,23 +678,14 @@ function PieceMeasure({ row }: { row: PackagingMaterial }) {
       </span>
     );
   }
-  if (row.base_uom === "PCS") {
-    return (
-      <>
-        Counted in pieces
-        {m?.weight_kg_per_piece ? <span className="font-medium text-content-3"> · {fmtPieceWeight(m.weight_kg_per_piece)}{m.weight_source === "BOM" ? " (BOM)" : ""}</span> : null}
-      </>
-    );
-  }
-  if (m?.source === "MASTER" && m.per_piece) {
-    return <>{`${m.per_piece} ${row.base_uom === "METER" ? "m" : "kg"} per ${unit}`} <span className="font-medium text-content-3">· entered on this master</span></>;
-  }
-  if (m?.bom?.fg_type === "ROLL" && row.base_uom === "KG") {
-    return <>Counted in kg{m.kg_per_metre ? <span className="font-medium text-content-3"> · {m.kg_per_metre} kg per metre (BOM)</span> : null}</>;
+  if (m.source === "MASTER") {
+    return <>{fmtPieceWeight(m.weight_kg_per_piece)} <span className="font-medium text-content-3">· entered on this master</span></>;
   }
   return (
     <span className="font-semibold text-warning-fg" data-testid="packaging-missing-piece-weight">
-      Missing. Link it to its packaging Product Master variant, or edit and enter it
+      {m.stock_rule === "AT_MACHINE"
+        ? "Missing. Link it to its packaging Product Master variant"
+        : "Missing. Edit and enter the weight of one piece"}
     </span>
   );
 }

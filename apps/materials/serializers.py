@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from django.utils.text import slugify
 from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
@@ -1454,7 +1455,35 @@ class PackagingSerializer(serializers.ModelSerializer):
         if supply_mode == 'PURCHASED' and production_template:
             raise serializers.ValidationError({'production_template': 'Purchased-only packaging must not carry a production template.'})
         _ensure_live_current_template(production_template, "production_template")
+        self._apply_weight_rule(attrs, kind=kind, supply_mode=supply_mode)
         return attrs
+
+    def _apply_weight_rule(self, attrs, *, kind, supply_mode):
+        """Only inner pouches and gonnies carry a weight. Bought pouches and gonnies need the
+        weight of one piece entered; in-house pouches take it from their Product Master BOM;
+        every other packing item keeps none (counted in its own unit at the evening count)."""
+        base_uom = str(attrs.get('base_uom', getattr(self.instance, 'base_uom', None)) or 'PCS').upper()
+        defaults = dict(attrs.get('packaging_defaults_json', getattr(self.instance, 'packaging_defaults_json', None)) or {})
+        per_piece = attrs.get('per_sheet_base_qty', getattr(self.instance, 'per_sheet_base_qty', None))
+        kind = str(kind or '').upper()
+        supply_mode = str(supply_mode or '').upper()
+        entered = per_piece if base_uom == 'KG' else defaults.get('weight_kg_per_base_uom')
+        try:
+            entered = Decimal(str(entered)) if entered not in (None, '') else Decimal('0')
+        except Exception:
+            entered = Decimal('0')
+        weighed = kind in {'INNER_POUCH', 'GONNY'}
+        bought = supply_mode == 'PURCHASED' or kind == 'GONNY'
+        if weighed and bought and entered <= 0:
+            label = 'pouch' if kind == 'INNER_POUCH' else 'gonny'
+            raise serializers.ValidationError({'per_sheet_base_qty' if base_uom == 'KG' else 'packaging_defaults_json': f'Enter the weight of one {label} in kg; it goes into the dispatch unit weight.'})
+        keep_entered = weighed and (bought or supply_mode == 'BOTH')
+        for key in ('weight_kg_per_base_uom', 'tare_kg_per_meter', 'kg_per_piece', 'kg_per_inner_pouch', 'kg_per_inner', 'unit_base_qty', 'base_qty_per_consumed_unit'):
+            if not (keep_entered and key == 'weight_kg_per_base_uom' and base_uom != 'KG'):
+                defaults.pop(key, None)
+        attrs['packaging_defaults_json'] = defaults
+        if not (keep_entered and base_uom == 'KG'):
+            attrs['per_sheet_base_qty'] = None
 
     def create(self, validated_data):
         validated_data['category'] = 'PACKAGING'

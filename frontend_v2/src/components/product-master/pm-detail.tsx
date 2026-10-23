@@ -5371,20 +5371,22 @@ function OverlaySection({
   );
 }
 
-/** On a linked packaging row: the weight its BOM gives and how the row comes off stock. */
+/** On a linked packaging row: what its BOM gives (a weight only for in-house inner pouches)
+ * and how the row comes off stock. */
 function LinkedStockMeasure({ measure }: { measure: any }) {
-  const weight = measure?.weight_kg_per_piece
-    ? measure.weight_kg_per_piece < 1
-      ? `${(measure.weight_kg_per_piece * 1000).toLocaleString("en-IN", { maximumFractionDigits: 3 })} g/pc`
-      : `${measure.weight_kg_per_piece} kg/pc`
-    : measure?.kg_per_metre
-      ? `${measure.kg_per_metre} kg/m`
+  const weight =
+    measure?.source === "BOM" && measure?.weight_kg_per_piece
+      ? measure.weight_kg_per_piece < 1
+        ? `${(measure.weight_kg_per_piece * 1000).toLocaleString("en-IN", { maximumFractionDigits: 3 })} g/pouch`
+        : `${measure.weight_kg_per_piece} kg/pouch`
       : null;
-  const rule = measure?.stock_rule === "AT_MACHINE" ? "taken at machine · auto demand" : measure?.demand_rule === "MANUAL_STOCK_LAUNCHER" ? "evening count · restock from Stock launcher" : "evening count";
+  const rule =
+    measure?.stock_rule === "AT_MACHINE"
+      ? "taken at machine by weight · auto demand"
+      : "BOM says how to make it · evening count · restock from Stock launcher";
   return (
     <div className="text-caption text-content-3" data-testid="linked-stock-measure">
-      {weight ? <span className="font-mono text-content-2">{weight}</span> : null}
-      {weight ? " · " : ""}
+      {weight ? <span className="font-mono text-content-2">{weight} · </span> : null}
       {rule}
     </div>
   );

@@ -1951,54 +1951,23 @@ export default function PackingYardPage() {
                   {releaseMode === "PACKED" ? (
                     <div>
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-[12px] font-medium text-content-3">Packing materials used</span>
+                        <span className="text-[12px] font-medium text-content-3">Evening-count items used on this order</span>
                         <Pill tone={rollPackLines.length ? "good" : "warn"}>{rollPackLines.length} marked</Pill>
                       </div>
-                      <div className="grid max-h-[300px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                        {packingMarkMasters.length ? (
-                          packingMarkMasters.map((material: PackagingMaterial, index: number) => {
-                            const marked = rollPackLines.some((line) => line.material_id === material.id);
-                            return (
-                              <button
-                                key={material.id}
-                                type="button"
-                                data-testid={`packing-roll-mark-material-${material.id}`}
-                                data-allowed-index={index}
-                                aria-pressed={marked}
-                                onClick={() =>
-                                  toggleRollPackLine({
-                                    material_id: String(material.id || ""),
-                                    qty: "0",
-                                    uom: material.base_uom || "PCS",
-                                    basis: "MARKED_AT_RELEASE",
-                                  })
-                                }
-                                className={cn(
-                                  "flex items-start gap-2.5 rounded-xl border p-2.5 text-left transition",
-                                  marked ? "border-success-border bg-success-bg" : "border-line bg-surface-1 hover:border-line-strong",
-                                )}
-                              >
-                                <span
-                                  className={cn(
-                                    "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border",
-                                    marked ? "border-success-fg bg-success-fg text-white" : "border-line-strong",
-                                  )}
-                                >
-                                  {marked ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block truncate text-[12.5px] font-semibold text-content-1">{material.code}</span>
-                                  <span className="block truncate text-[11.5px] text-content-3">{material.name || "Packing master"}</span>
-                                </span>
-                              </button>
-                            );
+                      <EodItemChecks
+                        materials={packingMarkMasters.filter((m: PackagingMaterial) => String(m.packaging_kind || "").toUpperCase() !== "INNER_POUCH")}
+                        planIds={(releaseRolls.find((roll) => Array.isArray(roll.default_pack_lines))?.default_pack_lines || []).map((line: any) => String(line.material_id || ""))}
+                        selectedIds={rollPackLines.map((line) => line.material_id)}
+                        onToggle={(material) =>
+                          toggleRollPackLine({
+                            material_id: String(material.id || ""),
+                            qty: "0",
+                            uom: material.base_uom || "PCS",
+                            basis: "MARKED_AT_RELEASE",
                           })
-                        ) : (
-                          <div className="rounded-xl border border-warning-border bg-warning-bg p-3 text-[12.5px] text-warning-fg sm:col-span-2">
-                            No active packaging masters. Add them before releasing packed rolls.
-                          </div>
-                        )}
-                      </div>
+                        }
+                        testIdPrefix="packing-roll-mark-material"
+                      />
                     </div>
                   ) : (
                     <div className="rounded-xl border border-warning-border bg-warning-bg p-3 text-[12.5px] text-warning-fg">
@@ -2052,12 +2021,12 @@ export default function PackingYardPage() {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <OrderMetric label="Product net" value={kg(sealGonny.net_product_weight_kg)} sub={`${n(sealGonny.qty_pcs || 0, 0)} pcs`} />
                 <OrderMetric
-                  label="Inner tare"
+                  label="Inner pouches"
                   value={kg(sealGonny.inner_pack_tare_kg)}
-                  sub={sealGonny.primary_pack_count ? `${n(sealGonny.primary_pack_count, 0)} inner packs` : "loose"}
+                  sub={sealGonny.primary_pack_count ? `${n(sealGonny.primary_pack_count, 0)} pouches` : "loose"}
                 />
-                <OrderMetric label="Gonny tare" value={kg(sealGonny.secondary_pack_tare_kg)} sub="from master" />
-                <OrderMetric label="Expected gross" value={kg(expected)} sub="net + tare" tone="good" />
+                <OrderMetric label="Gonny" value={kg(sealGonny.secondary_pack_tare_kg)} sub="weight on its master" />
+                <OrderMetric label="Expected gross" value={kg(expected)} sub="product + pouches + gonny" tone="good" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="packing-gonny-seal-weight">Actual gross weight (kg)</Label>
@@ -2182,22 +2151,14 @@ function ReleaseGonnyDialog({
   ) => void;
   submitting: boolean;
 }) {
-  const addExtra = () =>
-    setExtras([
-      ...extras,
-      {
-        id: `tmp-${Math.random().toString(36).slice(2, 8)}`,
-        material_id: "",
-        qty: "",
-        notes: "",
-      },
-    ]);
-  const patchExtra = (idx: number, patch: Partial<GonnyReleaseExtra>) => {
-    const next = [...extras];
-    next[idx] = { ...next[idx], ...patch };
-    setExtras(next);
+  const toggleExtra = (material: PackagingMaterial) => {
+    const id = String(material.id || "");
+    setExtras(
+      extras.some((line) => line.material_id === id)
+        ? extras.filter((line) => line.material_id !== id)
+        : [...extras, { id, material_id: id, qty: "", notes: "" }],
+    );
   };
-  const removeExtra = (idx: number) => setExtras(extras.filter((_, i) => i !== idx));
   const validLines = extras
     .filter((l) => l.material_id)
     .map((l) => ({
@@ -2212,7 +2173,7 @@ function ReleaseGonnyDialog({
         <DialogHeader>
           <DialogTitle>Release {gonny ? clean(gonny.dispatch_unit_no || gonny.label_id) : ""} to Dispatch Bay</DialogTitle>
           <DialogDescription>
-            Optionally mark extra packing materials used. Stock posts from the evening count, not this dialog.
+            Tick any extra packing items used. They come off stock at the evening count, booked to this order.
           </DialogDescription>
         </DialogHeader>
         {gonny ? (
@@ -2222,52 +2183,14 @@ function ReleaseGonnyDialog({
             <OrderMetric label="Gross" value={kg(gonny.gross_weight_kg || gonny.weight_kg)} />
           </div>
         ) : null}
-        <div className="space-y-2">
-          {extras.map((ln, idx) => (
-            <div key={ln.id} className="grid grid-cols-[minmax(0,1fr)_88px_minmax(0,140px)_32px] items-center gap-2">
-              <Select value={ln.material_id} onValueChange={(v) => patchExtra(idx, { material_id: v })}>
-                <SelectTrigger className="h-9 text-[12.5px]">
-                  <SelectValue placeholder="Packing SKU" />
-                </SelectTrigger>
-                <SelectContent>
-                  {packagingMaterials.length === 0 ? (
-                    <div className="px-3 py-2 text-[12px] text-content-3">No catalog SKUs</div>
-                  ) : (
-                    packagingMaterials.map((m) => (
-                      <SelectItem key={m.id} value={m.id!}>
-                        {m.code}
-                        {m.name && m.name !== m.code ? ` · ${m.name}` : ""}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                placeholder="Qty"
-                value={ln.qty}
-                onChange={(e) => patchExtra(idx, { qty: e.target.value })}
-                className="h-9 text-right text-[12.5px]"
-              />
-              <Input
-                value={ln.notes}
-                placeholder="Notes"
-                onChange={(e) => patchExtra(idx, { notes: e.target.value })}
-                className="h-9 text-[12.5px]"
-              />
-              <button
-                type="button"
-                onClick={() => removeExtra(idx)}
-                className="grid h-9 w-8 place-items-center rounded-lg text-content-3 hover:bg-danger-bg hover:text-danger-fg"
-                aria-label="Remove material"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-          <Button type="button" size="sm" variant="ghost" onClick={addExtra}>
-            + Add packing material
-          </Button>
+        <div>
+          <div className="mb-2 text-[12px] font-medium text-content-3">Evening-count items used on this unit (tape, tags, labels…)</div>
+          <EodItemChecks
+            materials={packagingMaterials.filter((m) => !["INNER_POUCH", "GONNY"].includes(String(m.packaging_kind || "").toUpperCase()))}
+            selectedIds={extras.map((line) => line.material_id)}
+            onToggle={toggleExtra}
+            testIdPrefix="packing-gonny-mark-material"
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
@@ -2282,11 +2205,71 @@ function ReleaseGonnyDialog({
             {submitting
               ? "Releasing…"
               : validLines.length > 0
-                ? `Release · ${validLines.length} material${validLines.length > 1 ? "s" : ""}`
+                ? `Release · ${validLines.length} item${validLines.length > 1 ? "s" : ""} ticked`
                 : "Release to Dispatch Bay"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Evening-count packing items used on a dispatch unit: tick what was used, no quantities or
+ * weights. The order's planned items come first. */
+function EodItemChecks({
+  materials,
+  selectedIds,
+  onToggle,
+  testIdPrefix,
+  planIds = [],
+}: {
+  materials: PackagingMaterial[];
+  selectedIds: string[];
+  onToggle: (material: PackagingMaterial) => void;
+  testIdPrefix: string;
+  planIds?: string[];
+}) {
+  const planned = new Set(planIds.filter(Boolean));
+  const ordered = [...materials].sort(
+    (a, b) => Number(planned.has(String(b.id))) - Number(planned.has(String(a.id))) || String(a.code).localeCompare(String(b.code)),
+  );
+  if (!ordered.length) {
+    return (
+      <div className="rounded-xl border border-warning-border bg-warning-bg p-3 text-[12.5px] text-warning-fg">
+        No active packing items. Add them in Masters › Packaging.
+      </div>
+    );
+  }
+  return (
+    <div className="grid max-h-[300px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2" role="group" aria-label="Packing items used">
+      {ordered.map((material) => {
+        const id = String(material.id || "");
+        const checked = selectedIds.includes(id);
+        return (
+          <label
+            key={id}
+            data-testid={`${testIdPrefix}-${id}`}
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-xl border p-2.5 text-left transition",
+              checked ? "border-success-border bg-success-bg" : "border-line bg-surface-1 hover:border-line-strong",
+            )}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 shrink-0 accent-[rgb(var(--success-fg-rgb))]"
+              checked={checked}
+              onChange={() => onToggle(material)}
+            />
+            <span className="min-w-0">
+              <span className="block truncate text-[12.5px] font-semibold text-content-1">{material.code}</span>
+              <span className="block truncate text-[11.5px] text-content-3">
+                {material.name || "Packing item"}
+                {planned.has(id) ? " · on this order's plan" : ""}
+              </span>
+            </span>
+          </label>
+        );
+      })}
+    </div>
   );
 }

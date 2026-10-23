@@ -9,29 +9,36 @@ from apps.production.services.packing_service import PackingService
 
 
 class PackagingConsumptionTests(SimpleTestCase):
-    def test_packaging_mass_kg_uses_weight_per_piece_for_pcs_stock(self):
+    def test_packaging_mass_kg_uses_the_gonny_weight_on_its_master(self):
         material = SimpleNamespace(
             base_uom="PCS",
+            packaging_kind="GONNY",
+            packaging_supply_mode="PURCHASED",
+            per_sheet_base_qty=None,
             packaging_defaults_json={"weight_kg_per_base_uom": "0.150000"},
         )
 
-        with patch("apps.production.services.packing_service.InventoryMaterial.objects.get", return_value=material), \
-             patch("apps.production.services.packing_service.PackagingService._resolve_base_qty", return_value=(Decimal("2"), {})):
+        with patch("apps.production.services.packing_service.InventoryMaterial.objects.select_related") as related:
+            related.return_value.get.return_value = material
             mass = PackingService._packaging_mass_kg("gonny-1", 2, input_uom="PCS")
 
         self.assertEqual(mass, Decimal("0.300000"))
 
-    def test_packaging_mass_kg_uses_converted_meter_qty(self):
+    def test_packaging_mass_kg_is_zero_for_items_that_carry_no_weight(self):
+        # Tape, sheets, wraps and rolls are counted at the evening count and weigh nothing here.
         material = SimpleNamespace(
             base_uom="METER",
+            packaging_kind="TAPE",
+            packaging_supply_mode="PURCHASED",
+            per_sheet_base_qty=None,
             packaging_defaults_json={"weight_kg_per_base_uom": "0.020000"},
         )
 
-        with patch("apps.production.services.packing_service.InventoryMaterial.objects.get", return_value=material), \
-             patch("apps.production.services.packing_service.PackagingService._resolve_base_qty", return_value=(Decimal("6.5"), {})):
+        with patch("apps.production.services.packing_service.InventoryMaterial.objects.select_related") as related:
+            related.return_value.get.return_value = material
             mass = PackingService._packaging_mass_kg("tape-1", 2, input_uom="PCS")
 
-        self.assertEqual(mass, Decimal("0.130000"))
+        self.assertEqual(mass, Decimal("0"))
 
     def test_create_gonny_marks_gonny_for_the_evening_count_without_stock_movement(self):
         batch = SimpleNamespace(

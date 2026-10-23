@@ -174,11 +174,29 @@ class InnerPouchFlowTests(RollLaneFixture, TestCase):
         self.assertEqual(result["inner_packs"]["capture_mode"], "EVENING_COUNT")
         self.assertFalse(PackagingTransaction.objects.filter(material=self.inner, type="ADJUST").exists())
 
-        # Evening count: 150 on the book, 50 found; the 100 used go to this order.
+        # Release to dispatch: tape is just ticked (no quantity, no weight).
+        tape = InventoryMaterial.objects.create(
+            code="TAPE-48", name="Tape 48 mm", category="PACKAGING", base_uom="PCS", packaging_kind="TAPE", packaging_supply_mode="PURCHASED",
+        )
+        PackagingService.add_packaging_stock(material_id=tape.id, qty=D("10"), location_id=self.store.id, cost=D("30"))
+        from apps.production.services.dispatch_service import FGDispatchService
+
+        FGDispatchService.release_gonny_to_dispatch(str(unit.id), user=self.user, lines=[{"material_id": str(tape.id)}])
+        unit.refresh_from_db()
+        self.assertEqual(unit.meta_json["release_extras"][0]["qty"], 1.0)
+
+        # Evening count: 150 pouches on the book, 50 found; the 100 used go to this order. Tape: 10 on
+        # the book, 8 found; the 2 go to the order that ticked it.
         inner_stock = PackagingStock.objects.get(material=self.inner, location=self.store)
-        PackingCountService.post_count(lines=[{"stock_id": str(inner_stock.id), "counted_qty": 50}], user=self.user)
+        tape_stock = PackagingStock.objects.get(material=tape, location=self.store)
+        PackingCountService.post_count(lines=[
+            {"stock_id": str(inner_stock.id), "counted_qty": 50},
+            {"stock_id": str(tape_stock.id), "counted_qty": 8},
+        ], user=self.user)
         booked = PackagingTransaction.objects.get(material=self.inner, type="CONSUME")
         self.assertEqual((booked.sales_order_item_id, D(str(booked.qty))), (item.id, D("-100")))
+        tape_booked = PackagingTransaction.objects.get(material=tape, type="CONSUME")
+        self.assertEqual((tape_booked.sales_order_item_id, D(str(tape_booked.qty)), tape_booked.meta_json["allocation_basis"]), (item.id, D("-2"), "MARKED"))
 
     def test_kg_stocked_inner_pouch_without_piece_weight_never_blocks_output(self, *_):
         # The live report: LD bags kept in KG with no weight of one bag on the master.
@@ -192,7 +210,8 @@ class InnerPouchFlowTests(RollLaneFixture, TestCase):
         self.assertIn("Masters > Packaging", notices[0])
 
     def test_kg_stocked_inner_pouch_with_piece_weight_draws_and_returns_by_weight(self, *_):
-        _item, pouch = self._packing_setup(inner_in_store=D("5"), inner_base_uom="KG", inner_weight_kg=D("0.012"))
+        # A bought SKU also made here keeps its entered weight until it is linked to its master.
+        _item, pouch = self._packing_setup(inner_in_store=D("5"), inner_base_uom="KG", inner_weight_kg=D("0.012"), inner_supply="BOTH")
         with collect_notices() as notices:
             OperatorService.log_output_step(str(pouch.id), 68.5, self.user, output_pcs=10000)
         self.assertEqual(notices, [])

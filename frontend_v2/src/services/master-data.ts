@@ -100,12 +100,11 @@ export interface PackagingMaterial extends Material {
 /** Weight of one piece and the stock rules of a packing item (server: packaging_measure.describe). */
 export interface PackagingStockMeasure {
     base_uom: string;
-    per_piece: number | null;
+    /** Only inner pouches and gonnies weigh anything in a dispatch unit. */
+    weighed: boolean;
     weight_kg_per_piece: number | null;
-    kg_per_metre: number | null;
-    source: "PCS" | "BOM" | "MASTER" | "MISSING";
-    weight_source: "BOM" | "MASTER" | "PCS" | "MISSING" | null;
-    bom: { master_code: string; master_name: string; variant_code: string; fg_type: string } | null;
+    source: "BOM" | "MASTER" | "MISSING" | "NOT_WEIGHED";
+    bom: { master_code: string; master_name: string; variant_code: string } | null;
     stock_rule: "AT_MACHINE" | "EVENING_COUNT";
     demand_rule: "AUTO" | "MANUAL_STOCK_LAUNCHER" | "PURCHASE";
 }

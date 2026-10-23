@@ -78,10 +78,12 @@ class PackingService:
 
     @staticmethod
     def _packaging_mass_kg(material_id, qty, input_uom="PCS") -> Decimal:
+        """Weight a packing item adds to a dispatch unit. Only inner pouches (in-house: BOM of the
+        linked variant; bought: master entry) and gonnies (master entry) weigh anything."""
         if not material_id:
             return Decimal("0")
         try:
-            material = InventoryMaterial.objects.get(id=material_id)
+            material = InventoryMaterial.objects.select_related("produced_by_product_variant__master").get(id=material_id)
         except Exception:
             logger.warning(
                 "Packaging material lookup failed material_id=%s while calculating packing tare",
@@ -89,35 +91,16 @@ class PackingService:
                 exc_info=True,
             )
             return Decimal("0")
-        try:
-            base_qty, _ = PackagingService._resolve_base_qty(material, qty, input_uom=input_uom)
-        except Exception:
-            logger.warning(
-                "Packaging base-quantity resolution failed material_id=%s qty=%s input_uom=%s",
-                material_id,
-                qty,
-                input_uom,
-                exc_info=True,
-            )
-            base_qty = Decimal("0")
+        from apps.inventory.services.packaging_measure import piece_weight
 
-        base_uom = str(getattr(material, "base_uom", "") or "").upper()
-        if base_uom == "KG":
-            return Decimal(str(base_qty or 0))
-
-        # Weight of one piece (PCS) or of one metre (METER): the linked variant's BOM first,
-        # then what the packaging master says.
-        from apps.inventory.services.packaging_measure import piece_measure
-
-        measure = piece_measure(material)
-        if base_uom == "PCS":
-            weight_per_base_uom = measure.get("weight_kg") or Decimal("0")
-        elif base_uom == "METER":
-            weight_per_base_uom = measure.get("kg_per_metre") or Decimal("0")
-        else:
-            weight_per_base_uom = Decimal("0")
-        if weight_per_base_uom > 0:
-            return weight_per_base_uom * Decimal(str(base_qty or 0))
+        weight = piece_weight(material).get("weight_kg") or Decimal("0")
+        if weight <= 0:
+            return Decimal("0")
+        uom = str(input_uom or "PCS").upper()
+        if uom == "PCS":
+            return weight * Decimal(str(qty or 0))
+        if uom == "KG":
+            return Decimal(str(qty or 0))
         return Decimal("0")
 
     @staticmethod

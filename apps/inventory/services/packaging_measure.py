@@ -1,16 +1,16 @@
-"""How much one piece of a packing item is, in its stock unit, and where that comes from.
+"""Which packing items carry a weight, where it comes from, and how each comes off stock.
 
-Packing items made in house are linked to a packaging Product Master variant; their weight
-comes from that variant's BOM (the same physics an order uses), so a bag or inner pouch
-weighs what its master says. Bought items, or items not linked yet, use the value entered
-on the packaging master.
-
-Rules for packing items (owner, 23 Oct 2026):
-- Inner pouches made in house are taken off stock at the machine, by weight from the BOM,
-  and are the only packing item the ERP demands automatically when an order is short.
-- Bought inner pouches and every other packing item (gonny, carton, LD sheets and rolls,
-  tape, extras) are taken off stock by the evening packing count; in-house ones are
-  restocked by hand from the Stock launcher.
+Rules (owner, 23 Oct 2026):
+- A dispatch unit weighs our product (the machine's logged output) + its inner pouches + the
+  gonny. Only inner pouches and gonnies carry a weight.
+- In-house inner pouches weigh what the BOM of their linked Product Master variant says.
+  Bought inner pouches and gonnies weigh what is entered on the packaging master (required).
+- In-house inner pouches are taken off stock at the machine (by weight) and are the only
+  packing item demanded automatically.
+- Bought inner pouches and every other packing item (gonny, cartons, LD sheets and rolls,
+  tape, extras) come off stock at the evening packing count. Other items carry no weight:
+  their Product Master BOM only says how to make them; in-house ones are restocked by hand
+  from the Stock launcher.
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from config.request_context import request_memo
 logger = logging.getLogger(__name__)
 
 IN_HOUSE_MODES = {"IN_HOUSE", "BOTH"}
+WEIGHED_KINDS = {"INNER_POUCH", "GONNY"}
 
 
 def _dec(value) -> Decimal:
@@ -31,12 +32,25 @@ def _dec(value) -> Decimal:
         return Decimal("0")
 
 
+def _kind(material) -> str:
+    return str(getattr(material, "packaging_kind", "") or "").upper()
+
+
+def _mode(material) -> str:
+    return str(getattr(material, "packaging_supply_mode", "") or "").upper()
+
+
 def is_in_house(material) -> bool:
-    return str(getattr(material, "packaging_supply_mode", "") or "").upper() in IN_HOUSE_MODES
+    return _mode(material) in IN_HOUSE_MODES
 
 
 def is_inner_pouch(material) -> bool:
-    return str(getattr(material, "packaging_kind", "") or "").upper() == "INNER_POUCH"
+    return _kind(material) == "INNER_POUCH"
+
+
+def is_weighed(material) -> bool:
+    """Only inner pouches and gonnies are part of a dispatch unit's weight."""
+    return _kind(material) in WEIGHED_KINDS
 
 
 def taken_at_machine(material) -> bool:
@@ -49,6 +63,15 @@ def auto_demand(material) -> bool:
     return is_inner_pouch(material) and is_in_house(material)
 
 
+def entered_weight_kg(material) -> Decimal:
+    """Weight of one piece as entered on the packaging master (bought pouches, gonnies)."""
+    if str(getattr(material, "base_uom", "") or "").upper() == "KG":
+        return _dec(getattr(material, "per_sheet_base_qty", None))
+    defaults = getattr(material, "packaging_defaults_json", None)
+    defaults = defaults if isinstance(defaults, dict) else {}
+    return _dec(defaults.get("weight_kg_per_base_uom"))
+
+
 def _linked_variant(material):
     variant = getattr(material, "produced_by_product_variant", None) if getattr(material, "produced_by_product_variant_id", None) else None
     master = getattr(variant, "master", None) if variant else None
@@ -57,127 +80,96 @@ def _linked_variant(material):
     return variant
 
 
-def _compute_bom_measure(variant) -> dict | None:
-    from apps.sales.services.order_service import SalesOrderService
-
-    master = variant.master
-    geometry = variant.geometry_snapshot or {}
-    fixed = master.fixed_attributes if isinstance(master.fixed_attributes, dict) else {}
-    template = getattr(master, "template", None) or getattr(master, "default_template", None)
-    fg_type = str(geometry.get("finished_good_type") or fixed.get("fg_type") or getattr(template, "fg_type", "") or "POUCH").upper()
-    payload = {
-        "finished_good_type": fg_type,
-        "geometry": geometry,
-        "film_layers": variant.layer_snapshot or [],
-        "printing": {"enabled": False},
-        "chemicals": {},
-        "addons": [],
-        "packaging_snapshot": {},
-        "roll_form": geometry.get("roll_form"),
-    }
-    if fg_type == "ROLL":
-        # A roll has no piece; its BOM gives kg per metre: web width x grams per square metre.
-        from apps.production.services.services_execution import ExecutionService
-
-        layers = [layer for layer in (variant.layer_snapshot or []) if isinstance(layer, dict)]
-        gsm = sum((ExecutionService._layer_gsm(layer) for layer in layers), Decimal("0"))
-        width_mm = _dec(geometry.get("width_mm") or (geometry.get("base") or {}).get("width_mm") or max((_dec(layer.get("width_mm")) for layer in layers), default=0))
-        kg_per_metre = (width_mm / Decimal("1000") * gsm / Decimal("1000")).quantize(Decimal("0.000001")) if width_mm > 0 and gsm > 0 else None
-        return {"fg_type": fg_type, "weight_kg_per_piece": None, "kg_per_metre": kg_per_metre}
-    preview = SalesOrderService.preview_sales_item({**payload, "order_qty": 1000, "uom": "PCS"})
-    unit_weight_g = _dec(preview.get("unit_weight_g"))
-    if unit_weight_g <= 0:
+def bom_weight(material) -> dict | None:
+    """Weight of one in-house inner pouch from its linked variant's BOM (None when not linked)."""
+    if not taken_at_machine(material):
         return None
-    return {"fg_type": fg_type, "weight_kg_per_piece": (unit_weight_g / Decimal("1000")).quantize(Decimal("0.000001")), "kg_per_metre": None}
-
-
-def bom_measure(material) -> dict | None:
-    """The linked variant's BOM figures, or None when the item is not linked."""
     variant = _linked_variant(material)
     if variant is None:
         return None
 
     def build():
+        from apps.sales.services.order_service import SalesOrderService
+
+        master = variant.master
+        geometry = variant.geometry_snapshot or {}
+        fixed = master.fixed_attributes if isinstance(master.fixed_attributes, dict) else {}
         try:
-            result = _compute_bom_measure(variant)
+            preview = SalesOrderService.preview_sales_item({
+                "finished_good_type": str(geometry.get("finished_good_type") or fixed.get("fg_type") or "POUCH").upper(),
+                "geometry": geometry,
+                "film_layers": variant.layer_snapshot or [],
+                "printing": {"enabled": False},
+                "chemicals": {},
+                "addons": [],
+                "packaging_snapshot": {},
+                "order_qty": 1000,
+                "uom": "PCS",
+            })
         except Exception:
-            logger.warning("Packaging BOM measure failed material=%s variant=%s", getattr(material, "code", ""), variant.code, exc_info=True)
-            result = None
-        if result is None:
+            logger.warning("Inner pouch BOM weight failed material=%s variant=%s", getattr(material, "code", ""), variant.code, exc_info=True)
             return None
-        return {**result, "variant_id": str(variant.id), "variant_code": variant.code, "master_code": variant.master.code, "master_name": variant.master.name}
+        unit_weight_g = _dec(preview.get("unit_weight_g"))
+        if unit_weight_g <= 0:
+            return None
+        return {
+            "weight_kg": (unit_weight_g / Decimal("1000")).quantize(Decimal("0.000001")),
+            "variant_id": str(variant.id),
+            "variant_code": variant.code,
+            "master_code": master.code,
+            "master_name": master.name,
+        }
 
-    return request_memo(("packaging_bom_measure", str(variant.id), variant.bom_signature), build)
+    return request_memo(("inner_pouch_bom_weight", str(variant.id), variant.bom_signature), build)
 
 
-def piece_measure(material) -> dict:
-    """Stock-unit quantity of one piece (`per_piece`), its weight in kg, and where it came from.
+def piece_weight(material) -> dict:
+    """Weight in kg of one inner pouch or gonny and where it comes from.
 
-    source: PCS (stocked in pieces), BOM (linked variant), MASTER (entered on the packaging
-    master) or MISSING.
+    source: BOM (in-house pouch, linked variant), MASTER (entered), MISSING, or NOT_WEIGHED
+    (every other packing item).
     """
-    base_uom = str(getattr(material, "base_uom", "") or "PCS").upper()
-    defaults = getattr(material, "packaging_defaults_json", None)
-    defaults = defaults if isinstance(defaults, dict) else {}
-    bom = bom_measure(material)
-    bom_piece_kg = bom.get("weight_kg_per_piece") if bom else None
-    entered = _dec(getattr(material, "per_sheet_base_qty", None))
-    result = {"base_uom": base_uom, "per_piece": None, "weight_kg": None, "kg_per_metre": None, "source": "MISSING", "bom": bom}
-
-    if base_uom == "PCS":
-        result.update(per_piece=Decimal("1"), source="PCS")
-        if bom_piece_kg:
-            result.update(weight_kg=bom_piece_kg, weight_source="BOM")
-        elif _dec(defaults.get("weight_kg_per_base_uom")) > 0:
-            result.update(weight_kg=_dec(defaults.get("weight_kg_per_base_uom")), weight_source="MASTER")
-        return result
-    if base_uom == "KG":
-        if bom_piece_kg:
-            result.update(per_piece=bom_piece_kg, weight_kg=bom_piece_kg, source="BOM")
-        elif entered > 0:
-            result.update(per_piece=entered, weight_kg=entered, source="MASTER")
-        return result
-    if base_uom == "METER":
-        kg_per_metre = (
-            (bom or {}).get("kg_per_metre")
-            or _dec(defaults.get("tare_kg_per_meter") or defaults.get("weight_kg_per_base_uom"))
-            or None
-        )
-        result["kg_per_metre"] = kg_per_metre
-        if entered > 0:
-            result.update(per_piece=entered, source="MASTER")
-            if kg_per_metre:
-                result["weight_kg"] = (entered * kg_per_metre).quantize(Decimal("0.000001"))
-        return result
+    if not is_weighed(material):
+        return {"weight_kg": None, "source": "NOT_WEIGHED", "bom": None}
+    if taken_at_machine(material):
+        bom = bom_weight(material)
+        if bom:
+            return {"weight_kg": bom["weight_kg"], "source": "BOM", "bom": bom}
+        if _mode(material) == "BOTH" and entered_weight_kg(material) > 0:
+            # A bought SKU that is also made here: its entered weight until it is linked.
+            return {"weight_kg": entered_weight_kg(material), "source": "MASTER", "bom": None}
+        return {"weight_kg": None, "source": "MISSING", "bom": None}
+    entered = entered_weight_kg(material)
     if entered > 0:
-        result.update(per_piece=entered, source="MASTER")
-    return result
+        return {"weight_kg": entered, "source": "MASTER", "bom": None}
+    return {"weight_kg": None, "source": "MISSING", "bom": None}
 
 
 def stock_qty_per_piece(material) -> Decimal:
-    """Stock-unit quantity of one piece (0 when it cannot be worked out)."""
-    return piece_measure(material).get("per_piece") or Decimal("0")
+    """Stock-unit quantity of one piece: 1 for items stocked in pieces, the weight for
+    pouches and gonnies stocked in kg, otherwise 0 (counted in their own unit)."""
+    base_uom = str(getattr(material, "base_uom", "") or "PCS").upper()
+    if base_uom == "PCS":
+        return Decimal("1")
+    if base_uom == "KG":
+        return piece_weight(material).get("weight_kg") or Decimal("0")
+    return Decimal("0")
 
 
 def describe(material) -> dict:
     """What the packaging master and its Product Master link show for this item."""
-    measure = piece_measure(material)
-    bom = measure.get("bom") or None
-    in_house = is_in_house(material)
-    machine = taken_at_machine(material)
+    weight = piece_weight(material)
+    bom = weight.get("bom") or None
     return {
-        "base_uom": measure["base_uom"],
-        "per_piece": float(measure["per_piece"]) if measure.get("per_piece") else None,
-        "weight_kg_per_piece": float(measure["weight_kg"]) if measure.get("weight_kg") else None,
-        "kg_per_metre": float(measure["kg_per_metre"]) if measure.get("kg_per_metre") else None,
-        "source": measure["source"],
-        "weight_source": measure.get("weight_source") or (measure["source"] if measure.get("weight_kg") else None),
+        "base_uom": str(getattr(material, "base_uom", "") or "PCS").upper(),
+        "weighed": is_weighed(material),
+        "weight_kg_per_piece": float(weight["weight_kg"]) if weight.get("weight_kg") else None,
+        "source": weight["source"],
         "bom": {
             "master_code": bom["master_code"],
             "master_name": bom["master_name"],
             "variant_code": bom["variant_code"],
-            "fg_type": bom["fg_type"],
         } if bom else None,
-        "stock_rule": "AT_MACHINE" if machine else "EVENING_COUNT",
-        "demand_rule": "AUTO" if auto_demand(material) else ("MANUAL_STOCK_LAUNCHER" if in_house else "PURCHASE"),
+        "stock_rule": "AT_MACHINE" if taken_at_machine(material) else "EVENING_COUNT",
+        "demand_rule": "AUTO" if auto_demand(material) else ("MANUAL_STOCK_LAUNCHER" if is_in_house(material) else "PURCHASE"),
     }

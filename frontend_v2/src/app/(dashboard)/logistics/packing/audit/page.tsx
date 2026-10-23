@@ -316,12 +316,12 @@ export default function PackingAuditPage() {
             aria-label="Product weight against dispatch weight"
           >
             {[
-              { label: "Our product", value: data.weight_summary.product_kg, sub: `${data.weight_summary.sealed_units} sealed units` },
+              { label: "Our product", value: data.weight_summary.product_kg, sub: `machine output in ${data.weight_summary.sealed_units} sealed gonnies` },
               { label: "Dispatch weight (gross)", value: data.weight_summary.dispatch_gross_kg, sub: "weighed at sealing" },
               {
                 label: "Packing in the dispatch weight",
                 value: data.weight_summary.packing_kg,
-                sub: `inner pouch ${kgText(data.weight_summary.inner_pouch_tare_kg)} · gonny ${kgText(data.weight_summary.gonny_tare_kg)} · extras ${kgText(data.weight_summary.extras_tare_kg)}`,
+                sub: `inner pouches ${kgText(data.weight_summary.inner_pouch_tare_kg)} + gonny ${kgText(data.weight_summary.gonny_tare_kg)} expected`,
               },
               {
                 label: "In-house inner pouches taken",

@@ -415,22 +415,21 @@ def _packaging_unit_base_qty(material, line=None):
     line = line if isinstance(line, dict) else {}
     defaults = getattr(material, "packaging_defaults_json", {}) if material is not None else {}
     defaults = defaults if isinstance(defaults, dict) else {}
-    measured = None
-    if material is not None and str(getattr(material, "base_uom", "") or "").upper() != "PCS":
-        # Linked in-house items: from their Product Master variant's BOM, else the master entry.
-        from apps.inventory.services.packaging_measure import stock_qty_per_piece
+    if material is not None:
+        # Only inner pouches and gonnies carry a weight (in-house pouch: BOM of the linked
+        # variant; bought pouch / gonny: the master entry). Everything else is counted in its
+        # own unit at the evening count.
+        from apps.inventory.services.packaging_measure import is_weighed, stock_qty_per_piece
 
-        measured = stock_qty_per_piece(material)
+        if not is_weighed(material):
+            return Decimal("0")
+        if str(getattr(material, "base_uom", "") or "").upper() == "PCS":
+            return Decimal("1")
     for value in (
         line.get("unit_base_qty"),
         line.get("base_qty_per_consumed_unit"),
         line.get("per_sheet_base_qty"),
-        measured,
-        defaults.get("unit_base_qty"),
-        defaults.get("base_qty_per_consumed_unit"),
-        defaults.get("kg_per_inner_pouch"),
-        defaults.get("kg_per_inner"),
-        defaults.get("kg_per_piece"),
+        stock_qty_per_piece(material) if material is not None else None,
     ):
         try:
             qty = Decimal(str(value))
@@ -488,7 +487,13 @@ def _packaging_count_qty_meta(line, material, count_qty):
             payload["weight_kg"] = float(stock_qty)
     else:
         payload["stock_qty"] = None
-        payload["stock_conversion_missing"] = True
+        from apps.inventory.services.packaging_measure import is_weighed
+
+        if material is not None and is_weighed(material):
+            payload["stock_conversion_missing"] = True
+        else:
+            # Counted in its own unit at the evening count; pieces are never turned into stock.
+            payload["counted_in_stock_unit"] = True
     return payload
 
 
@@ -1563,6 +1568,7 @@ def _build_packaging_bom_rows(payload, unit_weight_g, total_weight_kg):
             "unit_weight_kg": qty_meta.get("unit_weight_kg"),
             "base_uom": qty_meta.get("base_uom"),
             "stock_conversion_missing": bool(qty_meta.get("stock_conversion_missing")),
+            "counted_in_stock_unit": bool(qty_meta.get("counted_in_stock_unit")),
             "production_template_id": qty_meta.get("production_template_id"),
             "produced_by_product_variant_id": qty_meta.get("produced_by_product_variant_id"),
         }
@@ -1594,6 +1600,7 @@ def _build_packaging_bom_rows(payload, unit_weight_g, total_weight_kg):
                 "unit_base_qty": qty_meta.get("unit_base_qty"),
                 "unit_weight_kg": qty_meta.get("unit_weight_kg"),
                 "stock_conversion_missing": bool(qty_meta.get("stock_conversion_missing")),
+                "counted_in_stock_unit": bool(qty_meta.get("counted_in_stock_unit")),
                 "template_issue_policy_mode": "NONE",
                 "template_issue_policy_value": 0.0,
                 "override_issue_policy_mode": None,
