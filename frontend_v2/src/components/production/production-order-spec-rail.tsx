@@ -1,3 +1,4 @@
+import { mmWithInches } from "@/lib/size-naming";
 import { Layers3, Ruler, ScrollText, Shapes, Sparkles, Waves } from "lucide-react";
 
 import { normalizeProductSpec, type ProductSpec } from "@/lib/product-spec";
@@ -247,7 +248,7 @@ export function ProductionOrderSpecRail({
     {
       key: "width",
       label: "Required web",
-      value: target.widthMm ? `${compactNumber(target.widthMm)} mm` : "Not captured",
+      value: target.widthMm ? mmWithInches(target.widthMm) : "Not captured",
       note: "production roll width",
       tone: "emerald",
       icon: Ruler,
@@ -261,7 +262,7 @@ export function ProductionOrderSpecRail({
         : widthBasisLabel(target.widthBasis, target.stockForm),
       details: [
         target.widthMm
-          ? `${compactNumber(target.widthMm)} mm`
+          ? mmWithInches(target.widthMm)
           : "",
         pouchStyle ? `Pouch · ${pouchStyle}` : "",
       ].filter(Boolean),

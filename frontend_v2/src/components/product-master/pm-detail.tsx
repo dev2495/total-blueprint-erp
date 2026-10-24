@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches } from "@/lib/size-naming";
 /**
  * V3.7 Product Master detail — fresh build matching
  * docs/mockups/pm-v37-detail-refresh.html
@@ -1431,7 +1432,7 @@ function resolveAxisValues(
       .filter((s) => s.active !== false)
       .map((s) => ({
         code: s.code,
-        label: `${s.code} · ${s.width_mm}×${s.height_mm || 0}`,
+        label: `${s.code} · ${mmWithInches(s.width_mm, Number(s.height_mm || 0) || null) || `${s.width_mm}×${s.height_mm || 0}`}`,
       }));
   }
 
@@ -4949,7 +4950,7 @@ function CreateOverlayDialog({
                         .filter((s) => s.active !== false)
                         .map((s) => (
                           <SelectItem key={s.code} value={s.code}>
-                            {s.code} · {s.width_mm}×{s.height_mm || 0}
+                            {s.code} · {mmWithInches(s.width_mm, Number(s.height_mm || 0) || null) || `${s.width_mm}×${s.height_mm || 0}`}
                           </SelectItem>
                         ))}
                     </SelectContent>

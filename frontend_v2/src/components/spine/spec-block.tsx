@@ -7,6 +7,7 @@
  * everywhere. Presentational only.
  */
 import { normalizeProductSpec, type ProductSpec } from "@/lib/product-spec";
+import { inchesText } from "@/lib/size-naming";
 import { cn } from "@/lib/utils";
 import type { SpineMade } from "@/services/spine";
 
@@ -117,6 +118,11 @@ export function SpecBlock({
           <span className={cn("font-semibold tabular-nums tracking-tight", strong, lg ? "text-2xl" : "text-lg")} data-testid={`${testId}-size`}>
             {sizeValue}
           </span>
+          {data.widthMm ? (
+            <span className={cn("font-medium tabular-nums", muted, lg ? "text-[15px]" : "text-[13px]")} data-testid={`${testId}-size-inches`}>
+              {inchesText(data.widthMm, data.heightMm)}
+            </span>
+          ) : null}
           {data.gussetMm ? (
             <span className={cn("font-semibold tabular-nums", strong, lg ? "text-lg" : "text-base")}>gusset {fmt(data.gussetMm)}</span>
           ) : null}

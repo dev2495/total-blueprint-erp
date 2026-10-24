@@ -1,5 +1,6 @@
 "use client";
 
+import { isAutoSizeName, standardSizeName } from "@/lib/size-naming";
 import { PmStepNav } from "./pm-step-nav";
 import { SpecPlate } from "@/components/plate/spec-plate";
 import { specFromMasterLine } from "@/components/plate/spec-from-master";
@@ -1082,9 +1083,26 @@ export function ProductMasterEditWorkspace({
     });
   }
   function patchSize(idx: number, patch: Partial<ProductMasterSize>) {
+    const isRoll = isRollLikeOutput(
+      draft?.product_kind,
+      draft?.packaging_kind,
+      draft?.fixed_attributes?.fg_type,
+    );
     setDraftSizes((arr) => {
       const next = [...arr];
-      next[idx] = { ...next[idx], ...patch };
+      const previous = next[idx];
+      const merged = { ...previous, ...patch };
+      // New rows take their code and label from the dimensions until someone types their own.
+      // Saved sizes are never renamed.
+      if (previous && String(previous.id || "").startsWith("tmp-") && !("code" in patch) && !("label" in patch)) {
+        const before = standardSizeName(previous, isRoll);
+        const after = standardSizeName(merged, isRoll);
+        if (after) {
+          if (isAutoSizeName(previous.code, "code", before)) merged.code = after.code;
+          if (isAutoSizeName(previous.label, "label", before)) merged.label = after.label;
+        }
+      }
+      next[idx] = merged;
       return next;
     });
   }
@@ -1099,8 +1117,9 @@ export function ProductMasterEditWorkspace({
       {
         id: `tmp-${Math.random().toString(36).slice(2, 8)}`,
         product_master: productId,
-        code: `SZ-${arr.length + 1}`,
-        label: `Size ${arr.length + 1}`,
+        // Named from its dimensions as they are entered (see patchSize); type to override.
+        code: "",
+        label: "",
         width_mm: 0,
         height_mm: isRoll ? 0 : 0,
         gusset_mm: 0,

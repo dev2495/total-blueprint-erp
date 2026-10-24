@@ -153,6 +153,10 @@ class QueueDisplayRegressionTests(TestCase):
                 summary=True, compact_queue=True).data
         rows = [row for row in data['orders'] if row.get('customer_name') == 'Route column']
         self.assertEqual(len(rows), 12)
+        order.order_name = 'Diwali gift pack'
+        order.save(update_fields=['order_name'])
+        named = view._control_hub_lightweight(planning_limit=100, active_limit=0, history_limit=0, summary=True, compact_queue=True).data
+        self.assertTrue(all(row.get('job_name') == 'Diwali gift pack' for row in named['orders'] if row.get('customer_name') == 'Route column'))
         for row in rows:
             self.assertEqual([(step['index'], step['code'], step['name']) for step in row['queue_route_steps']],
                 [(0, 'EXT_AUDIT', 'Extrusion Audit')])

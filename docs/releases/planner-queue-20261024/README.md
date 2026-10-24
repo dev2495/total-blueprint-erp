@@ -70,3 +70,34 @@ Scripts: `.runtime/release-planner-queue/{build,activate}-pq-release.sh`
   - A new row whose code matches a retired size brings that size back.
   - A code already in use gives "Size code "680" is already on this master (in use). Search the size list for 680 and edit that row instead of adding a new one."
 - **Tests:** 7 new backend tests (long size list, no retirement of unloaded rows, removal still retires, duplicate message, restore, rename-then-reuse, single-size endpoint). Backend 1,586 OK.
+
+## Round 3 (same day): job name, stock web, WC compaction, short screens
+
+- **Plan queue:**
+  - Each row starts with the job name: large, tinted, with a "JOB" key. Compact queue rows now keep `job_name`.
+  - The detail header shows the same job name.
+  - The detail gets the larger share: 0.9fr / 1.1fr from 1,280 px, 0.85fr / 1.15fr from 1,600 px.
+  - Rows are tighter.
+- **Spec card ("What is to be made"), the same component on every screen:**
+  - Shows **Stock web**, e.g. "Open web · 655 mm roll · slit allowed" or "Lay-flat tube · 380 mm roll (760 mm film) · exact width only", taken from the line's geometry.
+  - Shows the job name above the headline.
+  - New fields `made.stock_web` / `stock_form` / `stock_width_mm` / `job_name`.
+- **WC terminal, input issue:**
+  - "Issue policy · template rules" is closed by default; it opens itself when an override is active.
+  - Each material shows its template rule on one line; the override inputs appear only after Override.
+  - Granule grade codes use one bar: pick the code and store, kg defaults to the balance, Add code. Added codes show as a short list with remove.
+  - The bar stays until every issued kg has a code, and machine release still waits for that.
+- **Short screens (≤ 900 px tall, factory PCs at 1366×768 / 1280×720):** the plan queue header drops its subtitle and the KPI tiles drop their footnotes, so the queue and detail start in the first screen.
+- **Size naming:** applies to new sizes only. Existing sizes keep their codes and labels.
+  - A new size row gets its code and label from its dimensions as they are typed:
+    - roll: `500` / `500X45` (width × micron), label `500 mm web · 45 µ`;
+    - pouch or bag: `140X305` / `140X305G40`, label `140 × 305 mm + 40 G`.
+  - The editor shows "Auto from size"; typing a code or label overrides it, and "Use auto name" goes back.
+  - Copied rows and imported rows without a code follow the same rule.
+  - The backend fills a blank code or label on create (`apps/materials/size_naming.py`, mirrored by `src/lib/size-naming.ts`). A saved size cannot be blanked.
+  - A size with no dimensions and no code is refused with "Enter the size …".
+- **Inches beside mm:** worked out from mm, never typed; 1 decimal, no trailing zero.
+  - Shown on product sizes and roll widths across the stack: spec plate, spec block, planner identity, the shared spec label, orders list chips, order detail facts, composer size tiles and preview, quotation lines, product master size list and view, variant titles, packing yard and dispatch size cells, WC target web, production spec rail, stock launcher, rolls list and board, roll picker and machine roll cards.
+  - Machine-setting widths (trim, parent web, lanes, pitch) stay mm-only.
+  - Printed slips and challans keep their fixed layouts.
+  - Tests: `npm run test:size-naming` and backend `ProductMasterSizeNamingTests`.

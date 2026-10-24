@@ -13,6 +13,7 @@ import json
 import uuid
 from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
 from .naming import normalize_code
+from .size_naming import standard_size_name
 from apps.sales.models import CustomerProductOverlay
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
@@ -599,6 +600,18 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                 }
                 for size_payload in creates:
                     code = normalize_code(size_payload.get("code"), max_length=80) if size_payload.get("code") else ""
+                    if not code:
+                        # A new row without a code is named from its dimensions (same rule as the serializer).
+                        standard = standard_size_name(
+                            width_mm=size_payload.get("width_mm"),
+                            height_mm=size_payload.get("height_mm"),
+                            gusset_mm=size_payload.get("gusset_mm"),
+                            roll_width_mm=size_payload.get("roll_width_mm"),
+                            thickness_micron=size_payload.get("thickness_micron"),
+                            is_roll=str(product.product_kind or "").upper() == "ROLL"
+                            or not (size_payload.get("width_mm") and size_payload.get("height_mm")),
+                        )
+                        code = standard[0] if standard else ""
                     retired = retired_by_code.pop(code, None) if code else None
                     if retired is not None:
                         # Adding a size whose code was retired brings that row back instead of failing on the code.

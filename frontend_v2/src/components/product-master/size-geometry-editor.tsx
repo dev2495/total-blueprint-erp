@@ -1,5 +1,6 @@
 "use client";
 
+import { standardSizeName } from "@/lib/size-naming";
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -127,6 +128,7 @@ export function SizeGeometryEditor({
               <Input
                 className="h-8 rounded-lg text-xs"
                 value={row.code}
+                placeholder="Auto from size"
                 onChange={(e) =>
                   onPatch({ code: e.target.value.toUpperCase() })
                 }
@@ -136,9 +138,11 @@ export function SizeGeometryEditor({
               <Input
                 className="h-8 rounded-lg text-xs"
                 value={row.label}
+                placeholder="Auto from size"
                 onChange={(e) => onPatch({ label: e.target.value })}
               />
             </EditField>
+            <AutoSizeName row={row} isRoll={Boolean(isRollOutput)} onPatch={onPatch} />
             <EditField label="Std qty">
               <Input
                 type="number"
@@ -200,6 +204,7 @@ export function SizeGeometryEditor({
               <Input
                 className="h-8 rounded-lg text-xs"
                 value={row.code}
+                placeholder="Auto from size"
                 onChange={(e) =>
                   onPatch({ code: e.target.value.toUpperCase() })
                 }
@@ -209,9 +214,11 @@ export function SizeGeometryEditor({
               <Input
                 className="h-8 rounded-lg text-xs"
                 value={row.label}
+                placeholder="Auto from size"
                 onChange={(e) => onPatch({ label: e.target.value })}
               />
             </EditField>
+            <AutoSizeName row={row} isRoll={Boolean(isRollOutput)} onPatch={onPatch} />
             <EditField
               label={isRollOutput ? "Roll width (mm)" : "Final width (mm)"}
             >
@@ -489,6 +496,51 @@ function Metric({
       {Number.isFinite(value) && value > 0
         ? `${Number(value.toFixed(2))} ${suffix}`
         : `- ${suffix}`}
+    </div>
+  );
+}
+
+/**
+ * New sizes only: says the code and label come from the size, and offers to go back to the
+ * standard name when someone has typed their own. Saved sizes keep their names, so nothing shows.
+ */
+function AutoSizeName({
+  row,
+  isRoll,
+  onPatch,
+}: {
+  row: ProductMasterSize;
+  isRoll: boolean;
+  onPatch: (patch: Partial<ProductMasterSize>) => void;
+}) {
+  if (!String(row.id || "").startsWith("tmp-")) return null;
+  const standard = standardSizeName(row, isRoll);
+  const usesStandard = standard && standard.code === row.code && standard.label === row.label;
+  return (
+    <div
+      className="col-span-2 flex flex-wrap items-center gap-2 self-end rounded-lg border border-dashed border-line bg-surface-2 px-2.5 py-1.5 text-caption text-content-2"
+      data-testid="size-auto-name"
+    >
+      {!standard ? (
+        <span className="text-content-3">Code and label are made from the size once it is entered.</span>
+      ) : usesStandard ? (
+        <span className="text-content-3">
+          Auto from size: <span className="font-mono font-semibold text-content-1">{standard.code}</span> · {standard.label}. Type above to override.
+        </span>
+      ) : (
+        <>
+          <span className="text-content-3">Standard name</span>
+          <span className="font-mono font-semibold text-content-1">{standard.code}</span>
+          <span className="min-w-0 truncate">{standard.label}</span>
+          <button
+            type="button"
+            className="ml-auto rounded-md px-2 py-0.5 font-semibold text-order-fg ring-1 ring-order-border hover:bg-order-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            onClick={() => onPatch({ code: standard.code, label: standard.label })}
+          >
+            Use auto name
+          </button>
+        </>
+      )}
     </div>
   );
 }

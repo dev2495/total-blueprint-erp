@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches } from "@/lib/size-naming";
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -1483,7 +1484,7 @@ export function StockLauncherV3Workspace() {
             <Pill tone={master ? "blue" : "amber"}>{master?.code || "No master"}</Pill>
             <Pill tone="slate">{isFullRoute ? "Full route" : `Stop ${routeStopLabel}`}</Pill>
             <Pill tone="slate">
-              {wipMode ? `${displayRollWidth || 0} mm WIP` : `${displayRollWidth || 0} mm`}
+              {wipMode ? `${mmWithInches(displayRollWidth) || "0 mm"} WIP` : mmWithInches(displayRollWidth) || "0 mm"}
             </Pill>
             <Pill tone="slate">
               {quantity.toLocaleString()} {qtyUom}

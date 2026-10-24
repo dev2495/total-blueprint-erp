@@ -1,5 +1,6 @@
 "use client";
 
+import { inchesText } from "@/lib/size-naming";
 /**
  * V3.6 Rolls Workspace
  *
@@ -501,7 +502,7 @@ export function RollsWorkspaceV36() {
       grandKg = 0;
     for (const r of filtered as any[]) {
       const variant = r.material_code || r.variant_code || "—";
-      const width = r.width_mm ? ` · ${r.width_mm}mm` : "";
+      const width = r.width_mm ? ` · ${r.width_mm}mm (${inchesText(r.width_mm)})` : "";
       const row = `${variant} · ${stockFormLabel(r.stock_form)}${width}`;
       const col = Math.round(Number(r.thickness_micron || r.thickness_um || 0));
       if (!col) continue;
@@ -1378,7 +1379,7 @@ function TableView({
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-content-2">
-                  {fmtNum(Number(r.width_mm || 0))} mm
+                  {fmtNum(Number(r.width_mm || 0))} mm<span className="ml-1 font-sans text-[11px] font-medium text-content-3">· {inchesText(r.width_mm)}</span>
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-content-2">
                   {fmtNum(Number(r.thickness_micron || r.thickness_um || 0))} μ
@@ -1762,7 +1763,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             />
             <Stat
               label="Width"
-              value={`${fmtNum(Number(roll.width_mm || 0))} mm`}
+              value={`${fmtNum(Number(roll.width_mm || 0))} mm · ${inchesText(roll.width_mm)}`}
             />
             <Stat
               label="Thickness"

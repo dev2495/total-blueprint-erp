@@ -6,6 +6,7 @@
  * spine endpoint, so every screen agrees. Commercial details (bill-to, PO, terms) are
  * deliberately NOT here; they live only on the sales order page.
  */
+import { cleanJobName } from "@/lib/job-name";
 import { formatDisplayDate } from "@/lib/date-format";
 import type { SpineMade, SpineMadeLayer } from "@/services/spine";
 import { SpecPlate } from "@/components/plate/spec-plate";
@@ -41,6 +42,9 @@ export function MadeCard({
   if (!made) return null;
   const extraLines = Math.max(0, made.line_count - 1);
   const first = made.lines[0];
+  const jobName = cleanJobName(made.job_name);
+  // The stock the plate describes (line 1): form, roll width and slit rule — shown on every screen.
+  const stockWeb = first?.stock_web || made.stock_web || "";
   const printText = first?.print_method
     ? [first.print_method, made.colours ? `${made.colours} colour${made.colours === 1 ? "" : "s"}` : "", made.artwork].filter(Boolean).join(" · ")
     : made.print && made.print !== "plain" ? made.print : "plain";
@@ -65,8 +69,20 @@ export function MadeCard({
           </span>
         ) : null
       }
-      title={made.headline}
+      title={
+        jobName ? (
+          <>
+            <span className="mb-1.5 block w-fit max-w-full truncate rounded-md bg-plate-2 px-2 py-0.5 text-[13px] font-semibold tracking-normal text-plate-fg ring-1 ring-inset ring-plate-line" data-testid={`${testId}-job-name`}>
+              Job · {jobName}
+            </span>
+            {made.headline}
+          </>
+        ) : (
+          made.headline
+        )
+      }
       facts={[
+        { label: "Stock web", value: stockWeb || "not set on the line" },
         { label: "Print", value: printText },
         { label: "Weight", value: weight },
         { label: "Lanes", value: made.lanes || "" },

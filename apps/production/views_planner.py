@@ -5009,6 +5009,7 @@ class PlannerViewSet(viewsets.ViewSet):
             "parent_status",
             "order_number",
             "customer_name",
+            "job_name",
             "display_name",
             "delivery_date",
             "status",

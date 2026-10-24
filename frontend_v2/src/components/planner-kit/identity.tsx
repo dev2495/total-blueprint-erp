@@ -6,6 +6,7 @@ import { coerceColorHex } from "@/lib/color-utils";
 import { cleanJobName } from "@/lib/job-name";
 import { normalizeProductSpec } from "@/lib/product-spec";
 import { JobNameTag } from "@/components/spine/job-name-tag";
+import { inchesText } from "@/lib/size-naming";
 import { cn } from "@/lib/utils";
 
 /**
@@ -42,6 +43,8 @@ export interface ProductIdentityData {
   typeLabel: string;
   sizeHero: string;
   sizeUnit: string;
+  /** The same size in inches, worked out from mm ("5.5 × 12 in"). */
+  sizeInches?: string;
   gusset?: string;
   name: string;
   layers: IdentityLayer[];
@@ -118,6 +121,7 @@ export function identityFrom(source: Record<string, any> | null | undefined): Pr
     typeLabel: spec.size.formLabel || spec.pouchStyle || FORM_LABEL[form],
     sizeHero: sizeHero || "Size pending",
     sizeUnit,
+    sizeInches: width ? inchesText(width, fgType === "ROLL" ? null : height) : undefined,
     gusset: spec.size.gussetMm ? `+ ${fmt(spec.size.gussetMm)} G` : undefined,
     name: raw.product_master_name || raw.template_name || spec.templateName || spec.productName || raw.line_label || "Product",
     layers: spec.layers.length
@@ -274,6 +278,7 @@ export function ProductIdentity({
           {data.sizeHero}
         </span>
         {data.sizeUnit ? <span className="text-caption text-content-3">{data.sizeUnit}</span> : null}
+        {data.sizeInches ? <span className="text-caption tabular-nums text-content-3">· {data.sizeInches}</span> : null}
         {data.gusset ? <span className="text-caption text-content-3">{data.gusset}</span> : null}
         <span className="rounded-[5px] bg-warning-bg px-1.5 text-caption font-medium text-warning-fg ring-1 ring-warning-border">
           {data.typeLabel}

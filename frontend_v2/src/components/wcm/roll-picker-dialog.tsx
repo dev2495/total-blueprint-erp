@@ -1,5 +1,6 @@
 "use client";
 
+import { inchesText } from "@/lib/size-naming";
 import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -709,7 +710,7 @@ export function WcmRollPickerDialog({
                       <div>
                         <span className="text-content-4">Width</span>
                         <br />
-                        <b>{c.width_mm.toFixed(0)} mm</b>
+                        <b>{c.width_mm.toFixed(0)} mm</b> <span className="text-content-3">· {inchesText(c.width_mm)}</span>
                         {targetWidth > 0 &&
                         Math.round(c.width_mm - targetWidth) !== 0 &&
                         c.tier !== "WIDER_OK_WITH_SLIT" ? (

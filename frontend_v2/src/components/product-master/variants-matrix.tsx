@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches } from "@/lib/size-naming";
 /**
  * V3.7 Variants matrix — mockup-aligned pivot matrix with sticky live BOM rail.
  *
@@ -907,8 +908,8 @@ function shortVariantTitle(variant: ProductVariant): string {
   const parts: string[] = [];
   if (g.size_code) parts.push(String(g.size_code));
   else if (g.width_mm && g.height_mm)
-    parts.push(`${g.width_mm}×${g.height_mm}`);
-  else if (g.width_mm) parts.push(`${g.width_mm} mm`);
+    parts.push(mmWithInches(g.width_mm, g.height_mm));
+  else if (g.width_mm) parts.push(mmWithInches(g.width_mm));
   if (g.thickness_um) parts.push(`${g.thickness_um}μ`);
   if (parts.length) return `Variant · ${parts.join(" · ")}`;
   // Fallback: take the last short segment of the variant code

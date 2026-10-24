@@ -1,5 +1,6 @@
 "use client";
 
+import { inchesText, withInches } from "@/lib/size-naming";
 /**
  * V3.7 Sales Orders list — full sales queue with:
  * - Subtle V37 hero + 6 KPI tiles (Open · Awaiting planning · Aged 6+d · Created today · Value · Avg age)
@@ -1011,7 +1012,7 @@ function buildLineAxisChips(
       "ROLL";
     const width = compactNumber(geometry.rollWidth);
     if (width)
-      pushUnique(chips, seen, `${width}mm web`, "emerald", "roll-width");
+      pushUnique(chips, seen, `${width} mm web · ${inchesText(geometry.rollWidth)}`, "emerald", "roll-width");
     pushUnique(chips, seen, `Roll · ${form}`, "slate", "fg");
   } else if (fgType) {
     pushUnique(
@@ -1036,7 +1037,7 @@ function buildLineAxisChips(
     pushUnique(
       chips,
       seen,
-      sizeLabel.toLowerCase().includes("mm") ? sizeLabel : `${sizeLabel} mm`,
+      withInches(sizeLabel.toLowerCase().includes("mm") ? sizeLabel : `${sizeLabel} mm`),
       "emerald",
       "size",
     );

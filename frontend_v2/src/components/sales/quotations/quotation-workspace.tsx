@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches } from "@/lib/size-naming";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1940,7 +1941,7 @@ function SkuQuoteLane({
     lockedPouchStyle ? lockedPouchStyle.replaceAll("_", " ") : "",
     isRoll
       ? activeLine.roll_form || "ROLL"
-      : `${activeLine.geometry.base.width_mm} × ${activeLine.geometry.base.height_mm} mm`,
+      : mmWithInches(activeLine.geometry.base.width_mm, activeLine.geometry.base.height_mm) || `${activeLine.geometry.base.width_mm} × ${activeLine.geometry.base.height_mm} mm`,
   ].filter(Boolean);
 
   return (

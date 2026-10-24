@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches, withInches } from "@/lib/size-naming";
 import * as React from "react";
 import { Check, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -86,7 +87,7 @@ export const lineScopeName = (row: any, fallback: string) =>
 export function lineScopeSpec(row: any) {
   return (
     [
-      clean(row?.size_label || (row?.width_mm ? `${row.width_mm} mm` : "")),
+      withInches(clean(row?.size_label || (row?.width_mm ? mmWithInches(row.width_mm) : ""))),
       micronText(row?.thickness_label),
       isBlank(row?.grade_label) ? "" : clean(row?.grade_label),
     ]
@@ -212,7 +213,7 @@ export function UnitCell({ label, kind, location, sub }: { label: unknown; kind:
  */
 export function ProductSpecCell({ row, fallbackName, unitLabel }: { row: any; fallbackName: string; unitLabel?: unknown }) {
   const layers = parseLayers(row?.layers_label);
-  const size = clean(row?.size_label) || (row?.width_mm ? `${num(row.width_mm, 0)} mm` : "");
+  const size = withInches(clean(row?.size_label)) || (row?.width_mm ? mmWithInches(row.width_mm) : "");
   const thickness = micronText(row?.thickness_label);
   const grade = isBlank(row?.grade_label) ? "" : clean(row?.grade_label);
   const rawBatch = productionBatchText(row);

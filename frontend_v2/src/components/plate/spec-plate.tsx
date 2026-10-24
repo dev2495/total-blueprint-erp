@@ -8,6 +8,7 @@
  */
 import * as React from "react";
 
+import { inchesText } from "@/lib/size-naming";
 import { cn } from "@/lib/utils";
 import type { SpecBlockData, SpecBlockLayer } from "@/components/spine/spec-block";
 
@@ -217,6 +218,11 @@ export function SpecPlate({
                 >
                   {sizeValue}
                 </span>
+                {data?.widthMm ? (
+                  <span className={cn("font-medium tabular-nums text-plate-fg-2", lg ? "text-[15px]" : "text-[13px]")} data-testid={`${testId}-size-inches`}>
+                    {inchesText(data.widthMm, data.heightMm)}
+                  </span>
+                ) : null}
                 {data?.gussetMm ? (
                   <span className={cn("font-semibold tabular-nums tracking-[-0.02em] text-plate-fg-2", lg ? "text-xl" : "text-lg")}>
                     gusset {fmt(data.gussetMm)}

@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any
 
 from apps.production.models import DeliveryChallan, DeliveryChallanItem, FinishedGoodsBatch, PackingUnit, PackingVerification, ProductionJob
+from apps.sales.job_name import clean_job_name
 from apps.sales.models import SalesOrder, SalesOrderItem
 
 OPEN_JOB_STATES = {"PLANNED", "WAITING", "READY", "RELEASED", "QUEUED"}
@@ -263,6 +264,10 @@ class OrderSpineService:
             "lines": lines,
             "due": order.delivery_date.isoformat() if order.delivery_date else None,
             "customer_name": order.customer_name,
+            "job_name": clean_job_name(getattr(order, "order_name", "")),
+            "stock_web": lines[0]["stock_web"] if lines else "",
+            "stock_form": lines[0]["stock_form"] if lines else "",
+            "stock_width_mm": lines[0]["stock_width_mm"] if lines else None,
         }
 
     @classmethod
@@ -346,6 +351,7 @@ class OrderSpineService:
             if item.planned_parent_width_mm:
                 lanes += f" on {_num(item.planned_parent_width_mm):g} mm"
 
+        stock = cls._stock_web(geometry, fg_type)
         return {
             "item_id": str(item.id),
             "headline": headline,
@@ -369,4 +375,25 @@ class OrderSpineService:
             "unit_weight_g": round(_num(item.unit_weight_g), 3) if item.unit_weight_g else None,
             "total_kg": round(_num(item.total_weight_kg), 3),
             "line_status": item.line_status,
+            **stock,
         }
+
+    STOCK_FORM_WORDS = {"OPEN_WEB": "Open web", "LAYFLAT_TUBE": "Lay-flat tube", "TUBING": "Lay-flat tube", "FOLDED_WEB": "Folded web", "CENTRE_FOLD": "Centre fold"}
+    SLIT_WORDS = {"SLIT_ALLOWED": "slit allowed", "EXACT_ONLY": "exact width only", "NO_SLIT": "no slitting"}
+
+    @classmethod
+    def _stock_web(cls, geometry: dict, fg_type: str) -> dict[str, Any]:
+        """The physical stock this line runs on: form, roll width (and film width for tubes), slit rule."""
+        form = _text(geometry.get("stock_form")).upper()
+        width = _num(geometry.get("child_target_width_mm") or geometry.get("roll_width_mm"))
+        film = _num(geometry.get("film_area_width_mm"))
+        slit = _text(geometry.get("slit_policy")).upper()
+        if not form and not width:
+            return {"stock_web": "", "stock_form": "", "stock_width_mm": None}
+        form_word = cls.STOCK_FORM_WORDS.get(form, form.replace("_", " ").capitalize() if form else ("Roll" if fg_type == "ROLL" else "Open web"))
+        bits = [form_word]
+        if width:
+            bits.append(f"{width:g} mm roll" + (f" ({film:g} mm film)" if film and abs(film - width) > 0.01 else ""))
+        if slit in cls.SLIT_WORDS:
+            bits.append(cls.SLIT_WORDS[slit])
+        return {"stock_web": " · ".join(bits), "stock_form": form, "stock_width_mm": width or None}

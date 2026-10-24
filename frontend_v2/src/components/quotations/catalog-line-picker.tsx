@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches } from "@/lib/size-naming";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -406,7 +407,7 @@ export default function CatalogLinePicker({
                     <div className="font-mono text-caption font-semibold text-content-1">{variant.code}</div>
                     <div className="mt-1 text-caption font-semibold text-content-3">
                       {Number(variant.geometry_snapshot?.width_mm || 0) > 0
-                        ? `${Number(variant.geometry_snapshot?.width_mm).toFixed(0)}×${Number(variant.geometry_snapshot?.height_mm || 0).toFixed(0)} mm`
+                        ? mmWithInches(variant.geometry_snapshot?.width_mm as number, Number(variant.geometry_snapshot?.height_mm || 0) || null)
                         : `${(variant.layer_snapshot || []).length} BOM layers`}
                     </div>
                   </button>

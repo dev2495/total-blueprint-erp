@@ -22,18 +22,17 @@ test("wcm can assign a machine and push a queued job into execution-ready state"
   await page.getByTestId(`wcm-assignment-row-${seed.wcm.assignment_id}`).click()
 
   // The seeded extrusion recipe requires a physical granule issue. Complete
-  // that existing code/source allocation gate before testing machine release.
-  const chooseFirstCode = page.getByRole("button", { name: /Choose the first grade\/code/i })
-  await expect(chooseFirstCode).toBeVisible({ timeout: 15_000 })
-  await chooseFirstCode.click()
+  // that code/source allocation gate before testing machine release: pick the
+  // code, leave kg blank (= the balance) and add it.
   const granulePicker = page.getByRole("combobox", { name: /Grade code and source for/i }).first()
   await expect(granulePicker).toBeVisible({ timeout: 15_000 })
   await granulePicker.click()
   const seededCode = page.getByRole("option").filter({ hasText: new RegExp(seed.wcm.granule_code_code, "i") }).first()
   await expect(seededCode).toBeVisible({ timeout: 15_000 })
   await seededCode.click()
-  await page.getByRole("button", { name: "Balance" }).first().click()
+  await page.getByRole("button", { name: /^Add code$/ }).first().click()
   await expect(page.locator("body")).toContainText("11.000 / 11.000 kg")
+  await expect(page.getByRole("list", { name: /Grade codes for/i }).first()).toContainText(new RegExp(seed.wcm.granule_code_code, "i"))
 
   await page.getByTestId("wcm-machine-select").click()
   const seededMachine = page.getByRole("option", { name: new RegExp(seed.wcm.machine_name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }).first()

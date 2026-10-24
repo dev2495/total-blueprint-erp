@@ -1,5 +1,6 @@
 "use client";
 
+import { withInches } from "@/lib/size-naming";
 import type React from "react";
 import { Activity, Clock, Layers, Package, Printer, Route, Ruler, Scale, Workflow } from "lucide-react";
 
@@ -100,7 +101,7 @@ export function getOrderPassport(order: PlannerControlOrder) {
         fact.product_master_name,
     );
     const displayName = firstText(order.line_label, fact.display_name, order.display_name, order.template_name, order.order_number);
-    const sizeLabel = firstText(
+    const sizeLabel = withInches(firstText(
         spec.size_label,
         spec.geometry_label,
         fact.profile_label,
@@ -109,7 +110,7 @@ export function getOrderPassport(order: PlannerControlOrder) {
             ? `${fmt(order.effective_dims.width_mm)} x ${fmt(order.effective_dims.height_mm)} mm`
             : "",
         geometry.width_mm && geometry.height_mm ? `${fmt(geometry.width_mm)} x ${fmt(geometry.height_mm)} mm` : "",
-    );
+    ));
     const rollForm = firstText(fact.roll_form, geometry.roll_form, base.roll_form);
     const formLabel = fgType.includes("ROLL")
         ? firstText(rollForm ? `Roll · ${titleCase(rollForm)}` : "", fgType)

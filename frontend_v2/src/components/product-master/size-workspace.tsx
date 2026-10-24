@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches, standardSizeName } from "@/lib/size-naming";
 import * as React from "react";
 import {
   AlertTriangle,
@@ -741,10 +742,10 @@ export function ProductSizeWorkspace({
                           ) : null}
                           <TableCell className="align-top">
                             <div className="font-mono text-xs font-semibold text-content-1">
-                              {row.code || `SZ-${index + 1}`}
+                              {row.code || standardSizeName(row, normalizedOutput === "ROLL")?.code || "New size"}
                             </div>
                             <div className="mt-0.5 truncate text-caption text-content-3">
-                              {row.label || "No label"}
+                              {row.label || standardSizeName(row, normalizedOutput === "ROLL")?.label || "Enter the size"}
                             </div>
                           </TableCell>
                           <TableCell className="align-top">
@@ -942,18 +943,15 @@ function reindexSizeRows(rows: ProductMasterSize[]) {
 
 function duplicateSizeRow(
   row: ProductMasterSize,
-  existingRows: ProductMasterSize[],
+  _existingRows: ProductMasterSize[],
   order: number,
 ): ProductMasterSize {
-  const codeBase = String(row.code || `SZ-${order}`)
-    .trim()
-    .toUpperCase();
-  const code = uniqueSizeCode(codeBase, existingRows);
   return {
     ...row,
     id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    code,
-    label: row.label ? `${row.label} copy` : code,
+    // A copy is a new size: it is named from its dimensions once they are changed (type to override).
+    code: "",
+    label: "",
     active: row.active !== false,
     sort_order: order,
   };
@@ -1437,8 +1435,8 @@ function sampleRow(
 ): Record<string, string | number | boolean> {
   if (outputKind === "ROLL") {
     return {
-      code: `ROLL-${order}`,
-      label: "500mm roll",
+      code: "500",
+      label: "500 mm web",
       width_mm: 500,
       roll_form: "FLAT",
       trim_loss_mm: 0,
@@ -1457,8 +1455,8 @@ function sampleRow(
     };
   }
   return {
-    code: `SZ-${order}`,
-    label: "250 x 350",
+    code: "250X350",
+    label: "250 × 350 mm",
     width_mm: 250,
     height_mm: 350,
     pouch_style_master: "",
@@ -1605,13 +1603,18 @@ function rowFromCsv(
     active: value("active") === "" ? true : boolValue(value("active")),
     sort_order: numberOrZero(defaulted("sort_order", order)),
   };
+  // Rows left without a code or label get the standard name from their dimensions.
+  const standard = standardSizeName(row, outputKind === "ROLL");
+  if (standard && !row.code) row.code = standard.code;
+  if (standard && !String(row.label || "").trim()) row.label = standard.label;
   return row;
 }
 
 function validateRow(row: ProductMasterSize, outputKind: OutputKind): string[] {
   const errors: string[] = [];
-  if (!String(row.code || "").trim()) errors.push("code required");
-  if (!String(row.label || "").trim()) errors.push("label required");
+  // Code and label come from the dimensions when left blank; only a row with neither needs them.
+  const standard = standardSizeName(row, outputKind === "ROLL");
+  if (!String(row.code || "").trim() && !standard) errors.push("code or size required");
   if (Number(row.width_mm || 0) <= 0)
     errors.push(
       outputKind === "ROLL" ? "roll width required" : "width required",
@@ -1793,8 +1796,8 @@ function normalizeImpact(value: unknown) {
 
 function sizeCopy(row: ProductMasterSize, outputKind: OutputKind) {
   if (outputKind === "ROLL")
-    return `${Number(row.width_mm || 0).toLocaleString()} mm`;
-  return `${Number(row.width_mm || 0).toLocaleString()} x ${Number(row.height_mm || 0).toLocaleString()}`;
+    return mmWithInches(row.width_mm) || "0 mm";
+  return mmWithInches(row.width_mm, row.height_mm) || `${Number(row.width_mm || 0).toLocaleString()} x ${Number(row.height_mm || 0).toLocaleString()}`;
 }
 
 function summaryCopy(row: ProductMasterSize, outputKind: OutputKind) {
@@ -1812,7 +1815,7 @@ function webWidthCopy(
   geometry: ReturnType<typeof computeProductGeometry>,
 ) {
   if (outputKind === "ROLL")
-    return `${Number(row.width_mm || 0).toLocaleString()} mm`;
+    return mmWithInches(row.width_mm) || "0 mm";
   const child = Number(row.child_target_width_mm || 0);
   const width = child > 0 ? child : geometry.fallbackRollWidthMm;
   return width > 0 ? `${Number(width.toFixed(2)).toLocaleString()} mm` : "-";

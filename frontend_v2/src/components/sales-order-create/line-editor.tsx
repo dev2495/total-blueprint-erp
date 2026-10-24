@@ -1,5 +1,6 @@
 "use client";
 
+import { inchesText } from "@/lib/size-naming";
 // Sales order line editor: product master axes, artwork, packing, quantity, and live BOM evidence.
 
 import * as React from "react";
@@ -2086,6 +2087,11 @@ function SizeAxis({
                 <div className="font-mono text-[12px] font-semibold text-content-1">
                   {compactSizeCode(s)}
                 </div>
+                {Number(s.width_mm || 0) > 0 ? (
+                  <div className="text-caption tabular-nums text-content-3">
+                    {inchesText(s.width_mm, Number(s.height_mm || 0) > 0 ? s.height_mm : null)}
+                  </div>
+                ) : null}
                 <div className="mt-0.5 text-caption font-bold text-content-3">
                   {s.stock_form || "open web"}
                 </div>

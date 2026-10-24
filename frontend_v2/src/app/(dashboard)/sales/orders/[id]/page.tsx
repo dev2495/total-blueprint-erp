@@ -1,5 +1,6 @@
 "use client";
 
+import { inchesText, mmWithInches } from "@/lib/size-naming";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -869,15 +870,15 @@ function geometryFacts(line: any, spec: ReturnType<typeof lineProductSpec>, geom
   const totalPcs = String(line.qty_uom || "").toUpperCase() === "PCS" ? safeNumber(line.qty_value) : metrics.orderedKg > 0 && unitWeightG > 0 ? Math.round((metrics.orderedKg * 1000) / unitWeightG) : 0;
   const facts: Array<{ label: string; value: string; tone?: "slate" | "blue" | "green" | "amber" | "violet" }> = [];
   if (fgType === "ROLL") {
-    if (rollWidth > 0) facts.push({ label: "Roll web", value: `${fmtQty(rollWidth)} mm`, tone: "green" });
-    if (width > 0 && width !== rollWidth) facts.push({ label: "Width", value: `${fmtQty(width)} mm`, tone: "blue" });
+    if (rollWidth > 0) facts.push({ label: "Roll web", value: mmWithInches(rollWidth), tone: "green" });
+    if (width > 0 && width !== rollWidth) facts.push({ label: "Width", value: mmWithInches(width), tone: "blue" });
     if (geometry.style || spec.size.formLabel) facts.push({ label: "Roll form", value: textValue(geometry.style, spec.size.formLabel), tone: "violet" });
   } else {
-    if (width > 0 && height > 0) facts.push({ label: "Size", value: `${fmtQty(width)} x ${fmtQty(height)} mm`, tone: "blue" });
-    if (width > 0) facts.push({ label: "Width", value: `${fmtQty(width)} mm` });
-    if (height > 0) facts.push({ label: "Height", value: `${fmtQty(height)} mm` });
-    if (gusset > 0) facts.push({ label: "Gusset", value: `${fmtQty(gusset)} mm`, tone: "amber" });
-    if (rollWidth > 0 && rollWidth !== width) facts.push({ label: "Roll web", value: `${fmtQty(rollWidth)} mm`, tone: "green" });
+    if (width > 0 && height > 0) facts.push({ label: "Size", value: mmWithInches(width, height), tone: "blue" });
+    if (width > 0) facts.push({ label: "Width", value: mmWithInches(width) });
+    if (height > 0) facts.push({ label: "Height", value: mmWithInches(height) });
+    if (gusset > 0) facts.push({ label: "Gusset", value: mmWithInches(gusset), tone: "amber" });
+    if (rollWidth > 0 && rollWidth !== width) facts.push({ label: "Roll web", value: mmWithInches(rollWidth), tone: "green" });
     if (geometry.style || spec.size.formLabel || spec.size.finishedGoodType) facts.push({ label: "Form", value: textValue(geometry.style, spec.size.formLabel, spec.size.finishedGoodType), tone: "violet" });
   }
   if (unitWeightG > 0) facts.push({ label: "Unit weight", value: `${fmtKg(unitWeightG, 3)} g`, tone: "green" });
@@ -950,8 +951,8 @@ function lineSpecChips(line: any): LineSpecChip[] {
       layers.map((layer) => micronLabel(layerThicknessValue(asRecord(layer)))).filter(Boolean).join("+"),
   );
   push(thicknessLabel, "amber");
-  if (geometry.rollWidth) push(`${fmtQty(geometry.rollWidth)}mm web`, "green");
-  if (geometry.width && geometry.height) push(`${fmtQty(geometry.width)} x ${fmtQty(geometry.height)} mm`, "green");
+  if (geometry.rollWidth) push(`${fmtQty(geometry.rollWidth)} mm web · ${inchesText(geometry.rollWidth)}`, "green");
+  if (geometry.width && geometry.height) push(mmWithInches(geometry.width, geometry.height), "green");
 
   const printType = cleanText(printing.type || printing.printing_type || line?.print_type).toUpperCase();
   const front = Number(printing.front_colors_count || printing.front_colours_count || 0);

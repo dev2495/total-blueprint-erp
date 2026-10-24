@@ -4,6 +4,7 @@ from django.utils.text import slugify
 from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, MaterialCodeAlias, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
+from .size_naming import standard_size_name
 from .stock_forms import normalize_slit_policy, normalize_stock_form, normalize_width_basis
 from .services_pouch_style import formula_axis_contract_error
 from apps.inventory.models import InkMaterial
@@ -877,6 +878,11 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "product_master_code", "product_master_name", "created_at", "updated_at"]
         # The (product_master, code) uniqueness is checked in validate() so the message names the code.
         validators = []
+        # A new size may come without code/label: validate() names it from its dimensions.
+        extra_kwargs = {
+            "code": {"required": False, "allow_blank": True},
+            "label": {"required": False, "allow_blank": True},
+        }
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -939,7 +945,39 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def validate_code(self, value):
-        return normalize_code(value, max_length=80)
+        return normalize_code(value, max_length=80) if str(value or "").strip() else ""
+
+    def _name_from_dimensions(self, attrs, master):
+        """New sizes: a blank code or label takes the standard name from the dimensions. Saved sizes keep theirs."""
+        if self.instance is not None:
+            if "code" in attrs and not attrs["code"]:
+                raise serializers.ValidationError({"code": "A saved size keeps its code; type one to rename it."})
+            if "label" in attrs and not str(attrs["label"] or "").strip():
+                attrs.pop("label")
+            return
+        if attrs.get("code") and str(attrs.get("label") or "").strip():
+            return
+        kind = str(getattr(master, "product_kind", "") or "").upper()
+        is_roll = kind == "ROLL" or not (attrs.get("width_mm") and attrs.get("height_mm"))
+        standard = standard_size_name(
+            width_mm=attrs.get("width_mm"),
+            height_mm=attrs.get("height_mm"),
+            gusset_mm=attrs.get("gusset_mm"),
+            roll_width_mm=attrs.get("roll_width_mm"),
+            thickness_micron=attrs.get("thickness_micron"),
+            is_roll=is_roll,
+        )
+        if standard is None:
+            if not attrs.get("code"):
+                raise serializers.ValidationError({
+                    "code": "Enter the size (width and height, or the roll width) and the code is made from it, or type a code."
+                })
+            attrs["label"] = attrs["code"]
+            return
+        if not attrs.get("code"):
+            attrs["code"] = standard[0]
+        if not str(attrs.get("label") or "").strip():
+            attrs["label"] = standard[1]
 
     def _value_from_attrs_or_instance(self, attrs, field):
         if field in attrs:
@@ -1026,6 +1064,7 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         master = attrs.get("product_master") or (getattr(self.instance, "product_master", None) if self.instance is not None else None)
+        self._name_from_dimensions(attrs, master)
         code = attrs.get("code", getattr(self.instance, "code", None) if self.instance is not None else None)
         if master is not None and code:
             clash = ProductMasterSize.objects.filter(product_master=master, code=code)

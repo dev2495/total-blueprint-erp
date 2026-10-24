@@ -1,3 +1,4 @@
+import { inchesText } from "./size-naming"
 type AnyRecord = Record<string, any>
 
 export type ProductSpecLayer = {
@@ -114,6 +115,11 @@ function sizeFrom(rawGeometry: AnyRecord): ProductSpec["size"] {
     label = `${parts.join(" x ")} mm`
   }
 
+  // Inches are always shown beside the mm size, worked out from it (never typed).
+  if (widthMm) {
+    const extra = inchesText(widthMm, fgType === "ROLL" ? null : heightMm)
+    if (extra && !label.includes(" in")) label = label.replace(/ mm( roll)?/, (match) => `${match} · ${extra}`)
+  }
   return { widthMm, heightMm, gussetMm, label, formLabel: rollForm, finishedGoodType: fgType || undefined }
 }
 

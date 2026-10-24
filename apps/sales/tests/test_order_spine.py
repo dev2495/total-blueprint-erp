@@ -56,6 +56,25 @@ class OrderSpineTests(RollLaneFixture, TestCase):
         self.assertEqual(from_job["order_id"], str(order.id))
         self.assertEqual(from_job["focus_job_id"], str(jobs[1].id))
 
+    def test_made_carries_the_stock_web_and_the_job_name(self, *_):
+        geometry = {
+            "fg_type": "POUCH", "base": {"width_mm": 190, "height_mm": 380},
+            "stock_form": "LAYFLAT_TUBE", "child_target_width_mm": 380, "roll_width_mm": 380,
+            "film_area_width_mm": 760, "slit_policy": "EXACT_ONLY",
+        }
+        item, _jobs = self._linear(["PRT", "PCH"], fg_type="POUCH", uom="PCS", qty=D("1000"), unit_weight_g=D("5"), geometry=geometry)
+        order = item.sales_order
+        order.order_name = "Diwali gift pack"
+        order.save(update_fields=["order_name"])
+        made = OrderSpineService.for_order(order)["made"]
+        self.assertEqual(made["job_name"], "Diwali gift pack")
+        self.assertEqual(made["stock_web"], "Lay-flat tube · 380 mm roll (760 mm film) · exact width only")
+        self.assertEqual(made["lines"][0]["stock_width_mm"], 380)
+        # Auto-filled "Order YYYY-MM-DD" names are not job names.
+        order.order_name = "Order 2026-10-24"
+        order.save(update_fields=["order_name"])
+        self.assertEqual(OrderSpineService.for_order(order)["made"]["job_name"], "")
+
     def _role_client(self, code):
         role, _ = Role.objects.get_or_create(code=code, defaults={"name": code.replace("_", " ").title()})
         user = get_user_model().objects.create(username=f"spine-{code.lower()}", email=f"spine-{code.lower()}@example.invalid", role=role)

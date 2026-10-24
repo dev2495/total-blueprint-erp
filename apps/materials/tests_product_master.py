@@ -2592,3 +2592,46 @@ class ProductMasterLongSizeListTests(TestCase):
         response = self.client.post(f"/api/master/products/{self.master.id}/sizes/", {"code": "305", "label": "dup", "roll_width_mm": 305}, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertIn('Size code "305" is already on this master', str(response.data))
+
+
+class ProductMasterSizeNamingTests(TestCase):
+    """New sizes are named from their dimensions; saved sizes keep their names."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="pm-naming", password="x", extra_permissions=["master.view", "master.manage"])
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.roll = ProductMaster.objects.create(code="PM-NAMING-ROLL", name="Naming roll", product_kind="ROLL", default_reporting_group="FG")
+        self.pouch = ProductMaster.objects.create(code="PM-NAMING-POUCH", name="Naming pouch", product_kind="POUCH", default_reporting_group="FG")
+        self.legacy = ProductMasterSize.objects.create(product_master=self.roll, code="680", label="680MMX60MIC", width_mm=680, active=True)
+
+    def save(self, master, rows):
+        return self.client.post(f"/api/master/products/{master.id}/workspace-save/", {"name": master.name, "sizes": rows}, format="json")
+
+    def test_new_roll_size_without_code_is_named_from_width_and_micron(self):
+        response = self.save(self.roll, [{"id": str(self.legacy.id), "code": "680", "label": "680MMX60MIC", "width_mm": 680}, {"code": "", "label": "", "width_mm": 500, "thickness_micron": 45}])
+        self.assertEqual(response.status_code, 200, response.data)
+        created = ProductMasterSize.objects.get(product_master=self.roll, code="500X45")
+        self.assertEqual(created.label, "500 mm web · 45 µ")
+        self.legacy.refresh_from_db()
+        self.assertEqual((self.legacy.code, self.legacy.label), ("680", "680MMX60MIC"), "saved sizes keep their names")
+
+    def test_new_pouch_size_is_named_from_width_height_and_gusset(self):
+        response = self.client.post(f"/api/master/products/{self.pouch.id}/sizes/", {"width_mm": 140, "height_mm": 305, "gusset_mm": 40}, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual((response.data["code"], response.data["label"]), ("140X305G40", "140 × 305 mm + 40 G"))
+
+    def test_typed_code_and_label_override_the_standard_name(self):
+        response = self.client.post(f"/api/master/products/{self.pouch.id}/sizes/", {"code": "A4-POUCH", "label": "A4 pouch", "width_mm": 210, "height_mm": 297}, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual((response.data["code"], response.data["label"]), ("A4-POUCH", "A4 pouch"))
+
+    def test_auto_name_matching_an_existing_size_says_so(self):
+        response = self.save(self.roll, [{"id": str(self.legacy.id), "code": "680", "label": "680MMX60MIC", "width_mm": 680}, {"code": "", "label": "", "width_mm": 680}])
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Size code "680" is already on this master', str(response.data))
+
+    def test_size_without_dimensions_or_code_asks_for_the_size(self):
+        response = self.client.post(f"/api/master/products/{self.pouch.id}/sizes/", {"code": "", "label": ""}, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Enter the size", str(response.data))

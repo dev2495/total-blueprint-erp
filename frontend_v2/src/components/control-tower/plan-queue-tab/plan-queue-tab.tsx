@@ -1,5 +1,6 @@
 "use client";
 
+import { inchesText, withInches } from "@/lib/size-naming";
 import { PlannerDialogLayer } from "../planner-dialog-layer";
 
 import { Fragment, useEffect, useMemo, useState, type ElementType } from "react";
@@ -546,8 +547,9 @@ export default function PlanQueueTab() {
     }
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div className={styles.page} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <Hero
+                className={styles.hero}
                 eyebrow="Planner"
                 title="Plan queue"
                 subtitle="Release what is ready, clear what is blocked. One row per order line; pick a row for its full spec, sourcing and release."
@@ -565,7 +567,7 @@ export default function PlanQueueTab() {
                 }
             />
 
-            <KpiRow>
+            <KpiRow className={styles.kpis}>
                 <KpiTile icon={CheckCircle2} label="Ready to release" value={fmt(kpis.counts.ready)} unit="lines" tone="done"
                     viz={<BulletBar value={kpis.counts.ready} max={Math.max(kpis.counts.total, 1)} left={`${fmt(kpis.counts.ready)} ready`} right={`${fmt(kpis.counts.total)} in view`} tone="done" />}
                     sub="release-eligible: math valid, artwork set, no blocker"
@@ -998,15 +1000,20 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
             title={o.line_status_display ? `Line status: ${o.line_status_display}` : undefined}
         >
             <span className={styles.id}>
+                {identity.jobName ? (
+                    <span className={styles.jobName} title={`Job name: ${identity.jobName}`} data-testid="planner-queue-job-name">
+                        <span className={styles.jobKey}>Job</span>{identity.jobName}
+                    </span>
+                ) : null}
                 <ProductIdentity
-                    data={identity}
+                    data={{ ...identity, jobName: undefined }}
                     meta={[age ? <span key="age" title="Days since the order was placed">placed {age.label}</span> : null]}
                 />
             </span>
             <span className={styles.side}>
                 <span className={styles.demand}>
                     <span className={styles.kg}>{fmt(o.required_qty_kg, 0)}<span className={styles.unit}>kg</span></span>
-                    {pcs > 0 ? <span className={styles.sub}>{fmt(pcs, 0)} pcs</span> : isRoll && width > 0 ? <span className={styles.sub}>{fmt(width, 0)} mm web</span> : null}
+                    {pcs > 0 ? <span className={styles.sub}>{fmt(pcs, 0)} pcs</span> : isRoll && width > 0 ? <span className={styles.sub}>{fmt(width, 0)} mm web · {inchesText(width)}</span> : null}
                 </span>
                 <span className={styles.state}>
                     <StateBadge tone={state.tone}>{state.label}</StateBadge>
@@ -1180,7 +1187,19 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                                     Order detail
                                 </span>
                             </div>
-                            <ProductIdentity big data={identityFrom({ ...order, customer_name: (order as any).customer_name, delivery_date: undefined })} />
+                            {(() => {
+                                const detailIdentity = identityFrom({ ...order, customer_name: (order as any).customer_name, delivery_date: undefined });
+                                return (
+                                    <>
+                                        {detailIdentity.jobName ? (
+                                            <span className={styles.jobName} title={`Job name: ${detailIdentity.jobName}`} data-testid="planner-detail-job-name">
+                                                <span className={styles.jobKey}>Job</span>{detailIdentity.jobName}
+                                            </span>
+                                        ) : null}
+                                        <ProductIdentity big data={{ ...detailIdentity, jobName: undefined }} />
+                                    </>
+                                );
+                            })()}
                             <div className="mt-1.5 font-mono text-[11px] leading-snug text-content-3" style={{ overflowWrap: "anywhere" }} title="Order line label">
                                 {factSheet.display_name || order.line_label || order.display_name || order.order_number}
                             </div>
@@ -1368,7 +1387,7 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                         <SpecBlock
                             icon={<Settings2 size={13} />}
                             label="Geometry"
-                            primary={factSheet.profile_label || order.display_geometry_label || `${fmt(order.effective_dims?.width_mm)}×${fmt(order.effective_dims?.height_mm)} mm`}
+                            primary={withInches(factSheet.profile_label || order.display_geometry_label || `${fmt(order.effective_dims?.width_mm)}×${fmt(order.effective_dims?.height_mm)} mm`)}
                             secondary={order.spec_signature ? `Spec ${order.spec_signature.slice(0, 10)}…` : undefined}
                         />
 

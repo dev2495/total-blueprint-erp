@@ -1,5 +1,6 @@
 "use client";
 
+import { mmWithInches } from "@/lib/size-naming";
 // Right rail for live geometry, material BOM, lane-up, and readiness evidence.
 
 import * as React from "react";
@@ -1081,7 +1082,7 @@ export function SalesPreviewRail({
           <Visual preview={preview} />
           <dl className="grid gap-0 text-[12.5px]">
             {[
-              ["W × H", width > 0 ? `${width} × ${height || 0} mm` : "—"],
+              ["W × H", width > 0 ? mmWithInches(width, height || null) : "—"],
               ["Thickness", totalUm > 0 ? `${totalUm} µ` : "—"],
               ["Child web", childWeb > 0 ? `${Math.round(childWeb)} mm` : "—"],
               ["Roll form", rollType || "—"],

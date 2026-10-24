@@ -46,6 +46,10 @@ export interface SpineMadeLine {
   unit_weight_g: number | null;
   total_kg: number;
   line_status: string;
+  /** Physical stock the line runs on, e.g. "Open web · 655 mm roll · slit allowed". */
+  stock_web?: string;
+  stock_form?: string;
+  stock_width_mm?: number | null;
 }
 
 export interface SpineMade {
@@ -66,6 +70,10 @@ export interface SpineMade {
   lines: SpineMadeLine[];
   due: string | null;
   customer_name: string;
+  job_name?: string;
+  stock_web?: string;
+  stock_form?: string;
+  stock_width_mm?: number | null;
 }
 
 export interface OrderSpine {
