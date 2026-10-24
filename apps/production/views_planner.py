@@ -4691,6 +4691,55 @@ class PlannerViewSet(viewsets.ViewSet):
             "tone": "info",
         }
 
+    def _row_route_codes(self, row: dict):
+        """Route stages for a compact queue row: code, name and parallel group per step, cached per template."""
+        template_id = str(row.get("template_id") or "").strip()
+        if not template_id:
+            return []
+        cache = getattr(self, "_control_hub_route_codes_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._control_hub_route_codes_cache = cache
+        if template_id in cache:
+            return cache[template_id]
+        steps = []
+        try:
+            template = TemplateBlueprint.objects.select_related("routing_rule").get(id=template_id)
+            routing_rule = getattr(template, "routing_rule", None)
+            nodes = []
+            if routing_rule:
+                from apps.production.services.batch_route_service import RouteGraphService
+
+                nodes = [
+                    {
+                        "index": RouteGraphService.step_index_for_node(node),
+                        "code": str(node.get("process_code") or ""),
+                        "label": str(node.get("label") or ""),
+                        "parallel_group": str(node.get("parallel_group") or ""),
+                    }
+                    for node in (RouteGraphService.normalize(routing_rule).get("nodes") or [])
+                    if node.get("process_code")
+                ]
+            if not nodes:
+                codes = list(
+                    template.process_steps.filter(is_removed_from_route=False)
+                    .order_by("sequence_number")
+                    .values_list("process__code", flat=True)
+                )
+                nodes = [{"index": index, "code": str(code or ""), "label": "", "parallel_group": ""} for index, code in enumerate(codes) if code]
+            names = getattr(self, "_control_hub_process_names", None)
+            if not isinstance(names, dict):
+                names = dict(Process.objects.values_list("code", "name"))
+                self._control_hub_process_names = names
+            for node in nodes:
+                label = node.pop("label")
+                node["name"] = label if label and label != node["code"] else str(names.get(node["code"]) or node["code"])
+            steps = nodes
+        except Exception:
+            steps = []
+        cache[template_id] = steps
+        return steps
+
     def _row_template_steps(self, row: dict):
         template_id = str(row.get("template_id") or "").strip()
         if not template_id:
@@ -6359,6 +6408,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 facts = slim.get('order_fact_sheet') or {}
                 slim['order_fact_sheet'] = {key: value for key, value in facts.items() if not isinstance(value, (list, dict))}
                 slim['template_steps'] = []
+                slim['queue_route_steps'] = self._row_route_codes(row)
             return slim
 
         def should_stop_scanning() -> bool:
@@ -6374,6 +6424,8 @@ class PlannerViewSet(viewsets.ViewSet):
         cheap_source_cache = {}
         required_start_cache = {}
         self._control_hub_template_steps_cache = {}
+        self._control_hub_route_codes_cache = {}
+        self._control_hub_process_names = None
         self._control_hub_process_cache = {}
         self._control_hub_purchasable_material_cache = {}
         self._control_hub_fg_signature_counts = {}

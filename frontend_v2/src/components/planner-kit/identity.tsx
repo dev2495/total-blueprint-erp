@@ -159,17 +159,32 @@ export function LayerStack({ layers, className }: { layers: IdentityLayer[]; cla
   }
   const total = layers.reduce((sum, layer) => sum + (layer.micron || 0), 0);
   const label = layers
-    .map((layer) => `${layer.name}${layer.micron ? ` ${fmt(layer.micron)}µ` : ""}${layer.grade ? ` (${layer.grade})` : ""}`)
+    .map((layer) => `${layer.name}${layer.grade ? ` ${layer.grade}` : ""}${layer.micron ? ` ${fmt(layer.micron)}µ` : ""}`)
     .join(" + ");
+  // Each layer reads as text (film swatch · name · grade · micron); the total gauge closes the row.
   return (
-    <span className={cn("inline-flex items-center gap-1.5", className)} title={label}>
-      <span className="flex h-2 w-[92px] overflow-hidden rounded-[3px] ring-1 ring-line" aria-hidden>
-        {layers.map((layer, index) => (
-          <i key={index} className={cn("block h-full", filmTone(layer.name))} style={{ flex: Math.max(layer.micron || 1, 1) }} />
-        ))}
-      </span>
-      <span className="font-mono text-caption font-semibold tabular-nums text-content-2">{total ? `${fmt(total)}µ` : ""}</span>
-      <span className="sr-only">Layers: {label}</span>
+    <span className={cn("inline-flex min-w-0 flex-wrap items-center gap-1", className)} title={`${label}${total ? ` = ${fmt(total)}µ` : ""}`}>
+      {layers.map((layer, index) => (
+        <React.Fragment key={index}>
+          {index ? <span className="text-[11px] font-semibold text-content-4" aria-hidden>+</span> : null}
+          <span className="inline-flex h-5 max-w-[168px] items-center gap-1 rounded-[5px] bg-surface-1 pl-1 pr-1.5 text-caption ring-1 ring-line-strong" aria-hidden>
+            <i className={cn("block h-3 w-1.5 shrink-0 rounded-[2px] ring-1 ring-line-strong", filmTone(layer.name))} />
+            <span className="truncate font-semibold text-content-1">{layer.name}</span>
+            {layer.grade ? <span className="shrink-0 font-medium text-content-3">{layer.grade}</span> : null}
+            {layer.micron ? (
+              <span className="shrink-0 font-mono font-semibold tabular-nums text-content-1">
+                {fmt(layer.micron)}<span className="font-sans text-[10px] font-medium text-content-3">µ</span>
+              </span>
+            ) : null}
+          </span>
+        </React.Fragment>
+      ))}
+      {total && layers.length > 1 ? (
+        <span className="whitespace-nowrap font-mono text-caption font-semibold tabular-nums text-content-2" aria-hidden>
+          = {fmt(total)}µ
+        </span>
+      ) : null}
+      <span className="sr-only">Layers: {label}{total ? `, ${fmt(total)} micron total` : ""}</span>
     </span>
   );
 }

@@ -587,6 +587,8 @@ export interface PlannerControlOrder {
     spec_summary?: PlannerSpecSummary;
     production_trace?: PlannerProductionTrace;
     analytics?: PlannerRowAnalytics;
+    /** Compact queue rows: route stages (process code + name) for the queue's route column. */
+    queue_route_steps?: Array<{ index: number; code: string; name: string; parallel_group?: string }>;
     template_steps?: Array<{
         route_node_id?: string;
         route_branch_key?: string;

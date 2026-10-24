@@ -61,7 +61,7 @@ export function WorkspaceBar() {
     >
       <Link
         href={home}
-        className="flex flex-none items-center gap-2 rounded-xl bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-white"
+        className="flex flex-none items-center gap-2 rounded-xl bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground"
         title={workspace.blurb}
         data-testid="workspace-bar-home"
       >

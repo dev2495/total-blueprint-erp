@@ -65,6 +65,7 @@ import { formatDisplayDate } from "@/lib/date-format";
 import { SpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { useCanFollowLink } from "@/components/layout/use-nav-access";
 import { JobNameTag } from "@/components/spine/job-name-tag";
+import { cleanJobName } from "@/lib/job-name";
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -248,10 +249,22 @@ function customerInitials(name: string): string {
       .toUpperCase() || "—"
   );
 }
+/** Job name under the customer: bold, its own line, hidden when blank or auto-named. */
+function OrderJobName({ name }: { name: unknown }) {
+  const text = cleanJobName(name);
+  if (!text) return null;
+  return (
+    <div className="mt-px truncate text-[13px] font-semibold text-content-1" title={`Job name: ${text}`} data-testid="order-job-name">
+      {text}
+    </div>
+  );
+}
+
+/** Initials badge tinted by order age; the text uses the matching foreground so it stays readable in both themes. */
 function customerAvatarTone(d: number): string {
-  if (d >= 6) return "bg-danger-bg";
-  if (d >= 3) return "bg-warning-bg";
-  return "bg-success-bg";
+  if (d >= 6) return "bg-danger-bg text-danger-fg ring-1 ring-danger-border";
+  if (d >= 3) return "bg-warning-bg text-warning-fg ring-1 ring-warning-border";
+  return "bg-success-bg text-success-fg ring-1 ring-success-border";
 }
 function orderTotalKg(o: SalesOrder): number {
   return orderQtyPair(o).kg;
@@ -3658,7 +3671,7 @@ function OrderRow({
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "flex h-8 w-8 flex-none items-center justify-center rounded-xl text-white font-semibold text-caption",
+                "flex h-8 w-8 flex-none items-center justify-center rounded-xl font-bold text-caption",
                 customerAvatarTone(age),
               )}
             >
@@ -3668,11 +3681,11 @@ function OrderRow({
               <div className="text-[13px] font-bold text-content-1 truncate">
                 {order.customer_name || "—"}
               </div>
+              <OrderJobName name={(order as any).order_name} />
               <div className="flex items-center gap-1.5 mt-0.5 text-caption">
-                <span className="font-mono font-semibold text-order-fg">
+                <span className="font-mono font-normal text-content-2">
                   {order.order_number}
                 </span>
-                <JobNameTag name={(order as any).order_name} />
                 <span
                   className={cn(
                     "inline-flex items-center rounded-full px-1.5 py-0.5 text-caption font-semibold text-white",
@@ -3759,7 +3772,7 @@ function OrderRow({
         >
           <span
             className={cn(
-              "flex h-9 w-9 flex-none items-center justify-center rounded-xl text-white font-semibold text-caption",
+              "flex h-9 w-9 flex-none items-center justify-center rounded-xl font-bold text-caption",
               customerAvatarTone(age),
             )}
           >
@@ -3769,8 +3782,9 @@ function OrderRow({
             <div className="text-[13px] font-bold text-content-1 truncate">
               {order.customer_name || "—"}
             </div>
+            <OrderJobName name={order.order_name} />
             <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-caption">
-              <span className="whitespace-nowrap font-mono font-semibold text-order-fg">
+              <span className="whitespace-nowrap font-mono font-normal text-content-2">
                 {order.order_number}
               </span>
               {(order as any).customer_code ? (
@@ -3778,14 +3792,6 @@ function OrderRow({
                   <span className="text-content-4">·</span>
                   <span className="font-mono text-content-3">
                     {(order as any).customer_code}
-                  </span>
-                </>
-              ) : null}
-              {order.order_name ? (
-                <>
-                  <span className="text-content-4">·</span>
-                  <span className="text-content-3 truncate max-w-[140px]">
-                    {order.order_name}
                   </span>
                 </>
               ) : null}

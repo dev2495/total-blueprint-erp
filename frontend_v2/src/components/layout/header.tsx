@@ -149,7 +149,8 @@ export function Header() {
       </div>
 
       <div className="hidden w-full items-center gap-3 md:gap-4 lg:flex lg:gap-6">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        {/* Clipped (not overlapped) when the right-hand controls need the room; the padding keeps focus rings visible. */}
+        <div className="-my-1 -ml-1 flex min-w-0 flex-1 items-center gap-3 overflow-hidden py-1 pl-1">
           <div className="hidden min-w-[9rem] max-w-[12rem] flex-1 items-center gap-3 sm:flex lg:flex lg:max-w-[12rem] xl:w-48 xl:min-w-[12rem] xl:max-w-[12rem] xl:flex-none">
             <CommandPalette />
           </div>

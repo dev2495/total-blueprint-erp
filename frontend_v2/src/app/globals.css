@@ -126,7 +126,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 35% 7%;
 
-    --primary: 221 83% 53%;
+    --primary: 221 83% 48%; /* white text on it passes 4.5:1 at small sizes */
     --primary-foreground: 210 40% 98%;
 
     --secondary: 220 14% 96%;
@@ -304,7 +304,7 @@
     --plate-2: #1a2135;
     --plate-fg: #f3f5fb;
     --plate-fg-2: #aab3c9;
-    --plate-fg-3: #7d88a4;
+    --plate-fg-3: #8a95b0;
     --plate-line: #2a3350;
     --plate-glow: rgba(124, 157, 255, 0.18);
     /* Film colours for the to-scale cross-section. */
@@ -361,6 +361,14 @@
     --brand-700: #8fb8ff;
     --brand-900: #1b3576;
     --brand-950: #0c1a35;
+
+    /* Legacy indigo/violet shades used as text on dark cards: light tints in dark, tinted glass for the 50s. */
+    --i-50: rgba(99, 102, 241, 0.14);
+    --i-500: #9a9dfb;
+    --i-700: #bcbefe;
+    --v-50: rgba(79, 107, 237, 0.14);
+    --v-500: #8fa4ff;
+    --v-700: #b4c2ff;
 
     --sky-50: rgba(56, 189, 248, 0.13);
     --sky-500: #67d7ff;

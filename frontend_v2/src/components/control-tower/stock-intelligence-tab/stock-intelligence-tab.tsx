@@ -546,7 +546,7 @@ export default function StockIntelligenceTab() {
                                 <div style={{
                                     padding: "16px 22px",
                                     background: stage.color,
-                                    color: "#fff",
+                                    color: "var(--surface-1)",
                                     borderRadius: "var(--r-3)",
                                     minWidth: 140,
                                     opacity: 0.55 + (widthPct / 100) * 0.45,
@@ -612,7 +612,7 @@ export default function StockIntelligenceTab() {
                                     <span style={{
                                         fontFamily: "var(--f-mono)", fontSize: 10,
                                         padding: "1px 6px", borderRadius: "var(--r-pill)",
-                                        background: active ? "rgba(255,255,255,.7)" : "var(--surface-2)",
+                                        background: active ? "var(--surface-1)" : "var(--surface-2)",
                                         color: active ? (tone?.fg || "var(--br-700)") : "var(--text-3)",
                                     }}>
                                         {count}
@@ -873,7 +873,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                                 fontSize: 10, fontWeight: 650,
                                 textTransform: "uppercase", letterSpacing: ".05em",
                                 background: canLaunch ? (isShort ? "var(--danger-fg)" : "var(--brand-600)") : "var(--surface-2)",
-                                color: canLaunch ? "#fff" : "var(--text-3)",
+                                color: canLaunch ? "var(--surface-1)" : "var(--text-3)",
                                 border: "none",
                                 borderRadius: "var(--r-pill)",
                                 cursor: canLaunch ? "pointer" : "not-allowed",
@@ -903,7 +903,7 @@ function TemplateBalanceRow({ row, onLaunch }: { row: TemplateBalance; onLaunch:
                     position: "absolute", inset: 0,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 10, fontWeight: 700,
-                    color: stockBarWidth > 30 ? "#fff" : "var(--text-2)",
+                    color: stockBarWidth > 30 ? "var(--plate)" : "var(--text-2)",
                     fontFamily: "var(--f-mono)",
                     letterSpacing: ".05em",
                 }}>
@@ -962,7 +962,7 @@ function PackagingStockCard({ openCount, balances, onLaunch }: { openCount: numb
                     style={{
                         padding: "8px 14px",
                         fontSize: 11, fontWeight: 700,
-                        background: "var(--v-700)", color: "#fff",
+                        background: "rgb(var(--order-fg-rgb))", color: "var(--surface-1)",
                         border: "none", borderRadius: "var(--r-pill)",
                         cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
                         boxShadow: "0 0 0 1px rgba(124,58,237,.18), 0 12px 28px -12px rgba(124,58,237,.32)",
@@ -1067,7 +1067,7 @@ function PODStockCard({ openCount, balances }: { openCount: number; balances: Te
                         style={{
                             padding: "8px 14px",
                             fontSize: 11, fontWeight: 700,
-                            background: "var(--a-700)", color: "#fff",
+                            background: "var(--a-700)", color: "var(--surface-1)",
                             border: "none", borderRadius: "var(--r-pill)",
                             cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6,
                             boxShadow: "0 0 0 1px rgba(245,158,11,.18), 0 12px 28px -12px rgba(245,158,11,.32)",

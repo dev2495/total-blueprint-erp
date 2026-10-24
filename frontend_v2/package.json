@@ -16,6 +16,7 @@
     "nav:validate": "node scripts/validate_nav_routes.mjs",
     "test:query-contract": "./scripts/with-supported-node.sh node --experimental-strip-types scripts/test-query-contract.mjs",
     "test:qty-formula": "node scripts/test-qty-formula.mjs",
+    "test:planner-queue": "./scripts/with-supported-node.sh node --experimental-strip-types scripts/test-planner-queue-state.mjs",
     "test:ui-version-privacy": "node scripts/check-user-facing-version-labels.mjs",
     "e2e:ui:green": "./scripts/with-supported-node.sh node scripts/run_release_green.mjs",
     "e2e:ui": "./scripts/with-supported-node.sh node scripts/run_ui_e2e.mjs",

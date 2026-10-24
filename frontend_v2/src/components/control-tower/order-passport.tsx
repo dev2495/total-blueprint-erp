@@ -220,7 +220,7 @@ export function OrderPassportStrip({
                                 height: 22,
                                 borderRadius: "var(--r-pill)",
                                 background: "var(--br-600)",
-                                color: "white",
+                                color: "var(--surface-1)",
                                 fontFamily: "var(--f-mono)",
                                 fontSize: 10,
                                 fontWeight: 700,

@@ -2,7 +2,7 @@
 
 import { PlannerDialogLayer } from "../planner-dialog-layer";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type ElementType } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     AlertTriangle,
@@ -20,7 +20,9 @@ import {
     Rocket,
     Settings2,
     Sparkles,
+    MinusCircle,
     X,
+    XCircle,
     Zap,
 } from "lucide-react";
 
@@ -42,6 +44,8 @@ import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import { MadeCard } from "@/components/spine/made-card";
 import { SpecBlock as OrderSpecBlock, specFromSource } from "@/components/spine/spec-block";
 import { matchingPlannerDetail, samePlannerEntity, type PlannerIdentity } from "@/lib/query-contract";
+import styles from "./plan-queue.module.css";
+import { isPartialReplanRow, queueGates, queueState, type GateState, type QueueGate } from "@/lib/planner-queue-state";
 
 function fmt(n: any, decimals = 0) {
     const v = Number(n);
@@ -160,17 +164,9 @@ function packagingInnerPackInfo(packagingSnap: any) {
 }
 
 function deriveSegments(o: PlannerControlOrder): HealthSegment[] {
-    const mathOk = o.math_valid !== false;
-    const artworkRequired = !!o.artwork_assignment_required;
-    const artworkAssigned = !!o.assigned_artwork_id;
-    const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
-    const lineCount = o.material_plan_summary?.line_count ?? 0;
-    return [
-        { key: "math", state: mathOk ? "ok" : "blocked", label: "Math", detail: mathOk ? "valid" : (o.math_error || "math invalid") },
-        { key: "artwork", state: !artworkRequired ? "skip" : artworkAssigned ? "ok" : "warn", label: "Artwork", detail: !artworkRequired ? "n/a" : artworkAssigned ? "assigned" : "pending" },
-        { key: "material", state: lineCount === 0 ? "skip" : blockerCount > 0 ? "blocked" : "ok", label: "Material", detail: blockerCount > 0 ? `${blockerCount} blocker${blockerCount === 1 ? "" : "s"}` : `${lineCount} lines` },
-        { key: "route", state: Number.isFinite(o.required_start_step) && Number.isFinite(o.route_last_step_index) ? "ok" : "warn", label: "Route", detail: `${o.required_start_step ?? "?"} → ${o.route_last_step_index ?? "?"}` },
-    ];
+    // Same gates as the queue row: each segment turns on its own check only (artwork never reddens material).
+    const state = { ok: "ok", warn: "warn", bad: "blocked", skip: "skip" } as const;
+    return queueGates(o).map((gate) => ({ key: gate.key, state: state[gate.state], label: gate.word, detail: gate.detail }));
 }
 
 type FgFilter = "all" | "POUCH" | "ROLL";
@@ -235,14 +231,6 @@ function queryToFilters(query: string): Filters {
         age: (params.get("age") as AgeFilter) || EMPTY_FILTERS.age,
         print: (params.get("print") as PrintFilter) || EMPTY_FILTERS.print,
     };
-}
-
-function isPartialReplanRow(row: PlannerControlOrder): boolean {
-    const lineStatus = String(row.line_status || "").toUpperCase();
-    const explicitShortfallKg = Number(row.partial_shortfall_kg || 0);
-    return Boolean(row.partial_replan_required)
-        || lineStatus === "PARTIAL"
-        || explicitShortfallKg > 0;
 }
 
 function rowMatchesFilters(row: PlannerControlOrder, f: Filters): boolean {
@@ -425,11 +413,22 @@ export default function PlanQueueTab() {
     }, [orders]);
 
     const filtered = useMemo(() => orders.filter((o) => rowMatchesFilters(o, filters)), [orders, filters]);
+    const [queueSort, setQueueSort] = useState<"newest" | "due" | "demand">("newest");
+    const sortedQueue = useMemo(() => {
+        if (queueSort === "newest") return filtered;
+        const dueDays = (o: PlannerControlOrder) => {
+            const days = dueInfo((o as any).delivery_date).days;
+            return Number.isFinite(days) ? days : Number.POSITIVE_INFINITY;
+        };
+        return [...filtered].sort((a, b) => queueSort === "due"
+            ? dueDays(a) - dueDays(b)
+            : Number(b.required_qty_kg || 0) - Number(a.required_qty_kg || 0));
+    }, [filtered, queueSort]);
 
     const selected = useMemo(() => {
-        const found = filtered.find((o) => plannerRowKey(o) === selectedKey);
-        return found || filtered[0] || null;
-    }, [filtered, selectedKey]);
+        const found = sortedQueue.find((o) => plannerRowKey(o) === selectedKey);
+        return found || sortedQueue[0] || null;
+    }, [sortedQueue, selectedKey]);
 
     const selectedDetailQ = useQuery({
         queryKey: ["planner-control-hub-pq-detail-v1", selected?.order_kind, selected?.order_id, selected?.sales_order_item_id || "", selected?.revision || ""],
@@ -467,6 +466,16 @@ export default function PlanQueueTab() {
             if (Number.isFinite(due.days) && due.days < 0) overdue++;
             totalKg += Number(o.required_qty_kg || 0);
         }
+        const reasons = { planning: 0, artwork: 0, replan: 0, stock: 0 };
+        for (const o of filtered) {
+            const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
+            if (!blockerCount && o.math_valid !== false) continue;
+            const state = queueState(o);
+            if (state.tone === "block") reasons.planning++;
+            else if (state.tone === "replan") reasons.replan++;
+            else if (state.label === "Artwork pending") reasons.artwork++;
+            else reasons.stock++;
+        }
         return Object.assign([
             { eyebrow: "Filtered queue", value: fmt(total), sub: `${fmt(orders.length)} loaded`, accent: "default" as const },
             { eyebrow: "Ready", value: fmt(ready), sub: "release-eligible", accent: "success" as const },
@@ -474,7 +483,7 @@ export default function PlanQueueTab() {
             { eyebrow: "Artwork pending", value: fmt(artwork), sub: "awaiting assignment", accent: artwork > 0 ? ("warn" as const) : ("default" as const) },
             { eyebrow: "Overdue", value: fmt(overdue), sub: "past due date", accent: overdue > 0 ? ("danger" as const) : ("default" as const) },
             { eyebrow: "Required KG", value: fmt(totalKg, 0), sub: "queue weight", accent: "info" as const },
-        ], { counts: { total, ready, blocked, artwork, overdue, totalKg } });
+        ], { counts: { total, ready, blocked, artwork, overdue, totalKg }, reasons });
     }, [filtered, orders.length]);
     const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -513,8 +522,8 @@ export default function PlanQueueTab() {
         if (committed) {
             const detailKey = ["planner-control-hub-pq-detail-v1", committed.order_kind, committed.order_id, committed.sales_order_item_id || ""];
             await queryClient.cancelQueries({ queryKey: detailKey });
-            const index = filtered.findIndex((row) => samePlannerEntity(row, committed));
-            const next = filtered[index + 1] || filtered[index - 1];
+            const index = sortedQueue.findIndex((row) => samePlannerEntity(row, committed));
+            const next = sortedQueue[index + 1] || sortedQueue[index - 1];
             setSelectedKey(next ? plannerRowKey(next) : "");
             queryClient.setQueriesData<Awaited<ReturnType<typeof plannerService.getControlHub>>>(
                 { queryKey: ["planner-control-hub-pq-v3"] },
@@ -539,14 +548,20 @@ export default function PlanQueueTab() {
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             <Hero
-                eyebrow="Planner Command Tower · Tab 2"
-                title="Plan Queue"
-                subtitle="Filter, inspect, and release the rows that are ready to move forward."
+                eyebrow="Planner"
+                title="Plan queue"
+                subtitle="Release what is ready, clear what is blocked. One row per order line; pick a row for its full spec, sourcing and release."
                 actions={
+                    <>
+                    <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-surface-2 px-3 text-caption font-medium text-content-2 ring-1 ring-line" role="status" data-testid="pq-live">
+                        <span className={`h-2 w-2 rounded-full ${hubQ.isError ? "bg-danger" : hubQ.isFetching ? "bg-warning" : "bg-success"}`} aria-hidden />
+                        {hubQ.isError ? "Not updated" : hubQ.isFetching ? "Updating…" : hubQ.dataUpdatedAt ? `Live · ${new Date(hubQ.dataUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}` : "Live"}
+                    </span>
                     <Button variant="ghost" onClick={() => void invalidateAll()}>
                         <RefreshCw size={14} className={hubQ.isFetching ? "spin" : ""} style={{ marginRight: 6 }} />
                         Refresh
                     </Button>
+                    </>
                 }
             />
 
@@ -557,11 +572,12 @@ export default function PlanQueueTab() {
                     onClick={() => setFilters(applyQuickPill(filters, "ready"))} pressed={activePill === "ready"} testId="pq-kpi-ready" />
                 <KpiTile icon={AlertTriangle} label="Blocked" value={fmt(kpis.counts.blocked)} unit="lines" tone={kpis.counts.blocked ? "block" : undefined}
                     viz={<StackBar segments={[
-                        { label: "Ready", value: kpis.counts.ready, tone: "done" },
-                        { label: "Artwork", value: kpis.counts.artwork, tone: "wait" },
-                        { label: "Blocked", value: kpis.counts.blocked, tone: "block" },
-                    ]} />}
-                    sub="with blockers or invalid math"
+                        { label: "Recipe / spec", value: kpis.reasons.planning, tone: "block" as const },
+                        { label: "Artwork only", value: kpis.reasons.artwork, tone: "wait" as const },
+                        { label: "Replan", value: kpis.reasons.replan, tone: "queued" as const },
+                        { label: "Stock check", value: kpis.reasons.stock, tone: "neutral" as const },
+                    ].filter((seg) => seg.value > 0)} />}
+                    sub={kpis.counts.blocked ? `${fmt(kpis.reasons.planning)} need a recipe or spec fix · ${fmt(kpis.reasons.artwork)} only artwork` : "nothing waiting on a gate"}
                     onClick={() => setFilters(applyQuickPill(filters, "blocked"))} pressed={activePill === "blocked"} testId="pq-kpi-blocked" />
                 <KpiTile icon={ImageIcon} label="Artwork pending" value={fmt(kpis.counts.artwork)} unit="lines" tone={kpis.counts.artwork ? "wait" : undefined}
                     sub="awaiting artwork assignment"
@@ -755,17 +771,24 @@ export default function PlanQueueTab() {
             </PlannerFilterDock>
             </div>
 
-            {/* Rebalanced grid: queue gets equal share, detail panel uses internal 2-col layout for density */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 18 }}>
-                <Card style={{ padding: 0 }}>
-                    <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div>
-                            <div className="t-eyebrow">Queue</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-1)", marginTop: 2 }}>
-                                {filtered.length} order{filtered.length === 1 ? "" : "s"}
-                            </div>
-                        </div>
-                        <ClipboardList size={16} color="var(--text-3)" />
+            {/* Queue (table when wide, cards when narrow) beside the selected line's detail. */}
+            <div className={styles.split}>
+                <section className={styles.list} aria-labelledby="plan-queue-list-title" data-testid="plan-queue-list">
+                    <div className={styles.listHead}>
+                        <ClipboardList size={16} className="text-content-3" aria-hidden />
+                        <h2 id="plan-queue-list-title" className={styles.listTitle}>Queue</h2>
+                        <span className={styles.listCount}>
+                            {fmt(filtered.length)} line{filtered.length === 1 ? "" : "s"}
+                            {filtered.length !== orders.length ? ` of ${fmt(orders.length)}` : ""}
+                            {" · "}<span className="font-mono">{fmt(kpis.counts.totalKg, 0)} kg</span>
+                        </span>
+                        <span className={styles.sort} role="group" aria-label="Sort the queue">
+                            {([["newest", "Newest"], ["due", "Due first"], ["demand", "Largest"]] as const).map(([key, label]) => (
+                                <button key={key} type="button" aria-pressed={queueSort === key} onClick={() => setQueueSort(key)} data-testid={`pq-sort-${key}`}>
+                                    {label}
+                                </button>
+                            ))}
+                        </span>
                     </div>
                     {hubQ.isLoading ? (
                         <div style={{ padding: 32, textAlign: "center", color: "var(--text-4)" }}>Loading…</div>
@@ -774,8 +797,15 @@ export default function PlanQueueTab() {
                     ) : filtered.length === 0 ? (
                         <EmptyState title="No orders match these filters" body="Clear filters or widen the date range to see more results." />
                     ) : (
-                        <div style={{ maxHeight: 880, overflowY: "auto" }}>
-                            {filtered.map((o) => (
+                        <div className={styles.scroller}>
+                            <div className={styles.colHead} aria-hidden>
+                                <span>Product · order</span>
+                                <span>Demand</span>
+                                <span title="Release gates: S spec math · M material and recipe · A artwork · R route">Gates · S M A R</span>
+                                <span>Route</span>
+                                <span>State · due</span>
+                            </div>
+                            {sortedQueue.map((o) => (
                                 <QueueRow
                                     key={plannerRowKey(o)}
                                     order={o}
@@ -799,9 +829,9 @@ export default function PlanQueueTab() {
                             }}>Next queue page</Button>
                         </div>
                     )}
-                </Card>
+                </section>
 
-                <div>
+                <div className={styles.pane}>
                     {selectedDetail ? (
                         <>
                         {(selectedDetailQ.isError || (!verifiedDetail && !selectedDetailQ.isFetching)) && (
@@ -885,27 +915,77 @@ function RangeRow({ label, minValue, maxValue, onMinChange, onMaxChange }: {
 
 // ----------------- Queue row -----------------
 
+const GATE_ICON: Record<GateState, ElementType> = { ok: CheckCircle2, warn: AlertTriangle, bad: XCircle, skip: MinusCircle };
+
+function QueueGates({ gates }: { gates: QueueGate[] }) {
+    return (
+        <span
+            className={styles.gates}
+            role="img"
+            aria-label={`Release gates: ${gates.map((gate) => `${gate.word} ${gate.state === "ok" ? "clear" : gate.state === "skip" ? "not needed" : gate.state === "warn" ? "pending" : "blocked"}, ${gate.detail}`).join("; ")}`}
+        >
+            {gates.map((gate) => {
+                const Icon = GATE_ICON[gate.state];
+                return (
+                    <span key={gate.key} className={styles.gate} data-state={gate.state} title={`${gate.word}: ${gate.detail}`}>
+                        <Icon aria-hidden />
+                        <span className={styles.gateKey}>{gate.letter}</span>
+                        <span className={styles.gateWord}>{gate.word}</span>
+                    </span>
+                );
+            })}
+        </span>
+    );
+}
+
+/** The run's route by step name: steps before the run's start (stock / WIP covers them) are dashed. Parallel steps stack. */
+function QueueRoute({ order: o }: { order: PlannerControlOrder }) {
+    const steps = [...(o.queue_route_steps || [])].sort((a, b) => a.index - b.index);
+    const start = Number(o.required_start_step);
+    const last = Number(o.route_last_step_index);
+    const span = Number.isFinite(start) && Number.isFinite(last);
+    if (!steps.length) {
+        return <span className={`${styles.route} ${styles.routeNote}`}>{cleanUiText(o.display_route_summary) || "Route opens with the line"}</span>;
+    }
+    const groups: Array<typeof steps> = [];
+    for (const step of steps) {
+        const prev = groups[groups.length - 1];
+        if (prev && step.parallel_group && prev[0].parallel_group === step.parallel_group) prev.push(step);
+        else groups.push([step]);
+    }
+    const out = (index: number) => span && (index < start || index > last);
+    const label = steps.map((step) => `${step.name || step.code}${out(step.index) ? " (not in this run)" : ""}`).join(", ");
+    return (
+        <span className={styles.route} role="img" aria-label={`Route: ${label}`}>
+            {groups.map((group, index) => (
+                <Fragment key={`${group[0].code}-${group[0].index}`}>
+                    {index ? <span className={styles.arrow} aria-hidden>›</span> : null}
+                    {group.length > 1 ? (
+                        <span className={styles.par} title={`In parallel: ${group.map((step) => step.name || step.code).join(" ∥ ")}`}>
+                            {group.map((step) => (
+                                <span key={`${step.code}-${step.index}`} className={styles.step} data-out={out(step.index)}>{step.code}</span>
+                            ))}
+                        </span>
+                    ) : (
+                        <span className={styles.step} data-out={out(group[0].index)} title={`${group[0].name || group[0].code}${out(group[0].index) ? " · not in this run" : ""}`}>
+                            {group[0].code}
+                        </span>
+                    )}
+                </Fragment>
+            ))}
+        </span>
+    );
+}
+
 function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder; selected: boolean; onSelect: () => void }) {
-    const segments = deriveSegments(o);
     const due = dueInfo((o as any).delivery_date);
     const age = ageInfo((o as any).created_at);
-    const blockerCount = ((o as any).blockers as any[] | undefined)?.length || 0;
-    const fgAvail = !!o.source_availability?.has_fg;
-    const wipAvail = !!o.source_availability?.has_wip;
-    const partialReplan = isPartialReplanRow(o);
-    const needsArtwork = !!o.artwork_assignment_required && !o.assigned_artwork_id;
-    const isBlocked = blockerCount > 0 || o.math_valid === false;
-    const state = isBlocked
-        ? { tone: "block" as const, label: o.math_valid === false ? "Planning required" : `Blocked${blockerCount > 1 ? ` · ${blockerCount}` : ""}` }
-        : needsArtwork
-        ? { tone: "wait" as const, label: "Artwork pending" }
-        : partialReplan
-        ? { tone: "replan" as const, label: "Replan" }
-        : { tone: "done" as const, label: "Ready to release" };
-    const source = isBlocked ? null : fgAvail ? { label: "FG match", tone: "success" as const } : wipAvail ? { label: "WIP continue", tone: "info" as const } : { label: "Fresh run", tone: "order" as const };
+    const state = queueState(o);
+    const gates = queueGates(o);
     const identity = identityFrom({ ...o, customer_name: (o as any).customer_name, delivery_date: undefined });
-    const dueTone = due.tone === "danger" ? "text-danger-fg" : due.tone === "warn" ? "text-warning-fg" : "text-content-3";
     const pcs = Number(o.required_qty_pcs || 0);
+    const isRoll = String(o.fg_type || o.final_product_type || "").toUpperCase().includes("ROLL");
+    const width = Number((o as any).required_roll_width_mm || o.effective_dims?.width_mm || 0);
 
     return (
         <button
@@ -913,33 +993,41 @@ function QueueRow({ order: o, selected, onSelect }: { order: PlannerControlOrder
             onClick={onSelect}
             aria-pressed={selected}
             data-testid={`planner-queue-row-${plannerRowKey(o)}`}
-            className={`relative grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 border-b border-line px-4 py-3 text-left transition-colors hover:bg-surface-2 ${selected ? "bg-order-bg" : ""}`}
+            data-state={state.tone}
+            className={styles.row}
+            title={o.line_status_display ? `Line status: ${o.line_status_display}` : undefined}
         >
-            {selected ? <span className="absolute inset-y-0 left-0 w-[3px] bg-order" aria-hidden /> : null}
-            <ProductIdentity
-                data={identity}
-                meta={[age ? <span key="age" title="Days since the order was placed">placed {age.label}</span> : null]}
-            />
-            <div className="flex min-w-[150px] flex-col items-end gap-1 text-right">
-                <div className="font-mono text-sm font-semibold tabular-nums text-content-1">
-                    {fmt(o.required_qty_kg, 0)}<span className="ml-0.5 text-caption font-normal text-content-3">kg</span>
-                </div>
-                {pcs > 0 ? <div className="font-mono text-caption tabular-nums text-content-3">{fmt(pcs, 0)} pcs</div> : null}
-                <StateBadge tone={state.tone}>{state.label}</StateBadge>
-                {Number.isFinite(due.days) ? (
-                    <span className={`inline-flex items-center gap-1 font-mono text-caption font-semibold ${dueTone}`} title="Delivery due date">
-                        <CalendarClock size={12} aria-hidden />{due.label}
-                    </span>
-                ) : null}
-            </div>
-            <div className="col-span-2 flex flex-wrap items-center gap-1.5">
-                {source ? <TagChip tone={source.tone}>{source.label}</TagChip> : null}
-                {o.line_status_display ? <TagChip>{o.line_status_display}</TagChip> : null}
-                {partialReplan ? (
-                    <TagChip tone="warning">Ship {fmt(o.qty_dispatchable, 0)} · replan {fmt(o.qty_replan_remaining_kg || o.partial_shortfall_kg, 0)} kg</TagChip>
-                ) : null}
-                <div className="min-w-[160px] flex-1"><HealthBar segments={segments} /></div>
-            </div>
+            <span className={styles.id}>
+                <ProductIdentity
+                    data={identity}
+                    meta={[age ? <span key="age" title="Days since the order was placed">placed {age.label}</span> : null]}
+                />
+            </span>
+            <span className={styles.side}>
+                <span className={styles.demand}>
+                    <span className={styles.kg}>{fmt(o.required_qty_kg, 0)}<span className={styles.unit}>kg</span></span>
+                    {pcs > 0 ? <span className={styles.sub}>{fmt(pcs, 0)} pcs</span> : isRoll && width > 0 ? <span className={styles.sub}>{fmt(width, 0)} mm web</span> : null}
+                </span>
+                <span className={styles.state}>
+                    <StateBadge tone={state.tone}>{state.label}</StateBadge>
+                    <span className={styles.why}>{state.why}{state.more ? ` · +${state.more} more` : ""}</span>
+                    {Number.isFinite(due.days) ? (
+                        <span className={styles.due} data-tone={due.tone} title="Delivery due date">
+                            <CalendarClock size={12} aria-hidden />{due.label}
+                        </span>
+                    ) : null}
+                </span>
+            </span>
+            <span className={styles.foot}>
+                <span className={styles.gatesWrap}>
+                    <span className={styles.footLabel}>Gates</span>
+                    <QueueGates gates={gates} />
+                </span>
+                <span className={styles.routeWrap}>
+                    <span className={styles.footLabel}>Route</span>
+                    <QueueRoute order={o} />
+                </span>
+            </span>
         </button>
     );
 }
@@ -958,6 +1046,9 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
     const { toast } = useToast();
     const spineQuery = useOrderSpine({ orderId: order.order_id ? String(order.order_id) : "" });
     const segments = deriveSegments(order);
+    const orderGates = queueGates(order);
+    const materialGate = orderGates.find((gate) => gate.key === "material")!;
+    const routeGate = orderGates.find((gate) => gate.key === "route")!;
     const fgType = String(order.fg_type || order.final_product_type || "—");
     const due = dueLabel((order as any).delivery_date);
     const blockers = ((order as any).blockers as any[] | undefined) || [];
@@ -1077,8 +1168,8 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
             {/* Hero with order header */}
             <Card style={{ padding: 0, overflow: "hidden" }}>
                 <div style={{
-                    padding: "20px 22px",
-                    background: "linear-gradient(135deg, var(--br-50) 0%, var(--i-50) 100%)",
+                    padding: "18px 20px",
+                    background: "var(--surface-1)",
                     borderBottom: "1px solid var(--border-soft)",
                 }}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -1089,38 +1180,9 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                                     Order detail
                                 </span>
                             </div>
-                            <div style={{
-                                fontFamily: "var(--f-display)",
-                                fontSize: "clamp(19px, 1.35vw, 24px)",
-                                fontWeight: 700,
-                                color: "var(--text-1)",
-                                lineHeight: 1.15,
-                                overflowWrap: "anywhere",
-                            }}>
+                            <ProductIdentity big data={identityFrom({ ...order, customer_name: (order as any).customer_name, delivery_date: undefined })} />
+                            <div className="mt-1.5 font-mono text-[11px] leading-snug text-content-3" style={{ overflowWrap: "anywhere" }} title="Order line label">
                                 {factSheet.display_name || order.line_label || order.display_name || order.order_number}
-                            </div>
-                            <div style={{ fontFamily: "var(--f-mono)", fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
-                                {order.order_number}{(order as any).customer_name ? ` · ${(order as any).customer_name}` : ""}
-                            </div>
-                            {order.order_id ? (
-                                <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-                                    <OrderSpine orderId={String(order.order_id)} current="plan" compact testId="planner-order-spine" />
-                                    {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} dense testId="planner-made-card" /> : null}
-                                </div>
-                            ) : null}
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 }}>
-                                <Chip kind={fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
-                                {factSheet.profile_label && <Chip kind="size">{factSheet.profile_label}</Chip>}
-                                {factSheet.print_profile_label && Number(factSheet.front_colors_count || 0) > 0 && (
-                                    <Chip kind="print">{factSheet.print_profile_label}</Chip>
-                                )}
-                                {printColors && <Chip kind="print">{printColors}</Chip>}
-                                {artworkCopy.chip && (
-                                    <Chip kind={artworkAssigned ? "ready" : artworkRequired ? "blocked" : "paused"}>
-                                        {artworkCopy.chip}
-                                    </Chip>
-                                )}
-                                <Chip kind="tpl">{order.template_name}</Chip>
                             </div>
                         </div>
                         <div style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
@@ -1170,6 +1232,26 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                             )}
                             {artworkPreview && <ArtworkPreviewTile preview={artworkPreview} />}
                         </div>
+                    </div>
+                    {order.order_id ? (
+                        <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+                            <OrderSpine orderId={String(order.order_id)} current="plan" compact testId="planner-order-spine" />
+                            {spineQuery.data?.made ? <MadeCard made={spineQuery.data.made} dense testId="planner-made-card" /> : null}
+                        </div>
+                    ) : null}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 10 }}>
+                        <Chip kind={fgType.toLowerCase().includes("roll") ? "fg-roll" : "fg-pouch"}>{fgType}</Chip>
+                        {factSheet.profile_label && <Chip kind="size">{factSheet.profile_label}</Chip>}
+                        {factSheet.print_profile_label && Number(factSheet.front_colors_count || 0) > 0 && (
+                            <Chip kind="print">{factSheet.print_profile_label}</Chip>
+                        )}
+                        {printColors && <Chip kind="print">{printColors}</Chip>}
+                        {artworkCopy.chip && (
+                            <Chip kind={artworkAssigned ? "ready" : artworkRequired ? "blocked" : "paused"}>
+                                {artworkCopy.chip}
+                            </Chip>
+                        )}
+                        <Chip kind="tpl">{order.template_name}</Chip>
                     </div>
                 </div>
 
@@ -1594,14 +1676,16 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
                         warning={artworkRequired && !artworkAssigned}
                     />
                     <ChecklistRow
-                        ok={blockers.length === 0}
+                        ok={materialGate.state === "ok" || materialGate.state === "skip"}
+                        warning={materialGate.state === "warn"}
                         label="Material plan"
-                        detail={blockers.length === 0 ? `${order.material_plan_summary?.line_count ?? 0} lines, no blockers` : `${blockers.length} blocker${blockers.length === 1 ? "" : "s"}`}
+                        detail={materialGate.detail}
                     />
                     <ChecklistRow
-                        ok
+                        ok={routeGate.state === "ok"}
+                        warning={routeGate.state === "warn"}
                         label="Route span"
-                        detail={`Steps ${order.required_start_step ?? "?"} → ${order.route_last_step_index ?? "?"}`}
+                        detail={`Steps ${order.required_start_step ?? "?"} → ${order.route_last_step_index ?? "?"} · ${routeGate.detail}`}
                     />
                 </div>
 
@@ -1718,10 +1802,10 @@ function OrderDetailPanel({ order, loadingDetail = false, actionsReady = false, 
 
 function BigStat({ label, value, suffix, tone }: { label: string; value: string; suffix?: string; tone: "info" | "success" | "danger" | "default" }) {
     const colors = {
-        info: { fg: "var(--br-700)", bg: "rgba(255,255,255,.6)" },
-        success: { fg: "var(--success-fg)", bg: "rgba(16,185,129,.08)" },
-        danger: { fg: "var(--danger-fg)", bg: "rgba(244,63,94,.06)" },
-        default: { fg: "var(--text-1)", bg: "rgba(255,255,255,.6)" },
+        info: { fg: "rgb(var(--order-fg-rgb))", bg: "var(--surface-1)" },
+        success: { fg: "var(--success-fg)", bg: "var(--success-bg)" },
+        danger: { fg: "var(--danger-fg)", bg: "var(--danger-bg)" },
+        default: { fg: "var(--text-1)", bg: "var(--surface-1)" },
     }[tone];
     return (
         <div style={{ padding: "10px 12px", background: colors.bg, borderRadius: "var(--r-3)", border: "1px solid var(--border-soft)" }}>

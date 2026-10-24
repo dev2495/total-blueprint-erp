@@ -141,6 +141,27 @@ class QueueDisplayRegressionTests(TestCase):
         self.assertTrue(all(row['detail_required_for_release'] for row in first['orders']))
         self.assertLess(len(json.dumps(first, default=str)), 650_000)
 
+    def test_compact_queue_rows_carry_route_step_names_resolved_once_per_template(self):
+        self.template.routing_rule = self.route
+        self.template.save(update_fields=['routing_rule'])
+        order = SalesOrder.objects.create(customer_name='Route column', status='PLANNING_REQUIRED')
+        SalesOrderItem.objects.bulk_create([SalesOrderItem(sales_order=order, template=self.template,
+            line_name=f'Route line {i}', line_status='OPEN', qty_value=10, total_weight_kg=10, unit_price=1) for i in range(12)])
+        view = PlannerViewSet()
+        with connection.execute_wrapper(reject_writes):
+            data = view._control_hub_lightweight(planning_limit=100, active_limit=0, history_limit=0,
+                summary=True, compact_queue=True).data
+        rows = [row for row in data['orders'] if row.get('customer_name') == 'Route column']
+        self.assertEqual(len(rows), 12)
+        for row in rows:
+            self.assertEqual([(step['index'], step['code'], step['name']) for step in row['queue_route_steps']],
+                [(0, 'EXT_AUDIT', 'Extrusion Audit')])
+            self.assertEqual(row['template_steps'], [])
+        with CaptureQueriesContext(connection) as queries:
+            for row in rows:
+                view._row_route_codes(row)
+        self.assertEqual(len(queries), 0, 'route steps are cached per template within the request')
+
 
 class PlannerReceiptTests(TestCase):
     setUp = fixtures.WcmAuditEventTests.setUp
