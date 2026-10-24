@@ -1,12 +1,18 @@
 import copy
+from decimal import Decimal
+import csv
+import io
+import re
 import logging
 
 from django.db import IntegrityError, models, transaction
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets, filters, serializers as drf_serializers
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 import json
@@ -998,6 +1004,153 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         data["copied_variants_count"] = copied_variants
         data["open_line_rebase_summary"] = rebase_summary
         return Response(data, status=status.HTTP_201_CREATED)
+
+    # Size sheet columns: the size first, code and label last because they are made from the size when left blank.
+    SIZE_SHEET_COLUMNS = {
+        "ROLL": [
+            "width_mm", "thickness_micron", "roll_form", "trim_loss_mm", "trim_apply_to", "roll_width_mm",
+            "standard_qty", "qty_uom", "active", "sort_order", "notes", "code", "label",
+        ],
+        "POUCH": [
+            "width_mm", "height_mm", "gusset_mm", "pouch_style", "pouch_style_master", "flap_tape_mm", "trim_loss_mm",
+            "trim_apply_to", "stock_form", "width_basis", "film_area_width_mm", "slit_policy", "roll_width_mm",
+            "child_target_width_mm", "child_target_override", "standard_qty", "qty_uom", "active", "sort_order",
+            "notes", "code", "label",
+        ],
+    }
+    SIZE_SHEET_ALIASES = {
+        "width": "width_mm", "height": "height_mm", "gusset": "gusset_mm", "micron": "thickness_micron",
+        "thickness": "thickness_micron", "thickness_um": "thickness_micron", "roll_width": "roll_width_mm",
+        "size_code": "code", "size_label": "label", "uom": "qty_uom", "std_qty": "standard_qty",
+    }
+
+    @classmethod
+    def _sheet_kind(cls, product) -> str:
+        return "ROLL" if str(getattr(product, "product_kind", "") or "").upper() == "ROLL" else "POUCH"
+
+    @classmethod
+    def _sheet_key(cls, header) -> str:
+        key = re.sub(r"\(.*?\)", "", str(header or "")).strip().lower()
+        key = re.sub(r"[\s\-/]+", "_", key).strip("_")
+        return cls.SIZE_SHEET_ALIASES.get(key, key)
+
+    @action(detail=True, methods=["get"], url_path="size-sheet-template")
+    def size_sheet_template(self, request, pk=None):
+        """Excel sheet for bulk sizes: the master's current sizes (edit and upload back) or one example row."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+
+        product = self.get_object()
+        kind = self._sheet_kind(product)
+        columns = self.SIZE_SHEET_COLUMNS[kind]
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Sizes"
+        sheet.append(columns)
+        current = list(product.sizes.filter(active=True).order_by("sort_order", "label", "code")[:5000])
+        numeric = {column for column in columns if column.endswith(("_mm", "_micron")) or column in {"standard_qty", "sort_order"}}
+
+        def cell(column, value):
+            # Excel takes text, numbers and booleans only: ids become text, sizes become numbers (140, 232.5).
+            if value is None or isinstance(value, (dict, list)):
+                return ""
+            if column in numeric and value != "":
+                try:
+                    number = float(Decimal(str(value)))
+                    return int(number) if number.is_integer() else number
+                except (ArithmeticError, TypeError, ValueError):
+                    return str(value)
+            if isinstance(value, (bool, int, float, str)):
+                return value
+            return str(value)
+
+        if current:
+            for size in current:
+                data = ProductMasterSizeSerializer(size).data
+                sheet.append([cell(column, data.get(column)) for column in columns])
+        else:
+            example = {"width_mm": 500, "thickness_micron": 45, "roll_form": "FLAT", "qty_uom": "KG", "active": True} if kind == "ROLL" else {
+                "width_mm": 140, "height_mm": 305, "gusset_mm": 40, "pouch_style": "STAND_UP", "stock_form": "OPEN_WEB",
+                "width_basis": "OPEN_WEB_WIDTH", "slit_policy": "SLIT_ALLOWED", "trim_loss_mm": 10, "trim_apply_to": "WIDTH", "qty_uom": "KG", "active": True,
+            }
+            sheet.append([example.get(column, "") for column in columns])
+        size_fill = PatternFill("solid", fgColor="DCFCE7")
+        optional_fill = PatternFill("solid", fgColor="E5E7EB")
+        for index, column in enumerate(columns, start=1):
+            cell = sheet.cell(row=1, column=index)
+            cell.font = Font(bold=True)
+            cell.fill = optional_fill if column in {"code", "label"} else size_fill
+            cell.alignment = Alignment(horizontal="center")
+            sheet.column_dimensions[cell.column_letter].width = max(12, len(column) + 4)
+        sheet.freeze_panes = "A2"
+        help_sheet = workbook.create_sheet("How to fill")
+        rules = [
+            ["How to fill the Sizes sheet"],
+            ["One row per size. Fill the size columns (green). Leave code and label (grey) blank: they are made from the size."],
+            ["Roll: code = width, or width X micron (500 / 500X45); label = 500 mm web · 45 µ." if kind == "ROLL" else "Pouch / bag: code = width X height, gusset after G (140X305 / 140X305G40); label = 140 × 305 mm + 40 G."],
+            ["To change a size that already exists, keep its code: the row updates that size. A new code adds a size."],
+            ["Type a code or label only to override the automatic one. Inches are shown by the app from mm; do not type them."],
+            ["Upload this file back with Bulk upload (.xlsx or .csv). Every row is checked before anything is saved."],
+        ]
+        for line in rules:
+            help_sheet.append(line)
+        help_sheet["A1"].font = Font(bold=True, size=13)
+        help_sheet.column_dimensions["A"].width = 120
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        filename = f"{(product.code or 'product').lower()}-sizes.xlsx"
+        response = HttpResponse(
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+    @action(detail=True, methods=["post"], url_path="size-sheet", parser_classes=[MultiPartParser, FormParser])
+    def size_sheet(self, request, pk=None):
+        """Reads an uploaded .xlsx/.csv size sheet into plain rows for review. Saves nothing."""
+        self.get_object()
+        upload = request.FILES.get("file")
+        if upload is None:
+            raise drf_serializers.ValidationError({"file": "Attach the size sheet (.xlsx or .csv)."})
+        if upload.size > 5 * 1024 * 1024:
+            raise drf_serializers.ValidationError({"file": "The sheet is larger than 5 MB."})
+        name = str(upload.name or "").lower()
+        table: list[list] = []
+        if name.endswith(".xlsx") or name.endswith(".xlsm"):
+            from openpyxl import load_workbook
+
+            try:
+                workbook = load_workbook(upload, read_only=True, data_only=True)
+            except Exception:
+                raise drf_serializers.ValidationError({"file": "This is not a readable Excel file. Save it as .xlsx and upload again."})
+            sheet = workbook["Sizes"] if "Sizes" in workbook.sheetnames else workbook.worksheets[0]
+            table = [list(row) for row in sheet.iter_rows(values_only=True)]
+        elif name.endswith(".csv"):
+            text = upload.read().decode("utf-8-sig", errors="replace")
+            table = [row for row in csv.reader(io.StringIO(text))]
+        else:
+            raise drf_serializers.ValidationError({"file": "Upload the size sheet as .xlsx (Excel) or .csv."})
+        table = [row for row in table if any(str(cell).strip() for cell in row if cell is not None)]
+        if not table:
+            raise drf_serializers.ValidationError({"file": "The sheet is empty."})
+        headers = [self._sheet_key(cell) for cell in table[0]]
+        if not ({"width_mm", "code"} & set(headers)):
+            raise drf_serializers.ValidationError({"file": "The first row must be the column names (download the template)."})
+
+        def text(value):
+            if value is None:
+                return ""
+            if isinstance(value, float) and value.is_integer():
+                return str(int(value))
+            return str(value).strip()
+
+        rows = []
+        for raw in table[1:5001]:
+            row = {header: text(raw[index]) if index < len(raw) else "" for index, header in enumerate(headers) if header}
+            if any(row.values()):
+                rows.append(row)
+        return Response({"rows": rows, "columns": [header for header in headers if header], "kind": self._sheet_kind(self.get_object())})
 
     @action(detail=True, methods=["get", "post"])
     def sizes(self, request, pk=None):

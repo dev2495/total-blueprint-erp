@@ -101,3 +101,14 @@ Scripts: `.runtime/release-planner-queue/{build,activate}-pq-release.sh`
   - Machine-setting widths (trim, parent web, lanes, pitch) stay mm-only.
   - Printed slips and challans keep their fixed layouts.
   - Tests: `npm run test:size-naming` and backend `ProductMasterSizeNamingTests`.
+
+## Round 4 (same day): Excel size sheet, larger inches, roll orders cleared
+
+- **Excel size sheet:**
+  - "Excel sheet" downloads an .xlsx: size columns first (green); code and label last (grey, optional); the master's current sizes so they can be edited and uploaded back; a "How to fill" sheet.
+  - Bulk upload takes .xlsx or .csv and is read by the server (`size-sheet` endpoint; friendly headers like "Width" or "Code (optional)" are mapped).
+  - Blank codes and labels are made from the size and marked "auto from size" in the review. They follow size edits there, and an update keeps a saved size's label.
+  - Nothing is saved until import + Save.
+  - Template cells are plain Excel values (sizes as numbers, ids as text).
+- **Inches:** now the same size and weight as the mm figure beside it, in a softer colour.
+- **Live data:** see `.runtime/ops-20261024/` (close running ROLL-master lines through the planner cancel and short-close rules; retire the current roll masters' sizes; backup + restore drill first; reversal manifest).

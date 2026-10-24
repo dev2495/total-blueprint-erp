@@ -1060,6 +1060,24 @@ export const productMasterService = {
         );
     },
 
+    /** Excel sheet of the master's sizes (or one example row): edit it and upload it back. */
+    downloadSizeSheet: async (id: string): Promise<{ blob: Blob; filename: string }> => {
+        const response = await api.get(`/api/master/products/${id}/size-sheet-template/`, { responseType: "blob" });
+        const disposition = String(response.headers?.["content-disposition"] || "");
+        const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] || "sizes.xlsx";
+        return { blob: response.data as Blob, filename };
+    },
+
+    /** Reads an uploaded .xlsx/.csv size sheet into plain rows for the review step (saves nothing). */
+    readSizeSheet: async (id: string, file: File): Promise<{ rows: Array<Record<string, string>>; columns: string[]; kind: string }> => {
+        const form = new FormData();
+        form.append("file", file);
+        const { data } = await api.post(`/api/master/products/${id}/size-sheet/`, form, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        return data;
+    },
+
     workspaceSave: async (id: string, payload: Partial<ProductMaster> & { sizes: Array<Partial<ProductMasterSize>>; loaded_size_ids?: string[] }) => {
         return tryRequest(
             async () => {

@@ -219,7 +219,10 @@ export function SpecPlate({
                   {sizeValue}
                 </span>
                 {data?.widthMm ? (
-                  <span className={cn("font-medium tabular-nums text-plate-fg-2", lg ? "text-[15px]" : "text-[13px]")} data-testid={`${testId}-size-inches`}>
+                  <span
+                    className={cn("font-semibold tabular-nums tracking-[-0.03em] text-plate-fg-2", lg ? "text-[30px] leading-none sm:text-[34px]" : narrow ? "text-[24px] leading-none" : "text-[26px] leading-none")}
+                    data-testid={`${testId}-size-inches`}
+                  >
                     {inchesText(data.widthMm, data.heightMm)}
                   </span>
                 ) : null}

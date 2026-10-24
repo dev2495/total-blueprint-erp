@@ -1,5 +1,6 @@
 "use client";
 
+import { productMasterService } from "@/services/product-master";
 import { mmWithInches, standardSizeName } from "@/lib/size-naming";
 import * as React from "react";
 import {
@@ -85,49 +86,11 @@ interface ReviewRow {
   action: BulkAction;
   row: ProductMasterSize;
   errors: string[];
+  /** Code / label were left blank in the sheet and come from the size (they follow size edits). */
+  auto?: { code: boolean; label: boolean };
 }
 
 const COMMON_UOMS = ["KG", "PCS", "METER"] as const;
-const POUCH_TEMPLATE_HEADERS = [
-  "code",
-  "label",
-  "width_mm",
-  "height_mm",
-  "pouch_style_master",
-  "pouch_style",
-  "gusset_mm",
-  "flap_tape_mm",
-  "trim_loss_mm",
-  "trim_apply_to",
-  "stock_form",
-  "width_basis",
-  "film_area_width_mm",
-  "slit_policy",
-  "roll_width_mm",
-  "child_target_width_mm",
-  "child_target_override",
-  "standard_qty",
-  "qty_uom",
-  "active",
-  "sort_order",
-  "notes",
-];
-const ROLL_TEMPLATE_HEADERS = [
-  "code",
-  "label",
-  "width_mm",
-  "roll_form",
-  "trim_loss_mm",
-  "trim_apply_to",
-  "roll_width_mm",
-  "thickness_micron",
-  "standard_qty",
-  "qty_uom",
-  "active",
-  "sort_order",
-  "notes",
-];
-
 export function ProductSizeWorkspace({
   rows,
   productId,
@@ -362,45 +325,49 @@ export function ProductSizeWorkspace({
     });
   }
 
-  function downloadTemplate() {
-    const headers = templateHeaders(normalizedOutput);
-    const sample = sampleRow(normalizedOutput, rows.length + 1);
-    const csv = toCsv([headers, headers.map((header) => sample[header] ?? "")]);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `product-master-${normalizedOutput.toLowerCase()}-sizes-template.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-    toast({
-      title: "Template downloaded",
-      description:
-        "Open it in Excel, add one row per size, then upload the CSV for review.",
-    });
+  async function downloadTemplate() {
+    try {
+      const { blob, filename } = await productMasterService.downloadSizeSheet(productId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Size sheet downloaded",
+        description:
+          "Fill the size columns in Excel (code and label can stay blank — they are made from the size), then upload it back.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Could not download the size sheet",
+        description: error?.message || "Save the master first, then try again.",
+        variant: "destructive",
+      });
+    }
   }
 
   async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".csv")) {
+    if (!/\.(xlsx|xlsm|csv)$/i.test(file.name)) {
       toast({
-        title: "Upload CSV exported from Excel",
-        description:
-          "This bulk editor validates CSV files so every row can be reviewed before import.",
+        title: "Upload the size sheet",
+        description: "Use the Excel file from Template (.xlsx), or a .csv with the same columns.",
         variant: "destructive",
       });
       return;
     }
     try {
-      const parsed = parseCsv(await file.text());
+      const { rows: parsed } = await productMasterService.readSizeSheet(productId, file);
       if (!parsed.length) {
         toast({
           title: "No rows found",
-          description: "The uploaded file has headers but no size rows.",
+          description: "The sheet has column names but no size rows.",
           variant: "destructive",
         });
         return;
@@ -422,18 +389,23 @@ export function ProductSizeWorkspace({
           action,
           row,
           errors: validateRow(row, normalizedOutput),
+          auto: {
+            code: !String(raw.code ?? "").trim(),
+            label: !String(raw.label ?? "").trim(),
+          },
         };
       });
       setReviewRows(withDuplicateErrors(next, normalizedOutput));
       setReviewOpen(true);
       toast({
-        title: "Bulk file loaded",
-        description: `${next.length} rows ready for review.`,
+        title: "Size sheet loaded",
+        description: `${next.length} rows ready for review. Nothing is saved until you import and save the master.`,
       });
     } catch (error: any) {
+      const detail = error?.response?.data?.file || error?.response?.data?.detail;
       toast({
-        title: "Could not read file",
-        description: error?.message || "Check the CSV and upload again.",
+        title: "Could not read the sheet",
+        description: (Array.isArray(detail) ? detail[0] : detail) || error?.message || "Check the file and upload again.",
         variant: "destructive",
       });
     }
@@ -444,12 +416,19 @@ export function ProductSizeWorkspace({
       const next = current.map((item, itemIndex) => {
         if (itemIndex !== index) return item;
         const row = { ...item.row, ...patch };
+        const auto = {
+          code: Boolean(item.auto?.code) && !("code" in patch),
+          label: Boolean(item.auto?.label) && !("label" in patch),
+        };
+        const standard = standardSizeName(row, normalizedOutput === "ROLL");
+        if (standard && auto.code) row.code = standard.code;
+        if (standard && auto.label) row.label = standard.label;
         const action: BulkAction = rows.some((existing) =>
           sameCode(existing.code, row.code),
         )
           ? "update"
           : "create";
-        return { ...item, row, action };
+        return { ...item, row, action, auto };
       });
       return withDuplicateErrors(next, normalizedOutput);
     });
@@ -470,7 +449,12 @@ export function ProductSizeWorkspace({
     }
     const merged = mergeRows(
       rows,
-      reviewRows.map((item) => item.row),
+      reviewRows.map((item) => {
+        if (item.action !== "update" || !item.auto?.label) return item.row;
+        // Saved sizes keep their label when the sheet left it blank.
+        const saved = rows.find((existing) => sameCode(existing.code, item.row.code));
+        return saved ? { ...item.row, label: saved.label } : item.row;
+      }),
     );
     onBulkApply(merged);
     setSelectedIndex(Math.max(0, rows.length ? selectedIndex : 0));
@@ -513,12 +497,12 @@ export function ProductSizeWorkspace({
             onClick={downloadTemplate}
           >
             <Download className="mr-1.5 h-3.5 w-3.5" />
-            Template
+            Excel sheet
           </Button>
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.xlsm,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             className="hidden"
             onChange={handleUpload}
           />
@@ -1212,7 +1196,9 @@ function BulkReviewDialog({
                       </span>
                     </TableCell>
                     <TableCell>
+                      {item.auto?.code ? <div className="mb-0.5 text-[10.5px] font-semibold text-success-fg">auto from size</div> : null}
                       <Input
+                        aria-label={`Size ${index + 1} code`}
                         className="h-8 font-mono text-xs"
                         value={item.row.code || ""}
                         onChange={(event) =>
@@ -1223,6 +1209,7 @@ function BulkReviewDialog({
                       />
                     </TableCell>
                     <TableCell>
+                      {item.auto?.label ? <div className="mb-0.5 text-[10.5px] font-semibold text-success-fg">auto from size</div> : null}
                       <Input
                         aria-label={`Size ${index + 1} label`}
                         className="h-8 text-xs"
@@ -1423,10 +1410,6 @@ function ReviewStat({
       <div className="font-mono text-lg font-semibold">{value}</div>
     </div>
   );
-}
-
-function templateHeaders(outputKind: OutputKind) {
-  return outputKind === "ROLL" ? ROLL_TEMPLATE_HEADERS : POUCH_TEMPLATE_HEADERS;
 }
 
 function sampleRow(
@@ -1679,75 +1662,7 @@ function mergeRows(
   }));
 }
 
-function parseCsv(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let field = "";
-  let row: string[] = [];
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (quoted) {
-      if (char === '"' && next === '"') {
-        field += '"';
-        index += 1;
-      } else if (char === '"') {
-        quoted = false;
-      } else {
-        field += char;
-      }
-      continue;
-    }
-    if (char === '"') {
-      quoted = true;
-      continue;
-    }
-    if (char === ",") {
-      row.push(field.trim());
-      field = "";
-      continue;
-    }
-    if (char === "\n") {
-      row.push(field.trim());
-      rows.push(row);
-      row = [];
-      field = "";
-      continue;
-    }
-    if (char !== "\r") field += char;
-  }
-  if (field || row.length) {
-    row.push(field.trim());
-    rows.push(row);
-  }
-  const [headersRaw, ...dataRows] = rows.filter((cells) =>
-    cells.some((cell) => cell !== ""),
-  );
-  if (!headersRaw) return [];
-  const headers = headersRaw.map((header) => header.trim());
-  return dataRows
-    .filter((cells) => cells.some((cell) => cell !== ""))
-    .map((cells) =>
-      Object.fromEntries(
-        headers.map((header, index) => [header, cells[index] ?? ""]),
-      ),
-    );
-}
 
-function toCsv(rows: Array<Array<string | number | boolean>>) {
-  return rows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const value = String(cell ?? "");
-          return /[",\n]/.test(value)
-            ? `"${value.replaceAll('"', '""')}"`
-            : value;
-        })
-        .join(","),
-    )
-    .join("\n");
-}
 
 function sameCode(a: unknown, b: unknown) {
   return (

@@ -119,7 +119,7 @@ export function SpecBlock({
             {sizeValue}
           </span>
           {data.widthMm ? (
-            <span className={cn("font-medium tabular-nums", muted, lg ? "text-[15px]" : "text-[13px]")} data-testid={`${testId}-size-inches`}>
+            <span className={cn("font-semibold tabular-nums tracking-tight", muted, lg ? "text-2xl" : "text-lg")} data-testid={`${testId}-size-inches`}>
               {inchesText(data.widthMm, data.heightMm)}
             </span>
           ) : null}

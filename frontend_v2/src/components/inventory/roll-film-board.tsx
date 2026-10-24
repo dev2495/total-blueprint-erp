@@ -183,7 +183,7 @@ export function RollFilmBoard({
                 <div key={band.width} className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3 px-4 py-2.5">
                   <div>
                     <div className="font-mono text-[13px] font-semibold text-content-1">{band.width} mm</div>
-                    <div className="text-[11px] tabular-nums text-content-3">{inchesText(band.width)}</div>
+                    <div className="font-mono text-[13px] font-semibold tabular-nums text-content-2">{inchesText(band.width)}</div>
                     <div className="text-[11.5px] text-content-3">
                       {band.rolls.length} · {kgText(band.kg)} kg
                     </div>

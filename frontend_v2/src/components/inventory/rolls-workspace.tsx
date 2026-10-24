@@ -1379,7 +1379,7 @@ function TableView({
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-content-2">
-                  {fmtNum(Number(r.width_mm || 0))} mm<span className="ml-1 font-sans text-[11px] font-medium text-content-3">· {inchesText(r.width_mm)}</span>
+                  {fmtNum(Number(r.width_mm || 0))} mm<span className="ml-1 text-content-3">· {inchesText(r.width_mm)}</span>
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-content-2">
                   {fmtNum(Number(r.thickness_micron || r.thickness_um || 0))} μ

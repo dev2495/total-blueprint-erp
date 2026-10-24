@@ -278,7 +278,9 @@ export function ProductIdentity({
           {data.sizeHero}
         </span>
         {data.sizeUnit ? <span className="text-caption text-content-3">{data.sizeUnit}</span> : null}
-        {data.sizeInches ? <span className="text-caption tabular-nums text-content-3">· {data.sizeInches}</span> : null}
+        {data.sizeInches ? (
+          <span className={cn("font-semibold tabular-nums tracking-tight text-content-3", big ? "text-lg" : "text-base")}>· {data.sizeInches}</span>
+        ) : null}
         {data.gusset ? <span className="text-caption text-content-3">{data.gusset}</span> : null}
         <span className="rounded-[5px] bg-warning-bg px-1.5 text-caption font-medium text-warning-fg ring-1 ring-warning-border">
           {data.typeLabel}

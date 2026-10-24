@@ -3912,7 +3912,7 @@ function InputFeedCard({
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <span className="rounded bg-surface-1 px-2 py-1 text-caption font-bold text-content-3">
-                      {toNumber(roll.width_mm, 0).toFixed(0)} mm<span className="ml-1 font-sans text-[11px] font-medium text-content-3">· {inchesText(roll.width_mm)}</span>
+                      {toNumber(roll.width_mm, 0).toFixed(0)} mm<span className="ml-1 text-content-3">· {inchesText(roll.width_mm)}</span>
                     </span>
                     <span className="rounded bg-surface-1 px-2 py-1 text-caption font-bold text-content-3">
                       {toNumber(roll.thickness_micron, 0).toFixed(1)} um
@@ -4079,7 +4079,7 @@ function InputFeedCard({
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <span className="rounded bg-surface-1 px-2 py-1 text-caption font-bold text-content-3">
-                      {toNumber(roll.width_mm, 0).toFixed(0)} mm<span className="ml-1 font-sans text-[11px] font-medium text-content-3">· {inchesText(roll.width_mm)}</span>
+                      {toNumber(roll.width_mm, 0).toFixed(0)} mm<span className="ml-1 text-content-3">· {inchesText(roll.width_mm)}</span>
                     </span>
                     <StockFormPills roll={roll} />
                   </div>

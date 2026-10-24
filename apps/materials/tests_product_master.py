@@ -2635,3 +2635,88 @@ class ProductMasterSizeNamingTests(TestCase):
         response = self.client.post(f"/api/master/products/{self.pouch.id}/sizes/", {"code": "", "label": ""}, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertIn("Enter the size", str(response.data))
+
+
+class ProductMasterSizeSheetTests(TestCase):
+    """Excel bulk sizes: the template and the reader that feeds the review step."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="pm-sheet", password="x", extra_permissions=["master.view", "master.manage"])
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.roll = ProductMaster.objects.create(code="PM-SHEET-ROLL", name="Sheet roll", product_kind="ROLL", default_reporting_group="FG")
+        self.pouch = ProductMaster.objects.create(code="PM-SHEET-POUCH", name="Sheet pouch", product_kind="POUCH", default_reporting_group="FG")
+
+    def _xlsx(self, rows, title="Sizes"):
+        import io
+        from openpyxl import Workbook
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = title
+        for row in rows:
+            sheet.append(row)
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        return SimpleUploadedFile("sizes.xlsx", buffer.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    def test_template_puts_size_columns_first_and_includes_current_sizes(self):
+        import io
+        from openpyxl import load_workbook
+
+        ProductMasterSize.objects.create(product_master=self.roll, code="680", label="680MMX60MIC", width_mm=680, active=True)
+        response = self.client.get(f"/api/master/products/{self.roll.id}/size-sheet-template/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response["Content-Type"])
+        workbook = load_workbook(io.BytesIO(response.content))
+        rows = list(workbook["Sizes"].iter_rows(values_only=True))
+        self.assertEqual(rows[0][0], "width_mm")
+        self.assertEqual(rows[0][-2:], ("code", "label"))
+        self.assertEqual(rows[1][-2:], ("680", "680MMX60MIC"))
+        self.assertIn("How to fill", workbook.sheetnames)
+
+    def test_reader_maps_friendly_headers_and_keeps_blank_codes_blank(self):
+        upload = self._xlsx([["Width", "Height", "Gusset (mm)", "Code (optional)", "Label"], [140, 305, 40, None, None], [210.5, 297, None, "A4-POUCH", "A4 pouch"]])
+        response = self.client.post(f"/api/master/products/{self.pouch.id}/size-sheet/", {"file": upload}, format="multipart")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["kind"], "POUCH")
+        self.assertEqual(response.data["rows"][0], {"width_mm": "140", "height_mm": "305", "gusset_mm": "40", "code": "", "label": ""})
+        self.assertEqual(response.data["rows"][1]["width_mm"], "210.5")
+        self.assertEqual(response.data["rows"][1]["code"], "A4-POUCH")
+
+    def test_reader_takes_csv_and_refuses_other_files(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        csv_file = SimpleUploadedFile("sizes.csv", "width_mm,thickness_micron\n500,45\n".encode("utf-8-sig"), content_type="text/csv")
+        response = self.client.post(f"/api/master/products/{self.roll.id}/size-sheet/", {"file": csv_file}, format="multipart")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["rows"], [{"width_mm": "500", "thickness_micron": "45"}])
+        other = SimpleUploadedFile("sizes.pdf", b"%PDF", content_type="application/pdf")
+        response = self.client.post(f"/api/master/products/{self.roll.id}/size-sheet/", {"file": other}, format="multipart")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(".xlsx", str(response.data))
+
+
+class ProductMasterPouchSheetTests(TestCase):
+    """The pouch size sheet carries ids (pouch style master) and decimals: Excel gets plain values."""
+
+    def test_pouch_template_with_a_style_master_downloads(self):
+        import io
+        from openpyxl import load_workbook
+        from apps.materials.models import PouchStyleMaster
+
+        user = get_user_model().objects.create_user(username="pm-pouch-sheet", password="x", extra_permissions=["master.view", "master.manage"])
+        client = APIClient()
+        client.force_authenticate(user)
+        master = ProductMaster.objects.create(code="PM-POUCH-SHEET", name="Pouch sheet", product_kind="POUCH", default_reporting_group="FG")
+        style = PouchStyleMaster.objects.create(code="SHEET-STANDUP", name="Sheet standup", formula_kind="GUSSETED_BOTTOM", formula_params={"trim_mm": 5, "bottom_factor": 1})
+        ProductMasterSize.objects.create(product_master=master, code="140X210G60", label="140 × 210 mm + 60 G", width_mm=140, height_mm=210, gusset_mm=60, pouch_style_master=style, active=True)
+        response = client.get(f"/api/master/products/{master.id}/size-sheet-template/")
+        self.assertEqual(response.status_code, 200)
+        rows = list(load_workbook(io.BytesIO(response.content))["Sizes"].iter_rows(values_only=True))
+        header = rows[0]
+        values = dict(zip(header, rows[1]))
+        self.assertEqual(values["pouch_style_master"], str(style.id))
+        self.assertEqual(values["width_mm"], 140)
+        self.assertEqual(values["code"], "140X210G60")

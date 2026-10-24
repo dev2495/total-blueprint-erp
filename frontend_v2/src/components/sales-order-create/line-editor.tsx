@@ -2088,7 +2088,7 @@ function SizeAxis({
                   {compactSizeCode(s)}
                 </div>
                 {Number(s.width_mm || 0) > 0 ? (
-                  <div className="text-caption tabular-nums text-content-3">
+                  <div className="font-mono text-[12px] font-semibold tabular-nums text-content-2">
                     {inchesText(s.width_mm, Number(s.height_mm || 0) > 0 ? s.height_mm : null)}
                   </div>
                 ) : null}

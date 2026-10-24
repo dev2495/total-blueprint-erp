@@ -94,3 +94,50 @@ test("packing yard shows the packing check beside the batches", async ({ page },
   const queue = await fetchJson<any>(page, "/api/production/packing/verification-queue/")
   expect(queue.status).toBe(200)
 })
+
+test("size sheet: Excel template downloads and an uploaded sheet names blank sizes from their dimensions", async ({ page }, testInfo) => {
+  annotate(testInfo, {
+    module: "Masters",
+    severity: "high",
+    role: "ADMIN",
+    feature: "size-sheet-auto-naming",
+    expected: "The size sheet downloads as .xlsx; uploading an .xlsx with blank code/label shows codes and labels made from the size in the review, before anything is saved.",
+  })
+  const masters = await fetchJson<any>(page, "/api/master/products/?page_size=100")
+  expect(masters.status).toBe(200)
+  const pouch = unwrapApiList<any>(masters.data).find((row) => String(row.product_kind || "").toUpperCase() === "POUCH")
+  test.skip(!pouch, "No pouch master in this database")
+  await gotoWithServerRetry(page, `/master/products/${pouch.id}/edit`, { waitUntil: "domcontentloaded", timeout: 60_000 })
+  await assertHealthyPage(page)
+  const workspace = page.getByTestId("product-size-workspace")
+  await expect(workspace).toBeVisible({ timeout: 30_000 })
+
+  const downloadPromise = page.waitForEvent("download")
+  await workspace.getByRole("button", { name: /Excel sheet/ }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/-sizes\.xlsx$/)
+
+  const python = process.env.UI_E2E_PYTHON || process.env.BACKEND_PYTHON || "python3"
+  const sheetPath = testInfo.outputPath("sizes-upload.xlsx")
+  const { execFileSync } = await import("node:child_process")
+  execFileSync(python, [
+    "-c",
+    [
+      "import sys",
+      "from openpyxl import Workbook",
+      "wb = Workbook(); ws = wb.active; ws.title = 'Sizes'",
+      "ws.append(['Width', 'Height', 'Gusset', 'Code (optional)', 'Label'])",
+      "ws.append([123, 456, None, None, None])",
+      "ws.append([124.5, 457, 30, None, None])",
+      "wb.save(sys.argv[1])",
+    ].join("\n"),
+    sheetPath,
+  ])
+  await workspace.locator('input[type="file"]').setInputFiles(sheetPath)
+  const review = page.getByRole("dialog")
+  await expect(review).toBeVisible({ timeout: 30_000 })
+  await expect(review.getByLabel("Size 1 code")).toHaveValue("123X456")
+  await expect(review.getByLabel("Size 2 code")).toHaveValue("124.5X457G30")
+  await expect(review.getByLabel("Size 2 label")).toHaveValue("124.5 × 457 mm + 30 G")
+  await expect(review).toContainText("auto from size")
+})
