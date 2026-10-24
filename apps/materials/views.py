@@ -12,6 +12,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 import json
 import uuid
 from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, PodSku, PodSkuVariant, PouchStyleMaster, ProductMaster, ProductMasterSize, ProductVariant, WebWidthPolicy, canonical_granule_quality_code
+from .naming import normalize_code
 from apps.sales.models import CustomerProductOverlay
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
@@ -570,6 +571,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     "created_at",
                     "updated_at",
                 }
+                updates, creates = [], []
                 for raw_size in raw_sizes:
                     if not isinstance(raw_size, dict):
                         raise drf_serializers.ValidationError({"sizes": "Each size must be an object."})
@@ -581,24 +583,47 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
                     }
                     if raw_id and raw_id in existing_sizes:
                         submitted_ids.add(raw_id)
-                        size_serializer = ProductMasterSizeSerializer(
-                            existing_sizes[raw_id],
-                            data=size_payload,
-                            partial=True,
-                        )
-                        size_serializer.is_valid(raise_exception=True)
-                        size_serializer.save()
-                        size_summary["updated"] += 1
+                        updates.append((existing_sizes[raw_id], size_payload))
                     else:
-                        size_payload["product_master"] = str(product.id)
-                        size_serializer = ProductMasterSizeSerializer(data=size_payload)
+                        creates.append(size_payload)
+                # Existing rows first, so a code freed by a rename can be used by a new row in the same save.
+                for size, size_payload in updates:
+                    size_serializer = ProductMasterSizeSerializer(size, data=size_payload, partial=True)
+                    size_serializer.is_valid(raise_exception=True)
+                    size_serializer.save()
+                    size_summary["updated"] += 1
+                retired_by_code = {
+                    size.code: size
+                    for size_id, size in existing_sizes.items()
+                    if size_id not in submitted_ids and not size.active
+                }
+                for size_payload in creates:
+                    code = normalize_code(size_payload.get("code"), max_length=80) if size_payload.get("code") else ""
+                    retired = retired_by_code.pop(code, None) if code else None
+                    if retired is not None:
+                        # Adding a size whose code was retired brings that row back instead of failing on the code.
+                        size_serializer = ProductMasterSizeSerializer(retired, data={**size_payload, "active": True}, partial=True)
                         size_serializer.is_valid(raise_exception=True)
                         size_serializer.save()
-                        size_summary["created"] += 1
+                        submitted_ids.add(str(retired.id))
+                        size_summary["restored"] = size_summary.get("restored", 0) + 1
+                        continue
+                    size_payload["product_master"] = str(product.id)
+                    size_serializer = ProductMasterSizeSerializer(data=size_payload)
+                    size_serializer.is_valid(raise_exception=True)
+                    size_serializer.save()
+                    size_summary["created"] += 1
 
-                # Removing a size from the workspace retires it for new orders;
-                # historical order snapshots remain untouched and auditable.
-                omitted = [size for size_id, size in existing_sizes.items() if size_id not in submitted_ids and size.active]
+                # Removing a size from the workspace retires it for new orders; historical order snapshots
+                # remain untouched and auditable. Only rows the editor actually loaded can be retired: a row
+                # it never saw (a long size list, an older screen) is left as it is.
+                loaded_ids = self._payload_value(body, "loaded_size_ids", None)
+                loaded = {str(value) for value in loaded_ids} if isinstance(loaded_ids, list) else set()
+                omitted = [
+                    size
+                    for size_id, size in existing_sizes.items()
+                    if size_id in loaded and size_id not in submitted_ids and size.active
+                ]
                 if omitted:
                     ProductMasterSize.objects.filter(id__in=[size.id for size in omitted]).update(active=False)
                     size_summary["retired"] = len(omitted)
@@ -676,7 +701,7 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         if not isinstance(data, dict) or key not in data:
             return default
         value = data.get(key)
-        if key not in {"canonical_layer_stack", "layer_template", "variant_axes", "sizes"} and isinstance(value, list) and len(value) == 1:
+        if key not in {"canonical_layer_stack", "layer_template", "variant_axes", "sizes", "loaded_size_ids"} and isinstance(value, list) and len(value) == 1:
             return value[0]
         return value
 
@@ -977,7 +1002,8 @@ class ProductMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
         query = str(request.query_params.get("q") or "").strip()
         if query:
             queryset = queryset.filter(models.Q(code__icontains=query) | models.Q(label__icontains=query))
-        limit = min(max(int(request.query_params.get("limit") or 120), 1), 500)
+        # The editor asks for every size (the largest masters hold ~530); other callers keep the short default.
+        limit = min(max(int(request.query_params.get("limit") or 120), 1), 5000)
         return Response(ProductMasterSizeSerializer(queryset.order_by("sort_order", "label", "code")[:limit], many=True).data)
 
     @action(detail=True, methods=["get", "post"])

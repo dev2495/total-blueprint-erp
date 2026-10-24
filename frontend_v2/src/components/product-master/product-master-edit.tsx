@@ -711,6 +711,10 @@ export function ProductMasterEditWorkspace({
         description: draft.description,
         active: true,
         sizes: sizePayloads,
+        // Only sizes this screen loaded may be retired when they are missing from `sizes`.
+        loaded_size_ids: (sizes || [])
+          .map((size) => String(size.id || ""))
+          .filter((id) => id && !id.startsWith("tmp-")),
       });
     },
     onSuccess: async (saved) => {

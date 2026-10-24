@@ -2498,3 +2498,97 @@ class ProductMasterApiTests(TestCase):
 
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(response.data["variant"]["layer_snapshot"][0]["roll_width_mm"], 330.0)
+
+
+class ProductMasterLongSizeListTests(TestCase):
+    """Masters with more sizes than one list page (live roll masters hold 300-530 sizes)."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="pm-long", password="x", extra_permissions=["master.view", "master.manage"])
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+        self.master = ProductMaster.objects.create(code="PM-LONG-ROLL", name="Long roll master", product_kind="ROLL", default_reporting_group="FG")
+        self.sizes = [
+            ProductMasterSize.objects.create(product_master=self.master, code=str(300 + i), label=str(300 + i), roll_width_mm=300 + i, sort_order=i, active=True)
+            for i in range(130)
+        ]
+
+    def save(self, sizes, **extra):
+        return self.client.post(
+            f"/api/master/products/{self.master.id}/workspace-save/",
+            {"name": self.master.name, "sizes": sizes, **extra},
+            format="json",
+        )
+
+    @staticmethod
+    def row(size):
+        return {"id": str(size.id), "code": size.code, "label": size.label, "roll_width_mm": float(size.roll_width_mm), "active": True}
+
+    def test_size_list_gives_the_editor_every_size(self):
+        default = self.client.get(f"/api/master/products/{self.master.id}/sizes/")
+        full = self.client.get(f"/api/master/products/{self.master.id}/sizes/", {"limit": 5000})
+        self.assertEqual(len(default.data), 120)
+        self.assertEqual(len(full.data), 130)
+
+    def test_save_never_retires_sizes_the_editor_did_not_load(self):
+        first_page = self.sizes[:120]
+        # An editor that only loaded 120 rows (older screen) must not retire the other 10.
+        response = self.save([self.row(size) for size in first_page], loaded_size_ids=[str(size.id) for size in first_page])
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["size_summary"]["retired"], 0)
+        # Without the loaded list nothing is retired either.
+        response = self.save([self.row(size) for size in first_page[:5]])
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(ProductMasterSize.objects.filter(product_master=self.master, active=True).count(), 130)
+
+    def test_save_retires_a_loaded_size_the_user_removed(self):
+        removed = self.sizes[7]
+        kept = [size for size in self.sizes if size.id != removed.id]
+        response = self.save([self.row(size) for size in kept], loaded_size_ids=[str(size.id) for size in self.sizes])
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["size_summary"]["retired"], 1)
+        removed.refresh_from_db()
+        self.assertFalse(removed.active)
+
+    def test_adding_a_code_that_is_already_in_use_names_the_code(self):
+        existing = self.sizes[125]  # outside the first 120 rows, like live size 680
+        response = self.save(
+            [self.row(size) for size in self.sizes[:120]] + [{"code": existing.code, "label": existing.code, "roll_width_mm": 425}],
+            loaded_size_ids=[str(size.id) for size in self.sizes[:120]],
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(f'Size code "{existing.code}" is already on this master (in use)', str(response.data))
+        self.assertNotIn("must make a unique set", str(response.data))
+        self.assertEqual(ProductMasterSize.objects.filter(product_master=self.master).count(), 130)
+
+    def test_adding_a_retired_code_brings_that_size_back(self):
+        retired = self.sizes[129]
+        retired.active = False
+        retired.save(update_fields=["active"])
+        response = self.save(
+            [self.row(size) for size in self.sizes[:129]] + [{"code": retired.code, "label": "back again", "roll_width_mm": 429}],
+            loaded_size_ids=[str(size.id) for size in self.sizes[:129]],
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["size_summary"]["restored"], 1)
+        self.assertEqual(response.data["size_summary"]["created"], 0)
+        retired.refresh_from_db()
+        self.assertTrue(retired.active)
+        self.assertEqual(retired.label, "back again")
+        self.assertEqual(ProductMasterSize.objects.filter(product_master=self.master).count(), 130)
+
+    def test_rename_then_reuse_the_old_code_in_one_save(self):
+        renamed = self.sizes[0]
+        rows = [self.row(size) for size in self.sizes]
+        rows[0] = {**rows[0], "code": "300-OLD", "label": "300 old"}
+        # The new row comes first in the list, as the editor puts new rows on top.
+        response = self.save([{"code": "300", "label": "300 new", "roll_width_mm": 300}] + rows, loaded_size_ids=[str(size.id) for size in self.sizes])
+        self.assertEqual(response.status_code, 200, response.data)
+        renamed.refresh_from_db()
+        self.assertEqual(renamed.code, "300-OLD")
+        self.assertTrue(ProductMasterSize.objects.filter(product_master=self.master, code="300", label="300 new").exists())
+
+    def test_single_size_endpoint_names_the_duplicate_code(self):
+        response = self.client.post(f"/api/master/products/{self.master.id}/sizes/", {"code": "305", "label": "dup", "roll_width_mm": 305}, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('Size code "305" is already on this master', str(response.data))

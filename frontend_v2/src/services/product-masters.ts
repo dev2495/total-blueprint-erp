@@ -260,7 +260,7 @@ export const productMasterService = {
         await api.delete(`/api/master/products/${id}/`)
     },
     getProductSizes: async (productId: string, params?: { active?: boolean | string }) => {
-        const { data } = await api.get<MaybePaginated<ProductMasterSize>>(`/api/master/products/${productId}/sizes/`, { params })
+        const { data } = await api.get<MaybePaginated<ProductMasterSize>>(`/api/master/products/${productId}/sizes/`, { params: { limit: 5000, ...params } })
         return unwrapList<ProductMasterSize>(data).map(normalizeSize)
     },
     createProductSize: async (productId: string, payload: ProductMasterSizeInput) => {

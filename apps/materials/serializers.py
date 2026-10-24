@@ -875,6 +875,8 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "product_master_code", "product_master_name", "created_at", "updated_at"]
+        # The (product_master, code) uniqueness is checked in validate() so the message names the code.
+        validators = []
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -1023,6 +1025,21 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        master = attrs.get("product_master") or (getattr(self.instance, "product_master", None) if self.instance is not None else None)
+        code = attrs.get("code", getattr(self.instance, "code", None) if self.instance is not None else None)
+        if master is not None and code:
+            clash = ProductMasterSize.objects.filter(product_master=master, code=code)
+            if self.instance is not None:
+                clash = clash.exclude(pk=self.instance.pk)
+            other = clash.first()
+            if other is not None:
+                state = "in use" if other.active else "retired"
+                raise serializers.ValidationError({
+                    "code": (
+                        f'Size code "{code}" is already on this master ({state}). '
+                        f'Search the size list for {code} and edit that row instead of adding a new one.'
+                    )
+                })
         style = attrs.get("pouch_style_master")
         if style is None and self.instance is not None:
             style = getattr(self.instance, "pouch_style_master", None)

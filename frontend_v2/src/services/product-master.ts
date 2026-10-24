@@ -957,6 +957,9 @@ const STATE = {
 
 // ---------- Service --------------------------------------------------------
 
+/** Upper bound for a master's size list (the largest masters hold ~530 sizes). */
+const SIZE_LIST_LIMIT = 5000;
+
 export const productMasterService = {
     list: async (params?: { q?: string; product_kind?: ProductKind; active?: boolean; for_sales?: boolean; for_planner?: boolean; all_versions?: boolean; current_only?: boolean }) => {
         return tryRequest(
@@ -1057,7 +1060,7 @@ export const productMasterService = {
         );
     },
 
-    workspaceSave: async (id: string, payload: Partial<ProductMaster> & { sizes: Array<Partial<ProductMasterSize>> }) => {
+    workspaceSave: async (id: string, payload: Partial<ProductMaster> & { sizes: Array<Partial<ProductMasterSize>>; loaded_size_ids?: string[] }) => {
         return tryRequest(
             async () => {
                 const { data } = await api.post<ProductMasterWorkspaceSaveResponse>(
@@ -1290,8 +1293,11 @@ export const productMasterService = {
     listSizes: async (productId: string) => {
         return tryRequest(
             async () => {
+                // Every size of the master: editors and pickers must never work on a cut list (a save
+                // would otherwise treat unseen rows as removed; pickers would hide sizes).
                 const { data } = await api.get<MaybePaginated<ProductMasterSize>>(
-                    `/api/master/products/${productId}/sizes/`
+                    `/api/master/products/${productId}/sizes/`,
+                    { params: { limit: SIZE_LIST_LIMIT } }
                 );
                 return unwrap<ProductMasterSize>(data).map(normalizeSize);
             },

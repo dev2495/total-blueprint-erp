@@ -55,3 +55,18 @@ Scripts: `.runtime/release-planner-queue/{build,activate}-pq-release.sh`
 
 - Rollback images: `rollback-pq-<tag>`.
 - The activate script refuses any migration plan.
+
+## Hotfix (same day): product master with more than 120 sizes
+
+- **Problem:** the size list behind product master view/edit, the variant editor, the stock launcher and the order composer returned at most 120 sizes.
+  - 33 live masters hold 328–528 sizes each.
+  - The editor saw only the first 120. On save, the backend retired every active size the editor had not sent.
+  - On 22 Oct this retired 16 sizes of MULTILAYER-SHEET-V30 (840–990.6 mm).
+  - On 24 Oct, adding size 680 failed with "The fields product_master, code must make a unique set": 680 already existed beyond row 120.
+- **Fix:**
+  - Size lists load every size (`limit` up to 5000; the editor and pickers ask for all).
+  - Workspace save retires only sizes the editor loaded and the user removed (`loaded_size_ids`). Rows it never saw are untouched.
+  - Existing rows are saved before new ones, so a code freed by a rename can be reused in the same save.
+  - A new row whose code matches a retired size brings that size back.
+  - A code already in use gives "Size code "680" is already on this master (in use). Search the size list for 680 and edit that row instead of adding a new one."
+- **Tests:** 7 new backend tests (long size list, no retirement of unloaded rows, removal still retires, duplicate message, restore, rename-then-reuse, single-size endpoint). Backend 1,586 OK.
