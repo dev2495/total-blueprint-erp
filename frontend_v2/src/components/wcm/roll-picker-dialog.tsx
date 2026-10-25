@@ -62,7 +62,7 @@ const TIER_PRESENTATION: Record<
   },
   EXACT: {
     label: "Exact",
-    subtitle: "Width is used as it is (planned ±15 mm or up to +10%)",
+    subtitle: "Width is used as it is (planned web ±20 mm)",
     tone: "bg-success-bg text-success-fg border-success-border",
     icon: Sparkles,
   },

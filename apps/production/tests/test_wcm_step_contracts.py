@@ -180,9 +180,9 @@ class WcmStepContractTests(TestCase):
                 weight_kg=Decimal("100"),
             )
 
-        # Within ±15 mm of the planned 850 mm web a roll is used as it is.
-        within = roll("ROLL-WCM-WITHIN-TOLERANCE", "849")
-        narrower = roll("ROLL-WCM-NARROWER", "834")
+        # Within ±20 mm of the planned 850 mm web a roll is used as it is; 21 mm narrower is refused.
+        within = roll("ROLL-WCM-WITHIN-TOLERANCE", "831")
+        narrower = roll("ROLL-WCM-NARROWER", "829")
 
         eligible = RollAllocationService.get_eligible_rolls(
             self.job,

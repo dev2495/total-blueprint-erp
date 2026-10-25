@@ -29,6 +29,7 @@ from apps.materials.models import InventoryMaterial
 from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
 from apps.inventory.services.bulk_service import BulkService
 from apps.production.services.stock_form_resolver import StockFormResolver
+from apps.production.services.roll_width import auto_max_width, width_tolerance_mm
 from apps.production.services.granule_availability import GranuleAvailabilityService
 
 logger = logging.getLogger(__name__)
@@ -3598,7 +3599,7 @@ class ExecutionService:
                     )
                     continue
 
-            # Auto-allocation window: keep automatic picks within +10% width.
+            # Auto-allocation window: keep automatic picks within the planned web + tolerance (roll_width).
             # Manual override may intentionally pick larger rolls, so this gate
             # is only enabled by callers that request strict auto behavior.
             if enforce_auto_width_window:
@@ -3821,6 +3822,54 @@ class ExecutionService:
             )
         return None
 
+    @classmethod
+    def _split_step_before(cls, job, process=None) -> bool:
+        """True when the route slits (a SPLIT step) before this job's step: from there each lane is its own roll."""
+        cached = getattr(job, "_split_before_cache", None)
+        if cached is not None:
+            return cached
+        result = False
+        try:
+            rule = getattr(job, "routing_rule", None)
+            if rule is not None:
+                from apps.factory.models import Process
+                from apps.production.services.batch_route_service import RouteGraphService
+
+                nodes = RouteGraphService.normalize(rule)["nodes"]
+                current = int(getattr(job, "current_step_index", 0) or 0)
+                earlier = {n["process_code"] for n in nodes if RouteGraphService.step_index_for_node(n) < current}
+                if earlier:
+                    result = Process.objects.filter(code__in=earlier, roll_behavior="SPLIT").exists()
+        except Exception:
+            logger.warning("split step lookup failed for job=%s", getattr(job, "id", None), exc_info=True)
+            result = False
+        try:
+            job._split_before_cache = result
+        except Exception:
+            pass
+        return result
+
+    @classmethod
+    def _run_web_width(cls, job, process, width):
+        """The web this step runs on. Before slitting, a line runs its planned parent web (lanes × child + trim,
+        e.g. 3-up 230 mm pouches on a 700 mm web); after slitting each lane is its own child roll."""
+        try:
+            soi = getattr(job, "sales_order_item", None)
+            parent = float(
+                (getattr(soi, "planned_parent_width_mm", None) if soi is not None else None)
+                or (getattr(job, "meta_json", None) or {}).get("planned_parent_width_mm")
+                or 0
+            )
+        except Exception:
+            parent = 0.0
+        if parent <= 0:
+            return width
+        if width is not None and parent < float(width):
+            return width
+        if cls._split_step_before(job, process):
+            return width
+        return parent
+
     @_memoized_read(lambda job, process=None: ("target_specs",) + _job_key(job, process), copy_result=True)
     def _build_step_target_specs(cls, job, process=None):
         process = process or job.current_process or job.process
@@ -3894,10 +3943,10 @@ class ExecutionService:
                 "width_basis": stock_contract.width_basis,
                 "slit_policy": stock_contract.slit_policy,
             }
-            laminate_width = min(widths) if widths else req_width_mm
+            laminate_width = cls._run_web_width(job, process, min(widths) if widths else req_width_mm)
             if laminate_width is not None:
                 laminate_spec["min_width_mm"] = float(laminate_width)
-                laminate_spec["max_auto_width_mm"] = float(laminate_width) * 1.10
+                laminate_spec["max_auto_width_mm"] = auto_max_width(laminate_width)
             _push(laminate_spec)
             if forced_layer_indexes is None:
                 return specs
@@ -3941,10 +3990,10 @@ class ExecutionService:
                         layer_req_width = None
                 except Exception:
                     layer_req_width = None
-                effective_req_width = layer_req_width if layer_req_width is not None else req_width_mm
+                effective_req_width = cls._run_web_width(job, process, layer_req_width if layer_req_width is not None else req_width_mm)
                 if effective_req_width is not None:
                     layer_spec["min_width_mm"] = effective_req_width
-                    layer_spec["max_auto_width_mm"] = float(effective_req_width) * 1.10
+                    layer_spec["max_auto_width_mm"] = auto_max_width(effective_req_width)
                 _push(layer_spec)
 
         fallback_spec = {
@@ -3955,9 +4004,10 @@ class ExecutionService:
             "width_basis": stock_contract.width_basis,
             "slit_policy": stock_contract.slit_policy,
         }
-        if req_width_mm is not None:
-            fallback_spec["min_width_mm"] = req_width_mm
-            fallback_spec["max_auto_width_mm"] = float(req_width_mm) * 1.10
+        run_width = cls._run_web_width(job, process, req_width_mm)
+        if run_width is not None:
+            fallback_spec["min_width_mm"] = run_width
+            fallback_spec["max_auto_width_mm"] = auto_max_width(run_width)
         # A resolved layer snapshot is the authoritative input-roll contract.
         # Adding a second output-variant-only row here used to turn the spec list
         # into an OR expression (for example: strict TT/51u/900mm OR any TT),
@@ -4034,7 +4084,7 @@ class ExecutionService:
                         layer_req_width = None
                 except Exception:
                     layer_req_width = None
-                effective_req_width = layer_req_width if layer_req_width is not None else req_width_mm
+                effective_req_width = cls._run_web_width(job, process, layer_req_width if layer_req_width is not None else req_width_mm)
                 return _slot_payload(
                     {
                         "slot_index": slot_index,
@@ -4050,7 +4100,7 @@ class ExecutionService:
                             else layer.get("thickness")
                         ),
                         "min_width_mm": effective_req_width,
-                        "max_auto_width_mm": float(effective_req_width) * 1.10 if effective_req_width is not None else None,
+                        "max_auto_width_mm": auto_max_width(effective_req_width),
                         "variant_name": layer.get("variant_name") or layer.get("name"),
                         "source_role": "LAYER",
                         "stock_form": layer.get("stock_form") or stock_contract.stock_form,
@@ -4112,7 +4162,7 @@ class ExecutionService:
                         layer_req_width = None
                 except Exception:
                     layer_req_width = None
-                effective_req_width = layer_req_width if layer_req_width is not None else req_width_mm
+                effective_req_width = cls._run_web_width(job, process, layer_req_width if layer_req_width is not None else req_width_mm)
                 slot = _slot_payload(
                     {
                         "layer_index": idx + 1,
@@ -4125,7 +4175,7 @@ class ExecutionService:
                             else layer.get("thickness")
                         ),
                         "min_width_mm": effective_req_width,
-                        "max_auto_width_mm": float(effective_req_width) * 1.10 if effective_req_width is not None else None,
+                        "max_auto_width_mm": auto_max_width(effective_req_width),
                         "variant_name": layer.get("variant_name") or layer.get("name"),
                         "stock_form": layer.get("stock_form") or stock_contract.stock_form,
                         "width_basis": layer.get("width_basis") or stock_contract.width_basis,
@@ -4142,8 +4192,8 @@ class ExecutionService:
                     "variant_id": step_roll_spec.get("output_variant_id"),
                     "grade_id": step_roll_spec.get("output_grade_id"),
                     "thickness_micron": step_roll_spec.get("fixed_thickness_micron"),
-                    "min_width_mm": req_width_mm,
-                    "max_auto_width_mm": float(req_width_mm) * 1.10 if req_width_mm is not None else None,
+                    "min_width_mm": cls._run_web_width(job, process, req_width_mm),
+                    "max_auto_width_mm": auto_max_width(cls._run_web_width(job, process, req_width_mm)),
                     "variant_name": step_roll_spec.get("output_variant_name"),
                     "stock_form": stock_contract.stock_form,
                     "width_basis": stock_contract.width_basis,
@@ -6257,10 +6307,10 @@ class ExecutionService:
                     except Exception:
                         layer_width = None
 
-                    effective_width = layer_width if layer_width is not None else req_width_mm
+                    effective_width = cls._run_web_width(job, process, layer_width if layer_width is not None else req_width_mm)
                     if effective_width is not None:
                         spec["min_width_mm"] = float(effective_width)
-                        spec["max_auto_width_mm"] = float(effective_width) * 1.10
+                        spec["max_auto_width_mm"] = auto_max_width(effective_width)
 
                 if target_roll_specs:
                     target_roll_spec["min_width_mm"] = target_roll_specs[0].get("min_width_mm")
@@ -6326,7 +6376,7 @@ class ExecutionService:
         }
         if step_roll_spec_hint.get("width_rule") == "FIXED" and step_roll_spec_hint.get("fixed_width_mm") is not None:
             step_target["min_width_mm"] = step_roll_spec_hint.get("fixed_width_mm")
-            step_target["max_auto_width_mm"] = float(step_roll_spec_hint.get("fixed_width_mm")) * 1.10
+            step_target["max_auto_width_mm"] = auto_max_width(step_roll_spec_hint.get("fixed_width_mm"))
         _merge_target_spec(step_target, target_roll_specs)
         if target_roll_specs:
             target_roll_spec = target_roll_specs[0]
@@ -7736,8 +7786,8 @@ class ExecutionService:
             )
         if not auto_window_ok and not manual_override:
             raise ValueError(
-                "Selected roll width is outside the auto-allocation window (+10%). "
-                "Use manual override with reason to allocate a larger roll."
+                f"Selected roll width is outside the planned web ±{width_tolerance_mm():g} mm. "
+                "Slit it to the planned web, or use manual override with a reason to allocate it."
             )
         if manual_override and not (override_reason or "").strip():
             raise ValueError("Override reason is required when manually overriding roll assignment.")

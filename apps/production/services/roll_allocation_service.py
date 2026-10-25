@@ -360,6 +360,16 @@ class RollAllocationService:
         stock orders do not have that field, so they fall back to the legacy
         target_child_width from the execution context.
         """
+        # After the route's slitting step each lane is its own roll: the step runs on the child width.
+        try:
+            from apps.production.services.services_execution import ExecutionService
+
+            if ExecutionService._split_step_before(job):
+                child = cls.target_child_width(job)
+                if child > 0:
+                    return child
+        except Exception:
+            logger.warning("Split-step check failed job_id=%s; using the parent web", getattr(job, "id", None), exc_info=True)
         soi = getattr(job, "sales_order_item", None)
         for value in (
             getattr(soi, "planned_parent_width_mm", None) if soi else None,
@@ -506,7 +516,7 @@ class RollAllocationService:
         roll picker.
 
         Tiers:
-          1 EXACT             — w within the as-is window (planned ± 15 mm, or up to +10%)
+          1 EXACT             — w within the as-is window (planned web ± tolerance, default 20 mm)
           2 ORDER_BOUND       — already committed to this order/job (auto-safe)
           3 WIDER_OK_WITH_SLIT — w wider than the window, will slit + spawn remainder
           4 REMAINDER_POOL    — remainder rolls, same layer sig, manual confirm
@@ -906,7 +916,7 @@ class RollAllocationService:
             return [float(w) for w in gang_widths], gang_jobs
 
         # Auto-recognise full-roll pick (EXACT / ORDER_BOUND tier): width within the
-        # as-is window (planned ± tolerance, or up to +10%). Single child = parent width.
+        # as-is window (planned web ± tolerance). Single child = parent width.
         from apps.production.services.roll_width import usable_as_is, width_tolerance_mm
 
         if target_w and usable_as_is(parent_w, target_w):

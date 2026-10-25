@@ -112,3 +112,19 @@ Scripts: `.runtime/release-planner-queue/{build,activate}-pq-release.sh`
   - Template cells are plain Excel values (sizes as numbers, ids as text).
 - **Inches:** now the same size and weight as the mm figure beside it, in a softer colour.
 - **Live data:** see `.runtime/ops-20261024/` (close running ROLL-master lines through the planner cancel and short-close rules; retire the current roll masters' sizes; backup + restore drill first; reversal manifest).
+
+## Round 5 (25 Oct): roll allocation ±20 mm, lane-aware run web
+
+- **Tolerance:** a roll is used as it is within **±20 mm** of the planned web (`ROLL_PICK_WIDTH_TOLERANCE_MM`, default now 20).
+  - The extra "+10%" allowance is removed.
+  - Wider rolls are slit, or allocated by a manual override with a reason.
+  - Narrower than −20 mm is refused.
+- **Lane-aware:** before the route's slitting (SPLIT) step, a line runs its **planned parent web** (`SalesOrderItem.planned_parent_width_mm` = lanes × child + trim).
+  - The step's roll specs, slots, job context and the picker all use it (`ExecutionService._run_web_width`, `_split_step_before`; `RollAllocationService.planned_parent_width` returns the child width after slitting).
+  - Example: SO-2026-0677, a 3-up 230 mm line on a 700 mm web. The print step accepted only up to 253 mm before; now 680–720 mm, wider rolls slit, 495/570 mm refused.
+  - Slitting still cuts 230 mm children.
+- **Message:** "Selected roll width is outside the planned web ±20 mm. Slit it to the planned web, or use manual override with a reason to allocate it."
+- **Tests:**
+  - Lane run-web and ±20 window tests; the WCM discovery test moved to the ±20 boundary.
+  - Backend 1,598 OK; probes floor 99/99, ink 10/10, job-work 65/65.
+  - e2e gate 310, mutations 13, observations 10.

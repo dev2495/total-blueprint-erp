@@ -1,23 +1,24 @@
 """One width rule for picking a roll at a floor step.
 
-A roll may be used as it is when its width is within ROLL_PICK_WIDTH_TOLERANCE_MM
-(default 15 mm) of the planned web either side, or up to the +10% auto window when
-that is wider. Wider than that it must be slit; narrower than the tolerance it is
-refused. Picker, eligibility, allocation and the machine screen all read this.
+A roll may be used as it is when its width is within ROLL_PICK_WIDTH_TOLERANCE_MM (default 20 mm)
+of the planned web, either side. Wider than that it must be slit (or allocated by a manual override
+with a reason); narrower than the tolerance it is refused. The planned web is the line's run web:
+before the route's slitting step a multi-lane line runs its planned parent web (e.g. 3-up 230 mm
+pouches on a 700 mm web), after slitting each lane is its own child roll.
+Picker, eligibility, allocation and the machine screen all read this.
 """
 from decimal import Decimal
 
 from django.conf import settings
 
-AUTO_WINDOW_RATIO = Decimal("1.10")
 EPSILON = Decimal("0.01")
 
 
 def width_tolerance_mm() -> Decimal:
     try:
-        return max(Decimal("0"), Decimal(str(getattr(settings, "ROLL_PICK_WIDTH_TOLERANCE_MM", 15))))
+        return max(Decimal("0"), Decimal(str(getattr(settings, "ROLL_PICK_WIDTH_TOLERANCE_MM", 20))))
     except Exception:
-        return Decimal("15")
+        return Decimal("20")
 
 
 def _dec(value) -> Decimal:
@@ -31,7 +32,14 @@ def as_is_window(required) -> tuple[Decimal, Decimal]:
     """(lowest, widest) roll width usable without slitting for this planned width."""
     required = _dec(required)
     tol = width_tolerance_mm()
-    return required - tol, max(required * AUTO_WINDOW_RATIO, required + tol)
+    return required - tol, required + tol
+
+
+def auto_max_width(required) -> float | None:
+    """Widest roll an automatic pick may take for this planned width (planned + tolerance)."""
+    if required in (None, ""):
+        return None
+    return float(_dec(required) + width_tolerance_mm())
 
 
 def too_narrow(stock, required) -> bool:
