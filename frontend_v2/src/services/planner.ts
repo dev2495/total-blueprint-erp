@@ -68,7 +68,8 @@ export interface GeometryOverridePayload {
 }
 
 export interface PlannerInventoryOption {
-    inventory_type: 'ROLL' | 'FG_BATCH';
+    /** GONNY: a sealed gonny freed from a closed order; finished stock, claimed whole. */
+    inventory_type: 'ROLL' | 'FG_BATCH' | 'GONNY';
     inventory_id: string;
     label: string;
     display_name?: string;
@@ -905,11 +906,15 @@ export interface PlannerSkuPreset {
 }
 
 export interface ClaimCandidate {
-    inventory_type: 'ROLL' | 'FG_BATCH';
+    /** GONNY = a sealed gonny freed from a closed order (claimed whole). */
+    inventory_type: 'ROLL' | 'FG_BATCH' | 'GONNY';
     inventory_id: string;
     label: string;
     source_stock_order_id: string | null;
+    /** Stock order number, or "Freed from SO-… L2" for goods moved to stock from a closed order. */
     source_stock_order_no: string | null;
+    source_kind?: 'STOCK_ORDER' | 'FREED_FROM_ORDER';
+    qty_pcs?: number;
     current_qty_kg: number;
     already_claimed_qty_kg: number;
     claimable_qty_kg: number;
@@ -925,7 +930,7 @@ export interface ClaimCandidatesResponse {
 }
 
 export interface ClaimStockPayload {
-    inventory_type: 'ROLL' | 'FG_BATCH';
+    inventory_type: 'ROLL' | 'FG_BATCH' | 'GONNY';
     inventory_id: string;
     claim_qty_kg: number;
 }

@@ -407,6 +407,46 @@ class PackingCountService:
         _, plant_buckets = cls.throughput_rows(count_date=count_date, end_at=counted_at)
         return pick(row for row in plant_buckets.values() if row.get("_plant_id") == str(plant_id))
 
+    PIECE_UOMS = {"PCS", "PC", "NOS", "NO", "PIECE", "PIECES", "UNIT", "UNITS", "EA", "EACH", "SET", "SETS"}
+
+    @classmethod
+    def is_piece_uom(cls, uom) -> bool:
+        return str(uom or "").strip().upper() in cls.PIECE_UOMS
+
+    @staticmethod
+    def split_count_usage(used, weights, *, whole_pieces=False) -> list[Decimal]:
+        """Share the counted usage over the order lines that ticked the item, by their ticks.
+
+        Items counted in pieces are shared in whole pieces (largest remainder; ties go to the line
+        with more ticks, then the earlier line), so one gonny goes to one line, never 1/14 of a
+        gonny to fourteen. A fractional piece left by the count itself stays with the largest share.
+        """
+        used = q4(used)
+        weights = [q4(weight) if weight and weight > 0 else Decimal("0") for weight in weights]
+        total = sum(weights, Decimal("0"))
+        if used <= 0 or total <= 0:
+            return [Decimal("0")] * len(weights)
+        if not whole_pieces:
+            shares = [q4(used * weight / total) for weight in weights]
+            last = max(index for index, weight in enumerate(weights) if weight > 0)
+            shares[last] = q4(shares[last] + used - sum(shares, Decimal("0")))
+            return shares
+        whole_used = Decimal(int(used))
+        exact = [whole_used * weight / total for weight in weights]
+        shares = [Decimal(int(value)) for value in exact]
+        left = int(whole_used - sum(shares, Decimal("0")))
+        order = sorted(
+            range(len(weights)),
+            key=lambda index: (-(exact[index] - shares[index]), -weights[index], index),
+        )
+        for index in order[:left]:
+            shares[index] += 1
+        fraction = q4(used - whole_used)
+        if fraction > 0:
+            biggest = max(range(len(weights)), key=lambda index: (shares[index], weights[index], -index))
+            shares[biggest] = q4(shares[biggest] + fraction)
+        return [q4(value) for value in shares]
+
     @classmethod
     @transaction.atomic
     def post_count(cls, *, lines: list[dict], count_date=None, counted_at=None, user=None, notes=""):
@@ -446,15 +486,14 @@ class PackingCountService:
                     counted_at=counted_at,
                 )
                 if candidates:
-                    total_units = sum((q4(row["units"]) for row in candidates), Decimal("0"))
-                    remaining = consume_qty
-                    for index, row in enumerate(candidates):
-                        if total_units <= 0:
-                            break
-                        qty = remaining if index == len(candidates) - 1 else q4(consume_qty * q4(row["units"]) / total_units)
+                    shares = cls.split_count_usage(
+                        consume_qty,
+                        [q4(row["units"]) for row in candidates],
+                        whole_pieces=cls.is_piece_uom(stock.material.base_uom),
+                    )
+                    for row, qty in zip(candidates, shares):
                         if qty <= 0:
                             continue
-                        remaining = q4(remaining - qty)
                         tx = PackagingService.consume_packaging_stock(
                             material_id=str(stock.material_id),
                             qty=qty,

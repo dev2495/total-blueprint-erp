@@ -29,6 +29,14 @@ def _mock_route_processes(process_filter):
 
 
 class StockClaimFlowTests(SimpleTestCase):
+    def setUp(self):
+        super().setUp()
+        # Freed gonnies (sealed packs moved to stock from a closed order) are looked up in the
+        # database; these mock-based tests cover rolls and batches only.
+        patcher = patch.object(PlannerViewSet, "_freed_gonny_candidates", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     @patch("apps.production.views_planner.Process.objects.filter")
     @patch("apps.production.views_planner.InventoryMaterial.objects.filter")
     def test_sales_required_start_step_uses_first_roll_input_for_purchased_layers(self, material_filter, process_filter):

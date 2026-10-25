@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, ClipboardList, Download, Printer, RefreshCw, Scale, Search, Truck, Boxes } from "lucide-react";
+import { Boxes, CircleCheck, ClipboardList, Download, FileText, History, Printer, RefreshCw, Scale, Search, Truck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,6 +27,7 @@ import {
   type Transport,
 } from "@/components/dispatch/dispatch-tray";
 import { DispatchHistory } from "@/components/dispatch/dispatch-history";
+import { MoveToStockDialog, type StockMoveUnit } from "@/components/dispatch/move-to-stock-dialog";
 import { sizeParts } from "@/components/packing/pack-lines-dialog";
 import { logisticsService, type DeliveryChallan, type SODispatchSummary } from "@/services/logistics";
 
@@ -56,6 +57,31 @@ export default function DispatchBayPage() {
   const [dispatched, setDispatched] = useState<Record<string, boolean>>({});
   const [printingAll, setPrintingAll] = useState(false);
   const [historyTab, setHistoryTab] = useState<"ALL" | "POD" | "DRAFT">("ALL");
+  const [historySearch, setHistorySearch] = useState("");
+  const [bay, setBay] = useState<"ready" | "load" | "history">("ready");
+  const [shipClosed, setShipClosed] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<{
+    orderNumber: string;
+    lineNo?: number | null;
+    lineName?: string;
+    closedLabel: string;
+    units: StockMoveUnit[];
+  } | null>(null);
+  // Deep link from an order page: /logistics/dispatch?history=SO-2026-0254 opens its slips.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const term = params.get("history");
+      if (term) {
+        setHistorySearch(term);
+        setBay("history");
+      } else if (params.get("tab") === "history") {
+        setBay("history");
+      }
+    } catch {
+      // Opening on the board is fine.
+    }
+  }, []);
   const [podChallan, setPodChallan] = useState<DeliveryChallan | null>(null);
   const [podReceivedBy, setPodReceivedBy] = useState("");
   const [podReference, setPodReference] = useState("");
@@ -216,6 +242,7 @@ export default function DispatchBayPage() {
     setTrayOrders({});
     setTrayLines({});
     setLocations({});
+    setShipClosed(false);
   };
   const nextLoad = () => {
     clearTray();
@@ -224,6 +251,7 @@ export default function DispatchBayPage() {
     setPrinted({});
     setDispatched({});
     setStage("pick");
+    setBay("ready");
   };
 
   const createMutation = useMutation({
@@ -243,11 +271,13 @@ export default function DispatchBayPage() {
         lr_number: clean(transport.lr),
         e_way_bill_number: clean(transport.eway),
         dispatch_notes: transport.note,
+        ship_closed_lines: shipClosed && trayList.some((unit) => unit.closed),
       });
     },
     onSuccess: async (data) => {
       setCreated(data.slips);
       setStage("created");
+      setBay("load");
       toast({ title: "Dispatch slips ready", description: data.message });
       await invalidate();
     },
@@ -255,10 +285,10 @@ export default function DispatchBayPage() {
   });
 
   const dispatchMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
+    mutationFn: async ({ ids, shipClosed: confirmClosed }: { ids: string[]; shipClosed: boolean }) => {
       const done: string[] = [];
       for (const id of ids) {
-        await logisticsService.dispatchChallan(id);
+        await logisticsService.dispatchChallan(id, { ship_closed_lines: confirmClosed });
         done.push(id);
         setDispatched((prev) => ({ ...prev, [id]: true }));
       }
@@ -402,6 +432,8 @@ export default function DispatchBayPage() {
           icon={<Boxes />}
           label="Units ready"
           tone="good"
+          active={bay === "ready"}
+          onClick={() => setBay("ready")}
           value={v(readyUnits)}
           unit="units"
           sub={board.data ? `${gonniesText(Number(totals.ready_gonnies || 0))} · ${rollsText(Number(totals.ready_rolls || 0))}` : "—"}
@@ -436,8 +468,11 @@ export default function DispatchBayPage() {
           value={challans.data ? n(slipsTodayCount, 0) : "—"}
           unit="slips"
           sub={`${dispatchedTodayCount} dispatched · ${draftCount} draft`}
-          active={historyTab === "DRAFT"}
-          onClick={() => setHistoryTab("DRAFT")}
+          active={bay === "history" && historyTab === "DRAFT"}
+          onClick={() => {
+            setHistoryTab("DRAFT");
+            setBay("history");
+          }}
         />
         <FloorKpi
           testId="dispatch-kpi-pod"
@@ -447,8 +482,11 @@ export default function DispatchBayPage() {
           value={challans.data ? n(podPendingCount, 0) : "—"}
           unit="challans"
           sub={`${deliveredCount} delivered all-time`}
-          active={historyTab === "POD"}
-          onClick={() => setHistoryTab("POD")}
+          active={bay === "history" && historyTab === "POD"}
+          onClick={() => {
+            setHistoryTab("POD");
+            setBay("history");
+          }}
         />
       </FloorKpiGrid>
 
@@ -458,7 +496,55 @@ export default function DispatchBayPage() {
         </div>
       ) : null}
 
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-line" role="tablist" aria-label="Dispatch Bay views">
+        <div className="flex gap-1 overflow-x-auto">
+          {(
+            [
+              ["ready", "Ready to dispatch", readyUnits ? unitsText(readyUnits) : "", Truck],
+              [
+                "load",
+                "This load",
+                created.length ? `${created.length} slip${created.length === 1 ? "" : "s"}` : trayList.length ? unitsText(trayList.length) : "",
+                FileText,
+              ],
+              ["history", "Challans & history", podPendingCount ? `${n(podPendingCount, 0)} awaiting POD` : "", History],
+            ] as const
+          ).map(([value, label, badge, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={bay === value}
+              data-testid={`dispatch-tab-${value}`}
+              onClick={() => setBay(value)}
+              className={cn(
+                "relative flex min-h-[42px] shrink-0 items-center gap-2 px-3.5 text-[13.5px] font-semibold transition-colors",
+                bay === value ? "text-content-1" : "text-content-3 hover:text-content-1",
+              )}
+            >
+              <Icon className="h-4 w-4" aria-hidden />
+              {label}
+              {badge ? (
+                <span className={cn("rounded-full px-2 text-[11px] tabular-nums", bay === value ? "bg-primary text-white" : "bg-surface-2 text-content-3")}>
+                  {badge}
+                </span>
+              ) : null}
+              {bay === value ? <span className="absolute inset-x-2 -bottom-px h-[2px] rounded-full bg-primary" aria-hidden /> : null}
+            </button>
+          ))}
+        </div>
+        <span className="pb-2 text-[12px] text-content-3">
+          {bay === "history"
+            ? "Every slip: reprint, dispatch drafts, confirm proof of delivery"
+            : bay === "load"
+              ? "Print the slips of this load, then mark it dispatched"
+              : "Tick lines to load the vehicle · one slip per order line"}
+        </span>
+      </div>
+
+      {bay !== "history" ? (
       <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_400px]">
+        {bay === "ready" ? (
         <div className="min-w-0 overflow-hidden rounded-[16px] border border-line bg-surface-1 shadow-[var(--shadow-sm)]">
           <header className="flex flex-wrap items-center gap-2 px-4 py-2.5">
             <Truck className="h-4 w-4 text-content-3" aria-hidden />
@@ -560,6 +646,22 @@ export default function DispatchBayPage() {
                 onToggleMany={setInTray}
                 onToggle={toggleUnit}
                 onPackingSlip={packingSlip}
+                onMoveToStock={(order, line, units, closedLabel) =>
+                  setMoveTarget({
+                    orderNumber: order.sales_order.order_number,
+                    lineNo: line.line_no,
+                    lineName: clean(line.product_name),
+                    closedLabel,
+                    units: units.map((unit) => ({
+                      id: unit.id,
+                      kind: unit.kind,
+                      label: unit.dispatchNo || unit.label,
+                      kg: unit.net,
+                      pcs: unit.pcs || undefined,
+                      note: [unit.mode, unit.location].filter(Boolean).join(" · "),
+                    })),
+                  })
+                }
               />
             ) : (
               <PanelEmpty icon={<Truck />} title={allOrders.length ? "No orders match" : "No orders to ship"}>
@@ -577,6 +679,33 @@ export default function DispatchBayPage() {
             <Pager page={safePage} pageCount={pageCount} onPageChange={setPage} testId="dispatch-queue-page" />
           </footer>
         </div>
+        ) : (
+          <div className="min-w-0 space-y-3" data-testid="dispatch-load-panel">
+            {created.length ? (
+              <SlipsSection
+                created={created}
+                orders={trayOrders}
+                lines={trayLines}
+                printed={printed}
+                dispatched={dispatched}
+                onPrint={(slip) => void printSlip(slip)}
+                transport={transport}
+              />
+            ) : trayList.length ? (
+              <section className="rounded-[16px] border border-dashed border-line bg-surface-1 px-5 py-6 text-[13px] text-content-3" data-testid="dispatch-slips-pending">
+                <b className="block text-[15px] text-content-1">
+                  {traySlips(trayList).length} slip{traySlips(trayList).length === 1 ? "" : "s"} will be created
+                </b>
+                One per order line. Fill the transport on the right and press Create; the exact text each slip prints on the Epson
+                (10 × 6 in, 96 columns) then shows here with print, PDF and QR.
+              </section>
+            ) : (
+              <PanelEmpty icon={<FileText />} title="No load in progress">
+                Tick lines on Ready to dispatch to load a vehicle. Older slips are in History.
+              </PanelEmpty>
+            )}
+          </div>
+        )}
 
         <DispatchTray
           units={stage === "pick" ? trayList : trayList}
@@ -597,37 +726,36 @@ export default function DispatchBayPage() {
           onCreate={() => createMutation.mutate()}
           onClearTray={clearTray}
           onPrintAll={() => void printAll()}
-          onDispatchAll={() => dispatchMutation.mutate(created.filter((slip) => !dispatched[slip.id]).map((slip) => slip.id))}
+          onDispatchAll={() =>
+            dispatchMutation.mutate({ ids: created.filter((slip) => !dispatched[slip.id]).map((slip) => slip.id), shipClosed })
+          }
           onNextLoad={nextLoad}
           onRemoveUnits={(units) => setInTray(units, false)}
+          onShowHistory={() => setBay("history")}
+          shipClosed={shipClosed}
+          setShipClosed={setShipClosed}
         />
       </section>
-
-      {created.length ? (
-        <SlipsSection
-          created={created}
-          orders={trayOrders}
-          lines={trayLines}
-          printed={printed}
-          dispatched={dispatched}
-          onPrint={(slip) => void printSlip(slip)}
-          transport={transport}
+      ) : (
+        <DispatchHistory
+          dispatchingId={dispatchMutation.isPending ? String(dispatchMutation.variables?.ids?.[0] || "") : ""}
+          onPrint={(row) => void downloadEpsonJob(logisticsService.getChallanPrintUrl(row.id, "tpp"))}
+          onDispatch={(row) => dispatchMutation.mutate({ ids: [row.id], shipClosed: Boolean(row.line_closed || row.order_closed) })}
+          onPod={setPodChallan}
+          initialTab={historyTab}
+          initialSearch={historySearch}
         />
-      ) : trayList.length ? (
-        <section className="rounded-[16px] border border-dashed border-line bg-surface-1 px-4 py-3 text-[12.5px] text-content-3" data-testid="dispatch-slips-pending">
-          <b className="text-content-2">
-            {traySlips(trayList).length} slip{traySlips(trayList).length === 1 ? "" : "s"} will be created
-          </b>{" "}
-          · one per order line. The exact text each slip prints on the Epson (10 × 6 in, 96 columns) shows here once they are created.
-        </section>
-      ) : null}
+      )}
 
-      <DispatchHistory
-        dispatchingId={dispatchMutation.isPending ? String(dispatchMutation.variables?.[0] || "") : ""}
-        onPrint={(row) => void downloadEpsonJob(logisticsService.getChallanPrintUrl(row.id, "tpp"))}
-        onDispatch={(row) => dispatchMutation.mutate([row.id])}
-        onPod={setPodChallan}
-        initialTab={historyTab}
+      <MoveToStockDialog
+        open={Boolean(moveTarget)}
+        onOpenChange={(open) => !open && setMoveTarget(null)}
+        orderNumber={moveTarget?.orderNumber || ""}
+        lineNo={moveTarget?.lineNo}
+        lineName={moveTarget?.lineName}
+        closedLabel={moveTarget?.closedLabel || ""}
+        units={moveTarget?.units || []}
+        onMoved={() => void invalidate()}
       />
 
       <Dialog open={Boolean(podChallan)} onOpenChange={(open) => !open && setPodChallan(null)}>

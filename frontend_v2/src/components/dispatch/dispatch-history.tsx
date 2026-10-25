@@ -59,18 +59,25 @@ export function DispatchHistory({
   onDispatch,
   onPod,
   initialTab = "ALL",
+  initialSearch = "",
 }: {
   dispatchingId: string;
   onPrint: (row: DeliveryChallan) => void;
   onDispatch: (row: DeliveryChallan) => void;
   onPod: (row: DeliveryChallan) => void;
   initialTab?: Tab;
+  /** Opens filtered, e.g. on an order number from the order page. */
+  initialSearch?: string;
 }) {
   const qrStickers = useGateQrLabelAccess();
   const [tab, setTab] = React.useState<Tab>(initialTab);
   const [range, setRange] = React.useState<Range>("ALL");
   const [customer, setCustomer] = React.useState("ALL");
-  const [search, setSearch] = React.useState("");
+  const [search, setSearch] = React.useState(initialSearch);
+  const [confirmClosedId, setConfirmClosedId] = React.useState("");
+  React.useEffect(() => {
+    if (initialSearch) setSearch(initialSearch);
+  }, [initialSearch]);
   const [page, setPage] = React.useState(1);
   React.useEffect(() => setTab(initialTab), [initialTab]);
   React.useEffect(() => setPage(1), [tab, range, customer, search]);
@@ -216,6 +223,9 @@ export function DispatchHistory({
                       <div className="mt-1">
                         <Lifecycle status={status} />
                       </div>
+                      {row.line_closed || row.order_closed ? (
+                        <div className="mt-1 text-[10.5px] font-semibold text-warning-fg">{row.order_closed ? "Order closed" : "Line closed"}</div>
+                      ) : null}
                     </td>
                     <td className="max-w-[340px] px-3 py-2">
                       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
@@ -264,13 +274,32 @@ export function DispatchHistory({
                         {status !== "CANCELLED" ? (
                           <PrintGateQrLabelButton kind="SALES_DC" id={row.id} reference={row.dc_no} showHint={false} className="shrink-0" />
                         ) : null}
-                        {status === "DRAFT" ? (
+                        {status === "DRAFT" && (row.line_closed || row.order_closed) && confirmClosedId === row.id ? (
+                          <span className="flex basis-full flex-wrap items-center justify-end gap-1 rounded-lg border border-warning-border bg-warning-bg px-2 py-1 text-[11.5px] text-content-2">
+                            <span>Line closed · send the goods anyway?</span>
+                            <Button
+                              size="sm"
+                              className="h-7"
+                              data-testid={`dispatch-send-confirm-${row.id}`}
+                              disabled={Boolean(dispatchingId)}
+                              onClick={() => {
+                                setConfirmClosedId("");
+                                onDispatch(row);
+                              }}
+                            >
+                              Yes, dispatch
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7" onClick={() => setConfirmClosedId("")}>
+                              No
+                            </Button>
+                          </span>
+                        ) : status === "DRAFT" ? (
                           <Button
                             size="sm"
                             className="h-8"
                             data-testid={`dispatch-send-${row.id}`}
                             disabled={Boolean(dispatchingId)}
-                            onClick={() => onDispatch(row)}
+                            onClick={() => (row.line_closed || row.order_closed ? setConfirmClosedId(row.id) : onDispatch(row))}
                           >
                             <Send className="mr-1 h-3.5 w-3.5" aria-hidden /> {dispatchingId === row.id ? "Dispatching…" : "Dispatch"}
                           </Button>

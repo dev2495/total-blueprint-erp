@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, CircleCheck, Copy, FileText, Info, MapPin, Phone, Plus, Printer, Truck, User, X } from "lucide-react";
+import { AlertTriangle, CircleCheck, Copy, FileText, Info, Lock, MapPin, Phone, Plus, Printer, Truck, User, X } from "lucide-react";
 
 import { PrintGateQrLabelButton } from "@/components/gate/print-qr-label-button";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,9 @@ export function DispatchTray({
   onDispatchAll,
   onNextLoad,
   onRemoveUnits,
+  onShowHistory,
+  shipClosed,
+  setShipClosed,
 }: {
   units: BayUnit[];
   orders: Record<string, TrayOrder>;
@@ -137,6 +140,10 @@ export function DispatchTray({
   onDispatchAll: () => void;
   onNextLoad: () => void;
   onRemoveUnits: (units: BayUnit[]) => void;
+  onShowHistory?: () => void;
+  /** Goods of closed lines/orders are on the tray and the dispatcher confirmed sending them. */
+  shipClosed: boolean;
+  setShipClosed: (value: boolean) => void;
 }) {
   const slips = traySlips(units);
   const orderIds = Array.from(new Set(units.map((unit) => unit.orderId)));
@@ -146,10 +153,18 @@ export function DispatchTray({
   const net = units.reduce((sum, unit) => sum + unit.net, 0);
   const pcs = units.reduce((sum, unit) => sum + unit.pcs, 0);
   const missingLocation = orderIds.filter((id) => !clean(locations[id]));
+  const closedLines = Array.from(
+    new Set(
+      units
+        .filter((unit) => unit.closed)
+        .map((unit) => `${orders[unit.orderId]?.orderNumber || "Order"}${lines[unit.lineId] ? ` L${lines[unit.lineId].lineNo}` : ""}`),
+    ),
+  );
   const errors = [
     !units.length ? "Load at least one line." : "",
     units.length && !clean(transport.transporter) ? "Transporter name is required (printed as TRANSPORT NAME)." : "",
     ...missingLocation.map((id) => `Delivery location missing for ${orders[id]?.orderNumber || "an order"}: enter where it goes.`),
+    closedLines.length && !shipClosed ? "Confirm sending the goods of the closed lines (box above), or take them off the tray." : "",
   ].filter(Boolean);
   const disabledFields = stage !== "pick";
   const allPrinted = created.length > 0 && created.every((slip) => printed[slip.id]);
@@ -425,6 +440,33 @@ export function DispatchTray({
       </div>
 
       <footer className="space-y-2 border-t border-line bg-surface-1 p-3.5">
+        {closedLines.length && stage !== "closed" ? (
+          <label
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2.5 text-[12.5px]",
+              shipClosed ? "border-success-border bg-success-bg" : "border-warning-border bg-warning-bg",
+            )}
+            data-testid="dispatch-closed-lines-box"
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4"
+              checked={shipClosed}
+              disabled={stage !== "pick"}
+              onChange={(event) => setShipClosed(event.target.checked)}
+              data-testid="dispatch-ship-closed-ack"
+            />
+            <span className="min-w-0">
+              <b className="inline-flex items-center gap-1 text-content-1">
+                <Lock className="h-3.5 w-3.5" aria-hidden /> Send goods of closed lines
+              </b>
+              <span className="block text-content-2">
+                {closedLines.join(", ")} {closedLines.length === 1 ? "is" : "are"} closed. These goods were already made; tick to
+                send them to the customer. The order stays as it is.
+              </span>
+            </span>
+          </label>
+        ) : null}
         {stage !== "closed" && (slips.length || created.length) ? <Steps stage={stage} printed={allPrinted} /> : null}
         {stage === "pick" ? (
           <>
@@ -491,10 +533,17 @@ export function DispatchTray({
               <CircleCheck className="mt-px h-4 w-4 shrink-0" aria-hidden />
               {transport.vehicle || "Load"} dispatched · {created.length} slip{created.length === 1 ? "" : "s"}
             </p>
-            <p className="text-[12px] text-content-3">Slips are in the history below for reprint and proof of delivery.</p>
-            <Button type="button" className="h-10 w-full" data-testid="dispatch-next-load" onClick={onNextLoad}>
-              <Plus className="mr-1.5 h-4 w-4" aria-hidden /> Next load
-            </Button>
+            <p className="text-[12px] text-content-3">Reprint, proof of delivery and every older slip are in History.</p>
+            <div className="flex gap-2">
+              <Button type="button" className="h-10 flex-1" data-testid="dispatch-next-load" onClick={onNextLoad}>
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden /> Next load
+              </Button>
+              {onShowHistory ? (
+                <Button type="button" variant="outline" className="h-10" onClick={onShowHistory} data-testid="dispatch-open-history">
+                  History
+                </Button>
+              ) : null}
+            </div>
           </div>
         )}
       </footer>

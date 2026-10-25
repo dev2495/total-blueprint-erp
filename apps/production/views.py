@@ -1286,6 +1286,8 @@ class PackingViewSet(viewsets.ViewSet):
           - material_id      (filter to one packing SKU)
           - date_from / date_to (ISO yyyy-mm-dd, inclusive)
           - limit            (default 200, max 1000)
+          - view             all (default) | inner (inner pouches taken at packing) |
+                             count (evening-count bookings) | ticks (ticks at release, no stock effect)
         """
         from apps.inventory.models import PackagingTransaction
         from datetime import datetime, timedelta
@@ -1300,6 +1302,14 @@ class PackingViewSet(viewsets.ViewSet):
             .select_related('material', 'location', 'sales_order_item', 'sales_order_item__sales_order')
             .order_by('-created_at')
         )
+
+        view = str(request.query_params.get('view') or 'all').lower()
+        if view == 'inner':
+            qs = qs.exclude(meta_json__basis='PACKING_EOD_COUNT')
+        elif view == 'count':
+            qs = qs.filter(meta_json__basis='PACKING_EOD_COUNT')
+        elif view == 'ticks':
+            qs = qs.none()
 
         so_id = request.query_params.get('sales_order_id')
         so_no = request.query_params.get('sales_order_no')
@@ -1356,8 +1366,12 @@ class PackingViewSet(viewsets.ViewSet):
                 "reference": tx.reference or "",
                 "type": tx.type,
                 "basis": (tx.meta_json or {}).get("basis") or "",
-                "ticked_by": (tx.meta_json or {}).get("ticked_by") or "",
+                "ticked_by": (tx.meta_json or {}).get("ticked_by") or (tx.meta_json or {}).get("actor") or "",
                 "notes": (tx.meta_json or {}).get("notes") or "",
+                "sales_order_item_id": str(tx.sales_order_item_id) if tx.sales_order_item_id else None,
+                "count_session": (tx.meta_json or {}).get("packing_count_session") or "",
+                "allocated_units": (tx.meta_json or {}).get("allocated_units"),
+                "stock_effect": "COUNT" if (tx.meta_json or {}).get("basis") == "PACKING_EOD_COUNT" else "AT_PACKING",
             })
 
         # Mark-only release evidence. These rows do not touch stock; the
@@ -1365,6 +1379,10 @@ class PackingViewSet(viewsets.ViewSet):
         from .models import PackingUnit, RollDispatchPackRecord
 
         marked_rows = []
+        if view in {'inner', 'count'}:
+            gonny_qs_enabled = False
+        else:
+            gonny_qs_enabled = True
         gonny_qs = PackingUnit.objects.select_related(
             'sales_order_item',
             'sales_order_item__sales_order',
@@ -1403,6 +1421,9 @@ class PackingViewSet(viewsets.ViewSet):
 
         material_ids = set()
         mark_payloads = []
+        if not gonny_qs_enabled:
+            gonny_qs = gonny_qs.none()
+            roll_qs = roll_qs.none()
         for gonny in gonny_qs[:limit]:
             meta = gonny.meta_json if isinstance(gonny.meta_json, dict) else {}
             gonny_marks = [
@@ -1447,17 +1468,191 @@ class PackingViewSet(viewsets.ViewSet):
                 "location_id": str(location.id) if location else "",
                 "location_name": location.name if location else "",
                 "reference": "MARKED_USED_AT_RELEASE",
-                "ticked_by": "",
+                "ticked_by": str((getattr(obj, "meta_json", None) or {}).get("released_to_dispatch_by_name") or ""),
                 "notes": line.get("notes") or "",
                 "stock_effect": "MARK_ONLY",
+                "sales_order_item_id": str(sales_item.id) if sales_item else None,
             })
+
+        # A tick is "counted" once an evening count of that material ran after it.
+        if marked_rows:
+            from django.db.models import Max as _Max
+
+            last_counts = {
+                str(row["material_id"]): row["at"]
+                for row in PackagingTransaction.objects.filter(
+                    meta_json__basis='PACKING_EOD_COUNT',
+                    material_id__in={row["material_id"] for row in marked_rows},
+                )
+                .values("material_id")
+                .annotate(at=_Max("created_at"))
+            }
+            for row in marked_rows:
+                last = last_counts.get(str(row["material_id"]))
+                row["counted"] = bool(last and row.get("created_at") and last.isoformat() >= row["created_at"])
 
         rows.extend(marked_rows)
         rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
+
+        # Line numbers (L1, L2…) so lines of one order are told apart.
+        item_ids = {row.get("sales_order_item_id") for row in rows if row.get("sales_order_item_id")}
+        if item_ids:
+            from apps.sales.models import SalesOrderItem
+            from .services.dispatch_service import FGDispatchService
+
+            order_ids = set(
+                SalesOrderItem.objects.filter(id__in=item_ids).values_list("sales_order_id", flat=True)
+            )
+            numbers = FGDispatchService.line_numbers_for_orders(order_ids)
+            for row in rows:
+                row["line_no"] = numbers.get(str(row.get("sales_order_item_id") or ""))
         payload = {"count": len(rows[:limit]), "rows": rows[:limit]}
         if so_id or so_no:
             payload["weight_summary"] = self._order_packing_weight_summary(so_id=so_id, so_no=so_no)
         return Response(payload)
+
+    @action(detail=False, methods=['get'], url_path='count-sessions')
+    def count_sessions(self, request):
+        """
+        Evening packing counts, newest first, one card per count: for each material the book
+        quantity, what was counted, what was used, how many ticks the yard made that day, and how
+        the usage was shared over the order lines that ticked it.
+
+        Query: date_from, date_to (yyyy-mm-dd), material_id, sales_order_no, limit (default 10,
+        max 50), offset.
+        """
+        from datetime import datetime, timedelta
+
+        from django.db.models import Max
+        from django.db.models.fields.json import KeyTextTransform
+
+        from apps.inventory.models import PackagingTransaction
+        from apps.sales.models import SalesOrderItem
+        from .services.dispatch_service import FGDispatchService
+
+        params = request.query_params
+        try:
+            limit = max(1, min(50, int(params.get('limit') or 10)))
+            offset = max(0, int(params.get('offset') or 0))
+        except (TypeError, ValueError):
+            return Response({"error": "limit and offset must be whole numbers."}, status=status.HTTP_400_BAD_REQUEST)
+
+        base = PackagingTransaction.objects.filter(reference__startswith="PACKING_EOD_COUNT:")
+        if params.get('material_id'):
+            base = base.filter(material_id=params.get('material_id'))
+        if params.get('sales_order_no'):
+            sessions_for_order = (
+                base.filter(sales_order_item__sales_order__order_number=params.get('sales_order_no').strip())
+                .annotate(session=KeyTextTransform("packing_count_session", "meta_json"))
+                .values_list("session", flat=True)
+            )
+            base = base.annotate(session_key=KeyTextTransform("packing_count_session", "meta_json")).filter(
+                session_key__in=list(sessions_for_order)
+            )
+        for key, op in (('date_from', 'gte'), ('date_to', 'lt')):
+            value = params.get(key)
+            if not value:
+                continue
+            try:
+                day = datetime.fromisoformat(value)
+            except ValueError:
+                return Response({"error": f"{key} must be yyyy-mm-dd."}, status=status.HTTP_400_BAD_REQUEST)
+            if key == 'date_to':
+                day = day + timedelta(days=1)
+            base = base.filter(**{f"created_at__{op}": day})
+
+        sessions = (
+            base.annotate(session=KeyTextTransform("packing_count_session", "meta_json"))
+            .values("session")
+            .annotate(at=Max("created_at"))
+            .order_by("-at")
+        )
+        total = sessions.count()
+        page = [row["session"] for row in sessions[offset:offset + limit] if row["session"]]
+        txs = list(
+            PackagingTransaction.objects.filter(reference__startswith="PACKING_EOD_COUNT:", meta_json__packing_count_session__in=page)
+            .select_related("material", "location", "sales_order_item__sales_order")
+            .order_by("created_at")
+        )
+        order_ids = {tx.sales_order_item.sales_order_id for tx in txs if tx.sales_order_item_id}
+        numbers = FGDispatchService.line_numbers_for_orders(order_ids) if order_ids else {}
+
+        cards: dict[str, dict] = {}
+        for tx in txs:
+            meta = tx.meta_json or {}
+            session_id = meta.get("packing_count_session") or ""
+            card = cards.setdefault(
+                session_id,
+                {
+                    "session_id": session_id,
+                    "counted_at": meta.get("counted_at") or tx.created_at.isoformat(),
+                    "count_date": meta.get("count_date") or "",
+                    "counted_by": meta.get("actor") or "",
+                    "notes": meta.get("notes") or "",
+                    "materials": {},
+                },
+            )
+            key = f"{tx.material_id}:{tx.location_id}"
+            material = card["materials"].setdefault(
+                key,
+                {
+                    "material_id": str(tx.material_id),
+                    "code": tx.material.code,
+                    "name": tx.material.name,
+                    "kind": getattr(tx.material, "packaging_kind", "") or "",
+                    "uom": tx.material.base_uom,
+                    "location_name": tx.location.name if tx.location_id else "",
+                    "book_qty": meta.get("system_qty_before"),
+                    "counted_qty": meta.get("counted_qty"),
+                    "delta_qty": meta.get("delta_qty"),
+                    "used_qty": 0.0,
+                    "excess_qty": 0.0,
+                    "unassigned_qty": 0.0,
+                    "ticks": 0.0,
+                    "split": [],
+                },
+            )
+            qty = abs(float(tx.qty or 0))
+            if tx.type == "COUNT_EXCESS":
+                material["excess_qty"] += qty
+                continue
+            material["used_qty"] += qty
+            if tx.type == "COUNT_SHORT" or not tx.sales_order_item_id:
+                material["unassigned_qty"] += qty
+                continue
+            units = float(meta.get("allocated_units") or 0)
+            basis = meta.get("allocation_basis") or "PLAN"
+            if basis == "MARKED":
+                material["ticks"] += units
+            order = tx.sales_order_item.sales_order
+            material["split"].append(
+                {
+                    "sales_order_id": str(order.id),
+                    "sales_order_no": order.order_number,
+                    "customer_name": getattr(order, "customer_name", "") or "",
+                    "line_no": numbers.get(str(tx.sales_order_item_id)),
+                    "qty": qty,
+                    "units": units,
+                    "basis": basis,
+                }
+            )
+
+        results = []
+        for session_id in page:
+            card = cards.get(session_id)
+            if not card:
+                continue
+            materials = list(card["materials"].values())
+            for material in materials:
+                material["used_qty"] = round(material["used_qty"], 4)
+                material["ticks"] = round(material["ticks"], 4)
+                material["mismatch"] = bool(material["ticks"] and abs(material["ticks"] - material["used_qty"]) > 0.0001)
+            materials.sort(key=lambda row: (row["kind"], row["code"]))
+            card["materials"] = materials
+            card["used_lines"] = sum(len(row["split"]) for row in materials)
+            card["mismatches"] = sum(1 for row in materials if row["mismatch"])
+            results.append(card)
+        return Response({"count": total, "limit": limit, "offset": offset, "results": results})
 
     @staticmethod
     def _order_packing_weight_summary(*, so_id=None, so_no=None):
@@ -1628,6 +1823,12 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 'pcs': int(item_totals.get('pcs') or 0),
                 'gross_kg': float(item_totals.get('gross') or 0),
                 'line_no': line_no_of(ch.sales_order_id, line_item.id) if line_item and ch.sales_order_id else None,
+                'line_closed': bool(line_item is not None and FGDispatchService.line_is_closed(line_item)),
+                'order_closed': (
+                    str(getattr(ch.sales_order, 'status', '') or '').upper() in FGDispatchService.CLOSED_SALES_ORDER_STATUSES
+                    if ch.sales_order_id
+                    else False
+                ),
                 'line_name': spec.get('product_name') or "",
                 'line_size': spec.get('size_label') or "",
                 'customer_name': ch.customer_name or "N/A",
@@ -1816,7 +2017,8 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
 
         Body: { groups: [{sales_order_id, roll_ids, gonny_ids, ship_to_address_snapshot}],
                 transporter_name, vehicle_no?, driver_name?, driver_phone?, lr_number?,
-                e_way_bill_number?, dispatch_notes? }
+                e_way_bill_number?, dispatch_notes?, ship_closed_lines? }
+        ``ship_closed_lines`` confirms shipping goods already made for closed lines or orders.
         """
         from .services.dispatch_service import FGDispatchService
 
@@ -1831,6 +2033,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 e_way_bill_number=request.data.get('e_way_bill_number', ''),
                 dispatch_notes=request.data.get('dispatch_notes', '') or request.data.get('notes', ''),
                 user=request.user,
+                ship_closed_lines=str(request.data.get('ship_closed_lines', '')).lower() in {'1', 'true', 'yes'},
             )
         except (ValueError, ValidationError) as e:
             message = "; ".join(getattr(e, "messages", []) or []) or str(e)
@@ -1855,6 +2058,27 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=False, methods=['post'], url_path='move-to-stock')
+    def move_to_stock(self, request):
+        """Goods of a closed line or order leave it and become free stock the planner can claim.
+
+        Body: { roll_ids?, gonny_ids?, batch_ids?, reason }
+        """
+        from .services.dispatch_service import FGDispatchService
+
+        try:
+            result = FGDispatchService.move_units_to_stock(
+                roll_ids=request.data.get('roll_ids') or [],
+                gonny_ids=request.data.get('gonny_ids') or [],
+                batch_ids=request.data.get('batch_ids') or [],
+                reason=request.data.get('reason', ''),
+                user=request.user,
+            )
+        except (ValueError, ValidationError) as e:
+            message = "; ".join(getattr(e, "messages", []) or []) or str(e)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['post'], url_path='pack_roll')
     def pack_roll(self, request):
@@ -1892,7 +2116,11 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
         from .services.dispatch_service import FGDispatchService
         
         try:
-            challan = FGDispatchService.dispatch_challan(pk, request.user)
+            challan = FGDispatchService.dispatch_challan(
+                pk,
+                request.user,
+                ship_closed_lines=str(request.data.get('ship_closed_lines', '')).lower() in {'1', 'true', 'yes'},
+            )
             return Response({
                 "id": str(challan.id),
                 "dc_no": challan.dc_no,

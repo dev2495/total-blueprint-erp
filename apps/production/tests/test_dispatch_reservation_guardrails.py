@@ -396,15 +396,26 @@ class DispatchReservationGuardrailTests(TestCase):
                 item.save(update_fields=["line_status"])
                 roll = self._roll(item)
 
-                with self.assertRaisesMessage(ValueError, "cannot be dispatched"):
+                # Goods made for a closed line leave only on the dispatcher's confirmation.
+                with self.assertRaisesMessage(ValueError, "confirm shipping the goods already made"):
                     self._create_roll_challan(order, [roll])
 
         order, item = self._order(status="DISPATCH_READY")
         item.line_closed_at = timezone.now()
         item.save(update_fields=["line_closed_at"])
         roll = self._roll(item)
-        with self.assertRaisesMessage(ValueError, "cannot be dispatched"):
+        with self.assertRaisesMessage(ValueError, "confirm shipping the goods already made"):
             self._create_roll_challan(order, [roll])
+        challan = FGDispatchService.create_challan(
+            customer_name=order.customer_name,
+            plant_id=str(self.plant.id),
+            sales_order_id=str(order.id),
+            roll_ids=[str(roll.id)],
+            transporter_name="Guardrail Transport",
+            user=None,
+            allow_closed=True,
+        )
+        self.assertEqual(challan.status, "DRAFT")
 
     def test_dispatch_revalidates_sales_order_line_lifecycle(self):
         order, item = self._order(status="DISPATCH_READY")
@@ -414,13 +425,17 @@ class DispatchReservationGuardrailTests(TestCase):
         item.line_closed_at = timezone.now()
         item.save(update_fields=["line_status", "line_closed_at"])
 
-        with self.assertRaisesMessage(ValueError, "cannot be dispatched"):
+        with self.assertRaisesMessage(ValueError, "confirm shipping the goods already made"):
             FGDispatchService.dispatch_challan(str(challan.id), user=None)
 
         challan.refresh_from_db()
         roll.refresh_from_db()
         self.assertEqual(challan.status, "DRAFT")
         self.assertEqual(roll.status, "AVAILABLE")
+
+        FGDispatchService.dispatch_challan(str(challan.id), user=None, ship_closed_lines=True)
+        challan.refresh_from_db()
+        self.assertEqual(challan.status, "DISPATCHED")
 
     def test_only_draft_can_cancel_and_post_dispatch_return_is_blocked(self):
         order, _ = self._order(status="DISPATCH_READY")

@@ -61,6 +61,7 @@ from apps.inventory.services.roll_naming import build_roll_naming_payload
 from .models import (
     FinishedGoodsBatch,
     InventoryAllocation,
+    PackingUnit,
     PlannedStockOrder,
     PlannedBulkStockOrder,
     ProductionJob,
@@ -6088,6 +6089,42 @@ class PlannerViewSet(viewsets.ViewSet):
             )
             if len(options) >= (max_roll_candidates + max_fg_candidates):
                 break
+        if order_kind == "sales" and sales_item is not None and order_signature:
+            for gonny in self._freed_gonny_candidates(
+                sales_item,
+                order_signature,
+                order_invariant_signature,
+                route_last_index,
+                order_routing_rule_id,
+            )[:max_fg_candidates]:
+                physical = Decimal(str(gonny.net_product_weight_kg or 0))
+                options.append(
+                    {
+                        "inventory_type": "GONNY",
+                        "inventory_id": str(gonny.id),
+                        "label": gonny.label_id,
+                        "display_name": self._freed_source_label(gonny),
+                        "family_display_name": "Sealed gonny · free stock",
+                        "size_line": f"{int(gonny.qty_pcs or 0):,} pcs",
+                        "process_state_label": "Sealed gonny · freed from a closed order",
+                        "completed_step_index": route_last_index,
+                        "quantity_kg": float(physical),
+                        "allocated_qty_kg": 0.0,
+                        "allocatable_qty_kg": float(physical),
+                        "is_final_step": True,
+                        "stock_strategy": "FINAL_STOCK",
+                        "planner_stock_class": "FINISHED_GOODS",
+                        "signature_match_mode": "FINAL_SPEC",
+                        "source_bucket": "FINISHED_STOCK",
+                        "source_label": "Finished stock · freed from a closed order",
+                        "location_id": str(gonny.location_id) if gonny.location_id else None,
+                        "location_code": "",
+                        "location_name": "",
+                        "plant_id": "",
+                        "plant_code": "",
+                        "plant_name": "",
+                    }
+                )
         options.sort(
             key=lambda row: (
                 0 if row["inventory_type"] == "FG_BATCH" and row["is_final_step"] else 1,
@@ -7796,8 +7833,35 @@ class PlannerViewSet(viewsets.ViewSet):
             .get("total")
             or Decimal("0")
         )
-        remaining = target - Decimal(str(linked_rolls or 0)) - Decimal(str(linked_batches or 0))
+        claimed_gonnies = (
+            PackingUnit.objects.filter(sales_order_item=so_item, meta_json__has_key="free_stock")
+            .exclude(fg_batch__sales_order_item=so_item)
+            .aggregate(total=Sum("net_product_weight_kg"))
+            .get("total")
+            or Decimal("0")
+        )
+        remaining = (
+            target
+            - Decimal(str(linked_rolls or 0))
+            - Decimal(str(linked_batches or 0))
+            - Decimal(str(claimed_gonnies or 0))
+        )
         return remaining if remaining > 0 else Decimal("0")
+
+    @staticmethod
+    def _freed_record(unit) -> dict:
+        """Where a unit freed from a closed order came from (empty when it is not freed stock)."""
+        meta = getattr(unit, "meta_json", None)
+        record = meta.get("free_stock") if isinstance(meta, dict) else None
+        return record if isinstance(record, dict) else {}
+
+    @classmethod
+    def _freed_source_label(cls, unit) -> str:
+        record = cls._freed_record(unit)
+        if not record:
+            return ""
+        line_no = record.get("from_line_no")
+        return f"Freed from {record.get('from_sales_order_no') or 'a closed order'}{f' L{line_no}' if line_no else ''}"
 
     def _origin_stock_order_for_roll(self, roll: InventoryRoll):
         origin_job = getattr(roll, "created_by_job", None) or getattr(roll, "production_job", None)
@@ -7828,6 +7892,30 @@ class PlannerViewSet(viewsets.ViewSet):
         payload["claimed_from_stock_order_no"] = str(stock_order.order_number) if stock_order else None
         payload["dispatch_mode"] = "STOCK_CLAIM"
         return payload
+
+    def _freed_gonny_candidates(self, so_item, order_sig, order_inv_sig, route_last, required_route_id):
+        """Sealed gonnies freed from a closed order whose pouches match this line exactly."""
+        rows = []
+        gonnies = (
+            PackingUnit.objects.filter(status="SEALED", sales_order_item__isnull=True, meta_json__has_key="free_stock")
+            .select_related("fg_batch__template")
+            .order_by("created_at")
+        )
+        for gonny in gonnies:
+            batch = gonny.fg_batch
+            if batch is None or int(batch.completed_step_index or 0) != route_last:
+                continue
+            batch_route_id = getattr(getattr(batch, "template", None), "routing_rule_id", None)
+            if required_route_id and batch_route_id != required_route_id:
+                continue
+            if self._fg_signature(batch) != order_sig:
+                continue
+            if order_inv_sig and self._fg_invariant_signature(batch) != order_inv_sig:
+                continue
+            if Decimal(str(gonny.net_product_weight_kg or 0)) <= 0:
+                continue
+            rows.append(gonny)
+        return rows
 
     @action(
         detail=False,
@@ -7870,7 +7958,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 completed_step_index=route_last,
             )
             .exclude(meta_json__is_internal_stock=True)
-            .filter(Q(created_by_job__mts_order__stock_purpose="PRODUCT") | Q(production_job__mts_order__stock_purpose="PRODUCT"))
+            .filter(
+                Q(created_by_job__mts_order__stock_purpose="PRODUCT")
+                | Q(production_job__mts_order__stock_purpose="PRODUCT")
+                | Q(meta_json__has_key="free_stock")
+            )
             .select_related(
                 "template",
                 "sales_order_item",
@@ -7881,11 +7973,13 @@ class PlannerViewSet(viewsets.ViewSet):
         )
 
         for roll in roll_qs:
+            freed = bool(self._freed_record(roll))
             source_stock_order = self._origin_stock_order_for_roll(roll)
-            if not source_stock_order:
-                continue
-            if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
-                continue
+            if not freed:
+                if not source_stock_order:
+                    continue
+                if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                    continue
             roll_route_id = getattr(getattr(roll, "template", None), "routing_rule_id", None)
             if required_route_id and roll_route_id != required_route_id:
                 continue
@@ -7903,8 +7997,9 @@ class PlannerViewSet(viewsets.ViewSet):
                     "inventory_type": "ROLL",
                     "inventory_id": str(roll.id),
                     "label": roll.label_id,
-                    "source_stock_order_id": str(source_stock_order.id),
-                    "source_stock_order_no": source_stock_order.order_number,
+                    "source_stock_order_id": str(source_stock_order.id) if source_stock_order and not freed else None,
+                    "source_stock_order_no": self._freed_source_label(roll) if freed else source_stock_order.order_number,
+                    "source_kind": "FREED_FROM_ORDER" if freed else "STOCK_ORDER",
                     "current_qty_kg": float(physical),
                     "already_claimed_qty_kg": float(already_claimed),
                     "claimable_qty_kg": float(physical - already_claimed),
@@ -7919,16 +8014,18 @@ class PlannerViewSet(viewsets.ViewSet):
                 completed_step_index=route_last,
             )
             .exclude(meta_json__is_internal_stock=True)
-            .filter(production_job__mts_order__stock_purpose="PRODUCT")
+            .filter(Q(production_job__mts_order__stock_purpose="PRODUCT") | Q(meta_json__has_key="free_stock"))
             .select_related("template", "production_job__mts_order")
             .order_by("created_at")
         )
         for batch in batch_qs:
+            freed = bool(self._freed_record(batch))
             source_stock_order = self._origin_stock_order_for_batch(batch)
-            if not source_stock_order:
-                continue
-            if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
-                continue
+            if not freed:
+                if not source_stock_order:
+                    continue
+                if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                    continue
             batch_route_id = getattr(getattr(batch, "template", None), "routing_rule_id", None)
             if required_route_id and batch_route_id != required_route_id:
                 continue
@@ -7950,12 +8047,33 @@ class PlannerViewSet(viewsets.ViewSet):
                     "inventory_type": "FG_BATCH",
                     "inventory_id": str(batch.id),
                     "label": batch.batch_number,
-                    "source_stock_order_id": str(source_stock_order.id),
-                    "source_stock_order_no": source_stock_order.order_number,
+                    "source_stock_order_id": str(source_stock_order.id) if source_stock_order and not freed else None,
+                    "source_stock_order_no": self._freed_source_label(batch) if freed else source_stock_order.order_number,
+                    "source_kind": "FREED_FROM_ORDER" if freed else "STOCK_ORDER",
                     "current_qty_kg": float(physical),
                     "already_claimed_qty_kg": float(already_claimed),
                     "claimable_qty_kg": float(physical - already_claimed),
                     "requires_split_for_partial": False,
+                }
+            )
+
+        for gonny in self._freed_gonny_candidates(so_item, order_sig, order_inv_sig, route_last, required_route_id):
+            physical = Decimal(str(gonny.net_product_weight_kg or 0))
+            if remaining_qty > 0 and physical > remaining_qty:
+                continue
+            candidates.append(
+                {
+                    "inventory_type": "GONNY",
+                    "inventory_id": str(gonny.id),
+                    "label": gonny.label_id,
+                    "source_stock_order_id": None,
+                    "source_stock_order_no": self._freed_source_label(gonny),
+                    "source_kind": "FREED_FROM_ORDER",
+                    "current_qty_kg": float(physical),
+                    "already_claimed_qty_kg": 0.0,
+                    "claimable_qty_kg": float(physical),
+                    "requires_split_for_partial": False,
+                    "qty_pcs": int(gonny.qty_pcs or 0),
                 }
             )
 
@@ -7982,8 +8100,8 @@ class PlannerViewSet(viewsets.ViewSet):
 
         inventory_type = str(request.data.get("inventory_type") or "").upper()
         inventory_id = request.data.get("inventory_id")
-        if inventory_type not in {"ROLL", "FG_BATCH", "FG"}:
-            return Response({"error": "inventory_type must be ROLL or FG_BATCH"}, status=status.HTTP_400_BAD_REQUEST)
+        if inventory_type not in {"ROLL", "FG_BATCH", "FG", "GONNY"}:
+            return Response({"error": "inventory_type must be ROLL, FG_BATCH or GONNY"}, status=status.HTTP_400_BAD_REQUEST)
         if not inventory_id:
             return Response({"error": "inventory_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -8039,10 +8157,11 @@ class PlannerViewSet(viewsets.ViewSet):
                 if roll.sales_order_item_id:
                     return Response({"error": f"Roll {roll.label_id} is already claimed to a sales order."}, status=status.HTTP_400_BAD_REQUEST)
 
-                source_stock_order = self._origin_stock_order_for_roll(roll)
-                if not source_stock_order or str(source_stock_order.stock_purpose or "").upper() != "PRODUCT":
+                freed = bool(self._freed_record(roll))
+                source_stock_order = None if freed else self._origin_stock_order_for_roll(roll)
+                if not freed and (not source_stock_order or str(source_stock_order.stock_purpose or "").upper() != "PRODUCT"):
                     return Response({"error": f"Roll {roll.label_id} is not product stock-order output."}, status=status.HTTP_400_BAD_REQUEST)
-                if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+                if not freed and not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
                     return Response(
                         {"error": self._stock_commitment_mismatch_message(source_stock_order, so_item, f"Roll {roll.label_id}")},
                         status=status.HTTP_400_BAD_REQUEST,
@@ -8100,10 +8219,58 @@ class PlannerViewSet(viewsets.ViewSet):
                         "label": roll.label_id,
                         "sales_order_id": str(so_item.sales_order_id),
                         "sales_order_item_id": str(so_item.id),
-                        "source_stock_order_id": str(source_stock_order.id),
-                        "source_stock_order_no": source_stock_order.order_number,
+                        "source_stock_order_id": str(source_stock_order.id) if source_stock_order else None,
+                        "source_stock_order_no": source_stock_order.order_number if source_stock_order else self._freed_source_label(roll),
                         "claimed_qty_kg": float(claim_qty),
                         "allocation_id": str(allocation.id),
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
+
+            if inventory_type == "GONNY":
+                try:
+                    gonny = PackingUnit.objects.select_for_update().get(id=inventory_id)
+                except PackingUnit.DoesNotExist:
+                    return Response({"error": "Gonny not found"}, status=status.HTTP_404_NOT_FOUND)
+                if gonny.status != "SEALED" or gonny.sales_order_item_id or not self._freed_record(gonny):
+                    return Response(
+                        {"error": f"Gonny {gonny.label_id} is not free stock (it must be sealed and moved to stock from a closed order)."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if gonny not in self._freed_gonny_candidates(so_item, order_sig, order_inv_sig, route_last, required_route_id):
+                    return Response(
+                        {"error": f"Gonny {gonny.label_id} does not match this order line (route, specification or artwork)."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                physical = Decimal(str(gonny.net_product_weight_kg or 0))
+                if abs(claim_qty - physical) > Decimal("0.001"):
+                    return Response(
+                        {"error": f"A gonny is claimed whole: {gonny.label_id} holds {physical} KG."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                gonny.sales_order_item = so_item
+                meta = self._append_claim_history(
+                    gonny.meta_json,
+                    sales_item=so_item,
+                    stock_order=None,
+                    qty_kg=physical,
+                    inventory_type="GONNY",
+                )
+                meta["released_to_dispatch"] = False
+                gonny.meta_json = meta
+                gonny.save(update_fields=["sales_order_item", "meta_json"])
+                return Response(
+                    {
+                        "status": "claimed",
+                        "inventory_type": "GONNY",
+                        "inventory_id": str(gonny.id),
+                        "label": gonny.label_id,
+                        "sales_order_id": str(so_item.sales_order_id),
+                        "sales_order_item_id": str(so_item.id),
+                        "source_stock_order_id": None,
+                        "source_stock_order_no": self._freed_source_label(gonny),
+                        "claimed_qty_kg": float(physical),
+                        "allocation_id": None,
                     },
                     status=status.HTTP_201_CREATED,
                 )
@@ -8124,10 +8291,11 @@ class PlannerViewSet(viewsets.ViewSet):
             if batch.sales_order_item_id:
                 return Response({"error": f"FG batch {batch.batch_number} is already claimed to a sales order."}, status=status.HTTP_400_BAD_REQUEST)
 
-            source_stock_order = self._origin_stock_order_for_batch(batch)
-            if not source_stock_order or str(source_stock_order.stock_purpose or "").upper() != "PRODUCT":
+            freed = bool(self._freed_record(batch))
+            source_stock_order = None if freed else self._origin_stock_order_for_batch(batch)
+            if not freed and (not source_stock_order or str(source_stock_order.stock_purpose or "").upper() != "PRODUCT"):
                 return Response({"error": f"FG batch {batch.batch_number} is not product stock-order output."}, status=status.HTTP_400_BAD_REQUEST)
-            if not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
+            if not freed and not self._stock_commitment_matches_sales_item(source_stock_order, so_item):
                 return Response(
                     {"error": self._stock_commitment_mismatch_message(source_stock_order, so_item, f"FG batch {batch.batch_number}")},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -8182,8 +8350,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     "label": batch.batch_number,
                     "sales_order_id": str(so_item.sales_order_id),
                     "sales_order_item_id": str(so_item.id),
-                    "source_stock_order_id": str(source_stock_order.id),
-                    "source_stock_order_no": source_stock_order.order_number,
+                    "source_stock_order_id": str(source_stock_order.id) if source_stock_order else None,
+                    "source_stock_order_no": source_stock_order.order_number if source_stock_order else self._freed_source_label(batch),
                     "claimed_qty_kg": float(claim_qty),
                     "allocation_id": str(allocation.id),
                 },

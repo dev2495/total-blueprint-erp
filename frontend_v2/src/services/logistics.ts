@@ -162,6 +162,9 @@ export interface DeliveryChallan {
     line_no?: number | null;
     line_name?: string;
     line_size?: string;
+    /** The slip's order line (or its order) is closed: dispatching it needs the closed-line confirmation. */
+    line_closed?: boolean;
+    order_closed?: boolean;
 }
 
 /** One order line in Dispatch Bay: ordered, dispatched, on draft slips, and what is still in packing. */
@@ -182,6 +185,8 @@ export interface DispatchLineBalance {
     on_draft_units: number;
     on_draft_qty: number;
     line_status: string;
+    /** Short-closed, completed or cancelled: its made goods may still ship (confirmed) or go to stock. */
+    closed?: boolean;
     pending: {
         open_gonnies: number;
         open_pcs: number;
@@ -428,7 +433,47 @@ export interface SOPackingSummary {
     gonnies: Gonny[];
     /** L1, L2… of the order's lines, the same numbers Dispatch Bay shows. */
     line_numbers?: Record<string, number>;
+    /** Lines nobody produces for any more (short-closed, completed, cancelled). */
+    closed_line_ids?: string[];
+    /** The order itself is completed or cancelled. */
+    order_closed?: boolean;
 }
+
+/** One evening packing count: per material the book, counted, used, ticks and the split to order lines. */
+export type PackingCountSession = {
+    session_id: string;
+    counted_at: string;
+    count_date: string;
+    counted_by: string;
+    notes: string;
+    used_lines: number;
+    mismatches: number;
+    materials: Array<{
+        material_id: string;
+        code: string;
+        name: string;
+        kind: string;
+        uom: string;
+        location_name: string;
+        book_qty: number | null;
+        counted_qty: number | null;
+        delta_qty: number | null;
+        used_qty: number;
+        excess_qty: number;
+        unassigned_qty: number;
+        ticks: number;
+        mismatch: boolean;
+        split: Array<{
+            sales_order_id: string;
+            sales_order_no: string;
+            customer_name: string;
+            line_no: number | null;
+            qty: number;
+            units: number;
+            basis: string;
+        }>;
+    }>;
+};
 
 export type PackingReleaseRow = {
     kind: "GONNY" | "ROLL";
@@ -728,6 +773,8 @@ export const logisticsService = {
         date_from?: string
         date_to?: string
         limit?: number
+        /** inner = inner pouches at packing · count = evening-count bookings · ticks = ticks at release */
+        view?: 'all' | 'inner' | 'count' | 'ticks'
     } = {}) {
         const response = await api.get('/api/production/packing/order-consumption/', { params })
         return response.data as {
@@ -750,6 +797,15 @@ export const logisticsService = {
                 reference: string
                 ticked_by: string
                 notes: string
+                basis?: string
+                type?: string
+                line_no?: number | null
+                sales_order_item_id?: string | null
+                count_session?: string
+                allocated_units?: number | null
+                stock_effect?: 'AT_PACKING' | 'COUNT' | 'MARK_ONLY'
+                /** Ticks only: an evening count of this material has run since the tick. */
+                counted?: boolean
             }>
             /** Only when one order is asked for: our product weight against the dispatch weight. */
             weight_summary?: {
@@ -857,6 +913,8 @@ export const logisticsService = {
         lr_number?: string;
         e_way_bill_number?: string;
         dispatch_notes?: string;
+        /** Confirms shipping goods already made for closed lines or orders. */
+        ship_closed_lines?: boolean;
     }): Promise<{
         slips: Array<{
             id: string;
@@ -890,8 +948,33 @@ export const logisticsService = {
         }
     },
 
-    async dispatchChallan(challanId: string): Promise<{ dc_no: string; status: string; message: string }> {
-        const response = await api.post(`/api/production/challans/${challanId}/dispatch/`);
+    async dispatchChallan(
+        challanId: string,
+        options: { ship_closed_lines?: boolean } = {},
+    ): Promise<{ dc_no: string; status: string; message: string }> {
+        const response = await api.post(`/api/production/challans/${challanId}/dispatch/`, options);
+        return response.data;
+    },
+
+    /** Goods of a closed line/order leave it and become free stock the planner can claim. */
+    async moveToStock(data: { roll_ids?: string[]; gonny_ids?: string[]; batch_ids?: string[]; reason: string }): Promise<{
+        count: number;
+        message: string;
+    }> {
+        const response = await api.post('/api/production/challans/move-to-stock/', data);
+        return response.data;
+    },
+
+    /** Evening packing counts, newest first, grouped per count with the split to order lines. */
+    async getPackingCountSessions(
+        params: { date_from?: string; date_to?: string; material_id?: string; sales_order_no?: string; limit?: number; offset?: number },
+        signal?: AbortSignal,
+    ): Promise<{ count: number; limit: number; offset: number; results: PackingCountSession[] }> {
+        const query: Record<string, string> = {};
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && String(value) !== '' && String(value) !== 'ALL') query[key] = String(value);
+        });
+        const response = await api.get('/api/production/packing/count-sessions/', { params: query, signal });
         return response.data;
     },
 

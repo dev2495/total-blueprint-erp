@@ -10,6 +10,8 @@ import { PackingCheckHeldNotice } from "@/components/packing/packing-check-panel
 import { PackLinesDialog, batchNetKg, packLineState, packLinesOf } from "@/components/packing/pack-lines-dialog";
 import { PackingHistory } from "@/components/packing/packing-history";
 import { YardOrderCard, lineHasWork, type YardMode } from "@/components/packing/yard-order-card";
+import { MoveToStockDialog, type StockMoveUnit } from "@/components/dispatch/move-to-stock-dialog";
+import type { PackLine } from "@/components/packing/pack-lines-dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -27,6 +29,39 @@ type YardTab = YardMode | "history";
 
 const orderOfUid = (uid: string) => uid.split("::")[0];
 
+/** Everything still on a closed line that can leave the order for free stock. */
+const stockUnitsOf = (line: PackLine): StockMoveUnit[] => [
+  ...line.batches
+    .filter((batch) => Number(batch.qty_pcs || 0) > 0)
+    .map((batch) => ({
+      id: String(batch.id),
+      kind: "BATCH" as const,
+      label: String(batch.batch_number || "Batch"),
+      kg: batchNetKg(batch),
+      pcs: Number(batch.qty_pcs || 0),
+      note: "unpacked pouches",
+    })),
+  ...line.gonnies
+    .filter((gonny) => String(gonny.status || "").toUpperCase() === "SEALED")
+    .map((gonny) => ({
+      id: String(gonny.id),
+      kind: "CTN" as const,
+      label: String(gonny.dispatch_unit_no || gonny.label_id),
+      kg: Number(gonny.net_product_weight_kg || 0),
+      pcs: Number(gonny.qty_pcs || 0),
+      note: gonny.released_to_dispatch ? "sealed · released" : "sealed",
+    })),
+  ...line.rolls
+    .filter((roll) => String(roll.status || "AVAILABLE").toUpperCase() === "AVAILABLE")
+    .map((roll) => ({
+      id: String(roll.id),
+      kind: "ROLL" as const,
+      label: String(roll.dispatch_unit_no || roll.label_id),
+      kg: Number(roll.net_weight_kg || roll.weight_kg || 0),
+      note: roll.released_to_dispatch ? "released" : "in the yard",
+    })),
+];
+
 export default function PackingYardPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<YardTab>("queue");
@@ -37,6 +72,7 @@ export default function PackingYardPage() {
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState("");
+  const [stockLine, setStockLine] = useState<PackLine | null>(null);
   const [packKeys, setPackKeys] = useState<string[]>([]);
   const [packOpen, setPackOpen] = useState(false);
 
@@ -487,6 +523,7 @@ export default function PackingYardPage() {
                     window.open(logisticsService.getMaterialReadySlipUrl(row.sales_order.id), "_blank", "noopener,noreferrer")
                   }
                   onShowProgress={() => setTab("progress")}
+                  onMoveToStock={setStockLine}
                 />
             ))}
             {!board.isLoading && !cards.length ? (
@@ -543,6 +580,17 @@ export default function PackingYardPage() {
           </div>
         </div>
       ) : null}
+
+      <MoveToStockDialog
+        open={Boolean(stockLine)}
+        onOpenChange={(open) => !open && setStockLine(null)}
+        orderNumber={stockLine?.orderNumber || ""}
+        lineNo={stockLine?.index}
+        lineName={stockLine?.name}
+        closedLabel={stockLine?.closed || ""}
+        units={stockLine ? stockUnitsOf(stockLine) : []}
+        onMoved={() => void invalidate()}
+      />
 
       <PackLinesDialog
         open={packOpen}

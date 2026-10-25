@@ -10,6 +10,7 @@ import {
   Clock,
   Cylinder,
   Factory,
+  Lock,
   FileText,
   History,
   Layers,
@@ -146,12 +147,14 @@ function LineRow({
   onTogglePick,
   onPack,
   onShowProgress,
+  onMoveToStock,
 }: {
   line: PackLine;
   picked: boolean;
   onTogglePick: () => void;
   onPack: () => void;
   onShowProgress: () => void;
+  onMoveToStock?: () => void;
 }) {
   const state = packLineState(line);
   const isRoll = state.kind === "ROLL";
@@ -187,7 +190,29 @@ function LineRow({
       <span className="grid h-7 place-items-center rounded-md border border-line-strong bg-surface-1 font-mono text-[11.5px] font-bold text-content-1">
         L{line.index}
       </span>
-      <LineIdentity line={line} />
+      <div className="min-w-0">
+        <LineIdentity line={line} />
+        {line.closed ? (
+          <div
+            className="mt-1.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-warning-border bg-warning-bg px-2 py-1 text-[11.5px] text-content-2"
+            data-testid={`packing-line-closed-${line.index}`}
+          >
+            <Lock className="h-3 w-3 text-warning-fg" aria-hidden />
+            <b className="text-warning-fg">{line.closed}</b>
+            <span>· pack and release to send it, or move it to free stock</span>
+            {onMoveToStock ? (
+              <button
+                type="button"
+                className="font-semibold text-primary underline-offset-2 hover:underline"
+                onClick={onMoveToStock}
+                data-testid={`packing-line-move-stock-${line.index}`}
+              >
+                Move to stock
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       <div className="col-span-3 grid justify-items-start gap-px text-left lg:col-span-1 lg:justify-items-end lg:text-right">
         {isRoll ? (
           <>
@@ -536,6 +561,7 @@ export function YardOrderCard({
   onPack,
   onReadySlip,
   onShowProgress,
+  onMoveToStock,
   route,
   status,
 }: {
@@ -553,6 +579,7 @@ export function YardOrderCard({
   onPack: (uids: string[]) => void;
   onReadySlip: () => void;
   onShowProgress: () => void;
+  onMoveToStock?: (line: PackLine) => void;
 }) {
   const order = row.sales_order;
   const lines = React.useMemo(() => packLinesOf(summary), [summary]);
@@ -673,6 +700,7 @@ export function YardOrderCard({
               onTogglePick={() => onTogglePick(line.uid)}
               onPack={() => onPack(picked.has(line.uid) && picked.size > 1 ? Array.from(picked) : [line.uid])}
               onShowProgress={onShowProgress}
+              onMoveToStock={line.closed && onMoveToStock ? () => onMoveToStock(line) : undefined}
             />
           ))
         ) : (

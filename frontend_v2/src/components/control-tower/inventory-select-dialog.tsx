@@ -238,7 +238,8 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
 
     const fgOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
-        return (order.inventory_options || []).filter(isExactFgOption);
+        // Freed sealed gonnies are claimed whole from the finished-stock wizard, not allocated here.
+        return (order.inventory_options || []).filter((option) => isExactFgOption(option) && option.inventory_type !== "GONNY");
     }, [order]);
     const wipOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
@@ -337,7 +338,7 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                           const opt = (order.inventory_options || []).find(
                               (o) => `${o.inventory_type}:${o.inventory_id}` === key
                           );
-                          if (!opt) return null;
+                          if (!opt || opt.inventory_type === "GONNY") return null;
                           return {
                               inventory_type: opt.inventory_type,
                               inventory_id: opt.inventory_id,

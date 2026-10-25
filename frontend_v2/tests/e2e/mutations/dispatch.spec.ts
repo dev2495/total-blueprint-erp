@@ -212,7 +212,8 @@ test("packing yard can release a roll to dispatch, then dispatch can create chal
   const dispatched = unwrapApiList<any>(dispatchedResponse.data).find((row) => String(row.id) === challanId)
   expect(String(dispatched?.status || "").toUpperCase()).toBe("DISPATCHED")
 
-  // History is paged on the server: find this slip by its challan number.
+  // History is its own tab, paged on the server: find this slip by its challan number.
+  await page.getByTestId("dispatch-tab-history").click()
   await page.getByTestId("dispatch-history-search").fill(String(challan?.dc_no || ""))
   const deliverButton = page.getByTestId(`dispatch-deliver-history-${challanId}`)
   await expect(deliverButton).toBeVisible({ timeout: 15_000 })

@@ -49,12 +49,24 @@ export type PackLine = {
   batches: Batch[];
   gonnies: Gonny[];
   rolls: any[];
+  /** "" when open; otherwise why nobody produces for it any more (its made goods may ship or go to stock). */
+  closed: string;
 };
 
 /** Every sales-order line with units in the yard, in the order they first appear. */
 export function packLinesOf(summary?: SOPackingSummary): PackLine[] {
   if (!summary) return [];
   const lines = new Map<string, PackLine>();
+  const orderStatus = String((summary.sales_order as any).status || "").toUpperCase();
+  const closedLines = new Set(summary.closed_line_ids || []);
+  const closedOf = (row: any) =>
+    summary.order_closed
+      ? orderStatus === "CANCELLED"
+        ? "Order cancelled"
+        : "Order completed"
+      : closedLines.has(clean(row?.sales_order_item_id))
+        ? "Line closed"
+        : "";
   const lineFor = (row: any, fallback: string, fallbackName: string) => {
     const key = lineScopeKey(row, fallback);
     let line = lines.get(key);
@@ -73,6 +85,7 @@ export function packLinesOf(summary?: SOPackingSummary): PackLine[] {
         batches: [],
         gonnies: [],
         rolls: [],
+        closed: closedOf(row),
       };
       lines.set(key, line);
     }

@@ -321,5 +321,134 @@ class DispatchHistoryPagingTests(TestCase):
         self.assertEqual(self._history(limit="x").status_code, 400)
 
 
+
+class ClosedLineDispatchTests(TestCase):
+    """Goods made for a line that was closed later: ship them on confirmation, or move them to stock."""
+
+    setUp = _fixture.setUp
+    _item = _fixture._item
+    _order = _fixture._order
+    _roll = _fixture._roll
+    _gonny = _fixture._gonny
+
+    def _short_close(self, line):
+        line.qty_short_closed = line.qty_value
+        line.line_status = "SHORT_CLOSED"
+        line.save(update_fields=["qty_short_closed", "line_status"])
+
+    def _slips(self, groups, **extra):
+        return FGDispatchService.create_line_slips(groups, transporter_name="Closed Line Transport", **extra)
+
+    def test_closed_line_ships_only_with_confirmation_and_pod_keeps_it_closed(self):
+        order, line = self._order()
+        roll = self._roll(line)
+        self._short_close(line)
+        group = [{"sales_order_id": str(order.id), "roll_ids": [str(roll.id)]}]
+
+        with self.assertRaisesMessage(ValueError, "Confirm shipping the goods already made"):
+            self._slips(group)
+        self.assertEqual(DeliveryChallan.objects.count(), 0)
+
+        challan = self._slips(group, ship_closed_lines=True)[0]
+        with self.assertRaisesMessage(ValueError, "confirm shipping the goods already made"):
+            FGDispatchService.dispatch_challan(str(challan.id))
+        FGDispatchService.dispatch_challan(str(challan.id), ship_closed_lines=True)
+        FGDispatchService.confirm_pod(str(challan.id), received_by="Receiver", reference="POD-1")
+
+        line.refresh_from_db()
+        order.refresh_from_db()
+        # The line keeps its short-close; the order is done because its only line is closed and delivered.
+        self.assertEqual(line.line_status, "SHORT_CLOSED")
+        self.assertEqual(order.status, "COMPLETED")
+
+    def test_completed_order_ships_on_confirmation_and_stays_completed(self):
+        order, line = self._order()
+        roll = self._roll(line)
+        self._short_close(line)
+        order.status = "COMPLETED"
+        order.save(update_fields=["status"])
+        group = [{"sales_order_id": str(order.id), "roll_ids": [str(roll.id)]}]
+
+        with self.assertRaisesMessage(ValueError, "Closed lines on the tray"):
+            self._slips(group)
+        challan = self._slips(group, ship_closed_lines=True)[0]
+        FGDispatchService.dispatch_challan(str(challan.id), ship_closed_lines=True)
+        result = FGDispatchService.confirm_pod(str(challan.id), received_by="Receiver")
+        order.refresh_from_db()
+        self.assertEqual(order.status, "COMPLETED")
+        self.assertFalse(result.order_closed)
+
+    def test_draft_order_still_never_dispatches(self):
+        order, line = self._order()
+        roll = self._roll(line)
+        order.status = "DRAFT"
+        order.save(update_fields=["status"])
+        with self.assertRaisesMessage(ValueError, "a challan cannot be created in this order state"):
+            self._slips([{"sales_order_id": str(order.id), "roll_ids": [str(roll.id)]}], ship_closed_lines=True)
+
+    def test_move_to_stock_frees_units_of_closed_lines_only(self):
+        order, line = self._order()
+        roll = self._roll(line)
+        open_order, open_line = self._order()
+        open_roll = self._roll(open_line)
+
+        with self.assertRaisesMessage(ValueError, "still open"):
+            FGDispatchService.move_units_to_stock(roll_ids=[str(open_roll.id)], reason="Customer stopped")
+        with self.assertRaisesMessage(ValueError, "Say why"):
+            FGDispatchService.move_units_to_stock(roll_ids=[str(roll.id)], reason="")
+
+        self._short_close(line)
+        result = FGDispatchService.move_units_to_stock(roll_ids=[str(roll.id)], reason="Customer stopped the order")
+        self.assertEqual(result["count"], 1)
+        roll.refresh_from_db()
+        self.assertIsNone(roll.sales_order_item_id)
+        self.assertEqual(roll.meta_json["free_stock"]["from_sales_order_no"], order.order_number)
+        self.assertEqual(roll.meta_json["free_stock"]["from_line_no"], 1)
+        self.assertFalse(FGDispatchService._roll_dispatch_release_map([str(roll.id)]).get(str(roll.id)))
+        board_orders = {row["id"] for row in FGDispatchService.get_sales_orders_with_fg()}
+        self.assertNotIn(str(order.id), board_orders)
+        self.assertIn(str(open_order.id), board_orders)
+
+    def test_units_on_a_draft_slip_cannot_move_to_stock(self):
+        order, line = self._order()
+        roll = self._roll(line)
+        self._slips([{"sales_order_id": str(order.id), "roll_ids": [str(roll.id)]}])
+        self._short_close(line)
+        with self.assertRaises(ValueError):
+            FGDispatchService.move_units_to_stock(roll_ids=[str(roll.id)], reason="Customer stopped")
+
+    def test_summaries_mark_closed_lines(self):
+        order, line = self._order()
+        self._roll(line)
+        self._short_close(line)
+        summary = FGDispatchService.get_dispatchable_units_by_so(str(order.id))
+        self.assertTrue(summary["lines"][0]["closed"])
+        packing = FGDispatchService.get_packing_units_by_so(str(order.id))
+        self.assertEqual(packing["closed_line_ids"], [str(line.id)])
+        self.assertFalse(packing["order_closed"])
+
+
+class EveningCountSplitTests(TestCase):
+    def test_pieces_are_shared_in_whole_pieces(self):
+        from decimal import Decimal
+
+        from apps.production.services.packing_count_service import PackingCountService
+
+        shares = PackingCountService.split_count_usage(Decimal("1"), [Decimal("1")] * 14, whole_pieces=True)
+        self.assertEqual(sum(shares), Decimal("1"))
+        self.assertEqual(sorted(shares, reverse=True)[0], Decimal("1"))
+        self.assertEqual(len([value for value in shares if value]), 1)
+
+        shares = PackingCountService.split_count_usage(Decimal("7"), [Decimal("3"), Decimal("1"), Decimal("2")], whole_pieces=True)
+        self.assertEqual(shares, [Decimal("4"), Decimal("1"), Decimal("2")])
+        self.assertTrue(all(value == int(value) for value in shares))
+
+        shares = PackingCountService.split_count_usage(Decimal("2.5"), [Decimal("1"), Decimal("1")], whole_pieces=True)
+        self.assertEqual(sum(shares), Decimal("2.5"))
+
+        kg = PackingCountService.split_count_usage(Decimal("1"), [Decimal("1"), Decimal("2")], whole_pieces=False)
+        self.assertEqual(sum(kg), Decimal("1"))
+
+
 # Borrowed fixture methods only; keep the guardrail suite from being collected here a second time.
 del _fixture

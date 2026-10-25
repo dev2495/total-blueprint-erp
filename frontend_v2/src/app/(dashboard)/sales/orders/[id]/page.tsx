@@ -1937,7 +1937,18 @@ function DocumentsTab({
       </div>
 
       <section className="rounded-2xl border border-line bg-surface-1 p-5 shadow-sm">
-        <SectionTitle icon={<Truck className="h-4 w-4" />} label="Customer dispatch documents" sub="Actual customer dispatch records tied to this order." />
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <SectionTitle icon={<Truck className="h-4 w-4" />} label="Customer dispatch documents" sub="Actual customer dispatch records tied to this order." />
+          {canFollowLink("/logistics/dispatch") ? (
+            <Link
+              href={`/logistics/dispatch?history=${encodeURIComponent(order.order_number || "")}`}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface-1 px-3 text-[12.5px] font-semibold text-content-1 hover:bg-surface-2"
+              data-testid="order-dispatch-slips-link"
+            >
+              <Truck className="h-4 w-4" aria-hidden /> Slips in Dispatch Bay · reprint, proof of delivery
+            </Link>
+          ) : null}
+        </div>
         {dispatchLoading ? (
           <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-4 py-6 text-sm font-semibold text-content-3">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading customer dispatch ledger…

@@ -120,6 +120,7 @@ test("produced in-house packaging is visible across packaging inventory, packing
   await page.goto("/logistics/dispatch", { waitUntil: "domcontentloaded" })
   await assertHealthyPage(page)
 
+  await page.getByTestId("dispatch-tab-history").click()
   const dispatchHistorySearch = page.getByTestId("dispatch-history-search")
   await expect(dispatchHistorySearch).toBeVisible()
   await dispatchHistorySearch.fill(proof.pouch_breakdown.challan_no)

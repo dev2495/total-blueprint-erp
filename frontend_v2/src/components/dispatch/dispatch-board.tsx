@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Building2, ChevronDown, Clock, ExternalLink, FileText, MapPin, Package, Printer } from "lucide-react";
+import { Building2, ChevronDown, Clock, ExternalLink, FileText, Lock, MapPin, Package, Printer, Warehouse } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -28,8 +28,23 @@ export type BayUnit = {
   pcs: number;
   packs: number | null;
   mode: string;
+  /** Its order line (or the order) is closed: it ships only on the closed-line confirmation. */
+  closed: boolean;
   row: any;
 };
+
+const CLOSED_ORDER = new Set(["COMPLETED", "CANCELLED"]);
+
+/** Order or line closed: made goods may still ship (on confirmation) or go to free stock. */
+export function closedLabelOf(line: DispatchLineBalance | undefined, orderStatus: string): string {
+  const status = String(orderStatus || "").toUpperCase();
+  if (CLOSED_ORDER.has(status)) return status === "CANCELLED" ? "Order cancelled" : "Order completed";
+  if (!line?.closed) return "";
+  const lineStatus = String(line.line_status || "").toUpperCase();
+  if (lineStatus === "CANCELLED") return "Line cancelled";
+  if (lineStatus === "COMPLETED") return "Line completed";
+  return "Line short-closed";
+}
 
 export const gonniesText = (count: number) => `${n(count, 0)} ${count === 1 ? "gonny" : "gonnies"}`;
 export const rollsText = (count: number) => `${n(count, 0)} ${count === 1 ? "roll" : "rolls"}`;
@@ -41,6 +56,9 @@ export const qtyText = (value: number, uom: string) =>
 export function unitsOfSummary(summary?: SODispatchSummary): BayUnit[] {
   if (!summary) return [];
   const orderId = String(summary.sales_order.id);
+  const orderClosed = CLOSED_ORDER.has(String(summary.sales_order.status || "").toUpperCase());
+  const closedLines = new Set((summary.lines || []).filter((line) => line.closed).map((line) => line.id));
+  const isClosed = (lineId: string) => orderClosed || closedLines.has(lineId);
   return [
     ...(summary.gonnies || []).map((gonny) => {
       const net = Number(gonny.net_product_weight_kg || 0);
@@ -62,6 +80,7 @@ export function unitsOfSummary(summary?: SODispatchSummary): BayUnit[] {
         pcs: Number(gonny.qty_pcs || 0),
         packs: gonny.primary_pack_count ?? null,
         mode: gonny.content_mode === "PRIMARY_PACKS" ? "Inner packs" : "Loose",
+        closed: isClosed(clean(gonny.sales_order_item_id)),
         row: gonny,
       };
     }),
@@ -83,6 +102,7 @@ export function unitsOfSummary(summary?: SODispatchSummary): BayUnit[] {
         pcs: 0,
         packs: null,
         mode: roll.release_mode === "UNPACKED" ? "Unpacked" : "Packed",
+        closed: isClosed(clean(roll.sales_order_item_id)),
         row: roll,
       };
     }),
@@ -256,6 +276,7 @@ function LineBlock({
   onToggle,
   onPackingSlip,
   onPackingPdf,
+  onMoveToStock,
 }: {
   order: SODispatchSummary;
   line: DispatchLineBalance;
@@ -266,13 +287,16 @@ function LineBlock({
   onToggle: (unit: BayUnit) => void;
   onPackingSlip: (units: BayUnit[]) => void;
   onPackingPdf: (units: BayUnit[]) => void;
+  onMoveToStock?: (units: BayUnit[], closedLabel: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
+  const closedLabel = closedLabelOf(line, String(order.sales_order.status || ""));
   const isRoll = units.some((unit) => unit.kind === "ROLL") || (!units.length && line.qty_uom === "KG" && Boolean(line.pending.unreleased_rolls));
   const onTray = units.filter((unit) => tray.has(unit.id));
   const all = units.length > 0 && onTray.length === units.length;
   const part = onTray.length > 0 && !all;
   const ordered = Math.max(0, Number(line.ordered_qty || 0) - Number(line.closed_qty || 0));
+  const closedQty = Number(line.closed_qty || 0);
   const uom = line.qty_uom;
   const qtyOf = (list: BayUnit[]) =>
     uom === "PCS" ? list.reduce((sum, unit) => sum + unit.pcs, 0) : list.reduce((sum, unit) => sum + unit.net, 0);
@@ -321,10 +345,36 @@ function LineBlock({
     <div
       className={cn(
         "rounded-xl border px-3 py-2.5 transition-colors",
-        all ? "border-primary/50 bg-info-bg" : part ? "border-primary/30 bg-info-bg" : "border-line bg-surface-1",
+        all ? "border-primary/50 bg-info-bg" : part ? "border-primary/30 bg-info-bg" : closedLabel ? "border-warning-border bg-surface-1" : "border-line bg-surface-1",
       )}
       data-testid={`dispatch-line-${order.sales_order.id}-${line.line_no}`}
+      data-closed={closedLabel ? "true" : "false"}
     >
+      {closedLabel ? (
+        <div
+          className="-mx-3 -mt-2.5 mb-2.5 flex flex-wrap items-center gap-2 rounded-t-xl border-b border-warning-border bg-warning-bg px-3 py-2 text-[12px] text-content-2"
+          data-testid={`dispatch-line-closed-${order.sales_order.id}-${line.line_no}`}
+        >
+          <Lock className="h-3.5 w-3.5 shrink-0 text-warning-fg" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <b className="text-warning-fg">{closedLabel}</b> · these goods were made before it closed. Load them to send them
+            to the customer (you confirm on the tray), or move them to free stock for other orders.
+          </span>
+          {onMoveToStock ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 bg-surface-1"
+              disabled={disabled}
+              onClick={() => onMoveToStock(units.filter((unit) => !tray.has(unit.id)), closedLabel)}
+              data-testid={`dispatch-move-stock-${order.sales_order.id}-${line.line_no}`}
+            >
+              <Warehouse className="mr-1 h-3.5 w-3.5" aria-hidden /> Move to stock
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <div className="flex min-w-0 items-start gap-2.5">
           <input
@@ -375,8 +425,19 @@ function LineBlock({
             <span className="h-full bg-primary" style={{ width: pct(trayQty + draft) }} />
           </div>
           <div className="mt-1 text-[11.5px] text-content-3">
-            Ordered <b className="text-content-2">{qtyText(ordered, uom)}</b> · dispatched {qtyText(prev, uom)}
-            {trayQty || draft ? ` · this ${qtyText(trayQty + draft, uom)}` : ""} · <b className="text-content-2">remaining {qtyText(remaining, uom)}</b>
+            {closedLabel ? (
+              <>
+                Ordered <b className="text-content-2">{qtyText(Number(line.ordered_qty || 0), uom)}</b>
+                {closedQty ? ` · closed ${qtyText(closedQty, uom)}` : ""} · dispatched {qtyText(prev, uom)}
+                {trayQty || draft ? ` · this ${qtyText(trayQty + draft, uom)}` : ""} ·{" "}
+                <b className="text-content-2">{qtyText(units.reduce((sum, unit) => sum + (uom === "PCS" ? unit.pcs : unit.net), 0), uom)} made and waiting</b>
+              </>
+            ) : (
+              <>
+                Ordered <b className="text-content-2">{qtyText(ordered, uom)}</b> · dispatched {qtyText(prev, uom)}
+                {trayQty || draft ? ` · this ${qtyText(trayQty + draft, uom)}` : ""} · <b className="text-content-2">remaining {qtyText(remaining, uom)}</b>
+              </>
+            )}
             {pending ? <span className="text-warning-fg"> · {pending}</span> : null}
           </div>
         </div>
@@ -416,7 +477,7 @@ function OrderBlock({
   onToggleMany,
   onToggle,
   onPackingSlip,
-  onPackingPdf,
+  onMoveToStock,
 }: {
   row: BoardRow;
   summary?: SODispatchSummary;
@@ -425,7 +486,7 @@ function OrderBlock({
   onToggleMany: (units: BayUnit[], on: boolean) => void;
   onToggle: (unit: BayUnit) => void;
   onPackingSlip: (orderId: string, units: BayUnit[], pdf?: boolean) => void;
-  onPackingPdf?: never;
+  onMoveToStock?: (order: SODispatchSummary, line: DispatchLineBalance, units: BayUnit[], closedLabel: string) => void;
 }) {
   const order = row.sales_order as BoardRow["sales_order"] & { job_name?: string };
   const units = unitsOfSummary(summary);
@@ -441,7 +502,13 @@ function OrderBlock({
   const readyNet = units.reduce((sum, unit) => sum + unit.net, 0);
   const readyGross = units.reduce((sum, unit) => sum + unit.gross, 0);
   const readyPcs = units.reduce((sum, unit) => sum + unit.pcs, 0);
-  const orderedText = lines.map((line) => qtyText(Math.max(0, line.ordered_qty - line.closed_qty), line.qty_uom)).join(" + ") || n(summary?.ordered_qty || 0);
+  const orderedText =
+    lines
+      .map((line) =>
+        line.closed ? `${qtyText(line.ordered_qty, line.qty_uom)} (closed)` : qtyText(Math.max(0, line.ordered_qty - line.closed_qty), line.qty_uom),
+      )
+      .join(" + ") || n(summary?.ordered_qty || 0);
+  const orderClosed = CLOSED_ORDER.has(String(order.status || "").toUpperCase());
   return (
     <article
       className="rounded-2xl border border-line bg-surface-1 p-3"
@@ -463,7 +530,10 @@ function OrderBlock({
         <Pill tone={ready ? "good" : "warn"} dot>
           {ready ? `${unitsText(ready)} ready` : "Waiting on packing"}
         </Pill>
-        <Pill tone="neutral">{titleCase(order.status)}</Pill>
+        <Pill tone={orderClosed ? "warn" : "neutral"}>{titleCase(order.status)}</Pill>
+        {orderClosed ? (
+          <span className="text-[11.5px] text-warning-fg">made goods can still ship or go to stock</span>
+        ) : null}
         <span className="ml-auto flex gap-1">
           <Button asChild size="sm" variant="ghost" className="h-8">
             <Link href={`/sales/orders/${order.id}`}>
@@ -549,6 +619,7 @@ function OrderBlock({
                 onToggle={onToggle}
                 onPackingSlip={(list) => onPackingSlip(order.id, list)}
                 onPackingPdf={(list) => onPackingSlip(order.id, list, true)}
+                onMoveToStock={onMoveToStock ? (list, label) => onMoveToStock(summary, line, list, label) : undefined}
               />
             ))
         )}
@@ -566,6 +637,7 @@ export function DispatchBoard({
   onToggleMany,
   onToggle,
   onPackingSlip,
+  onMoveToStock,
 }: {
   rows: BoardRow[];
   summaries: Map<string, SODispatchSummary>;
@@ -574,6 +646,7 @@ export function DispatchBoard({
   onToggleMany: (units: BayUnit[], on: boolean) => void;
   onToggle: (unit: BayUnit) => void;
   onPackingSlip: (orderId: string, units: BayUnit[], pdf?: boolean) => void;
+  onMoveToStock?: (order: SODispatchSummary, line: DispatchLineBalance, units: BayUnit[], closedLabel: string) => void;
 }) {
   const groups: Array<{ customer: string; rows: BoardRow[] }> = [];
   rows.forEach((row) => {
@@ -625,6 +698,7 @@ export function DispatchBoard({
                 onToggleMany={onToggleMany}
                 onToggle={onToggle}
                 onPackingSlip={onPackingSlip}
+                onMoveToStock={onMoveToStock}
               />
             ))}
           </section>

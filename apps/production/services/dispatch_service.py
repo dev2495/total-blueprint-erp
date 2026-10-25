@@ -17,6 +17,7 @@ from apps.production.models import (
     RollDispatchPackRecord,
 )
 from apps.inventory.models import InventoryRoll, InventoryLocation, InventoryMaterial
+from apps.production.models import InventoryAllocation
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,9 @@ class FGDispatchService:
     REUSABLE_CHALLAN_STATUSES = ("CANCELLED",)
     BLOCKED_SALES_ORDER_STATUSES = ("DRAFT", "CANCELLED", "COMPLETED")
     BLOCKED_SALES_ORDER_ITEM_STATUSES = ("CANCELLED", "COMPLETED", "SHORT_CLOSED")
+    # Goods already made for an order or line that was later closed may still ship (on an
+    # explicit confirmation) or go to free stock; only a draft order can never dispatch.
+    CLOSED_SALES_ORDER_STATUSES = ("CANCELLED", "COMPLETED")
 
     @staticmethod
     def _dispatch_text(value, *, max_length: int | None = None) -> str:
@@ -187,8 +191,12 @@ class FGDispatchService:
         return queryset
 
     @staticmethod
-    def _lock_and_validate_sales_order_items(*, sales_order_id: str, item_ids) -> dict[str, object]:
-        """Lock and validate the exact SO lines represented by physical units."""
+    def _lock_and_validate_sales_order_items(*, sales_order_id: str, item_ids, allow_closed: bool = False) -> dict[str, object]:
+        """Lock and validate the exact SO lines represented by physical units.
+
+        ``allow_closed`` lets units already made for a short-closed, completed or cancelled line go
+        out (the dispatcher confirmed it); open lines are checked exactly as before.
+        """
         from apps.sales.models import SalesOrderItem
 
         normalized_ids = sorted({str(value) for value in (item_ids or []) if value})
@@ -218,15 +226,28 @@ class FGDispatchService:
                 - Decimal(str(line.qty_short_closed or 0)),
                 Decimal("0"),
             )
-            if (
-                line_status in FGDispatchService.BLOCKED_SALES_ORDER_ITEM_STATUSES
-                or line.line_closed_at is not None
-                or remaining_qty <= 0
-            ):
+            if not allow_closed and FGDispatchService.line_is_closed(line):
                 raise ValueError(
-                    f"Sales Order line {line.id} is {line_status or 'CLOSED'} and cannot be dispatched."
+                    f"Sales Order line {line.id} is {line_status or 'CLOSED'}: confirm shipping the goods "
+                    "already made for it, or move them to stock."
                 )
         return line_map
+
+    @staticmethod
+    def line_is_closed(line) -> bool:
+        """A line nobody produces for any more: short-closed, completed, cancelled or nothing left."""
+        line_status = str(getattr(line, "line_status", "") or "").upper()
+        remaining_qty = max(
+            Decimal(str(getattr(line, "qty_value", 0) or 0))
+            - Decimal(str(getattr(line, "qty_cancelled", 0) or 0))
+            - Decimal(str(getattr(line, "qty_short_closed", 0) or 0)),
+            Decimal("0"),
+        )
+        return bool(
+            line_status in FGDispatchService.BLOCKED_SALES_ORDER_ITEM_STATUSES
+            or getattr(line, "line_closed_at", None) is not None
+            or remaining_qty <= 0
+        )
 
     @staticmethod
     def _lock_delivery_challan_number_namespace(dc_prefix: str) -> None:
@@ -430,6 +451,23 @@ class FGDispatchService:
     def _line_numbers(so_items) -> dict[str, int]:
         """L1, L2… for an order's lines, in the order they were entered (same on every page)."""
         return {str(item_id): index for index, item_id in enumerate(so_items.order_by("created_at", "id").values_list("id", flat=True), start=1)}
+
+    @staticmethod
+    def line_numbers_for_orders(order_ids) -> dict[str, int]:
+        """L-numbers for the lines of several orders at once, counted within each order."""
+        from apps.sales.models import SalesOrderItem
+
+        numbers: dict[str, int] = {}
+        seen: dict[str, int] = {}
+        rows = (
+            SalesOrderItem.objects.filter(sales_order_id__in=[value for value in order_ids if value])
+            .order_by("sales_order_id", "created_at", "id")
+            .values_list("sales_order_id", "id")
+        )
+        for order_id, item_id in rows:
+            seen[str(order_id)] = seen.get(str(order_id), 0) + 1
+            numbers[str(item_id)] = seen[str(order_id)]
+        return numbers
 
     @staticmethod
     def _roll_dispatch_record_map(roll_ids: list[str]) -> dict[str, dict]:
@@ -1428,6 +1466,9 @@ class FGDispatchService:
             "sales_order": so,
             "ordered_qty": float(ordered_qty),
             "line_numbers": FGDispatchService._line_numbers(so_items),
+            # Lines nobody produces for any more: their goods may still ship, or go to free stock.
+            "closed_line_ids": [str(item.id) for item in so_items if FGDispatchService.line_is_closed(item)],
+            "order_closed": str((so or {}).get("status") or "").upper() in FGDispatchService.CLOSED_SALES_ORDER_STATUSES,
             "packing_pending": {
                 "rolls_count": len([row for row in roll_rows if not row["released_to_dispatch"]]),
                 "batches_count": len(batch_rows),
@@ -1531,6 +1572,7 @@ class FGDispatchService:
                     "qty_uom": uom,
                     "ordered_qty": float(item.qty_value or 0),
                     "closed_qty": float((item.qty_cancelled or 0) + (item.qty_short_closed or 0)),
+                    "closed": FGDispatchService.line_is_closed(item),
                     "dispatched_qty": dispatched,
                     "on_draft_units": int(draft.get("units") or 0),
                     "on_draft_qty": reserved,
@@ -2224,7 +2266,8 @@ class FGDispatchService:
                        vehicle_no: str = '', driver_name: str = '', driver_phone: str = '',
                        roll_ids: list = None, gonny_ids: list = None, batch_items: list = None, user=None,
                        transporter_name: str = '', lr_number: str = '', e_way_bill_number: str = '',
-                       dispatch_notes: str = '', ship_to_address_snapshot: dict | None = None) -> DeliveryChallan:
+                       dispatch_notes: str = '', ship_to_address_snapshot: dict | None = None,
+                       allow_closed: bool = False) -> DeliveryChallan:
         """
         Create a Delivery Challan with selected items.
         
@@ -2263,7 +2306,13 @@ class FGDispatchService:
         except SalesOrder.DoesNotExist:
             raise ValueError(f"Sales Order {sales_order_id} not found.")
         sales_order_status = str(sales_order.status or "").upper()
-        if sales_order_status in FGDispatchService.BLOCKED_SALES_ORDER_STATUSES:
+        closed_order_ok = allow_closed and sales_order_status in FGDispatchService.CLOSED_SALES_ORDER_STATUSES
+        if sales_order_status in FGDispatchService.BLOCKED_SALES_ORDER_STATUSES and not closed_order_ok:
+            if sales_order_status in FGDispatchService.CLOSED_SALES_ORDER_STATUSES:
+                raise ValueError(
+                    f"Sales Order {sales_order.order_number} is {sales_order_status}: confirm shipping the "
+                    "goods already made for it, or move them to stock."
+                )
             raise ValueError(
                 f"Sales Order {sales_order.order_number} is {sales_order_status or 'UNKNOWN'}; "
                 "a challan cannot be created in this order state."
@@ -2369,6 +2418,7 @@ class FGDispatchService:
         FGDispatchService._lock_and_validate_sales_order_items(
             sales_order_id=normalized_sales_order_id,
             item_ids=selected_line_ids,
+            allow_closed=allow_closed,
         )
 
         # The physical-row locks serialize simultaneous create requests.  This
@@ -2457,9 +2507,14 @@ class FGDispatchService:
         e_way_bill_number: str = "",
         dispatch_notes: str = "",
         user=None,
+        ship_closed_lines: bool = False,
     ) -> list[DeliveryChallan]:
         """
         One dispatch slip per sales-order line, for a tray that may hold several lines and orders.
+
+        Lines that are short-closed, completed or cancelled (or orders that are completed or
+        cancelled) go out only when ``ship_closed_lines`` confirms it; otherwise the whole tray is
+        refused with the lines named, so nothing ships by accident.
 
         ``groups`` is one entry per sales order: ``{sales_order_id, roll_ids, gonny_ids,
         ship_to_address_snapshot}``. Units are split by their own sales-order line and plant, and
@@ -2516,6 +2571,25 @@ class FGDispatchService:
                     }
                 )
 
+        from apps.sales.models import SalesOrderItem
+
+        line_ids = sorted({bucket["line_id"] for bucket in buckets if bucket["line_id"]})
+        closed_names = []
+        for line in (
+            SalesOrderItem.objects.filter(id__in=line_ids).select_related("sales_order").order_by("sales_order__order_number")
+        ):
+            order_status = str(getattr(line.sales_order, "status", "") or "").upper()
+            if FGDispatchService.line_is_closed(line) or order_status in FGDispatchService.CLOSED_SALES_ORDER_STATUSES:
+                line_no = FGDispatchService._line_numbers(
+                    SalesOrderItem.objects.filter(sales_order_id=line.sales_order_id)
+                ).get(str(line.id))
+                closed_names.append(f"{line.sales_order.order_number} L{line_no or '?'}")
+        if closed_names and not ship_closed_lines:
+            raise ValueError(
+                "Closed lines on the tray: " + ", ".join(closed_names) + ". Confirm shipping the goods "
+                "already made for them, or move them to stock."
+            )
+
         challans = []
         for bucket in buckets:
             challan = FGDispatchService.create_challan(
@@ -2533,10 +2607,148 @@ class FGDispatchService:
                 roll_ids=bucket["roll_ids"],
                 gonny_ids=bucket["gonny_ids"],
                 user=user,
+                allow_closed=bool(ship_closed_lines),
             )
             challan._slip_line_id = bucket["line_id"]
             challans.append(challan)
         return challans
+
+    @staticmethod
+    @transaction.atomic
+    def move_units_to_stock(
+        *,
+        roll_ids=None,
+        gonny_ids=None,
+        batch_ids=None,
+        reason: str = "",
+        user=None,
+    ) -> dict:
+        """
+        Goods made for a line that is now closed leave the order and become free stock.
+
+        Rolls, sealed gonnies and unpacked pouch batches of a short-closed, completed or cancelled
+        line (or of a completed / cancelled order) lose their order link, their release to Dispatch
+        Bay and any stock claim, and keep a ``free_stock`` record of where they came from. The
+        planner then offers them to any order with the same specification (claim from stock).
+        Units on a draft slip, already dispatched or of an open line are refused.
+        """
+        from apps.sales.models import SalesOrderItem
+
+        reason = str(reason or "").strip()
+        if len(reason) < 3:
+            raise ValueError("Say why these goods go to stock (at least 3 characters).")
+        roll_ids = FGDispatchService._normalize_dispatch_unit_ids(roll_ids or [], label="roll_ids")
+        gonny_ids = FGDispatchService._normalize_dispatch_unit_ids(gonny_ids or [], label="gonny_ids")
+        batch_ids = FGDispatchService._normalize_dispatch_unit_ids(batch_ids or [], label="batch_ids")
+        if not roll_ids and not gonny_ids and not batch_ids:
+            raise ValueError("Pick at least one roll, gonny or batch to move to stock.")
+
+        rolls = list(InventoryRoll.objects.select_for_update().filter(id__in=roll_ids).order_by("id"))
+        gonnies = list(PackingUnit.objects.select_for_update().filter(id__in=gonny_ids).order_by("id"))
+        batches = list(FinishedGoodsBatch.objects.select_for_update().filter(id__in=batch_ids).order_by("id"))
+        found = {str(row.id) for row in [*rolls, *gonnies, *batches]}
+        missing = [value for value in [*roll_ids, *gonny_ids, *batch_ids] if value not in found]
+        if missing:
+            raise ValueError("Some units were not found or were already moved: " + ", ".join(missing[:5]))
+
+        FGDispatchService._raise_for_active_memberships(roll_ids=roll_ids, gonny_ids=gonny_ids)
+
+        line_ids = {
+            str(unit.sales_order_item_id)
+            for unit in [*rolls, *gonnies, *batches]
+            if getattr(unit, "sales_order_item_id", None)
+        }
+        lines = {
+            str(line.id): line
+            for line in SalesOrderItem.objects.select_related("sales_order").filter(id__in=line_ids)
+        }
+        line_numbers: dict[str, dict] = {}
+
+        def origin(unit, label):
+            line = lines.get(str(getattr(unit, "sales_order_item_id", "") or ""))
+            if line is None:
+                raise ValueError(f"{label} is not linked to an order line.")
+            order = line.sales_order
+            order_status = str(getattr(order, "status", "") or "").upper()
+            if not (FGDispatchService.line_is_closed(line) or order_status in FGDispatchService.CLOSED_SALES_ORDER_STATUSES):
+                raise ValueError(
+                    f"{label} belongs to {order.order_number}, whose line is still open. Only goods of a "
+                    "closed line or order can move to stock."
+                )
+            numbers = line_numbers.setdefault(
+                str(order.id),
+                FGDispatchService._line_numbers(SalesOrderItem.objects.filter(sales_order_id=order.id)),
+            )
+            return {
+                "from_sales_order_id": str(order.id),
+                "from_sales_order_no": order.order_number,
+                "from_customer_name": getattr(order, "customer_name", "") or "",
+                "from_sales_order_item_id": str(line.id),
+                "from_line_no": numbers.get(str(line.id)),
+                "from_line_status": str(line.line_status or ""),
+                "from_order_status": order_status,
+                "reason": reason,
+                "moved_at": timezone.now().isoformat(),
+                "moved_by": str(getattr(user, "id", "") or "") if getattr(user, "is_authenticated", False) else "",
+                "moved_by_name": (
+                    str(getattr(user, "get_full_name", lambda: "")() or getattr(user, "username", "") or "").strip()
+                    if getattr(user, "is_authenticated", False)
+                    else ""
+                ),
+            }
+
+        def freed_meta(meta, record):
+            payload = dict(meta or {})
+            history = list(payload.get("free_stock_history") or [])
+            history.append(record)
+            payload["free_stock"] = record
+            payload["free_stock_history"] = history
+            payload["released_to_dispatch"] = False
+            payload.pop("claim_origin", None)
+            payload.pop("dispatch_mode", None)
+            return payload
+
+        moved = {"rolls": [], "gonnies": [], "batches": []}
+        for roll in rolls:
+            if roll.status != "AVAILABLE":
+                raise ValueError(f"Roll {roll.label_id} is {roll.status}; only available rolls can move to stock.")
+            record = origin(roll, f"Roll {roll.label_id}")
+            roll.sales_order_item = None
+            roll.meta_json = freed_meta(roll.meta_json, record)
+            roll.save(update_fields=["sales_order_item", "meta_json"])
+            for pack in RollDispatchPackRecord.objects.select_for_update().filter(roll=roll):
+                pack_meta = dict(pack.meta_json or {})
+                if pack_meta.get("released_to_dispatch"):
+                    pack_meta["released_to_dispatch"] = False
+                    pack_meta["moved_to_stock_at"] = record["moved_at"]
+                    pack.meta_json = pack_meta
+                    pack.save(update_fields=["meta_json"])
+            InventoryAllocation.objects.filter(inventory_roll=roll, status="ACTIVE").update(status="RELEASED")
+            moved["rolls"].append({"id": str(roll.id), "label": roll.label_id, **record})
+        for gonny in gonnies:
+            if gonny.status != "SEALED":
+                raise ValueError(f"Gonny {gonny.label_id} is {gonny.status}; only sealed gonnies can move to stock.")
+            record = origin(gonny, f"Gonny {gonny.label_id}")
+            gonny.sales_order_item = None
+            gonny.meta_json = freed_meta(gonny.meta_json, record)
+            gonny.save(update_fields=["sales_order_item", "meta_json"])
+            moved["gonnies"].append({"id": str(gonny.id), "label": gonny.label_id, **record})
+        for batch in batches:
+            if batch.status != "AVAILABLE" or int(batch.qty_pcs or 0) <= 0:
+                raise ValueError(f"Batch {batch.batch_number} has nothing left to move.")
+            record = origin(batch, f"Batch {batch.batch_number}")
+            batch.sales_order_item = None
+            batch.meta_json = freed_meta(batch.meta_json, record)
+            batch.save(update_fields=["sales_order_item", "meta_json"])
+            InventoryAllocation.objects.filter(fg_batch=batch, status="ACTIVE").update(status="RELEASED")
+            moved["batches"].append({"id": str(batch.id), "label": batch.batch_number, **record})
+
+        total = len(moved["rolls"]) + len(moved["gonnies"]) + len(moved["batches"])
+        return {
+            "moved": moved,
+            "count": total,
+            "message": f"{total} unit{'s' if total != 1 else ''} moved to free stock. The planner can now claim them for any order with the same specification.",
+        }
 
     @staticmethod
     def get_packing_release_history(
@@ -2707,7 +2919,7 @@ class FGDispatchService:
     
     @staticmethod
     @transaction.atomic
-    def dispatch_challan(challan_id: str, user=None) -> DeliveryChallan:
+    def dispatch_challan(challan_id: str, user=None, ship_closed_lines: bool = False) -> DeliveryChallan:
         """
         Dispatch a challan - updates inventory locations to IN_TRANSIT and creates ledger entries.
         
@@ -2731,7 +2943,16 @@ class FGDispatchService:
         from apps.sales.models import SalesOrder
         sales_order = SalesOrder.objects.select_for_update().get(id=challan.sales_order_id)
         sales_order_status = str(sales_order.status or "").upper()
-        if sales_order_status in FGDispatchService.BLOCKED_SALES_ORDER_STATUSES:
+        # Goods of a closed order or line still leave when the dispatcher confirms it (the slip may
+        # have been made before the close); a draft order never dispatches.
+        if sales_order_status in FGDispatchService.BLOCKED_SALES_ORDER_STATUSES and not (
+            ship_closed_lines and sales_order_status in FGDispatchService.CLOSED_SALES_ORDER_STATUSES
+        ):
+            if sales_order_status in FGDispatchService.CLOSED_SALES_ORDER_STATUSES:
+                raise ValueError(
+                    f"Sales Order {sales_order.order_number} is {sales_order_status}: confirm shipping the "
+                    "goods already made for it, or move them to stock."
+                )
             raise ValueError(
                 f"Sales Order {sales_order.order_number} is {sales_order_status or 'UNKNOWN'}; "
                 "dispatch is not allowed."
@@ -2769,6 +2990,7 @@ class FGDispatchService:
         FGDispatchService._lock_and_validate_sales_order_items(
             sales_order_id=str(challan.sales_order_id),
             item_ids=[item.sales_order_item_id for item in items],
+            allow_closed=ship_closed_lines,
         )
 
         FGDispatchService._raise_for_active_memberships(
@@ -3064,13 +3286,14 @@ class FGDispatchService:
                 tolerance = Decimal('0.01') if uom == 'KG' else Decimal('0')
                 fulfilled = actual + tolerance >= target
                 all_fulfilled = all_fulfilled and fulfilled
-                if fulfilled and line.line_status != 'COMPLETED':
+                if fulfilled and str(line.line_status or '').upper() not in FGDispatchService.BLOCKED_SALES_ORDER_ITEM_STATUSES:
                     line.line_status = 'COMPLETED'
                     line.line_closed_at = now
                     line.save(update_fields=['line_status', 'line_closed_at'])
 
             open_challans = sales_order.challans.exclude(status__in=['DELIVERED', 'CANCELLED']).exists()
-            if all_fulfilled and not open_challans:
+            already_closed = str(sales_order.status or '').upper() in FGDispatchService.CLOSED_SALES_ORDER_STATUSES
+            if all_fulfilled and not open_challans and not already_closed:
                 sales_order.status = 'COMPLETED'
                 sales_order.completed_at = now
                 sales_order.save(update_fields=['status', 'completed_at'])
