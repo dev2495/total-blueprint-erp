@@ -111,6 +111,26 @@ export interface DispatchableRoll {
     };
 }
 
+export interface ChallanHistory {
+    results: DeliveryChallan[];
+    count: number;
+    limit: number;
+    offset: number;
+    tab_counts: Record<'ALL' | 'DRAFT' | 'POD' | 'DELIVERED' | 'CANCELLED', number>;
+    status_counts: Record<string, number>;
+    customers: string[];
+    stats: {
+        slips_today: number;
+        shipped_today: number;
+        dispatched_today: number;
+        vehicles_today: string[];
+        drafts: number;
+        pod_pending: number;
+        delivered: number;
+        recent_transporters: string[];
+    };
+}
+
 export interface DeliveryChallan {
     id: string;
     dc_no: string;
@@ -132,14 +152,55 @@ export interface DeliveryChallan {
     pod_notes?: string;
     plant_name: string;
     so_number: string | null;
+    sales_order_id?: string | null;
+    job_name?: string;
+    created_at?: string | null;
+    units?: number;
+    rolls?: number;
+    pcs?: number;
+    gross_kg?: number;
+    line_no?: number | null;
+    line_name?: string;
+    line_size?: string;
+}
+
+/** One order line in Dispatch Bay: ordered, dispatched, on draft slips, and what is still in packing. */
+export interface DispatchLineBalance {
+    id: string;
+    line_no: number;
+    product_name?: string | null;
+    product_code?: string | null;
+    size_label?: string | null;
+    thickness_label?: string | null;
+    grade_label?: string | null;
+    layer_count?: number | null;
+    layers_label?: string | null;
+    qty_uom: string;
+    ordered_qty: number;
+    closed_qty: number;
+    dispatched_qty: number;
+    on_draft_units: number;
+    on_draft_qty: number;
+    line_status: string;
+    pending: {
+        open_gonnies: number;
+        open_pcs: number;
+        unpacked_batches: number;
+        unpacked_pcs: number;
+        unreleased_rolls: number;
+        unreleased_kg: number;
+    };
 }
 
 export interface PackingBoardSnapshot {
     totals: Record<string, number>;
     orders: Array<{
-        sales_order: PackingSalesOrderRow;
+        sales_order: PackingSalesOrderRow & { job_name?: string };
         pending: SOPackingSummary["packing_pending"];
         ready_for_dispatch: SOPackingSummary["ready_for_dispatch"];
+        /** Lines with a batch or an unreleased roll still to pack, and their net kg. */
+        ready_lines?: number;
+        ready_kg?: number;
     }>;
 }
 
@@ -303,6 +364,8 @@ export interface SODispatchSummary {
     }>;
     rolls: DispatchableRoll[];
     gonnies: Gonny[];
+    lines?: DispatchLineBalance[];
+    line_numbers?: Record<string, number>;
 }
 
 export interface PackingSalesOrderRow {
@@ -363,7 +426,44 @@ export interface SOPackingSummary {
         };
     }>;
     gonnies: Gonny[];
+    /** L1, L2… of the order's lines, the same numbers Dispatch Bay shows. */
+    line_numbers?: Record<string, number>;
 }
+
+export type PackingReleaseRow = {
+    kind: "GONNY" | "ROLL";
+    id: string;
+    unit: string;
+    released_at: string | null;
+    released_by: string;
+    sales_order: { id: string | null; order_number: string; customer_name: string; job_name: string };
+    sales_order_item_id: string | null;
+    product_name?: string | null;
+    product_code?: string | null;
+    size_label?: string | null;
+    thickness_label?: string | null;
+    grade_label?: string | null;
+    layer_count?: number | null;
+    layers_label?: string | null;
+    batch_no: string;
+    qty_pcs: number;
+    content_mode: string | null;
+    primary_pack_count: number | null;
+    net_kg: number;
+    gross_kg: number;
+    gross_variance_pct: number | null;
+    release_mode: string;
+    plant_name: string;
+    marks: Array<{ material_id: string; code: string; name: string; qty: number }>;
+    slip: { id: string; dc_no: string; status: string } | null;
+};
+
+export type PackingReleaseHistory = {
+    total: number;
+    limit: number;
+    offset: number;
+    results: PackingReleaseRow[];
+};
 
 export type PackingCheckSummary = {
     fg_batch_id: string;
@@ -588,6 +688,14 @@ export const logisticsService = {
         }
     },
 
+    async getPackingReleaseHistory(
+        params: { search?: string; sales_order_id?: string; days?: number; limit?: number; offset?: number } = {},
+        signal?: AbortSignal,
+    ): Promise<PackingReleaseHistory> {
+        const response = await api.get('/api/production/packing/release-history/', { params, signal });
+        return response.data as PackingReleaseHistory;
+    },
+
     async getPackingMaterialCount(params: { date?: string; counted_at?: string; plant_id?: string; location_id?: string } = {}): Promise<PackingMaterialCountSnapshot> {
         const response = await api.get('/api/production/packing/material-count/', { params });
         return response.data as PackingMaterialCountSnapshot;
@@ -682,6 +790,27 @@ export const logisticsService = {
         return (response.data?.data || response.data) as SODispatchSummary;
     },
 
+    /** Dispatch Bay history, paged on the server, with per-tab counts and today's figures. */
+    async getChallanHistory(
+        params: { tab?: string; range?: string; customer?: string; search?: string; limit?: number; offset?: number; sort?: "created" },
+        signal?: AbortSignal,
+    ): Promise<ChallanHistory> {
+        const query: Record<string, string> = {};
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && String(value) !== '' && String(value) !== 'ALL') query[key] = String(value);
+        });
+        const response = await api.get('/api/production/challans/history/', { params: query, signal });
+        const data = response.data || {};
+        return {
+            ...data,
+            results: (data.results || []).map((row: any) => ({
+                ...row,
+                plant_name: row?.plant_name || '',
+                so_number: row?.so_number || '',
+            })),
+        } as ChallanHistory;
+    },
+
     async getChallans(plantId?: string, status?: string): Promise<DeliveryChallan[]> {
         const params: Record<string, string> = {};
         if (plantId) params.plant_id = plantId;
@@ -710,6 +839,38 @@ export const logisticsService = {
         gonny_ids?: string[];
     }): Promise<{ id: string; dc_no: string; message: string }> {
         const response = await api.post('/api/production/challans/create_challan/', data);
+        return response.data;
+    },
+
+    /** One slip per sales-order line for everything in the tray; every slip or none is created. */
+    async createLineSlips(data: {
+        groups: Array<{
+            sales_order_id: string;
+            roll_ids: string[];
+            gonny_ids: string[];
+            ship_to_address_snapshot?: Record<string, any>;
+        }>;
+        transporter_name: string;
+        vehicle_no?: string;
+        driver_name?: string;
+        driver_phone?: string;
+        lr_number?: string;
+        e_way_bill_number?: string;
+        dispatch_notes?: string;
+    }): Promise<{
+        slips: Array<{
+            id: string;
+            dc_no: string;
+            status: string;
+            sales_order_id: string;
+            so_number: string;
+            sales_order_item_id: string;
+            items_count: number;
+            vehicle_no: string;
+        }>;
+        message: string;
+    }> {
+        const response = await api.post('/api/production/challans/create-slips/', data);
         return response.data;
     },
 

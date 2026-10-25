@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 from django.db import transaction
 from django.db import connection
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 from apps.sales.job_name import clean_job_name, job_name_of
 from apps.production.models import (
@@ -425,6 +425,11 @@ class FGDispatchService:
             "layer_count": layer_count,
             "layers_label": layer_stack_label or "-",
         }
+
+    @staticmethod
+    def _line_numbers(so_items) -> dict[str, int]:
+        """L1, L2… for an order's lines, in the order they were entered (same on every page)."""
+        return {str(item_id): index for index, item_id in enumerate(so_items.order_by("created_at", "id").values_list("id", flat=True), start=1)}
 
     @staticmethod
     def _roll_dispatch_record_map(roll_ids: list[str]) -> dict[str, dict]:
@@ -913,6 +918,43 @@ class FGDispatchService:
         return {"totals": totals, "orders": cards}
 
     @staticmethod
+    def _packing_today_totals() -> dict:
+        """Today's yard figures (local day): gonnies packed, and units released with their weights."""
+        from datetime import timezone as dt_timezone
+
+        from django.db.models.fields.json import KeyTextTransform
+
+        start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_iso = start.astimezone(dt_timezone.utc).isoformat()
+        released_at = KeyTextTransform("released_to_dispatch_at", "meta_json")
+        packed_today = PackingUnit.objects.filter(created_at__gte=start, sales_order_item__isnull=False).count()
+        gonnies = (
+            PackingUnit.objects.filter(meta_json__released_to_dispatch=True)
+            .annotate(released_key=released_at)
+            .filter(released_key__gte=start_iso)
+            .aggregate(count=Count("pk"), gross=Sum("gross_weight_kg"), net=Sum("net_product_weight_kg"))
+        )
+        rolls = list(
+            RollDispatchPackRecord.objects.filter(meta_json__released_to_dispatch=True)
+            .annotate(released_key=released_at)
+            .filter(released_key__gte=start_iso)
+            .values("roll__weight_kg", "roll__net_weight_kg", "roll__tare_weight_kg", "roll__gross_weight_kg")
+        )
+        roll_net = sum(float(row["roll__net_weight_kg"] or row["roll__weight_kg"] or 0) for row in rolls)
+        roll_gross = sum(
+            float(row["roll__gross_weight_kg"] or 0)
+            or float(row["roll__net_weight_kg"] or row["roll__weight_kg"] or 0) + float(row["roll__tare_weight_kg"] or 0)
+            for row in rolls
+        )
+        return {
+            "gonnies_packed_today": packed_today,
+            "released_today_gonnies": int(gonnies["count"] or 0),
+            "released_today_rolls": len(rolls),
+            "released_today_net_kg": round(float(gonnies["net"] or 0) + roll_net, 3),
+            "released_today_gross_kg": round(float(gonnies["gross"] or 0) + roll_gross, 3),
+        }
+
+    @staticmethod
     def get_packing_board_snapshot() -> dict:
         """Build the Packing Yard queue from compact, batched projections.
 
@@ -937,7 +979,12 @@ class FGDispatchService:
             "ready_gonnies_net_kg": 0.0,
             "ready_rolls_net_kg": 0.0,
             "pending_rolls": 0,
+            "ready_lines": 0,
+            "ready_pouch_kg": 0.0,
+            "ready_roll_kg": 0.0,
+            "variance_units": 0,
         }
+        totals.update(FGDispatchService._packing_today_totals())
         if not order_rows:
             return {"totals": totals, "orders": []}
 
@@ -962,6 +1009,10 @@ class FGDispatchService:
                     "gonnies_gross_kg": 0.0,
                     "gonnies_net_kg": 0.0,
                 },
+                # Lines with something to pack (a batch or an unreleased roll) and its net kg.
+                "_ready_lines": set(),
+                "_pouch_kg": 0.0,
+                "_roll_kg": 0.0,
             }
             for row in order_rows
         }
@@ -975,6 +1026,7 @@ class FGDispatchService:
             .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
             .values(
                 "id",
+                "sales_order_item_id",
                 "sales_order_item__sales_order_id",
                 "weight_kg",
                 "net_weight_kg",
@@ -991,6 +1043,8 @@ class FGDispatchService:
             ready = summary["ready"]
             if not roll_release.get(str(row["id"]), False):
                 pending["rolls_count"] += 1
+                summary["_ready_lines"].add(str(row["sales_order_item_id"]))
+                summary["_roll_kg"] += float(row.get("net_weight_kg") or row.get("weight_kg") or 0)
                 continue
 
             weight = Decimal(str(row.get("weight_kg") or 0))
@@ -1005,20 +1059,32 @@ class FGDispatchService:
             ready["rolls_tare_kg"] += float(tare)
             ready["rolls_gross_kg"] += float(gross)
 
-        batch_rows = (
+        batch_rows = list(
             FinishedGoodsBatch.objects.filter(
                 sales_order_item__sales_order_id__in=order_ids,
                 qty_pcs__gt=0,
                 status__in=["AVAILABLE", "PACKED"],
             )
             .filter(Q(meta_json__is_internal_stock=False) | Q(meta_json__is_internal_stock__isnull=True))
-            .values("sales_order_item__sales_order_id")
-            .annotate(count=Count("pk"), pcs=Sum("qty_pcs"))
+            .values("id", "sales_order_item__sales_order_id", "sales_order_item_id", "qty_pcs", "qty_kg")
         )
+        # A batch's logged kg covers every pouch it made; weight still to pack is the share of the
+        # pouches not yet in gonnies (same as the packing plan's net per pouch).
+        packed_by_batch = {
+            row["fg_batch_id"]: int(row["pcs"] or 0)
+            for row in PackingUnit.objects.filter(fg_batch_id__in=[row["id"] for row in batch_rows])
+            .values("fg_batch_id")
+            .annotate(pcs=Sum("qty_pcs"))
+        }
         for row in batch_rows:
-            pending = by_order[str(row["sales_order_item__sales_order_id"])]["pending"]
-            pending["batches_count"] = int(row["count"] or 0)
-            pending["batches_pcs"] = int(row["pcs"] or 0)
+            summary = by_order[str(row["sales_order_item__sales_order_id"])]
+            pending = summary["pending"]
+            pcs = int(row["qty_pcs"] or 0)
+            made = pcs + packed_by_batch.get(row["id"], 0)
+            pending["batches_count"] += 1
+            pending["batches_pcs"] += pcs
+            summary["_ready_lines"].add(str(row["sales_order_item_id"]))
+            summary["_pouch_kg"] += float(row["qty_kg"] or 0) * pcs / made if made else 0.0
 
         gonnies = PackingUnit.objects.filter(
             sales_order_item__sales_order_id__in=order_ids,
@@ -1030,6 +1096,7 @@ class FGDispatchService:
             "weight_kg",
             "gross_weight_kg",
             "net_product_weight_kg",
+            "gross_variance_pct",
             "meta_json",
         )
         for gonny in gonnies:
@@ -1052,6 +1119,8 @@ class FGDispatchService:
                     ready["gonnies_net_kg"] += float(gonny.get("net_product_weight_kg") or 0)
                 else:
                     pending["sealed_gonnies_count"] += 1
+                    if abs(float(gonny.get("gross_variance_pct") or 0)) > 2:
+                        totals["variance_units"] += 1
 
         cards = []
         for row in order_rows:
@@ -1066,8 +1135,13 @@ class FGDispatchService:
                 },
                 "pending": summary["pending"],
                 "ready_for_dispatch": summary["ready"],
+                "ready_lines": len(summary["_ready_lines"]),
+                "ready_kg": round(summary["_pouch_kg"] + summary["_roll_kg"], 3),
             }
             cards.append(card)
+            totals["ready_lines"] += card["ready_lines"]
+            totals["ready_pouch_kg"] += summary["_pouch_kg"]
+            totals["ready_roll_kg"] += summary["_roll_kg"]
             pending = card["pending"]
             ready = card["ready_for_dispatch"]
             totals["orders"] += 1
@@ -1175,7 +1249,7 @@ class FGDispatchService:
             .select_related(
                 "location__plant",
                 "template",
-                "production_job",
+                "production_job__machine",
                 "sales_order_item__template",
                 "sales_order_item__product_master",
                 "sales_order_item__product_variant",
@@ -1262,6 +1336,8 @@ class FGDispatchService:
                 **FGDispatchService._production_batch_payload(batch),
                 "packing_plan": PackingService.packing_plan(batch),
                 "batch_number": batch.batch_number,
+                "machine_name": getattr(getattr(getattr(batch, "production_job", None), "machine", None), "name", "") or "",
+                "ready_at": batch.created_at.isoformat() if getattr(batch, "created_at", None) else None,
                 "sales_order_item_id": str(batch.sales_order_item_id) if batch.sales_order_item_id else None,
                 **FGDispatchService._sales_order_item_display_spec(batch.sales_order_item),
                 "qty_pcs": int(batch.qty_pcs or 0),
@@ -1351,6 +1427,7 @@ class FGDispatchService:
         return {
             "sales_order": so,
             "ordered_qty": float(ordered_qty),
+            "line_numbers": FGDispatchService._line_numbers(so_items),
             "packing_pending": {
                 "rolls_count": len([row for row in roll_rows if not row["released_to_dispatch"]]),
                 "batches_count": len(batch_rows),
@@ -1403,6 +1480,73 @@ class FGDispatchService:
             }
         }
     
+    @staticmethod
+    def _dispatch_line_balances(so_items, all_rolls, all_gonnies, open_gonnies, unpacked_batches, available_roll_rows, roll_dispatch_map) -> list[dict]:
+        """Per order line: ordered, dispatched so far, on draft slips, and what is still in packing.
+
+        Dispatched follows the physical units: rolls in transit/consumed (kg) and dispatched gonnies
+        (pcs, or net kg for a line ordered in kg).
+        """
+        def by_item(rows, **fields):
+            return {str(row["item"]): row for row in rows.values(item=F("sales_order_item_id")).annotate(**fields)}
+
+        rolls_out = by_item(all_rolls.filter(status__in=["IN_TRANSIT", "CONSUMED"]), kg=Sum("weight_kg"))
+        gonnies_out = by_item(all_gonnies.filter(status="DISPATCHED"), pcs=Sum("qty_pcs"), kg=Sum("net_product_weight_kg"))
+        on_draft = by_item(
+            DeliveryChallanItem.objects.filter(
+                sales_order_item__in=so_items, reservation_active=True, challan__status="DRAFT"
+            ),
+            units=Count("pk"),
+            pcs=Sum("qty_pcs"),
+            kg=Sum("weight_kg"),
+        )
+        open_by_item = by_item(open_gonnies, count=Count("pk"), pcs=Sum("qty_pcs"))
+        batches_by_item = by_item(unpacked_batches, count=Count("pk"), pcs=Sum("qty_pcs"))
+        unreleased: dict[str, dict] = {}
+        for roll in available_roll_rows:
+            if bool(roll_dispatch_map.get(str(roll.id), {}).get("released_to_dispatch")):
+                continue
+            row = unreleased.setdefault(str(roll.sales_order_item_id), {"count": 0, "kg": 0.0})
+            row["count"] += 1
+            row["kg"] += float(roll.weight_kg or 0)
+
+        lines = []
+        items = so_items.order_by("created_at", "id").select_related("template", "product_master", "product_variant")
+        for index, item in enumerate(items, start=1):
+            key = str(item.id)
+            uom = str(item.qty_uom or "KG").upper()
+            gonny_out = gonnies_out.get(key) or {}
+            draft = on_draft.get(key) or {}
+            if uom == "PCS":
+                dispatched = float(gonny_out.get("pcs") or 0)
+                reserved = float(draft.get("pcs") or 0)
+            else:
+                dispatched = float((rolls_out.get(key) or {}).get("kg") or 0) + float(gonny_out.get("kg") or 0)
+                reserved = float(draft.get("kg") or 0)
+            lines.append(
+                {
+                    "id": key,
+                    "line_no": index,
+                    **FGDispatchService._sales_order_item_display_spec(item),
+                    "qty_uom": uom,
+                    "ordered_qty": float(item.qty_value or 0),
+                    "closed_qty": float((item.qty_cancelled or 0) + (item.qty_short_closed or 0)),
+                    "dispatched_qty": dispatched,
+                    "on_draft_units": int(draft.get("units") or 0),
+                    "on_draft_qty": reserved,
+                    "line_status": item.line_status,
+                    "pending": {
+                        "open_gonnies": int((open_by_item.get(key) or {}).get("count") or 0),
+                        "open_pcs": int((open_by_item.get(key) or {}).get("pcs") or 0),
+                        "unpacked_batches": int((batches_by_item.get(key) or {}).get("count") or 0),
+                        "unpacked_pcs": int((batches_by_item.get(key) or {}).get("pcs") or 0),
+                        "unreleased_rolls": int((unreleased.get(key) or {}).get("count") or 0),
+                        "unreleased_kg": round(float((unreleased.get(key) or {}).get("kg") or 0), 3),
+                    },
+                }
+            )
+        return lines
+
     @staticmethod
     def get_dispatchable_units_by_so(so_id: str) -> dict:
         """
@@ -1680,6 +1824,10 @@ class FGDispatchService:
                 'gonnies_net_kg': float(sum(float(row['net_product_weight_kg'] or 0) for row in gonny_units)),
                 'gonnies_gross_kg': float(sum(float(row['gross_weight_kg'] or 0) for row in gonny_units)),
             },
+            'line_numbers': FGDispatchService._line_numbers(so_items),
+            'lines': FGDispatchService._dispatch_line_balances(
+                so_items, all_rolls, all_gonnies, open_gonnies, unpacked_batches, available_roll_rows, roll_dispatch_map
+            ),
             'packing_pending': {
                 'open_gonnies_count': open_gonnies.count(),
                 'open_gonnies_pcs': open_gonnies.aggregate(total=Sum('qty_pcs'))['total'] or 0,
@@ -2295,6 +2443,267 @@ class FGDispatchService:
             )
         
         return challan
+
+    @staticmethod
+    @transaction.atomic
+    def create_line_slips(
+        groups: list,
+        *,
+        transporter_name: str = "",
+        vehicle_no: str = "",
+        driver_name: str = "",
+        driver_phone: str = "",
+        lr_number: str = "",
+        e_way_bill_number: str = "",
+        dispatch_notes: str = "",
+        user=None,
+    ) -> list[DeliveryChallan]:
+        """
+        One dispatch slip per sales-order line, for a tray that may hold several lines and orders.
+
+        ``groups`` is one entry per sales order: ``{sales_order_id, roll_ids, gonny_ids,
+        ship_to_address_snapshot}``. Units are split by their own sales-order line and plant, and
+        each split becomes its own challan through ``create_challan`` (all of its checks apply).
+        Either every slip is created or none is. Vehicle, driver, LR and e-way bill are optional.
+        """
+        if not isinstance(groups, list) or not groups:
+            raise ValueError("Add at least one line to the tray.")
+
+        buckets: list[dict] = []
+        for index, group in enumerate(groups):
+            if not isinstance(group, dict):
+                raise ValueError(f"Tray entry {index + 1} is not valid.")
+            sales_order_id = str(group.get("sales_order_id") or "").strip()
+            if not sales_order_id:
+                raise ValueError(f"Tray entry {index + 1} has no sales order.")
+            roll_ids = FGDispatchService._normalize_dispatch_unit_ids(group.get("roll_ids"), label="roll_ids")
+            gonny_ids = FGDispatchService._normalize_dispatch_unit_ids(group.get("gonny_ids"), label="gonny_ids")
+            if not roll_ids and not gonny_ids:
+                raise ValueError(f"Tray entry {index + 1} has no units.")
+
+            unit_keys: dict[tuple[str, str], dict] = {}
+
+            def bucket_for(line_id, plant_id):
+                key = (str(line_id or ""), str(plant_id or ""))
+                if key not in unit_keys:
+                    unit_keys[key] = {"roll_ids": [], "gonny_ids": []}
+                return unit_keys[key]
+
+            found_rolls = {
+                str(row["id"]): row
+                for row in InventoryRoll.objects.filter(id__in=roll_ids).values("id", "sales_order_item_id", "location__plant_id")
+            }
+            for roll_id in roll_ids:
+                row = found_rolls.get(roll_id) or {}
+                bucket_for(row.get("sales_order_item_id"), row.get("location__plant_id"))["roll_ids"].append(roll_id)
+            found_gonnies = {
+                str(row["id"]): row
+                for row in PackingUnit.objects.filter(id__in=gonny_ids).values("id", "sales_order_item_id", "location__plant_id")
+            }
+            for gonny_id in gonny_ids:
+                row = found_gonnies.get(gonny_id) or {}
+                bucket_for(row.get("sales_order_item_id"), row.get("location__plant_id"))["gonny_ids"].append(gonny_id)
+
+            snapshot = group.get("ship_to_address_snapshot") if isinstance(group.get("ship_to_address_snapshot"), dict) else {}
+            for (line_id, plant_id), units in sorted(unit_keys.items()):
+                buckets.append(
+                    {
+                        "sales_order_id": sales_order_id,
+                        "plant_id": plant_id or str(group.get("plant_id") or ""),
+                        "line_id": line_id,
+                        "snapshot": snapshot,
+                        **units,
+                    }
+                )
+
+        challans = []
+        for bucket in buckets:
+            challan = FGDispatchService.create_challan(
+                customer_name="",
+                plant_id=bucket["plant_id"],
+                sales_order_id=bucket["sales_order_id"],
+                vehicle_no=FGDispatchService._dispatch_text(vehicle_no, max_length=50).upper(),
+                driver_name=FGDispatchService._dispatch_text(driver_name, max_length=100),
+                driver_phone=FGDispatchService._dispatch_text(driver_phone, max_length=20),
+                transporter_name=transporter_name,
+                lr_number=FGDispatchService._dispatch_text(lr_number, max_length=80),
+                e_way_bill_number=FGDispatchService._dispatch_text(e_way_bill_number, max_length=80),
+                dispatch_notes=dispatch_notes or "",
+                ship_to_address_snapshot=dict(bucket["snapshot"]),
+                roll_ids=bucket["roll_ids"],
+                gonny_ids=bucket["gonny_ids"],
+                user=user,
+            )
+            challan._slip_line_id = bucket["line_id"]
+            challans.append(challan)
+        return challans
+
+    @staticmethod
+    def get_packing_release_history(
+        *, search: str = "", sales_order_id: str | None = None, since=None, limit: int = 40, offset: int = 0
+    ) -> dict:
+        """
+        Units the Packing Yard has released, newest first: gonnies with their weights and roll
+        releases, each with who/when, the evening-count items ticked and the slip it is on.
+        """
+        from django.db.models.fields.json import KeyTextTransform
+
+        limit = max(1, min(int(limit or 40), 200))
+        offset = max(0, int(offset or 0))
+        term = str(search or "").strip()
+
+        gonny_qs = PackingUnit.objects.filter(meta_json__released_to_dispatch=True)
+        roll_qs = RollDispatchPackRecord.objects.filter(meta_json__released_to_dispatch=True)
+        if sales_order_id:
+            gonny_qs = gonny_qs.filter(sales_order_item__sales_order_id=sales_order_id)
+            roll_qs = roll_qs.filter(sales_order_item__sales_order_id=sales_order_id)
+        if term:
+            gonny_qs = gonny_qs.filter(
+                Q(label_id__icontains=term)
+                | Q(sales_order_item__sales_order__order_number__icontains=term)
+                | Q(sales_order_item__sales_order__customer_name__icontains=term)
+                | Q(fg_batch__batch_number__icontains=term)
+            )
+            roll_qs = roll_qs.filter(
+                Q(roll__label_id__icontains=term)
+                | Q(sales_order_item__sales_order__order_number__icontains=term)
+                | Q(sales_order_item__sales_order__customer_name__icontains=term)
+            )
+        released_at = KeyTextTransform("released_to_dispatch_at", "meta_json")
+        if since is not None:
+            from datetime import timezone as dt_timezone
+
+            since_iso = since.astimezone(dt_timezone.utc).isoformat()
+            gonny_qs = gonny_qs.annotate(released_key=released_at).filter(released_key__gte=since_iso)
+            roll_qs = roll_qs.annotate(released_key=released_at).filter(released_key__gte=since_iso)
+        gonny_total = gonny_qs.count()
+        roll_total = roll_qs.count()
+        window = offset + limit
+        gonnies = list(
+            gonny_qs.select_related("sales_order_item__sales_order", "sales_order_item__template", "fg_batch", "location__plant")
+            .annotate(released_key=released_at)
+            .order_by("-released_key", "-created_at")[:window]
+        )
+        rolls = list(
+            roll_qs.select_related("roll__location__plant", "sales_order_item__sales_order", "sales_order_item__template")
+            .annotate(released_key=released_at)
+            .order_by("-released_key", "-packed_at")[:window]
+        )
+
+        challan_by_gonny: dict[str, dict] = {}
+        challan_by_roll: dict[str, dict] = {}
+        challan_rows = (
+            DeliveryChallanItem.objects.filter(
+                Q(packing_unit_id__in=[g.id for g in gonnies]) | Q(roll_id__in=[r.roll_id for r in rolls])
+            )
+            .exclude(challan__status="CANCELLED")
+            .select_related("challan")
+            .order_by("created_at")
+        )
+        for item in challan_rows:
+            slip = {"id": str(item.challan_id), "dc_no": item.challan.dc_no, "status": item.challan.status}
+            if item.packing_unit_id:
+                challan_by_gonny[str(item.packing_unit_id)] = slip
+            if item.roll_id:
+                challan_by_roll[str(item.roll_id)] = slip
+
+        mark_ids = set()
+        for gonny in gonnies:
+            for line in (gonny.meta_json or {}).get("release_extras") or []:
+                mark_ids.add(str(line.get("material_id") or ""))
+        for record in rolls:
+            for line in record.lines or []:
+                mark_ids.add(str(line.get("material_id") or ""))
+        materials = {
+            str(row["id"]): row
+            for row in InventoryMaterial.objects.filter(id__in=[value for value in mark_ids if value]).values("id", "code", "name")
+        }
+
+        def marks_of(lines):
+            out = []
+            for line in lines or []:
+                material = materials.get(str(line.get("material_id") or "")) or {}
+                out.append(
+                    {
+                        "material_id": str(line.get("material_id") or ""),
+                        "code": material.get("code") or "",
+                        "name": material.get("name") or "",
+                        "qty": float(line.get("qty") or 0),
+                    }
+                )
+            return out
+
+        def order_of(item):
+            order = getattr(item, "sales_order", None) if item else None
+            if not order:
+                return {"id": None, "order_number": "", "customer_name": "", "job_name": ""}
+            return {
+                "id": str(order.id),
+                "order_number": order.order_number,
+                "customer_name": order.customer_name,
+                "job_name": job_name_of(order),
+            }
+
+        rows = []
+        for gonny in gonnies:
+            meta = dict(gonny.meta_json or {})
+            rows.append(
+                {
+                    "kind": "GONNY",
+                    "id": str(gonny.id),
+                    "unit": meta.get("dispatch_unit_no") or gonny.label_id,
+                    "released_at": meta.get("released_to_dispatch_at"),
+                    "released_by": meta.get("released_to_dispatch_by_name") or "",
+                    "sales_order": order_of(gonny.sales_order_item),
+                    "sales_order_item_id": str(gonny.sales_order_item_id) if gonny.sales_order_item_id else None,
+                    **FGDispatchService._sales_order_item_display_spec(gonny.sales_order_item),
+                    "batch_no": gonny.fg_batch.batch_number if gonny.fg_batch_id else "",
+                    "qty_pcs": int(gonny.qty_pcs or 0),
+                    "content_mode": gonny.content_mode,
+                    "primary_pack_count": gonny.primary_pack_count,
+                    "net_kg": float(gonny.net_product_weight_kg or 0),
+                    "gross_kg": float(gonny.gross_weight_kg or gonny.weight_kg or 0),
+                    "gross_variance_pct": float(gonny.gross_variance_pct) if gonny.gross_variance_pct is not None else None,
+                    "release_mode": "GONNY",
+                    "plant_name": gonny.location.plant.name if gonny.location_id else "",
+                    "marks": marks_of(meta.get("release_extras")),
+                    "slip": challan_by_gonny.get(str(gonny.id)),
+                    "_sort": meta.get("released_to_dispatch_at") or gonny.created_at.isoformat(),
+                }
+            )
+        for record in rolls:
+            roll = record.roll
+            meta = dict(record.meta_json or {})
+            weights = FGDispatchService._roll_weight_row(roll)
+            rows.append(
+                {
+                    "kind": "ROLL",
+                    "id": str(roll.id),
+                    "unit": meta.get("dispatch_unit_no") or roll.label_id,
+                    "released_at": meta.get("released_to_dispatch_at") or (record.packed_at.isoformat() if record.packed_at else None),
+                    "released_by": meta.get("released_to_dispatch_by_name") or "",
+                    "sales_order": order_of(record.sales_order_item),
+                    "sales_order_item_id": str(record.sales_order_item_id),
+                    **FGDispatchService._sales_order_item_display_spec(record.sales_order_item, fallback_width=roll.width_mm),
+                    "batch_no": roll.batch_no or "",
+                    "qty_pcs": 0,
+                    "content_mode": None,
+                    "primary_pack_count": None,
+                    "net_kg": weights["net_weight_kg"],
+                    "gross_kg": weights["gross_weight_kg"],
+                    "gross_variance_pct": None,
+                    "release_mode": str(meta.get("release_mode") or ("PACKED" if record.lines else "UNPACKED")).upper(),
+                    "plant_name": roll.location.plant.name if roll.location_id else "",
+                    "marks": marks_of(record.lines),
+                    "slip": challan_by_roll.get(str(roll.id)),
+                    "_sort": meta.get("released_to_dispatch_at") or (record.packed_at.isoformat() if record.packed_at else ""),
+                }
+            )
+        rows.sort(key=lambda row: row["_sort"] or "", reverse=True)
+        page = rows[offset:window]
+        for row in page:
+            row.pop("_sort", None)
+        return {"total": gonny_total + roll_total, "limit": limit, "offset": offset, "results": page}
     
     @staticmethod
     @transaction.atomic

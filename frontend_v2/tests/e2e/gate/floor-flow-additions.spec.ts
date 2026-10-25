@@ -84,11 +84,13 @@ test("packing yard shows the packing check beside the batches", async ({ page },
   await page.getByTestId("packing-page").waitFor({ state: "visible", timeout: 30_000 })
   // The check sits with pouch batches, so open a pouch order.
   await expect(page.getByTestId("packing-order-card").first()).toBeVisible({ timeout: 30_000 })
-  await page.getByTestId("packing-route-filter-pouch").click()
+  await page.getByTestId("packing-filter-route-pouch").click()
   const pouchCard = page.locator('[data-testid="packing-order-card"][data-route="POUCH"]').first()
   await expect(pouchCard).toBeVisible({ timeout: 30_000 })
-  await pouchCard.click()
-  const panel = page.getByTestId("packing-check-panel")
+  // The check lives in the order's Details, on its own tab.
+  await pouchCard.getByTestId("packing-order-details-toggle").click()
+  await pouchCard.getByRole("tab", { name: "Packing check" }).click()
+  const panel = pouchCard.getByTestId("packing-check-panel")
   await expect(panel).toBeVisible({ timeout: 30_000 })
   await expect(panel).toContainText("Packing check")
   const queue = await fetchJson<any>(page, "/api/production/packing/verification-queue/")

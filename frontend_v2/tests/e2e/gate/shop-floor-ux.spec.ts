@@ -35,10 +35,11 @@ test("planner, WCM, and operator screens expose simple guided next-step copy", a
   await page.getByTestId("wcm-terminal-page").waitFor({ state: "visible", timeout: 60_000 })
   await assertHealthyPage(page)
   await expect(page.locator("body")).toContainText("Work Center Terminal")
-  await expect(page.locator("body")).toContainText("Current order")
-  await expect(page.locator("body")).toContainText("Machine assignment")
-  await expect(page.locator("body")).toContainText("Current-step materials")
-  await expect(page.locator("body")).toContainText("Current-step issue")
+  // The job pane (or the empty pane) names the five steps of the approved WC terminal sample.
+  await expect(page.locator("body")).toContainText("Order · what it is")
+  await expect(page.locator("body")).toContainText("Rolls by lane")
+  await expect(page.locator("body")).toContainText("Input issue")
+  await expect(page.locator("body")).toContainText("Release · readiness")
 
   await switchRole(page, "Operator", "/production/machine-selector")
   await gotoWithServerRetry(page, `/production/machine/${seed.operator.machine_id}`, { waitUntil: "domcontentloaded" })

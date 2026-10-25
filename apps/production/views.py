@@ -1,5 +1,6 @@
 from rest_framework.pagination import PageNumberPagination
 import re
+import uuid
 import logging
 
 from rest_framework import viewsets, status
@@ -1059,6 +1060,44 @@ class PackingViewSet(viewsets.ViewSet):
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['get'], url_path='release-history')
+    def release_history(self, request):
+        """Units released from Packing Yard to Dispatch Bay, newest first, with weights and marks."""
+        from .services.dispatch_service import FGDispatchService
+
+        try:
+            limit = int(request.query_params.get('limit') or 40)
+            offset = int(request.query_params.get('offset') or 0)
+        except (TypeError, ValueError):
+            return Response({"error": "limit and offset must be numbers"}, status=status.HTTP_400_BAD_REQUEST)
+        sales_order_id = (request.query_params.get('sales_order_id') or '').strip() or None
+        if sales_order_id:
+            try:
+                sales_order_id = str(uuid.UUID(sales_order_id))
+            except ValueError:
+                return Response({"error": "sales_order_id is invalid"}, status=status.HTTP_400_BAD_REQUEST)
+        since = None
+        days = (request.query_params.get('days') or '').strip()
+        if days:
+            try:
+                days_back = max(0, int(days))
+            except ValueError:
+                return Response({"error": "days must be a number"}, status=status.HTTP_400_BAD_REQUEST)
+            from datetime import timedelta
+            from django.utils import timezone as dj_timezone
+
+            today = dj_timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+            since = today - timedelta(days=days_back)
+        return Response(
+            FGDispatchService.get_packing_release_history(
+                search=request.query_params.get('search') or '',
+                sales_order_id=sales_order_id,
+                since=since,
+                limit=limit,
+                offset=offset,
+            )
+        )
+
     @action(detail=False, methods=['post'], url_path='release-roll')
     def release_roll(self, request):
         """Pack/release a finished roll from Packing Yard to Dispatch Bay."""
@@ -1521,31 +1560,7 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             if status_filter:
                 qs = qs.filter(status=status_filter)
             
-            data = []
-            for ch in qs:
-                data.append({
-                    'id': str(ch.id),
-                    'dc_no': ch.dc_no,
-                    'customer_name': ch.customer_name or "N/A",
-                    'status': ch.status,
-                    'vehicle_no': ch.vehicle_no or "",
-                    'driver_name': ch.driver_name or "",
-                    'driver_phone': ch.driver_phone or "",
-                    'transporter_name': ch.transporter_name or "",
-                    'lr_number': ch.lr_number or "",
-                    'e_way_bill_number': ch.e_way_bill_number or "",
-                    'dispatch_notes': ch.dispatch_notes or "",
-                    'ship_to_address_snapshot': ch.ship_to_address_snapshot or {},
-                    'dispatch_date': ch.dispatch_date.isoformat() if ch.dispatch_date else None,
-                    'received_date': ch.received_date.isoformat() if ch.received_date else None,
-                    'pod_confirmed_at': ch.pod_confirmed_at.isoformat() if ch.pod_confirmed_at else None,
-                    'pod_received_by': ch.pod_received_by or "",
-                    'pod_reference': ch.pod_reference or "",
-                    'pod_notes': ch.pod_notes or "",
-                    'plant_name': ch.plant.name if ch.plant else "N/A",
-                    'so_number': ch.so_number_display or 'N/A'
-                })
-            return Response(data)
+            return Response(self._challan_rows(list(qs.select_related('sales_order'))))
         except Exception as e:
             return Response(
                 {
@@ -1559,6 +1574,187 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     
+
+    @staticmethod
+    def _challan_rows(challans):
+        """Rows for the slip lists: units, weight and order line of every slip (one slip = one order line)."""
+        from django.db.models import Count, Sum
+        from .models import DeliveryChallanItem
+        from .services.dispatch_service import FGDispatchService
+        from apps.sales.job_name import job_name_of
+
+        qs = challans
+        challan_ids = [ch.id for ch in qs]
+        totals_by_challan = {
+            row['challan_id']: row
+            for row in DeliveryChallanItem.objects.filter(challan_id__in=challan_ids)
+            .values('challan_id')
+            .annotate(units=Count('pk'), pcs=Sum('qty_pcs'), gross=Sum('weight_kg'), rolls=Count('roll_id'))
+        }
+        lines_by_challan = {}
+        for item in (
+            DeliveryChallanItem.objects.filter(challan_id__in=challan_ids, sales_order_item__isnull=False)
+            .select_related('sales_order_item__template', 'sales_order_item__product_master', 'sales_order_item__product_variant')
+            .order_by('challan_id', 'created_at')
+        ):
+            lines_by_challan.setdefault(item.challan_id, item.sales_order_item)
+        from apps.sales.models import SalesOrderItem
+
+        line_numbers = {}
+        for order_id, item_id in (
+            SalesOrderItem.objects.filter(sales_order_id__in={ch.sales_order_id for ch in qs if ch.sales_order_id})
+            .order_by('sales_order_id', 'created_at', 'id')
+            .values_list('sales_order_id', 'id')
+        ):
+            numbers = line_numbers.setdefault(order_id, {})
+            numbers[item_id] = len(numbers) + 1
+
+        def line_no_of(order_id, item_id):
+            return (line_numbers.get(order_id) or {}).get(item_id)
+
+        data = []
+        for ch in qs:
+            item_totals = totals_by_challan.get(ch.id) or {}
+            line_item = lines_by_challan.get(ch.id)
+            spec = FGDispatchService._sales_order_item_display_spec(line_item) if line_item else {}
+            data.append({
+                'id': str(ch.id),
+                'dc_no': ch.dc_no,
+                'sales_order_id': str(ch.sales_order_id) if ch.sales_order_id else None,
+                'job_name': job_name_of(ch.sales_order) if ch.sales_order_id else "",
+                'created_at': ch.created_at.isoformat() if getattr(ch, 'created_at', None) else None,
+                'units': int(item_totals.get('units') or 0),
+                'rolls': int(item_totals.get('rolls') or 0),
+                'pcs': int(item_totals.get('pcs') or 0),
+                'gross_kg': float(item_totals.get('gross') or 0),
+                'line_no': line_no_of(ch.sales_order_id, line_item.id) if line_item and ch.sales_order_id else None,
+                'line_name': spec.get('product_name') or "",
+                'line_size': spec.get('size_label') or "",
+                'customer_name': ch.customer_name or "N/A",
+                'status': ch.status,
+                'vehicle_no': ch.vehicle_no or "",
+                'driver_name': ch.driver_name or "",
+                'driver_phone': ch.driver_phone or "",
+                'transporter_name': ch.transporter_name or "",
+                'lr_number': ch.lr_number or "",
+                'e_way_bill_number': ch.e_way_bill_number or "",
+                'dispatch_notes': ch.dispatch_notes or "",
+                'ship_to_address_snapshot': ch.ship_to_address_snapshot or {},
+                'dispatch_date': ch.dispatch_date.isoformat() if ch.dispatch_date else None,
+                'received_date': ch.received_date.isoformat() if ch.received_date else None,
+                'pod_confirmed_at': ch.pod_confirmed_at.isoformat() if ch.pod_confirmed_at else None,
+                'pod_received_by': ch.pod_received_by or "",
+                'pod_reference': ch.pod_reference or "",
+                'pod_notes': ch.pod_notes or "",
+                'plant_name': ch.plant.name if ch.plant else "N/A",
+                'so_number': ch.so_number_display or 'N/A'
+            })
+        return data
+
+    @action(detail=False, methods=['get'], url_path='history')
+    def history(self, request):
+        """
+        Dispatch Bay history, paged on the server: status tab, date range, customer and search, with
+        the per-tab counts, the customer list and today's figures the page shows above it.
+        """
+        from datetime import timedelta
+
+        from django.db.models import Count, Q
+        from django.db.models.functions import Coalesce
+        from django.utils import timezone
+
+        from .models import DeliveryChallan
+
+        params = request.query_params
+        tab = str(params.get('tab') or 'ALL').upper()
+        date_range = str(params.get('range') or 'ALL').upper()
+        customer = str(params.get('customer') or '').strip()
+        search = str(params.get('search') or '').strip()
+        try:
+            limit = max(1, min(100, int(params.get('limit') or 8)))
+            offset = max(0, int(params.get('offset') or 0))
+        except (TypeError, ValueError):
+            return Response({'detail': 'limit and offset must be whole numbers.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        tab_filters = {
+            'ALL': Q(),
+            'DRAFT': Q(status='DRAFT'),
+            'POD': Q(status__in=['DISPATCHED', 'IN_TRANSIT']),
+            'DELIVERED': Q(status='DELIVERED'),
+            'CANCELLED': Q(status='CANCELLED'),
+        }
+        if tab not in tab_filters:
+            return Response({'detail': f'Unknown tab {tab}.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        local_now = timezone.localtime()
+        day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        base = DeliveryChallan.objects.all()
+        tab_counts = base.aggregate(
+            ALL=Count('pk'),
+            DRAFT=Count('pk', filter=tab_filters['DRAFT']),
+            POD=Count('pk', filter=tab_filters['POD']),
+            DELIVERED=Count('pk', filter=tab_filters['DELIVERED']),
+            CANCELLED=Count('pk', filter=tab_filters['CANCELLED']),
+        )
+        dispatched_today = base.filter(dispatch_date__gte=day_start)
+        stats = {
+            'slips_today': base.filter(created_at__gte=day_start).count(),
+            'shipped_today': dispatched_today.filter(status__in=['DISPATCHED', 'IN_TRANSIT', 'RECEIVED']).count(),
+            'dispatched_today': dispatched_today.count(),
+            'vehicles_today': sorted(
+                {v.strip() for v in dispatched_today.exclude(vehicle_no='').values_list('vehicle_no', flat=True) if v and v.strip()}
+            ),
+            'drafts': tab_counts['DRAFT'],
+            'pod_pending': tab_counts['POD'],
+            'delivered': tab_counts['DELIVERED'],
+            'recent_transporters': [],
+        }
+        for name in base.exclude(transporter_name='').order_by('-created_at').values_list('transporter_name', flat=True)[:60]:
+            name = (name or '').strip()
+            if name and name not in stats['recent_transporters']:
+                stats['recent_transporters'].append(name)
+            if len(stats['recent_transporters']) >= 3:
+                break
+
+        qs = base.annotate(when=Coalesce('dispatch_date', 'created_at')).filter(tab_filters[tab])
+        if date_range == 'TODAY':
+            qs = qs.filter(when__gte=day_start)
+        elif date_range == 'WEEK':
+            qs = qs.filter(when__gte=local_now - timedelta(days=7))
+        if customer:
+            qs = qs.filter(customer_name=customer)
+        if search:
+            qs = qs.filter(
+                Q(dc_no__icontains=search)
+                | Q(customer_name__icontains=search)
+                | Q(sales_order__order_number__icontains=search)
+                | Q(vehicle_no__icontains=search)
+                | Q(transporter_name__icontains=search)
+                | Q(lr_number__icontains=search)
+                | Q(sales_order__order_name__icontains=search)
+            )
+        count = qs.count()
+        ordering = ('-created_at',) if str(params.get('sort') or '').lower() == 'created' else ('-when', '-created_at')
+        page = list(
+            qs.select_related('plant', 'sales_order')
+            .annotate(so_number_display=F('sales_order__order_number'))
+            .defer('print_snapshot')
+            .order_by(*ordering)[offset:offset + limit]
+        )
+        customers = list(
+            base.exclude(customer_name='').order_by('customer_name').values_list('customer_name', flat=True).distinct()[:300]
+        )
+        return Response({
+            'results': self._challan_rows(page),
+            'count': count,
+            'limit': limit,
+            'offset': offset,
+            'tab_counts': tab_counts,
+            'status_counts': {row['status']: row['n'] for row in base.values('status').annotate(n=Count('pk')).order_by()},
+            'customers': customers,
+            'stats': stats,
+        })
+
     @action(detail=False, methods=['get'])
     def get_so_dispatchable_items(self, request):
         """Get dispatchable units for a specific Sales Order."""
@@ -1613,6 +1809,52 @@ class DeliveryChallanViewSet(viewsets.ViewSet):
             }, status=status.HTTP_201_CREATED)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='create-slips')
+    def create_slips(self, request):
+        """One dispatch slip per sales-order line for everything in the tray; all or none.
+
+        Body: { groups: [{sales_order_id, roll_ids, gonny_ids, ship_to_address_snapshot}],
+                transporter_name, vehicle_no?, driver_name?, driver_phone?, lr_number?,
+                e_way_bill_number?, dispatch_notes? }
+        """
+        from .services.dispatch_service import FGDispatchService
+
+        try:
+            challans = FGDispatchService.create_line_slips(
+                request.data.get('groups'),
+                transporter_name=request.data.get('transporter_name', ''),
+                vehicle_no=request.data.get('vehicle_no', ''),
+                driver_name=request.data.get('driver_name', ''),
+                driver_phone=request.data.get('driver_phone', ''),
+                lr_number=request.data.get('lr_number', ''),
+                e_way_bill_number=request.data.get('e_way_bill_number', ''),
+                dispatch_notes=request.data.get('dispatch_notes', '') or request.data.get('notes', ''),
+                user=request.user,
+            )
+        except (ValueError, ValidationError) as e:
+            message = "; ".join(getattr(e, "messages", []) or []) or str(e)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+        slips = [
+            {
+                "id": str(challan.id),
+                "dc_no": challan.dc_no,
+                "status": challan.status,
+                "sales_order_id": str(challan.sales_order_id),
+                "so_number": challan.sales_order.order_number if challan.sales_order_id else "",
+                "sales_order_item_id": getattr(challan, "_slip_line_id", "") or "",
+                "items_count": challan.items.count(),
+                "vehicle_no": challan.vehicle_no or "",
+            }
+            for challan in challans
+        ]
+        return Response(
+            {
+                "slips": slips,
+                "message": f"{len(slips)} dispatch slip{'s' if len(slips) != 1 else ''} created · one per order line",
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=False, methods=['post'], url_path='pack_roll')
     def pack_roll(self, request):

@@ -33,8 +33,9 @@ export default function LogisticsDashboard() {
     isFetched: challansFetched,
     refetch: refetchChallans,
   } = useQuery({
-    queryKey: ["logistics-challans-all"],
-    queryFn: async () => await logisticsService.getChallans(),
+    // Counts and the five newest slips, from the server (no full challan list).
+    queryKey: ["challan-history", "logistics-dashboard"],
+    queryFn: async () => await logisticsService.getChallanHistory({ limit: 5, sort: "created" }),
   });
 
   const {
@@ -48,9 +49,10 @@ export default function LogisticsDashboard() {
     queryFn: async () => await logisticsService.getSalesOrdersWithFG(),
   });
 
-  const challansReady = Array.isArray(challanData) && !challansError;
+  const challansReady = Array.isArray(challanData?.results) && !challansError;
   const salesOrdersReady = Array.isArray(salesOrderData) && !salesOrdersError;
-  const challans = challansReady ? challanData : [];
+  const challans = challansReady ? challanData!.results : [];
+  const challanCounts = challanData?.status_counts || {};
   const salesOrders = salesOrdersReady ? salesOrderData : [];
   const feedUnavailable =
     challansError ||
@@ -59,22 +61,11 @@ export default function LogisticsDashboard() {
     (salesOrdersFetched && !salesOrdersReady);
 
   const summary = useMemo(() => {
-    const draftChallans = challans.filter((c) => c.status === "DRAFT").length;
-    const dispatchedChallans = challans.filter(
-      (c) => c.status === "DISPATCHED",
-    ).length;
-    const inTransit = challans.filter((c) => c.status === "IN_TRANSIT").length;
-    const received = challans.filter((c) => c.status === "RECEIVED").length;
-
-    const today = new Date().toDateString();
-    const shippedToday = challans.filter(
-      (c) =>
-        (c.status === "DISPATCHED" ||
-          c.status === "IN_TRANSIT" ||
-          c.status === "RECEIVED") &&
-        c.dispatch_date &&
-        new Date(c.dispatch_date).toDateString() === today,
-    ).length;
+    const draftChallans = Number(challanCounts.DRAFT || 0);
+    const dispatchedChallans = Number(challanCounts.DISPATCHED || 0);
+    const inTransit = Number(challanCounts.IN_TRANSIT || 0);
+    const received = Number(challanCounts.RECEIVED || 0);
+    const shippedToday = Number(challanData?.stats?.shipped_today || 0);
 
     const statusCounts = {
       DRAFT: draftChallans,
@@ -98,7 +89,7 @@ export default function LogisticsDashboard() {
       chartData,
       recentChallans: challans.slice(0, 5),
     };
-  }, [challans, salesOrders]);
+  }, [challans, challanCounts, challanData, salesOrders]);
 
   const metrics = [
     {

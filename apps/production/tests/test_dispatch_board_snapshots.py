@@ -177,16 +177,29 @@ class DispatchBoardSnapshotTests(TestCase):
             packing_actual = PackingViewSet().yard_snapshot(factory.get("/packing/yard-snapshot/")).data
         detailed_packing = FGDispatchService.get_packing_units_by_so(str(self.order.id))
         self.assertEqual(len(packing_actual["orders"]), 1)
+        card = packing_actual["orders"][0]
         self.assertEqual(
-            packing_actual["orders"][0],
+            {key: card[key] for key in ("sales_order", "pending", "ready_for_dispatch")},
             {
                 "sales_order": detailed_packing["sales_order"],
                 "pending": detailed_packing["packing_pending"],
                 "ready_for_dispatch": detailed_packing["ready_for_dispatch"],
             },
         )
+        # Lines with something left to pack (unpacked pouches or the unreleased 7 kg roll), all on one line;
+        # pouch weight is what is still unpacked, at the packing plan's net per pouch.
+        self.assertEqual(card["ready_lines"], 1)
+        self.assertAlmostEqual(
+            card["ready_kg"],
+            7.0
+            + sum(
+                batch["qty_pcs"] * batch["packing_plan"]["net_kg_per_pcs"] for batch in detailed_packing["batches"]
+            ),
+            places=3,
+        )
         self.assertEqual(packing_actual["totals"]["orders"], 1)
-        self.assertLessEqual(len(packing_queries), 12)
+        # Fixed budget: the board plus three of today's figures, never one query per unit.
+        self.assertLessEqual(len(packing_queries), 15)
 
         with CaptureQueriesContext(connection) as dispatch_queries:
             dispatch_actual = DeliveryChallanViewSet().board(factory.get("/challans/board/")).data

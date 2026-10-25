@@ -274,8 +274,8 @@ function PackingCheckDialog({ fgBatchId, onClose }: { fgBatchId: string | null; 
                 className={cn(
                   "rounded-lg border p-3",
                   within(data.pcs_variance_pct, data.limits.pcs_pct) && within(data.kg_variance_pct, data.limits.kg_pct)
-                    ? "border-success-border bg-success-bg/40"
-                    : "border-warning-border bg-warning-bg/40",
+                    ? "border-success-border bg-success-bg"
+                    : "border-warning-border bg-warning-bg",
                 )}
               >
                 <div className="text-caption text-content-3">Difference</div>
@@ -376,7 +376,7 @@ function PackingCheckDialog({ fgBatchId, onClose }: { fgBatchId: string | null; 
             ) : null}
 
             {data.status === "HELD" ? (
-              <div className="space-y-2 rounded-lg border border-warning-border bg-warning-bg/40 p-3">
+              <div className="space-y-2 rounded-lg border border-warning-border bg-warning-bg p-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-warning-fg">
                   <ShieldAlert className="h-4 w-4" aria-hidden /> Held for dispatch. A supervisor accepts it with a reason.
                 </div>
@@ -402,7 +402,7 @@ function PackingCheckDialog({ fgBatchId, onClose }: { fgBatchId: string | null; 
             ) : null}
 
             {data.status === "VERIFIED" || data.status === "ACCEPTED" ? (
-              <div className="flex items-start gap-2 rounded-lg border border-success-border bg-success-bg/40 p-3 text-sm">
+              <div className="flex items-start gap-2 rounded-lg border border-success-border bg-success-bg p-3 text-sm">
                 <ShieldCheck className="mt-0.5 h-4 w-4 text-success-fg" aria-hidden />
                 <div>
                   Finished stock follows the packed figures.
@@ -414,7 +414,7 @@ function PackingCheckDialog({ fgBatchId, onClose }: { fgBatchId: string | null; 
 
             {data.status === "OPEN" && data.unpacked_pcs > 0 ? (
               <div
-                className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-bg/40 p-3 text-sm text-warning-fg"
+                className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-bg p-3 text-sm text-warning-fg"
                 data-testid="packing-check-unpacked-warning"
               >
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />

@@ -22,8 +22,12 @@ test("wcm can assign a machine and push a queued job into execution-ready state"
   await page.getByTestId(`wcm-assignment-row-${seed.wcm.assignment_id}`).click()
 
   // The seeded extrusion recipe requires a physical granule issue. Complete
-  // that code/source allocation gate before testing machine release: pick the
-  // code, leave kg blank (= the balance) and add it.
+  // that code/source allocation gate before testing machine release: open the
+  // granule's grade-code popup, pick the code, leave kg blank (= the balance)
+  // and add it. Every other step material is taken automatically.
+  await page.locator('[data-testid^="wcm-granule-codes-"]').first().click()
+  await expect(page.getByTestId("wcm-granule-codes-dialog")).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId("granule-quick-pick")).toBeVisible()
   const granulePicker = page.getByRole("combobox", { name: /Grade code and source for/i }).first()
   await expect(granulePicker).toBeVisible({ timeout: 15_000 })
   await granulePicker.click()
@@ -33,14 +37,21 @@ test("wcm can assign a machine and push a queued job into execution-ready state"
   await page.getByRole("button", { name: /^Add code$/ }).first().click()
   await expect(page.locator("body")).toContainText("11.000 / 11.000 kg")
   await expect(page.getByRole("list", { name: /Grade codes for/i }).first()).toContainText(new RegExp(seed.wcm.granule_code_code, "i"))
+  await page.getByTestId("wcm-granule-codes-done").click()
+  await expect(page.getByTestId("wcm-granule-codes-dialog")).toBeHidden()
+  await expect(page.locator('[data-testid^="wcm-granule-coded-"]').first()).toContainText("11.000 / 11.000 kg coded")
 
-  await page.getByTestId("wcm-machine-select").click()
-  const seededMachine = page.getByRole("option", { name: new RegExp(seed.wcm.machine_name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") }).first()
+  await page.getByTestId("wcm-rail-machine").click()
+  const seededMachine = page
+    .getByTestId("wcm-machine-select")
+    .getByRole("radio", { name: new RegExp(seed.wcm.machine_name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") })
+    .first()
   await expect(seededMachine).toBeVisible({ timeout: 15_000 })
   await seededMachine.click()
-  const releaseButton = page.getByTestId("wcm-assign-release")
+  await expect(seededMachine).toHaveAttribute("aria-checked", "true")
+  const releaseButton = page.getByTestId("wcm-sticky-release")
   await expect(releaseButton).toBeEnabled({ timeout: 20_000 })
-  await expect(releaseButton).toContainText(/Assign \+ release/i, { timeout: 20_000 })
+  await expect(releaseButton).toContainText(/Release to machine/i, { timeout: 20_000 })
   const readyResponse = page.waitForResponse((response) => response.url().includes("/api/production/wc-allocation/ready/") && response.request().method() === "POST")
   await releaseButton.click()
   expect((await readyResponse).status()).toBe(200)

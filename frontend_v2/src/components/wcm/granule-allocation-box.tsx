@@ -18,9 +18,10 @@ const kg = (value: number) =>
   value.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
 /**
- * Grade-code split for one granule family. One bar: pick the code and store, kg defaults to the
- * balance, Add. Added codes show as a short list. The bar stays until every issued kilogram has a
- * code (machine release waits for that), so the section never grows one form per code.
+ * Grade-code split for one granule family. Fastest path: tap a code card to take the balance from
+ * it (capped at its free stock). For a part amount, pick the code and store, type kg, Add. Added
+ * codes show as a short list; the pickers stay until every issued kilogram has a code (machine
+ * release waits for that), so the section never grows one form per code.
  */
 export function GranuleAllocationBox({
   materialName,
@@ -58,18 +59,32 @@ export function GranuleAllocationBox({
   );
   const amount = Number(qty || remaining);
 
-  const add = () => {
-    if (!pick || !(amount > 0)) return;
-    const [granuleCodeId, sourceLocationId] = pick.split("::");
+  const allocatedFrom = (option: GranuleCodeSourceOption) =>
+    complete
+      .filter(
+        (row) =>
+          row.granule_code_id === option.granule_code_id &&
+          String(row.source_location_id || "") === String(option.location_id || ""),
+      )
+      .reduce((sum, row) => sum + Number(row.qty_kg || 0), 0);
+  const quickOptions = [...options]
+    .map((option) => ({ option, left: Math.max(0, Number(option.available_qty_kg || 0) - allocatedFrom(option)) }))
+    .sort((a, b) => b.left - a.left);
+
+  const add = (override?: { key: string; kg: number }) => {
+    const key = override?.key ?? pick;
+    const take = override?.kg ?? amount;
+    if (!key || !(take > 0)) return;
+    const [granuleCodeId, sourceLocationId] = key.split("::");
     const existing = complete.findIndex(
       (row) => row.granule_code_id === granuleCodeId && row.source_location_id === sourceLocationId,
     );
     const next =
       existing >= 0
         ? complete.map((row, index) =>
-            index === existing ? { ...row, qty_kg: (Number(row.qty_kg || 0) + amount).toFixed(3) } : row,
+            index === existing ? { ...row, qty_kg: (Number(row.qty_kg || 0) + take).toFixed(3) } : row,
           )
-        : [...complete, { granule_code_id: granuleCodeId, source_location_id: sourceLocationId, qty_kg: amount.toFixed(3) }];
+        : [...complete, { granule_code_id: granuleCodeId, source_location_id: sourceLocationId, qty_kg: take.toFixed(3) }];
     onChange(next);
     setPick("");
     setQty("");
@@ -111,8 +126,42 @@ export function GranuleAllocationBox({
         </p>
       ) : null}
 
+      {remaining > 0 && quickOptions.some((row) => row.left > 0) ? (
+        <div className="space-y-1.5" data-testid="granule-quick-pick">
+          <div className="text-caption font-semibold text-content-3">
+            Tap a code to take the balance from it ({kg(remaining)} kg left)
+          </div>
+          <div className="grid max-h-[208px] gap-1.5 overflow-y-auto pr-0.5 sm:grid-cols-2">
+            {quickOptions.map(({ option, left }) => {
+              const take = Math.min(remaining, left);
+              return (
+                <button
+                  key={`${option.granule_code_id}::${option.location_id || ""}`}
+                  type="button"
+                  disabled={disabled || !(take > 0)}
+                  aria-label={`Take ${kg(take)} kg of ${materialName} from ${option.code} in ${option.location_name}`}
+                  data-testid={`granule-quick-${option.code}`}
+                  onClick={() => add({ key: `${option.granule_code_id}::${option.location_id || ""}`, kg: Math.round(take * 1000) / 1000 })}
+                  className="flex min-h-[48px] items-center justify-between gap-2 rounded-xl border border-line bg-surface-1 px-3 py-1.5 text-left transition-colors hover:border-success-border hover:bg-success-bg disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-mono text-[13px] font-bold text-content-1">{option.code}</span>
+                    <span className="block truncate text-caption text-content-3">
+                      {option.plant_name} · {option.location_name} · {kg(left)} kg free
+                    </span>
+                  </span>
+                  <span className="shrink-0 rounded-lg bg-success-bg px-2 py-1 font-mono text-caption font-bold tabular-nums text-success-fg">
+                    +{kg(take)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       {remaining > 0 && options.length ? (
-        <div className="grid gap-2 rounded-xl border border-dashed border-success-border bg-success-bg/30 p-2 md:grid-cols-[minmax(0,1fr)_120px_auto] md:items-center">
+        <div className="grid gap-2 rounded-xl border border-dashed border-success-border bg-success-bg p-2 md:grid-cols-[minmax(0,1fr)_120px_auto] md:items-center">
           <GranuleCodeSourcePicker
             ariaLabel={`Grade code and source for ${materialName}`}
             options={options}
@@ -141,7 +190,7 @@ export function GranuleAllocationBox({
             size="sm"
             className="h-10 rounded-lg px-3 text-xs font-bold"
             disabled={disabled || !pick || !(amount > 0)}
-            onClick={add}
+            onClick={() => add()}
           >
             <Plus className="mr-1 h-4 w-4" aria-hidden />
             Add code
