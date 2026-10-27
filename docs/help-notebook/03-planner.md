@@ -60,7 +60,7 @@ Planner, Plant Manager, Owner, Admin and Super Admin can open the Control Tower.
 - **"An earlier plan needs confirmation."** Resume it from the banner.
 - **Red Material gate.** Fix the recipe/BOM on the product master.
 - **Combine refused.** The message names the mismatch (Product Master, step, width, roll output).
-- **Stock launch refused: "Template must be the current LIVE version for Stock Order creation".** Make the template LIVE.
+- **Stock launch refused: "Template must be the current LIVE revision for Stock Order creation".** Make the template LIVE.
 
 # Planner module — production-side screens
 
@@ -177,7 +177,7 @@ Planner, Plant Manager, Owner, Admin और Super Admin Control Tower खोल 
 - **"An earlier plan needs confirmation."** banner से Resume करें।
 - **Material gate लाल।** product master पर recipe/BOM ठीक करें।
 - **Combine मना।** संदेश बताता है क्या मेल नहीं खाता (Product Master, step, width, roll output)।
-- **Stock launch मना: "Template must be the current LIVE version for Stock Order creation"।** template LIVE करें।
+- **Stock launch मना: "Template must be the current LIVE revision for Stock Order creation"।** template LIVE करें।
 
 # Planner मॉड्यूल — production की तरफ़ की स्क्रीन
 
@@ -533,7 +533,7 @@ Tab 5. Open it when deciding whether to build stock. Templates are marked SHORT,
 **Common problems and fixes**
 - "Stock intelligence is paused" — A feed failed. Press "Retry feeds".
 - "Quick launch needs a full template + geometry + layer snapshot" — This template has no snapshot in the aggregation. Use the full Stock Order Launcher (link in the dialog).
-- "Stock order failed" — The server refused the order; the toast shows the reason (for example "Template must be the current LIVE version for Stock Order creation").
+- "Stock order failed" — The server refused the order; the toast shows the reason (for example "Template must be the current LIVE revision for Stock Order creation").
 
 **If stuck**
 1. Use "New stock order" for the full launcher when quick launch is not possible.
@@ -573,7 +573,7 @@ Tab 7. Use it when Material readiness shows a shortage or when you want ready st
 - **Catalog SKU link**: For packaging or POD masters: the SKU stores and packing will receive.
 
 **Common problems and fixes**
-- "Template must be the current LIVE version for Stock Order creation" — Make the template LIVE in Engineering, then retry.
+- "Template must be the current LIVE revision for Stock Order creation" — Make the template LIVE in Engineering, then retry.
 - "Template has no routing rule" — Link a route to the template first.
 - "Roll stock orders require quantity_uom=KG" — Choose KG for roll stock.
 - "committed_customer is required for customer-committed stock" — Pick the customer in the Customer lock, or choose Generic pool.
@@ -1088,7 +1088,7 @@ Tab 5। stock बनाना है या नहीं, यह तय कर�
 **आम दिक्कतें और हल**
 - "Stock intelligence is paused" — कोई feed fail हुई। "Retry feeds" दबाएँ।
 - "Quick launch needs a full template + geometry + layer snapshot" — इस template का snapshot नहीं है। पूरा Stock Order Launcher इस्तेमाल करें (dialog में link)।
-- "Stock order failed" — server ने order मना किया; toast में कारण है (जैसे "Template must be the current LIVE version for Stock Order creation")।
+- "Stock order failed" — server ने order मना किया; toast में कारण है (जैसे "Template must be the current LIVE revision for Stock Order creation")।
 
 **अटक गए तो**
 1. quick launch न हो सके तो पूरे launcher के लिए "New stock order" दबाएँ।
@@ -1128,7 +1128,7 @@ Tab 7। जब Material readiness कमी दिखाए या जल्द
 - **Catalog SKU link**: packaging या POD master के लिए: store और packing को कौन-सा SKU मिलेगा।
 
 **आम दिक्कतें और हल**
-- "Template must be the current LIVE version for Stock Order creation" — Engineering में template LIVE करें, फिर कोशिश करें।
+- "Template must be the current LIVE revision for Stock Order creation" — Engineering में template LIVE करें, फिर कोशिश करें।
 - "Template has no routing rule" — पहले template पर route जोड़ें।
 - "Roll stock orders require quantity_uom=KG" — roll stock के लिए KG चुनें।
 - "committed_customer is required for customer-committed stock" — Customer lock में customer चुनें, या Generic pool लें।

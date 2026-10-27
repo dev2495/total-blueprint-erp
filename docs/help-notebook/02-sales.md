@@ -57,7 +57,7 @@ Draft → Submit for approval (revision and Cost Build freeze) → an approver w
 ## Problems and fixes
 
 - *Place order is grey*: open the warning pill or *Before you place*; fix each line ("Needs rate", "Needs artwork", "Check the line").
-- *Product master unavailable*: the master is inactive or an old version. Remove the line and add the current master.
+- *Product master unavailable*: the master is inactive or an old revision. Remove the line and add the current master.
 - *Draft lost*: drafts live in one browser; reopen New order on the same PC and press *Resume draft*.
 - *Cannot cancel the order*: it is released; ask the planner to short-close.
 - *Dispatch refused – not ready*: release the goods in the Packing Yard first; partial lines ship only finished output.
@@ -121,7 +121,7 @@ Draft → Submit for approval (revision और Cost Build freeze) → submit क
 ## समस्याएँ और हल
 
 - *Place order grey है*: चेतावनी pill या *Before you place* खोलें; हर line ठीक करें ("Needs rate", "Needs artwork", "Check the line")।
-- *Product master unavailable*: master inactive है या पुराना version। line हटाकर नया master जोड़ें।
+- *Product master unavailable*: master inactive है या पुराना revision। line हटाकर नया master जोड़ें।
 - *Draft खो गया*: draft एक ही browser में रहता है; उसी PC पर New order खोलकर *Resume draft* दबाएँ।
 - *Order cancel नहीं हो रहा*: order release हो चुका; planner से short-close करवाएँ।
 - *Dispatch मना – not ready*: पहले Packing Yard में माल release करें; partial line में सिर्फ तैयार माल जाता है।
@@ -530,8 +530,8 @@ Open it whenever a customer gives an order. When placed, the order goes to the p
 - "Artwork: selected artwork does not match the selected print method or SHEET/TUBING form." — Change Roto/Flexo or film form to match, or pick another artwork.
 - "Packing: pcs per inner pouch must be greater than zero." — Fix or clear the override.
 - "Set a promised dispatch date / Pick a customer / Cart is empty — add at least one line" — Fill the order facts or add a line.
-- "Product master unavailable" — A link pointed to a master that is not order-ready (inactive or old version). Pick a current one.
-- "Could not create order — product_master is invalid, inactive, or not the current version." — The master changed after you added the line. Remove the line and add it again.
+- "Product master unavailable" — A link pointed to a master that is not order-ready (inactive or old revision). Pick a current one.
+- "Could not create order — product_master is invalid, inactive, or not the current revision." — The master changed after you added the line. Remove the line and add it again.
 - "Could not create order — Item …: approved artwork is required when printing is enabled." — Server check: assign approved artwork or defer to planner.
 
 **If stuck**
@@ -1229,8 +1229,8 @@ sales order composer: ग्राहक चुनें, order की जान
 - "Artwork: selected artwork does not match the selected print method or SHEET/TUBING form." — Roto/Flexo या film form मिलाएँ, या दूसरा artwork चुनें।
 - "Packing: pcs per inner pouch must be greater than zero." — override ठीक करें या खाली करें।
 - "Set a promised dispatch date / Pick a customer / Cart is empty — add at least one line" — order की जानकारी भरें या line जोड़ें।
-- "Product master unavailable" — link ऐसे master का था जो order के लिए तैयार नहीं (inactive या पुराना version)। नया वाला चुनें।
-- "Could not create order — product_master is invalid, inactive, or not the current version." — line जोड़ने के बाद master बदला। line हटाकर दोबारा जोड़ें।
+- "Product master unavailable" — link ऐसे master का था जो order के लिए तैयार नहीं (inactive या पुराना revision)। नया वाला चुनें।
+- "Could not create order — product_master is invalid, inactive, or not the current revision." — line जोड़ने के बाद master बदला। line हटाकर दोबारा जोड़ें।
 - "Could not create order — Item …: approved artwork is required when printing is enabled." — server की जाँच: approved artwork दें या planner पर छोड़ें।
 
 **अटक गए तो**

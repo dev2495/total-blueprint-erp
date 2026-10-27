@@ -316,7 +316,7 @@ Change a live template safely without touching existing orders.
 1. **Edit safely** — ADMIN on /engineering/templates/[id]. Press "Edit safely"; a correction draft opens.
 2. **Make changes** — ADMIN on /engineering/templates/[id]. Edit dispatch, batch or material rules in the draft.
 3. **Review and approve** — PLANT_MANAGER on /engineering/approvals. Send for review and approve.
-4. **Publish** — ADMIN on /engineering/templates/[id]. "Publish LIVE" replaces the live version for future orders; old orders keep the original.
+4. **Publish** — ADMIN on /engineering/templates/[id]. "Publish LIVE" replaces the live revision for future orders; old orders keep the original.
 
 ### Planned maintenance
 From schedule to verified job.
@@ -723,7 +723,7 @@ Route बनाएँ, उस पर template बनाएँ, review, approve �
 1. **Edit safely** — ADMIN (/engineering/templates/[id])। "Edit safely" दबाएँ; correction draft खुलता है।
 2. **बदलाव करें** — ADMIN (/engineering/templates/[id])। Draft में dispatch, batch या material rule बदलें।
 3. **Review और approve** — PLANT_MANAGER (/engineering/approvals)। Review भेजें और approve करें।
-4. **Publish** — ADMIN (/engineering/templates/[id])। "Publish LIVE" आगे के order के लिए live version बदलता है; पुराने order पुराना रखते हैं।
+4. **Publish** — ADMIN (/engineering/templates/[id])। "Publish LIVE" आगे के order के लिए live revision बदलता है; पुराने order पुराना रखते हैं।
 
 ### Planned maintenance
 Schedule से verified job तक।

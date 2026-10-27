@@ -400,8 +400,8 @@ Use this when a user asks why something is missing or not possible. Say so plain
   - Packaging और POD master में Customer overlays टैब और "Open in Sales create" नहीं दिखते क्योंकि sales इन्हें order नहीं करता।
 
 ## Pouch style editor (/master/pouch-styles/[id])
-- Editing an approved style does not change existing sizes until the new draft is approved; sizes keep the old version's copy.
-  - Approved style बदलने से मौजूदा sizes तब तक नहीं बदलते जब तक नया draft approve न हो; sizes पुराने version की copy रखते हैं।
+- Editing an approved style does not change existing sizes until the new draft is approved; sizes keep the old revision's copy.
+  - Approved style बदलने से मौजूदा sizes तब तक नहीं बदलते जब तक नया draft approve न हो; sizes पुराने revision की copy रखते हैं।
 
 ## Add-ons & Misc Materials (/master/add-ons)
 - A changed add-on weight does not reach lines already released to the floor until someone presses "Recalculate from masters" on the WC terminal.
@@ -444,8 +444,8 @@ Use this when a user asks why something is missing or not possible. Say so plain
   - Cylinder का MAINTENANCE/RE_CHROME status "Service Focus" में गिना जाता है पर Maintenance module से जुड़ा नहीं है।
 
 ## Routing Studio (/engineering/routing)
-- A route in use cannot be edited; the only path is disable and create a new route plus new template versions.
-  - इस्तेमाल में लगा route नहीं बदलता; तरीका सिर्फ disable करके नया route और नए template version बनाना है।
+- A route in use cannot be edited; the only path is disable and create a new route plus new template revisions.
+  - इस्तेमाल में लगा route नहीं बदलता; तरीका सिर्फ disable करके नया route और नए template revision बनाना है।
 
 ## Maintenance jobs (/maintenance/jobs)
 - Spares used on a job are notes only and do not issue stock from inventory.

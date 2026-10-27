@@ -82,10 +82,10 @@ Search this file for the exact text a user sees on screen.
   - हिंदी: "Packing: pcs per inner pouch must be greater than zero.": override ठीक करें या खाली करें।
 - "Set a promised dispatch date / Pick a customer / Cart is empty — add at least one line": Fill the order facts or add a line.
   - हिंदी: "Set a promised dispatch date / Pick a customer / Cart is empty — add at least one line": order की जानकारी भरें या line जोड़ें।
-- "Product master unavailable": A link pointed to a master that is not order-ready (inactive or old version). Pick a current one.
-  - हिंदी: "Product master unavailable": link ऐसे master का था जो order के लिए तैयार नहीं (inactive या पुराना version)। नया वाला चुनें।
-- "Could not create order — product_master is invalid, inactive, or not the current version.": The master changed after you added the line. Remove the line and add it again.
-  - हिंदी: "Could not create order — product_master is invalid, inactive, or not the current version.": line जोड़ने के बाद master बदला। line हटाकर दोबारा जोड़ें।
+- "Product master unavailable": A link pointed to a master that is not order-ready (inactive or old revision). Pick a current one.
+  - हिंदी: "Product master unavailable": link ऐसे master का था जो order के लिए तैयार नहीं (inactive या पुराना revision)। नया वाला चुनें।
+- "Could not create order — product_master is invalid, inactive, or not the current revision.": The master changed after you added the line. Remove the line and add it again.
+  - हिंदी: "Could not create order — product_master is invalid, inactive, or not the current revision.": line जोड़ने के बाद master बदला। line हटाकर दोबारा जोड़ें।
 - "Could not create order — Item …: approved artwork is required when printing is enabled.": Server check: assign approved artwork or defer to planner.
   - हिंदी: "Could not create order — Item …: approved artwork is required when printing is enabled.": server की जाँच: approved artwork दें या planner पर छोड़ें।
 
@@ -304,12 +304,12 @@ Search this file for the exact text a user sees on screen.
   - हिंदी: "Stock intelligence is paused": कोई feed fail हुई। "Retry feeds" दबाएँ।
 - "Quick launch needs a full template + geometry + layer snapshot": This template has no snapshot in the aggregation. Use the full Stock Order Launcher (link in the dialog).
   - हिंदी: "Quick launch needs a full template + geometry + layer snapshot": इस template का snapshot नहीं है। पूरा Stock Order Launcher इस्तेमाल करें (dialog में link)।
-- "Stock order failed": The server refused the order; the toast shows the reason (for example "Template must be the current LIVE version for Stock Order creation").
-  - हिंदी: "Stock order failed": server ने order मना किया; toast में कारण है (जैसे "Template must be the current LIVE version for Stock Order creation")।
+- "Stock order failed": The server refused the order; the toast shows the reason (for example "Template must be the current LIVE revision for Stock Order creation").
+  - हिंदी: "Stock order failed": server ने order मना किया; toast में कारण है (जैसे "Template must be the current LIVE revision for Stock Order creation")।
 
 ## Launch stock from any Product Master — /dashboard/planner/control-tower/stock-launcher
-- "Template must be the current LIVE version for Stock Order creation": Make the template LIVE in Engineering, then retry.
-  - हिंदी: "Template must be the current LIVE version for Stock Order creation": Engineering में template LIVE करें, फिर कोशिश करें।
+- "Template must be the current LIVE revision for Stock Order creation": Make the template LIVE in Engineering, then retry.
+  - हिंदी: "Template must be the current LIVE revision for Stock Order creation": Engineering में template LIVE करें, फिर कोशिश करें।
 - "Template has no routing rule": Link a route to the template first.
   - हिंदी: "Template has no routing rule": पहले template पर route जोड़ें।
 - "Roll stock orders require quantity_uom=KG": Choose KG for roll stock.
@@ -1272,8 +1272,8 @@ Search this file for the exact text a user sees on screen.
   - हिंदी: "This template is live and locked.": "Edit safely" दबाकर correction draft बनाएँ।
 
 ## Routing Studio — /engineering/routing
-- "Routing sequence and graph are locked by current templates or production history.": Steps cannot change once used. Disable the old route/template and create a corrected route and template version.
-  - हिंदी: "Routing sequence and graph are locked by current templates or production history.": इस्तेमाल के बाद step नहीं बदलते। पुराना route/template disable करें और सुधरा route व template version बनाएँ।
+- "Routing sequence and graph are locked by current templates or production history.": Steps cannot change once used. Disable the old route/template and create a corrected route and template revision.
+  - हिंदी: "Routing sequence and graph are locked by current templates or production history.": इस्तेमाल के बाद step नहीं बदलते। पुराना route/template disable करें और सुधरा route व template revision बनाएँ।
 - "Disable linked templates or create a corrected route first: …": Delete is blocked while current templates use the route. Disable those templates or use "Disable" on the route.
   - हिंदी: "Disable linked templates or create a corrected route first: …": चालू template route इस्तेमाल कर रहे हैं तो delete नहीं होगा। उन template को disable करें या route पर "Disable" करें।
 - "Mark the routing rule inactive instead, or move dependent templates to another route first.": Jobs or old templates still refer to it; use "Disable".
@@ -1298,8 +1298,8 @@ Search this file for the exact text a user sees on screen.
   - हिंदी: "Cannot change routing on a LIVE template.": "Edit safely" से correction draft लें।
 - "Template must be APPROVED before it can be published LIVE.": Send for review and approve first.
   - हिंदी: "Template must be APPROVED before it can be published LIVE.": पहले review भेजें और approve करें।
-- "LIVE templates are read-only. Clone a new version first.": Use "Edit safely".
-  - हिंदी: "LIVE templates are read-only. Clone a new version first.": "Edit safely" इस्तेमाल करें।
+- "LIVE templates are read-only. Clone a new revision first.": Use "Edit safely".
+  - हिंदी: "LIVE templates are read-only. Clone a new revision first.": "Edit safely" इस्तेमाल करें।
 - "Step N …: choose a default work center or set Planner chooses at release.": More than one capable center and no decision. Fix in section 4.
   - हिंदी: "Step N …: choose a default work center or set Planner chooses at release.": एक से ज़्यादा capable center हैं और फैसला नहीं हुआ। Section 4 में ठीक करें।
 - "Step N …: lamination needs two input lanes.": Set Input lanes to 2 in the lamination stage.

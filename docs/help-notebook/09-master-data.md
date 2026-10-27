@@ -13,7 +13,7 @@ Master Data holds the fixed records every order, plan and floor step reads: what
 
 ## Screens and how they connect
 1. **Film families** (base film + density) → **Film variants** (film identity: extrudable, purchasable, sellable) → **Recipes** (granule-family % per variant + grade + thickness range) → **Granules** (families and internal grade codes used at GRN and WCM issue).
-2. **Pouch styles**: allowed size fields and the child-width / film-area formula. A style is a draft until "Save + approve + lock"; only approved styles reach Product Master sizes. Editing an approved style makes a new draft version; sizes keep their saved copy until it is approved.
+2. **Pouch styles**: allowed size fields and the child-width / film-area formula. A style is a draft until "Save + approve + lock"; only approved styles reach Product Master sizes. Editing an approved style makes a new draft revision; sizes keep their saved copy until it is approved.
 3. **Web-width policies**: allowed lane counts (1–12), how child width becomes parent web, slitting trim and the smallest remainder kept. Scoped globally or to a product kind, master, pouch style, process or machine.
 4. **Product Masters** (`/master/products`): kind (Pouch, Roll, Packaging, POD, Other), live route template, layers (film, micron, grade, allowed alternates), printing rule (No printing / artwork optional / artwork required, FLEXO or ROTO), adhesive and solvent GSM, what sales may add, sizes, add-ons, inner pouch and POD. New masters are created inactive; activate after the editor checklist passes.
 5. **Packaging**, **POD**, **Add-ons**, **Inks**, **Adhesives & Solvents**, **Trading goods**, **Commercial families**, **Vendors**: the catalogs the masters, store and floor use.
@@ -72,7 +72,7 @@ Master Data में वे तय रिकॉर्ड हैं जिन्
 
 ## पेज और उनका आपसी संबंध
 1. **Film families** (base film + density) → **Film variants** (film की पहचान: घर में बनती, खरीदी जाती, बिकती) → **Recipes** (variant + grade + thickness range के लिए granule family का %) → **Granules** (family और internal grade code, जो GRN और WCM issue पर लगते हैं)।
-2. **Pouch styles**: कौन से माप लगेंगे और child-width / film-area formula। "Save + approve + lock" तक style draft रहता है; सिर्फ approved style Product Master sizes में आता है। Approved style बदलने पर नया draft version बनता है; sizes पुरानी copy रखते हैं जब तक नया approve न हो।
+2. **Pouch styles**: कौन से माप लगेंगे और child-width / film-area formula। "Save + approve + lock" तक style draft रहता है; सिर्फ approved style Product Master sizes में आता है। Approved style बदलने पर नया draft revision बनता है; sizes पुरानी copy रखते हैं जब तक नया approve न हो।
 3. **Web-width policies**: allowed lanes (1–12), child width से parent web कैसे बनता है, slitting trim और सबसे छोटा रखा जाने वाला बचा हिस्सा। Global या product kind, master, pouch style, process या machine के लिए।
 4. **Product Masters** (`/master/products`): kind (Pouch, Roll, Packaging, POD, Other), live route template, layers (film, micron, grade, दूसरी मंज़ूर film), printing नियम (No printing / artwork optional / artwork required, FLEXO या ROTO), adhesive और solvent GSM, sales क्या जोड़ सकता है, sizes, add-on, inner pouch और POD। नया master inactive बनता है; editor की checklist पूरी होने पर active करें।
 5. **Packaging**, **POD**, **Add-ons**, **Inks**, **Adhesives & Solvents**, **Trading goods**, **Commercial families**, **Vendors**: वे catalog जिन्हें master, store और floor इस्तेमाल करते हैं।
@@ -490,7 +490,7 @@ Open it to find a style, see how many sizes use it, or start a new one. Each Pro
 - "Style not in the Product Master size picker" — It is a draft or disabled. Open it and press "Save + approve + lock" or "Reactivate".
 
 **If stuck**
-1. Only the latest version of each code is listed; older versions stay linked to old sizes.
+1. Only the latest revision of each code is listed; older revisions stay linked to old sizes.
 
 Related pages: /master/pouch-styles/new, /master/products
 
@@ -499,7 +499,7 @@ Screen address: /master/pouch-styles/[id] · Roles: ADMIN, OWNER, SUPER_ADMIN ·
 
 Edit one pouch style: its fields, width and area formulas, roll axis, stock form, and approve, disable or reactivate it.
 
-Open it from the Pouch styles list ("Open"). Changing an approved style makes a new draft version; sizes move to it only after approval.
+Open it from the Pouch styles list ("Open"). Changing an approved style makes a new draft revision; sizes move to it only after approval.
 
 **Before you start**
 - Admin/Owner role with the master.manage grant.
@@ -514,7 +514,7 @@ Open it from the Pouch styles list ("Open"). Changing an approved style makes a 
 6. Press "Create draft" / "Save draft", then "Save + approve + lock". Only approved styles appear on Product Master sizes.
 
 **What is on the screen**
-- **Approved style · N sizes use it**: Saving real changes creates a new draft (next version). Sizes keep their saved copy until the new draft is approved.
+- **Approved style · N sizes use it**: Saving real changes creates a new draft (next revision). Sizes keep their saved copy until the new draft is approved.
 - **Draft style · not selectable yet**: Hidden from Product Master size pickers until approved.
 - **Allocator rule**: Slitting allowed lets WCM slit wider parent rolls; Exact width only demands the exact width.
 - **Shaped (operator types width)**: For odd shapes: the width is typed on each size instead of a formula.
@@ -533,7 +533,7 @@ Open it from the Pouch styles list ("Open"). Changing an approved style makes a 
 Related pages: /master/pouch-styles, /master/products, /master/web-width-policies
 
 **Not done yet / watch out**
-- Editing an approved style does not change existing sizes until the new draft is approved; sizes keep the old version's copy.
+- Editing an approved style does not change existing sizes until the new draft is approved; sizes keep the old revision's copy.
 
 ### Build a pouch shape (/master/pouch-styles/new)
 Screen address: /master/pouch-styles/new · Roles: ADMIN, OWNER, SUPER_ADMIN · Share link: https://erp.totalpolyprint.com/guide?page=master-pouch-styles-new
@@ -555,7 +555,7 @@ Open it from "New pouch style" when a pouch shape is not in the list yet. After 
 6. Press "Create draft" / "Save draft", then "Save + approve + lock". Only approved styles appear on Product Master sizes.
 
 **What is on the screen**
-- **Approved style · N sizes use it**: Saving real changes creates a new draft (next version). Sizes keep their saved copy until the new draft is approved.
+- **Approved style · N sizes use it**: Saving real changes creates a new draft (next revision). Sizes keep their saved copy until the new draft is approved.
 - **Draft style · not selectable yet**: Hidden from Product Master size pickers until approved.
 - **Allocator rule**: Slitting allowed lets WCM slit wider parent rolls; Exact width only demands the exact width.
 - **Shaped (operator types width)**: For odd shapes: the width is typed on each size instead of a formula.
@@ -1361,7 +1361,7 @@ Pouch style की list: कौन से माप लगते हैं, chil
 - "Style Product Master size picker में नहीं" — वह draft या disabled है। खोलकर "Save + approve + lock" या "Reactivate" दबाएँ।
 
 **अटक गए तो**
-1. हर code का सिर्फ नया version दिखता है; पुराने version पुराने sizes से जुड़े रहते हैं।
+1. हर code का सिर्फ नया revision दिखता है; पुराने revision पुराने sizes से जुड़े रहते हैं।
 
 जुड़े पेज: /master/pouch-styles/new, /master/products
 
@@ -1370,7 +1370,7 @@ Pouch style की list: कौन से माप लगते हैं, chil
 
 एक pouch style बदलने का पेज: माप, width और area formula, roll axis, stock form, और approve, disable या reactivate करना।
 
-Pouch styles list में "Open" से खोलें। Approved style बदलने पर नया draft version बनता है; sizes approve होने के बाद ही उस पर जाते हैं।
+Pouch styles list में "Open" से खोलें। Approved style बदलने पर नया draft revision बनता है; sizes approve होने के बाद ही उस पर जाते हैं।
 
 **शुरू करने से पहले**
 - Admin/Owner रोल और master.manage अधिकार।
@@ -1385,7 +1385,7 @@ Pouch styles list में "Open" से खोलें। Approved style ब�
 6. "Create draft" / "Save draft" दबाएँ, फिर "Save + approve + lock"। सिर्फ approved style ही Product Master sizes में दिखते हैं।
 
 **स्क्रीन पर क्या है**
-- **Approved style · N sizes use it**: असली बदलाव save करने पर नया draft (अगला version) बनता है। Sizes अपनी पुरानी copy रखते हैं जब तक नया draft approve न हो।
+- **Approved style · N sizes use it**: असली बदलाव save करने पर नया draft (अगला revision) बनता है। Sizes अपनी पुरानी copy रखते हैं जब तक नया draft approve न हो।
 - **Draft style · not selectable yet**: Approve होने तक Product Master size picker में नहीं दिखता।
 - **Allocator rule**: Slitting allowed में WCM चौड़ा parent roll slit कर सकता है; Exact width only में ठीक वही width चाहिए।
 - **Shaped (operator types width)**: अजीब आकार के लिए: formula की जगह हर size पर width लिखी जाती है।
@@ -1404,7 +1404,7 @@ Pouch styles list में "Open" से खोलें। Approved style ब�
 जुड़े पेज: /master/pouch-styles, /master/products, /master/web-width-policies
 
 **अभी नहीं होता / ध्यान दें**
-- Approved style बदलने से मौजूदा sizes तब तक नहीं बदलते जब तक नया draft approve न हो; sizes पुराने version की copy रखते हैं।
+- Approved style बदलने से मौजूदा sizes तब तक नहीं बदलते जब तक नया draft approve न हो; sizes पुराने revision की copy रखते हैं।
 
 ### Build a pouch shape (/master/pouch-styles/new)
 स्क्रीन का पता: /master/pouch-styles/new · भूमिकाएँ: ADMIN, OWNER, SUPER_ADMIN · शेयर लिंक: https://erp.totalpolyprint.com/guide?page=master-pouch-styles-new&lang=hi
@@ -1426,7 +1426,7 @@ Pouch styles list में "Open" से खोलें। Approved style ब�
 6. "Create draft" / "Save draft" दबाएँ, फिर "Save + approve + lock"। सिर्फ approved style ही Product Master sizes में दिखते हैं।
 
 **स्क्रीन पर क्या है**
-- **Approved style · N sizes use it**: असली बदलाव save करने पर नया draft (अगला version) बनता है। Sizes अपनी पुरानी copy रखते हैं जब तक नया draft approve न हो।
+- **Approved style · N sizes use it**: असली बदलाव save करने पर नया draft (अगला revision) बनता है। Sizes अपनी पुरानी copy रखते हैं जब तक नया draft approve न हो।
 - **Draft style · not selectable yet**: Approve होने तक Product Master size picker में नहीं दिखता।
 - **Allocator rule**: Slitting allowed में WCM चौड़ा parent roll slit कर सकता है; Exact width only में ठीक वही width चाहिए।
 - **Shaped (operator types width)**: अजीब आकार के लिए: formula की जगह हर size पर width लिखी जाती है।

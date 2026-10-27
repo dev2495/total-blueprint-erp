@@ -39,15 +39,15 @@ The flow is: Process Master → Routing Studio → Template Studio → (review, 
 5. Section 5: map material categories (GRANULE, ADHESIVE, SOLVENT, ADDON, POD) to stages.
 6. Section 6: "Send for review" → "Approve" → "Publish LIVE".
 
-**Changing a LIVE template**: press "Edit safely". A correction draft opens; existing orders and jobs stay on the old version. Publish the draft to replace the live one for future orders.
+**Changing a LIVE template**: press "Edit safely". A correction draft opens; existing orders and jobs stay on the old revision. Publish the draft to replace the live one for future orders.
 
 ## Rules and limits
-- Only APPROVED artwork is valid for production. Editing an approved or in-use artwork creates a new version; old orders keep the old one.
+- Only APPROVED artwork is valid for production. Editing an approved or in-use artwork creates a new revision; old orders keep the old one.
 - Maximum 3 artwork files (JPG, PNG, PDF). Ink GSM must be above zero.
 - ROTO approval needs a finalized cylinder for every front (and back) slot, with matching repeat and length (0.01 mm tolerance), vendor and TOOLING storage location.
 - A route used by a current template or production history cannot change its steps; disable it and make a corrected one.
 - A template needs a routing rule and synced stages to be approved or published. Publishing is blocked by missing capability, invalid defaults, or a step with several centers and no decision.
-- Only the current LIVE template version appears in sales, planner and Product Master selectors. "Disable" hides a template while keeping history.
+- Only the current LIVE template revision appears in sales, planner and Product Master selectors. "Disable" hides a template while keeping history.
 - Ink theory comes from artwork GSM, not from template material mapping.
 
 ## Who does what
@@ -57,7 +57,7 @@ The flow is: Process Master → Routing Studio → Template Studio → (review, 
 
 ## Problems and fixes
 - *"Approve" is grey on artwork*: read "Approval Blockers"; usually missing file, ink GSM or finalized cylinders.
-- *"Routing sequence and graph are locked…"*: the route is in use. Disable it and create a new route and template version.
+- *"Routing sequence and graph are locked…"*: the route is in use. Disable it and create a new route and template revision.
 - *"Templates cannot be approved or published without a Routing Rule."*: choose a route, Save basics, Sync route stages.
 - *"no capable work center is mapped for …"*: add machine capability for the process in Factory setup.
 - *Template not in the registry*: the registry lists LIVE and disabled only; drafts are reached from Pending Approvals or the creation link.
@@ -102,10 +102,10 @@ The flow is: Process Master → Routing Studio → Template Studio → (review, 
 5. Section 5: material category (GRANULE, ADHESIVE, SOLVENT, ADDON, POD) को stage से जोड़ें।
 6. Section 6: "Send for review" → "Approve" → "Publish LIVE"।
 
-**LIVE template बदलना**: "Edit safely" दबाएँ। Correction draft खुलता है; पुराने order और job पुराने version पर रहते हैं। Draft publish करने पर आगे के order नए version से चलेंगे।
+**LIVE template बदलना**: "Edit safely" दबाएँ। Correction draft खुलता है; पुराने order और job पुराने revision पर रहते हैं। Draft publish करने पर आगे के order नए revision से चलेंगे।
 
 ## नियम और सीमाएँ
-- Production में सिर्फ APPROVED artwork चलता है। Approved या इस्तेमाल हो रहे artwork को बदलने पर नया version बनता है; पुराने order पुराना रखते हैं।
+- Production में सिर्फ APPROVED artwork चलता है। Approved या इस्तेमाल हो रहे artwork को बदलने पर नया revision बनता है; पुराने order पुराना रखते हैं।
 - ज़्यादा से ज़्यादा 3 artwork file (JPG, PNG, PDF)। Ink GSM 0 से ज़्यादा होना चाहिए।
 - ROTO approve के लिए हर front (और back) slot का finalize cylinder चाहिए — repeat और length मिलें (0.01 mm छूट), vendor और TOOLING storage location हो।
 - जो route चालू template या production history में लगा है, उसके step नहीं बदलते; उसे disable करके सुधरा route बनाएँ।
@@ -120,7 +120,7 @@ The flow is: Process Master → Routing Studio → Template Studio → (review, 
 
 ## समस्या और हल
 - *Artwork पर "Approve" grey*: "Approval Blockers" पढ़ें; अक्सर file, ink GSM या finalize cylinder बाकी होता है।
-- *"Routing sequence and graph are locked…"*: route इस्तेमाल में है। Disable करें और नया route व template version बनाएँ।
+- *"Routing sequence and graph are locked…"*: route इस्तेमाल में है। Disable करें और नया route व template revision बनाएँ।
 - *"Templates cannot be approved or published without a Routing Rule."*: route चुनें, Save basics, Sync route stages।
 - *"no capable work center is mapped for …"*: Factory setup में उस process की machine capability जोड़ें।
 - *Template सूची में नहीं दिखता*: सूची में सिर्फ LIVE और disabled आते हैं; draft Pending Approvals या बनाने वाले link से खुलता है।
@@ -284,7 +284,7 @@ Open it when a new design comes in or a design changes. Only APPROVED artwork is
 - **Cylinder specs**: ROTO only. One repeat and one length for the artwork. Reusing a cylinder needs both to match.
 - **ROTO Readiness Checklist**: PASS/BLOCK lines: file uploaded, colours, ink GSM, repeat, length, colour counts, finalized front/back slots, technical details.
 - **Cylinder generation by color**: One button per colour slot. A covered slot shows "Covered" and cannot make another cylinder.
-- **Revise Artwork**: Editing an approved or in-use artwork saves a NEW draft version (badge "NEW DRAFT"); old orders keep the old version.
+- **Revise Artwork**: Editing an approved or in-use artwork saves a NEW draft revision (badge "NEW DRAFT"); old orders keep the old revision.
 
 **Common problems and fixes**
 - "Approval Failed (ARTWORK_APPROVAL_BLOCKED) — Cannot approve artwork without an uploaded file/image asset." — No file attached. Pick a JPG, PNG or PDF, press "Save Draft", then approve.
@@ -428,7 +428,7 @@ Create a route before building a template. A template picks one route. Once a ro
 - **Active Status**: Off = hidden from new template selectors.
 
 **Common problems and fixes**
-- "Routing sequence and graph are locked by current templates or production history." — Steps cannot change once used. Disable the old route/template and create a corrected route and template version.
+- "Routing sequence and graph are locked by current templates or production history." — Steps cannot change once used. Disable the old route/template and create a corrected route and template revision.
 - "Disable linked templates or create a corrected route first: …" — Delete is blocked while current templates use the route. Disable those templates or use "Disable" on the route.
 - "Mark the routing rule inactive instead, or move dependent templates to another route first." — Jobs or old templates still refer to it; use "Disable".
 - "Unknown Process code(s): … Create or select the Process Master before saving the route." — Create the process in Factory → Processes first.
@@ -441,14 +441,14 @@ Create a route before building a template. A template picks one route. Once a ro
 Related pages: /engineering/templates, /engineering/templates/[id], /factory/processes
 
 **Not done yet / watch out**
-- A route in use cannot be edited; the only path is disable and create a new route plus new template versions.
+- A route in use cannot be edited; the only path is disable and create a new route plus new template revisions.
 
 ### Template Studio (template registry) (/engineering/templates)
 Screen address: /engineering/templates · Roles: ADMIN, OWNER, SUPER_ADMIN, PLANT_MANAGER, PLANNER, WORK_CENTER_MANAGER · Share link: https://erp.totalpolyprint.com/guide?page=engineering-templates
 
 List of route templates (LIVE or Disabled) with type, business family and status. Create a new template and open it in the studio.
 
-A template ties a product type (POUCH or ROLL) to a route, stage material rules, roll handling and batch rules. Only the current LIVE version can be chosen in sales, planner and Product Master. Work starts here, continues in Template Studio, and ends with "Publish LIVE".
+A template ties a product type (POUCH or ROLL) to a route, stage material rules, roll handling and batch rules. Only the current LIVE revision can be chosen in sales, planner and Product Master. Work starts here, continues in Template Studio, and ends with "Publish LIVE".
 
 **Before you start**
 - A routing rule (Routing Studio).
@@ -489,7 +489,7 @@ Screen address: /engineering/templates/[id] · Roles: ADMIN, OWNER, SUPER_ADMIN,
 
 Builds one template: route binding, batch and lot rules, route stages and lamination lanes, work-center dispatch, step material rules, then review and make LIVE.
 
-Open it from the registry, from Pending Approvals or right after creating a template. The lifecycle is DRAFT → ENGINEERING → APPROVED → LIVE → OBSOLETE. LIVE templates are locked; "Edit safely" opens a correction draft, and existing orders and jobs stay on the old version until the draft is published.
+Open it from the registry, from Pending Approvals or right after creating a template. The lifecycle is DRAFT → ENGINEERING → APPROVED → LIVE → OBSOLETE. LIVE templates are locked; "Edit safely" opens a correction draft, and existing orders and jobs stay on the old revision until the draft is published.
 
 **Before you start**
 - A routing rule with valid processes.
@@ -523,7 +523,7 @@ Open it from the registry, from Pending Approvals or right after creating a temp
 - "Sync workflow first. A LIVE template must contain at least one active route step." — Press "Sync route stages" after choosing the route.
 - "Cannot change routing on a LIVE template." — Use "Edit safely" to get a correction draft.
 - "Template must be APPROVED before it can be published LIVE." — Send for review and approve first.
-- "LIVE templates are read-only. Clone a new version first." — Use "Edit safely".
+- "LIVE templates are read-only. Clone a new revision first." — Use "Edit safely".
 - "Step N …: choose a default work center or set Planner chooses at release." — More than one capable center and no decision. Fix in section 4.
 - "Step N …: lamination needs two input lanes." — Set Input lanes to 2 in the lamination stage.
 - "Routing Rule contains missing Process code(s): … Route steps were not changed." — The route uses a process that no longer exists; fix the route or Process Master.
@@ -731,7 +731,7 @@ Print artwork की gallery — thumbnail, front/back colour, print type, film 
 - **Cylinder specs**: सिर्फ ROTO। पूरे artwork के लिए एक repeat और एक length। पुराना cylinder तभी लगेगा जब दोनों मिलें।
 - **ROTO Readiness Checklist**: PASS/BLOCK लाइनें: file, colour, ink GSM, repeat, length, colour गिनती, finalize front/back slot, technical details।
 - **Cylinder generation by color**: हर colour slot का एक बटन। जो slot भर चुका वह "Covered" दिखाता है, दूसरा cylinder नहीं बनता।
-- **Revise Artwork**: Approved या इस्तेमाल हो रहे artwork को बदलने पर नया draft version बनता है (badge "NEW DRAFT"); पुराने order पुराना version रखते हैं।
+- **Revise Artwork**: Approved या इस्तेमाल हो रहे artwork को बदलने पर नया draft revision बनता है (badge "NEW DRAFT"); पुराने order पुराना revision रखते हैं।
 
 **आम दिक्कतें और हल**
 - "Approval Failed (ARTWORK_APPROVAL_BLOCKED) — Cannot approve artwork without an uploaded file/image asset." — File नहीं लगी। JPG, PNG या PDF चुनें, "Save Draft" करें, फिर approve करें।
@@ -875,7 +875,7 @@ Template बनाने से पहले route बनाएँ। Template �
 - **Active Status**: बंद = नए template के चुनाव में नहीं दिखेगा।
 
 **आम दिक्कतें और हल**
-- "Routing sequence and graph are locked by current templates or production history." — इस्तेमाल के बाद step नहीं बदलते। पुराना route/template disable करें और सुधरा route व template version बनाएँ।
+- "Routing sequence and graph are locked by current templates or production history." — इस्तेमाल के बाद step नहीं बदलते। पुराना route/template disable करें और सुधरा route व template revision बनाएँ।
 - "Disable linked templates or create a corrected route first: …" — चालू template route इस्तेमाल कर रहे हैं तो delete नहीं होगा। उन template को disable करें या route पर "Disable" करें।
 - "Mark the routing rule inactive instead, or move dependent templates to another route first." — Job या पुराने template अभी भी इसे इस्तेमाल करते हैं; "Disable" करें।
 - "Unknown Process code(s): … Create or select the Process Master before saving the route." — पहले Factory → Processes में process बनाएँ।
@@ -888,14 +888,14 @@ Template बनाने से पहले route बनाएँ। Template �
 जुड़े पेज: /engineering/templates, /engineering/templates/[id], /factory/processes
 
 **अभी नहीं होता / ध्यान दें**
-- इस्तेमाल में लगा route नहीं बदलता; तरीका सिर्फ disable करके नया route और नए template version बनाना है।
+- इस्तेमाल में लगा route नहीं बदलता; तरीका सिर्फ disable करके नया route और नए template revision बनाना है।
 
 ### Template Studio (template सूची) (/engineering/templates)
 स्क्रीन का पता: /engineering/templates · भूमिकाएँ: ADMIN, OWNER, SUPER_ADMIN, PLANT_MANAGER, PLANNER, WORK_CENTER_MANAGER · शेयर लिंक: https://erp.totalpolyprint.com/guide?page=engineering-templates&lang=hi
 
 Route template की सूची (LIVE या Disabled) — type, business family और status के साथ। नया template बनाएँ और studio में खोलें।
 
-Template एक product type (POUCH या ROLL) को route, stage material rule, roll handling और batch rule से जोड़ता है। Sales, planner और Product Master में सिर्फ चालू LIVE version चुना जा सकता है। काम यहाँ शुरू होता है, Template Studio में चलता है और "Publish LIVE" से पूरा होता है।
+Template एक product type (POUCH या ROLL) को route, stage material rule, roll handling और batch rule से जोड़ता है। Sales, planner और Product Master में सिर्फ चालू LIVE revision चुना जा सकता है। काम यहाँ शुरू होता है, Template Studio में चलता है और "Publish LIVE" से पूरा होता है।
 
 **शुरू करने से पहले**
 - Routing rule (Routing Studio)।
@@ -936,7 +936,7 @@ Template एक product type (POUCH या ROLL) को route, stage material ru
 
 एक template पूरा बनाता है: route जोड़ना, batch और lot rule, route stage और lamination lane, work-center dispatch, step material rule, फिर review और LIVE।
 
-इसे सूची से, Pending Approvals से या template बनाते ही खोलें। Lifecycle: DRAFT → ENGINEERING → APPROVED → LIVE → OBSOLETE। LIVE template lock होते हैं; "Edit safely" correction draft खोलता है और पुराने order व job draft publish होने तक पुराने version पर रहते हैं।
+इसे सूची से, Pending Approvals से या template बनाते ही खोलें। Lifecycle: DRAFT → ENGINEERING → APPROVED → LIVE → OBSOLETE। LIVE template lock होते हैं; "Edit safely" correction draft खोलता है और पुराने order व job draft publish होने तक पुराने revision पर रहते हैं।
 
 **शुरू करने से पहले**
 - सही process वाला routing rule।
@@ -970,7 +970,7 @@ Template एक product type (POUCH या ROLL) को route, stage material ru
 - "Sync workflow first. A LIVE template must contain at least one active route step." — Route चुनने के बाद "Sync route stages" दबाएँ।
 - "Cannot change routing on a LIVE template." — "Edit safely" से correction draft लें।
 - "Template must be APPROVED before it can be published LIVE." — पहले review भेजें और approve करें।
-- "LIVE templates are read-only. Clone a new version first." — "Edit safely" इस्तेमाल करें।
+- "LIVE templates are read-only. Clone a new revision first." — "Edit safely" इस्तेमाल करें।
 - "Step N …: choose a default work center or set Planner chooses at release." — एक से ज़्यादा capable center हैं और फैसला नहीं हुआ। Section 4 में ठीक करें।
 - "Step N …: lamination needs two input lanes." — Lamination stage में Input lanes 2 करें।
 - "Routing Rule contains missing Process code(s): … Route steps were not changed." — Route में ऐसा process है जो अब नहीं है; route या Process Master ठीक करें।
