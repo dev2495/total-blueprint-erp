@@ -84,8 +84,25 @@ function reducer(state: SalesOrderDraft, action: DraftAction): SalesOrderDraft {
       };
     case "EXPAND_LINE":
       return { ...state, expanded_line_id: action.id };
+    case "MOVE_LINE": {
+      const from = state.lines.findIndex((l) => l.id === action.id);
+      const to = from + action.by;
+      if (from < 0 || to < 0 || to >= state.lines.length) return state;
+      const next = [...state.lines];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return { ...state, lines: next };
+    }
+    case "RESTORE_LINE": {
+      if (state.lines.some((l) => l.id === action.line.id)) return state;
+      const next = [...state.lines];
+      next.splice(Math.max(0, Math.min(action.index, next.length)), 0, action.line);
+      return { ...state, lines: next };
+    }
+    case "RESTORE_DRAFT":
+      return { ...INITIAL_DRAFT, ...action.draft, expanded_line_id: null };
     case "RESET":
-      return INITIAL_DRAFT;
+      return { ...INITIAL_DRAFT, customer: action.customer || "" };
     default:
       return state;
   }
@@ -109,6 +126,15 @@ export interface UseSalesDraftResult {
   duplicateLine: (id: string) => void;
   updateLine: (id: string, patch: Partial<SalesOrderLine>) => void;
   expandLine: (id: string | null) => void;
+  moveLine: (id: string, by: -1 | 1) => void;
+  restoreLine: (line: SalesOrderLine, index: number) => void;
+  /** A draft left from an earlier visit (autosaved in this browser), offered to resume. */
+  savedDraft: { draft: SalesOrderDraft; savedAt: string } | null;
+  resumeSavedDraft: () => void;
+  discardSavedDraft: () => void;
+  /** When the current draft was last autosaved here. */
+  savedAt: string;
+  reset: (customer?: string) => void;
   cartTotalKg: number;
   cartTotalValue: number;
   isReadyToSubmit: boolean;
@@ -116,11 +142,48 @@ export interface UseSalesDraftResult {
   warnings: string[];
 }
 
+const DRAFT_KEY = "erp.sales.composerDraft.v1";
+
+function readSavedDraft(): { draft: SalesOrderDraft; savedAt: string } | null {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed?.draft || !Array.isArray(parsed.draft.lines)) return null;
+    if (!parsed.draft.customer && !parsed.draft.lines.length) return null;
+    return { draft: parsed.draft as SalesOrderDraft, savedAt: String(parsed.savedAt || "") };
+  } catch {
+    return null;
+  }
+}
+
 export function useSalesDraft(initialCustomer = ""): UseSalesDraftResult {
   const [draft, dispatch] = React.useReducer(reducer, {
     ...INITIAL_DRAFT,
     customer: initialCustomer,
   });
+  // Drafts autosave in this browser; one left from an earlier visit is offered, never forced.
+  const [savedDraft, setSavedDraft] = React.useState<{ draft: SalesOrderDraft; savedAt: string } | null>(null);
+  const [savedAt, setSavedAt] = React.useState("");
+  const offeredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (offeredRef.current) return;
+    offeredRef.current = true;
+    if (!initialCustomer) setSavedDraft(readSavedDraft());
+  }, [initialCustomer]);
+  React.useEffect(() => {
+    if (!draft.customer && !draft.lines.length) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const at = new Date().toISOString();
+        window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ draft: { ...draft, expanded_line_id: null }, savedAt: at }));
+        setSavedAt(at);
+        setSavedDraft(null);
+      } catch {
+        // Autosave is a convenience; the order still places without it.
+      }
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [draft]);
 
   const cartTotalKg = React.useMemo(
     () =>
@@ -190,6 +253,31 @@ export function useSalesDraft(initialCustomer = ""): UseSalesDraftResult {
     duplicateLine: (id) => dispatch({ type: "DUPLICATE_LINE", id }),
     updateLine: (id, patch) => dispatch({ type: "UPDATE_LINE", id, patch }),
     expandLine: (id) => dispatch({ type: "EXPAND_LINE", id }),
+    moveLine: (id, by) => dispatch({ type: "MOVE_LINE", id, by }),
+    restoreLine: (line, index) => dispatch({ type: "RESTORE_LINE", line, index }),
+    savedDraft,
+    resumeSavedDraft: () => {
+      if (savedDraft) dispatch({ type: "RESTORE_DRAFT", draft: savedDraft.draft });
+      setSavedDraft(null);
+    },
+    discardSavedDraft: () => {
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // nothing to clear
+      }
+      setSavedDraft(null);
+    },
+    savedAt,
+    reset: (customer) => {
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // nothing to clear
+      }
+      setSavedAt("");
+      dispatch({ type: "RESET", customer });
+    },
     cartTotalKg,
     cartTotalValue,
     isReadyToSubmit,

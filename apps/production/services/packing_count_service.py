@@ -23,6 +23,28 @@ def q4(value) -> Decimal:
     return Decimal(str(value or 0)).quantize(QTY_QUANT, rounding=ROUND_HALF_UP)
 
 
+def one_mark_per_material(rows) -> list[dict]:
+    """
+    A packing item marked on one unit counts once for that unit, however many times it was marked
+    (e.g. the gonny chosen when a pouch unit was sealed and the same gonny ticked at release).
+    The largest quantity wins, so an explicit quantity is never lowered.
+    """
+    best: dict[str, tuple[Decimal, dict]] = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        material_id = str(row.get("material_id") or "").strip()
+        if not material_id:
+            continue
+        try:
+            qty = Decimal(str(row.get("qty") or 0))
+        except Exception:
+            qty = Decimal("0")
+        if material_id not in best or qty > best[material_id][0]:
+            best[material_id] = (qty, row)
+    return [row for _, row in best.values()]
+
+
 class PackingCountService:
     """
     Timestamped packing material count.
@@ -196,11 +218,11 @@ class PackingCountService:
         for gonny in gonnies:
             units = gonny.primary_pack_count if gonny.content_mode == "PRIMARY_PACKS" and gonny.primary_pack_count else gonny.qty_pcs
             meta = gonny.meta_json if isinstance(gonny.meta_json, dict) else {}
-            marks = [
+            marks = one_mark_per_material([
                 *[row for row in (meta.get("packaging_marks") or []) if str((row or {}).get("capture_mode") or "") == "MARKED_FOR_COUNT"],
                 *(meta.get("seal_extras") or []),
                 *(meta.get("release_extras") or []),
-            ]
+            ])
             add(gonny.sales_order_item, gonny.location, units or 1, "GONNY", gonny.label_id, marks)
 
         roll_records = (
@@ -210,7 +232,7 @@ class PackingCountService:
         if location_id:
             roll_records = roll_records.filter(roll__location_id=location_id)
         for record in roll_records:
-            add(record.sales_order_item, record.roll.location, 1, "ROLL", getattr(record.roll, "label_id", "ROLL"), record.lines or [])
+            add(record.sales_order_item, record.roll.location, 1, "ROLL", getattr(record.roll, "label_id", "ROLL"), one_mark_per_material(record.lines or []))
 
         # Inner pouches the machine could not take off stock (stock book gap) are marks for
         # this count: no packed units of their own, so other materials' allocation is unchanged.

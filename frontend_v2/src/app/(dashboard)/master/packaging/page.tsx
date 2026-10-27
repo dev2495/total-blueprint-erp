@@ -38,16 +38,35 @@ import { useToast } from "@/hooks/use-toast";
 import { MasterRegistryShell } from "@/components/master/master-registry-shell";
 import { CatalogLinkPanel } from "@/components/master/catalog-link";
 import { SemanticBadge } from "@/components/ui-custom/semantic-badge";
+import { cn } from "@/lib/utils";
 
 const kinds = [
   "INNER_POUCH",
   "GONNY",
   "SHEET",
+  "BOX",
+  "OUTER_BAG",
   "TAPE",
   "LABEL",
   "TAG",
   "OTHER",
 ] as const;
+
+/** What each kind is, in floor words, and how the packing yard uses it. */
+const KIND_INFO: Record<(typeof kinds)[number], { label: string; usage: string }> = {
+  INNER_POUCH: {
+    label: "Inner pouch",
+    usage: "Holds pouches inside a gonny. Taken off stock automatically at packing, so it is never in the release tick list.",
+  },
+  GONNY: { label: "Gonny", usage: "In the release tick list; chosen on each pouch unit too. Counted every evening." },
+  SHEET: { label: "Sheet · putha · board", usage: "In the release tick list; counted every evening." },
+  BOX: { label: "Box · carton", usage: "In the release tick list; counted every evening." },
+  OUTER_BAG: { label: "Outer bag · packing pouch", usage: "In the release tick list; counted every evening." },
+  TAPE: { label: "Tape", usage: "In the release tick list; counted every evening." },
+  LABEL: { label: "Label", usage: "In the release tick list; counted every evening." },
+  TAG: { label: "Tag", usage: "In the release tick list; counted every evening." },
+  OTHER: { label: "Other packing item", usage: "In the release tick list; counted every evening." },
+};
 const supplyModes = ["PURCHASED", "IN_HOUSE", "BOTH"] as const;
 const uoms = ["PCS", "KG", "METER"] as const;
 
@@ -79,9 +98,9 @@ function PackagingForm({
   const [baseUom, setBaseUom] = useState<PackagingUom>(
     (initial?.base_uom as PackagingUom) || "PCS",
   );
-  const [kind, setKind] = useState<PackagingKind>(
-    (initial?.packaging_kind as PackagingKind) || "INNER_POUCH",
-  );
+  // No default: a new item's kind decides whether it is ticked at release (everything but inner
+  // pouches) or taken automatically at packing, so it is always chosen on purpose.
+  const [kind, setKind] = useState<PackagingKind | "">((initial?.packaging_kind as PackagingKind) || "");
   const [supplyMode, setSupplyMode] = useState<PackagingSupplyMode>(
     (initial?.packaging_supply_mode as PackagingSupplyMode) || "PURCHASED",
   );
@@ -114,7 +133,7 @@ function PackagingForm({
   const weightRequired = weighed && (supplyMode === "PURCHASED" || kind === "GONNY");
   const weightEntered = weightRequired || (kind === "INNER_POUCH" && supplyMode === "BOTH");
   const bomMeasure = initial?.stock_measure?.source === "BOM" ? initial.stock_measure : null;
-  const unitLabel = kind === "INNER_POUCH" ? "pouch" : kind.replaceAll("_", " ").toLowerCase();
+  const unitLabel = kind === "INNER_POUCH" ? "pouch" : kind ? kind.replaceAll("_", " ").toLowerCase() : "item";
 
   useEffect(() => {
     if (!allowInHouse && supplyMode !== "PURCHASED") {
@@ -188,20 +207,23 @@ function PackagingForm({
         <div>
           <Label>Kind</Label>
           <Select
-            value={kind}
+            value={kind || undefined}
             onValueChange={(value) => setKind(value as PackagingKind)}
           >
-            <SelectTrigger>
-              <SelectValue />
+            <SelectTrigger aria-invalid={!kind} data-testid="packaging-kind-select">
+              <SelectValue placeholder="What is this item?" />
             </SelectTrigger>
             <SelectContent>
               {kinds.map((k) => (
                 <SelectItem key={k} value={k}>
-                  {k}
+                  {KIND_INFO[k].label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <p className={cn("mt-1 text-[11.5px]", kind === "INNER_POUCH" ? "text-warning-fg" : "text-content-3")} data-testid="packaging-kind-usage">
+            {kind ? KIND_INFO[kind].usage : "Pick the kind first: it decides how the packing yard uses this item."}
+          </p>
         </div>
         <div>
           <Label>Supply Mode</Label>
@@ -330,7 +352,7 @@ function PackagingForm({
       ) : null}
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || !kind}>
           Save
         </Button>
       </div>
@@ -534,6 +556,15 @@ export default function PackagingMasterPage() {
                     value={row.packaging_kind}
                   />
                 </div>
+                <p
+                  className={cn(
+                    "-mt-2 text-[11.5px]",
+                    String(row.packaging_kind || "").toUpperCase() === "INNER_POUCH" ? "text-warning-fg" : "text-content-3",
+                  )}
+                  data-testid={`packaging-usage-${row.id}`}
+                >
+                  {KIND_INFO[String(row.packaging_kind || "").toUpperCase() as PackagingKind]?.usage || "Ticked at release when used; counted every evening."}
+                </p>
 
                 <div className="flex flex-wrap gap-2">
                   <SemanticBadge

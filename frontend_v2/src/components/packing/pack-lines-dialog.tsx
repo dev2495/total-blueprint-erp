@@ -225,7 +225,11 @@ const gonnyWeight = (item: PackagingMaterial) =>
 /* Evening-count items                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Evening-count packing items used: tick what was used, no quantities. Planned items come first. */
+/**
+ * Evening-count packing items used on this release: every active packing item except inner pouches
+ * (those are taken off stock automatically at packing). Tick as many as were used; no quantities.
+ * The order's own packing list comes first.
+ */
 export function EodItemChecks({
   materials,
   selectedIds,
@@ -287,6 +291,11 @@ export function EodItemChecks({
       })}
     </div>
   );
+}
+
+/** One rule for the release tick list: inner pouches never show (taken automatically at packing); every other item always does. */
+export function isAutoConsumedPacking(material: PackagingMaterial): boolean {
+  return String(material.packaging_kind || "").toUpperCase() === "INNER_POUCH";
 }
 
 /* ------------------------------------------------------------------ */
@@ -960,7 +969,7 @@ function PouchLine({
     (!inner || !plan?.pcs_per_pack || packs > 0) &&
     (!needReason || Boolean(draft.reason.trim()));
   const kg3 = (value: number) => value.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-  const markMaterials = markMasters.filter((m) => !["INNER_POUCH", "GONNY"].includes(String(m.packaging_kind || "").toUpperCase()));
+  const markMaterials = markMasters.filter((m) => !isAutoConsumedPacking(m));
   const toggleMark = (material: PackagingMaterial) => {
     const id = String(material.id || "");
     patchDraft({ marks: draft.marks.includes(id) ? draft.marks.filter((value) => value !== id) : [...draft.marks, id] });
@@ -1440,7 +1449,7 @@ function PouchLine({
           no={4}
           title="Packing items used · evening-count marks"
           done={draft.marks.length > 0}
-          hint="Tick everything used on this line other than the inner pouches and gonnies (already booked from each unit): cartons, tape, labels, sheets and extras. No quantities: the evening count gives the consumption, booked to this order."
+          hint="Tick every packing item used on this line, as many as apply: gonny, cartons, tape, labels, sheets, putha and extras. Inner pouches are taken automatically and are not listed. No quantities: the evening count gives the consumption, booked to this order."
           right={<Pill tone={draft.marks.length ? "good" : "neutral"}>{draft.marks.length} ticked</Pill>}
         >
           <EodItemChecks
@@ -1516,9 +1525,8 @@ function RollLine({ line, draft, patchDraft, markMasters, busy, onRelease, relea
   const choice = rollChoice(line, draft);
   const planIds = rollPlanIds(line);
   const selectedRolls = state.openRolls.filter((roll) => choice.ids.includes(String(roll.id)));
-  const materials = markMasters.filter(
-    (m) => String(m.packaging_kind || "").toUpperCase() !== "INNER_POUCH" && (!planIds.length || planIds.includes(String(m.id))),
-  );
+  // Every active item except inner pouches can be ticked; the order's own roll packing list comes first (and pre-ticked).
+  const materials = markMasters.filter((m) => !isAutoConsumedPacking(m));
   const net = selectedRolls.reduce((sum, roll) => sum + Number(roll.net_weight_kg || roll.weight_kg || 0), 0);
   const tare = selectedRolls.reduce((sum, roll) => sum + Number(roll.tare_weight_kg || 0), 0);
   const gross = selectedRolls.reduce((sum, roll) => sum + Number(roll.gross_weight_kg || roll.weight_kg || 0), 0);
@@ -1640,7 +1648,7 @@ function RollLine({ line, draft, patchDraft, markMasters, busy, onRelease, relea
             </p>
           ) : (
             <p className="mt-2 text-[12px] text-content-3">
-              {planIds.length ? `The order's roll packing list has ${planIds.length} items; they come ticked below.` : "This order has no roll packing list; any evening-count item can be ticked."}
+              {planIds.length ? `The order's roll packing list has ${planIds.length} items; they come first and ticked. Anything else used can be ticked too.` : "This order has no roll packing list; tick every evening-count item used."}
             </p>
           )}
         </Step>
@@ -1649,7 +1657,7 @@ function RollLine({ line, draft, patchDraft, markMasters, busy, onRelease, relea
             no={3}
             title="Evening-count items used on these rolls"
             done={choice.marks.length > 0}
-            hint="Tick what was used: wrap, sheet, tape, core plugs. No quantities; the evening count gives the consumption, booked to this order."
+            hint="Tick every packing item used, as many as apply: gonny, wrap, sheet, putha, tape, core plugs. No quantities; the evening count gives the consumption, booked to this order."
             right={<Pill tone={choice.marks.length ? "good" : "warn"}>{choice.marks.length} ticked</Pill>}
           >
             <div className="max-h-[220px] overflow-y-auto pr-0.5">
@@ -1660,7 +1668,7 @@ function RollLine({ line, draft, patchDraft, markMasters, busy, onRelease, relea
                 onToggle={toggleMark}
                 testIdPrefix="packing-roll-mark-material"
                 disabled={busy}
-              />
+                  />
             </div>
           </Step>
         ) : null}

@@ -449,6 +449,26 @@ class EveningCountSplitTests(TestCase):
         kg = PackingCountService.split_count_usage(Decimal("1"), [Decimal("1"), Decimal("2")], whole_pieces=False)
         self.assertEqual(sum(kg), Decimal("1"))
 
+    def test_an_item_marked_twice_on_one_unit_counts_once(self):
+        from decimal import Decimal
+
+        from apps.production.services.packing_count_service import one_mark_per_material
+
+        gonny = "11111111-1111-1111-1111-111111111111"
+        tape = "22222222-2222-2222-2222-222222222222"
+        marks = one_mark_per_material(
+            [
+                {"material_id": gonny, "qty": 1.0, "capture_mode": "MARKED_FOR_COUNT"},  # chosen when sealed
+                {"material_id": gonny, "qty": 1, "basis": "PER_GONNY_RELEASE"},  # ticked again at release
+                {"material_id": tape, "qty": 1},
+                {"material_id": tape, "qty": 3},  # an explicit quantity is kept
+                {"material_id": ""},
+                "not a mark",
+            ]
+        )
+        by_material = {row["material_id"]: Decimal(str(row["qty"])) for row in marks}
+        self.assertEqual(by_material, {gonny: Decimal("1"), tape: Decimal("3")})
+
 
 # Borrowed fixture methods only; keep the guardrail suite from being collected here a second time.
 del _fixture

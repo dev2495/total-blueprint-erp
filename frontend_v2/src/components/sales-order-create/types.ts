@@ -123,11 +123,21 @@ export type DraftAction =
   | { type: "DUPLICATE_LINE"; id: LineId }
   | { type: "UPDATE_LINE"; id: LineId; patch: Partial<SalesOrderLine> }
   | { type: "EXPAND_LINE"; id: LineId | null }
-  | { type: "RESET" };
+  | { type: "MOVE_LINE"; id: LineId; by: -1 | 1 }
+  | { type: "RESTORE_LINE"; line: SalesOrderLine; index: number }
+  | { type: "RESTORE_DRAFT"; draft: SalesOrderDraft }
+  | { type: "RESET"; customer?: string };
 
 /**
  * Defaults for a fresh line. Applied on ADD_LINE and DUPLICATE_LINE.
  */
+/**
+ * Set on a line added from the quick-add row when its product prints or packs into pouches: the
+ * artwork and packing checks run inside the line editor, so the line stays blocked until it is
+ * opened once. The editor removes it as soon as it mounts and computes the real checks.
+ */
+export const QUICK_ADD_CHECK = "Open the line to confirm print and packing";
+
 export function freshLine(seed?: Partial<SalesOrderLine>): SalesOrderLine {
   const qtyValue = toFiniteNumber(seed?.qty_value, 1000);
   const { id: _seedId, qty_value: _seedQtyValue, ...safeSeed } = seed || {};

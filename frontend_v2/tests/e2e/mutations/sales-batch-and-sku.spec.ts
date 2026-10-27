@@ -54,6 +54,12 @@ test("sales can create a Product Master order and send it straight to planner", 
   await page.getByLabel(/Unit price/i).first().fill("9.25")
   await expect(page.getByTestId("sales-create-submit")).toBeEnabled({ timeout: 30_000 })
 
+  // The line is built in a drawer over the order; close it to reach the place bar.
+  const doneWithLine = page.getByTestId("sales-line-done")
+  if (await doneWithLine.isVisible().catch(() => false)) {
+    await doneWithLine.click()
+    await expect(page.getByTestId("sales-line-drawer")).toBeHidden()
+  }
   const createResponse = page.waitForResponse((response) => response.url().includes("/api/sales/orders/") && response.request().method() === "POST")
   await page.getByTestId("sales-create-submit").click()
   const createdResponse = await createResponse

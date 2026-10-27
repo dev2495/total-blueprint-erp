@@ -67,7 +67,7 @@ import {
   webWidthPolicyService,
 } from "@/services/web-width-policy";
 
-import type { SalesOrderLine } from "./types";
+import { QUICK_ADD_CHECK, type SalesOrderLine } from "./types";
 import { buildPreviewBlocker, buildSalesAxisValues } from "./axis-values";
 import { buildSalesLineLabel } from "./product-label";
 import { INP, LABEL, MONO, SoField, SoSelect, SoReadout } from "./ui";
@@ -80,6 +80,8 @@ export interface LineEditorProps {
   onPatch: (patch: Partial<SalesOrderLine>) => void;
   onCollapse: () => void;
   onAdd?: () => void;
+  /** "drawer": the composer's line drawer (plate in the right rail, jump chips on top, no inline footer). */
+  layout?: "inline" | "drawer";
   lineIndex?: number;
 }
 
@@ -93,7 +95,9 @@ export function LineEditor({
   onCollapse,
   onAdd,
   lineIndex,
+  layout = "inline",
 }: LineEditorProps) {
+  const inDrawer = layout === "drawer";
   const router = useRouter();
   const canFollowLink = useCanFollowLink();
   const master = masters.find((m) => m.id === line.product_master);
@@ -526,6 +530,12 @@ export function LineEditor({
   const resolverBlocker = previewResolverBlocker(previewForRail);
   const addDisabled = baseAddDisabled || hasBomIssues;
 
+  // A quick-added line is held until opened; now it is open, the real checks below take over.
+  React.useEffect(() => {
+    const existing = line.pre_submit_blockers || [];
+    if (existing.includes(QUICK_ADD_CHECK))
+      onPatch({ pre_submit_blockers: existing.filter((issue) => issue !== QUICK_ADD_CHECK) });
+  }, [line.pre_submit_blockers, onPatch]);
   React.useEffect(() => {
     const existing = line.pre_submit_blockers || [];
     const kept = existing.filter(
@@ -723,9 +733,7 @@ export function LineEditor({
     </div>
   );
 
-  return (
-    <div className="min-w-0" data-testid="line-editor">
-      <div className="px-4 sm:px-5">
+  const plate = (
         <SpecPlate
           data={plateData}
           caption={
@@ -740,10 +748,76 @@ export function LineEditor({
           testId={`line-editor-spec-${(lineIndex ?? 0) + 1}`}
           emptyText="Pick a product master below. Size, layers and gauge appear here as you go."
         />
-      </div>
+  );
+  // Jump chips for the drawer: each step with its state; a tap scrolls the step into view.
+  // A required axis left empty turns its chip amber (packing axes on Packing, the rest on Product).
+  const packAxisMissing = axisBuild.missingRequired.some((key) => /pack|inner|pouch/i.test(key));
+  const otherAxisMissing = axisBuild.missingRequired.some((key) => !/pack|inner|pouch|size|geometry/i.test(key));
+  const stepChips: Array<{ key: string; title: string; state: "done" | "warn" | "todo" | "idle" }> = [
+    { key: "product", title: "Product", state: master ? (otherAxisMissing ? "warn" : "done") : "todo" },
+    ...(hasSizeStep ? [{ key: "size", title: "Size", state: (line.size_code ? "done" : "todo") as "done" | "todo" }] : []),
+    ...(hasLayerStep ? [{ key: "layers", title: "Layers", state: "done" as const }] : []),
+    ...(master ? [{ key: "qty", title: "Qty & rate", state: (rateOk ? "done" : "warn") as "done" | "warn" }] : []),
+    ...(master && printCapable ? [{ key: "print", title: "Print & artwork", state: (artworkReady ? "done" : "warn") as "done" | "warn" }] : []),
+    ...(master && isPouchOutput(master) ? [{ key: "packing", title: "Packing", state: (packingReady && !packAxisMissing ? "done" : "warn") as "done" | "warn" }] : []),
+    ...(master && addonsRequired ? [{ key: "addons", title: "Add-ons", state: (line.addons.length ? "done" : "warn") as "done" | "warn" }] : []),
+    ...(master ? [{ key: "more", title: "More options", state: "idle" as const }] : []),
+  ];
+  const jumpTo = (key: string) => {
+    const element = typeof document !== "undefined" ? document.getElementById(`soc-step-${key}`) : null;
+    element?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
-      <div className="mt-4 grid items-start border-t border-line xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0 px-4 pb-3 sm:px-5 xl:border-r xl:border-line">
+  return (
+    <div className={cn("min-w-0", inDrawer && "h-full min-h-0")} data-testid="line-editor">
+      {!inDrawer ? <div className="px-4 sm:px-5">{plate}</div> : null}
+
+      <div
+        className={cn(
+          "grid items-start",
+          inDrawer
+            ? "h-full min-h-0 lg:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_440px]"
+            : "mt-4 border-t border-line xl:grid-cols-[minmax(0,1fr)_380px]",
+        )}
+      >
+        <div
+          className={cn(
+            "min-w-0 px-4 pb-3 sm:px-5",
+            inDrawer ? "h-full min-h-0 overflow-y-auto overscroll-contain lg:border-r lg:border-line" : "xl:border-r xl:border-line",
+          )}
+          data-testid={inDrawer ? "line-editor-sections" : undefined}
+        >
+          {inDrawer ? (
+            <nav
+              className="sticky top-0 z-10 -mx-4 flex flex-wrap items-center gap-1.5 border-b border-line bg-surface-1/95 px-4 py-2 backdrop-blur sm:-mx-5 sm:px-5"
+              aria-label="Line sections"
+              data-testid="line-editor-step-chips"
+            >
+              {stepChips.map((chip) => (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => jumpTo(chip.key)}
+                  data-testid={`line-editor-chip-${chip.key}`}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium transition-colors hover:border-line-strong",
+                    chip.state === "done"
+                      ? "border-success-border bg-success-bg text-success-fg"
+                      : chip.state === "warn"
+                        ? "border-warning-border bg-warning-bg text-warning-fg"
+                        : chip.state === "todo"
+                          ? "border-line bg-surface-1 text-content-2"
+                          : "border-line bg-surface-2 text-content-3",
+                  )}
+                >
+                  <span aria-hidden className="text-[11px] font-bold">
+                    {chip.state === "done" ? "✓" : chip.state === "warn" ? "!" : "·"}
+                  </span>
+                  {chip.title}
+                </button>
+              ))}
+            </nav>
+          ) : null}
           {selectedOverlay ? (
             <div className="mt-4 flex flex-wrap items-center gap-2 rounded-[13px] bg-success-bg px-3.5 py-2.5 text-[12.5px] text-success-fg">
               <span className="font-semibold">Customer item applied</span>
@@ -795,6 +869,7 @@ export function LineEditor({
             step={nextStep()}
             state={master ? "done" : "todo"}
             title="Product"
+            id="soc-step-product"
             hint="product master and the route it runs on"
             aside={
               master ? (
@@ -836,6 +911,7 @@ export function LineEditor({
               step={nextStep()}
               state={line.size_code ? "done" : "todo"}
               title="Size"
+            id="soc-step-size"
               hint={
                 sizeAxisAllowsAdHoc
                   ? "saved sizes, or a new one within the master's bounds"
@@ -864,6 +940,7 @@ export function LineEditor({
               step={nextStep()}
               state="done"
               title="Layers"
+            id="soc-step-layers"
               hint="film · micron · grade, outer to inner"
               aside={
                 selectableLayerCount > 0
@@ -1004,6 +1081,7 @@ export function LineEditor({
             step={nextStep()}
             state={rateOk ? "done" : "warn"}
             title="Quantity & rate"
+            id="soc-step-qty"
             hint="rate is needed to place the order"
             aside={
               subtotal > 0 ? (
@@ -1094,6 +1172,7 @@ export function LineEditor({
               step={nextStep()}
               state={artworkReady ? "done" : "warn"}
               title="Print & artwork"
+            id="soc-step-print"
               hint="optional · artwork can follow before release"
             >
               <ArtworkSection
@@ -1189,6 +1268,7 @@ export function LineEditor({
               step={nextStep()}
               state={packingReady ? "done" : "warn"}
               title="Packing"
+            id="soc-step-packing"
               hint="inner pouch, pieces per inner and the packing note"
             >
               <div className="grid gap-3">
@@ -1259,6 +1339,7 @@ export function LineEditor({
               step={nextStep()}
               state={line.addons.length ? "done" : "warn"}
               title="Add-ons"
+            id="soc-step-addons"
               hint="required on this product master"
             >
               {addonsBlock}
@@ -1266,7 +1347,7 @@ export function LineEditor({
           ) : null}
 
           {master ? (
-            <StepSection step={nextStep()} state="idle" title="More options" last>
+            <StepSection step={nextStep()} state="idle" title="More options" last id="soc-step-more">
               <details
                 className="group rounded-[14px] border border-line bg-surface-2/60 open:bg-surface-1"
                 open={moreOpenByDefault || undefined}
@@ -1395,7 +1476,7 @@ export function LineEditor({
             </StepSection>
           ) : null}
 
-          {master ? (
+          {master && !inDrawer ? (
             <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pb-2 pt-4">
               <Button
                 variant="ghost"
@@ -1421,7 +1502,14 @@ export function LineEditor({
         </div>
 
         {/* ───────────────── RIGHT: live preview rail ───────────────── */}
-        <div className="min-w-0 border-t border-line p-4 sm:p-5 xl:sticky xl:top-20 xl:border-t-0">
+        <div
+          className={cn(
+            "min-w-0 border-t border-line p-4 sm:p-5",
+            inDrawer ? "grid h-full min-h-0 auto-rows-max content-start gap-4 overflow-y-auto overscroll-contain bg-surface-2 lg:border-t-0" : "xl:sticky xl:top-20 xl:border-t-0",
+          )}
+          data-testid={inDrawer ? "line-editor-rail" : undefined}
+        >
+          {inDrawer ? plate : null}
           <SalesPreviewRail
             preview={previewForRail}
             loading={livePreviewLoading}
