@@ -24,7 +24,7 @@ import { QUICK_ADD_CHECK, type SalesOrderLine } from "./types";
 
 // One template for the header, every row and the totals so the columns always line up.
 const GRID =
-  "xl:grid xl:grid-cols-[32px_minmax(150px,1.5fr)_minmax(104px,0.85fr)_minmax(130px,1.15fr)_minmax(90px,0.8fr)_80px_88px_100px_minmax(132px,1.1fr)] xl:items-center xl:gap-x-2.5";
+  "xl:grid xl:grid-cols-[32px_minmax(150px,1.4fr)_minmax(118px,0.9fr)_minmax(165px,1.3fr)_minmax(90px,0.75fr)_80px_88px_100px_minmax(132px,1fr)] xl:items-center xl:gap-x-2.5";
 
 const inr = (value: number) => `₹${Math.round(value).toLocaleString("en-IN")}`;
 const qtyText = (value: number, uom: string) =>
@@ -159,7 +159,7 @@ function LineRow({
         {width ? (
           <>
             <div className="flex items-baseline gap-1">
-              <span className="font-mono text-[16px] font-bold tracking-[-0.01em] text-content-1">
+              <span className="font-mono text-[18px] font-bold tracking-[-0.01em] text-content-1">
                 {trim1(width)}
                 {height ? <span className="px-0.5 text-content-3">×</span> : null}
                 {height ? trim1(height) : ""}
@@ -167,7 +167,7 @@ function LineRow({
               </span>
               <span className="text-[11px] text-content-3">mm</span>
             </div>
-            <div className="truncate text-[11.5px] text-content-3">
+            <div className="truncate text-[12.5px] font-medium text-content-2">
               {height ? inchesText(width, height) : inchesText(width)}
               {spec?.style ? ` · ${String(spec.style).replaceAll("_", " ").toLowerCase()}` : ""}
             </div>
@@ -176,21 +176,33 @@ function LineRow({
           <span className="text-[12.5px] text-content-4">{line.product_master ? "pick a size" : "—"}</span>
         )}
       </div>
-      <div role="cell" className="flex min-w-0 flex-wrap items-center gap-1">
+      <div role="cell" className="grid min-w-0 gap-1">
         {layers.length ? (
           <>
-            {layers.slice(0, 3).map((layer, layerIndex) => (
-              <span
+            {/* One layer per line, film · thickness · grade, large enough to read at the machine. */}
+            {layers.slice(0, 4).map((layer, layerIndex) => (
+              <div
                 key={`${layer.name}-${layerIndex}`}
-                className="inline-flex max-w-[150px] items-center gap-1 truncate rounded-md border border-line bg-surface-2 px-1.5 py-px font-mono text-[11px] text-content-2"
+                className="flex min-w-0 items-baseline gap-1.5"
                 title={[layer.name, layer.micron ? `${layer.micron}µ` : "", layer.grade].filter(Boolean).join(" · ")}
+                data-testid={`sales-line-layer-${index + 1}-${layerIndex + 1}`}
               >
-                <span className="truncate">{layer.name}</span>
-                {layer.micron ? <b className="font-semibold text-content-1">{trim1(Number(layer.micron))}</b> : null}
-              </span>
+                <span className="min-w-0 truncate font-mono text-[13px] font-semibold text-content-1">{layer.name}</span>
+                {layer.micron ? (
+                  <span className="shrink-0 font-mono text-[15px] font-bold tabular-nums text-content-1">
+                    {trim1(Number(layer.micron))}
+                    <span className="text-[11.5px] font-semibold text-content-3">µ</span>
+                  </span>
+                ) : null}
+                {layer.grade ? (
+                  <span className="shrink-0 rounded-md bg-surface-2 px-1.5 py-px text-[11.5px] font-bold uppercase text-content-2">{layer.grade}</span>
+                ) : null}
+              </div>
             ))}
-            {layers.length > 3 ? <span className="text-[11px] text-content-3">+{layers.length - 3}</span> : null}
-            {gauge ? <b className="font-mono text-[11.5px] text-content-1">= {trim1(gauge)}µ</b> : null}
+            {layers.length > 4 ? <span className="text-[12px] text-content-3">+{layers.length - 4} more</span> : null}
+            {gauge && layers.length > 1 ? (
+              <div className="font-mono text-[13px] font-bold tabular-nums text-primary">= {trim1(gauge)}µ total</div>
+            ) : null}
           </>
         ) : (
           <span className="text-[12.5px] text-content-4">—</span>

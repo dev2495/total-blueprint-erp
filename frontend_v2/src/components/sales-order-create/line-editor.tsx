@@ -520,6 +520,7 @@ export function LineEditor({
     augmentedPreview || livePreview,
     master,
     selectedOverlay,
+    line,
   );
   const canUseInnerPacking = hasInnerPackingConfig(master, selectedOverlay);
   const previewForRail =
@@ -579,7 +580,7 @@ export function LineEditor({
     ],
   );
   const packingBlockers = React.useMemo(
-    () => buildPackingBlockers(line, master, augmentedPreview || livePreview),
+    () => buildPackingBlockers(line, master, augmentedPreview || livePreview, innerPackFallback),
     [
       line.inner_pouch_pcs_per_pack,
       line.axis_values?.packaging_inner,
@@ -589,6 +590,7 @@ export function LineEditor({
       master?.fixed_attributes,
       augmentedPreview,
       livePreview,
+      innerPackFallback,
     ],
   );
   const artworkReady =
@@ -597,6 +599,8 @@ export function LineEditor({
       ? true
       : !!line.artwork_assignment?.artwork_id && artworkBlockers.length === 0);
   const packingReady = packingBlockers.length === 0;
+  // Hint and help text follow the blocker itself (only shown once the server preview is in).
+  const needsInnerPcs = packingBlockers.some((issue) => issue.startsWith("Packing: set pieces per inner pouch"));
   const bomReady =
     !!previewForRail &&
     hasMaterialPlan &&
@@ -1286,9 +1290,12 @@ export function LineEditor({
                     onPatch={onPatch}
                   />
                 </div>
-                {isPouchOutput(master) && canUseInnerPacking ? (
+                {isPouchOutput(master) && (canUseInnerPacking || lineCarriesInnerPouch(line, augmentedPreview || livePreview)) ? (
                   <div className="grid gap-3 sm:grid-cols-[200px_1fr] sm:items-end">
-                    <SoField label="Pieces per inner pouch" hint="override">
+                    <SoField
+                      label="Pieces per inner pouch"
+                      hint={needsInnerPcs ? "required · no default" : "override"}
+                    >
                       <input
                         type="number"
                         min={1}
@@ -1311,7 +1318,9 @@ export function LineEditor({
                         ? `Using ${line.inner_pouch_pcs_per_pack} per inner for this order.`
                         : innerPackFallback
                           ? `Using the default ${innerPackFallback} per inner.`
-                          : "Pick an inner pouch first, then override if needed."}
+                          : needsInnerPcs
+                            ? "This inner pouch has no default: enter the pieces per inner pouch."
+                            : "Pick an inner pouch first, then override if needed."}
                     </div>
                   </div>
                 ) : isPouchOutput(master) ? (
@@ -3483,10 +3492,18 @@ function buildPackingBlockers(
   line: SalesOrderLine,
   master: ProductMaster | undefined,
   preview: any,
+  fallbackPcs = 0,
 ) {
   const blockers: string[] = [];
   if (!isPouchOutput(master)) return blockers;
   const override = Number(line.inner_pouch_pcs_per_pack || 0);
+  // An inner pouch the line really carries (picked on the line, or switched on with a material in
+  // the server's preview) and no pieces per pack anywhere: ask for the number. Not while the preview
+  // is still loading or failed, so a slow preview never leaves a false blocker on the line.
+  if (preview?.packaging_snapshot && !(override > 0) && !(fallbackPcs > 0) && lineCarriesInnerPouch(line, preview)) {
+    blockers.push("Packing: set pieces per inner pouch (this inner pouch has no default).");
+    return blockers;
+  }
   if (
     line.inner_pouch_pcs_per_pack &&
     (!Number.isFinite(override) || override <= 0)
@@ -3584,28 +3601,60 @@ function isPouchOutput(master?: ProductMaster) {
   return fg === "POUCH";
 }
 
+/** The inner pouch this line will carry on the server: picked on the line, or switched on with a material in the preview. */
+function lineInnerPouchRefs(line: SalesOrderLine, preview: any): string[] {
+  const axisValues = (line.axis_values || {}) as Record<string, any>;
+  const refs: string[] = [];
+  const add = (value: any) => {
+    if (typeof value === "string" && value.trim()) refs.push(value.trim().toLowerCase());
+    else if (value && typeof value === "object") {
+      [value.material_id, value.material_code, value.packaging_material_id, value.code, value.id, value.value]
+        .filter((item) => typeof item === "string" && item.trim())
+        .forEach((item: string) => refs.push(item.trim().toLowerCase()));
+    }
+  };
+  add(axisValues.packaging_inner);
+  add(axisValues.packaging_inner_ref);
+  add(axisValues.primary_inner_pack);
+  const primary = preview?.packaging_snapshot?.primary_inner_pack;
+  if (primary && primary.enabled !== false && hasMaterialRef(primary)) add(primary);
+  return refs;
+}
+
+function lineCarriesInnerPouch(line: SalesOrderLine, preview: any) {
+  return lineInnerPouchRefs(line, preview).length > 0;
+}
+
+/** Same sources and order as the server's order create: preview (line + inner pouch default), then the
+ * customer's packing recipe and the product master's PRIMARY_INNER line — only rows for the same
+ * inner pouch (or rows that name no material). */
 function effectiveInnerPackPcs(
   preview: any,
   master: ProductMaster | undefined,
   overlay: any,
+  line?: SalesOrderLine,
 ) {
   const previewPcs = Number(
     preview?.packaging_snapshot?.primary_inner_pack?.pcs_per_pack || 0,
   );
   if (Number.isFinite(previewPcs) && previewPcs > 0) return previewPcs;
-  const overlayPcs = Number(
-    overlay?.default_packing_recipe?.primary_inner_pack?.pcs_per_pack ||
-      overlay?.default_packing_recipe?.pcs_per_inner ||
-      0,
-  );
-  if (Number.isFinite(overlayPcs) && overlayPcs > 0) return overlayPcs;
-  const lines = master?.fixed_attributes?.packaging_lines;
-  if (Array.isArray(lines)) {
-    const row = lines.find(
-      (item: any) => normalizeCode(item?.role) === "PRIMARY_INNER",
-    );
+  const own = new Set(line ? lineInnerPouchRefs(line, preview) : []);
+  const sameInner = (row: any) => {
+    const refs = [row?.material_id, row?.material_code]
+      .filter((item) => typeof item === "string" && item.trim())
+      .map((item: string) => item.trim().toLowerCase());
+    return !own.size || !refs.length || refs.some((ref) => own.has(ref));
+  };
+  const recipe = overlay?.default_packing_recipe || {};
+  const rows: any[] = [
+    ...(Array.isArray(recipe.packaging_lines) ? recipe.packaging_lines : []),
+    ...(recipe.primary_inner_pack ? [{ role: "PRIMARY_INNER", ...recipe.primary_inner_pack }] : []),
+    ...(Number(recipe.pcs_per_inner) > 0 ? [{ role: "PRIMARY_INNER", pcs_per_pack: recipe.pcs_per_inner }] : []),
+    ...(Array.isArray(master?.fixed_attributes?.packaging_lines) ? master!.fixed_attributes!.packaging_lines : []),
+  ];
+  for (const row of rows) {
     const pcs = Number(row?.pcs_per_pack || 0);
-    if (Number.isFinite(pcs) && pcs > 0) return pcs;
+    if (normalizeCode(row?.role) === "PRIMARY_INNER" && Number.isFinite(pcs) && pcs > 0 && sameInner(row)) return pcs;
   }
   return 0;
 }
@@ -3718,6 +3767,11 @@ function buildLinePackagingSnapshot(line: SalesOrderLine) {
     line.axis_values?.packaging_inner ||
     line.axis_values?.packaging_inner_ref ||
     line.axis_values?.primary_inner_pack;
+  // No inner pouch picked on its own axis (it may come from the generic packaging axis, which the
+  // server classifies): send only the number, never switch an inner pouch on without a material.
+  if (!innerPackRef || (typeof innerPackRef === "string" && !innerPackRef.trim())) {
+    return { primary_inner_pack: { pcs_per_pack: Math.floor(pcsPerPack), basis: "PCS_PER_PACK" } };
+  }
   const primary: Record<string, any> = {
     enabled: true,
     pcs_per_pack: Math.floor(pcsPerPack),

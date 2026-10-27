@@ -1,7 +1,14 @@
 "use client";
 
 import type { DecisionFlow, HelpLocale } from "@/help/types";
-import { localize } from "@/help/resolver";
+import type { LocalizedText } from "@/help/types";
+
+// Local copy so this client file does not pull every help guide into the browser bundle.
+function localize(text: LocalizedText | string | undefined, locale: HelpLocale): string {
+  if (!text) return "";
+  if (typeof text === "string") return text;
+  return text[locale] || text.en;
+}
 import { HELP_PNG_KEYS } from "@/help/screenshot-keys";
 
 export function HelpScreenshotImage({

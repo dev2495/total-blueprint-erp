@@ -146,11 +146,18 @@ test("operator can start, pause, resume, log output with scrap, and finalize a s
   await expect(page.getByTestId("machine-finalize-step")).toBeEnabled({ timeout: 20_000 })
   await page.getByTestId("machine-finalize-step").click()
 
-  await page.waitForTimeout(1500)
-  const historyResponse = await fetchJson<any>(page, `/api/production/machine/${seed.operator.machine_id}/history/`)
-  expect(historyResponse.status).toBe(200)
-  const jobs = unwrapApiList<any>(historyResponse.data)
-  expect(jobs.some((job) => String(job.job_number || "") === seed.operator.job_number)).toBeTruthy()
+  // Finalize is saved in the background; wait for the job to reach the machine history instead of a fixed pause.
+  await expect
+    .poll(
+      async () => {
+        const historyResponse = await fetchJson<any>(page, `/api/production/machine/${seed.operator.machine_id}/history/`)
+        if (historyResponse.status !== 200) return false
+        const jobs = unwrapApiList<any>(historyResponse.data)
+        return jobs.some((job) => String(job.job_number || "") === seed.operator.job_number)
+      },
+      { timeout: 20_000, intervals: [1_000, 2_000, 3_000] },
+    )
+    .toBeTruthy()
 })
 
 test("operator terminal renders the printing process-aware execution card", async ({ page }, testInfo) => {

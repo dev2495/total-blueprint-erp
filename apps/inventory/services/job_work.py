@@ -1886,23 +1886,16 @@ def create_fg_batch(order, job, ret, fg_plan, step_index, source_labels):
         "vendor_id": str(order.vendor_id) if order.vendor_id else None, "vendor": order.vendor_name,
         "boxes": fg_plan["boxes"], "source_rolls": source_labels,
     }
-    packaging = ExecutionService._job_packaging_snapshot(job) or {}
-    primary = packaging.get("primary_inner_pack") if isinstance(packaging.get("primary_inner_pack"), dict) else {}
-    pack_meta = None
-    if primary and bool(primary.get("enabled")):
-        material_id = primary.get("material_id")
-        try:
-            pcs_per_pack = int(primary.get("pcs_per_pack") or 0)
-        except (TypeError, ValueError):
-            pcs_per_pack = 0
-        if not material_id or pcs_per_pack <= 0:
-            raise ValidationError({"fg": "The order's inner-pack setup is incomplete (material or pieces per pack). Fix the sales packaging first."})
-        pack_meta = {
-            "enabled": True, "material_id": str(material_id), "pcs_per_pack": pcs_per_pack,
-            "pack_count": (int(fg_plan["pcs"]) + pcs_per_pack - 1) // pcs_per_pack, "consumed_at_fg": True,
-            "source": "JOBWORK_VENDOR" if fg_plan["inner_pack_source"] == "VENDOR" else "FINAL_STEP",
-        }
+    # Same inner-pouch rule as the machine: never refuse the return over the inner pouch setup.
+    pack_meta, inner_notice = ExecutionService.inner_pack_for_output(
+        job, int(fg_plan["pcs"]), source="JOBWORK_VENDOR" if fg_plan["inner_pack_source"] == "VENDOR" else "FINAL_STEP"
+    )
+    if pack_meta is not None:
         meta["primary_inner_pack"] = pack_meta
+    if inner_notice:
+        from config.request_context import add_notice
+
+        add_notice(inner_notice.replace("Output logged", "Return received", 1))
     batch = FinishedGoodsBatch.objects.create(
         batch_number=batch_number,
         qty_kg=fg_plan["kg"],
@@ -1917,7 +1910,7 @@ def create_fg_batch(order, job, ret, fg_plan, step_index, source_labels):
         location=fg_plan["location"],
         template=job.template,
     )
-    if pack_meta and fg_plan["inner_pack_source"] == "FACTORY":
+    if pack_meta and pack_meta.get("enabled") and int(pack_meta.get("pack_count") or 0) > 0 and fg_plan["inner_pack_source"] == "FACTORY":
         from apps.inventory.services.packaging_service import PackagingService
 
         from apps.inventory.services.packaging_measure import taken_at_machine

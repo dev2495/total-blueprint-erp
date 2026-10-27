@@ -1,35 +1,145 @@
 [
   {
-    "id": "faq-access-control",
+    "id": "faq-pcs-per-inner",
     "question": {
-      "en": "Why is a page visible but an action disabled?",
-      "hi": "पेज दिख रहा है लेकिन कार्रवाई निष्क्रिय क्यों है?"
+      "en": "The machine said \"pcs_per_pack must be > 0\" at the last step.",
+      "hi": "आखिरी स्टेप पर मशीन ने \"pcs_per_pack must be > 0\" दिखाया।"
     },
     "answer": {
-      "en": "Page visibility and action permissions are controlled separately in role matrix + governance signoff.",
-      "hi": "पेज दृश्यता और कार्रवाई अनुमतियाँ role matrix और governance signoff में अलग नियंत्रित होती हैं।"
+      "en": "Fixed on 27 Oct: a missing pieces per inner pouch no longer stops the output. The machine saves it with the note \"Output logged. Pieces per inner pouch is not set on this order…\"; no inner pouches are taken at the machine, the Packing Yard types \"Inner packs filled\" and the evening packing count books them to the order. To stop the note, set \"Pouches per inner pouch (default)\" on that inner pouch in Masters → Packaging; the order page now asks for it before placing. You still type the pieces count when the machine asks for it.",
+      "hi": "27 Oct को ठीक किया: pieces per inner pouch न होने से अब आउटपुट नहीं रुकता। मशीन आउटपुट सेव करती है और \"Output logged. Pieces per inner pouch is not set on this order…\" दिखाती है; मशीन पर inner pouch नहीं कटते, Packing Yard \"Inner packs filled\" भरता है और शाम की packing गिनती उन्हें ऑर्डर पर बुक करती है। यह संदेश बंद करने के लिए Masters → Packaging में उस inner pouch पर \"Pouches per inner pouch (default)\" भरें; ऑर्डर पेज अब प्लेस करने से पहले यह पूछता है। मशीन pieces की गिनती माँगे तो वह फिर भी लिखनी होगी।"
+    }
+  },
+  {
+    "id": "faq-missing-page",
+    "question": {
+      "en": "A screen or button I need is not there.",
+      "hi": "मुझे जो स्क्रीन या बटन चाहिए वह नहीं दिख रहा।"
+    },
+    "answer": {
+      "en": "Pages show only what your role may use. Ask the admin to add the page to your role or give you a personal permission in System → Users.",
+      "hi": "पेज सिर्फ वही दिखाते हैं जो आपकी भूमिका में है। एडमिन से System → Users में पेज की अनुमति लें।"
+    }
+  },
+  {
+    "id": "faq-packing-item-missing",
+    "question": {
+      "en": "A packing item (putha, box, tape…) is not in the release tick list.",
+      "hi": "पैकिंग आइटम (putha, box, tape…) रिलीज़ की टिक लिस्ट में नहीं है।"
+    },
+    "answer": {
+      "en": "Only inner pouches are never listed: in-house ones come off stock at the machine's last pouching step, and bought ones are booked by the evening packing count. Open Masters → Packaging: the item must be active and its kind must not be \"Inner pouch\" (a putha is \"Sheet · putha · board\").",
+      "hi": "सिर्फ inner pouch कभी लिस्ट में नहीं आते: घर के inner pouch मशीन के आखिरी pouching स्टेप पर स्टॉक से कटते हैं, और खरीदे हुए शाम की packing गिनती से बुक होते हैं। Masters → Packaging खोलें: आइटम active हो और उसकी kind \"Inner pouch\" न हो (putha के लिए \"Sheet · putha · board\")।"
+    }
+  },
+  {
+    "id": "faq-why-tick",
+    "question": {
+      "en": "Why do we tick packing items instead of typing quantities?",
+      "hi": "पैकिंग आइटम की मात्रा लिखने की बजाय टिक क्यों करते हैं?"
+    },
+    "answer": {
+      "en": "The store counts packing material every evening. The counted use is split over the order lines that ticked each item that day (if no one ticked it, over that day's orders whose packing plan includes it), so ticks are enough and the floor is never blocked by stock gaps.",
+      "hi": "स्टोर हर शाम पैकिंग मटीरियल गिनता है। गिना हुआ इस्तेमाल उन ऑर्डर लाइनों में बँटता है जिन्होंने उस दिन आइटम टिक किया (किसी ने टिक न किया हो तो उस दिन के उन ऑर्डरों में जिनके packing plan में वह आइटम है), इसलिए टिक काफ़ी है और स्टॉक की कमी से फ़्लोर नहीं रुकता।"
+    }
+  },
+  {
+    "id": "faq-place-order-disabled",
+    "question": {
+      "en": "\"Place order\" stays grey.",
+      "hi": "\"Place order\" बटन ग्रे ही रहता है।"
+    },
+    "answer": {
+      "en": "Something is still missing. Open \"Before you place\" under the lines: each item has \"Fix →\" that opens the line or the field.",
+      "hi": "कुछ बाकी है। लाइनों के नीचे \"Before you place\" खोलें: हर आइटम पर \"Fix →\" है जो लाइन या फ़ील्ड खोल देता है।"
+    }
+  },
+  {
+    "id": "faq-draft-lost",
+    "question": {
+      "en": "I closed the order page by mistake. Is my order lost?",
+      "hi": "गलती से ऑर्डर पेज बंद हो गया। क्या ऑर्डर गया?"
+    },
+    "answer": {
+      "en": "No. Drafts save in this browser as you type. Open New order again and press \"Resume draft\". A draft on another computer is not shared.",
+      "hi": "नहीं। टाइप करते ही ड्राफ़्ट इसी ब्राउज़र में सेव होता है। New order फिर खोलें और \"Resume draft\" दबाएँ। दूसरे कंप्यूटर पर ड्राफ़्ट नहीं दिखेगा।"
+    }
+  },
+  {
+    "id": "faq-closed-goods",
+    "question": {
+      "en": "The order is closed but goods are still in the yard. What do I do?",
+      "hi": "ऑर्डर बंद है पर माल यार्ड में है। क्या करें?"
+    },
+    "answer": {
+      "en": "Either ship them (load the line and tick \"Send goods of closed lines\") or press \"Move to stock\" with a reason; the planner can then use them for another order with the same spec.",
+      "hi": "या तो भेजें (लाइन लोड करें और \"Send goods of closed lines\" टिक करें) या कारण के साथ \"Move to stock\" दबाएँ; प्लानर उन्हें उसी स्पेक के दूसरे ऑर्डर में ले सकता है।"
+    }
+  },
+  {
+    "id": "faq-slip-reprint",
+    "question": {
+      "en": "How do I reprint a dispatch slip or record proof of delivery?",
+      "hi": "डिस्पैच स्लिप दोबारा कैसे प्रिंट करें या डिलीवरी का सबूत कैसे दर्ज करें?"
+    },
+    "answer": {
+      "en": "Dispatch Bay → \"Challans & history\": search the slip or order number, then print again or open POD. From an order page use \"Slips in Dispatch Bay\".",
+      "hi": "Dispatch Bay → \"Challans & history\": स्लिप या ऑर्डर नंबर खोजें, फिर दोबारा प्रिंट करें या POD खोलें। ऑर्डर पेज से \"Slips in Dispatch Bay\" दबाएँ।"
+    }
+  },
+  {
+    "id": "faq-no-roll",
+    "question": {
+      "en": "No roll can be picked for the job.",
+      "hi": "जॉब के लिए कोई रोल नहीं चुन पा रहे।"
+    },
+    "answer": {
+      "en": "Rolls must be within ±20 mm of the width the line runs at (after lanes). Ask the store for a roll in that window or the planner to change lanes.",
+      "hi": "रोल लाइन की चौड़ाई (lanes के बाद) से ±20 mm के अंदर होना चाहिए। स्टोर से उस विंडो का रोल माँगें या प्लानर से lanes बदलवाएँ।"
+    }
+  },
+  {
+    "id": "faq-language",
+    "question": {
+      "en": "How do I switch the help to Hindi?",
+      "hi": "मदद हिंदी में कैसे देखें?"
+    },
+    "answer": {
+      "en": "Press \"हिंदी\" at the top of the guide or in the Help panel. Your choice is remembered, and shared links keep their language.",
+      "hi": "गाइड के ऊपर या Help पैनल में \"हिंदी\" दबाएँ। आपकी पसंद याद रहती है और शेयर किए लिंक उसी भाषा में खुलते हैं।"
+    }
+  },
+  {
+    "id": "faq-share",
+    "question": {
+      "en": "How do I send a guide page to a colleague?",
+      "hi": "किसी साथी को गाइड का पेज कैसे भेजें?"
+    },
+    "answer": {
+      "en": "Press \"Share\", \"WhatsApp\" or \"Link\" on any guide page. The public guide (erp.totalpolyprint.com/guide) opens without signing in.",
+      "hi": "किसी भी गाइड पेज पर \"Share\", \"WhatsApp\" या \"Link\" दबाएँ। पब्लिक गाइड (erp.totalpolyprint.com/guide) बिना साइन इन के खुलती है।"
     }
   },
   {
     "id": "faq-data-refresh",
     "question": {
-      "en": "How often should I refresh operational pages?",
-      "hi": "संचालन पेज कितनी बार रिफ्रेश करने चाहिए?"
+      "en": "The numbers look old.",
+      "hi": "नंबर पुराने लग रहे हैं।"
     },
     "answer": {
-      "en": "Refresh before final submit, after status transitions, and when handoff ownership changes.",
-      "hi": "अंतिम सबमिट से पहले, स्थिति परिवर्तन के बाद, और हैंडऑफ बदलाव पर रिफ्रेश करें।"
+      "en": "Most floor pages refresh on their own every few seconds; press the refresh button or reload the page. Reports built at night (snapshots, MRP) update the next morning.",
+      "hi": "ज़्यादातर फ़्लोर पेज कुछ सेकंड में खुद रिफ़्रेश होते हैं; रिफ़्रेश बटन दबाएँ या पेज रीलोड करें। रात में बनने वाली रिपोर्ट (snapshot, MRP) अगली सुबह अपडेट होती हैं।"
     }
   },
   {
-    "id": "faq-role-override",
+    "id": "faq-access-control",
     "question": {
-      "en": "Can master roles emulate another role safely?",
-      "hi": "क्या मास्टर रोल सुरक्षित रूप से दूसरी भूमिका का अनुकरण कर सकते हैं?"
+      "en": "Who can approve or post corrections?",
+      "hi": "सुधार कौन अप्रूव या पोस्ट कर सकता है?"
     },
     "answer": {
-      "en": "Yes. Use role switcher for verification only; execute high-risk updates under primary role governance.",
-      "hi": "हाँ। role switcher सत्यापन हेतु उपयोग करें; उच्च-जोखिम अपडेट प्राथमिक भूमिका गवर्नेंस के अंतर्गत करें।"
+      "en": "A stock adjustment needs a second person with the adjust right to post it (maker–checker); owners and admins may post their own. A count sheet sent for approval in Count history (Submit → Approve) needs a different approver; an owner may approve their own. \"Post physical count\" and the evening packing count (\"Post count\") change stock at once, with no approval.",
+      "hi": "स्टॉक एडजस्टमेंट को adjust अधिकार वाला कोई दूसरा व्यक्ति post करता है (maker–checker); मालिक और एडमिन अपना एडजस्टमेंट खुद post कर सकते हैं। Count history में approval के लिए भेजी count sheet (Submit → Approve) कोई दूसरा approve करता है; मालिक अपनी sheet खुद approve कर सकता है। \"Post physical count\" और शाम की packing गिनती (\"Post count\") स्टॉक तुरंत बदलते हैं, कोई approval नहीं।"
     }
   }
 ]

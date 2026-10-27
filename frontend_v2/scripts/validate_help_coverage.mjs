@@ -93,12 +93,18 @@ function parseRouteSet(name) {
 
 const failures = [];
 
-const dashboardPages = walk(
-  path.join(appRoot, "src", "app", "(dashboard)"),
-  (filePath) => filePath.endsWith(path.join("page.tsx")),
-)
-  .map(routeFromPageFile)
-  .filter((route) => !legacyRedirectRoutes.has(route));
+// Every page a person can open needs a guide: the ERP pages and the public ones (login, gate visit,
+// QR scans). The help guide itself (/guide) is the help, so it needs none.
+const appDir = path.join(appRoot, "src", "app");
+const dashboardPages = walk(appDir, (filePath) => filePath.endsWith(path.join("page.tsx")))
+  .map((filePath) =>
+    filePath
+      .replace(appDir, "")
+      .replace(/\\/g, "/")
+      .replace(/\/\([^)]*\)/g, "")
+      .replace(/\/page\.tsx$/, "") || "/",
+  )
+  .filter((route) => !legacyRedirectRoutes.has(route) && route !== "/guide");
 
 for (const route of dashboardPages) {
   if (!pagePatterns.has(route)) {
@@ -107,7 +113,7 @@ for (const route of dashboardPages) {
 }
 
 if (pagePatterns.size !== dashboardPages.length) {
-  failures.push(`Unique page guide route count (${pagePatterns.size}) does not match dashboard routes (${dashboardPages.length}).`);
+  failures.push(`Unique page guide route count (${pagePatterns.size}) does not match app routes (${dashboardPages.length}).`);
 }
 
 for (const page of pages) {

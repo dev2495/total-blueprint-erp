@@ -80,9 +80,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-admin-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "OWNER",
@@ -165,9 +163,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-owner-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "SUPER_ADMIN",
@@ -250,9 +246,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-super_admin-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "SALES",
@@ -335,9 +329,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-sales-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "PLANNER",
@@ -345,7 +337,7 @@
       "en": "Production Planner Guide",
       "hi": "Production Planner गाइड"
     },
-    "landingPage": "/production/planner",
+    "landingPage": "/dashboard/planner",
     "overview": {
       "en": "Production Planner is responsible for secure, policy-compliant execution in assigned ERP modules.",
       "hi": "Production Planner की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
@@ -420,9 +412,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-planner-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "WORK_CENTER_MANAGER",
@@ -505,9 +495,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-work_center_manager-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "OPERATOR",
@@ -590,9 +578,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-operator-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "STORE",
@@ -600,7 +586,7 @@
       "en": "Inventory Store Guide",
       "hi": "Inventory Store गाइड"
     },
-    "landingPage": "/dashboard/inventory",
+    "landingPage": "/inventory/rolls",
     "overview": {
       "en": "Inventory Store is responsible for secure, policy-compliant execution in assigned ERP modules.",
       "hi": "Inventory Store की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
@@ -675,9 +661,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-store-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "DISPATCH",
@@ -760,9 +744,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-dispatch-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "PLANT_MANAGER",
@@ -770,7 +752,7 @@
       "en": "Plant Manager Guide",
       "hi": "Plant Manager गाइड"
     },
-    "landingPage": "/analytics",
+    "landingPage": "/analytics/kpis",
     "overview": {
       "en": "Plant Manager is responsible for secure, policy-compliant execution in assigned ERP modules.",
       "hi": "Plant Manager की जिम्मेदारी है कि निर्धारित ERP मॉड्यूल में सुरक्षित और नीति-अनुपालन निष्पादन हो।"
@@ -845,9 +827,7 @@
         }
       }
     ],
-    "screenshotKeys": [
-      "role-plant_manager-landing"
-    ]
+    "screenshotKeys": []
   },
   {
     "roleCode": "WATCHMAN",
@@ -920,6 +900,94 @@
         }
       }
     ],
+    "screenshotKeys": []
+  },
+  {
+    "roleCode": "MAINTENANCE_SUPERVISOR",
+    "title": {
+      "en": "Maintenance supervisor",
+      "hi": "मेंटेनेंस सुपरवाइज़र"
+    },
+    "landingPage": "/maintenance",
+    "overview": {
+      "en": "Keeps machines running: sees every breakdown and planned job, assigns technicians and closes jobs.",
+      "hi": "मशीनें चालू रखता है: हर ब्रेकडाउन और प्लान किया काम देखता है, टेक्नीशियन लगाता है और जॉब बंद करता है।"
+    },
+    "responsibilities": [
+      {
+        "en": "Assign every open breakdown to a technician.",
+        "hi": "हर खुला ब्रेकडाउन किसी टेक्नीशियन को दें।"
+      },
+      {
+        "en": "Keep the planned maintenance schedule up to date.",
+        "hi": "प्लान किए मेंटेनेंस का शेड्यूल अपडेट रखें।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Open Maintenance and clear the open and overdue jobs.",
+        "hi": "Maintenance खोलें और खुले व देर वाले जॉब निपटाएँ।"
+      },
+      {
+        "en": "Check machines marked down and when they will be back.",
+        "hi": "down मशीनें और वे कब चालू होंगी, देखें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Breakdown → assign → work recorded → close.",
+        "hi": "ब्रेकडाउन → असाइन → काम दर्ज → बंद।"
+      },
+      {
+        "en": "Planned jobs from the schedule.",
+        "hi": "शेड्यूल से प्लान किए जॉब।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Parts needed: tell the store; machine plans: tell the planner.",
+        "hi": "पार्ट्स चाहिए: स्टोर को बताएँ; मशीन प्लान: प्लानर को बताएँ।"
+      }
+    ],
+    "faqs": [],
+    "screenshotKeys": []
+  },
+  {
+    "roleCode": "MAINTENANCE_TECH",
+    "title": {
+      "en": "Maintenance technician",
+      "hi": "मेंटेनेंस टेक्नीशियन"
+    },
+    "landingPage": "/maintenance/jobs",
+    "overview": {
+      "en": "Works the maintenance jobs given to them and records what was done, parts and time.",
+      "hi": "दिए गए मेंटेनेंस जॉब करता है और क्या किया, पार्ट्स और समय दर्ज करता है।"
+    },
+    "responsibilities": [
+      {
+        "en": "Record every job fully before closing it.",
+        "hi": "बंद करने से पहले हर जॉब पूरा दर्ज करें।"
+      }
+    ],
+    "dailyChecklist": [
+      {
+        "en": "Open My jobs and start the oldest breakdown first.",
+        "hi": "My jobs खोलें और सबसे पुराना ब्रेकडाउन पहले लें।"
+      }
+    ],
+    "coreWorkflows": [
+      {
+        "en": "Start job → record work and parts → finish.",
+        "hi": "जॉब शुरू → काम और पार्ट्स दर्ज → पूरा।"
+      }
+    ],
+    "escalationPaths": [
+      {
+        "en": "Stuck or need a part: tell the maintenance supervisor.",
+        "hi": "अटके या पार्ट चाहिए: मेंटेनेंस सुपरवाइज़र को बताएँ।"
+      }
+    ],
+    "faqs": [],
     "screenshotKeys": []
   }
 ]

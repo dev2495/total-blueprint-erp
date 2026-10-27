@@ -143,8 +143,8 @@ function MaterialRow({ material }: { material: PackingCountSession["materials"][
         ) : null}
         {material.unassigned_qty ? (
           <p className="text-[12px] text-content-3">
-            <b className="text-content-2">{qtyText(material.unassigned_qty, material.uom)}</b> not on any order (nothing packed or ticked
-            that day)
+            <b className="text-content-2">{qtyText(material.unassigned_qty, material.uom)}</b> not on any order (no order ticked or marked it, and
+            no order packed that day has it in its packing plan)
           </p>
         ) : null}
         {material.excess_qty ? (
@@ -611,7 +611,7 @@ export default function PackingAuditPage() {
               >
                 {view === "ticks"
                   ? "Ticks are made in Packing Yard when gonnies and rolls are released."
-                  : "Inner pouches are taken when a batch is packed into inner packs."}
+                  : "In-house inner pouches are taken at the machine's last pouching step when output is logged."}
               </PanelEmpty>
             </div>
           )}

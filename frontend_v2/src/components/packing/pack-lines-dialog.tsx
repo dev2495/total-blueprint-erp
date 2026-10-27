@@ -293,7 +293,7 @@ export function EodItemChecks({
   );
 }
 
-/** One rule for the release tick list: inner pouches never show (taken automatically at packing); every other item always does. */
+/** One rule for the release tick list: inner pouches never show (in-house ones are taken at the machine, bought ones by the evening count); every other item always does. */
 export function isAutoConsumedPacking(material: PackagingMaterial): boolean {
   return String(material.packaging_kind || "").toUpperCase() === "INNER_POUCH";
 }
@@ -961,12 +961,21 @@ function PouchLine({
   const variancePct = variance !== null && expected > 0 ? (variance / expected) * 100 : null;
   const needReason = variancePct !== null && Math.abs(variancePct) > 2;
   const tooMany = batch ? pcs > Number(batch.qty_pcs || 0) : false;
+  // A batch with no pieces per pack: the typed inner packs are this order's share of the evening
+  // count, so packs can never exceed pouches and a pouch-sized number must be confirmed.
+  const countedPacks = inner && !plan?.pcs_per_pack;
+  const packsLookLikePouches = countedPacks && packs > 0 && pcs > 0 && packs * 2 > pcs;
+  const [packsConfirmedFor, setPacksConfirmedFor] = React.useState("");
+  const packsConfirmed = packsConfirmedFor === `${packs}/${pcs}`;
   const canPack =
     Boolean(batch) &&
     pcs > 0 &&
     !tooMany &&
     Boolean(draft.gonnyMaterialId) &&
-    (!inner || !plan?.pcs_per_pack || packs > 0) &&
+    // Inner packs are always counted: from pieces per pack, or typed when the order has none.
+    (!inner || packs > 0) &&
+    (!countedPacks || packs <= pcs) &&
+    (!packsLookLikePouches || packsConfirmed) &&
     (!needReason || Boolean(draft.reason.trim()));
   const kg3 = (value: number) => value.toLocaleString("en-IN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
   const markMaterials = markMasters.filter((m) => !isAutoConsumedPacking(m));
@@ -1059,7 +1068,11 @@ function PouchLine({
               <Tile label="Machine" value={clean((line.batches[0] as any).machine_name)} sub={line.batches[0]?.location?.name || undefined} />
             ) : null}
             {inner && plan?.inner_pouch ? (
-              <Tile tone="order" label="Inner pouches" value={`${n(packsLeft, 0)} packs`} sub={`${plan.inner_pouch.code} · taken at the machine`} />
+              plan?.pcs_per_pack ? (
+                <Tile tone="order" label="Inner pouches" value={`${n(packsLeft, 0)} packs`} sub={`${plan.inner_pouch.code} · from the machine`} />
+              ) : (
+                <Tile tone="order" label="Inner pouches" value="count here" sub={`${plan.inner_pouch.code} · order has no pcs per pack`} />
+              )
             ) : null}
           </div>
         ) : (
@@ -1111,8 +1124,14 @@ function PouchLine({
         <div className="grid grid-cols-3 gap-2">
           {inner ? (
             <>
-              <Tile tone={plan?.packs_left === 0 ? "done" : undefined} label="Inner packs available" value={n(packsLeft, 0)} sub="left to put in gonnies" />
-              <Tile label="Pouches per pack" value={n(plan?.pcs_per_pack || 0, 0)} sub="from the order" />
+              {plan?.pcs_per_pack ? (
+                <>
+                  <Tile tone={plan?.packs_left === 0 ? "done" : undefined} label="Inner packs available" value={n(packsLeft, 0)} sub="left to put in gonnies" />
+                  <Tile label="Pouches per pack" value={n(plan.pcs_per_pack, 0)} sub="from the order" />
+                </>
+              ) : (
+                <Tile label="Inner packs" value="count them" sub="type the packs you fill per gonny; the evening count books them" />
+              )}
             </>
           ) : (
             <Tile label="Loose pouches" value={n(state.pendingPcs, 0)} sub="left to put in gonnies" />
@@ -1151,7 +1170,14 @@ function PouchLine({
         >
           {batch ? (
             <div data-testid="packing-gonny-plan">
-              <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_auto] md:items-end">
+              <div
+                className={cn(
+                  "grid gap-2.5 md:items-end",
+                  inner && !plan?.pcs_per_pack
+                    ? "md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_auto]"
+                    : "md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_auto]",
+                )}
+              >
                 {inner && plan?.pcs_per_pack ? (
                   <div className="space-y-1">
                     <Label htmlFor="packing-gonny-inner" className="text-[11.5px]">
@@ -1189,6 +1215,39 @@ function PouchLine({
                     />
                   </div>
                 )}
+                {inner && !plan?.pcs_per_pack ? (
+                  <div className="space-y-1">
+                    <Label htmlFor="packing-gonny-inner-count" className="text-[11.5px]">
+                      Inner packs filled <span className="font-normal text-content-3">· order has no pcs per pack</span>
+                    </Label>
+                    <Input
+                      id="packing-gonny-inner-count"
+                      data-testid="packing-gonny-inner-count"
+                      type="number"
+                      min="1"
+                      inputMode="numeric"
+                      value={draft.packs}
+                      disabled={busy}
+                      onChange={(event) => setPacks(event.target.value)}
+                      max={Number(draft.pcs || 0) || undefined}
+                      className="h-11 text-right font-mono text-[18px] font-semibold tabular-nums"
+                    />
+                    {packs > pcs && pcs > 0 ? (
+                      <p className="text-[11.5px] font-semibold text-danger-fg">More packs than pouches: enter packs, not pouches.</p>
+                    ) : packsLookLikePouches ? (
+                      <label className="flex items-start gap-1.5 text-[11.5px] text-warning-fg">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-3.5 w-3.5"
+                          checked={packsConfirmed}
+                          onChange={(event) => setPacksConfirmedFor(event.target.checked ? `${packs}/${pcs}` : "")}
+                          data-testid="packing-gonny-inner-count-confirm"
+                        />
+                        Only 1–2 pouches in each inner pack: that is right
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="space-y-1">
                   <Label htmlFor="packing-gonny-material" className="text-[11.5px]">
                     Gonny type · tare

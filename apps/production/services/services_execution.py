@@ -376,6 +376,135 @@ class ExecutionService:
         return {}
 
     @classmethod
+    def inner_pack_for_output(cls, job, output_pcs: int, *, source: str = "FINAL_STEP"):
+        """The inner-pouch part of a new FG batch, as (meta or None, notice for the operator or "").
+
+        Owner rule: nothing about the inner pouch ever blocks an output. Pieces per inner pouch come
+        from the order line, then the inner pouch's default, then the product master's PRIMARY_INNER
+        packing line. With none, the batch is marked to have its inner packs counted at packing. An
+        inner pouch switched on without a material is treated as loose pouches (enabled False on the
+        batch), with a notice so someone fixes the order.
+        """
+        primary = (cls._job_packaging_snapshot(job) or {}).get("primary_inner_pack") or {}
+        if not isinstance(primary, dict) or not bool(primary.get("enabled")):
+            return None, ""
+        # The id may be missing, a code saved in the id field, or a pouch since renamed: resolve it to a
+        # real packaging material, by id first and then by code, without ever raising.
+        material_id = None
+        raw_id = str(primary.get("material_id") or "").strip()
+        if raw_id:
+            try:
+                material_id = InventoryMaterial.objects.filter(id=uuid.UUID(raw_id)).values_list("id", flat=True).first()
+            except (ValueError, TypeError):
+                material_id = None
+        for code in (primary.get("material_code"), raw_id):
+            if material_id or not str(code or "").strip():
+                continue
+            material_id = (
+                InventoryMaterial.objects.filter(code__iexact=str(code).strip(), category="PACKAGING")
+                .values_list("id", flat=True)
+                .first()
+            )
+        if not material_id:
+            return (
+                {"enabled": False, "source": source, "disabled_reason": "inner pouch switched on without a packing material on the order line"},
+                "Output logged as loose pouches: this order has an inner pouch switched on but no packing material, so no "
+                "inner pouches were taken. Ask the planner or admin to set the inner pouch on the order.",
+            )
+        try:
+            pcs_per_pack = int(primary.get("pcs_per_pack") or 0)
+        except (TypeError, ValueError):
+            pcs_per_pack = 0
+        if pcs_per_pack <= 0:
+            pcs_per_pack = cls._default_inner_pack_pcs(material_id, job)
+        if pcs_per_pack > 0:
+            return (
+                {
+                    "enabled": True,
+                    "material_id": str(material_id),
+                    "pcs_per_pack": pcs_per_pack,
+                    "pack_count": (int(output_pcs) + pcs_per_pack - 1) // pcs_per_pack,
+                    "consumed_at_fg": True,
+                    "source": source,
+                },
+                "",
+            )
+        if source == "JOBWORK_VENDOR":
+            # The job worker used its own inner pouches: nothing of ours to take or count.
+            return (
+                {"enabled": True, "material_id": str(material_id), "pcs_per_pack": 0, "pack_count": 0, "consumed_at_fg": True, "source": source, "capture_mode": "VENDOR_SUPPLIED"},
+                "",
+            )
+        if getattr(job, "sales_order_item_id", None) is None:
+            # A stock order never reaches Packing Yard until claimed: the evening count shows this use
+            # as not on any order; say so instead of promising a count at packing.
+            return (
+                {"enabled": True, "material_id": str(material_id), "pcs_per_pack": 0, "pack_count": 0, "consumed_at_fg": True, "source": source, "capture_mode": "EVENING_COUNT_UNASSIGNED"},
+                "Output logged. Pieces per inner pouch is not set on this stock order, so no inner pouches were taken; "
+                "the evening packing count shows their use as not on any order. Set a default on the inner pouch in Masters → Packaging.",
+            )
+        return (
+            {
+                "enabled": True,
+                "material_id": str(material_id),
+                "pcs_per_pack": 0,
+                "pack_count": 0,
+                "consumed_at_fg": True,
+                "source": source,
+                "capture_mode": "COUNTED_AT_PACKING",
+                "pack_count_at_packing": True,
+                "left_for_count_reason": "pieces per inner pouch is not set on the order line",
+            },
+            "Output logged. Pieces per inner pouch is not set on this order, so no inner pouches were taken here: "
+            "Packing Yard enters the inner packs it fills and the evening count books them. Ask the planner or admin "
+            "to set pieces per inner pouch on the order, or a default on the inner pouch in Masters → Packaging.",
+        )
+
+    @classmethod
+    def _default_inner_pack_pcs(cls, material_id, job) -> int:
+        """Pieces per inner pouch when the order line has none: the inner pouch's own default, then the
+        product master's PRIMARY_INNER packing line. 0 when neither says."""
+        def _pcs(value):
+            try:
+                return int(Decimal(str(value)))
+            except Exception:
+                return 0
+
+        material = InventoryMaterial.objects.filter(id=material_id).only("code", "packaging_defaults_json").first()
+        own_refs = {str(material_id).lower(), str(getattr(material, "code", "") or "").lower()} - {""}
+
+        def _from_rows(rows):
+            for row in rows if isinstance(rows, list) else []:
+                if not isinstance(row, dict) or str(row.get("role") or "").upper() != "PRIMARY_INNER" or _pcs(row.get("pcs_per_pack")) <= 0:
+                    continue
+                refs = {str(row.get("material_id") or "").lower(), str(row.get("material_code") or "").lower()} - {""}
+                if not refs or refs & own_refs:
+                    return _pcs(row.get("pcs_per_pack"))
+            return 0
+
+        # The line's own packing (its PRIMARY_INNER row, then the customer recipe saved on it) first,
+        # the same order the composer and order create use; then the inner pouch's own default.
+        snapshot = cls._job_packaging_snapshot(job) or {}
+        recipe = snapshot.get("default_packing_recipe") if isinstance(snapshot.get("default_packing_recipe"), dict) else {}
+        for rows in (snapshot.get("packaging_lines"), recipe.get("packaging_lines")):
+            found = _from_rows(rows)
+            if found:
+                return found
+        if _pcs(recipe.get("pcs_per_inner")) > 0:
+            return _pcs(recipe.get("pcs_per_inner"))
+        defaults = getattr(material, "packaging_defaults_json", None) if material else None
+        if isinstance(defaults, dict):
+            for key in ("pcs_per_pack", "pcs_per_inner", "pcs_per_carton"):
+                if _pcs(defaults.get(key)) > 0:
+                    return _pcs(defaults.get(key))
+        item = getattr(job, "sales_order_item", None)
+        master = getattr(item, "product_master", None) if item is not None else None
+        if master is None and getattr(job, "mts_order", None) is not None:
+            master = getattr(job.mts_order, "product_master", None)
+        lines = ((getattr(master, "fixed_attributes", None) or {}).get("packaging_lines") or []) if master else []
+        return _from_rows(lines)
+
+    @classmethod
     def _is_roll_mass_job(cls, job):
         template = (
             getattr(job, "template", None)
@@ -10679,46 +10808,38 @@ class ExecutionService:
 
                 fg_batch = None
                 primary_pack_runtime_meta = None
-                if terminal_pouch_fg_bulk:
-                    packaging_snapshot = cls._job_packaging_snapshot(job) or {}
-                    primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") or {}
-                    if bool(primary_pack.get("enabled")) and output_pcs is None:
-                        raise ValueError("output_pcs is required when primary inner-pack packaging is enabled.")
+                if terminal_pouch_fg_bulk and not output_pcs:
+                    # A kg-only output on an order with an inner pouch: nothing about the inner pouch blocks
+                    # it. With no piece count there is no pack count, so Packing Yard counts the inner packs.
+                    primary_pack_runtime_meta, inner_notice = cls.inner_pack_for_output(job, 0)
+                    if (
+                        primary_pack_runtime_meta
+                        and primary_pack_runtime_meta.get("enabled")
+                        and primary_pack_runtime_meta.get("capture_mode") not in {"VENDOR_SUPPLIED", "EVENING_COUNT_UNASSIGNED"}
+                        and getattr(job, "sales_order_item_id", None) is not None
+                    ):
+                        primary_pack_runtime_meta.update(
+                            {
+                                "pack_count": 0,
+                                "capture_mode": "COUNTED_AT_PACKING",
+                                "pack_count_at_packing": True,
+                                "left_for_count_reason": "output logged in kg only, without a piece count",
+                            }
+                        )
+                        inner_notice = (
+                            "Output logged in kg only. No inner pouches were taken here: Packing Yard enters the inner "
+                            "packs it fills and the evening count books them."
+                        )
+                    if inner_notice:
+                        from config.request_context import add_notice
+
+                        add_notice(inner_notice)
                 if terminal_pouch_fg_bulk and int(output_pcs or 0) > 0:
-                    packaging_snapshot = cls._job_packaging_snapshot(job) or {}
-                    primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") or {}
-                    if bool(primary_pack.get("enabled")):
-                        material_id = primary_pack.get("material_id")
-                        if not material_id and primary_pack.get("material_code"):
-                            # Older order lines saved the inner pouch by code only.
-                            material_id = (
-                                InventoryMaterial.objects.filter(
-                                    code__iexact=str(primary_pack.get("material_code")).strip(),
-                                    category="PACKAGING",
-                                )
-                                .values_list("id", flat=True)
-                                .first()
-                            )
-                        try:
-                            pcs_per_pack = int(primary_pack.get("pcs_per_pack") or 0)
-                        except Exception:
-                            pcs_per_pack = 0
-                        if not material_id:
-                            raise ValueError(
-                                "This order's inner pouch is not set (no packing material on the order line). "
-                                "Set it on the order or the product master, then enter the output again."
-                            )
-                        if pcs_per_pack <= 0:
-                            raise ValueError("Packaging config primary_inner_pack.pcs_per_pack must be > 0.")
-                        packs_needed = (int(output_pcs) + pcs_per_pack - 1) // pcs_per_pack
-                        primary_pack_runtime_meta = {
-                            "enabled": True,
-                            "material_id": str(material_id),
-                            "pcs_per_pack": pcs_per_pack,
-                            "pack_count": packs_needed,
-                            "consumed_at_fg": True,
-                            "source": "FINAL_STEP",
-                        }
+                    primary_pack_runtime_meta, inner_notice = cls.inner_pack_for_output(job, int(output_pcs))
+                    if inner_notice:
+                        from config.request_context import add_notice
+
+                        add_notice(inner_notice)
 
                 if terminal_pouch_fg_bulk:
                     fg_batch_meta = dict(internal_stock_meta or {})
@@ -10746,7 +10867,7 @@ class ExecutionService:
                     )
 
                 # Primary inner-pack consumption is enforced at terminal pouch FG creation.
-                if fg_batch and primary_pack_runtime_meta:
+                if fg_batch and primary_pack_runtime_meta and int(primary_pack_runtime_meta.get("pack_count") or 0) > 0:
                     from apps.inventory.services.packaging_service import PackagingService
 
                     so_number = (

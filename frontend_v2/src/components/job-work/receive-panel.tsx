@@ -325,7 +325,7 @@ export function ReceivePanel({ order, bill, onDone, onCancel }: { order: JobWork
               <Field label="Store at">{locationSelect(fg.location, (v) => setFg((p) => ({ ...p, location: v })), defaultFgLoc, "FG location")}</Field>
             </div>
             {order.production_job?.inner_pack_enabled ? (
-              <Field label="Inner packs" hint="The order packs pieces in inner packs. Factory store packs are consumed now, like an in-house final step.">
+              <Field label="Inner packs" hint="The order packs pieces in inner packs. With our packs, in-house inner pouches come off stock now (like the machine's last step) and bought ones are booked by the evening count; the job worker's own packs take nothing from our stock.">
                 <select value={fg.inner} onChange={(e) => setFg((p) => ({ ...p, inner: e.target.value as "FACTORY" | "VENDOR" }))} className={inputClass}>
                   <option value="FACTORY">Packed in our inner packs (consume from the store at the FG location)</option>
                   <option value="VENDOR">Packed in the job worker&apos;s own inner packs</option>

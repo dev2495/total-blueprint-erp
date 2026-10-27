@@ -12,9 +12,11 @@ Inner pouch and packing material flow (base rule, 16 Oct 2026).
 """
 from decimal import Decimal
 from types import SimpleNamespace
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.inventory.models import InventoryLocation, PackagingStock, PackagingTransaction
 from apps.inventory.services.packaging_service import PackagingService
@@ -172,6 +174,78 @@ class InnerPouchFlowTests(RollLaneFixture, TestCase):
         self.assertEqual(booked.sales_order_item_id, item.id)
         self.assertEqual(D(str(booked.qty)), D("-40"))
         self.assertEqual(booked.meta_json["allocation_basis"], "MARKED")
+
+    def test_missing_pieces_per_inner_never_blocks_output_and_packing_counts_the_packs(self, *_):
+        # SO-2026-0604 on 27 Oct: an inner pouch on the line but no pieces per pack anywhere
+        # ("Packaging config primary_inner_pack.pcs_per_pack must be > 0." stopped the last step).
+        self.store = InventoryLocation.objects.create(plant=self.plant, code="PKS", name="Packing store", type="RM")
+        self.inner = InventoryMaterial.objects.create(
+            code="LD-GREY-BAGS", name="LD grey bags", category="PACKAGING", base_uom="PCS",
+            packaging_kind="INNER_POUCH", packaging_supply_mode="IN_HOUSE",
+        )
+        self.gonny = InventoryMaterial.objects.create(
+            code="GONNY-STD", name="Gonny", category="PACKAGING", base_uom="PCS", packaging_kind="GONNY", packaging_supply_mode="PURCHASED",
+        )
+        PackagingService.add_packaging_stock(material_id=self.inner.id, qty=D("150"), location_id=self.store.id, cost=D("2"))
+        PackagingService.add_packaging_stock(material_id=self.gonny.id, qty=D("20"), location_id=self.store.id, cost=D("15"))
+        geometry = {"fg_type": "POUCH", "base": {"width_mm": 160, "height_mm": 230}}
+        item, jobs = self._linear(["PRT", "PCH"], fg_type="POUCH", uom="PCS", qty=D("100000"), unit_weight_g=D("6.85"), geometry=geometry)
+        item.packaging_snapshot = {"primary_inner_pack": {"enabled": True, "material_id": str(self.inner.id), "pcs_per_pack": 0}}
+        item.save(update_fields=["packaging_snapshot"])
+        prev, pouch = jobs[0], jobs[1]
+        self._complete_predecessors({"p": prev}, ["p"])
+        roll = self._roll(item, prev, self.film, 62, 300, "CH-NOPCS", 1)
+        assignment = self._assignment(pouch)
+        WCManagerService.assign_rolls(assignment.id, [str(roll.id)], user=self.user)
+        self._run(pouch, assignment)
+
+        with collect_notices() as notices:
+            OperatorService.log_output_step(str(pouch.id), 68.5, self.user, output_pcs=10000)
+        batch = FinishedGoodsBatch.objects.get(production_job=pouch)
+        primary = batch.meta_json["primary_inner_pack"]
+        self.assertTrue(primary["pack_count_at_packing"])
+        self.assertEqual(primary["pack_count"], 0)
+        self.assertFalse(PackagingTransaction.objects.filter(material=self.inner, type="CONSUME").exists())
+        self.assertTrue(any("Pieces per inner pouch is not set" in note for note in notices))
+
+        # Before packing the batch takes part in its day's count with its estimated packs
+        # (10,000 pouches, 100 per pack when no batch of this pouch knew better).
+        _, buckets = PackingCountService.throughput_rows(count_date=batch.created_at.date(), end_at=timezone.now() + timedelta(minutes=1))
+        self.assertEqual(buckets[(str(item.id), str(batch.location_id))]["_marks"][str(self.inner.id)], D("100"))
+
+        # Packing Yard types the inner packs it filled; the batch day's count weighs this order by them.
+        with self.assertRaisesMessage(ValueError, "cannot be more than the pouches"):
+            PackingService.create_gonny.__wrapped__(
+                str(batch.id), 50, user=self.user, gonny_material_id=str(self.gonny.id), content_mode="PRIMARY_PACKS", primary_pack_count=60,
+            )
+        unit = PackingService.create_gonny.__wrapped__(
+            str(batch.id), 9860, user=self.user, gonny_material_id=str(self.gonny.id), content_mode="PRIMARY_PACKS", primary_pack_count=99,
+        )
+        self.assertFalse([row for row in unit.meta_json["packaging_marks"] if row["material_id"] == str(self.inner.id)])
+        _, buckets = PackingCountService.throughput_rows(count_date=batch.created_at.date(), end_at=timezone.now() + timedelta(minutes=1))
+        self.assertEqual(buckets[(str(item.id), str(batch.location_id))]["_marks"][str(self.inner.id)], D("99"))
+
+    def test_inner_pouch_switched_on_without_material_logs_loose_pouches(self, *_):
+        item, pouch = self._packing_setup()
+        item.packaging_snapshot = {"primary_inner_pack": {"enabled": True, "pcs_per_pack": 100}}
+        item.save(update_fields=["packaging_snapshot"])
+        with collect_notices() as notices:
+            OperatorService.log_output_step(str(pouch.id), 68.5, self.user, output_pcs=10000)
+        batch = FinishedGoodsBatch.objects.get(production_job=pouch)
+        self.assertFalse(batch.meta_json["primary_inner_pack"]["enabled"])
+        self.assertEqual(PackingService.packing_plan(batch)["content_mode"], "LOOSE_POUCHES")
+        self.assertTrue(any("loose pouches" in note for note in notices))
+
+    def test_inner_pouch_default_fills_a_line_without_pieces_per_inner(self, *_):
+        item, pouch = self._packing_setup()
+        self.inner.packaging_defaults_json = {"pcs_per_pack": 50}
+        self.inner.save(update_fields=["packaging_defaults_json"])
+        item.packaging_snapshot = {"primary_inner_pack": {"enabled": True, "material_id": str(self.inner.id), "pcs_per_pack": 0}}
+        item.save(update_fields=["packaging_snapshot"])
+        OperatorService.log_output_step(str(pouch.id), 68.5, self.user, output_pcs=10000)
+        primary = FinishedGoodsBatch.objects.get(production_job=pouch).meta_json["primary_inner_pack"]
+        self.assertEqual(primary["pcs_per_pack"], 50)
+        self.assertEqual(primary["pack_count"], 200)
 
     def test_bought_inner_pouches_are_marked_for_the_evening_count_not_taken_at_the_machine(self, *_):
         item, pouch = self._packing_setup(inner_supply="PURCHASED")

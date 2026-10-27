@@ -233,7 +233,7 @@ function LineRow({
             </span>
             {plan?.content_mode === "PRIMARY_PACKS" ? (
               <span className="text-[11.5px] text-order-fg">
-                {n(packsLeft, 0)} inner packs{plan.pcs_per_pack ? ` × ${plan.pcs_per_pack}` : ""}
+                {plan.pcs_per_pack ? `${n(packsLeft, 0)} inner packs × ${plan.pcs_per_pack}` : "inner packs · count at packing"}
               </span>
             ) : (
               <span className="text-[11.5px] text-content-4">loose pouches</span>

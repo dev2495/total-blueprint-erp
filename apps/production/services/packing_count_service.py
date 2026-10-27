@@ -251,6 +251,27 @@ class PackingCountService:
             mark = {"material_id": primary["material_id"], "qty": float(packs), "capture_mode": "MARKED_FOR_COUNT", "basis": "INNER_POUCH_LEFT_FOR_COUNT"}
             add(batch.sales_order_item, batch.location, 0, "INNER_POUCH", batch.batch_number, [mark])
 
+        # Inner packs counted at packing (the order line had no pieces per inner pouch): the pouches were
+        # filled at the machine on the batch's day, so the mark belongs to that day's count. Weight = the
+        # inner packs typed in Packing Yard so far, at least 1 so the order shares the day's use.
+        counted_at_packing = (
+            FinishedGoodsBatch.objects.select_related("sales_order_item__sales_order", "location")
+            .filter(created_at__gte=start, created_at__lt=end, sales_order_item__isnull=False)
+            .filter(meta_json__primary_inner_pack__pack_count_at_packing=True)
+        )
+        if location_id:
+            counted_at_packing = counted_at_packing.filter(location_id=location_id)
+        for batch in counted_at_packing:
+            primary = (batch.meta_json or {}).get("primary_inner_pack") or {}
+            if not primary.get("material_id"):
+                continue
+            typed = sum(int(unit.primary_pack_count or 0) for unit in batch.packing_units.filter(content_mode="PRIMARY_PACKS"))
+            # Packs, like the other inner-pouch marks. Until the yard has typed them, estimate from the
+            # batch's pouches and the pouches per pack this inner pouch had on other batches.
+            weight = typed if typed > 0 else cls._estimated_inner_packs(batch, primary["material_id"])
+            mark = {"material_id": primary["material_id"], "qty": float(max(weight, 1)), "capture_mode": "MARKED_FOR_COUNT", "basis": "INNER_POUCH_COUNTED_AT_PACKING"}
+            add(batch.sales_order_item, batch.location, 0, "INNER_POUCH", batch.batch_number, [mark])
+
         rows = []
         for row in buckets.values():
             rows.append({key: value for key, value in row.items() if not key.startswith("_")} | {"units": float(row["units"])})
@@ -397,6 +418,27 @@ class PackingCountService:
             "top_materials": top_materials,
             "transaction_rows": transaction_rows[:100],
         }
+
+    @staticmethod
+    def _estimated_inner_packs(batch, material_id) -> int:
+        """Inner packs a batch logged without pieces per pack probably filled: its pouches divided by the
+        pieces per pack the same inner pouch had on the latest batch that knew it (100 when none did)."""
+        pieces = int(getattr(batch, "qty_pcs", 0) or 0)
+        if pieces <= 0:
+            return 1
+        known = (
+            FinishedGoodsBatch.objects.filter(meta_json__primary_inner_pack__material_id=str(material_id))
+            .exclude(meta_json__primary_inner_pack__pcs_per_pack=0)
+            .order_by("-created_at")
+            .values_list("meta_json__primary_inner_pack__pcs_per_pack", flat=True)
+            .first()
+        )
+        try:
+            per_pack = int(known or 0)
+        except (TypeError, ValueError):
+            per_pack = 0
+        per_pack = per_pack if per_pack > 0 else 100
+        return max(1, (pieces + per_pack - 1) // per_pack)
 
     @classmethod
     def _allocation_candidates(cls, *, material_id: str, location_id: str, count_date, counted_at=None):

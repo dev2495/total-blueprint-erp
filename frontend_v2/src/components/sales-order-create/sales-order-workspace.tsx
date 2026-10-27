@@ -1134,6 +1134,11 @@ function buildLinePackagingSnapshot(line: any) {
     line.axis_values?.packaging_inner ||
     line.axis_values?.packaging_inner_ref ||
     line.axis_values?.primary_inner_pack;
+  // No inner pouch picked on its own axis (it may come from the generic packaging axis, which the
+  // server classifies): send only the number, never switch an inner pouch on without a material.
+  if (!innerPackRef || (typeof innerPackRef === "string" && !innerPackRef.trim())) {
+    return { primary_inner_pack: { pcs_per_pack: Math.floor(pcsPerPack), basis: "PCS_PER_PACK" } };
+  }
   const primary: Record<string, any> = {
     enabled: true,
     pcs_per_pack: Math.floor(pcsPerPack),

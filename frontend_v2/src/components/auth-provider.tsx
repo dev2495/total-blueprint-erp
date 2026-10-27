@@ -60,9 +60,10 @@ type SessionProbe = {
 };
 let sessionProbe: Promise<SessionProbe> | null = null;
 
-/** Unauthenticated public pages (visitor QR self-registration). */
+/** Unauthenticated public pages (visitor QR self-registration, shareable help guide). */
 function isPublicRoute(pathname: string) {
-    return pathname === "/visit" || pathname.startsWith("/visit/");
+    // The visitor form and the shareable help guide open without signing in.
+    return pathname === "/visit" || pathname.startsWith("/visit/") || pathname === "/guide" || pathname.startsWith("/guide/");
 }
 
 function isAuthRoute(pathname: string) {

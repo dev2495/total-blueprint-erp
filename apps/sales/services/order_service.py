@@ -2162,6 +2162,53 @@ class SalesOrderService:
                 spec_signature = build_spec_signature(spec_payload)
                 inv_payload = build_invariant_payload(film_layers=layer_snapshot, printing=printing_snapshot)
 
+                # Pieces per inner pouch: when the line has none, take it from the customer's packing recipe
+                # or the product master's PRIMARY_INNER packing line, so the last machine step can count the
+                # inner pouches. A line with no number anywhere is still accepted (the composer asks for it);
+                # the machine then never blocks: Packing Yard counts the inner packs instead.
+                primary_pack = (packaging_snapshot or {}).get("primary_inner_pack") if isinstance(packaging_snapshot, dict) else None
+                if (
+                    isinstance(primary_pack, dict)
+                    and primary_pack.get("enabled")
+                    and _as_int(primary_pack.get("pcs_per_pack"), 0) <= 0
+                ):
+                    recipe = getattr(overlay, "default_packing_recipe", None) if overlay is not None else None
+                    recipe = recipe if isinstance(recipe, dict) else {}
+                    recipe_rows = list(recipe.get("packaging_lines") or []) if isinstance(recipe.get("packaging_lines"), list) else []
+                    if isinstance(recipe.get("primary_inner_pack"), dict):
+                        recipe_rows.append({"role": "PRIMARY_INNER", **recipe["primary_inner_pack"]})
+                    if _as_int(recipe.get("pcs_per_inner"), 0) > 0:
+                        recipe_rows.append({"role": "PRIMARY_INNER", "pcs_per_pack": recipe.get("pcs_per_inner")})
+                    # Same sources, order and same-inner-pouch rule as the composer's "Using the default N".
+                    sources = [
+                        recipe_rows,
+                        ((getattr(product_master, "fixed_attributes", None) or {}).get("packaging_lines")) if product_master else None,
+                    ]
+                    own_refs = {
+                        str(primary_pack.get("material_id") or "").strip().lower(),
+                        str(primary_pack.get("material_code") or "").strip().lower(),
+                    } - {""}
+
+                    def _same_inner_pouch(row):
+                        refs = {str(row.get("material_id") or "").strip().lower(), str(row.get("material_code") or "").strip().lower()} - {""}
+                        return not refs or bool(refs & own_refs)
+
+                    for rows in sources:
+                        found = next(
+                            (
+                                _as_int(row.get("pcs_per_pack"), 0)
+                                for row in (rows if isinstance(rows, list) else [])
+                                if isinstance(row, dict)
+                                and str(row.get("role") or "").upper() == "PRIMARY_INNER"
+                                and _as_int(row.get("pcs_per_pack"), 0) > 0
+                                and _same_inner_pouch(row)
+                            ),
+                            0,
+                        )
+                        if found:
+                            primary_pack["pcs_per_pack"] = found
+                            break
+
                 item = SalesOrderItem.objects.create(
                     sales_order=order,
                     template=template,

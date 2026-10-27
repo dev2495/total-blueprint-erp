@@ -67,3 +67,6 @@ wc_perf.json
 frontend_v2/tmp_ui_probe.mjs
 .env.local-polish
 .claude/
+
+# Illustrated help PDFs for NotebookLM (large; regenerate with frontend_v2/scripts/capture_help_pdfs.mjs)
+docs/help-notebook-pdf/

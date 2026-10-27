@@ -240,6 +240,12 @@ class PackingService:
         if resolved_content_mode == "PRIMARY_PACKS":
             if primary_pack_count is not None and int(primary_pack_count) > 0:
                 resolved_primary_pack_count = int(primary_pack_count)
+                if batch_primary_cfg.get("pack_count_at_packing") and resolved_primary_pack_count > effective_qty_pcs:
+                    # Typed inner packs become this order's share of the evening count: a pack holds at least one pouch.
+                    raise ValueError(
+                        f"Inner packs ({resolved_primary_pack_count}) cannot be more than the pouches in this gonny ({effective_qty_pcs}). "
+                        "Enter the number of inner packs, not pouches."
+                    )
             elif pcs_per_pack > 0:
                 resolved_primary_pack_count = int(ceil(effective_qty_pcs / pcs_per_pack))
             else:
@@ -317,7 +323,6 @@ class PackingService:
                 "capture_mode": "CONSUMED" if gonny_auto_consume else "MARKED_FOR_COUNT",
             }
         ]
-
         # Inner-pouch SKU is consumed at FG batch CREATION (last production
         # step, where pouches are actually filled into inner packs) — see
         # apps/production/services/services_execution.py:8364-8389. We do NOT

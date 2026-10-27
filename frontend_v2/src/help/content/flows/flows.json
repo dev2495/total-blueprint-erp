@@ -582,105 +582,93 @@
   {
     "id": "dispatch-flow",
     "title": {
-      "en": "Dispatch Readiness Flow",
-      "hi": "डिस्पैच तैयारी प्रवाह"
+      "en": "Dispatch: load, slip, send, proof",
+      "hi": "डिस्पैच: लोड, स्लिप, भेजना, सबूत"
     },
     "nodes": [
       {
-        "id": "start",
+        "id": "ready",
         "title": {
-          "en": "Check packing and compliance",
-          "hi": "पैकिंग और अनुपालन जांच"
+          "en": "Are the units in \"Ready to dispatch\"?",
+          "hi": "क्या यूनिट \"Ready to dispatch\" में हैं?"
         },
         "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "nextId": "load"
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "resolution": {
+              "en": "Only units released by Packing Yard appear. Release them there first.",
+              "hi": "सिर्फ Packing Yard से रिलीज़ हुए यूनिट दिखते हैं। पहले वहाँ रिलीज़ करें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "load",
+        "title": {
+          "en": "Tick the lines (or units) onto the loading tray and fill the transporter",
+          "hi": "लाइनें (या यूनिट) लोडिंग ट्रे पर टिक करें और ट्रांसपोर्टर भरें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Closed line on the tray",
+              "hi": "ट्रे पर बंद लाइन"
+            },
+            "resolution": {
+              "en": "Tick \"Send goods of closed lines\" to ship them, or remove them and use \"Move to stock\".",
+              "hi": "भेजने के लिए \"Send goods of closed lines\" टिक करें, या हटाकर \"Move to stock\" करें।"
+            }
+          },
           {
             "label": {
               "en": "Ready",
               "hi": "तैयार"
             },
-            "nextId": "dispatch"
-          },
-          {
-            "label": {
-              "en": "Pending docs",
-              "hi": "दस्तावेज़ लंबित"
-            },
-            "resolution": {
-              "en": "Hold dispatch and complete DC artifacts.",
-              "hi": "डिस्पैच रोकें और DC दस्तावेज पूरे करें।"
-            }
+            "nextId": "slips"
           }
         ]
       },
       {
-        "id": "dispatch",
+        "id": "slips",
         "title": {
-          "en": "Dispatch and handoff",
-          "hi": "डिस्पैच और हैंडऑफ"
+          "en": "Create slips: one per order line; print on the Epson",
+          "hi": "स्लिप बनाएँ: हर ऑर्डर लाइन की एक; Epson पर प्रिंट करें"
         },
         "outcomes": [
           {
             "label": {
-              "en": "Completed",
-              "hi": "पूर्ण"
+              "en": "Printed",
+              "hi": "प्रिंट हुई"
             },
-            "resolution": {
-              "en": "Capture transit proof and status update.",
-              "hi": "ट्रांजिट प्रमाण और स्थिति अपडेट दर्ज करें।"
-            }
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "id": "sales-order-flow",
-    "title": {
-      "en": "Sales Order Flow",
-      "hi": "सेल्स ऑर्डर प्रवाह"
-    },
-    "nodes": [
-      {
-        "id": "start",
-        "title": {
-          "en": "Create and validate order",
-          "hi": "ऑर्डर बनाएँ और सत्यापित करें"
-        },
-        "outcomes": [
-          {
-            "label": {
-              "en": "Valid",
-              "hi": "वैध"
-            },
-            "nextId": "release"
-          },
-          {
-            "label": {
-              "en": "Validation error",
-              "hi": "वैलिडेशन त्रुटि"
-            },
-            "resolution": {
-              "en": "Correct commercial or technical fields before save.",
-              "hi": "सेव से पहले वाणिज्यिक/तकनीकी फ़ील्ड सुधारें।"
-            }
+            "nextId": "send"
           }
         ]
       },
       {
-        "id": "release",
+        "id": "send",
         "title": {
-          "en": "Release to planning",
-          "hi": "प्लानिंग हेतु रिलीज"
+          "en": "\"Mark dispatched\" when the vehicle leaves",
+          "hi": "गाड़ी निकलने पर \"Mark dispatched\""
         },
         "outcomes": [
           {
             "label": {
-              "en": "Released",
-              "hi": "रिलीज़"
+              "en": "Delivered",
+              "hi": "डिलीवर हुआ"
             },
             "resolution": {
-              "en": "Track execution from order tracking page.",
-              "hi": "ऑर्डर ट्रैकिंग पेज से निष्पादन ट्रैक करें।"
+              "en": "Record proof of delivery in \"Challans & history\"; the order closes when every line is delivered.",
+              "hi": "\"Challans & history\" में डिलीवरी का सबूत दर्ज करें; हर लाइन डिलीवर होने पर ऑर्डर बंद होता है।"
             }
           }
         ]
@@ -1039,6 +1027,799 @@
             "resolution": {
               "en": "Issue an NRGP; it closes when the gate records it.",
               "hi": "NRGP जारी करें; गेट द्वारा दर्ज होते ही बंद हो जाता है."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "sales-order-flow",
+    "title": {
+      "en": "Placing a sales order",
+      "hi": "सेल्स ऑर्डर बनाना"
+    },
+    "nodes": [
+      {
+        "id": "customer",
+        "title": {
+          "en": "Is the customer picked?",
+          "hi": "क्या कस्टमर चुना गया है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "nextId": "lines"
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "resolution": {
+              "en": "Type two letters in \"Who is this order for?\" or pick from the full list. A new customer is added in Sales → Customers.",
+              "hi": "\"Who is this order for?\" में दो अक्षर लिखें या पूरी लिस्ट से चुनें। नया कस्टमर Sales → Customers में जोड़ें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "lines",
+        "title": {
+          "en": "Does every line show Ready?",
+          "hi": "क्या हर लाइन Ready दिखा रही है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "nextId": "date"
+          },
+          {
+            "label": {
+              "en": "No: a status like Needs rate",
+              "hi": "नहीं: Needs rate जैसा स्टेटस"
+            },
+            "resolution": {
+              "en": "Open \"Before you place\" and press \"Fix →\": it opens the line or the field. Lines marked \"Check the line\" must be opened once.",
+              "hi": "\"Before you place\" खोलें और \"Fix →\" दबाएँ: लाइन या फ़ील्ड खुल जाएगा। \"Check the line\" वाली लाइन एक बार खोलनी ज़रूरी है।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "date",
+        "title": {
+          "en": "Is the promised dispatch date set?",
+          "hi": "क्या Promised dispatch तारीख भरी है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "nextId": "place"
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "resolution": {
+              "en": "Set it in the order row; it starts a week ahead.",
+              "hi": "ऑर्डर वाली पंक्ति में भरें; यह एक हफ़्ता आगे से शुरू होती है।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "place",
+        "title": {
+          "en": "Place the order",
+          "hi": "ऑर्डर प्लेस करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Placed",
+              "hi": "प्लेस हो गया"
+            },
+            "resolution": {
+              "en": "The order goes to the planner's queue. Use \"Open order\" or \"Open in planner\" on the summary.",
+              "hi": "ऑर्डर प्लानर की कतार में चला जाता है। सारांश पर \"Open order\" या \"Open in planner\" दबाएँ।"
+            }
+          },
+          {
+            "label": {
+              "en": "Error on save",
+              "hi": "सेव पर एरर"
+            },
+            "resolution": {
+              "en": "Read the message: usually a master changed or a size is no longer allowed. Fix the line and press \"Place order\" again; the draft is kept.",
+              "hi": "मैसेज पढ़ें: अक्सर मास्टर बदला होता है या साइज़ अब allowed नहीं। लाइन ठीक करके फिर \"Place order\" दबाएँ; ड्राफ़्ट सुरक्षित रहता है।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "planner-release-flow",
+    "title": {
+      "en": "Planning and releasing a line",
+      "hi": "लाइन प्लान करके रिलीज़ करना"
+    },
+    "nodes": [
+      {
+        "id": "gates",
+        "title": {
+          "en": "Are the line's gates green (Spec, Material, Artwork, Route)?",
+          "hi": "क्या लाइन के gates हरे हैं (Spec, Material, Artwork, Route)?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "nextId": "stock"
+          },
+          {
+            "label": {
+              "en": "Artwork pending",
+              "hi": "आर्टवर्क बाकी"
+            },
+            "resolution": {
+              "en": "Assign an approved artwork (Engineering → Artworks) or keep it deferred; printing cannot start without it.",
+              "hi": "Approved artwork लगाएँ (Engineering → Artworks); इसके बिना प्रिंटिंग शुरू नहीं होगी।"
+            }
+          },
+          {
+            "label": {
+              "en": "Material short",
+              "hi": "मटीरियल कम"
+            },
+            "resolution": {
+              "en": "Check rolls in the width window (±20 mm) or raise a purchase/stock order.",
+              "hi": "±20 mm विंडो में रोल देखें या खरीद/स्टॉक ऑर्डर बनाएँ।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "stock",
+        "title": {
+          "en": "Is finished or free stock available for it?",
+          "hi": "क्या इसके लिए तैयार या फ्री स्टॉक है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "resolution": {
+              "en": "Claim the stock (rolls, batches or whole gonnies freed from closed orders) instead of producing.",
+              "hi": "बनाने की बजाय स्टॉक claim करें (रोल, बैच या बंद ऑर्डर से फ्री हुए पूरे gonny)।"
+            }
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "nextId": "release"
+          }
+        ]
+      },
+      {
+        "id": "release",
+        "title": {
+          "en": "Release to the route",
+          "hi": "रूट पर रिलीज़ करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Released",
+              "hi": "रिलीज़ हुआ"
+            },
+            "resolution": {
+              "en": "Jobs appear on the first work center's terminal.",
+              "hi": "जॉब पहले वर्क-सेंटर के टर्मिनल पर दिखते हैं।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "work-center-flow",
+    "title": {
+      "en": "Running a job at a work center",
+      "hi": "वर्क-सेंटर पर जॉब चलाना"
+    },
+    "nodes": [
+      {
+        "id": "queue",
+        "title": {
+          "en": "Is the job in the WC queue?",
+          "hi": "क्या जॉब WC की कतार में है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "nextId": "machine"
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "resolution": {
+              "en": "The planner has not released it, or the previous step is not finished.",
+              "hi": "प्लानर ने रिलीज़ नहीं किया या पिछला स्टेप पूरा नहीं हुआ।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "machine",
+        "title": {
+          "en": "Pick the machine and inputs (rolls, ink, granules)",
+          "hi": "मशीन और इनपुट चुनें (रोल, इंक, ग्रेन्यूल)"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Done",
+              "hi": "हो गया"
+            },
+            "nextId": "release"
+          },
+          {
+            "label": {
+              "en": "No roll fits",
+              "hi": "कोई रोल फिट नहीं"
+            },
+            "resolution": {
+              "en": "Rolls must be within the width window; ask the planner or store.",
+              "hi": "रोल चौड़ाई विंडो में होने चाहिए; प्लानर या स्टोर से पूछें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "release",
+        "title": {
+          "en": "\"Release to machine\"",
+          "hi": "\"Release to machine\""
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Released",
+              "hi": "रिलीज़"
+            },
+            "resolution": {
+              "en": "The operator sees it on the machine screen and logs outputs.",
+              "hi": "ऑपरेटर मशीन स्क्रीन पर देखकर आउटपुट दर्ज करता है।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "packing-release-flow",
+    "title": {
+      "en": "Packing and release to dispatch",
+      "hi": "पैकिंग और डिस्पैच के लिए रिलीज़"
+    },
+    "nodes": [
+      {
+        "id": "kind",
+        "title": {
+          "en": "Roll order or pouch order?",
+          "hi": "रोल ऑर्डर या पाउच ऑर्डर?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Rolls",
+              "hi": "रोल"
+            },
+            "nextId": "rolls"
+          },
+          {
+            "label": {
+              "en": "Pouches",
+              "hi": "पाउच"
+            },
+            "nextId": "pouch"
+          }
+        ]
+      },
+      {
+        "id": "rolls",
+        "title": {
+          "en": "Tick the rolls in this release",
+          "hi": "इस रिलीज़ के रोल टिक करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Done",
+              "hi": "हो गया"
+            },
+            "nextId": "marks"
+          }
+        ]
+      },
+      {
+        "id": "pouch",
+        "title": {
+          "en": "Pack batches into gonnies with inner pouches, then seal with gross weight",
+          "hi": "बैच को inner pouch के साथ gonny में पैक करें, फिर gross weight से सील करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Sealed",
+              "hi": "सील हुआ"
+            },
+            "nextId": "marks"
+          },
+          {
+            "label": {
+              "en": "Held at packing check",
+              "hi": "पैकिंग चेक पर होल्ड"
+            },
+            "resolution": {
+              "en": "A batch whose count differs too much is held; the supervisor clears it on the packing check.",
+              "hi": "जिस बैच की गिनती बहुत अलग है वह होल्ड होता है; सुपरवाइज़र पैकिंग चेक पर क्लियर करता है।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "marks",
+        "title": {
+          "en": "Tick every packing item used (gonny, sheet/putha, box, tape…)",
+          "hi": "इस्तेमाल हुए हर पैकिंग आइटम को टिक करें (gonny, sheet/putha, box, tape…)"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Ticked",
+              "hi": "टिक किया"
+            },
+            "nextId": "release"
+          },
+          {
+            "label": {
+              "en": "Item not in the list",
+              "hi": "आइटम लिस्ट में नहीं"
+            },
+            "resolution": {
+              "en": "Only inner pouches are never listed. Otherwise the item is inactive or set as Inner pouch in Masters → Packaging: change its kind.",
+              "hi": "सिर्फ inner pouch लिस्ट में नहीं आते। वरना आइटम inactive है या Masters → Packaging में Inner pouch kind में है: kind बदलें।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "release",
+        "title": {
+          "en": "Release to Dispatch Bay",
+          "hi": "Dispatch Bay को रिलीज़"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Released",
+              "hi": "रिलीज़"
+            },
+            "resolution": {
+              "en": "Units appear in Dispatch Bay → Ready to dispatch. Ticks are booked by the evening count.",
+              "hi": "यूनिट Dispatch Bay → Ready to dispatch में दिखते हैं। टिक शाम की गिनती में बुक होते हैं।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "evening-count-flow",
+    "title": {
+      "en": "Evening packing count",
+      "hi": "शाम की पैकिंग गिनती"
+    },
+    "nodes": [
+      {
+        "id": "count",
+        "title": {
+          "en": "Count every packing item left in the store",
+          "hi": "स्टोर में बचे हर पैकिंग आइटम को गिनें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Entered",
+              "hi": "भर दिया"
+            },
+            "nextId": "diff"
+          }
+        ]
+      },
+      {
+        "id": "diff",
+        "title": {
+          "en": "Is the counted stock lower than the book?",
+          "hi": "क्या गिना हुआ स्टॉक बुक से कम है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "resolution": {
+              "en": "The difference is the day's use. It is split over the order lines that ticked or marked the item that day (pieces in whole pieces) and booked to them.",
+              "hi": "अंतर दिन का इस्तेमाल है। यह उन ऑर्डर लाइनों में बँटता है जिन्होंने उस दिन वह आइटम टिक किया या जिन पर उसका निशान लगा (पीस पूरे-पूरे) और उन पर बुक होता है।"
+            }
+          },
+          {
+            "label": {
+              "en": "No one ticked it",
+              "hi": "किसी ने टिक नहीं किया"
+            },
+            "resolution": {
+              "en": "The use is shared over that day's packed orders whose packing plan includes the item (first at this location, then plant-wide). It stays on no order only when there are none; then check with packing who used it and tick it next time.",
+              "hi": "इस्तेमाल उस दिन पैक हुए उन ऑर्डरों में बँटता है जिनके packing plan में वह आइटम है (पहले इस लोकेशन पर, फिर पूरे प्लांट में)। ऐसे ऑर्डर न हों तभी यह किसी ऑर्डर पर नहीं जाता; तब पैकिंग से पूछें और अगली बार टिक करवाएँ।"
+            }
+          },
+          {
+            "label": {
+              "en": "Counted more than the book",
+              "hi": "बुक से ज़्यादा गिना"
+            },
+            "resolution": {
+              "en": "Excess: check receipts not entered (GRN) before posting.",
+              "hi": "ज़्यादा: पोस्ट करने से पहले न दर्ज हुई रसीद (GRN) जाँचें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "closed-goods-flow",
+    "title": {
+      "en": "Goods made for a closed line",
+      "hi": "बंद लाइन के लिए बना माल"
+    },
+    "nodes": [
+      {
+        "id": "decide",
+        "title": {
+          "en": "Line or order is short-closed, completed or cancelled but goods are in the yard",
+          "hi": "लाइन/ऑर्डर short-close, complete या cancel है पर माल यार्ड में है"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Send to the customer",
+              "hi": "कस्टमर को भेजें"
+            },
+            "nextId": "ship"
+          },
+          {
+            "label": {
+              "en": "Keep as stock",
+              "hi": "स्टॉक में रखें"
+            },
+            "nextId": "stock"
+          }
+        ]
+      },
+      {
+        "id": "ship",
+        "title": {
+          "en": "Load it and tick \"Send goods of closed lines\"",
+          "hi": "लोड करें और \"Send goods of closed lines\" टिक करें"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Done",
+              "hi": "हो गया"
+            },
+            "resolution": {
+              "en": "Create and dispatch the slip as usual; POD never reopens the closed line.",
+              "hi": "स्लिप हमेशा की तरह बनाकर डिस्पैच करें; POD बंद लाइन को दोबारा नहीं खोलता।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "stock",
+        "title": {
+          "en": "\"Move to stock\" with a reason",
+          "hi": "कारण के साथ \"Move to stock\""
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Moved",
+              "hi": "हो गया"
+            },
+            "resolution": {
+              "en": "Units leave the order and Dispatch Bay; the planner can claim them for any order with the same spec.",
+              "hi": "यूनिट ऑर्डर और Dispatch Bay से हट जाते हैं; प्लानर इन्हें उसी स्पेक के किसी भी ऑर्डर के लिए claim कर सकता है।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "gate-visitor-flow",
+    "title": {
+      "en": "Visitor at the gate",
+      "hi": "गेट पर विज़िटर"
+    },
+    "nodes": [
+      {
+        "id": "reg",
+        "title": {
+          "en": "Is the visitor registered?",
+          "hi": "क्या विज़िटर रजिस्टर है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes (QR or link)",
+              "hi": "हाँ (QR या लिंक)"
+            },
+            "nextId": "check"
+          },
+          {
+            "label": {
+              "en": "No",
+              "hi": "नहीं"
+            },
+            "resolution": {
+              "en": "Watchman adds them in Gate → Visitors → New with photo, or shares the visit link.",
+              "hi": "चौकीदार Gate → Visitors → New में फ़ोटो के साथ जोड़े या विज़िट लिंक भेजे।"
+            }
+          }
+        ]
+      },
+      {
+        "id": "check",
+        "title": {
+          "en": "Check in, then check out when leaving",
+          "hi": "अंदर आते समय check in, जाते समय check out"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Done",
+              "hi": "हो गया"
+            },
+            "resolution": {
+              "en": "The visit shows in the gate register and history.",
+              "hi": "विज़िट गेट रजिस्टर और हिस्ट्री में दिखती है।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "maintenance-flow",
+    "title": {
+      "en": "Machine breakdown and maintenance",
+      "hi": "मशीन ब्रेकडाउन और मेंटेनेंस"
+    },
+    "nodes": [
+      {
+        "id": "raise",
+        "title": {
+          "en": "Raise a breakdown or request from the machine or Maintenance",
+          "hi": "मशीन या Maintenance से ब्रेकडाउन/रिक्वेस्ट बनाएँ"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Raised",
+              "hi": "बन गया"
+            },
+            "nextId": "work"
+          }
+        ]
+      },
+      {
+        "id": "work",
+        "title": {
+          "en": "Technician works and records parts and time",
+          "hi": "टेक्नीशियन काम करके पार्ट्स और समय दर्ज करे"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Fixed",
+              "hi": "ठीक हुआ"
+            },
+            "resolution": {
+              "en": "Close it; downtime shows in the downtime report.",
+              "hi": "बंद करें; डाउनटाइम रिपोर्ट में दिखता है।"
+            }
+          },
+          {
+            "label": {
+              "en": "Waiting for parts",
+              "hi": "पार्ट्स का इंतज़ार"
+            },
+            "resolution": {
+              "en": "Keep it open and note the part; the machine stays marked down.",
+              "hi": "खुला रखें और पार्ट लिखें; मशीन down दिखेगी।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "quotation-flow",
+    "title": {
+      "en": "Quotation to order",
+      "hi": "कोटेशन से ऑर्डर"
+    },
+    "nodes": [
+      {
+        "id": "make",
+        "title": {
+          "en": "Build the quotation lines like an order",
+          "hi": "ऑर्डर की तरह कोटेशन लाइनें बनाएँ"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Sent",
+              "hi": "भेज दिया"
+            },
+            "nextId": "answer"
+          }
+        ]
+      },
+      {
+        "id": "answer",
+        "title": {
+          "en": "Did the customer accept?",
+          "hi": "क्या कस्टमर ने माना?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "resolution": {
+              "en": "Convert it to a sales order; lines carry over.",
+              "hi": "इसे सेल्स ऑर्डर में बदलें; लाइनें साथ आती हैं।"
+            }
+          },
+          {
+            "label": {
+              "en": "No or revised",
+              "hi": "नहीं या बदलाव"
+            },
+            "resolution": {
+              "en": "Revise and resend, or mark it lost with a reason.",
+              "hi": "बदलकर फिर भेजें या कारण के साथ lost करें।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "purchase-flow",
+    "title": {
+      "en": "Buying material",
+      "hi": "मटीरियल खरीदना"
+    },
+    "nodes": [
+      {
+        "id": "need",
+        "title": {
+          "en": "Is the material short for planned work?",
+          "hi": "क्या प्लान किए काम के लिए मटीरियल कम है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "nextId": "po"
+          }
+        ]
+      },
+      {
+        "id": "po",
+        "title": {
+          "en": "Raise the purchase, receive at the gate, then GRN in stores",
+          "hi": "खरीद बनाएँ, गेट पर रिसीव करें, फिर स्टोर में GRN"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Received",
+              "hi": "आ गया"
+            },
+            "resolution": {
+              "en": "Stock is available to the planner once the GRN is posted.",
+              "hi": "GRN पोस्ट होते ही स्टॉक प्लानर को मिलता है।"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "access-flow",
+    "title": {
+      "en": "Signing in",
+      "hi": "साइन इन"
+    },
+    "nodes": [
+      {
+        "id": "login",
+        "title": {
+          "en": "Can you sign in?",
+          "hi": "क्या साइन इन हो रहा है?"
+        },
+        "outcomes": [
+          {
+            "label": {
+              "en": "Yes",
+              "hi": "हाँ"
+            },
+            "resolution": {
+              "en": "You land on your role's start page.",
+              "hi": "आप अपनी भूमिका के शुरुआती पेज पर पहुँचते हैं।"
+            }
+          },
+          {
+            "label": {
+              "en": "Wrong password or locked",
+              "hi": "गलत पासवर्ड या लॉक"
+            },
+            "resolution": {
+              "en": "Ask the admin to reset it in System → Users. Never share passwords.",
+              "hi": "एडमिन से System → Users में रीसेट करवाएँ। पासवर्ड किसी को न बताएँ।"
+            }
+          },
+          {
+            "label": {
+              "en": "Page not part of your role",
+              "hi": "पेज आपकी भूमिका में नहीं"
+            },
+            "resolution": {
+              "en": "Ask the admin to change your role or grant the page.",
+              "hi": "एडमिन से भूमिका बदलवाएँ या पेज की अनुमति लें।"
             }
           }
         ]

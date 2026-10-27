@@ -1,40 +1,25 @@
 "use client";
 
+// The "Help" button in the header: the guide for the page in use, loaded only when opened.
+
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { CircleHelp, ExternalLink } from "lucide-react";
+import { CircleHelp, ExternalLink, Share2 } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
-import {
-  HelpFlowDiagram,
-  HelpScreenshotImage,
-} from "@/components/help/help-visuals";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { HelpFlowDiagram } from "@/components/help/help-visuals";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { localize, getHelpContext } from "@/help/resolver";
 import { useHelpLocale } from "@/hooks/use-help-locale";
+import { usePageHelp } from "@/hooks/use-page-help";
+import type { HelpLocale, LocalizedText } from "@/help/types";
 
-function SectionList({ items }: { items: string[] }) {
-  if (!items.length) {
-    return <p className="text-xs text-content-3">No details available.</p>;
-  }
-
-  return (
-    <ul className="space-y-2 text-sm text-content-2 list-disc pl-4">
-      {items.map((item) => (
-        <li key={item}>{item}</li>
-      ))}
-    </ul>
-  );
+function tr(text: LocalizedText | string | undefined, locale: HelpLocale): string {
+  if (!text) return "";
+  if (typeof text === "string") return text;
+  return text[locale] || text.en;
 }
 
 export function ContextHelpSheet() {
@@ -42,223 +27,124 @@ export function ContextHelpSheet() {
   const pathname = usePathname() || "/";
   const { user, effectiveRole } = useAuth();
   const { locale, setLocale } = useHelpLocale();
-
-  const roleCode = String(
-    effectiveRole || user?.entitlements?.role || user?.role_info?.code || "",
-  ).toUpperCase();
-
-  const context = useMemo(
-    () => getHelpContext(pathname, roleCode),
-    [pathname, roleCode],
-  );
-  const helpRoute = context.pageGuide?.routePattern || pathname;
-  const fullGuideHref = `/help?route=${encodeURIComponent(helpRoute)}`;
-
-  const overview = context.pageGuide
-    ? [
-        localize(context.pageGuide.summary, locale),
-        localize(context.pageGuide.purpose, locale),
-      ].filter(Boolean)
-    : [
-        localize(context.roleGuide?.overview, locale),
-        ...(context.roleGuide?.responsibilities || [])
-          .slice(0, 2)
-          .map((item) => localize(item, locale)),
-      ].filter(Boolean);
-
-  const steps = context.pageGuide
-    ? [
-        ...(context.pageGuide.prerequisites || []).map((item) =>
-          localize(item, locale),
-        ),
-        ...(context.pageGuide.keyActions || []).map((item) =>
-          localize(item, locale),
-        ),
-        ...(context.pageGuide.recoverySteps || []).map((item) =>
-          localize(item, locale),
-        ),
-      ].filter(Boolean)
-    : [
-        ...(context.roleGuide?.dailyChecklist || []).map((item) =>
-          localize(item, locale),
-        ),
-        ...(context.roleGuide?.coreWorkflows || []).map((item) =>
-          localize(item, locale),
-        ),
-        ...(context.roleGuide?.escalationPaths || []).map((item) =>
-          localize(item, locale),
-        ),
-      ].filter(Boolean);
-
-  const related = context.pageGuide
-    ? (context.pageGuide.relatedRoutes || []).map((route) => route)
-    : context.roleGuide?.landingPage
-      ? [context.roleGuide.landingPage]
-      : [];
+  const roleCode = String(effectiveRole || user?.entitlements?.role || user?.role_info?.code || "").toUpperCase();
+  const { pageGuide, decisionFlow, slug, isLoading } = usePageHelp(pathname, roleCode, open);
+  const fullGuideHref = slug ? `/help?page=${slug}&lang=${locale}` : `/help?lang=${locale}`;
+  const shareHref = slug ? `/guide?page=${slug}&lang=${locale}` : `/guide?lang=${locale}`;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button
-          variant="outline"
-          className="h-10 rounded-xl border-info-border bg-info-bg text-info-fg hover:bg-info-bg"
-        >
-          <CircleHelp className="h-4 w-4 mr-1.5" />
+        <Button variant="outline" className="h-10 rounded-xl border-info-border bg-info-bg text-info-fg hover:bg-info-bg" data-testid="context-help-open">
+          <CircleHelp className="mr-1.5 h-4 w-4" />
           Help
         </Button>
       </SheetTrigger>
-      <SheetContent
-        side="right"
-        className="w-full sm:max-w-2xl p-0 overflow-y-auto"
-      >
-        <div className="p-5 border-b border-line bg-surface-1 sticky top-0 z-10">
+      <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-2xl">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface-1 p-5 pr-14">
           <SheetHeader className="space-y-2">
-            <SheetTitle className="flex items-center justify-between">
-              <span>{locale === "hi" ? "संदर्भ सहायता" : "Context Help"}</span>
-              <div className="inline-flex rounded-lg border border-line p-0.5 bg-surface-2">
-                <button
-                  type="button"
-                  onClick={() => setLocale("en")}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${locale === "en" ? "bg-surface-1 text-content-1" : "text-content-3"}`}
-                >
-                  EN
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLocale("hi")}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md ${locale === "hi" ? "bg-surface-1 text-content-1" : "text-content-3"}`}
-                >
-                  HI
-                </button>
+            <SheetTitle className="flex items-center justify-between gap-2">
+              <span>{pageGuide ? tr(pageGuide.title, locale) : locale === "hi" ? "इस पेज की मदद" : "Help for this page"}</span>
+              <div className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5">
+                {(["en", "hi"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setLocale(value)}
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold ${locale === value ? "bg-surface-1 text-content-1" : "text-content-3"}`}
+                  >
+                    {value === "en" ? "EN" : "हिंदी"}
+                  </button>
+                ))}
               </div>
             </SheetTitle>
             <SheetDescription>
-              {context.pageGuide
-                ? localize(context.pageGuide.title, locale)
-                : context.roleGuide
-                  ? localize(context.roleGuide.title, locale)
+              {pageGuide
+                ? tr(pageGuide.summary, locale)
+                : isLoading
+                  ? locale === "hi"
+                    ? "लोड हो रहा है…"
+                    : "Loading…"
                   : locale === "hi"
-                    ? "इस पेज के लिए गाइड उपलब्ध नहीं है।"
-                    : "No guide is available for this page."}
+                    ? "इस पेज की गाइड नहीं मिली। पूरी गाइड में खोजें।"
+                    : "No guide for this page yet. Search the full guide."}
             </SheetDescription>
           </SheetHeader>
-
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button asChild size="sm" variant="outline">
               <Link href={fullGuideHref} onClick={() => setOpen(false)}>
-                {locale === "hi" ? "पूरा गाइड" : "Open Full Guide"}
-                <ExternalLink className="h-3.5 w-3.5 ml-1.5" />
+                {locale === "hi" ? "पूरी गाइड" : "Open full guide"}
+                <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
               </Link>
             </Button>
-            <div className="text-xs text-content-3">
-              {locale === "hi"
-                ? `भूमिका: ${roleCode || "GUEST"}`
-                : `Role: ${roleCode || "GUEST"}`}
-            </div>
+            <Button asChild size="sm" variant="ghost">
+              <Link href={shareHref} target="_blank" rel="noreferrer">
+                <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                {locale === "hi" ? "शेयर करने वाला लिंक" : "Shareable link"}
+              </Link>
+            </Button>
           </div>
         </div>
 
-        <div className="p-5">
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 h-auto">
-              <TabsTrigger value="overview" className="text-xs">
-                {locale === "hi" ? "सार" : "Overview"}
-              </TabsTrigger>
-              <TabsTrigger value="steps" className="text-xs">
-                {locale === "hi" ? "स्टेप्स" : "Steps"}
-              </TabsTrigger>
-              <TabsTrigger value="flow" className="text-xs">
-                {locale === "hi" ? "फ्लो" : "Decision Flow"}
-              </TabsTrigger>
-              <TabsTrigger value="faq" className="text-xs">
-                FAQ
-              </TabsTrigger>
-              <TabsTrigger value="related" className="text-xs">
-                {locale === "hi" ? "संबंधित" : "Related"}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="pt-4">
-              <SectionList items={overview} />
-            </TabsContent>
-
-            <TabsContent value="steps" className="pt-4">
-              <SectionList items={steps} />
-            </TabsContent>
-
-            <TabsContent value="flow" className="pt-4 space-y-3">
-              <HelpFlowDiagram flow={context.decisionFlow} locale={locale} />
-              {context.pageGuide?.screenshotKeys?.length ? (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {context.pageGuide.screenshotKeys.slice(0, 4).map((key) => (
-                    <div
-                      key={key}
-                      className="rounded-xl border border-line bg-surface-1 p-2"
-                    >
-                      <HelpScreenshotImage imageKey={key} compact />
-                      <div className="mt-1 truncate text-caption font-semibold text-content-3">
-                        {key}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </TabsContent>
-
-            <TabsContent value="faq" className="pt-4 space-y-3">
-              {context.pageGuide
-                ? (context.faqItems || []).map((item) => (
-                    <div
-                      key={item.id}
-                      className="rounded-lg border border-line p-3 bg-surface-1"
-                    >
-                      <p className="font-semibold text-sm text-content-1">
-                        {localize(item.question, locale)}
-                      </p>
-                      <p className="mt-1 text-sm text-content-3">
-                        {localize(item.answer, locale)}
-                      </p>
-                    </div>
-                  ))
-                : (context.roleGuide?.faqs || []).map((item, idx) => (
-                    <div
-                      key={`${context.roleGuide?.roleCode || "role"}-faq-${idx}`}
-                      className="rounded-lg border border-line p-3 bg-surface-1"
-                    >
-                      <p className="font-semibold text-sm text-content-1">
-                        {localize(item.q, locale)}
-                      </p>
-                      <p className="mt-1 text-sm text-content-3">
-                        {localize(item.a, locale)}
-                      </p>
-                    </div>
-                  ))}
-            </TabsContent>
-
-            <TabsContent value="related" className="pt-4">
-              {related.length ? (
-                <ul className="space-y-2">
-                  {related.map((route) => (
-                    <li key={route}>
-                      <Link
-                        href={`/help?route=${encodeURIComponent(route)}`}
-                        className="text-sm font-medium text-primary hover:text-primary"
-                      >
-                        {route}
-                      </Link>
+        {pageGuide ? (
+          <div className="p-5">
+            <p className="mb-4 text-sm leading-6 text-content-2">{tr(pageGuide.purpose, locale)}</p>
+            <Tabs defaultValue="steps" className="w-full">
+              <TabsList className="grid h-auto w-full grid-cols-4">
+                <TabsTrigger value="steps" className="text-xs">{locale === "hi" ? "स्टेप" : "Steps"}</TabsTrigger>
+                <TabsTrigger value="fields" className="text-xs">{locale === "hi" ? "फ़ील्ड" : "Fields"}</TabsTrigger>
+                <TabsTrigger value="problems" className="text-xs">{locale === "hi" ? "दिक्कतें" : "Problems"}</TabsTrigger>
+                <TabsTrigger value="flow" className="text-xs">{locale === "hi" ? "फ़्लो" : "Flow"}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="steps" className="pt-4">
+                {pageGuide.prerequisites?.length ? (
+                  <div className="mb-3 rounded-xl border border-line bg-surface-2 p-3 text-sm text-content-2">
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-content-3">{locale === "hi" ? "पहले से चाहिए" : "Before you start"}</div>
+                    <ul className="list-disc space-y-1 pl-4">
+                      {pageGuide.prerequisites.map((item, index) => (
+                        <li key={index}>{tr(item, locale)}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <ol className="space-y-2">
+                  {pageGuide.keyActions.map((item, index) => (
+                    <li key={index} className="grid grid-cols-[24px_minmax(0,1fr)] gap-2 text-sm text-content-1">
+                      <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{index + 1}</span>
+                      <span className="pt-0.5 leading-6">{tr(item, locale)}</span>
                     </li>
                   ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-content-3">
-                  {locale === "hi"
-                    ? "कोई संबंधित पेज नहीं।"
-                    : "No related pages."}
-                </p>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+                </ol>
+              </TabsContent>
+              <TabsContent value="fields" className="space-y-2 pt-4">
+                {pageGuide.fieldHelp.map((entry, index) => (
+                  <div key={index} className="rounded-lg border border-line bg-surface-1 p-3">
+                    <p className="text-sm font-semibold text-content-1">{tr(entry.field, locale)}</p>
+                    <p className="mt-1 text-sm text-content-2">{tr(entry.help, locale)}</p>
+                  </div>
+                ))}
+              </TabsContent>
+              <TabsContent value="problems" className="space-y-2 pt-4">
+                {pageGuide.commonErrors.map((entry, index) => (
+                  <div key={index} className="rounded-lg border border-warning-border bg-warning-bg p-3">
+                    <p className="text-sm font-semibold text-warning-fg">{tr(entry.error, locale)}</p>
+                    <p className="mt-1 text-sm text-content-1">{tr(entry.reason, locale)}</p>
+                  </div>
+                ))}
+                {pageGuide.recoverySteps?.length ? (
+                  <ol className="list-decimal space-y-1 pl-5 pt-2 text-sm text-content-2">
+                    {pageGuide.recoverySteps.map((item, index) => (
+                      <li key={index}>{tr(item, locale)}</li>
+                    ))}
+                  </ol>
+                ) : null}
+              </TabsContent>
+              <TabsContent value="flow" className="pt-4">
+                <HelpFlowDiagram flow={decisionFlow} locale={locale} />
+              </TabsContent>
+            </Tabs>
+          </div>
+        ) : null}
       </SheetContent>
     </Sheet>
   );

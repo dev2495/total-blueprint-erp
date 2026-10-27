@@ -5,9 +5,15 @@ import { usePathname } from "next/navigation";
 import { CircleHelp, ExternalLink } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
-import { localize, getHelpContext } from "@/help/resolver";
-import type { LocalizedText } from "@/help/types";
+import type { HelpLocale, LocalizedText } from "@/help/types";
 import { useHelpLocale } from "@/hooks/use-help-locale";
+import { usePageHelp } from "@/hooks/use-page-help";
+
+function localize(text: LocalizedText | string | undefined, locale: HelpLocale): string {
+  if (!text) return "";
+  if (typeof text === "string") return text;
+  return text[locale] || text.en;
+}
 import { cn } from "@/lib/utils";
 
 interface PageHelpInlineProps {
@@ -33,7 +39,7 @@ export function PageHelpInline({
   const roleCode = String(
     effectiveRole || user?.entitlements?.role || user?.role_info?.code || "",
   ).toUpperCase();
-  const context = getHelpContext(activePath, roleCode);
+  const context = usePageHelp(activePath, roleCode);
 
   if (!context.pageGuide && hideIfMissing) {
     return null;
@@ -46,8 +52,9 @@ export function PageHelpInline({
 
   if (!summaryText) return null;
 
-  const helpRoute = context.pageGuide?.routePattern || activePath;
-  const fullGuideHref = `/help?route=${encodeURIComponent(helpRoute)}`;
+  const fullGuideHref = context.slug
+    ? `/help?page=${context.slug}&lang=${locale}`
+    : `/help?route=${encodeURIComponent(activePath)}&lang=${locale}`;
 
   return (
     <div

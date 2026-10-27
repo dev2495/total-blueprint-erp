@@ -1,0 +1,3322 @@
+[
+ {
+  "id": "sales-order-to-dispatch",
+  "title": {
+   "en": "Sales order from placing to dispatch",
+   "hi": "Sales order: डालने से dispatch तक"
+  },
+  "summary": {
+   "en": "How a customer order moves from the composer through planning, the floor and the yard to a dispatched slip and a completed order.",
+   "hi": "ग्राहक का order composer से planning, floor और yard होते हुए dispatch slip और पूरे order तक कैसे जाता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Pick customer and order facts",
+     "hi": "ग्राहक और order की जानकारी"
+    },
+    "role": "SALES",
+    "route": "/sales/orders/create",
+    "detail": {
+     "en": "Answer \"Who is this order for?\", set Ship to, Promised dispatch, Job name, Ship address and Note for dispatch.",
+     "hi": "\"Who is this order for?\" का जवाब दें, Ship to, Promised dispatch, Job name, Ship address और Note for dispatch भरें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Build the lines",
+     "hi": "lines बनाएँ"
+    },
+    "role": "SALES",
+    "route": "/sales/orders/create",
+    "detail": {
+     "en": "Quick-add or open the line editor: size, layers, qty & rate, print & artwork, packing.",
+     "hi": "quick-add या line editor: size, layers, qty & rate, print & artwork, packing।"
+    }
+   },
+   {
+    "title": {
+     "en": "Place order",
+     "hi": "Place order"
+    },
+    "role": "SALES",
+    "route": "/sales/orders/create",
+    "detail": {
+     "en": "Clear \"Before you place\" and press \"Place order\" (⌘↵). The order enters the planning queue.",
+     "hi": "\"Before you place\" साफ़ करें और \"Place order\" (⌘↵) दबाएँ। order planning queue में जाता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Plan and release",
+     "hi": "Plan और release"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Planner picks the plant, claims stock and releases each line to the route.",
+     "hi": "planner plant चुनता है, stock claim करता है और हर line route पर release करता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Make on the floor",
+     "hi": "floor पर बनाना"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center",
+    "detail": {
+     "en": "Work centres release jobs to machines; operators log outputs.",
+     "hi": "work centre jobs machines पर देते हैं; operators output दर्ज करते हैं।"
+    }
+   },
+   {
+    "title": {
+     "en": "Pack and release",
+     "hi": "Pack और release"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Rolls are released; pouches packed in gonnies with inner pouches, sealed and released. Other packing items are ticked.",
+     "hi": "rolls release होते हैं; pouches inner pouch के साथ gonny में pack, seal और release। बाकी packing सामान tick होता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Dispatch slip and proof of delivery",
+     "hi": "Dispatch slip और proof of delivery"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "One slip per order line, mark dispatched, then record proof of delivery.",
+     "hi": "हर order line की एक slip, dispatch mark करें, फिर proof of delivery दर्ज करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Track and close",
+     "hi": "Track और बंद"
+    },
+    "role": "SALES",
+    "route": "/sales/orders/[id]",
+    "detail": {
+     "en": "The tracker shows ready, dispatched and open kg; the order completes when proof of delivery (POD) is confirmed for every line, not when it is dispatched.",
+     "hi": "tracker ready, dispatched और open kg दिखाता है; हर line का proof of delivery (POD) confirm होने पर order पूरा होता है, सिर्फ़ dispatch होने पर नहीं।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "quotation-to-order",
+  "title": {
+   "en": "Quotation to sales order",
+   "hi": "Quotation से sales order"
+  },
+  "summary": {
+   "en": "Price an enquiry, get approval, send the frozen PDF, record the customer's answer and convert.",
+   "hi": "enquiry का भाव, approval, frozen PDF भेजना, ग्राहक का जवाब दर्ज करना और convert।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Start quotation",
+     "hi": "Quotation शुरू"
+    },
+    "role": "SALES",
+    "route": "/sales/quotations/new",
+    "detail": {
+     "en": "Pick the customer and press \"Start quotation\".",
+     "hi": "ग्राहक चुनें और \"Start quotation\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Lines and Cost Build",
+     "hi": "Lines और Cost Build"
+    },
+    "role": "SALES",
+    "route": "/sales/quotations/[id]",
+    "detail": {
+     "en": "Add Catalog or Ad-hoc pouch lines, save, then \"Save Cost Build\".",
+     "hi": "Catalog या Ad-hoc pouch lines जोड़ें, save करें, फिर \"Save Cost Build\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Submit for approval",
+     "hi": "Approval के लिए भेजें"
+    },
+    "role": "SALES",
+    "route": "/sales/quotations/[id]",
+    "detail": {
+     "en": "The revision and Cost Build freeze.",
+     "hi": "revision और Cost Build freeze हो जाते हैं।"
+    }
+   },
+   {
+    "title": {
+     "en": "Approve",
+     "hi": "Approve"
+    },
+    "role": "OWNER",
+    "route": "/sales/quotations/[id]",
+    "detail": {
+     "en": "A different authorised user approves each pending gate or rejects with a reason.",
+     "hi": "दूसरा अधिकृत user हर pending gate approve करता है या कारण के साथ reject।"
+    }
+   },
+   {
+    "title": {
+     "en": "Send to customer",
+     "hi": "ग्राहक को भेजें"
+    },
+    "role": "SALES",
+    "route": "/sales/quotations/[id]",
+    "detail": {
+     "en": "\"Send frozen revision\" emails the PDF with delivery evidence.",
+     "hi": "\"Send frozen revision\" PDF email करता है, सबूत के साथ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Record outcome",
+     "hi": "जवाब दर्ज करें"
+    },
+    "role": "SALES",
+    "route": "/sales/quotations/[id]",
+    "detail": {
+     "en": "\"Record acceptance\" with PO/email reference, or \"Record rejection\" with reason.",
+     "hi": "PO/email reference के साथ \"Record acceptance\", या कारण के साथ \"Record rejection\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Convert to Sales Order",
+     "hi": "Sales Order में convert"
+    },
+    "role": "SALES",
+    "route": "/sales/orders/[id]",
+    "detail": {
+     "en": "Accepted quote becomes CONVERTED and a new SO goes to planning.",
+     "hi": "Accepted quote CONVERTED होती है और नया SO planning में जाता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "sales-order-cancel",
+  "title": {
+   "en": "Cancelling a sales order",
+   "hi": "Sales order cancel करना"
+  },
+  "summary": {
+   "en": "Sales cancels before release; after release the planner cancels or short-closes.",
+   "hi": "release से पहले Sales cancel करता है; release के बाद planner cancel या short-close करता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Find the order",
+     "hi": "order ढूँढें"
+    },
+    "role": "SALES",
+    "route": "/sales/orders",
+    "detail": {
+     "en": "Search the SO number; the cancel icon shows only for Draft, Confirmed, Planning or Planned.",
+     "hi": "SO number खोजें; cancel icon सिर्फ Draft, Confirmed, Planning या Planned पर दिखता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Choose scope and reason",
+     "hi": "दायरा और कारण"
+    },
+    "role": "SALES",
+    "route": "/sales/orders",
+    "detail": {
+     "en": "\"Full order\" or selected lines; reason and note are required.",
+     "hi": "\"Full order\" या चुनी lines; कारण और note ज़रूरी।"
+    }
+   },
+   {
+    "title": {
+     "en": "Released lines",
+     "hi": "Release हुई lines"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/command",
+    "detail": {
+     "en": "Planner cancels or short-closes released lines with a reason.",
+     "hi": "planner release हुई lines कारण के साथ cancel या short-close करता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Goods already made",
+     "hi": "पहले से बना माल"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Ship after ticking \"Send goods of closed lines\", or \"Move to stock\" with a reason.",
+     "hi": "\"Send goods of closed lines\" tick करके भेजें, या कारण के साथ \"Move to stock\"।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "trade-order-flow",
+  "title": {
+   "en": "Trade order from stock",
+   "hi": "Stock से trade order"
+  },
+  "summary": {
+   "en": "Resell granules, film or trading goods without production.",
+   "hi": "बिना production के granules, film या trading goods बेचना।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Create",
+     "hi": "बनाएँ"
+    },
+    "role": "SALES",
+    "route": "/sales/trade-orders/new",
+    "detail": {
+     "en": "Pick customer and dispatch stock plant, add lines from available stock.",
+     "hi": "ग्राहक और dispatch stock plant चुनें, उपलब्ध stock से lines जोड़ें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Confirm",
+     "hi": "Confirm"
+    },
+    "role": "SALES",
+    "route": "/sales/trade-orders/[id]",
+    "detail": {
+     "en": "\"Confirm order\" (or \"Save & confirm\").",
+     "hi": "\"Confirm order\" (या \"Save & confirm\")।"
+    }
+   },
+   {
+    "title": {
+     "en": "Dispatch",
+     "hi": "Dispatch"
+    },
+    "role": "SALES",
+    "route": "/sales/trade-orders/[id]",
+    "detail": {
+     "en": "\"Dispatch\" → \"Yes, dispatch\" consumes stock at the plant; cannot be undone.",
+     "hi": "\"Dispatch\" → \"Yes, dispatch\" plant से stock घटाता है; वापस नहीं होता।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "sales-line-plan-release",
+  "title": {
+   "en": "Sales line from planning to release",
+   "hi": "Sales line: planning से release तक"
+  },
+  "summary": {
+   "en": "How a confirmed order line is checked, sourced and released to the floor from the Control Tower.",
+   "hi": "confirm हुई order line Control Tower से कैसे जाँची, source तय और floor पर release होती है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Confirm the order",
+     "hi": "order confirm करें"
+    },
+    "role": "SALES",
+    "route": "/dashboard/sales",
+    "detail": {
+     "en": "Drafts to confirm are listed on the Sales dashboard; only confirmed orders reach the planner.",
+     "hi": "Drafts to confirm Sales dashboard पर दिखते हैं; सिर्फ़ confirm order planner तक पहुँचते हैं।"
+    }
+   },
+   {
+    "title": {
+     "en": "Spot the risk",
+     "hi": "जोखिम देखें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/command",
+    "detail": {
+     "en": "Top 5 at-risk orders and the action desk show what to do first.",
+     "hi": "Top 5 at-risk orders और action desk बताते हैं पहले क्या करना है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check gates",
+     "hi": "gate जाँचें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Open the line; read S M A R gates and the release checklist.",
+     "hi": "line खोलें; S M A R gate और release checklist पढ़ें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Approve artwork if missing",
+     "hi": "artwork approve करें"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/artworks",
+    "detail": {
+     "en": "Only APPROVED artwork can be assigned.",
+     "hi": "सिर्फ़ APPROVED artwork लग सकता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Assign artwork",
+     "hi": "artwork लगाएँ"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Press \"Assign artwork\" and pick the approved design.",
+     "hi": "\"Assign artwork\" दबाएँ और approved design चुनें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Choose source and release",
+     "hi": "source चुनें और release करें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "FG match, Carry WIP, Invariant, Input stock or Fresh run; pick work centers; press \"Plan & Release\".",
+     "hi": "FG match, Carry WIP, Invariant, Input stock या Fresh run; work center चुनें; \"Plan & Release\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Run the jobs",
+     "hi": "job चलाएँ"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center",
+    "detail": {
+     "en": "WC terminal picks rolls (±20 mm of planned web), issues input and releases jobs to machines.",
+     "hi": "WC terminal roll चुनता है (planned web के ±20 mm), input issue करता है और machine पर job release करता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Follow on the floor",
+     "hi": "floor पर नज़र"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/live-production",
+    "detail": {
+     "en": "Machines now, replan and blockers.",
+     "hi": "Machines now, replan और blocker।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review the close",
+     "hi": "बंद होने की समीक्षा"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/completed-trace",
+    "detail": {
+     "en": "Cycle time, on-time and trace gaps.",
+     "hi": "cycle time, समय पर और trace की कमी।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "make-to-stock-launch",
+  "title": {
+   "en": "Make-to-stock from a shortage",
+   "hi": "कमी देखकर stock बनाना"
+  },
+  "summary": {
+   "en": "Find short templates, launch a stock order, and let sales lines claim the stock.",
+   "hi": "कम template खोजें, stock order launch करें, और sales line को वह stock लेने दें।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Find the shortage",
+     "hi": "कमी खोजें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/stock-intelligence",
+    "detail": {
+     "en": "Templates marked SHORT or TIGHT with kg short.",
+     "hi": "SHORT या TIGHT template, कम kg के साथ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Quick launch",
+     "hi": "जल्दी launch"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/stock-intelligence",
+    "detail": {
+     "en": "\"Build & release\" with quantity in KG; first job released at once.",
+     "hi": "\"Build & release\" KG मात्रा के साथ; पहला job तुरंत release।"
+    }
+   },
+   {
+    "title": {
+     "en": "Full launch",
+     "hi": "पूरा launch"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/stock-launcher",
+    "detail": {
+     "en": "Pick master, commitment, route stop, size, layers and quantity; \"Validate pool\"; create.",
+     "hi": "master, commitment, route stop, size, layer और मात्रा चुनें; \"Validate pool\"; बनाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Produce",
+     "hi": "उत्पादन"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center",
+    "detail": {
+     "en": "Runs like any order; no artwork gate.",
+     "hi": "किसी भी order की तरह चलता है; artwork gate नहीं।"
+    }
+   },
+   {
+    "title": {
+     "en": "Claim for a sales line",
+     "hi": "sales line के लिए लें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "A line with the same spec shows FG match or Carry WIP in \"Choose source & release\".",
+     "hi": "उसी spec की line में \"Choose source & release\" में FG match या Carry WIP दिखता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "combine-orders-jumbo",
+  "title": {
+   "en": "Combine orders on one jumbo",
+   "hi": "एक jumbo पर order जोड़ना"
+  },
+  "summary": {
+   "en": "Group released roll-output jobs of one Product Master and slit them at the WC terminal.",
+   "hi": "एक Product Master के release हुए roll-output job जोड़ें और WC terminal पर slit करें।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Release the lines",
+     "hi": "line release करें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Each line needs a target roll width.",
+     "hi": "हर line की target roll width हो।"
+    }
+   },
+   {
+    "title": {
+     "en": "Pick a group and tick orders",
+     "hi": "group चुनें, order tick करें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/gang-builder",
+    "detail": {
+     "en": "Same PM, recipe, step; 2 or more orders.",
+     "hi": "एक PM, recipe, step; 2 या ज़्यादा order।"
+    }
+   },
+   {
+    "title": {
+     "en": "Combine",
+     "hi": "\"Combine\" दबाएँ"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/gang-builder",
+    "detail": {
+     "en": "Press \"Combine\"; a batch id is created.",
+     "hi": "\"Combine\" दबाएँ; batch id बनता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Slit at the machine",
+     "hi": "machine पर slit"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center",
+    "detail": {
+     "en": "Roll picker makes one slit child per job.",
+     "hi": "roll picker हर job का एक slit child बनाता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "line-short-close-cancel",
+  "title": {
+   "en": "Short-close or cancel a line",
+   "hi": "line short-close या cancel करना"
+  },
+  "summary": {
+   "en": "Stop a sales line from the planner side and handle what was already made.",
+   "hi": "planner की तरफ़ से sales line रोकें और बने माल को संभालें।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Open the line",
+     "hi": "line खोलें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Or from Live Production for released lines.",
+     "hi": "या release हुई line के लिए Live Production से।"
+    }
+   },
+   {
+    "title": {
+     "en": "Choose the action",
+     "hi": "कदम चुनें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/live-production",
+    "detail": {
+     "en": "Cancel only before machine activity; otherwise Short close.",
+     "hi": "machine गतिविधि से पहले ही cancel; वरना Short close।"
+    }
+   },
+   {
+    "title": {
+     "en": "Give a reason",
+     "hi": "कारण लिखें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "At least 5 characters; kept in the audit trail.",
+     "hi": "कम से कम 5 अक्षर; audit में रहता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Ship or move goods",
+     "hi": "माल भेजें या stock में डालें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Tick \"Send goods of closed lines\" to ship, or \"Move to stock\" with a reason.",
+     "hi": "भेजने के लिए \"Send goods of closed lines\" tick करें, या कारण के साथ \"Move to stock\"।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "wc-release-to-machine-output",
+  "title": {
+   "en": "From WC release to machine output",
+   "hi": "WC रिलीज़ से machine output तक"
+  },
+  "summary": {
+   "en": "How a released order line is prepared on the WC terminal, run on the machine and handed to the next step.",
+   "hi": "रिलीज़ हुई order line WC terminal पर कैसे तैयार होती है, machine पर चलती है और अगले step को जाती है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Planner releases the line",
+     "hi": "Planner line रिलीज़ करता है"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Spec, Material, Artwork and Route gates clear; jobs are created for the route steps.",
+     "hi": "Spec, Material, Artwork और Route गेट साफ़; route steps के jobs बनते हैं।"
+    }
+   },
+   {
+    "title": {
+     "en": "WCM opens the job",
+     "hi": "WCM job खोलता है"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center/[id]",
+    "detail": {
+     "en": "Pick the line in the queue and read the order plate and step figures.",
+     "hi": "कतार में line चुनें, order प्लेट और step के आँकड़े पढ़ें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Pick machine and rolls",
+     "hi": "machine और rolls चुनें"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center/[id]",
+    "detail": {
+     "en": "Tap an idle machine; assign rolls within ±20 mm of the planned web or wider rolls to slit.",
+     "hi": "खाली machine टैप करें; planned web से ±20 mm वाले rolls या slit के लिए चौड़े rolls लगाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Give granule grade codes",
+     "hi": "granule grade code दें"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center/[id]",
+    "detail": {
+     "en": "Only rolls and granule codes are entered; other materials go by step mapping.",
+     "hi": "केवल rolls और granule codes भरते हैं; बाकी सामग्री step mapping से जाती है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Release to machine",
+     "hi": "Release to machine"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/work-center/[id]",
+    "detail": {
+     "en": "When M, R, I and C gates are clear press Release to machine.",
+     "hi": "M, R, I और C गेट साफ़ होने पर Release to machine दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Operator starts",
+     "hi": "Operator शुरू करता है"
+    },
+    "role": "OPERATOR",
+    "route": "/production/machine/[machine_id]",
+    "detail": {
+     "en": "Pick the job in the Queue and press Start.",
+     "hi": "Queue में job चुनें और Start दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Log output",
+     "hi": "Output लिखें"
+    },
+    "role": "OPERATOR",
+    "route": "/production/machine/[machine_id]",
+    "detail": {
+     "en": "Enter rolls or pieces, trim and scrap; a reason is needed at or above the wastage limit.",
+     "hi": "rolls या pieces, trim और scrap लिखें; वेस्टेज सीमा पर या ऊपर कारण ज़रूरी।"
+    }
+   },
+   {
+    "title": {
+     "en": "Complete the step",
+     "hi": "step पूरा करें"
+    },
+    "role": "OPERATOR",
+    "route": "/production/machine/[machine_id]",
+    "detail": {
+     "en": "Press Complete, or Force complete with a reason if short; the next step runs on the logged output.",
+     "hi": "Complete दबाएँ, कम हो तो कारण के साथ Force complete; अगला step दर्ज output पर चलता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Goods move on",
+     "hi": "माल आगे जाता है"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Pouches are packed in the Packing Yard; rolls are released to dispatch.",
+     "hi": "Pouches Packing Yard में पैक होते हैं; rolls dispatch को रिलीज़ होते हैं।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "ink-floor-reconcile",
+  "title": {
+   "en": "Ink issue, count and reconcile",
+   "hi": "Ink issue, गिनती और मिलान"
+  },
+  "summary": {
+   "en": "Ink is issued to the floor, counted by time and reconciled against artwork GSM theory.",
+   "hi": "Ink फ्लोर पर दी जाती है, समय से गिनी जाती है और artwork GSM theory से मिलाई जाती है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Issue ink to floor",
+     "hi": "फ्लोर पर ink दें"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/ink-control",
+    "detail": {
+     "en": "Shift Desk, mode Issue: pick ink, kg, event time, Issue ink.",
+     "hi": "Shift Desk, Issue मोड: ink, kg, event time चुनें, Issue ink।"
+    }
+   },
+   {
+    "title": {
+     "en": "Return leftovers",
+     "hi": "बची ink लौटाएँ"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/ink-control",
+    "detail": {
+     "en": "Return ink, or Return as mix with POLY/PET base and colour.",
+     "hi": "Return ink, या POLY/PET बेस और रंग के साथ Return as mix।"
+    }
+   },
+   {
+    "title": {
+     "en": "Count the floor",
+     "hi": "फ्लोर की गिनती"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/production/ink-control",
+    "detail": {
+     "en": "Ink stock count snapshot: counted kg per ink, Post count.",
+     "hi": "Ink stock count snapshot: हर ink का counted kg, Post count।"
+    }
+   },
+   {
+    "title": {
+     "en": "Reconcile",
+     "hi": "मिलान"
+    },
+    "role": "PLANNER",
+    "route": "/production/ink-control",
+    "detail": {
+     "en": "Reconcile tab: actual vs theory per order/job for the window.",
+     "hi": "Reconcile टैब: समय-खिड़की में हर order/job का असली बनाम theory।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "factory-setup",
+  "title": {
+   "en": "Set up the factory",
+   "hi": "फ़ैक्टरी सेट-अप"
+  },
+  "summary": {
+   "en": "Masters to create before production can run.",
+   "hi": "उत्पादन से पहले बनाए जाने वाले masters।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Create the plant",
+     "hi": "plant बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/factory/plants",
+    "detail": {
+     "en": "Code, name, legal profile, default cost group.",
+     "hi": "कोड, नाम, legal profile, default cost group।"
+    }
+   },
+   {
+    "title": {
+     "en": "Create locations",
+     "hi": "locations बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/factory/locations",
+    "detail": {
+     "en": "Store, WIP, finished goods, dispatch and floor locations.",
+     "hi": "स्टोर, WIP, finished goods, dispatch और फ्लोर लोकेशन।"
+    }
+   },
+   {
+    "title": {
+     "en": "Define processes",
+     "hi": "processes बताएँ"
+    },
+    "role": "ADMIN",
+    "route": "/factory/processes",
+    "detail": {
+     "en": "Input/output form, roll behaviour (fixed after creation), stock forms.",
+     "hi": "Input/output form, roll behaviour (बाद में नहीं बदलता), stock forms।"
+    }
+   },
+   {
+    "title": {
+     "en": "Create work centres",
+     "hi": "work centres बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/factory/work-centers",
+    "detail": {
+     "en": "Group machines by process under the plant.",
+     "hi": "प्लांट में process के अनुसार machine groups।"
+    }
+   },
+   {
+    "title": {
+     "en": "Create machines",
+     "hi": "machines बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/factory/machines",
+    "detail": {
+     "en": "Unique code, work centre, orders-at-once policy, QR poster.",
+     "hi": "अलग कोड, work centre, एक साथ orders की नीति, QR पोस्टर।"
+    }
+   },
+   {
+    "title": {
+     "en": "Assign people",
+     "hi": "लोगों को assign करें"
+    },
+    "role": "ADMIN",
+    "route": "/system/users",
+    "detail": {
+     "en": "Work centres to WCMs, machines to operators.",
+     "hi": "WCM को work centres, operators को machines।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "inward-bill-to-receipt",
+  "title": {
+   "en": "Inward bill to receipt or filing",
+   "hi": "आने वाला बिल: रसीद या फ़ाइल तक"
+  },
+  "summary": {
+   "en": "Every bill photographed at the gate or uploaded at the office is classified and finished by a GRN, job-work receipt, General Receipt or filing.",
+   "hi": "गेट पर फ़ोटो लिया या ऑफ़िस में अपलोड हर बिल classify होकर GRN, job-work receipt, General Receipt या file से पूरा होता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Photograph the bill",
+     "hi": "बिल की फ़ोटो"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate",
+    "detail": {
+     "en": "The watchman photographs the bill when goods arrive; office staff can use \"Upload bill\" instead.",
+     "hi": "माल आने पर watchman बिल की फ़ोटो लेता है; ऑफ़िस \"Upload bill\" से भी जोड़ सकता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Pick it from the Inbox",
+     "hi": "Inbox से उठाएँ"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-bills",
+    "detail": {
+     "en": "Open the bill under \"Needs classifying\".",
+     "hi": "\"Needs classifying\" में बिल खोलें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Classify and save details",
+     "hi": "Classify करके सेव"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-bills/[id]",
+    "detail": {
+     "en": "Choose Document type and Category, type vendor, bill number, date and amounts, press \"Save details\".",
+     "hi": "Document type और Category चुनें, vendor, bill नंबर, तारीख़, रकम भरें, \"Save details\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Post GRN for stock",
+     "hi": "Stock का GRN"
+    },
+    "role": "STORE",
+    "route": "/inventory/grn",
+    "detail": {
+     "en": "Stock items: \"Open GRN\" and post; stock goes up and the receipt links to the bill.",
+     "hi": "Stock items: \"Open GRN\" से post करें; स्टॉक बढ़ता है और receipt बिल से जुड़ती है।"
+    }
+   },
+   {
+    "title": {
+     "en": "General Receipt for non-stock",
+     "hi": "Non-stock के लिए General Receipt"
+    },
+    "role": "STORE",
+    "route": "/inventory/general-receipts/new",
+    "detail": {
+     "en": "Spares, machinery or service: \"Create general receipt\"; no stock moves.",
+     "hi": "Spares, machinery या service: \"Create general receipt\"; स्टॉक नहीं बदलता।"
+    }
+   },
+   {
+    "title": {
+     "en": "File record-only paper",
+     "hi": "Record वाले काग़ज़ file"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-bills/[id]",
+    "detail": {
+     "en": "Utility, fee, other expense: \"File as record\"; transport LR: \"Attach to the stock bill\".",
+     "hi": "Utility, fee, other expense: \"File as record\"; transport LR: \"Attach to the stock bill\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Confirm all lines received",
+     "hi": "सब लाइनें पूरी"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-bills/[id]",
+    "detail": {
+     "en": "When a bill is \"Partly received\" and all lines are in, \"Confirm all lines received\".",
+     "hi": "बिल \"Partly received\" हो और सब आ गया हो तो \"Confirm all lines received\"।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "returnable-gate-pass-cycle",
+  "title": {
+   "en": "Returnable gate pass (RGP) cycle",
+   "hi": "Returnable gate pass (RGP) का चक्र"
+  },
+  "summary": {
+   "en": "A part or tool leaves on a numbered RGP, is scanned out at the gate, and the pass closes when every item returns or it is short-closed.",
+   "hi": "पुर्ज़ा या औज़ार नंबर वाले RGP पर निकलता है, गेट पर scan होता है, और सब लौटने या short-close होने पर pass बंद होता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Raise the pass",
+     "hi": "Pass बनाएँ"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-passes/new",
+    "detail": {
+     "en": "Choose Returnable (RGP), purpose, party, expected back date and items; \"Save and issue\".",
+     "hi": "Returnable (RGP), purpose, party, लौटने की तारीख़ और सामान चुनें; \"Save and issue\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Print and hand over",
+     "hi": "Print करके दें"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-passes/[id]",
+    "detail": {
+     "en": "\"Print PDF\" and send it with the items (or stick the QR label on another paper).",
+     "hi": "\"Print PDF\" करके सामान के साथ भेजें (या दूसरे काग़ज़ पर QR label लगाएँ)।"
+    }
+   },
+   {
+    "title": {
+     "en": "Scan out at the gate",
+     "hi": "गेट पर scan"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate",
+    "detail": {
+     "en": "The watchman scans the QR; status becomes \"Out of factory\".",
+     "hi": "Watchman QR scan करता है; status \"Out of factory\" होता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Watch overdue",
+     "hi": "देरी पर नज़र"
+    },
+    "role": "STORE",
+    "route": "/inventory/goods-movements",
+    "detail": {
+     "en": "Outside and Late in Goods in & out, or the Overdue tab of Gate passes.",
+     "hi": "Goods in & out में Outside और Late, या Gate passes का Overdue टैब।"
+    }
+   },
+   {
+    "title": {
+     "en": "Record the return",
+     "hi": "वापसी दर्ज"
+    },
+    "role": "STORE",
+    "route": "/inventory/general-receipts/new",
+    "detail": {
+     "en": "With a vendor bill: General Receipt with \"Came back on a returnable gate pass (RGP)\"; without a bill: \"Receive back\" on the pass.",
+     "hi": "Vendor बिल के साथ: General Receipt में \"Came back on a returnable gate pass (RGP)\"; बिना बिल: pass पर \"Receive back\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Close or short-close",
+     "hi": "बंद या short-close"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-passes/[id]",
+    "detail": {
+     "en": "The pass closes when everything is back; otherwise \"Short-close\" with a reason.",
+     "hi": "सब लौटने पर pass बंद; नहीं तो कारण के साथ \"Short-close\"।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "stock-adjustment-maker-checker",
+  "title": {
+   "en": "Stock adjustment with a second person",
+   "hi": "दो-व्यक्ति वाला स्टॉक सुधार"
+  },
+  "summary": {
+   "en": "A stock difference is drafted by one person and posted by another; posting writes stock and ledger, voiding reverses it.",
+   "hi": "स्टॉक का अंतर एक व्यक्ति draft करता है और दूसरा post; post से स्टॉक और ledger बदलते हैं, void से वापस।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Find the difference",
+     "hi": "अंतर पहचानें"
+    },
+    "role": "STORE",
+    "route": "/inventory/alerts",
+    "detail": {
+     "en": "An alert, a count or a floor check shows stock does not match.",
+     "hi": "Alert, गिनती या फ़र्श की जाँच से पता चलता है कि स्टॉक मेल नहीं खाता।"
+    }
+   },
+   {
+    "title": {
+     "en": "Draft the adjustment",
+     "hi": "Draft बनाएँ"
+    },
+    "role": "STORE",
+    "route": "/inventory/adjustments/new",
+    "detail": {
+     "en": "Plant, reason, lines with + or − delta in the stock unit; \"Save Draft\".",
+     "hi": "Plant, reason, unit में + या − delta वाली लाइनें; \"Save Draft\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Second person posts",
+     "hi": "दूसरा व्यक्ति post करे"
+    },
+    "role": "STORE",
+    "route": "/inventory/adjustments/[id]",
+    "detail": {
+     "en": "Another user with the adjust right (or Owner/Admin) presses \"Post\" → \"Post adjustment\".",
+     "hi": "adjust अधिकार वाला दूसरा user (या Owner/Admin) \"Post\" → \"Post adjustment\" दबाता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check the ledger",
+     "hi": "Ledger जाँचें"
+    },
+    "role": "STORE",
+    "route": "/inventory/bulk-transactions",
+    "detail": {
+     "en": "The ADJUST row appears in Bulk Transactions / ledger.",
+     "hi": "Bulk Transactions / ledger में ADJUST row दिखती है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Void if wrong",
+     "hi": "गलत हो तो void"
+    },
+    "role": "OWNER",
+    "route": "/inventory/adjustments/[id]",
+    "detail": {
+     "en": "\"Void\" posts inverse lines; refused if the stock was used since.",
+     "hi": "\"Void\" उल्टी लाइनें लगाता है; स्टॉक खर्च हो चुका हो तो मना।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "inventory-alert-triage",
+  "title": {
+   "en": "Inventory alert triage",
+   "hi": "Inventory alert का निपटारा"
+  },
+  "summary": {
+   "en": "The nightly stock check raises alerts; the store fixes the cause and resolves them with a note.",
+   "hi": "रात की स्टॉक जाँच alert बनाती है; store कारण ठीक करके नोट के साथ resolve करता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Nightly check raises alerts",
+     "hi": "रात की जाँच"
+    },
+    "role": "ADMIN",
+    "route": "/analytics/inventory-health",
+    "detail": {
+     "en": "The reconciliation runs every night (or \"Run audit\" on Inventory health) and keeps one open alert per problem.",
+     "hi": "Reconciliation हर रात चलती है (या Inventory health पर \"Run audit\") और हर गड़बड़ी का एक alert रखती है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review open alerts",
+     "hi": "खुले alert देखें"
+    },
+    "role": "STORE",
+    "route": "/inventory/alerts",
+    "detail": {
+     "en": "Filter \"Open\", start with Critical and High.",
+     "hi": "\"Open\" चुनें, Critical और High से शुरू करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Fix the cause",
+     "hi": "कारण ठीक करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/stock-lifecycle",
+    "detail": {
+     "en": "Count the stock or draft an adjustment for the gap.",
+     "hi": "स्टॉक गिनें या अंतर के लिए adjustment बनाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Resolve with a note",
+     "hi": "नोट के साथ resolve"
+    },
+    "role": "STORE",
+    "route": "/inventory/alerts",
+    "detail": {
+     "en": "\"Resolve\" → \"Resolution note\" → \"Mark resolved\"; mismatch alerts also close themselves the next night.",
+     "hi": "\"Resolve\" → \"Resolution note\" → \"Mark resolved\"; mismatch alert अगली रात खुद भी बंद होते हैं।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "supplier-goods-receipt",
+  "title": {
+   "en": "Supplier goods receipt (GRN)",
+   "hi": "सप्लायर का माल लेना (GRN)"
+  },
+  "summary": {
+   "en": "From the gate photo of a supplier bill to stock on the roll / bulk / packaging views, with corrections in GRN history.",
+   "hi": "सप्लायर बिल के gate फोटो से roll / bulk / packaging stock तक, सुधार GRN history में।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Gate photo",
+     "hi": "Gate फोटो"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate",
+    "detail": {
+     "en": "Photograph the bill when the truck arrives.",
+     "hi": "गाड़ी आने पर बिल का फोटो लें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Classify bill",
+     "hi": "बिल classify करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-bills",
+    "detail": {
+     "en": "Classify the bill as stock and open Receive.",
+     "hi": "बिल को stock में classify करें और Receive खोलें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Post Smart GRN",
+     "hi": "Smart GRN post करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/grn",
+    "detail": {
+     "en": "Pick class and source, enter the lines, press Submit & post.",
+     "hi": "Class और source चुनें, लाइनें भरें, Submit & post दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check stock",
+     "hi": "Stock देखें"
+    },
+    "role": "STORE",
+    "route": "/inventory/rolls",
+    "detail": {
+     "en": "Check the new rolls are Available; print labels if wanted.",
+     "hi": "नए roll Available हैं, देखें; चाहें तो label print करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Correct if needed",
+     "hi": "ज़रूरत हो तो सुधारें"
+    },
+    "role": "STORE",
+    "route": "/inventory/grn-history",
+    "detail": {
+     "en": "Fix a wrong quantity, rate or roll spec with Correct and a reason.",
+     "hi": "गलत मात्रा, rate या roll spec को कारण के साथ Correct करें।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "job-work-cycle",
+  "title": {
+   "en": "Job work cycle",
+   "hi": "Job work का पूरा चक्र"
+  },
+  "summary": {
+   "en": "Send material to an outside job worker on a Rule 45 challan, receive it back with a material balance, link the bill and close.",
+   "hi": "Rule 45 challan पर बाहर job worker को माल भेजना, material balance के साथ वापस लेना, बिल जोड़ना और close करना।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Create order",
+     "hi": "Order बनाएँ"
+    },
+    "role": "PLANNER",
+    "route": "/inventory/job-work",
+    "detail": {
+     "en": "Create the order: planned route step or emergency handoff, job worker, expected output, rate, return date.",
+     "hi": "Order बनाएँ: planned route step या emergency handoff, job worker, expected output, rate, वापसी तारीख़।"
+    }
+   },
+   {
+    "title": {
+     "en": "Send on challan",
+     "hi": "Challan पर भेजें"
+    },
+    "role": "STORE",
+    "route": "/inventory/job-work/[id]",
+    "detail": {
+     "en": "Send material: pick rolls / bulk, HSN, vehicle; issue and print the challan.",
+     "hi": "Send material: roll / bulk, HSN, गाड़ी चुनें; challan बनाकर print करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Gate scan",
+     "hi": "Gate पर scan"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate",
+    "detail": {
+     "en": "Scan the challan QR as the truck leaves.",
+     "hi": "गाड़ी निकलते समय challan का QR scan करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Receive return",
+     "hi": "वापसी लें"
+    },
+    "role": "STORE",
+    "route": "/inventory/job-work/[id]",
+    "detail": {
+     "en": "Receive: settle each sent roll, enter output and wastage, match the balance, link the bill.",
+     "hi": "Receive: हर भेजा roll निपटाएँ, output और wastage भरें, balance मिलाएँ, बिल जोड़ें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Continue production",
+     "hi": "Production आगे बढ़ाएँ"
+    },
+    "role": "STORE",
+    "route": "/inventory/job-work/[id]",
+    "detail": {
+     "en": "Optionally continue production with a part return.",
+     "hi": "चाहें तो आंशिक वापसी से production आगे बढ़ाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Close order",
+     "hi": "Order close करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/job-work/[id]",
+    "detail": {
+     "en": "Close when nothing is left, or close short with a reason.",
+     "hi": "कुछ बाकी न हो तो Close, या कारण के साथ Close short।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "inter-plant-transfer",
+  "title": {
+   "en": "Inter-plant transfer",
+   "hi": "Plant से plant transfer"
+  },
+  "summary": {
+   "en": "Move rolls or bulk between plants on a delivery challan through IN_TRANSIT.",
+   "hi": "Delivery challan पर IN_TRANSIT से होकर roll या bulk को plant से plant भेजना।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Create challan",
+     "hi": "Challan बनाएँ"
+    },
+    "role": "STORE",
+    "route": "/inventory/inter-plant",
+    "detail": {
+     "en": "New Transfer: plants, material type, lines; create draft or dispatch now.",
+     "hi": "New Transfer: plant, material type, लाइनें; draft बनाएँ या अभी dispatch करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Print",
+     "hi": "Print निकालें"
+    },
+    "role": "STORE",
+    "route": "/inventory/inter-plant/print/[id]",
+    "detail": {
+     "en": "Print the challan PDF and QR gate sticker.",
+     "hi": "Challan PDF और QR gate sticker print करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Gate scan",
+     "hi": "Gate पर scan"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate",
+    "detail": {
+     "en": "Scan the QR at departure.",
+     "hi": "निकलते समय QR scan करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Receive",
+     "hi": "माल लें"
+    },
+    "role": "STORE",
+    "route": "/inventory/inter-plant",
+    "detail": {
+     "en": "At the destination: Receive into a target location, Confirm Receipt.",
+     "hi": "Destination पर: target location में Receive, Confirm Receipt।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "evening-packing-count",
+  "title": {
+   "en": "Evening packing count",
+   "hi": "शाम की packing गिनती"
+  },
+  "summary": {
+   "en": "Packing items ticked at release, and bought inner pouches, are taken off stock by the evening count and shared to the orders that used them.",
+   "hi": "Release पर tick हुए packing item और खरीदे हुए inner pouch शाम की गिनती से stock से कटते हैं और इस्तेमाल करने वाले order पर बँटते हैं।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Tick at release",
+     "hi": "Release पर tick"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Pack and release; tick the packing items used on each unit (inner pouches are never ticked: in-house ones were taken at the machine, bought ones are booked by this count).",
+     "hi": "Pack और release करें; हर unit पर इस्तेमाल हुए packing item tick करें (inner pouch कभी tick नहीं होता: घर का inner pouch मशीन पर कट चुका, खरीदा हुआ इसी गिनती से बुक होता है)।"
+    }
+   },
+   {
+    "title": {
+     "en": "Count and post",
+     "hi": "गिनें और post करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/stock-lifecycle",
+    "detail": {
+     "en": "Stock count → Evening packing count: pick location; rows start at the book quantity, so change only the counts that differ; Post count (posts at once, no approval).",
+     "hi": "Stock count → Evening packing count: location चुनें; लाइनें book मात्रा से भरी आती हैं, सिर्फ़ अलग निकली गिनती बदलें; Post count (तुरंत post, कोई approval नहीं)।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review audit",
+     "hi": "Audit देखें"
+    },
+    "role": "OWNER",
+    "route": "/logistics/packing/audit",
+    "detail": {
+     "en": "Check book → counted → used and each order line's share.",
+     "hi": "Book → counted → used और हर order line का हिस्सा देखें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Restock",
+     "hi": "फिर से भरें"
+    },
+    "role": "STORE",
+    "route": "/inventory/packaging",
+    "detail": {
+     "en": "Check packaging stock and reorder low items through Smart GRN.",
+     "hi": "Packaging stock देखें और कम item Smart GRN से मँगाएँ।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "stock-count-and-year-close",
+  "title": {
+   "en": "Stock count, month end and year end",
+   "hi": "Stock count, month end और year end"
+  },
+  "summary": {
+   "en": "Count stock on any day, take month-end proof, clear blockers and close the financial year.",
+   "hi": "किसी भी दिन stock गिनें, month-end proof लें, blockers हटाएँ और financial year बंद करें।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Open year",
+     "hi": "साल खोलें"
+    },
+    "role": "OWNER",
+    "route": "/inventory/stock-lifecycle",
+    "detail": {
+     "en": "Open the financial year (Open FY) and post opening stock.",
+     "hi": "Financial year खोलें (Open FY) और opening stock post करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Count",
+     "hi": "गिनती"
+    },
+    "role": "STORE",
+    "route": "/inventory/stock-lifecycle",
+    "detail": {
+     "en": "Stock count: enter counted quantities with reasons, Post physical count.",
+     "hi": "Stock count: कारण के साथ गिनी मात्रा भरें, Post physical count।"
+    }
+   },
+   {
+    "title": {
+     "en": "Month end",
+     "hi": "महीने की बंदी"
+    },
+    "role": "PLANT_MANAGER",
+    "route": "/inventory/stock-lifecycle",
+    "detail": {
+     "en": "Month end: lock the month, take the snapshot, view month proof.",
+     "hi": "Month end: महीना lock करें, snapshot लें, month proof देखें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Clear blockers",
+     "hi": "Blockers हटाएँ"
+    },
+    "role": "STORE",
+    "route": "/inventory/inter-plant",
+    "detail": {
+     "en": "Clear blockers: receive in-transit challans, close job work, finish draft sheets.",
+     "hi": "Blockers हटाएँ: in-transit challan receive, job work close, draft sheet पूरी।"
+    }
+   },
+   {
+    "title": {
+     "en": "Close year",
+     "hi": "साल बंद करें"
+    },
+    "role": "OWNER",
+    "route": "/inventory/stock-lifecycle",
+    "detail": {
+     "en": "Year end: Close Financial Year; next year's opening is generated and the year archived.",
+     "hi": "Year end: Close Financial Year; अगले साल की opening बनती है और साल archive होता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "outward-document-matching",
+  "title": {
+   "en": "Outward document matching",
+   "hi": "Outward काग़ज़ मिलाना"
+  },
+  "summary": {
+   "en": "Every truck leaving is photographed at the gate and matched by the office to the ERP documents it carried.",
+   "hi": "निकलने वाली हर गाड़ी का gate पर फोटो होता है और office उसे साथ गए ERP document से मिलाता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Record departure",
+     "hi": "Departure दर्ज करें"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate",
+    "detail": {
+     "en": "Scan QR papers and photograph the pages as the truck leaves.",
+     "hi": "गाड़ी निकलते समय QR काग़ज़ scan करें और पन्नों का फोटो लें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Open queue",
+     "hi": "Queue खोलें"
+    },
+    "role": "STORE",
+    "route": "/inventory/outward-documents",
+    "detail": {
+     "en": "Open Pending match, oldest first.",
+     "hi": "Pending match खोलें, पुराने पहले।"
+    }
+   },
+   {
+    "title": {
+     "en": "Link documents",
+     "hi": "Document जोड़ें"
+    },
+    "role": "STORE",
+    "route": "/inventory/outward-documents/[id]",
+    "detail": {
+     "en": "Link the ERP documents (search or QR), or add a paper not in the ERP.",
+     "hi": "ERP document जोड़ें (search या QR), या ERP से बाहर का काग़ज़ जोड़ें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Finish",
+     "hi": "पूरा करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/outward-documents/[id]",
+    "detail": {
+     "en": "Mark matched or save a discrepancy.",
+     "hi": "Matched करें या discrepancy save करें।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "pouch-pack-and-release",
+  "title": {
+   "en": "Pack pouches into gonnies and release",
+   "hi": "पाउच गोनी में पैक करके रिलीज़ करना"
+  },
+  "summary": {
+   "en": "From a machine batch to sealed gonnies in Dispatch Bay, with packing items ticked for the evening count.",
+   "hi": "मशीन बैच से Dispatch Bay में सील गोनी तक, शाम की गिनती के लिए पैकिंग आइटम टिक के साथ।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Log output at the machine",
+     "hi": "मशीन पर आउटपुट दर्ज"
+    },
+    "role": "OPERATOR",
+    "route": "/production/machine-selector",
+    "detail": {
+     "en": "The pouching machine logs the batch for the order line; for an inner-pack order, in-house inner pouches are taken off stock here (bought ones are marked for the evening count).",
+     "hi": "पाउचिंग मशीन ऑर्डर लाइन का बैच दर्ज करती है; inner-pack ऑर्डर में घर के (in-house) inner pouch यहीं स्टॉक से कटते हैं (खरीदे हुए शाम की गिनती के लिए mark होते हैं)।"
+    }
+   },
+   {
+    "title": {
+     "en": "Pick lines in the yard",
+     "hi": "यार्ड में लाइनें चुनें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Tick ready lines and press \"Pack selected\".",
+     "hi": "तैयार लाइनें टिक करें और \"Pack selected\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Confirm figures",
+     "hi": "आँकड़े कन्फ़र्म"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Tick \"Figures checked\"; the order decides inner packs or loose.",
+     "hi": "\"Figures checked\" टिक करें; inner packs या loose ऑर्डर तय करता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Build and weigh gonnies",
+     "hi": "गोनी बनाएँ और तौलें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Enter packs/pouches, gonny type and scale gross; seal. Over 2 % needs a reason.",
+     "hi": "पैक/पाउच, गोनी प्रकार और तराज़ू का ग्रॉस लिखें; सील करें। 2 % से ज़्यादा पर कारण।"
+    }
+   },
+   {
+    "title": {
+     "en": "Tick packing items",
+     "hi": "पैकिंग आइटम टिक"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Tick gonny, box, tape, label… used. No quantities.",
+     "hi": "इस्तेमाल हुए गोनी, बॉक्स, टेप, लेबल… टिक करें। मात्रा नहीं।"
+    }
+   },
+   {
+    "title": {
+     "en": "Release to Dispatch Bay",
+     "hi": "Dispatch Bay में रिलीज़"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Release sealed gonnies; each line becomes its own slip in Dispatch Bay.",
+     "hi": "सील गोनी रिलीज़ करें; हर लाइन Dispatch Bay में अपनी अलग स्लिप बनती है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Accept a held check (if any)",
+     "hi": "रुका चेक स्वीकार (अगर हो)"
+    },
+    "role": "WORK_CENTER_MANAGER",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "A supervisor accepts a batch held at the packing check with a reason.",
+     "hi": "सुपरवाइज़र पैकिंग चेक पर रुके बैच को कारण के साथ स्वीकार करता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "roll-release",
+  "title": {
+   "en": "Release rolls to dispatch",
+   "hi": "रोल डिस्पैच के लिए रिलीज़"
+  },
+  "summary": {
+   "en": "Finished rolls released packed (sheet / wrap, with ticks) or unpacked.",
+   "hi": "तैयार रोल packed (शीट / रैप, टिक के साथ) या unpacked रिलीज़।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Roll logged at the machine",
+     "hi": "मशीन पर रोल दर्ज"
+    },
+    "role": "OPERATOR",
+    "route": "/production/machine-selector",
+    "detail": {
+     "en": "The last step logs each finished roll with its label weights.",
+     "hi": "आख़िरी स्टेप हर तैयार रोल उसके लेबल वज़न के साथ दर्ज करता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Open the roll line",
+     "hi": "रोल लाइन खोलें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Press \"Release\" or \"Pack & release\" on the line.",
+     "hi": "लाइन पर \"Release\" या \"Pack & release\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Choose rolls and mode",
+     "hi": "रोल और तरीका चुनें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Tick rolls; choose \"Packed roll · sheet / wrap\" or \"Release unpacked roll\".",
+     "hi": "रोल टिक करें; \"Packed roll · sheet / wrap\" या \"Release unpacked roll\" चुनें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Tick items and release",
+     "hi": "आइटम टिक करके रिलीज़"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Packed mode needs at least one tick. Each roll is one dispatch unit.",
+     "hi": "Packed में कम से कम एक टिक ज़रूरी। हर रोल एक डिस्पैच यूनिट।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "dispatch-slip-to-pod",
+  "title": {
+   "en": "Load, slip, dispatch and POD",
+   "hi": "लोड, स्लिप, डिस्पैच और POD"
+  },
+  "summary": {
+   "en": "Released units leave the factory on one slip per order line and close with proof of delivery.",
+   "hi": "रिलीज़ यूनिट हर ऑर्डर लाइन की एक स्लिप पर निकलती हैं और POD से पूरी होती हैं।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Load the tray",
+     "hi": "ट्रे लोड करें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Tick lines or units on \"Ready to dispatch\".",
+     "hi": "\"Ready to dispatch\" पर लाइन या यूनिट टिक करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Transport and delivery",
+     "hi": "ट्रांसपोर्ट और डिलीवरी"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Transporter required; vehicle optional; delivery location per order.",
+     "hi": "ट्रांसपोर्टर ज़रूरी; गाड़ी वैकल्पिक; हर ऑर्डर की डिलीवरी लोकेशन।"
+    }
+   },
+   {
+    "title": {
+     "en": "Create slips",
+     "hi": "स्लिप बनाएँ"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "\"Create N slips\": one per order line, all or none.",
+     "hi": "\"Create N slips\": हर ऑर्डर लाइन की एक, सब या कोई नहीं।"
+    }
+   },
+   {
+    "title": {
+     "en": "Print and mark dispatched",
+     "hi": "प्रिंट और dispatched"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Print on the Epson 10 × 6 in form (or A4 PDF), stick the QR sticker, \"Mark dispatched · close\".",
+     "hi": "Epson 10 × 6 इंच पर प्रिंट (या A4 PDF), QR स्टिकर लगाएँ, \"Mark dispatched · close\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Record at the gate",
+     "hi": "गेट पर दर्ज"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate/outward",
+    "detail": {
+     "en": "Watchman scans the QR, photographs the papers, notes the vehicle.",
+     "hi": "वॉचमैन QR स्कैन करता है, कागज़ की फ़ोटो लेता है, गाड़ी नोट करता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Confirm POD",
+     "hi": "POD कन्फ़र्म"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "In \"Awaiting POD\" press \"Confirm POD\"; the order may close.",
+     "hi": "\"Awaiting POD\" में \"Confirm POD\" दबाएँ; ऑर्डर बंद हो सकता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "closed-line-goods",
+  "title": {
+   "en": "Goods of a closed line: ship or move to stock",
+   "hi": "बंद लाइन का माल: भेजें या स्टॉक में"
+  },
+  "summary": {
+   "en": "Goods made for a short-closed, completed or cancelled line either ship with a confirmation or go to free stock with a reason.",
+   "hi": "short-closed, completed या cancelled लाइन का बना माल या तो पुष्टि के साथ भेजा जाता है या कारण के साथ फ़्री स्टॉक में जाता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Line closes",
+     "hi": "लाइन बंद होती है"
+    },
+    "role": "SALES",
+    "route": "/sales/orders",
+    "detail": {
+     "en": "Sales short-closes, completes or cancels the line or order while goods are in the yard.",
+     "hi": "सेल्स लाइन या ऑर्डर बंद करता है जबकि माल यार्ड में है।"
+    }
+   },
+   {
+    "title": {
+     "en": "See the closed mark",
+     "hi": "बंद का निशान देखें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Packing Yard and Dispatch Bay mark the line (\"Order completed\" / \"Line short-closed\").",
+     "hi": "Packing Yard और Dispatch Bay लाइन पर निशान दिखाते हैं (\"Order completed\" / \"Line short-closed\")।"
+    }
+   },
+   {
+    "title": {
+     "en": "Ship: tick the confirmation",
+     "hi": "भेजें: पुष्टि टिक"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Load and tick \"Send goods of closed lines\" before Create and dispatch.",
+     "hi": "लोड करें और Create व dispatch से पहले \"Send goods of closed lines\" टिक करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Or move to stock",
+     "hi": "या स्टॉक में भेजें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "\"Move to stock\": pick units, give a reason (3+ characters).",
+     "hi": "\"Move to stock\": यूनिट चुनें, कारण दें (3+ अक्षर)।"
+    }
+   },
+   {
+    "title": {
+     "en": "Planner claims it",
+     "hi": "प्लानर लेता है"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner",
+    "detail": {
+     "en": "\"Use finished stock\" offers them to any order with the same specification.",
+     "hi": "\"Use finished stock\" उन्हें उसी स्पेसिफ़िकेशन वाले किसी भी ऑर्डर को देता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "gate-inward-bill",
+  "title": {
+   "en": "Inward bill at the gate",
+   "hi": "गेट पर इनवर्ड बिल"
+  },
+  "summary": {
+   "en": "Supplier goods recorded by bill photo, then received by the store against a GRN.",
+   "hi": "सप्लायर का माल बिल फ़ोटो से दर्ज, फिर स्टोर GRN से रिसीव करता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Photograph the bill",
+     "hi": "बिल की फ़ोटो"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate/inward-bills",
+    "detail": {
+     "en": "1–6 pages, \"Record arrival\".",
+     "hi": "1–6 पेज, \"Record arrival\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Store is alerted",
+     "hi": "स्टोर को सूचना"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-bills",
+    "detail": {
+     "en": "Store reviews the photos in Bills & documents.",
+     "hi": "स्टोर Bills & documents में फ़ोटो देखता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Match or create GRN",
+     "hi": "GRN मिलाएँ या बनाएँ"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-bills",
+    "detail": {
+     "en": "Confirm every line or resolve with a reason.",
+     "hi": "हर लाइन कन्फ़र्म करें या कारण से निपटाएँ।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "gate-outward-and-return",
+  "title": {
+   "en": "Outward papers and our papers coming back",
+   "hi": "बाहर जाते कागज़ और लौटते कागज़"
+  },
+  "summary": {
+   "en": "Departures are recorded with QR and photos; returning inter-plant, job-work and gate-pass papers are scanned back in.",
+   "hi": "रवानगी QR और फ़ोटो से दर्ज; लौटते इंटर-प्लांट, जॉब-वर्क और गेट-पास कागज़ स्कैन करके वापस दर्ज।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Print QR sticker",
+     "hi": "QR स्टिकर छापें"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/dispatch",
+    "detail": {
+     "en": "Stick it on the slip or Tally bill.",
+     "hi": "स्लिप या Tally बिल पर लगाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Record outward",
+     "hi": "आउटवर्ड दर्ज"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate/outward",
+    "detail": {
+     "en": "Scan QR codes, photograph papers, vehicle, \"Record outward\".",
+     "hi": "QR स्कैन, कागज़ की फ़ोटो, गाड़ी, \"Record outward\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Office matches",
+     "hi": "ऑफ़िस मिलाता है"
+    },
+    "role": "OWNER",
+    "route": "/gate/history",
+    "detail": {
+     "en": "Departures without a QR are matched from the photos.",
+     "hi": "बिना QR की रवानगी फ़ोटो से मिलाई जाती है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Paper comes back",
+     "hi": "कागज़ वापस आता है"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate/arrivals",
+    "detail": {
+     "en": "Scan the QR on the challan or gate pass, \"Record back at the gate\".",
+     "hi": "चालान या गेट पास का QR स्कैन, \"Record back at the gate\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Store receives",
+     "hi": "स्टोर रिसीव करता है"
+    },
+    "role": "STORE",
+    "route": "/inventory/gate-passes",
+    "detail": {
+     "en": "Store records the receipt or return.",
+     "hi": "स्टोर रसीद या वापसी दर्ज करता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "gate-visitor",
+  "title": {
+   "en": "Visitor entry and exit",
+   "hi": "विज़िटर का आना-जाना"
+  },
+  "summary": {
+   "en": "Visitors self-register by QR; the watchman checks them out.",
+   "hi": "विज़िटर QR से खुद रजिस्टर करते हैं; वॉचमैन चेक-आउट करता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Poster at the gate",
+     "hi": "गेट पर पोस्टर"
+    },
+    "role": "OWNER",
+    "route": "/gate/qr",
+    "detail": {
+     "en": "Print and fix the plant's visitor QR poster.",
+     "hi": "प्लांट का विज़िटर QR पोस्टर प्रिंट करके लगाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Visitor registers",
+     "hi": "विज़िटर रजिस्टर करता है"
+    },
+    "role": "WATCHMAN",
+    "route": "/visit/[token]",
+    "detail": {
+     "en": "Visitor fills the form and taps \"Record my entry\"; entry is recorded.",
+     "hi": "विज़िटर फ़ॉर्म भरकर \"Record my entry\" दबाता है; एंट्री दर्ज।"
+    }
+   },
+   {
+    "title": {
+     "en": "Shows inside",
+     "hi": "अंदर दिखता है"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate/visitors",
+    "detail": {
+     "en": "The visitor appears under \"Inside now\".",
+     "hi": "विज़िटर \"Inside now\" में दिखता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check out",
+     "hi": "चेक-आउट"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate/visitors",
+    "detail": {
+     "en": "On leaving press \"Check out\".",
+     "hi": "जाते समय \"Check out\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Owner review",
+     "hi": "ओनर रिव्यू"
+    },
+    "role": "OWNER",
+    "route": "/gate/history",
+    "detail": {
+     "en": "Visitor history with photos; overdue >12 h flagged.",
+     "hi": "फ़ोटो के साथ विज़िटर इतिहास; 12 घंटे से ज़्यादा वाले चिह्नित।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "product-master-setup",
+  "title": {
+   "en": "Set up a new Product Master",
+   "hi": "नया Product Master बनाना"
+  },
+  "summary": {
+   "en": "From films and pouch style to an active master that sales can order.",
+   "hi": "Film और pouch style से लेकर active master तक, जिसे sales order कर सके।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Check films",
+     "hi": "Film जाँचें"
+    },
+    "role": "ADMIN",
+    "route": "/master/film-variants",
+    "detail": {
+     "en": "The film variant for each layer exists under its family; extruded films have a recipe.",
+     "hi": "हर layer की film variant अपनी family में बनी हो; extrusion film की recipe हो।"
+    }
+   },
+   {
+    "title": {
+     "en": "Approve the pouch style",
+     "hi": "Pouch style approve करें"
+    },
+    "role": "ADMIN",
+    "route": "/master/pouch-styles/[id]",
+    "detail": {
+     "en": "Build the formula, check the live preview, press \"Save + approve + lock\".",
+     "hi": "Formula बनाएँ, live preview देखें, \"Save + approve + lock\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Create the master",
+     "hi": "Master बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/master/products",
+    "detail": {
+     "en": "\"New Product Master\": kind, code, name, live route, layers → \"Create & open workspace\".",
+     "hi": "\"New Product Master\": kind, code, नाम, live route, layers → \"Create & open workspace\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Fill the editor",
+     "hi": "Editor भरें"
+    },
+    "role": "ADMIN",
+    "route": "/master/products/[id]/edit",
+    "detail": {
+     "en": "Layers, Printing, Adhesive, sales permissions, add-ons and packing.",
+     "hi": "Layers, Printing, Adhesive, sales की अनुमति, add-on और packing।"
+    }
+   },
+   {
+    "title": {
+     "en": "Add sizes",
+     "hi": "Sizes जोड़ें"
+    },
+    "role": "ADMIN",
+    "route": "/master/products/[id]/edit",
+    "detail": {
+     "en": "\"Add size\" or \"Excel sheet\" → \"Bulk upload\" → \"Confirm import\".",
+     "hi": "\"Add size\" या \"Excel sheet\" → \"Bulk upload\" → \"Confirm import\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Save and activate",
+     "hi": "Save और active करें"
+    },
+    "role": "ADMIN",
+    "route": "/master/products/[id]/edit",
+    "detail": {
+     "en": "Pass the checklist, \"Save master\" with \"Master active\" on.",
+     "hi": "Checklist पूरी करें, \"Master active\" चालू रखकर \"Save master\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Sales orders it",
+     "hi": "Sales order करता है"
+    },
+    "role": "SALES",
+    "route": "/sales/orders/create",
+    "detail": {
+     "en": "The master now shows in the order composer.",
+     "hi": "अब master order composer में दिखता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "packing-item-setup",
+  "title": {
+   "en": "Add a packing item",
+   "hi": "Packing item जोड़ना"
+  },
+  "summary": {
+   "en": "Create a packaging item so the yard can use it and the evening count can book it.",
+   "hi": "Packaging item बनाएँ ताकि yard उसे इस्तेमाल करे और शाम की count उसे book करे।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Create the item",
+     "hi": "Item बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/master/packaging",
+    "detail": {
+     "en": "\"Add Packaging\", choose the kind on purpose (no default), supply mode, UOM.",
+     "hi": "\"Add Packaging\", kind सोचकर चुनें (default नहीं), supply mode, UOM।"
+    }
+   },
+   {
+    "title": {
+     "en": "Enter piece weight",
+     "hi": "Piece वज़न भरें"
+    },
+    "role": "ADMIN",
+    "route": "/master/packaging",
+    "detail": {
+     "en": "Bought inner pouches and gonnies need the kg of one piece.",
+     "hi": "खरीदे inner pouch और gonny के लिए एक piece का kg।"
+    }
+   },
+   {
+    "title": {
+     "en": "Link in-house items",
+     "hi": "घर के items जोड़ें"
+    },
+    "role": "ADMIN",
+    "route": "/master/packaging",
+    "detail": {
+     "en": "\"Link to Product Master\" for in-house inner pouch or sheet.",
+     "hi": "घर के inner pouch या sheet के लिए \"Link to Product Master\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Tick at release",
+     "hi": "Release पर tick"
+    },
+    "role": "DISPATCH",
+    "route": "/logistics/packing",
+    "detail": {
+     "en": "Every active item except inner pouch is in the release tick list.",
+     "hi": "Inner pouch छोड़कर हर active item release tick list में है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Evening count",
+     "hi": "शाम की count"
+    },
+    "role": "STORE",
+    "route": "/logistics/packing/audit",
+    "detail": {
+     "en": "The counted use is shared over the orders that ticked it, in whole pieces; if no one ticked it, over that day's orders whose packing plan includes it.",
+     "hi": "गिना हुआ इस्तेमाल tick करने वाले orders में पूरे pieces में बँटता है; किसी ने tick न किया हो तो उस दिन के उन orders में जिनके packing plan में वह item है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "recipe-revision",
+  "title": {
+   "en": "Revise an extrusion recipe",
+   "hi": "Extrusion recipe बदलना"
+  },
+  "summary": {
+   "en": "Publish new granule percentages without disturbing released jobs.",
+   "hi": "Release हुए job को छेड़े बिना नए granule प्रतिशत publish करना।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Open the recipe",
+     "hi": "Recipe खोलें"
+    },
+    "role": "ADMIN",
+    "route": "/master/recipes",
+    "detail": {
+     "en": "Edit the row; identity (variant, grade, thickness) is locked.",
+     "hi": "Row edit करें; पहचान (variant, grade, thickness) lock है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Change percentages",
+     "hi": "प्रतिशत बदलें"
+    },
+    "role": "ADMIN",
+    "route": "/master/recipes",
+    "detail": {
+     "en": "Total must be 100.00%; use \"Balance to 100%\".",
+     "hi": "जोड़ 100.00% हो; \"Balance to 100%\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Publish",
+     "hi": "Publish करें"
+    },
+    "role": "ADMIN",
+    "route": "/master/recipes",
+    "detail": {
+     "en": "Write a revision reason, press \"Publish revision vN\".",
+     "hi": "Revision reason लिखें, \"Publish revision vN\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check impact",
+     "hi": "असर देखें"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Open BOMs and queues refresh; \"Needs review\" lines need a look.",
+     "hi": "खुले BOM और queue ताज़ा होते हैं; \"Needs review\" lines देखें।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "artwork-to-approval",
+  "title": {
+   "en": "Artwork to approved print",
+   "hi": "Artwork से approved print तक"
+  },
+  "summary": {
+   "en": "Upload a design, prepare cylinders for ROTO, and approve it for production.",
+   "hi": "Design upload करें, ROTO के लिए cylinder तैयार करें, और production के लिए approve करें।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Upload artwork",
+     "hi": "Artwork upload"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/artworks",
+    "detail": {
+     "en": "\"Upload Artwork\": code, name, files, print type, film type, colours, ink GSM, \"Save Draft\".",
+     "hi": "\"Upload Artwork\": code, नाम, file, print type, film type, colour, ink GSM, \"Save Draft\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Generate cylinders (ROTO)",
+     "hi": "Cylinder बनाएँ (ROTO)"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/artworks",
+    "detail": {
+     "en": "Enter repeat and length; press \"Generate FRONT n\" per colour.",
+     "hi": "Repeat और length भरें; हर colour पर \"Generate FRONT n\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Finalize or reuse cylinders",
+     "hi": "Cylinder finalize या reuse"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/cylinders",
+    "detail": {
+     "en": "\"Manage Slots\": vendor, location, \"Finalize this cylinder\", or reuse with \"Use\".",
+     "hi": "\"Manage Slots\": vendor, location, \"Finalize this cylinder\", या \"Use\" से reuse।"
+    }
+   },
+   {
+    "title": {
+     "en": "Approve artwork",
+     "hi": "Artwork approve"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/artworks",
+    "detail": {
+     "en": "When \"Approval Blockers\" is empty press \"Approve\".",
+     "hi": "\"Approval Blockers\" खाली हो तो \"Approve\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Use in product and order",
+     "hi": "Product और order में इस्तेमाल"
+    },
+    "role": "SALES",
+    "route": "/master/products",
+    "detail": {
+     "en": "Approved artwork is chosen on the product/order line.",
+     "hi": "Approved artwork product/order line पर चुना जाता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "template-to-live",
+  "title": {
+   "en": "Route and template to LIVE",
+   "hi": "Route और template को LIVE करना"
+  },
+  "summary": {
+   "en": "Build a route, build a template on it, review, approve and publish LIVE so sales and planner can use it.",
+   "hi": "Route बनाएँ, उस पर template बनाएँ, review, approve और publish LIVE करें ताकि sales और planner इस्तेमाल करें।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Create route",
+     "hi": "Route बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/routing",
+    "detail": {
+     "en": "\"New Route\", add steps, mark parallel steps, \"Save Routing Rule\".",
+     "hi": "\"New Route\", step जोड़ें, parallel चिह्नित करें, \"Save Routing Rule\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Create template",
+     "hi": "Template बनाएँ"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates",
+    "detail": {
+     "en": "\"New Template\" → \"Create & Open Studio\".",
+     "hi": "\"New Template\" → \"Create & Open Studio\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Bind route and sync",
+     "hi": "Route जोड़ें और sync"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates/[id]",
+    "detail": {
+     "en": "Choose routing rule, \"Save basics\", \"Sync route stages\".",
+     "hi": "Routing rule चुनें, \"Save basics\", \"Sync route stages\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Batch, dispatch and materials",
+     "hi": "Batch, dispatch और material"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates/[id]",
+    "detail": {
+     "en": "Save template execution, dispatch setup per stage, material mapping.",
+     "hi": "Template execution, हर stage का dispatch setup, material mapping save करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Send for review",
+     "hi": "Review भेजें"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates/[id]",
+    "detail": {
+     "en": "\"Send for review\" moves it to ENGINEERING.",
+     "hi": "\"Send for review\" से ENGINEERING में जाता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Approve",
+     "hi": "Approve"
+    },
+    "role": "PLANT_MANAGER",
+    "route": "/engineering/approvals",
+    "detail": {
+     "en": "\"Approve\" in the review queue or studio.",
+     "hi": "Review सूची या studio में \"Approve\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Publish LIVE",
+     "hi": "Publish LIVE"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates/[id]",
+    "detail": {
+     "en": "\"Publish LIVE\"; now selectable in Product Master, sales and planner.",
+     "hi": "\"Publish LIVE\"; अब Product Master, sales और planner में चुना जा सकता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Planner releases",
+     "hi": "Planner release"
+    },
+    "role": "PLANNER",
+    "route": "/dashboard/planner/control-tower/plan-queue",
+    "detail": {
+     "en": "Release uses the template's dispatch and batch rules.",
+     "hi": "Release में template के dispatch और batch rule लगते हैं।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "live-template-correction",
+  "title": {
+   "en": "Correcting a LIVE template",
+   "hi": "LIVE template में सुधार"
+  },
+  "summary": {
+   "en": "Change a live template safely without touching existing orders.",
+   "hi": "पुराने order को छुए बिना live template सुरक्षित बदलें।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Edit safely",
+     "hi": "Edit safely"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates/[id]",
+    "detail": {
+     "en": "Press \"Edit safely\"; a correction draft opens.",
+     "hi": "\"Edit safely\" दबाएँ; correction draft खुलता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Make changes",
+     "hi": "बदलाव करें"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates/[id]",
+    "detail": {
+     "en": "Edit dispatch, batch or material rules in the draft.",
+     "hi": "Draft में dispatch, batch या material rule बदलें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review and approve",
+     "hi": "Review और approve"
+    },
+    "role": "PLANT_MANAGER",
+    "route": "/engineering/approvals",
+    "detail": {
+     "en": "Send for review and approve.",
+     "hi": "Review भेजें और approve करें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Publish",
+     "hi": "Publish"
+    },
+    "role": "ADMIN",
+    "route": "/engineering/templates/[id]",
+    "detail": {
+     "en": "\"Publish LIVE\" replaces the live version for future orders; old orders keep the original.",
+     "hi": "\"Publish LIVE\" आगे के order के लिए live version बदलता है; पुराने order पुराना रखते हैं।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "planned-maintenance",
+  "title": {
+   "en": "Planned maintenance",
+   "hi": "Planned maintenance"
+  },
+  "summary": {
+   "en": "From schedule to verified job.",
+   "hi": "Schedule से verified job तक।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Create schedule",
+     "hi": "Schedule बनाएँ"
+    },
+    "role": "MAINTENANCE_SUPERVISOR",
+    "route": "/maintenance/schedules",
+    "detail": {
+     "en": "Machine, kind, interval, due rule, first due date, checklist, \"Save\".",
+     "hi": "Machine, kind, अंतराल, due rule, first due date, checklist, \"Save\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Due job created",
+     "hi": "Due job बनता है"
+    },
+    "role": "MAINTENANCE_SUPERVISOR",
+    "route": "/maintenance",
+    "detail": {
+     "en": "Automatically at 05:30, or \"Create due jobs now\".",
+     "hi": "05:30 पर अपने आप, या \"Create due jobs now\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Do the job",
+     "hi": "Job करें"
+    },
+    "role": "MAINTENANCE_TECH",
+    "route": "/maintenance/jobs/[id]",
+    "detail": {
+     "en": "\"Start\", checks, readings, spares, time, outcome, \"Save record\".",
+     "hi": "\"Start\", checks, reading, पुर्ज़े, समय, नतीजा, \"Save record\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Verify",
+     "hi": "Verify"
+    },
+    "role": "MAINTENANCE_SUPERVISOR",
+    "route": "/maintenance",
+    "detail": {
+     "en": "\"Verified\" or \"Send back\" with a note.",
+     "hi": "\"Verified\" या note के साथ \"Send back\"।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "machine-breakdown",
+  "title": {
+   "en": "Machine breakdown to repair",
+   "hi": "Machine breakdown से repair तक"
+  },
+  "summary": {
+   "en": "Report a fault, assign, repair, resolve and close.",
+   "hi": "खराबी दर्ज, assign, repair, resolve और close।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Report fault",
+     "hi": "खराबी दर्ज"
+    },
+    "role": "OPERATOR",
+    "route": "/maintenance/faults",
+    "detail": {
+     "en": "\"Report a fault\"; tick \"Machine has stopped\" if down — running step pauses.",
+     "hi": "\"Report a fault\"; बंद हो तो \"Machine has stopped\" — चलता step रुकता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Assign",
+     "hi": "Assign"
+    },
+    "role": "MAINTENANCE_SUPERVISOR",
+    "route": "/maintenance/faults",
+    "detail": {
+     "en": "\"Assign and create repair job\".",
+     "hi": "\"Assign and create repair job\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Repair",
+     "hi": "Repair"
+    },
+    "role": "MAINTENANCE_TECH",
+    "route": "/maintenance/faults",
+    "detail": {
+     "en": "\"In repair\", then note and \"Resolved\"; machine returns to ACTIVE.",
+     "hi": "\"In repair\", फिर note और \"Resolved\"; machine फिर ACTIVE।"
+    }
+   },
+   {
+    "title": {
+     "en": "Close",
+     "hi": "Close"
+    },
+    "role": "MAINTENANCE_SUPERVISOR",
+    "route": "/maintenance/faults",
+    "detail": {
+     "en": "\"Close fault\".",
+     "hi": "\"Close fault\"।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review history",
+     "hi": "History देखें"
+    },
+    "role": "PLANT_MANAGER",
+    "route": "/maintenance/reports",
+    "detail": {
+     "en": "Recurring faults and downtime reports.",
+     "hi": "बार-बार की खराबी और downtime रिपोर्ट।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "monthly-cost-close",
+  "title": {
+   "en": "Monthly cost close and order profitability",
+   "hi": "महीने का cost close और order मुनाफ़ा"
+  },
+  "summary": {
+   "en": "Plant costs for the month are entered, spread over running hours and locked, so every job and order gets actual conversion and overhead cost.",
+   "hi": "महीने का plant खर्च भरा जाता है, चलने के घंटों पर बाँटा जाता है और lock होता है, ताकि हर job और order को असली conversion और overhead लागत मिले।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Set cost groups and process rates",
+     "hi": "Cost group और process rate सेट करें"
+    },
+    "role": "ADMIN",
+    "route": "/analytics/process-rates",
+    "detail": {
+     "en": "Create cost groups in Costing Center and hourly process rates used for estimates.",
+     "hi": "Costing Center में cost group और अनुमान के लिए प्रति घंटा process rate बनाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Run jobs on the terminal",
+     "hi": "Terminal पर job चलाएँ"
+    },
+    "role": "OPERATOR",
+    "route": "/production/work-center",
+    "detail": {
+     "en": "Start, pause and complete jobs so running hours are recorded per cost group.",
+     "hi": "Job start, pause और complete करें ताकि हर cost group के चलने के घंटे दर्ज हों।"
+    }
+   },
+   {
+    "title": {
+     "en": "Post material issues",
+     "hi": "Material issue दर्ज करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/ledger",
+    "detail": {
+     "en": "Issue and return material against jobs so material cost is actual.",
+     "hi": "Job पर material issue और वापसी करें ताकि material लागत असली हो।"
+    }
+   },
+   {
+    "title": {
+     "en": "Enter plant-month totals",
+     "hi": "Plant-month totals भरें"
+    },
+    "role": "OWNER",
+    "route": "/analytics/costing",
+    "detail": {
+     "en": "Create or reopen the plant month, enter electricity, labour, overhead, maintenance, service burden, and allocate or edit group lines.",
+     "hi": "Plant month बनाएँ, बिजली, labour, overhead, maintenance, service burden भरें, और group lines allocate या भरें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review and lock",
+     "hi": "Review और lock"
+    },
+    "role": "OWNER",
+    "route": "/analytics/costing",
+    "detail": {
+     "en": "Check close health and margin leakage, press \"Mark reviewed\", then \"Lock month\".",
+     "hi": "Close health और margin leakage देखें, \"Mark reviewed\" फिर \"Lock month\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check profitability",
+     "hi": "मुनाफ़ा देखें"
+    },
+    "role": "OWNER",
+    "route": "/analytics/orders/costing",
+    "detail": {
+     "en": "Open loss-making lines and press \"Refresh Deep-Dive\"; review the Costing & Profitability report.",
+     "hi": "घाटे वाली lines खोलें और \"Refresh Deep-Dive\" दबाएँ; Costing & Profitability रिपोर्ट देखें।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "mrp-shortage-to-purchase",
+  "title": {
+   "en": "Material shortage to purchase order",
+   "hi": "Material की कमी से purchase order तक"
+  },
+  "summary": {
+   "en": "Confirmed orders create material demand; MRP nets it against stock and drafts purchase orders for shortages.",
+   "hi": "पक्के order से material की माँग बनती है; MRP उसे stock से मिलाकर कमी के लिए purchase order का draft बनाता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Confirm the sales order",
+     "hi": "Sales order पक्का करें"
+    },
+    "role": "SALES",
+    "route": "/sales/orders/create",
+    "detail": {
+     "en": "Lines carry a frozen BOM snapshot that MRP reads.",
+     "hi": "Lines में frozen BOM snapshot होता है जिसे MRP पढ़ता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Run MRP",
+     "hi": "MRP चलाएँ"
+    },
+    "role": "PLANNER",
+    "route": "/analytics/mrp",
+    "detail": {
+     "en": "Runs nightly at 02:00 IST or press \"Run planning engine\".",
+     "hi": "रात 02:00 IST पर चलता है या \"Run planning engine\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review material gaps",
+     "hi": "Material gaps देखें"
+    },
+    "role": "PLANNER",
+    "route": "/analytics/mrp",
+    "detail": {
+     "en": "Check shortage per material and priority (HIGH at 500 or more).",
+     "hi": "हर material की कमी और priority देखें (500 या ज़्यादा पर HIGH)।"
+    }
+   },
+   {
+    "title": {
+     "en": "Draft purchase orders",
+     "hi": "Purchase order का draft"
+    },
+    "role": "PLANNER",
+    "route": "/analytics/mrp",
+    "detail": {
+     "en": "Press \"Create PO\" or \"Draft all HIGH\"; produce and transfer go to planner and inter-plant.",
+     "hi": "\"Create PO\" या \"Draft all HIGH\" दबाएँ; produce और transfer planner और inter-plant पर जाते हैं।"
+    }
+   },
+   {
+    "title": {
+     "en": "Complete and send the PO",
+     "hi": "PO पूरा करके भेजें"
+    },
+    "role": "ADMIN",
+    "route": "/procurement/purchase-orders",
+    "detail": {
+     "en": "Check vendor, price and quantity on the draft PO.",
+     "hi": "Draft PO पर vendor, दाम और मात्रा जाँचें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Receive goods",
+     "hi": "माल प्राप्त करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/grn",
+    "detail": {
+     "en": "After GRN the stock counts as supply in the next MRP run.",
+     "hi": "GRN के बाद अगले MRP run में stock supply में गिना जाता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "production-performance-review",
+  "title": {
+   "en": "Production performance review",
+   "hi": "उत्पादन प्रदर्शन की समीक्षा"
+  },
+  "summary": {
+   "en": "Floor logs become output, yield, OEE and downtime reports that drive action on machines and jobs.",
+   "hi": "Floor के log से output, yield, OEE और downtime रिपोर्ट बनती हैं, जिनसे मशीन और job पर काम होता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Log output, scrap and pauses",
+     "hi": "Output, scrap और pause दर्ज करें"
+    },
+    "role": "OPERATOR",
+    "route": "/production/work-center",
+    "detail": {
+     "en": "Every pause writes a downtime record with a reason.",
+     "hi": "हर pause कारण के साथ downtime record बनाता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check the hub",
+     "hi": "Hub देखें"
+    },
+    "role": "PLANT_MANAGER",
+    "route": "/analytics",
+    "detail": {
+     "en": "Look for red or \"Pending\" cards.",
+     "hi": "लाल या \"Pending\" कार्ड देखें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Open the report",
+     "hi": "रिपोर्ट खोलें"
+    },
+    "role": "PLANT_MANAGER",
+    "route": "/analytics/reports/production",
+    "detail": {
+     "en": "Production, OEE, Downtime and Scrap & Yield show where loss happens.",
+     "hi": "Production, OEE, Downtime और Scrap & Yield दिखाते हैं नुकसान कहाँ है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Act",
+     "hi": "कार्रवाई"
+    },
+    "role": "PLANNER",
+    "route": "/production/planner",
+    "detail": {
+     "en": "Use \"Turn this report into action\" links to fix waiting jobs or machine setup.",
+     "hi": "\"Turn this report into action\" link से रुके job या मशीन setup ठीक करें।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "inventory-health-audit",
+  "title": {
+   "en": "Stock integrity check",
+   "hi": "Stock गड़बड़ी जाँच"
+  },
+  "summary": {
+   "en": "The audit compares stock balances with ledgers and finds stuck WIP; store fixes the stock and closes alerts with a note.",
+   "hi": "Audit stock balance को ledger से मिलाता है और अटका WIP ढूँढता है; store stock ठीक करके नोट के साथ alert बंद करता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Run audit",
+     "hi": "Audit चलाएँ"
+    },
+    "role": "STORE",
+    "route": "/analytics/inventory-health",
+    "detail": {
+     "en": "Press \"Run smart audit\".",
+     "hi": "\"Run smart audit\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Fix stock",
+     "hi": "Stock ठीक करें"
+    },
+    "role": "STORE",
+    "route": "/inventory/adjustments",
+    "detail": {
+     "en": "Correct with an adjustment, rack count or roll movement.",
+     "hi": "Adjustment, rack count या roll movement से सुधारें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Resolve alert",
+     "hi": "Alert बंद करें"
+    },
+    "role": "STORE",
+    "route": "/analytics/inventory-health",
+    "detail": {
+     "en": "Press \"Resolve Event\", write the reason, press \"Mark Matrix Resolved\".",
+     "hi": "\"Resolve Event\" दबाएँ, कारण लिखें, \"Mark Matrix Resolved\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Watch the trend",
+     "hi": "ट्रेंड देखें"
+    },
+    "role": "PLANNER",
+    "route": "/analytics/inventory-history",
+    "detail": {
+     "en": "Nightly snapshots at 23:45 IST show stock, WIP and reserves over time.",
+     "hi": "रात 23:45 IST के snapshot समय के साथ stock, WIP और reserve दिखाते हैं।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "daily-report-pack",
+  "title": {
+   "en": "Daily report pack",
+   "hi": "रोज़ का report pack"
+  },
+  "summary": {
+   "en": "Choose which daily packs are archived, generate one, and fetch it later.",
+   "hi": "कौन-से daily pack archive हों यह चुनना, एक बनाना, और बाद में निकालना।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Switch packs on",
+     "hi": "Pack चालू करें"
+    },
+    "role": "OWNER",
+    "route": "/system/report-center",
+    "detail": {
+     "en": "Set packs Active and press \"Save active packs\".",
+     "hi": "Pack को Active करें और \"Save active packs\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Pack is generated",
+     "hi": "Pack बनता है"
+    },
+    "role": "ADMIN",
+    "route": "/system/report-center",
+    "detail": {
+     "en": "The daily cycle (or \"Generate now\") writes the PDF and workbook to the archive and notifies Owner/Admin in the bell.",
+     "hi": "Daily cycle (या \"Generate now\") PDF और workbook archive में लिखता है और Owner/Admin को bell में बताता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Read or download",
+     "hi": "पढ़ें या डाउनलोड करें"
+    },
+    "role": "OWNER",
+    "route": "/system/report-center",
+    "detail": {
+     "en": "Use \"Preview\", \"Download PDF\" or \"Detail workbook\" on the archive shelf (45 days).",
+     "hi": "Archive shelf (45 दिन) पर \"Preview\", \"Download PDF\" या \"Detail workbook\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Trace later",
+     "hi": "बाद में जाँच"
+    },
+    "role": "OWNER",
+    "route": "/system/audit",
+    "detail": {
+     "en": "The Report Archives stream records every generated pack.",
+     "hi": "Report Archives stream हर बने pack को दर्ज करती है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "user-onboarding-access",
+  "title": {
+   "en": "Give a new staff member access",
+   "hi": "नए कर्मचारी को पहुँच देना"
+  },
+  "summary": {
+   "en": "From a new joiner to a working sign-in with the right role, scope and password.",
+   "hi": "नए कर्मचारी से लेकर सही रोल, scope और password वाले चालू login तक।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Add the user",
+     "hi": "यूज़र जोड़ें"
+    },
+    "role": "ADMIN",
+    "route": "/system/users/new",
+    "detail": {
+     "en": "Press \"Add user\", fill Username, Email, initial password (8+ characters, not only numbers).",
+     "hi": "\"Add user\" दबाएँ, Username, Email, शुरुआती password (8+ अक्षर, सिर्फ़ अंक नहीं) भरें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Choose role and scope",
+     "hi": "रोल और scope चुनें"
+    },
+    "role": "ADMIN",
+    "route": "/system/users/new",
+    "detail": {
+     "en": "Pick the Base role; tick work centres for a WCM, machines for an operator, gate plants for a watchman. Press \"Create user\".",
+     "hi": "Base role चुनें; WCM के लिए work centre, operator के लिए machine, watchman के लिए gate प्लांट टिक करें। \"Create user\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Adjust role defaults if needed",
+     "hi": "ज़रूरत हो तो रोल default बदलें"
+    },
+    "role": "OWNER",
+    "route": "/system/role-matrix",
+    "detail": {
+     "en": "If a whole role needs a page, tick it and press \"Save Matrix\".",
+     "hi": "अगर पूरे रोल को कोई पेज चाहिए तो टिक करके \"Save Matrix\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Give one-off access",
+     "hi": "एक व्यक्ति को अतिरिक्त पहुँच"
+    },
+    "role": "ADMIN",
+    "route": "/system/users/[id]",
+    "detail": {
+     "en": "Add Extra access overrides only for that person and press \"Save changes\".",
+     "hi": "सिर्फ़ उस व्यक्ति के लिए Extra access overrides जोड़ें और \"Save changes\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "First sign-in and own password",
+     "hi": "पहला login और अपना password"
+    },
+    "role": "OPERATOR",
+    "route": "/profile",
+    "detail": {
+     "en": "The person signs in, lands on the role's start page and changes the password on Security → \"Update Password\".",
+     "hi": "व्यक्ति login करता है, रोल के शुरुआती पेज पर पहुँचता है और Security → \"Update Password\" से password बदलता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Check in the audit",
+     "hi": "Audit में जाँच"
+    },
+    "role": "OWNER",
+    "route": "/system/audit",
+    "detail": {
+     "en": "Permissions and Session & Login streams show the change and the first sign-in.",
+     "hi": "Permissions और Session & Login stream में बदलाव और पहला login दिखता है।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "profile-change-approval",
+  "title": {
+   "en": "Approve a profile change",
+   "hi": "Profile बदलाव की मंज़ूरी"
+  },
+  "summary": {
+   "en": "A user asks to change name, email or phone; an admin approves or rejects it.",
+   "hi": "यूज़र नाम, email या phone बदलने को कहता है; admin मंज़ूर या अस्वीकार करता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Submit the request",
+     "hi": "Request भेजें"
+    },
+    "role": "SALES",
+    "route": "/profile",
+    "detail": {
+     "en": "Change the fields under \"Profile Update Request\" and press \"Submit For Approval\".",
+     "hi": "\"Profile Update Request\" में field बदलें और \"Submit For Approval\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Review",
+     "hi": "Review करें"
+    },
+    "role": "ADMIN",
+    "route": "/system/governance",
+    "detail": {
+     "en": "Open \"Profile Approvals\", read Requested changes, add a note, press \"Approve\" or \"Reject\".",
+     "hi": "\"Profile Approvals\" खोलें, Requested changes पढ़ें, note लिखें, \"Approve\" या \"Reject\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "See the result",
+     "hi": "नतीजा देखें"
+    },
+    "role": "SALES",
+    "route": "/profile",
+    "detail": {
+     "en": "The Requests tab shows the new status; approved values now apply.",
+     "hi": "Requests टैब पर नई स्थिति दिखती है; मंज़ूर values लागू हो जाती हैं।"
+    }
+   }
+  ]
+ },
+ {
+  "id": "purchase-to-stock",
+  "title": {
+   "en": "Purchase order to stock (GRN)",
+   "hi": "Purchase order से stock तक (GRN)"
+  },
+  "summary": {
+   "en": "From a low-stock alert to a posted GRN that adds material to inventory.",
+   "hi": "Low-stock alert से लेकर पोस्ट हुए GRN तक जो material inventory में जोड़ता है।"
+  },
+  "steps": [
+   {
+    "title": {
+     "en": "Spot the shortage",
+     "hi": "कमी पहचानें"
+    },
+    "role": "STORE",
+    "route": "/system/reorder-policy",
+    "detail": {
+     "en": "Materials below reorder or safety stock raise alerts (scan daily at 06:00 or \"Run reorder scan\").",
+     "hi": "Reorder या safety stock से नीचे वाले material पर alert बनता है (रोज़ 06:00 पर scan या \"Run reorder scan\")।"
+    }
+   },
+   {
+    "title": {
+     "en": "Raise the PO",
+     "hi": "PO बनाएँ"
+    },
+    "role": "STORE",
+    "route": "/procurement/purchase-orders/new",
+    "detail": {
+     "en": "Pick vendor and plant, add lines with Qty, Rate, GST %, press \"Save PO\" (DRAFT).",
+     "hi": "Vendor और प्लांट चुनें, Qty, Rate, GST % वाली लाइनें जोड़ें, \"Save PO\" दबाएँ (DRAFT)।"
+    }
+   },
+   {
+    "title": {
+     "en": "Send to vendor",
+     "hi": "Vendor को भेजें"
+    },
+    "role": "STORE",
+    "route": "/procurement/purchase-orders/[id]",
+    "detail": {
+     "en": "Press \"Send\" and \"PDF\" to share the order.",
+     "hi": "\"Send\" दबाएँ और order भेजने के लिए \"PDF\" लें।"
+    }
+   },
+   {
+    "title": {
+     "en": "Truck arrives at the gate",
+     "hi": "Gate पर ट्रक आता है"
+    },
+    "role": "WATCHMAN",
+    "route": "/gate",
+    "detail": {
+     "en": "The watchman logs the arrival and the vendor bill.",
+     "hi": "Watchman आगमन और vendor बिल दर्ज करता है।"
+    }
+   },
+   {
+    "title": {
+     "en": "Receive and post GRN",
+     "hi": "माल लें और GRN पोस्ट करें"
+    },
+    "role": "STORE",
+    "route": "/procurement/purchase-orders/[id]/receive",
+    "detail": {
+     "en": "Fill Vehicle & Invoice, Line Quantities (width/thickness for film), Quality & Post, press \"Post GRN\".",
+     "hi": "Vehicle & Invoice, Line Quantities (film के लिए width/thickness), Quality & Post भरें, \"Post GRN\" दबाएँ।"
+    }
+   },
+   {
+    "title": {
+     "en": "Close the PO",
+     "hi": "PO बंद करें"
+    },
+    "role": "STORE",
+    "route": "/procurement/purchase-orders/[id]",
+    "detail": {
+     "en": "Fully received becomes COMPLETED; otherwise \"Close Short\" with a reason.",
+     "hi": "पूरा आने पर COMPLETED; वरना कारण के साथ \"Close Short\"।"
+    }
+   }
+  ]
+ }
+]

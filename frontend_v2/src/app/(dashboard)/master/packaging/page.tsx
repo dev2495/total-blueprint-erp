@@ -56,7 +56,7 @@ const kinds = [
 const KIND_INFO: Record<(typeof kinds)[number], { label: string; usage: string }> = {
   INNER_POUCH: {
     label: "Inner pouch",
-    usage: "Holds pouches inside a gonny. Taken off stock automatically at packing, so it is never in the release tick list.",
+    usage: "Holds pouches inside a gonny. Never in the release tick list: in-house ones come off stock at the machine's last pouching step, bought ones are booked by the evening count.",
   },
   GONNY: { label: "Gonny", usage: "In the release tick list; chosen on each pouch unit too. Counted every evening." },
   SHEET: { label: "Sheet · putha · board", usage: "In the release tick list; counted every evening." },
@@ -341,13 +341,18 @@ function PackagingForm({
 
       {kind === "INNER_POUCH" ? (
         <div>
-          <Label>Default PCS per Inner Pack</Label>
+          <Label>Pouches per inner pouch (default)</Label>
           <Input
             type="number"
             value={defaultPcsPerPack}
             onChange={(e) => setDefaultPcsPerPack(e.target.value)}
-            placeholder="Optional default for known inner-pack consumption"
+            placeholder="e.g. 100"
+            data-testid="packaging-default-pcs-per-pack"
           />
+          <p className="mt-1 text-[11.5px] text-content-3">
+            Used when an order line does not say how many pouches go in one inner pouch. Without it, the order
+            must say; the machine never stops for it (Packing Yard then counts the inner packs).
+          </p>
         </div>
       ) : null}
 
