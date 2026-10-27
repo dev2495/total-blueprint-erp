@@ -143,16 +143,16 @@ function LineRow({
       <div role="cell" className="min-w-0">
         <div className="flex min-w-0 items-center gap-1.5">
           <span className="font-mono text-[11px] font-semibold text-content-4 xl:hidden">L{index + 1}</span>
-          <span className="truncate text-[14px] font-semibold text-content-1" title={master?.name || label}>
-            {master?.name || label || "New line"}
+          <span className="truncate text-[14px] font-semibold text-content-1" title={master?.name || undefined}>
+            {master?.name || "New line"}
           </span>
           {line.customer_product_overlay ? (
             <span className="shrink-0 rounded-md bg-success-bg px-1.5 py-px text-[10.5px] font-semibold text-success-fg">item</span>
           ) : null}
         </div>
         <div className="truncate font-mono text-[11.5px] text-content-3" title={label || undefined}>
-          {master?.code || "pick a product"}
-          {label ? ` · ${label}` : ""}
+          {master ? master.code : "pick a product"}
+          {master && label ? ` · ${label}` : ""}
         </div>
       </div>
       <div role="cell" className="min-w-0">

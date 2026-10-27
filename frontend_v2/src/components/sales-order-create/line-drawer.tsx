@@ -105,7 +105,7 @@ export function LineDrawer({
                   Line {index + 1} of {lines.length} · build
                 </div>
                 <SheetTitle className="flex min-w-0 items-baseline gap-2 text-[18px] font-semibold tracking-[-0.015em] text-content-1">
-                  <span className="truncate">{master?.name || line.line_label || "New line"}</span>
+                  <span className="truncate">{master?.name || "New line"}</span>
                   {master?.code ? <span className="shrink-0 font-mono text-[12px] font-medium text-content-3">{master.code}</span> : null}
                 </SheetTitle>
               </div>
