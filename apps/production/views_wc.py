@@ -832,8 +832,11 @@ class JobAllocationViewSet(WorkCentreScopeMixin, viewsets.ViewSet):
         total = len(rows)
         if limit:
             rows = rows[:limit]
-        serializer = InventoryRollSerializer(rows, many=True)
-        response = Response(serializer.data)
+        data = InventoryRollSerializer(rows, many=True).data
+        # The server's verdict per roll (contract + width window), so the picker never re-derives it.
+        for roll, row in zip(rows, data):
+            row.update(ExecutionService.roll_pick_verdict(job, process, roll, target_specs))
+        response = Response(data)
         response["X-Total-Count"] = str(total)
         return response
 

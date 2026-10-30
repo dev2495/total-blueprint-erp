@@ -5006,8 +5006,8 @@
         "hi": "\"Release checklist\" (Math validates, Material plan, Route span) और \"Blockers\" सूची देखें।"
       },
       {
-        "en": "Press \"Plan & Release\" (or \"Choose source & release\" when finished goods or WIP match). In the dialog pick the source: FG match, Carry WIP, Invariant stock, Input stock or Fresh run; enter \"KG to allocate\" or press MAX.",
-        "hi": "\"Plan & Release\" दबाएँ (FG या WIP मिलने पर \"Choose source & release\")। dialog में source चुनें: FG match, Carry WIP, Invariant stock, Input stock या Fresh run; \"KG to allocate\" भरें या MAX दबाएँ।"
+        "en": "Press \"Plan & Release\" (or \"Choose source & release\" when finished goods or WIP match). In the dialog pick the source: FG match, Carry WIP, Invariant stock, Input stock or Fresh run; enter \"KG to allocate\" or press MAX. Only stock this line may take is listed; matching stock of a closed order shows as a note — move it to free stock in Dispatch Bay first.",
+        "hi": "\"Plan & Release\" दबाएँ (FG या WIP मिलने पर \"Choose source & release\")। dialog में source चुनें: FG match, Carry WIP, Invariant stock, Input stock या Fresh run; \"KG to allocate\" भरें या MAX दबाएँ। सिर्फ़ वही stock दिखता है जो यह line ले सकती है; बंद order का matching stock note में दिखता है — पहले Dispatch Bay में free stock में move करें।"
       },
       {
         "en": "Under \"Route dispatch\" choose a work center for every planner-decided step. Under \"Optional route steps\" skip a step only if this run should jump it.",
@@ -7663,8 +7663,8 @@
         "hi": "\"Order · what it is\" पढ़ें: ordered, produced, remaining, \"what is to be made\" प्लेट और step के आँकड़े।"
       },
       {
-        "en": "In \"Machine\" tap the machine that will run it (\"Idle · ready\", \"Running …\", \"Down · not available\").",
-        "hi": "\"Machine\" में वह machine टैप करें जो चलाएगी (\"Idle · ready\", \"Running …\", \"Down · not available\")।"
+        "en": "In \"Machine\" tap the machine that will run it (\"Idle · ready\", \"Running …\", \"Waiting · Downtime on …\" can still be picked; \"Down · Fault reported\" or \"Down · Under maintenance\" cannot until Maintenance resolves it).",
+        "hi": "\"Machine\" में वह machine टैप करें जो चलाएगी (\"Idle · ready\", \"Running …\", \"Waiting · Downtime on …\" फिर भी चुनी जा सकती है; \"Down · Fault reported\" या \"Down · Under maintenance\" Maintenance में resolve होने तक नहीं)।"
       },
       {
         "en": "In \"Rolls by lane\" open the roll picker: scan or type the roll ID, or pick from the list. \"EXACT MATCH\" is used as it is; \"WIDER · SLIT REQUIRED\" is slit; rolls more than 20 mm narrower are refused.",

@@ -190,8 +190,11 @@ class MachineViewSet(viewsets.ModelViewSet):
                 job = ProductionJob.objects.filter(id=job_id).first()
 
             if not job:
+                # Only a job still open on the machine can carry new downtime (a closed job's is history).
                 assignment = (
                     WorkCenterAssignment.objects.filter(assigned_machine_id=pk)
+                    .exclude(production_job__job_state__in=["COMPLETED", "CANCELLED"])
+                    .exclude(production_job__status__in=["COMPLETED", "CANCELLED"])
                     .select_related("production_job")
                     .order_by("-updated_at")
                     .first()

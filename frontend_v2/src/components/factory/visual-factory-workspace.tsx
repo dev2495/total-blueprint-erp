@@ -247,8 +247,10 @@ export function VisualFactoryV37Workspace() {
     staleTime: 60_000,
   });
   const { data: liveMachines = [] } = useQuery({
-    queryKey: ["machine-operator-bulk"],
-    queryFn: () => machineService.getOperatorMachines(),
+    queryKey: ["visual-factory-machines"],
+    // Stopped machines included; `status` here is the live state (RUNNING / IDLE / DOWN) every screen shares.
+    queryFn: async () =>
+      (await machineService.getOperatorMachines({ include_down: 1 })).map((m) => ({ ...m, status: m.live_state || m.status })),
     staleTime: 30_000,
     refetchInterval: 45_000,
     retry: 1,
@@ -1082,7 +1084,7 @@ function buildAlerts({
         id: `mc-down-${m.id}`,
         severity: "critical",
         title: `${m.code} down`,
-        sub: m.work_center_name || m.plant_name || "Machine offline",
+        sub: m.down_reason || m.work_center_name || m.plant_name || "Machine offline",
         timeLabel: "machine status",
         href: `/production/machine/${m.id}`,
       });

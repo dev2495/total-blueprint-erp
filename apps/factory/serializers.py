@@ -180,13 +180,15 @@ class MachineSerializer(serializers.ModelSerializer):
     state = serializers.SerializerMethodField()
     current_job_number = serializers.SerializerMethodField()
     busy_until = serializers.SerializerMethodField()
+    down_reason = serializers.SerializerMethodField()
+    down_kind = serializers.SerializerMethodField()
 
     class Meta:
         model = Machine
         fields = [
             'id', 'work_center', 'work_center_name', 'name', 'code', 'status', 'concurrency_policy',
             'cost_absorption_group', 'cost_absorption_group_code',
-            'state', 'current_job_number', 'busy_until',
+            'state', 'current_job_number', 'busy_until', 'down_reason', 'down_kind',
         ]
         validators = []
 
@@ -204,12 +206,10 @@ class MachineSerializer(serializers.ModelSerializer):
                 "state": "IDLE",
                 "current_job_number": None,
                 "busy_until": None,
+                "down_reason": None,
+                "down_kind": None,
             }
-        return _resolve_machine_live_state([obj]).get(str(obj.id)) or {
-            "state": "IDLE",
-            "current_job_number": None,
-            "busy_until": None,
-        }
+        return machine_live_state(obj)
 
     def get_state(self, obj):
         return self._live(obj)["state"]
@@ -219,6 +219,12 @@ class MachineSerializer(serializers.ModelSerializer):
 
     def get_busy_until(self, obj):
         return self._live(obj)["busy_until"]
+
+    def get_down_reason(self, obj):
+        return self._live(obj).get("down_reason")
+
+    def get_down_kind(self, obj):
+        return self._live(obj).get("down_kind")
 
     def validate_code(self, value):
         normalized = normalize_machine_code(value)
@@ -244,16 +250,23 @@ class MachineSerializer(serializers.ModelSerializer):
         return attrs
 
 
+CLOSED_JOB_STATES = ("COMPLETED", "CANCELLED")
+
+
 def _resolve_machine_live_state(machines):
     """
-    Bulk-resolve live state for a set of machines.
+    Bulk-resolve live state for a set of machines. One rule for every screen that shows machine state.
 
     state:
+      - "DOWN"    if the machine itself is DOWN / MAINTENANCE (a reported fault that stopped it, or
+                  maintenance), whatever job sits on it
       - "RUNNING" if a job is EXECUTING/RUNNING on the machine
-      - "DOWN"    if the latest open downtime log (no end_time) is for a job on
-                  the machine and no job is currently running
+      - "DOWN"    if a job still open on the machine has downtime without an end time (closed jobs
+                  never count: their downtime is history)
       - "IDLE"    otherwise
-    current_job_number: job number of the running job (if RUNNING)
+    down_reason: short text for DOWN ("Fault reported", "Downtime on SO-… · Material Shortage")
+    down_kind: FAULT / MAINTENANCE (the machine cannot take work) or DOWNTIME (a waiting job's stop)
+    current_job_number: job number of the running job (if any)
     busy_until: best-effort end-of-current-downtime / null
     """
     from apps.production.models import ProductionJob, DowntimeLog
@@ -264,14 +277,14 @@ def _resolve_machine_live_state(machines):
     if not machine_ids:
         return result
     for mid in machine_ids:
-        result[str(mid)] = {"state": "IDLE", "current_job_number": None, "busy_until": None}
+        result[str(mid)] = {"state": "IDLE", "current_job_number": None, "busy_until": None, "down_reason": None, "down_kind": None}
 
     # Running jobs per machine.
     running = (
         ProductionJob.objects.filter(machine_id__in=machine_ids)
         .filter(Q(job_state="EXECUTING") | Q(status="RUNNING"))
-        .exclude(job_state__in=["COMPLETED", "CANCELLED"])
-        .exclude(status__in=["COMPLETED", "CANCELLED"])
+        .exclude(job_state__in=CLOSED_JOB_STATES)
+        .exclude(status__in=CLOSED_JOB_STATES)
         .values("machine_id", "job_number", "job_state")
         .order_by("machine_id", "-updated_at")
     )
@@ -283,14 +296,16 @@ def _resolve_machine_live_state(machines):
             result[mid]["current_job_number"] = row["job_number"]
             running_machine_ids.add(mid)
 
-    # Open downtime (no end_time) on the machine's current jobs => DOWN when idle.
+    # Open downtime on a job that is still open on the machine => DOWN when idle.
+    reason_labels = dict(DowntimeLog.REASON_CHOICES)
     open_downtime = (
         DowntimeLog.objects.filter(
             end_time__isnull=True,
             production_job__machine_id__in=machine_ids,
         )
-        .select_related("production_job")
-        .values("production_job__machine_id", "start_time")
+        .exclude(production_job__job_state__in=CLOSED_JOB_STATES)
+        .exclude(production_job__status__in=CLOSED_JOB_STATES)
+        .values("production_job__machine_id", "production_job__job_number", "reason", "start_time")
         .order_by("production_job__machine_id", "-start_time")
     )
     seen_down = set()
@@ -301,7 +316,27 @@ def _resolve_machine_live_state(machines):
         seen_down.add(mid)
         if mid not in running_machine_ids:
             result[mid]["state"] = "DOWN"
+            result[mid]["down_kind"] = "DOWNTIME"
+            result[mid]["down_reason"] = (
+                f"Downtime on {row['production_job__job_number']} · {reason_labels.get(row['reason'], row['reason'])}"
+            )
+
+    # The machine's own status (set by a stopping fault / maintenance) wins over everything else.
+    for machine in machines:
+        machine_status = str(getattr(machine, "status", "") or "").upper()
+        if machine_status in {"DOWN", "MAINTENANCE"}:
+            entry = result[str(machine.id)]
+            entry["state"] = "DOWN"
+            entry["down_kind"] = machine_status if machine_status == "MAINTENANCE" else "FAULT"
+            entry["down_reason"] = "Under maintenance" if machine_status == "MAINTENANCE" else "Fault reported · machine stopped"
     return result
+
+
+def machine_live_state(machine) -> dict:
+    """Live state of one machine (same rule as the machine lists)."""
+    return _resolve_machine_live_state([machine]).get(str(machine.id)) or {
+        "state": "IDLE", "current_job_number": None, "busy_until": None, "down_reason": None, "down_kind": None,
+    }
 
 
 class PlantShiftDefinitionSerializer(serializers.ModelSerializer):

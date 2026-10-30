@@ -1717,6 +1717,8 @@ class JobService:
             job.job_state = 'EXECUTING'
             job.start_date = timezone.now()
             job.save()
+            # The machine is working again: downtime logged while the job waited ends here.
+            cls.close_open_downtime(job, ts=job.start_date)
             from apps.production.services.batch_route_service import BatchExecutionService
             BatchExecutionService.sync_for_job(job)
             if getattr(job, "sales_order_item_id", None):
@@ -1993,7 +1995,8 @@ class JobService:
                         f"only bulk-to-roll steps run several orders on one machine.",
                         conflicting_job_number=conflicting,
                     )
-            cls.close_open_downtime(job, ts=now, source='PAUSE')
+            # Resuming ends the stop, whatever logged it (pause, hand-logged downtime, maintenance).
+            cls.close_open_downtime(job, ts=now)
             if job.status == 'RUNNING':
                 job.job_state = 'EXECUTING'
                 from apps.costing.services import CostingService
@@ -2459,6 +2462,15 @@ class WCManagerService:
                 wc_label = getattr(getattr(assignment, "work_center", None), "name", assignment_wc_id)
                 raise ValueError(
                     f"Machine {machine.name} does not belong to work center {wc_label}."
+                )
+            # A stopping fault or maintenance (the machine's own status) means no new work; the machine
+            # screens read the same status (apps.factory.serializers._resolve_machine_live_state).
+            machine_status = str(getattr(machine, "status", "") or "").upper()
+            already_assigned = str(getattr(assignment, "assigned_machine_id", "") or "") == str(getattr(machine, "id", ""))
+            if machine_status in {"DOWN", "MAINTENANCE"} and not already_assigned:
+                reason = "under maintenance" if machine_status == "MAINTENANCE" else "a reported fault stopped it"
+                raise ValueError(
+                    f"{machine.name} cannot take work: {reason}. Pick another machine, or resolve it in Maintenance first."
                 )
 
             assignment.assigned_machine = machine

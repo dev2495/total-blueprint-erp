@@ -1114,6 +1114,8 @@ export default function WCMTerminal() {
           state,
           current_job_number: m?.current_job_number ?? null,
           busy_until: m?.busy_until ?? null,
+          down_reason: m?.down_reason ?? null,
+          down_kind: m?.down_kind ?? null,
         };
       })
       .filter((m: any) => m.id);
@@ -1353,6 +1355,8 @@ export default function WCMTerminal() {
         state: "IDLE" as MachineLiveState,
         current_job_number: null,
         busy_until: null,
+        down_reason: null,
+        down_kind: null,
       });
     }
     return base;
@@ -2781,7 +2785,10 @@ export default function WCMTerminal() {
       String(selectedMachine.current_job_number) !==
         String((selectedJob as any)?.job_number || ""),
   );
-  const selectedMachineUnavailable = selectedMachineState === "DOWN";
+  // Only a fault or maintenance stops the machine; downtime on a waiting job is a warning.
+  const selectedMachineUnavailable =
+    selectedMachineState === "DOWN" &&
+    ["FAULT", "MAINTENANCE"].includes(String((selectedMachine as any)?.down_kind || "FAULT"));
   const detailInkColors: string[] = Array.isArray(
     (activeAssignment as any)?.ink_colors,
   )
@@ -2842,9 +2849,9 @@ export default function WCMTerminal() {
     });
     if (!selectedMachineId) {
       reasons.push("Machine: not assigned");
-    } else if (selectedMachineState === "DOWN") {
+    } else if (selectedMachineUnavailable) {
       reasons.push(
-        `Machine: ${selectedMachine?.name || "selected machine"} is down`,
+        `Machine: ${selectedMachine?.name || "selected machine"} is down${(selectedMachine as any)?.down_reason ? ` (${(selectedMachine as any).down_reason})` : ""}`,
       );
     }
     if (detailMaterialBlocked) {
@@ -2862,6 +2869,7 @@ export default function WCMTerminal() {
     requirementRows,
     selectedMachineId,
     selectedMachineState,
+    selectedMachineUnavailable,
     selectedMachine?.name,
     detailMaterialBlocked,
     detailMaterialBlockReason,
@@ -4125,8 +4133,10 @@ export default function WCMTerminal() {
             <div role="radiogroup" aria-label="Machine for this job" data-testid="wcm-machine-select" className="grid gap-1.5 sm:grid-cols-2">
               {machineOptionsResolved.map((machine: any) => {
                 const machineState: MachineLiveState = machine.state || "IDLE";
-                // Keep the already-assigned machine selectable even if it reads busy.
-                const isUnavailable = machineState === "DOWN" && String(machine.id) !== assignedMachineId;
+                // A fault or maintenance stops the machine (the server refuses new work); downtime on a
+                // waiting job only warns. Keep the already-assigned machine selectable either way.
+                const machineStopped = machineState === "DOWN" && ["FAULT", "MAINTENANCE"].includes(String(machine.down_kind || "FAULT"));
+                const isUnavailable = machineStopped && String(machine.id) !== assignedMachineId;
                 const checked = String(machine.id) === String(selectedMachineId || "");
                 const disabled = isReleasedToMachine || mutation.isPending || isUnavailable;
                 return (
@@ -4156,13 +4166,18 @@ export default function WCMTerminal() {
                       <span className="block truncate text-[13px] font-semibold text-content-1">{machine.name}</span>
                       <span className="block truncate text-[11.5px] text-content-3">
                         {machineState === "DOWN"
-                          ? "Down · not available"
+                          ? machine.down_reason
+                            ? `${machineStopped ? "Down" : "Waiting"} · ${machine.down_reason}`
+                            : "Down · not available"
                           : machineState === "RUNNING"
                             ? `Running ${machine.current_job_number || "another job"}`
                             : "Idle · ready"}
                       </span>
                     </span>
-                    <MachineStateBadge state={machineState} currentJobNumber={machine.current_job_number} />
+                    <MachineStateBadge
+                      state={machineState === "DOWN" && !machineStopped ? "IDLE" : machineState}
+                      currentJobNumber={machine.current_job_number}
+                    />
                   </button>
                 );
               })}
@@ -4308,6 +4323,7 @@ export default function WCMTerminal() {
                               : "NO FREE SLOT"
                       }
                       required={rollMassMode ? Math.max(1, rollMaxCount) : rollsRequired}
+                      massMode={rollMassMode}
                       manualOverride={manualOverrideEnabled}
                       overrideReason={overrideReason}
                       onAssigned={() => {
@@ -6840,6 +6856,7 @@ function RollAssignmentModal({
   disabled,
   disabledLabel = "ROLLS ASSIGNED",
   required,
+  massMode = false,
   strictSpecMatch = true,
   manualOverride = false,
   overrideReason = "",
@@ -7032,6 +7049,13 @@ function RollAssignmentModal({
   });
 
   const matchesAnyTargetSpec = (roll: any) => {
+    // Rolls this job's own lists returned carry the server's verdict (the exact rule allocation
+    // applies); never re-derive it here from a differently shaped spec. Without manual override
+    // only rolls inside the planned web window are offered, as allocation requires.
+    if (typeof roll?.contract_ok === "boolean") {
+      if (!roll.contract_ok) return false;
+      return !strictSpecMatch || roll.auto_window_ok !== false;
+    }
     if (!normalizedSpecs.length) return true;
     return normalizedSpecs.some((spec: any) => {
       const materialOk = matchesRollMaterial(roll, spec);
@@ -7454,26 +7478,40 @@ function RollAssignmentModal({
           <div className="mt-3 overflow-hidden rounded-xl border border-line bg-surface-1">
             <div className="grid divide-y divide-line sm:grid-cols-4 sm:divide-x sm:divide-y-0">
               {[
-                {
-                  label: "Required",
-                  value: Number(required || 0),
-                  help: "rolls for this step",
-                  tone: "text-primary",
-                },
-                {
-                  label: "Slot coverage",
-                  value: `${matchedSlotCount}/${Math.max(
-                    Number(required || 0),
-                    Number(
-                      (rollAssignmentValidation as any)?.required_rolls || 0,
-                    ),
-                  )}`,
-                  help:
-                    unmatchedSlotCount > 0
-                      ? `${unmatchedSlotCount} slot open`
-                      : "mapped cleanly",
-                  tone: "text-content-1",
-                },
+                massMode
+                  ? {
+                      label: "Required",
+                      value: "1+",
+                      help: `fed by weight · up to ${Number(required || 0)} rolls`,
+                      tone: "text-primary",
+                    }
+                  : {
+                      label: "Required",
+                      value: Number(required || 0),
+                      help: "rolls for this step",
+                      tone: "text-primary",
+                    },
+                massMode
+                  ? {
+                      label: "Assigned",
+                      value: Number((rollAssignmentValidation as any)?.assigned_roll_count || 0),
+                      help: "rolls on this step",
+                      tone: "text-content-1",
+                    }
+                  : {
+                      label: "Slot coverage",
+                      value: `${matchedSlotCount}/${Math.max(
+                        Number(required || 0),
+                        Number(
+                          (rollAssignmentValidation as any)?.required_rolls || 0,
+                        ),
+                      )}`,
+                      help:
+                        unmatchedSlotCount > 0
+                          ? `${unmatchedSlotCount} slot open`
+                          : "mapped cleanly",
+                      tone: "text-content-1",
+                    },
                 {
                   label: "True WIP",
                   value: Number(

@@ -387,6 +387,14 @@ export interface PlannerControlOrder {
         uom: string;
     };
     inventory_options?: PlannerInventoryOption[];
+    /** Matching stock another order line holds: never offered; a closed line's units can be moved to free stock. */
+    held_stock?: {
+        closed_count?: number;
+        closed_final_count?: number;
+        closed_kg?: number;
+        closed_orders?: string[];
+        open_line_count?: number;
+    };
     matching_stock_orders?: PlannerStockOrderMatch[];
     artwork_assignment_required?: boolean;
     assigned_artwork_id?: string;

@@ -5592,7 +5592,11 @@ class PlannerViewSet(viewsets.ViewSet):
         route_last_index: int,
         order_signature: str = "",
         order_invariant_signature: str = "",
+        own_line_id: str = "",
     ):
+        """Cheap stock counts for queue rows: free stock plus units already on this line.
+        Units held by another order line are never counted (the claim would refuse them)."""
+        own_key = str(own_line_id or "")
         fg_cache = getattr(self, "_control_hub_fg_signature_counts", None)
         if not isinstance(fg_cache, dict):
             fg_cache = {}
@@ -5618,9 +5622,12 @@ class PlannerViewSet(viewsets.ViewSet):
                 for batch in fg_batches:
                     signature = self._fg_signature(batch)
                     if signature:
-                        signature_counts[signature] = int(signature_counts.get(signature) or 0) + 1
+                        by_holder = signature_counts.setdefault(signature, {})
+                        holder = str(batch.sales_order_item_id or "")
+                        by_holder[holder] = int(by_holder.get(holder) or 0) + 1
                 fg_cache[fg_key] = signature_counts
-            fg_match_count = int((fg_cache.get(fg_key) or {}).get(order_signature) or 0)
+            by_holder = (fg_cache.get(fg_key) or {}).get(order_signature) or {}
+            fg_match_count = int(by_holder.get("") or 0) + (int(by_holder.get(own_key) or 0) if own_key else 0)
 
         wip_match_count = 0
         if order_invariant_signature:
@@ -5643,9 +5650,12 @@ class PlannerViewSet(viewsets.ViewSet):
                 for roll in wip_rolls:
                     signature = self._roll_invariant_signature(roll)
                     if signature:
-                        signature_counts[signature] = int(signature_counts.get(signature) or 0) + 1
+                        by_holder = signature_counts.setdefault(signature, {})
+                        holder = str(roll.sales_order_item_id or "")
+                        by_holder[holder] = int(by_holder.get(holder) or 0) + 1
                 wip_cache[wip_key] = signature_counts
-            wip_match_count = int((wip_cache.get(wip_key) or {}).get(order_invariant_signature) or 0)
+            by_holder = (wip_cache.get(wip_key) or {}).get(order_invariant_signature) or {}
+            wip_match_count = int(by_holder.get("") or 0) + (int(by_holder.get(own_key) or 0) if own_key else 0)
         return {
             "fg_match_count": int(fg_match_count),
             "wip_match_count": int(wip_match_count),
@@ -5836,11 +5846,18 @@ class PlannerViewSet(viewsets.ViewSet):
         fg_alloc_map,
         order_layer_snapshot=None,
         sales_item=None,
+        held_summary=None,
     ):
+        """Stock this order may claim now. Units held by another order line are never offered:
+        the claim refuses them. Exact units of a closed line are tallied in ``held_summary`` so the
+        planner can move them to free stock (Dispatch Bay) and then use them."""
         options = []
         max_roll_candidates = 24
         max_fg_candidates = 12
         order_routing_rule_id = getattr(template, "routing_rule_id", None)
+        if order_kind == "sales" and sales_item is None:
+            sales_item = self._sales_item_for_template(order_obj, template)
+        own_line_id = str(getattr(sales_item, "id", "") or "") if order_kind == "sales" and sales_item is not None else ""
 
         required_start_step = int(required_start_step or 0)
         shared_invariant_min_step = max(0, required_start_step - 1)
@@ -5886,7 +5903,7 @@ class PlannerViewSet(viewsets.ViewSet):
         rolls = (
             InventoryRoll.objects.filter(filter_q)
             .select_related(
-                "template__routing_rule", "material", "sales_order_item", "location__plant",
+                "template__routing_rule", "material", "sales_order_item__sales_order", "location__plant",
                 "created_by_job__sales_order_item", "created_by_job__mts_order__template__routing_rule",
                 "production_job__sales_order_item", "production_job__mts_order__template__routing_rule",
                 "parent_roll",
@@ -5894,6 +5911,8 @@ class PlannerViewSet(viewsets.ViewSet):
             .only('id', 'label_id', 'status', 'material', 'location__plant', 'parent_roll',
                   'template__name', 'template__fg_type', 'template__pouch_style', 'template__routing_rule__ordered_processes',
                   'sales_order_item__sales_order_id', 'sales_order_item__spec_signature', 'sales_order_item__invariant_signature',
+                  'sales_order_item__line_status', 'sales_order_item__line_closed_at', 'sales_order_item__qty_value',
+                  'sales_order_item__qty_cancelled', 'sales_order_item__qty_short_closed', 'sales_order_item__sales_order__order_number',
                   'width_mm', 'thickness_micron', 'weight_kg', 'completed_step_index', 'meta_json', 'is_fg', 'geometry_override',
                   *[f'{origin}__{field}' for origin in ('created_by_job', 'production_job') for field in
                     ('source_type', 'sales_order_item__sales_order_id', 'mts_order__template__fg_type',
@@ -5983,6 +6002,9 @@ class PlannerViewSet(viewsets.ViewSet):
             allocatable = physical - allocated
             if allocatable <= 0:
                 continue
+            if self._held_by_other_line(roll, order_kind, own_line_id):
+                self._tally_held_unit(held_summary, roll, allocatable, is_final_step)
+                continue
             source_bucket = "COMPATIBLE_UPSTREAM_ROLL_STOCK"
             source_label = "Compatible upstream roll stock"
             if is_final_step:
@@ -6040,7 +6062,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 template=template,
                 completed_step_index=route_last_index,
             )
-            .select_related("template__routing_rule", "template__commercial_family", "sales_order_item", "location__plant",
+            .select_related("template__routing_rule", "template__commercial_family", "sales_order_item__sales_order", "location__plant",
                             "production_job__mts_order__template__routing_rule")
             .order_by("-created_at", "completed_step_index")
         )
@@ -6059,6 +6081,9 @@ class PlannerViewSet(viewsets.ViewSet):
             allocated = fg_alloc_map.get(str(batch.id), Decimal("0"))
             allocatable = physical - allocated
             if allocatable <= 0:
+                continue
+            if self._held_by_other_line(batch, order_kind, own_line_id):
+                self._tally_held_unit(held_summary, batch, allocatable, True)
                 continue
             options.append(
                 {
@@ -6469,13 +6494,14 @@ class PlannerViewSet(viewsets.ViewSet):
         self._control_hub_fg_signature_counts = {}
         self._control_hub_wip_signature_counts = {}
 
-        def cached_cheap_source_availability(*, template, required_start_step: int, route_last_index: int, order_signature: str = "", order_invariant_signature: str = ""):
+        def cached_cheap_source_availability(*, template, required_start_step: int, route_last_index: int, order_signature: str = "", order_invariant_signature: str = "", own_line_id: str = ""):
             cache_key = (
                 str(getattr(template, "id", "") or ""),
                 int(required_start_step or 0),
                 int(route_last_index or 0),
                 str(order_signature or ""),
                 str(order_invariant_signature or ""),
+                str(own_line_id or ""),
             )
             if cache_key not in cheap_source_cache:
                 cheap_source_cache[cache_key] = self._cheap_source_availability(
@@ -6484,6 +6510,7 @@ class PlannerViewSet(viewsets.ViewSet):
                     route_last_index=route_last_index,
                     order_signature=order_signature,
                     order_invariant_signature=order_invariant_signature,
+                    own_line_id=own_line_id,
                 )
             return dict(cheap_source_cache[cache_key])
 
@@ -7007,10 +7034,12 @@ class PlannerViewSet(viewsets.ViewSet):
                                 route_last_index=route_last,
                                 order_signature=order_signature,
                                 order_invariant_signature=order_invariant_signature,
+                                own_line_id=str(getattr(so_item, "id", "") or ""),
                             )
                             row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
                         else:
                             roll_alloc_map, fg_alloc_map = get_allocation_maps()
+                            held_summary = {}
                             row["inventory_options"] = self._eligible_inventory_for_order(
                                 order_kind="sales",
                                 order_obj=order,
@@ -7023,7 +7052,9 @@ class PlannerViewSet(viewsets.ViewSet):
                                 fg_alloc_map=fg_alloc_map,
                                 order_layer_snapshot=layer_snapshot,
                                 sales_item=so_item,
+                                held_summary=held_summary,
                             )
+                            row["held_stock"] = held_summary
                             row["matching_stock_orders"] = self._matching_stock_orders_for_sales(
                                 template=template,
                                 order_signature=order_signature,
@@ -7533,6 +7564,7 @@ class PlannerViewSet(viewsets.ViewSet):
                         route_last_index=route_last,
                         order_signature=sig,
                         order_invariant_signature=inv_sig,
+                        own_line_id=str(getattr(so_item, "id", "") or ""),
                     )
                     row["continuation"] = self._cheap_continuation_summary(row["source_availability"])
                     planning_queue.append(self._decorate_control_hub_row(row))
@@ -7847,6 +7879,45 @@ class PlannerViewSet(viewsets.ViewSet):
             - Decimal(str(claimed_gonnies or 0))
         )
         return remaining if remaining > 0 else Decimal("0")
+
+    @staticmethod
+    def _held_by_other_line(unit, order_kind: str, own_line_id: str = "") -> bool:
+        """True when the roll/batch belongs to an order line other than the one being planned."""
+        holder_id = str(getattr(unit, "sales_order_item_id", "") or "")
+        if not holder_id:
+            return False
+        return order_kind != "sales" or holder_id != str(own_line_id or "")
+
+    @staticmethod
+    def _held_unit_message(line, unit_label: str) -> str:
+        from .services.dispatch_service import FGDispatchService
+
+        order_no = getattr(getattr(line, "sales_order", None), "order_number", "") or "another order"
+        if line is not None and FGDispatchService.line_is_closed(line):
+            return (
+                f"{unit_label} belongs to {order_no}, whose line is closed. Move it to free stock in "
+                "Dispatch Bay (Move to stock), then claim it here."
+            )
+        return f"{unit_label} is held by {order_no}, which is still open; it cannot be claimed for this order."
+
+    @staticmethod
+    def _tally_held_unit(held_summary, unit, qty_kg, is_final: bool) -> None:
+        """Count a matching unit that another line holds; only a closed line can release it (move to stock)."""
+        if held_summary is None:
+            return
+        from .services.dispatch_service import FGDispatchService
+
+        line = getattr(unit, "sales_order_item", None)
+        if line is None or not FGDispatchService.line_is_closed(line):
+            held_summary["open_line_count"] = int(held_summary.get("open_line_count") or 0) + 1
+            return
+        held_summary["closed_count"] = int(held_summary.get("closed_count") or 0) + 1
+        held_summary["closed_final_count"] = int(held_summary.get("closed_final_count") or 0) + (1 if is_final else 0)
+        held_summary["closed_kg"] = round(float(held_summary.get("closed_kg") or 0) + float(qty_kg or 0), 3)
+        order_no = getattr(getattr(line, "sales_order", None), "order_number", "") or ""
+        orders = held_summary.setdefault("closed_orders", [])
+        if order_no and order_no not in orders:
+            orders.append(order_no)
 
     @staticmethod
     def _freed_record(unit) -> dict:
@@ -9230,6 +9301,7 @@ class PlannerViewSet(viewsets.ViewSet):
         local_consumption = {}
         created = []
         required_route_id = getattr(template, "routing_rule_id", None)
+        own_line_id = str(getattr(so_item, "id", "") or "") if order_kind == "sales" and so_item else ""
 
         for row in allocation_rows:
             inv_type = str(row.get("inventory_type") or row.get("kind") or "").upper()
@@ -9245,7 +9317,7 @@ class PlannerViewSet(viewsets.ViewSet):
                 raise ValueError("allocated_qty_kg must be > 0")
 
             if inv_type == "ROLL":
-                roll_qs = InventoryRoll.objects.select_related("template", "sales_order_item").filter(
+                roll_qs = InventoryRoll.objects.select_related("template", "sales_order_item__sales_order").filter(
                     id=inv_id,
                     status="AVAILABLE",
                 )
@@ -9274,6 +9346,8 @@ class PlannerViewSet(viewsets.ViewSet):
                     roll = roll_qs.get()
                 except ObjectDoesNotExist:
                     raise ValueError("Selected roll is not available for this template/order.")
+                if self._held_by_other_line(roll, order_kind, own_line_id):
+                    raise ValueError(self._held_unit_message(roll.sales_order_item, f"Roll {roll.label_id}"))
                 roll_route_id = getattr(getattr(roll, "template", None), "routing_rule_id", None)
                 if required_route_id and roll.template_id and roll_route_id != required_route_id:
                     raise ValueError(f"Roll {roll.label_id} routing lineage does not match order route.")
@@ -9346,8 +9420,6 @@ class PlannerViewSet(viewsets.ViewSet):
                 created.append(allocation)
 
                 if order_kind == "sales" and so_item:
-                    if roll.sales_order_item_id and str(roll.sales_order_item_id) != str(so_item.id):
-                        raise ValueError(f"Roll {roll.label_id} is already linked to another sales order.")
                     roll.sales_order_item = so_item
                     roll.meta_json = self._append_claim_history(
                         roll.meta_json,
@@ -9361,11 +9433,13 @@ class PlannerViewSet(viewsets.ViewSet):
 
             if inv_type in {"FG_BATCH", "FG"}:
                 try:
-                    batch = FinishedGoodsBatch.objects.select_related("template", "sales_order_item").get(
+                    batch = FinishedGoodsBatch.objects.select_related("template", "sales_order_item__sales_order").get(
                         id=inv_id, template=template, status="AVAILABLE"
                     )
                 except ObjectDoesNotExist:
                     raise ValueError("Selected FG batch is not available for this template/order.")
+                if self._held_by_other_line(batch, order_kind, own_line_id):
+                    raise ValueError(self._held_unit_message(batch.sales_order_item, f"FG batch {batch.batch_number}"))
                 batch_route_id = getattr(getattr(batch, "template", None), "routing_rule_id", None)
                 if required_route_id and batch_route_id != required_route_id:
                     raise ValueError(f"FG batch {batch.batch_number} routing lineage does not match order route.")
@@ -9410,8 +9484,6 @@ class PlannerViewSet(viewsets.ViewSet):
                 created.append(allocation)
 
                 if order_kind == "sales" and so_item:
-                    if batch.sales_order_item_id and str(batch.sales_order_item_id) != str(so_item.id):
-                        raise ValueError(f"FG batch {batch.batch_number} is already linked to another sales order.")
                     batch.sales_order_item = so_item
                     batch.meta_json = self._append_claim_history(
                         batch.meta_json,

@@ -817,11 +817,12 @@ def operator_machines(request):
     work_center_id = str(request.query_params.get("work_center_id") or "").strip()
     plant_id = str(request.query_params.get("plant_id") or "").strip()
 
+    # The operator picker lists working machines only; boards (Visual Factory) ask for stopped ones too.
+    include_down = str(request.query_params.get("include_down") or "").strip().lower() in {"1", "true", "yes"}
+    status_filter = {} if include_down else {"status": "ACTIVE"}
     if is_admin:
         # Admin/Owner sees ALL machines
-        machines = Machine.objects.filter(
-            status='ACTIVE'
-        ).select_related('work_center', 'work_center__plant')
+        machines = Machine.objects.filter(**status_filter).select_related('work_center', 'work_center__plant')
     else:
         from apps.production.scope import machine_scope
         from apps.users.models import WorkCenterAssignment
@@ -830,10 +831,10 @@ def operator_machines(request):
         if scope is None:
             # Planner, plant manager...: machines of the work centres assigned to them.
             assigned_wc_ids = WorkCenterAssignment.objects.filter(user=user).values_list('work_center_id', flat=True)
-            machines = Machine.objects.filter(work_center_id__in=assigned_wc_ids, status='ACTIVE')
+            machines = Machine.objects.filter(work_center_id__in=assigned_wc_ids, **status_filter)
         else:
             # Work Center Manager: machines of their work centres. Operator: their own machines.
-            machines = Machine.objects.filter(id__in=scope, status='ACTIVE')
+            machines = Machine.objects.filter(id__in=scope, **status_filter)
         machines = machines.select_related('work_center', 'work_center__plant')
 
     if search:
@@ -884,10 +885,14 @@ def operator_machines(request):
         .values_list("machine_id", "total")
     )
     
+    from apps.factory.serializers import _resolve_machine_live_state
+
+    live_by_machine = _resolve_machine_live_state(machine_rows)
     result = []
     for machine in machine_rows:
         current_job = current_by_machine.get(machine.id)
         queue_count = int(queue_counts.get(machine.id, 0) or 0)
+        live = live_by_machine.get(str(machine.id)) or {}
         work_center = machine.work_center
         plant = work_center.plant if work_center else None
         result.append({
@@ -903,6 +908,9 @@ def operator_machines(request):
                 'product_name': current_job.template.name if current_job.template else "N/A",
             } if current_job else None,
             'queue_count': queue_count,
+            'live_state': live.get("state") or "IDLE",
+            'down_reason': live.get("down_reason"),
+            'down_kind': live.get("down_kind"),
         })
     
     if limit is None and offset == 0 and not search and not work_center_id and not plant_id:
@@ -1033,9 +1041,23 @@ def machine_log_downtime(request, machine_id, job_id):
     )
 
     try:
-        OperatorService.log_downtime(job.id, start_time, end_time, reason, request.user, notes=notes)
-        if auto_stop and str(job.job_state).upper() == "EXECUTING":
-            job = OperatorService.pause_job(job.id, f"Downtime: {reason}", request.user)
+        if auto_stop and end_time is None and str(job.job_state).upper() == "EXECUTING":
+            # A stop happening now: the pause is the downtime record (one row, ended by resume or close).
+            job = OperatorService.pause_job(job.id, notes or f"Downtime: {reason}", request.user, reason_bucket=reason)
+            pause_row = (
+                DowntimeLog.objects.filter(production_job=job, end_time__isnull=True, source="PAUSE")
+                .order_by("-start_time")
+                .first()
+            )
+            if pause_row is None:
+                OperatorService.log_downtime(job.id, start_time, end_time, reason, request.user, notes=notes)
+            elif start_time < pause_row.start_time:
+                pause_row.start_time = start_time
+                pause_row.save(update_fields=["start_time"])
+        else:
+            OperatorService.log_downtime(job.id, start_time, end_time, reason, request.user, notes=notes)
+            if auto_stop and str(job.job_state).upper() == "EXECUTING":
+                job = OperatorService.pause_job(job.id, f"Downtime: {reason}", request.user)
         payload = ProductionJobSerializer(job).data
         payload["downtime"] = {
             "reason": reason,

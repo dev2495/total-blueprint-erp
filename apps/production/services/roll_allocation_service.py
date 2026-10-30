@@ -240,17 +240,33 @@ class RollAllocationService:
             'created_by_job', 'created_by_job__production_batch', 'production_job', 'production_job__production_batch',
         )
 
+        # Callers cap this list (picker, context), so the rolls usable at their width come first:
+        # heavier wider stock must never push the exact-width rolls out of a capped list.
+        from django.db.models import Case, When, Value, IntegerField
+        from apps.production.services.roll_width import as_is_window
+
+        as_is_q = None
+        for spec in target_specs or []:
+            if not isinstance(spec, dict) or spec.get("min_width_mm") in (None, ""):
+                continue
+            low, high = as_is_window(spec.get("min_width_mm"))
+            part = Q(width_mm__gte=low - Decimal("0.01"), width_mm__lte=high + Decimal("0.01"))
+            as_is_q = part if as_is_q is None else (as_is_q | part)
+        filtered = filtered.annotate(
+            width_fit=Case(When(as_is_q, then=Value(1)), default=Value(2), output_field=IntegerField())
+            if as_is_q is not None
+            else Value(1, output_field=IntegerField()),
+        )
         if job.sales_order_item:
-            from django.db.models import Case, When, Value, IntegerField
             filtered = filtered.annotate(
                 priority=Case(
                     When(sales_order_item=job.sales_order_item, then=Value(1)),
                     default=Value(2),
                     output_field=IntegerField(),
                 )
-            ).order_by('priority', '-weight_kg', '-created_at', 'id')
+            ).order_by('priority', 'width_fit', '-weight_kg', '-created_at', 'id')
         else:
-            filtered = filtered.order_by('-weight_kg', '-created_at', 'id')
+            filtered = filtered.order_by('width_fit', '-weight_kg', '-created_at', 'id')
 
         return filtered
 

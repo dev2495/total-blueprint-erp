@@ -103,6 +103,10 @@ export interface OperatorMachine {
     code: string;
     name: string;
     status: string;
+    /** Shared live state: RUNNING / IDLE / DOWN (fault, maintenance, or downtime on an open job). */
+    live_state?: "RUNNING" | "IDLE" | "DOWN";
+    down_reason?: string | null;
+    down_kind?: "FAULT" | "MAINTENANCE" | "DOWNTIME" | null;
     work_center_name: string;
     plant_name: string;
     current_job: {
@@ -136,6 +140,8 @@ export interface OperatorMachineParams {
     search?: string;
     work_center_id?: string;
     plant_id?: string;
+    /** Include machines stopped by a fault or under maintenance (boards); the operator picker leaves them out. */
+    include_down?: 0 | 1;
 }
 
 export interface JobSatisfactionStatus {

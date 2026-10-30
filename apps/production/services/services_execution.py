@@ -3261,9 +3261,13 @@ class ExecutionService:
                 others = [roll for roll in ranked if str(roll.id) not in preferred_ids]
                 ranked = preferred + others
 
-        # ROLL->BULK consumes downstream lineage rolls (often laminated/composite),
-        # so strict single-layer target spec matching is intentionally skipped here.
+        # ROLL->BULK takes the order's own rolls (often laminated/composite) as they are; every
+        # candidate already passed the step contract, and an automatic pick of other stock must also
+        # sit inside the planned web window (the same rule a manual pick meets without override).
         if is_roll_to_bulk and roll_behavior in {"NONE", ""}:
+            bulk_specs = cls._build_step_target_specs(job, process)
+            ranked = [roll for roll in ranked if cls._roll_auto_window_ok(job, process, roll, bulk_specs)]
+            ranked.sort(key=lambda roll: 0 if cls._is_job_lineage_roll(job, roll) else 1)
             if len(ranked) < to_assign:
                 return {
                     "auto_assigned": 0,
@@ -3952,6 +3956,60 @@ class ExecutionService:
         return None
 
     @classmethod
+    def _job_lineage_roll_ids(cls, job) -> set:
+        """Ids of live rolls in this job's own flow (same rule as _resolve_job_lineage_filter), cached on the job."""
+        cached = getattr(job, "_lineage_roll_ids_cache", None)
+        if cached is not None:
+            return cached
+        lineage_filter = cls._resolve_job_lineage_filter(job)
+        ids = set()
+        if lineage_filter is not None:
+            ids = set(
+                InventoryRoll.objects.filter(lineage_filter)
+                .filter(status__in=["AVAILABLE", "RESERVED", "IN_PROCESS"])
+                .values_list("id", flat=True)
+            )
+        try:
+            job._lineage_roll_ids_cache = ids
+        except Exception:
+            pass
+        return ids
+
+    @classmethod
+    def _is_job_lineage_roll(cls, job, roll) -> bool:
+        return getattr(roll, "id", None) in cls._job_lineage_roll_ids(job)
+
+    @staticmethod
+    def _is_roll_to_bulk_process(process) -> bool:
+        return (
+            str(getattr(process, "input_form", "") or "").upper() == "ROLL"
+            and str(getattr(process, "output_form", "") or "").upper() == "BULK"
+        )
+
+    @classmethod
+    def _roll_auto_window_ok(cls, job, process, roll, target_specs) -> bool:
+        """True when the roll may be taken without a manual override: within the planned web ± tolerance.
+
+        Combine steps and a roll->bulk step's own-flow rolls are exempt (assign_roll_to_job applies the same rule).
+        """
+        roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
+        if roll_behavior == "MULTI_INPUT_COMBINE" or not target_specs:
+            return True
+        if cls._is_roll_to_bulk_process(process) and cls._is_job_lineage_roll(job, roll):
+            return True
+        return cls._roll_matches_target_specs(roll, target_specs, enforce_auto_width_window=True)
+
+    @classmethod
+    def roll_pick_verdict(cls, job, process, roll, target_specs) -> dict:
+        """What allocation will accept for this roll at this step, so the picker shows exactly that."""
+        contract_ok = cls._is_roll_step_compatible(job, process, roll, target_specs, allow_input_stock_fallback=True)
+        return {
+            "contract_ok": bool(contract_ok),
+            "auto_window_ok": bool(contract_ok and cls._roll_auto_window_ok(job, process, roll, target_specs)),
+            "own_flow": cls._is_job_lineage_roll(job, roll),
+        }
+
+    @classmethod
     def _split_step_before(cls, job, process=None) -> bool:
         """True when the route slits (a SPLIT step) before this job's step: from there each lane is its own roll."""
         cached = getattr(job, "_split_before_cache", None)
@@ -4577,22 +4635,26 @@ class ExecutionService:
         is_roll_to_bulk = str(getattr(process, "output_form", "") or "").upper() == "BULK"
         # Both branches reject rolls already past the next step.
         q = Q(current_step_index__lte=current + 1) | Q(current_step_index__isnull=True)
-        if not is_roll_to_bulk:
-            # Every spec names a film variant or family; a roll matching none is rejected in Python too.
-            specs = cls._build_step_target_slots(job, process) if cls._is_lane_group_combine_spec(cls._resolve_step_roll_spec(job, process)) else cls._build_step_target_specs(job, process)
-            material_q = None
-            for spec in specs or []:
-                if not isinstance(spec, dict):
-                    continue
-                if spec.get("variant_id"):
-                    part = Q(material_id=str(spec["variant_id"]))
-                elif spec.get("family_id"):
-                    part = Q(material__parent_family_id=str(spec["family_id"]))
-                else:
-                    material_q = None
-                    break
-                material_q = part if material_q is None else (material_q | part)
-            if material_q is not None and specs:
+        # Every spec names a film variant or family; a roll matching none is rejected in Python too.
+        # Roll->bulk exempts the job's own flow (lineage), so there the filter keeps lineage rolls as well.
+        specs = cls._build_step_target_slots(job, process) if cls._is_lane_group_combine_spec(cls._resolve_step_roll_spec(job, process)) else cls._build_step_target_specs(job, process)
+        material_q = None
+        for spec in specs or []:
+            if not isinstance(spec, dict):
+                continue
+            if spec.get("variant_id"):
+                part = Q(material_id=str(spec["variant_id"]))
+            elif spec.get("family_id"):
+                part = Q(material__parent_family_id=str(spec["family_id"]))
+            else:
+                material_q = None
+                break
+            material_q = part if material_q is None else (material_q | part)
+        if material_q is not None and specs:
+            if is_roll_to_bulk:
+                lineage_q = cls._resolve_job_lineage_filter(job)
+                q &= (material_q | lineage_q) if lineage_q is not None else material_q
+            else:
                 q &= material_q
         if step0_variant_gate and current == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"}:
             purchasable = cls._step0_purchasable_variant_ids(job)
@@ -4639,8 +4701,8 @@ class ExecutionService:
             source_stage_index = 0
         is_processed_remainder = is_remainder and source_stage_index > 0 and roll_role != "RAW_REMAINDER"
 
-        # Roll->bulk must accept reusable semi-fg rolls carried forward as
-        # remainders across orders. Layer-level target specs do not apply here.
+        # Roll->bulk takes the order's own rolls as they are (a laminate or printed web does not match
+        # a single-layer spec); stock from outside the order must meet the step spec (checked below).
         if is_roll_to_bulk:
             try:
                 roll_step_index = int(getattr(roll, "current_step_index", 0) or 0)
@@ -4663,6 +4725,10 @@ class ExecutionService:
                     getattr(job, "id", None),
                     exc_info=True,
                 )
+            # This order's own rolls (laminate, printed web, its remainders) feed the step as they are.
+            # Any other stock must be the specified film, gauge, grade, form and width.
+            if target_specs and not cls._is_job_lineage_roll(job, roll):
+                return cls._roll_matches_target_specs(roll, target_specs)
             return True
 
         if not target_specs:
@@ -6677,6 +6743,7 @@ class ExecutionService:
                     return spec
             return None
 
+        step_contract_specs = cls._build_step_target_specs(job, process)
         # Optimization: Limit to top 50 to prevent overload
         for roll in eligible_qs[:200]:
             logger.debug(
@@ -6820,6 +6887,7 @@ class ExecutionService:
                 },
                 'matched_layer_index': matched_spec.get("layer_index") if matched_spec else None,
                 'matched_variant_name': matched_spec.get("variant_name") if matched_spec else None,
+                **cls.roll_pick_verdict(job, process, roll, step_contract_specs),
                 'roll_role': role_to_show,
                 'stage': (
                     stage_name_resolver(roll)
@@ -7891,21 +7959,9 @@ class ExecutionService:
                 is_eligible = False
 
         auto_window_ok = True
-        roll_behavior = str(getattr(process, "roll_behavior", "") or "").upper()
-        enforce_auto_window = (
-            not manual_override
-            and roll_behavior != "MULTI_INPUT_COMBINE"
-            and not is_roll_to_bulk
-        )
-        if enforce_auto_window:
+        if not manual_override:
             try:
-                strict_specs = cls._build_step_target_specs(job, process)
-                if strict_specs:
-                    auto_window_ok = cls._roll_matches_target_specs(
-                        roll,
-                        strict_specs,
-                        enforce_auto_width_window=True,
-                    )
+                auto_window_ok = cls._roll_auto_window_ok(job, process, roll, physical_specs)
             except Exception:
                 auto_window_ok = True
 
@@ -8185,6 +8241,9 @@ class ExecutionService:
         """
         pool = cls.get_wip_pool(job_id)
         grouped = {}
+        verdict_job = ProductionJob.objects.select_related("current_process", "process", "sales_order_item", "mts_order").get(id=job_id)
+        verdict_process = verdict_job.current_process or verdict_job.process
+        verdict_specs = cls._build_step_target_specs(verdict_job, verdict_process)
         try:
             from apps.inventory.serializers import (
                 resolve_roll_display_label,
@@ -8231,7 +8290,8 @@ class ExecutionService:
                     resolve_roll_stage_name(roll)
                     if resolve_roll_stage_name
                     else (f"Stage {int(getattr(roll, 'stage_index', 0) or 0)}")
-                )
+                ),
+                **cls.roll_pick_verdict(verdict_job, verdict_process, roll, verdict_specs),
             })
         return grouped
 

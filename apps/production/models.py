@@ -257,6 +257,17 @@ class ProductionJob(models.Model):
     def total_routing_steps(self):
         return len(self.routing_rule.ordered_processes)
 
+    CLOSED_STATES = ("COMPLETED", "CANCELLED")
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # A closed job's downtime is over: whatever path closed it (finish, skip, short-close,
+        # cancel), no downtime may stay open and keep its machine reading "Down".
+        update_fields = kwargs.get("update_fields")
+        state_saved = update_fields is None or bool({"job_state", "status"} & set(update_fields))
+        if state_saved and (self.job_state in self.CLOSED_STATES or self.status in self.CLOSED_STATES):
+            close_open_downtime_for_job(self.pk, ended_at=self.closed_at or self.end_date)
+
     def __str__(self):
         proc_code = self.current_process.code if self.current_process else "NO_PROC"
         return f"{self.job_number} | {proc_code} ({self.current_step_index + 1}/{self.total_routing_steps}) | {self.status}"
@@ -1024,6 +1035,21 @@ class DowntimeLog(models.Model):
             delta = self.end_time - self.start_time
             return delta.total_seconds() / 60
         return 0
+
+
+def close_open_downtime_for_job(job_id, *, ended_at=None) -> int:
+    """End every open downtime of a job at ``ended_at`` (now by default), never before its start."""
+    from django.db.models import F, Value
+    from django.db.models.functions import Greatest
+    from django.utils import timezone
+
+    if not job_id:
+        return 0
+    ended = ended_at or timezone.now()
+    return DowntimeLog.objects.filter(production_job_id=job_id, end_time__isnull=True).update(
+        end_time=Greatest(F("start_time"), Value(ended))
+    )
+
 
 class MaterialConsumptionLog(models.Model):
     """

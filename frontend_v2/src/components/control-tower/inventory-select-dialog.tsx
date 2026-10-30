@@ -20,6 +20,7 @@ import { useAuth } from "@/components/auth-provider";
 import { describeApiError } from "@/lib/api";
 import { needsPlannerRelease, savePendingPlannerOperation, removePendingPlannerOperation, type PendingPlannerOperation } from "@/lib/planner-recovery";
 import { Button, Chip } from "@/components/_planner-ui";
+import { useCanFollowLink } from "@/components/layout/use-nav-access";
 
 interface InventorySelectDialogProps {
     order: PlannerControlOrder | null;
@@ -236,6 +237,9 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
         setWidthFitFilter("ALL");
     }, [order?.order_id, order?.sales_order_item_id]);
 
+    const canFollowLink = useCanFollowLink();
+    const heldClosedCount = Number(order?.held_stock?.closed_count || 0);
+    const heldClosedOrders = Array.isArray(order?.held_stock?.closed_orders) ? order!.held_stock!.closed_orders! : [];
     const fgOptions = useMemo<PlannerInventoryOption[]>(() => {
         if (!order) return [];
         // Freed sealed gonnies are claimed whole from the finished-stock wizard, not allocated here.
@@ -611,6 +615,39 @@ export function InventorySelectDialog({ order, onClose, onCommitted }: Inventory
                             />
                         </div>
                     </div>
+
+                    {heldClosedCount > 0 ? (
+                        <div
+                            data-testid="held-closed-stock-note"
+                            style={{
+                                marginBottom: 14,
+                                padding: "10px 12px",
+                                background: "rgba(245,158,11,.09)",
+                                border: "1px solid rgba(245,158,11,.32)",
+                                borderRadius: "var(--r-3)",
+                                fontSize: 11,
+                                color: "var(--text-2)",
+                            }}
+                        >
+                            <div style={{ fontWeight: 650, color: "var(--warning-fg)" }}>
+                                {heldClosedCount} matching {heldClosedCount === 1 ? "unit" : "units"} ({fmt(order.held_stock?.closed_kg, 1)} kg) still belong to closed{" "}
+                                {heldClosedOrders.length === 1 ? "order" : "orders"} {heldClosedOrders.slice(0, 4).join(", ")}
+                                {heldClosedOrders.length > 4 ? ` +${heldClosedOrders.length - 4} more` : ""}
+                            </div>
+                            <div style={{ marginTop: 3 }}>
+                                They are not listed here because a claim cannot take stock that belongs to another order. Move them to free stock in
+                                Dispatch Bay (Move to stock on the closed line) and they appear here.
+                                {canFollowLink("/logistics/dispatch") ? (
+                                    <>
+                                        {" "}
+                                        <a href="/logistics/dispatch" style={{ color: "var(--br-700)", fontWeight: 650 }}>
+                                            Open Dispatch Bay
+                                        </a>
+                                    </>
+                                ) : null}
+                            </div>
+                        </div>
+                    ) : null}
 
                     <RouteSpanPreview
                         mode={mode}
