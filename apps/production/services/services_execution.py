@@ -106,7 +106,7 @@ class ExecutionService:
             "V2_STEP_VARIANT_MATCH": "Film layers matching the output variant",
             "V2_ROLL_MASS_TARGET": "Order quantity for roll-mass job",
             "V2_FINAL_STEP_ORDER_TARGET": "Final route step uses the full order target",
-            "V2_FINAL_STEP_PARTIAL_REPLAN_TARGET": "Partial replan final step uses remaining job demand",
+            "V2_FINAL_STEP_PARTIAL_REPLAN_TARGET": "Final step makes this job's own quantity (re-plan, balance or cut to upstream output)",
             "V2_TARGET_UNRESOLVED": "Target could not be resolved",
             "V2_DEFAULT": "Default target derivation",
         }.get(str(source or ""), "Unknown target derivation")
@@ -1305,6 +1305,34 @@ class ExecutionService:
         return requirement.get("mode") in {"MASS", "LANES"}
 
     @classmethod
+    def _roll_requirement_mode(cls, job, process, spec):
+        """(mode, roll count) of a step's roll contract without computing its targets."""
+        behavior = str(getattr(process, "roll_behavior", "NONE") or "NONE").upper()
+        input_form = str(getattr(process, "input_form", "BULK") or "BULK").upper()
+        output_form = str(getattr(process, "output_form", "ROLL") or "ROLL").upper()
+        if input_form != "ROLL":
+            return "NONE", 0
+        count = cls._required_roll_count(job, process, spec)
+        lane_group = behavior == "MULTI_INPUT_COMBINE" and cls._is_lane_group_combine_spec(spec)
+        if behavior == "MULTI_INPUT_COMBINE" and not lane_group:
+            return ("COUNT" if count > 0 else "NONE"), count
+        if behavior == "NONE" and output_form != "BULK":
+            # Legacy roll->roll NONE steps keep their count contract for multi-layer jobs.
+            inferred_layer_count = 0
+            try:
+                layer_snapshot = cls._job_layer_snapshot(job)
+                if isinstance(layer_snapshot, list):
+                    inferred_layer_count = len([layer for layer in layer_snapshot if isinstance(layer, dict)])
+            except Exception:
+                inferred_layer_count = 0
+            if inferred_layer_count > 1 or count > 1:
+                return ("COUNT" if count > 0 else "NONE"), count
+        if count <= 0 and not (behavior == "NONE" and output_form == "BULK"):
+            # An explicit zero-roll step spec (for example a roll step skipped for this product).
+            return "NONE", count
+        return ("LANES" if lane_group else "MASS"), count
+
+    @classmethod
     def _roll_requirement(cls, job, process=None, step_roll_spec=None):
         """
         One roll contract for the step, used by readiness, allocation, logging and the terminals.
@@ -1323,33 +1351,14 @@ class ExecutionService:
         none = {"mode": "NONE", "min_count": 0, "max_count": 0, "target_kg": 0.0, "tolerance_kg": 0.0, "lanes": []}
         if not process:
             return none
-        behavior = str(getattr(process, "roll_behavior", "NONE") or "NONE").upper()
-        input_form = str(getattr(process, "input_form", "BULK") or "BULK").upper()
-        output_form = str(getattr(process, "output_form", "ROLL") or "ROLL").upper()
-        if input_form != "ROLL":
-            return none
         spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
-        count = cls._required_roll_count(job, process, spec)
-        lane_group = behavior == "MULTI_INPUT_COMBINE" and cls._is_lane_group_combine_spec(spec)
-
-        if behavior == "MULTI_INPUT_COMBINE" and not lane_group:
-            return {"mode": "COUNT" if count > 0 else "NONE", "min_count": count, "max_count": count,
-                    "target_kg": 0.0, "tolerance_kg": 0.0, "lanes": []}
-        if behavior == "NONE" and output_form != "BULK":
-            # Legacy roll->roll NONE steps keep their count contract for multi-layer jobs.
-            inferred_layer_count = 0
-            try:
-                layer_snapshot = cls._job_layer_snapshot(job)
-                if isinstance(layer_snapshot, list):
-                    inferred_layer_count = len([layer for layer in layer_snapshot if isinstance(layer, dict)])
-            except Exception:
-                inferred_layer_count = 0
-            if inferred_layer_count > 1 or count > 1:
-                return {"mode": "COUNT" if count > 0 else "NONE", "min_count": count, "max_count": count,
-                        "target_kg": 0.0, "tolerance_kg": 0.0, "lanes": []}
-        if count <= 0 and not (behavior == "NONE" and output_form == "BULK"):
-            # An explicit zero-roll step spec (for example a roll step skipped for this product).
+        mode, count = cls._roll_requirement_mode(job, process, spec)
+        if mode == "NONE":
             return none
+        if mode == "COUNT":
+            return {"mode": "COUNT", "min_count": count, "max_count": count,
+                    "target_kg": 0.0, "tolerance_kg": 0.0, "lanes": []}
+        lane_group = mode == "LANES"
 
         target_kg = Decimal("0")
         remaining_kg = Decimal("0")
@@ -2665,7 +2674,12 @@ class ExecutionService:
             so_item = getattr(job, "sales_order_item", None)
             mts_order = mts_order_ref
             planner_notes = str(getattr(job, "planner_notes", "") or "").upper()
-            is_partial_replan_job = "PARTIAL_REPLAN" in planner_notes
+            # Planner re-plan jobs, balance jobs and steps cut to what an upstream step made run
+            # their own quantity, never the whole line.
+            is_partial_replan_job = (
+                "PARTIAL_REPLAN" in planner_notes
+                or str((getattr(job, "meta_json", None) or {}).get("quantity_basis") or "").upper() == "JOB"
+            )
             if so_item is not None:
                 order_target_kg = max(order_target_kg, _as_decimal(getattr(so_item, "total_weight_kg", 0)))
             if mts_order is not None:
@@ -5112,6 +5126,15 @@ class ExecutionService:
         if required_for_step and current_step_index == 0 and roll_behavior in {"MODIFY_EXISTING", "SPLIT"}:
             action_hints.append("Step 1 requires explicit raw/purchasable roll allocation.")
 
+        upstream_elsewhere = cls._upstream_rolls_elsewhere(job, plant_id, seen) if required_for_step else []
+        if upstream_elsewhere:
+            in_transit = sum(1 for row in upstream_elsewhere if row["in_transit"])
+            action_hints.append(
+                f"{len(upstream_elsewhere)} roll(s) made by the step before are not at this plant yet"
+                + (f" ({in_transit} in transit)" if in_transit else "")
+                + ": receive the inter-plant challan to use them here."
+            )
+
         return {
             "pool": discoverable_pool,
             "discoverable_pool": discoverable_pool,
@@ -5141,10 +5164,51 @@ class ExecutionService:
                 "missing_discoverable_rolls": missing_discoverable_rolls,
                 "blocked_reasons": blocked_reasons,
                 "action_hints": action_hints,
+                "upstream_elsewhere": upstream_elsewhere,
                 "execution_model_version": cls._execution_model_version(job),
             },
             "recent_lineage": cls._recent_lineage_rolls(job, plant_id),
         }
+
+    @classmethod
+    def _upstream_rolls_elsewhere(cls, job, plant_id, seen_ids):
+        """
+        Live rolls made by this step's input steps that the WIP pool cannot offer because they
+        are at another plant or in transit (an inter-plant challan not yet received).
+        """
+        if not plant_id:
+            return []
+        from apps.production.services.job_services import JobService
+
+        try:
+            inputs = JobService.input_steps(job)
+        except Exception:
+            return []
+        if not inputs:
+            return []
+        rows = (
+            InventoryRoll.objects.filter(created_by_job__in=inputs, status__in=["AVAILABLE", "RESERVED"])
+            .exclude(id__in=list(seen_ids or []))
+            .select_related("location__plant", "created_by_job")
+            .order_by("-created_at")[:50]
+        )
+        out = []
+        for roll in rows:
+            location = getattr(roll, "location", None)
+            in_transit = bool(location and location.code == "IN_TRANSIT")
+            elsewhere = bool(location and location.plant_id and str(location.plant_id) != str(plant_id))
+            if not (in_transit or elsewhere):
+                continue
+            out.append({
+                "id": str(roll.id),
+                "label_id": roll.label_id,
+                "weight_kg": float(roll.weight_kg or 0),
+                "made_by_job": getattr(roll.created_by_job, "job_number", "") or "",
+                "location_name": getattr(location, "name", "") or "",
+                "plant_name": getattr(getattr(location, "plant", None), "name", "") or "",
+                "in_transit": in_transit,
+            })
+        return out
 
     @_memoized_read(lambda job: ("wip_pool",) + _job_key(job))
     def _resolve_wip_pool_details(cls, job):
@@ -8295,6 +8359,75 @@ class ExecutionService:
             })
         return grouped
 
+    @classmethod
+    def roll_readiness(cls, job, process=None, step_roll_spec=None, *, rolls_required=None, with_targets=True):
+        """
+        The current-step roll gate, one rule for the satisfaction status, the queue's material flag
+        and release. MASS: one roll with weight makes the step runnable; a short load is a partial
+        run (what is not made returns as a balance job when the step closes short), never a gate.
+        LANES: one roll with weight per lane. COUNT: the fixed number of rolls.
+        """
+        process = process or job.current_process or job.process
+        spec = step_roll_spec if step_roll_spec is not None else cls._resolve_step_roll_spec(job, process)
+        if rolls_required is None:
+            rolls_required = cls._required_roll_count(job, process, spec)
+        weights = list(
+            InventoryReservation.objects.filter(job=job, status="ACTIVE", roll__isnull=False)
+            .values_list("roll__weight_kg", flat=True)
+        )
+        reserved_count = len(weights)
+        reserved_kg = sum((cls._safe_decimal(weight) for weight in weights), Decimal("0"))
+        mode, _count = cls._roll_requirement_mode(job, process, spec)
+        # The queue flag needs only the gate; targets are computed when shown or when lanes need them.
+        if with_targets or mode == "LANES":
+            requirement = cls._roll_requirement(job, process, spec)
+        else:
+            requirement = {"mode": mode, "min_count": _count if mode == "COUNT" else (1 if mode == "MASS" else 0)}
+        lane_summary = []
+        if mode == "MASS":
+            rolls_missing = 0 if (reserved_count >= 1 and reserved_kg > cls.ROLL_EMPTY_EPSILON_KG) else 1
+        elif mode == "LANES":
+            lane_state = cls._roll_lane_state(job, process, spec, requirement)
+            rolls_missing = sum(
+                1 for lane in lane_state.get("lanes") or []
+                if cls._safe_decimal(lane.get("remaining_kg")) <= cls.ROLL_EMPTY_EPSILON_KG
+            )
+            for lane in lane_state.get("lanes") or []:
+                need = cls._safe_decimal(lane.get("need_kg") or 0)
+                left = cls._safe_decimal(lane.get("remaining_kg") or 0)
+                lane_summary.append({
+                    "lane_key": lane.get("lane_key"),
+                    "label": lane.get("label"),
+                    "rolls": len(lane.get("rolls") or []),
+                    "loaded_kg": float(left),
+                    "need_kg": float(need),
+                    "short_kg": float(max(Decimal("0"), need - left)),
+                })
+        else:
+            rolls_missing = max(0, int(rolls_required or 0) - reserved_count)
+        return {
+            "mode": mode,
+            "requirement": requirement,
+            "rolls_required": int(rolls_required or 0),
+            "reserved_count": reserved_count,
+            "reserved_kg": reserved_kg,
+            "rolls_missing": rolls_missing,
+            "lane_summary": lane_summary,
+        }
+
+    @classmethod
+    def roll_shortage_message(cls, readiness):
+        """Plain words for a roll gate that is not met (empty when it is)."""
+        missing = int((readiness or {}).get("rolls_missing") or 0)
+        if missing <= 0:
+            return ""
+        mode = (readiness or {}).get("mode")
+        if mode == "MASS":
+            return "Roll shortage: no roll with weight is allocated yet."
+        if mode == "LANES":
+            return f"Roll shortage: {missing} layer lane{'s' if missing != 1 else ''} without a roll."
+        return f"Roll shortage: {missing} more roll{'s' if missing != 1 else ''} required."
+
     @_memoized_read(lambda job_id: ("satisfaction", str(job_id)))
     def get_satisfaction_status(cls, job_id):
         """
@@ -8350,35 +8483,12 @@ class ExecutionService:
         rolls_missing_pool = max(0, rolls_required - rolls_pool)
         rolls_missing_lineage = max(0, rolls_required - rolls_available)
 
-        # Current-step readiness depends on active assignments only.
-        roll_requirement = cls._roll_requirement(job, process, current_step_roll_spec)
-        reserved_kg = Decimal("0")
-        for weight in reservation_qs.filter(status='ACTIVE').values_list('roll__weight_kg', flat=True):
-            reserved_kg += cls._safe_decimal(weight)
-        lane_summary = []
-        if roll_requirement.get("mode") == "MASS":
-            # Mass-fed step: one roll with weight makes the step runnable; the shortfall
-            # is information for the planner, not a gate (partial runs are allowed).
-            rolls_missing = 0 if (reserved_count >= 1 and reserved_kg > cls.ROLL_EMPTY_EPSILON_KG) else 1
-        elif roll_requirement.get("mode") == "LANES":
-            lane_state = cls._roll_lane_state(job, process, current_step_roll_spec, roll_requirement)
-            rolls_missing = sum(
-                1 for lane in lane_state.get("lanes") or []
-                if cls._safe_decimal(lane.get("remaining_kg")) <= cls.ROLL_EMPTY_EPSILON_KG
-            )
-            for lane in lane_state.get("lanes") or []:
-                need = cls._safe_decimal(lane.get("need_kg") or 0)
-                left = cls._safe_decimal(lane.get("remaining_kg") or 0)
-                lane_summary.append({
-                    "lane_key": lane.get("lane_key"),
-                    "label": lane.get("label"),
-                    "rolls": len(lane.get("rolls") or []),
-                    "loaded_kg": float(left),
-                    "need_kg": float(need),
-                    "short_kg": float(max(Decimal("0"), need - left)),
-                })
-        else:
-            rolls_missing = max(0, rolls_required - reserved_count)
+        # Current-step readiness depends on active assignments only (same rule as the queue flag).
+        readiness = cls.roll_readiness(job, process, current_step_roll_spec, rolls_required=rolls_required)
+        roll_requirement = readiness["requirement"]
+        reserved_kg = readiness["reserved_kg"]
+        lane_summary = readiness["lane_summary"]
+        rolls_missing = readiness["rolls_missing"]
         roll_satisfied = (rolls_missing == 0)
         roll_target_kg = cls._safe_decimal(roll_requirement.get("target_kg") or 0)
         roll_need_kg = cls._safe_decimal(roll_requirement.get("remaining_kg") or 0) if roll_requirement.get("remaining_kg") is not None else roll_target_kg

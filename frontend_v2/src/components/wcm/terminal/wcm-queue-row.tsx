@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { inchesText } from "@/lib/size-naming";
 import { normalizeProductSpec } from "@/lib/product-spec";
+import { partialFlowTags } from "@/lib/partial-flow";
 
 const clean = (value: unknown) => String(value ?? "").trim();
 const firstNonEmpty = (...values: unknown[]) => values.map(clean).find(Boolean) || "";
@@ -347,6 +348,16 @@ export function WcmQueueRow({
         {row.spec.addonLabels.map((label) => (
           <span key={`addon-${label}`} className="rounded-md border border-warning-border bg-warning-bg px-1.5 py-0.5 text-[11px] font-semibold text-warning-fg">
             + {label}
+          </span>
+        ))}
+        {partialFlowTags(row.job).map((tag) => (
+          <span
+            key={`partial-${tag.key}`}
+            title={tag.title}
+            data-testid={`wcm-queue-partial-${tag.key}`}
+            className="rounded-md border border-order-border bg-order-bg px-1.5 py-0.5 text-[11px] font-bold text-order-fg"
+          >
+            {tag.label}
           </span>
         ))}
         <span className="rounded-md border border-order-border bg-order-bg px-1.5 py-0.5 text-[11px] font-semibold text-order-fg">

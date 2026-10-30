@@ -479,6 +479,12 @@ def machine_log_output(request, machine_id, job_id):
         )
 
 
+def _truthy(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {"0", "false", "no", "off", ""}
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def machine_complete_job(request, machine_id, job_id):
@@ -509,14 +515,17 @@ def machine_complete_job(request, machine_id, job_id):
         material_confirmations = request.data.get("material_confirmations") if request.data else None
         if material_confirmations is None:
             material_confirmations = getattr(job_for_completion, "current_step_material_confirmations", None)
+        requeue_balance = _truthy(request.data.get("requeue_balance", True)) if request.data else True
         job = OperatorService.complete_step(
             job_id,
             request.user,
             force_reason=force_reason or None,
             material_confirmations=material_confirmations,
             require_material_confirmations=True,
+            requeue_balance=requeue_balance,
         )
         response_data = ProductionJobSerializer(job).data
+        response_data["partial_balance"] = getattr(job, "_partial_balance", None)
         response_data["completion_mode"] = getattr(job, "_completion_mode", "NORMAL")
         response_data["variance_kg"] = getattr(job, "_completion_variance_kg", 0.0)
         response_data["force_reason"] = getattr(job, "_completion_force_reason", None)

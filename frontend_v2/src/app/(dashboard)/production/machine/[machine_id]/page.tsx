@@ -79,6 +79,8 @@ import { CylinderSetCard } from "@/components/machine/cylinder-artwork";
 import { PrintColorRevisionNotice } from "@/components/production/print-color-revision-notice";
 import { ProductionOrderSpecRail } from "@/components/production/production-order-spec-rail";
 import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/components/production/roll-lanes-panel";
+import { PartialBalanceChoice } from "@/components/production/partial-balance-choice";
+import { formatPartialQty } from "@/lib/partial-flow";
 import { JobNameTag } from "@/components/spine/job-name-tag";
 
 type QueueFilter = "ALL" | "RUNNING" | "READY" | "PAUSED";
@@ -914,6 +916,8 @@ export default function MachineExecutionPage() {
   const [remainderLocationId, setRemainderLocationId] =
     useState(DEFAULT_REMAINDER);
   const [forceReason, setForceReason] = useState("");
+  // A short close sends what was not made back to the queue as a balance job (on by default).
+  const [requeueBalance, setRequeueBalance] = useState(true);
   const [materialConfirmations, setMaterialConfirmations] = useState<
     Record<string, MaterialConfirmationDraft>
   >({});
@@ -1807,6 +1811,7 @@ export default function MachineExecutionPage() {
     setWasteNote("");
     setRemainderLocationId(DEFAULT_REMAINDER);
     setForceReason("");
+    setRequeueBalance(true);
     setConsumptionMaterialId(materialRowsFromContext[0]?.id || "");
     setConsumptionQty("");
     setQualityRows(qualityPreset(variant));
@@ -2202,19 +2207,22 @@ export default function MachineExecutionPage() {
         .filter((row) => row.requirement_id);
       return machineService.completeJob(machineId, String(selectedJob.id), {
         force_reason: completionReason || undefined,
+        requeue_balance: requeueBalance,
         material_confirmations: material_confirmations.length
           ? material_confirmations
           : undefined,
       });
     },
     onSuccess: async (data) => {
+      const balance = data?.partial_balance;
       toast({
         title:
           data?.completion_mode === "FORCED_VARIANCE"
             ? "Step force-completed"
             : "Step completed",
-        description:
-          data?.completion_mode === "FORCED_VARIANCE"
+        description: balance
+          ? `Variance ${kg(data?.variance_kg)} · balance ${formatPartialQty(balance.qty, balance.uom)} back in the queue as ${balance.first_job_number} · बाकी माल फिर से कतार में`
+          : data?.completion_mode === "FORCED_VARIANCE"
             ? `Variance ${kg(data?.variance_kg)}`
             : "Routing advanced with current-step actuals.",
       });
@@ -3285,6 +3293,16 @@ export default function MachineExecutionPage() {
       />
       {activeTab === "run" ? (
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-line bg-surface-1/96 shadow-[0_-24px_70px_-36px_rgba(15,23,42,0.7)] backdrop-blur supports-[backdrop-filter]:bg-surface-1/88 lg:left-[76px]">
+          {needsForceComplete && forceReason.trim().length > 0 ? (
+            <div className="mx-auto max-w-[1780px] px-3 pt-2 md:px-5">
+              <PartialBalanceChoice
+                preview={(selectedJob as any)?.partial_flow?.preview}
+                checked={requeueBalance}
+                onChange={setRequeueBalance}
+                testId="machine-requeue-balance"
+              />
+            </div>
+          ) : null}
           <div className="mx-auto flex max-w-[1780px] flex-col gap-2 px-3 py-2 md:px-5 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex min-w-0 shrink-0 items-center gap-2">
               <div className="rounded-xl border border-success-border bg-success-bg px-3 py-2">

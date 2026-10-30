@@ -23,6 +23,7 @@ import {
   micronText,
   num as n,
   parseLayers,
+  rollMicronText,
 } from "@/components/logistics/yard-ui";
 import { logisticsService, type Gonny, type PackingCheckSummary, type SOPackingSummary } from "@/services/logistics";
 import type { PackagingMaterial } from "@/services/master-data";
@@ -819,6 +820,7 @@ function Plate({ line, showOrder }: { line: PackLine; showOrder?: boolean }) {
   const { metric, imperial, unit } = sizeParts(line.sample, isRoll);
   const layers = parseLayers(line.sample?.layers_label);
   const thickness = micronText(line.sample?.thickness_label);
+  const rollMicron = line.rolls.length ? rollMicronText(line.rolls) : "";
   const batch = line.batches[0];
   const plan = batch ? packingPlanOf(batch) : undefined;
   const perPc = Number(plan?.net_kg_per_pcs || 0) * 1000;
@@ -850,6 +852,11 @@ function Plate({ line, showOrder }: { line: PackLine; showOrder?: boolean }) {
         ))}
         {thickness ? (
           <span className="rounded-md bg-content-1 px-1.5 py-px font-mono text-[10.5px] font-semibold text-surface-1">= {thickness}</span>
+        ) : null}
+        {rollMicron ? (
+          <span className="rounded-md bg-content-1 px-1.5 py-px font-mono text-[10.5px] font-semibold text-surface-1" data-testid="packing-plate-roll-thickness">
+            roll {rollMicron}
+          </span>
         ) : null}
       </div>
       <div className="mt-2.5 grid gap-x-4 gap-y-2 border-t border-line pt-2.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -1648,6 +1655,8 @@ function RollLine({ line, draft, patchDraft, markMasters, busy, onRelease, relea
                   <span className="block truncate font-mono text-[12.5px] font-semibold text-content-1">{roll.label_id}</span>
                   <span className="block truncate text-[11.5px] text-content-3">
                     {roll.split_parent_label ? `split of ${roll.split_parent_label}` : roll.dispatch_lineage === "STOCK_CLAIM" ? "stock claim" : "full roll"}
+                    {Number(roll.thickness_micron || 0) > 0 ? ` · ${Math.round(Number(roll.thickness_micron) * 10) / 10} µ` : ""}
+                    {Number(roll.width_mm || 0) > 0 ? ` · ${Math.round(Number(roll.width_mm))} mm` : ""}
                     {roll.location?.name ? ` · ${roll.location.name}` : ""}
                     {released ? " · in Dispatch Bay" : ""}
                   </span>

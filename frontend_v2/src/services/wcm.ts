@@ -391,11 +391,17 @@ export const wcmService = {
         });
         return data;
     },
-    closeJob: async (assignmentId: string, mode: "SHORT_CLOSE" | "CANCEL", reason: string) => {
-        const { data } = await api.post<WorkCenterAssignment>(`/api/production/wc-allocation/close-job/`, {
+    closeJob: async (
+        assignmentId: string,
+        mode: "SHORT_CLOSE" | "CANCEL",
+        reason: string,
+        options?: { requeue_balance?: boolean },
+    ) => {
+        const { data } = await api.post<WorkCenterAssignment & { partial_balance?: any }>(`/api/production/wc-allocation/close-job/`, {
             assignment_id: assignmentId,
             mode,
             reason,
+            ...(options || {}),
         });
         return data;
     },

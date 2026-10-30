@@ -35,6 +35,7 @@ import {
   micronText,
   num as n,
   parseLayers,
+  rollMicronText,
   titleCase,
 } from "@/components/logistics/yard-ui";
 import type { PackingBoardSnapshot, PackingCheckSummary, SOPackingSummary } from "@/services/logistics";
@@ -83,6 +84,7 @@ function LineIdentity({ line }: { line: PackLine }) {
     micron: layer.micron || (microns.length === parseLayers(row?.layers_label).length && microns[index] ? `${microns[index]}µ` : ""),
   }));
   const totalMicron = microns.length && microns.every((part) => Number.isFinite(Number(part))) ? microns.reduce((sum, part) => sum + Number(part), 0) : null;
+  const rollMicron = line.rolls.length ? rollMicronText(line.rolls) : "";
   const batch = line.batches[0];
   const plan = batch ? packingPlanOf(batch) : undefined;
   const Glyph = isRoll ? Cylinder : Package;
@@ -116,6 +118,15 @@ function LineIdentity({ line }: { line: PackLine }) {
           ) : thickness ? (
             <span className="inline-flex items-center rounded-md border border-line bg-surface-1 px-1.5 py-px font-mono text-[10.5px] font-semibold text-content-1">
               = {thickness}
+            </span>
+          ) : null}
+          {rollMicron ? (
+            <span
+              className="inline-flex items-center rounded-md bg-content-1 px-1.5 py-px font-mono text-[10.5px] font-semibold text-surface-1"
+              title="Thickness of the rolls in the yard"
+              data-testid="packing-roll-thickness"
+            >
+              roll {rollMicron}
             </span>
           ) : null}
           {isRoll ? (

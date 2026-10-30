@@ -6666,6 +6666,10 @@
       {
         "en": "For a part-used roll use \"Return balance\" or \"Roll finished\" in \"Rolls by lane\".",
         "hi": "आधे इस्तेमाल हुए roll के लिए \"Rolls by lane\" में \"Return balance\" या \"Roll finished\" दबाएँ।"
+      },
+      {
+        "en": "Closing short: type the reason, keep \"Send the balance back to the queue\" ticked and press \"Force complete\". The unmade part goes back to the work centre queue as a balance job; untick it only when the rest is not needed.",
+        "hi": "कम पर बंद करना: कारण लिखें, \"Send the balance back to the queue\" पर टिक रहने दें और \"Force complete\" दबाएँ। न बना हिस्सा balance job बनकर work centre की queue में वापस जाता है; बाकी की ज़रूरत न हो तभी टिक हटाएँ।"
       }
     ],
     "fieldHelp": [
@@ -7689,6 +7693,10 @@
       {
         "en": "Use ⋯ \"More job actions\" for \"Short close step\", \"Cancel job\" or \"Recalculate from masters\".",
         "hi": "⋯ \"More job actions\" से \"Short close step\", \"Cancel job\" या \"Recalculate from masters\"।"
+      },
+      {
+        "en": "Partial run: a step may start with less roll than the order needs (one roll with weight is enough). If it closes short, keep \"Send the balance back to the queue\" ticked: what was not made comes back to this queue as a balance job, and the later steps of the batch make only what this step made. Over-allocation is fine: the leftover on a roll is returned after the run.",
+        "hi": "Partial run: step order से कम roll के साथ भी शुरू हो सकता है (वज़न वाला एक roll काफ़ी है)। अगर step कम पर बंद हो, तो \"Send the balance back to the queue\" पर टिक रहने दें: जो नहीं बना वह balance job बनकर इसी queue में वापस आता है, और batch के आगे के step उतना ही बनाते हैं जितना इस step ने बनाया। ज़्यादा roll देना ठीक है: roll पर बचा माल run के बाद वापस होता है।"
       }
     ],
     "fieldHelp": [
@@ -7790,6 +7798,16 @@
         "help": {
           "en": "\"WCM audit and production history\": status, Material issue, Short close; Today / Last 7 days / Last 30 days / All history; newest 300 shown.",
           "hi": "\"WCM audit and production history\": status, Material issue, Short close; Today / Last 7 days / Last 30 days / All history; नए 300 दिखते हैं।"
+        }
+      },
+      {
+        "field": {
+          "en": "Partial filter · Balance / Cut to tags",
+          "hi": "Partial filter · Balance / Cut to tag"
+        },
+        "help": {
+          "en": "\"Partial\" lists balance jobs (\"Balance · qty\": what an earlier short close did not make) and steps cut to what reached them (\"Cut to qty\").",
+          "hi": "\"Partial\" में balance job (\"Balance · qty\": पिछली कम बंदी में जो नहीं बना) और वे step दिखते हैं जिन्हें आए माल जितना कर दिया गया (\"Cut to qty\")।"
         }
       }
     ],
@@ -15010,6 +15028,16 @@
         "help": {
           "en": "Shown when the order has no pieces per inner pouch: type how many inner packs went into this gonny. They are booked to the order by the evening count.",
           "hi": "जब ऑर्डर में pieces per inner pouch नहीं होता तब दिखता है: इस gonny में कितने inner pack गए, लिखें। शाम की गिनती इन्हें ऑर्डर पर बुक करती है।"
+        }
+      },
+      {
+        "field": {
+          "en": "roll µ (roll lines)",
+          "hi": "roll µ (roll line)"
+        },
+        "help": {
+          "en": "Thickness of the rolls themselves, on the line and on every roll in the release list, so the right add-on task (sheet, wrap) is easy to tell.",
+          "hi": "रोल की अपनी मोटाई, लाइन पर और release list के हर रोल पर, ताकि सही add-on काम (sheet, wrap) आसानी से पता चले।"
         }
       }
     ],

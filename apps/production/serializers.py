@@ -195,6 +195,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
     unit_weight_g = serializers.SerializerMethodField()
     total_weight_kg = serializers.SerializerMethodField()
     execution_profile = serializers.SerializerMethodField()
+    partial_flow = serializers.SerializerMethodField()
     production_batch_id = serializers.SerializerMethodField()
     production_batch_number = serializers.SerializerMethodField()
     production_batch_status = serializers.SerializerMethodField()
@@ -339,7 +340,31 @@ class ProductionJobSerializer(serializers.ModelSerializer):
         if (self.context or {}).get("skip_execution_profile"):
             return None
         from apps.production.services.services_execution import ExecutionService
-        return ExecutionService.get_step_execution_profile(obj.id, job=obj)
+        profile = ExecutionService.get_step_execution_profile(obj.id, job=obj)
+        obj._serialized_step_profile = profile
+        return profile
+
+    def get_partial_flow(self, obj):
+        """Balance tags for the queues and, on a running step, what a short close would send back."""
+        meta = obj.meta_json if isinstance(obj.meta_json, dict) else {}
+        payload = {
+            "balance_of": meta.get("partial_balance") or None,
+            "quantity_reduced": meta.get("quantity_reduced") or None,
+            "balance_out": meta.get("partial_balance_out") or None,
+            "preview": None,
+        }
+        if str(obj.job_state or "").upper() in {"EXECUTING", "PAUSED", "RELEASED"} and getattr(obj, "sales_order_item_id", None):
+            profile = getattr(obj, "_serialized_step_profile", None)
+            if profile is None and not (self.context or {}).get("skip_execution_profile"):
+                from apps.production.services.services_execution import ExecutionService
+                profile = ExecutionService.get_step_execution_profile(obj.id, job=obj)
+            if profile:
+                from apps.production.services.partial_balance import PartialBalanceService
+                try:
+                    payload["preview"] = PartialBalanceService.preview(obj, profile)
+                except Exception:
+                    payload["preview"] = None
+        return payload
 
     def get_unit_weight_g(self, obj):
         if obj.sales_order_item:
@@ -443,7 +468,7 @@ class ProductionJobSerializer(serializers.ModelSerializer):
             'execution_model_version',
             'geometry', 'layers', 'printing', 'addons',
             'bom_snapshot', 'unit_weight_g', 'total_weight_kg',
-            'execution_profile', 'product_spec',
+            'execution_profile', 'partial_flow', 'product_spec',
             'committed_artwork_id', 'committed_artwork_code', 'committed_artwork_name',
             'ink_colors',
             'current_step_print_capable',

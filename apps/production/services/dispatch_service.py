@@ -1329,6 +1329,7 @@ class FGDispatchService:
                     "tare_weight_kg": roll_weights["tare_weight_kg"],
                     "gross_weight_kg": roll_weights["gross_weight_kg"],
                     "width_mm": float(roll.width_mm or 0),
+                    "thickness_micron": float(roll.thickness_micron or 0),
                     "material__name": getattr(getattr(roll, "material", None), "name", ""),
                     "location": {
                         "id": str(roll.location.id),
@@ -1754,6 +1755,8 @@ class FGDispatchService:
             'label_id': r.label_id,
             'batch_no': r.batch_no or "",
             'weight_kg': float(r.weight_kg),
+            'width_mm': float(r.width_mm or 0),
+            'thickness_micron': float(r.thickness_micron or 0),
             **FGDispatchService._roll_weight_row(r),
             'location': {
                 'id': str(r.location.id),

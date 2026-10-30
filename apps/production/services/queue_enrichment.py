@@ -189,9 +189,8 @@ def _material_block(job):
     Lightweight, side-effect-free material-availability check.
 
     Returns (blocked: bool, reason: str). We intentionally avoid the heavy
-    ``get_satisfaction_status`` (which reconciles reservations and recomputes
-    requirements) on a read path. Instead we use the cheap WIP-pool resolver
-    which already aggregates roll shortage + bulk preview for the current step.
+    ``get_satisfaction_status`` on a read path, but apply the same roll gate
+    (``ExecutionService.roll_readiness``) and the same blocking bulk rule.
     """
     from .services_execution import ExecutionService
 
@@ -201,28 +200,34 @@ def _material_block(job):
 
     reasons = []
 
-    # Roll inputs: compare physics-required roll count against the eligible pool.
-    try:
-        details = ExecutionService._resolve_wip_pool_details(job)
-        meta = details.get("meta") or {}
-        missing_rolls = int(meta.get("missing_rolls") or 0)
-        if missing_rolls > 0 and str(getattr(process, "input_form", "") or "").upper() == "ROLL":
-            reasons.append(f"Roll shortage: {missing_rolls} more roll(s) required.")
-    except Exception as exc:
-        logger.warning(
-            "queue_enrichment: roll material readiness lookup failed for job %s: %s",
-            getattr(job, "id", None),
-            exc,
-            exc_info=True,
-        )
+    # Roll inputs: the same gate as the satisfaction status and release (one roll with weight on a
+    # mass-fed step, one per lane, or the fixed count), so the queue never disagrees with the terminal.
+    if str(getattr(process, "input_form", "") or "").upper() == "ROLL":
+        try:
+            message = ExecutionService.roll_shortage_message(ExecutionService.roll_readiness(job, process, with_targets=False))
+            if message:
+                reasons.append(message)
+        except Exception as exc:
+            logger.warning(
+                "queue_enrichment: roll material readiness lookup failed for job %s: %s",
+                getattr(job, "id", None),
+                exc,
+                exc_info=True,
+            )
 
-    # Bulk inputs: any required bulk material with insufficient available qty.
+    # Bulk inputs: any blocking material with insufficient available qty. Inks are mixed at the
+    # press and add-ons block only when ADDON_SHORTAGE_BLOCKS is on (same as release).
     try:
         from decimal import Decimal
+        from django.conf import settings as dj_settings
 
+        addon_shortage_blocks = bool(getattr(dj_settings, "ADDON_SHORTAGE_BLOCKS", False))
         bulk_preview = ExecutionService.get_bulk_consumption_preview(job)
         for item in bulk_preview or []:
-            if str(item.get("category") or item.get("category_display") or "").strip().upper() == "INK":
+            category = str(item.get("category") or item.get("category_display") or "").strip().upper()
+            if category == "INK":
+                continue
+            if category == "ADDON" and not addon_shortage_blocks:
                 continue
             required = Decimal(str(item.get("required_qty_kg") or 0))
             available = Decimal(str(item.get("available_qty_kg") or 0))

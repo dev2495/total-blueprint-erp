@@ -586,6 +586,31 @@ class BatchExecutionService:
 
     @classmethod
     @transaction.atomic
+    def create_continuation_batch(cls, so_item, *, quantity, uom, source="REPLAN"):
+        """A further batch of a line that already has batches, planned for exactly ``quantity``."""
+        from apps.production.models import ProductionBatch
+
+        template = so_item.template
+        last = so_item.production_batches.order_by("-batch_sequence").first()
+        sequence = int(getattr(last, "batch_sequence", 0) or 0) + 1
+        policy = cls._policy_for_template(template)
+        return ProductionBatch.objects.create(
+            batch_number=cls._next_batch_number(so_item, sequence),
+            sales_order_item=so_item,
+            template=template,
+            routing_rule=template.routing_rule,
+            parent_batch=last,
+            batch_sequence=sequence,
+            planned_qty=_safe_decimal(quantity).quantize(Decimal("0.0001")),
+            planned_uom=str(uom or getattr(so_item, "qty_uom", "KG") or "KG").upper(),
+            source=source,
+            allow_partial_movement=bool(policy.get("allow_partial_movement", True)),
+            route_snapshot=RouteGraphService.public_snapshot(template.routing_rule, template=template),
+            policy_snapshot=policy,
+        )
+
+    @classmethod
+    @transaction.atomic
     def backfill_legacy_sales_item_batch(cls, so_item):
         from apps.production.models import ProductionBatch
 

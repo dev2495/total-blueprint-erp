@@ -1315,10 +1315,15 @@ class JobService:
         material_confirmations=None,
         require_material_confirmations=False,
         material_settled_externally=False,
+        requeue_balance=False,
     ):
         """
         Close-only completion: step closure is based on step-aware target, not order-total.
         If short beyond tolerance, `force_reason` is required.
+
+        ``requeue_balance`` (terminals pass the operator's choice): a sales-line step closed short
+        beyond tolerance cuts the later steps of its batch to what it made and sends the unmade
+        part back to this step's queue as a balance batch (see PartialBalanceService).
 
         ``material_settled_externally`` (job work only): the step ran at an
         outside job worker whose material use was already settled through the
@@ -1360,6 +1365,12 @@ class JobService:
                 f"Provide force_reason to complete with variance."
             )
 
+        balance_plan = None
+        if needs_force and requeue_balance and not material_settled_externally:
+            from apps.production.services.partial_balance import PartialBalanceService
+
+            balance_plan = PartialBalanceService.plan(job, step_profile)
+
         with transaction.atomic():
             if not material_settled_externally:
                 consumption_location_id = job.from_location_id or (
@@ -1382,13 +1393,21 @@ class JobService:
                     user=user,
                     material_confirmations=material_confirmations or [],
                 )
-            return cls._finalize_step_completion(
+            balance = None
+            if balance_plan:
+                from apps.production.services.partial_balance import PartialBalanceService
+
+                # Before finalising: the line must never read as finished while its balance is queued.
+                balance = PartialBalanceService.apply(job, balance_plan, user=user)
+            closed = cls._finalize_step_completion(
                 job,
                 user=user,
                 closed_with_variance=bool(needs_force),
                 variance_kg=remaining_kg if needs_force else Decimal("0"),
                 force_reason=force_reason if needs_force else None,
             )
+            setattr(closed, "_partial_balance", balance)
+            return closed
 
     @classmethod
     def create_jobs_from_order(cls, sales_order_id):
@@ -1451,11 +1470,17 @@ class JobService:
         graph_nodes = RouteGraphService.nodes_for_span(template.routing_rule, start_index, stop_index)
         initial_node_ids = RouteGraphService.initial_node_ids(graph_nodes)
         graph_processes = [node["process_code"] for node in RouteGraphService.normalize(template.routing_rule)["nodes"]]
-        batches = BatchExecutionService.ensure_batches_for_sales_item(
-            so_item,
-            quantity=target_qty,
-            uom=target_uom,
-        )
+        if quantity_override is not None and so_item.production_batches.exists():
+            # A continuation (partial re-plan, continue from WIP, fresh balance) runs only its own
+            # quantity: it gets a batch of its own instead of re-running the line's first batch
+            # at that batch's full planned quantity.
+            batches = [BatchExecutionService.create_continuation_batch(so_item, quantity=target_qty, uom=target_uom)]
+        else:
+            batches = BatchExecutionService.ensure_batches_for_sales_item(
+                so_item,
+                quantity=target_qty,
+                uom=target_uom,
+            )
 
         for batch in batches:
             batch_qty = Decimal(str(batch.planned_qty or target_qty))
@@ -1493,6 +1518,9 @@ class JobService:
                     "route_graph_version": "v3",
                 }
                 meta_json.update(cls._source_layer_identity_meta(so_item))
+                if quantity_override is not None or len(batches) > 1:
+                    # A continuation or one of several batches makes its own quantity, not the line's.
+                    meta_json["quantity_basis"] = "JOB"
                 job = ProductionJob.objects.create(
                     job_number=cls._next_unique_job_number(base_job_number),
                     origin='MTO',

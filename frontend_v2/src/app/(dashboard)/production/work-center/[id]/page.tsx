@@ -114,6 +114,8 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { inventoryService } from "@/services/inventory";
 import { normalizeProductSpec } from "@/lib/product-spec";
+import { isPartialFlowJob } from "@/lib/partial-flow";
+import { PartialBalanceChoice } from "@/components/production/partial-balance-choice";
 import {
   ALL_PRODUCTION_FACET,
   buildProductionFacetOptions,
@@ -848,7 +850,7 @@ export default function WCMTerminal() {
   >({});
   const [queueSearch, setQueueSearch] = useState("");
   const [queueStatusFilter, setQueueStatusFilter] = useState<
-    "ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE"
+    "ALL" | "READY" | "ASSIGNED" | "NEEDS_MACHINE" | "PARTIAL"
   >("ALL");
   const [queueMaterialFilter, setQueueMaterialFilter] = useState(
     ALL_PRODUCTION_FACET,
@@ -926,7 +928,7 @@ export default function WCMTerminal() {
     const nextTab = params.get("tab") || "terminal";
     setActiveMainTab((["terminal", "running", "history", "stalled"].includes(nextTab) ? nextTab : "terminal") as typeof activeMainTab);
     setQueueSearch(params.get("search") || "");
-    setQueueStatusFilter((["ALL", "READY", "ASSIGNED", "NEEDS_MACHINE"].includes(params.get("status") || "ALL") ? params.get("status") || "ALL" : "ALL") as typeof queueStatusFilter);
+    setQueueStatusFilter((["ALL", "READY", "ASSIGNED", "NEEDS_MACHINE", "PARTIAL"].includes(params.get("status") || "ALL") ? params.get("status") || "ALL" : "ALL") as typeof queueStatusFilter);
     setQueueSortKey((["PRIORITY_ASC", "PRIORITY_DESC", "SO_DATE", "CUSTOMER", "MACHINE"].includes(params.get("sort") || "PRIORITY_ASC") ? params.get("sort") || "PRIORITY_ASC" : "PRIORITY_ASC") as typeof queueSortKey);
     setQueueMaterialFilter(params.get("material") || ALL_PRODUCTION_FACET);
     setQueueGradeFilter(params.get("grade") || ALL_PRODUCTION_FACET);
@@ -945,6 +947,7 @@ export default function WCMTerminal() {
     mode: "SHORT_CLOSE" | "CANCEL";
   } | null>(null);
   const [closeJobReason, setCloseJobReason] = useState("");
+  const [closeJobRequeue, setCloseJobRequeue] = useState(true);
   const [closeJobReasonPreset, setCloseJobReasonPreset] = useState("");
   const [skipNextStepAction, setSkipNextStepAction] = useState<{
     previousJob: any;
@@ -1211,6 +1214,7 @@ export default function WCMTerminal() {
       if (queueStatusFilter === "ASSIGNED" && status !== "ASSIGNED")
         return false;
       if (queueStatusFilter === "NEEDS_MACHINE" && hasMachine) return false;
+      if (queueStatusFilter === "PARTIAL" && !isPartialFlowJob(job)) return false;
       if (!matchesProductionFacets(job, queueFacetFilters)) return false;
 
       const search = queueSearch.trim().toLowerCase();
@@ -2054,6 +2058,17 @@ export default function WCMTerminal() {
   );
   const rollAssignmentValidation =
     (executionContext as any)?.roll_assignment_validation || {};
+  // Rolls the step before made that sit at another plant or in transit: not in the pool until received.
+  const upstreamElsewhere: Array<{
+    id: string;
+    label_id: string;
+    weight_kg: number;
+    plant_name?: string;
+    location_name?: string;
+    in_transit?: boolean;
+  }> = Array.isArray((executionContext as any)?.wip_pool_meta?.upstream_elsewhere)
+    ? (executionContext as any).wip_pool_meta.upstream_elsewhere
+    : [];
   const matchedSlotCount = Number(
     (rollAssignmentValidation as any)?.matched_target_slots?.length || 0,
   );
@@ -2828,9 +2843,15 @@ export default function WCMTerminal() {
   const detailCylinderReady = (activeAssignment as any)?.cylinder_ready as
     | boolean
     | undefined;
-  const detailMaterialBlocked = Boolean(
-    (activeAssignment as any)?.material_blocked,
+  // The queue's material flag is computed with the queue list and can lag behind a roll that was
+  // just added. Once this job's satisfaction status (the same rule release applies) is loaded, the
+  // live roll and bulk checks decide.
+  const satisfactionLoadedForJob = Boolean(
+    satisfactionStatus &&
+      String((satisfactionStatus as any)?.job_id || "") === String(selectedJobId || ""),
   );
+  const detailMaterialBlocked =
+    Boolean((activeAssignment as any)?.material_blocked) && !satisfactionLoadedForJob;
   const detailMaterialBlockReason = String(
     (activeAssignment as any)?.material_block_reason || "",
   );
@@ -2912,6 +2933,7 @@ export default function WCMTerminal() {
       refetchContext();
       refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
     },
     onError: (err: any) =>
       toast({
@@ -2940,6 +2962,8 @@ export default function WCMTerminal() {
         queryClient.invalidateQueries({
           queryKey: ["wip-pool-grouped", jobId],
         });
+        queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+        queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
       })
       .catch(() => {
         // Keep silent; WCM can still manually allocate if needed.
@@ -2960,6 +2984,7 @@ export default function WCMTerminal() {
     mutationFn: async (action: () => Promise<any>) => await action(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
       toast({
         title: "Success",
         description: "Action completed successfully.",
@@ -2985,6 +3010,7 @@ export default function WCMTerminal() {
       await refetchContext();
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
     });
   };
 
@@ -2995,6 +3021,7 @@ export default function WCMTerminal() {
       await refetchContext();
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
     });
   };
 
@@ -3012,6 +3039,7 @@ export default function WCMTerminal() {
     await refetchContext();
     await refetchSatisfaction();
     queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+    queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
   };
 
   const handleRequestMaterialTransfer = (
@@ -3096,6 +3124,7 @@ export default function WCMTerminal() {
       await refetchContext();
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
     });
   };
 
@@ -3199,6 +3228,7 @@ export default function WCMTerminal() {
       await refetchContext();
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
       queryClient.invalidateQueries({ queryKey: ["wcm-stats", wcId] });
     });
   };
@@ -3206,18 +3236,28 @@ export default function WCMTerminal() {
   const handleCloseJobAction = () => {
     if (!closeJobAction) return;
     mutation.mutate(async () => {
-      await wcmService.closeJob(
+      const result: any = await wcmService.closeJob(
         closeJobAction.assignment.id,
         closeJobAction.mode,
         closeJobReason.trim(),
+        closeJobAction.mode === "SHORT_CLOSE" ? { requeue_balance: closeJobRequeue } : undefined,
       );
+      const balance = result?.partial_balance;
+      if (balance) {
+        toast({
+          title: "Balance back in the queue",
+          description: `${Number(balance.qty || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })} ${String(balance.uom || "").toLowerCase()} as ${balance.first_job_number}${balance.work_center_name ? ` at ${balance.work_center_name}` : ""}${balance.release_error ? ` (planned, not released: ${balance.release_error})` : ""}.`,
+        });
+      }
       setCloseJobAction(null);
       setCloseJobReason("");
       setCloseJobReasonPreset("");
+      setCloseJobRequeue(true);
       setActiveAssignmentId(null);
       await refetchContext();
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
       queryClient.invalidateQueries({ queryKey: ["wcm-history", wcId] });
     });
   };
@@ -3235,6 +3275,7 @@ export default function WCMTerminal() {
       await refetchContext();
       await refetchSatisfaction();
       queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
       queryClient.invalidateQueries({ queryKey: ["wcm-history", wcId] });
       queryClient.invalidateQueries({ queryKey: ["wcm-stats", wcId] });
     });
@@ -3556,6 +3597,7 @@ export default function WCMTerminal() {
     ).length,
     noMachine: baseQueueAssignments.filter((a: any) => !a?.assigned_machine)
       .length,
+    partial: baseQueueAssignments.filter((a: any) => isPartialFlowJob(a?.job_details)).length,
   };
   const blockerLabel = isReleasedToMachine
     ? "Execution ready"
@@ -4248,6 +4290,24 @@ export default function WCMTerminal() {
                   </div>
                 </div>
                 {rollGuidanceText ? <p className="mt-2 text-[12px] text-content-3">{rollGuidanceText}</p> : null}
+                {upstreamElsewhere.length ? (
+                  <div
+                    className="mt-2 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-fg"
+                    data-testid="wcm-upstream-elsewhere"
+                  >
+                    <b>
+                      {upstreamElsewhere.length} roll{upstreamElsewhere.length === 1 ? "" : "s"} from the step before ·{" "}
+                      {upstreamElsewhere.reduce((sum, row) => sum + Number(row.weight_kg || 0), 0).toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg
+                    </b>{" "}
+                    {upstreamElsewhere.some((row) => row.in_transit) ? "are in transit or at another plant" : "are at another plant"}. Receive the
+                    inter-plant challan to use them here:{" "}
+                    {upstreamElsewhere
+                      .slice(0, 4)
+                      .map((row) => `${row.label_id} (${row.in_transit ? "in transit" : row.plant_name || row.location_name})`)
+                      .join(", ")}
+                    {upstreamElsewhere.length > 4 ? ` +${upstreamElsewhere.length - 4} more` : ""}.
+                  </div>
+                ) : null}
                 {rollsMissing > 0 ? (
                   <div className="mt-3 rounded-xl border border-warning-border bg-warning-bg px-3 py-2 text-xs font-semibold text-warning-fg">
                     Assign {rollsMissing} more roll{rollsMissing === 1 ? "" : "s"}{" "}
@@ -4269,7 +4329,8 @@ export default function WCMTerminal() {
                       {shortRollLanes
                         .map((lane) => `${lane.label} ${Number(lane.short_kg).toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg`)
                         .join(" · ")}
-                      . Add the next roll before it runs out; this does not hold the release.
+                      . Add the next roll before it runs out, or release now as a partial run: what is not made
+                      goes back to this queue as a balance when the step closes short.
                     </span>
                   </div>
                 ) : (
@@ -4324,6 +4385,7 @@ export default function WCMTerminal() {
                       }
                       required={rollMassMode ? Math.max(1, rollMaxCount) : rollsRequired}
                       massMode={rollMassMode}
+                      rollNeedKg={rollMassMode ? rollShortKg : 0}
                       manualOverride={manualOverrideEnabled}
                       overrideReason={overrideReason}
                       onAssigned={() => {
@@ -4332,6 +4394,8 @@ export default function WCMTerminal() {
                         queryClient.invalidateQueries({
                           queryKey: ["wip-pool-grouped", selectedJobId],
                         });
+                        queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+                        queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
                       }}
                     />
                   ) : null}
@@ -6383,6 +6447,7 @@ export default function WCMTerminal() {
                       ["READY", "WC Ready", queueCounts.ready],
                       ["ASSIGNED", "Assigned", queueCounts.assigned],
                       ["NEEDS_MACHINE", "No machine", queueCounts.noMachine],
+                      ["PARTIAL", "Partial", queueCounts.partial],
                     ] as const
                   ).map(([value, label, count]) => {
                     const isActive = queueStatusFilter === value;
@@ -6636,6 +6701,7 @@ export default function WCMTerminal() {
             setCloseJobAction(null);
             setCloseJobReason("");
             setCloseJobReasonPreset("");
+            setCloseJobRequeue(true);
           }
         }}
       >
@@ -6723,6 +6789,14 @@ export default function WCMTerminal() {
               placeholder="Reason required for audit history"
               className="min-h-24 rounded-xl"
             />
+            {closeJobAction?.mode === "SHORT_CLOSE" ? (
+              <PartialBalanceChoice
+                preview={(closeJobAction?.assignment as any)?.job_details?.partial_flow?.preview}
+                checked={closeJobRequeue}
+                onChange={setCloseJobRequeue}
+                testId="wcm-close-requeue"
+              />
+            ) : null}
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -6832,6 +6906,8 @@ export default function WCMTerminal() {
             queryClient.invalidateQueries({
               queryKey: ["wip-pool-grouped", selectedJobId],
             });
+            queryClient.invalidateQueries({ queryKey: ["wcm-queue", wcId] });
+            queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
           }}
         />
       ) : null}
@@ -6857,6 +6933,7 @@ function RollAssignmentModal({
   disabledLabel = "ROLLS ASSIGNED",
   required,
   massMode = false,
+  rollNeedKg = 0,
   strictSpecMatch = true,
   manualOverride = false,
   overrideReason = "",
@@ -6924,14 +7001,6 @@ function RollAssignmentModal({
     },
   });
 
-  const variants = useMemo<string[]>(() => {
-    const set = new Set(
-      manualEligibleRolls.map((r: any) =>
-        String(r.material_name || r.material_code || ""),
-      ),
-    );
-    return ["ALL", ...Array.from(set).filter(Boolean).sort()] as string[];
-  }, [manualEligibleRolls]);
   const lineageCandidateCount = useMemo(
     () =>
       manualEligibleRolls.filter(
@@ -6950,35 +7019,6 @@ function RollAssignmentModal({
     (rollAssignmentValidation as any)?.unmatched_target_slots?.length || 0,
   );
 
-  const thicknesses = useMemo<string[]>(() => {
-    const set = new Set(
-      manualEligibleRolls.map((r: any) => String(r.thickness_micron || "")),
-    );
-    return ["ALL", ...Array.from(set).filter(Boolean).sort()] as string[];
-  }, [manualEligibleRolls]);
-
-  const grades = useMemo<string[]>(() => {
-    const set = new Set(
-      manualEligibleRolls.map((r: any) => String(r.grade_name || "")),
-    );
-    return ["ALL", ...Array.from(set).filter(Boolean).sort()] as string[];
-  }, [manualEligibleRolls]);
-
-  const widths = useMemo<string[]>(() => {
-    const set = new Set(
-      manualEligibleRolls.map((r: any) => String(r.width_mm || "")),
-    );
-    return ["ALL", ...Array.from(set).filter(Boolean).sort()] as string[];
-  }, [manualEligibleRolls]);
-
-  const stockForms = useMemo<string[]>(() => {
-    const set = new Set(
-      manualEligibleRolls.map((r: any) =>
-        String(r.stock_form || "OPEN_WEB").toUpperCase(),
-      ),
-    );
-    return ["ALL", ...Array.from(set).filter(Boolean).sort()] as string[];
-  }, [manualEligibleRolls]);
 
   const normalizedSpecs = useMemo(
     () => distinctRollTargetSpecs(targetSpec, targetSpecs),
@@ -7093,6 +7133,45 @@ function RollAssignmentModal({
       return materialOk && thicknessOk && gradeOk && widthOk && stockFormOk;
     });
   };
+
+  // Filter choices come only from rolls this step accepts, so no choice leads to an empty list.
+  const contractRolls = useMemo(
+    () => manualEligibleRolls.filter((r: any) => matchesAnyTargetSpec(r)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [manualEligibleRolls, normalizedSpecs, strictSpecMatch, targetStockContract],
+  );
+  const optionList = (values: string[], numeric = false) =>
+    [
+      "ALL",
+      ...Array.from(new Set(values.filter(Boolean))).sort((a, b) =>
+        numeric ? Number(a) - Number(b) : a.localeCompare(b),
+      ),
+    ] as string[];
+  const variants = useMemo<string[]>(
+    () => optionList(contractRolls.map((r: any) => String(r.material_name || r.material_code || ""))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contractRolls],
+  );
+  const thicknesses = useMemo<string[]>(
+    () => optionList(contractRolls.map((r: any) => String(r.thickness_micron || "")), true),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contractRolls],
+  );
+  const grades = useMemo<string[]>(
+    () => optionList(contractRolls.map((r: any) => String(r.grade_name || ""))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contractRolls],
+  );
+  const widths = useMemo<string[]>(
+    () => optionList(contractRolls.map((r: any) => String(r.width_mm || "")), true),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contractRolls],
+  );
+  const stockForms = useMemo<string[]>(
+    () => optionList(contractRolls.map((r: any) => String(r.stock_form || "OPEN_WEB").toUpperCase())),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [contractRolls],
+  );
 
   const rollWidthPlanLabel = (roll: any) => {
     const mode = String(roll?.width_match_mode || "").toUpperCase();
@@ -7342,6 +7421,15 @@ function RollAssignmentModal({
     },
   });
 
+  const selectedKg = useMemo(
+    () =>
+      manualEligibleRolls
+        .filter((r: any) => selectedRollIds.includes(String(r.id)))
+        .reduce((sum: number, r: any) => sum + Number(r.weight_kg || 0), 0),
+    [manualEligibleRolls, selectedRollIds],
+  );
+  const needKg = Math.max(0, Number(rollNeedKg || 0));
+
   const toggleRoll = (rollId: string) => {
     setSelectedRollIds((prev) => {
       if (prev.includes(rollId)) return prev.filter((id) => id !== rollId);
@@ -7365,6 +7453,13 @@ function RollAssignmentModal({
     }
     setSelectedRollIds([]);
     setSelectedExternalRollIds([]);
+    // Filters belong to one pick: a width chosen for the last job must not hide this job's rolls.
+    setRollSearch("");
+    setFilterVariant("ALL");
+    setFilterThickness("ALL");
+    setFilterGrade("ALL");
+    setFilterWidth("ALL");
+    setFilterStockForm("ALL");
   }, [open]);
 
 
@@ -7989,6 +8084,18 @@ function RollAssignmentModal({
                   {selectedRollIds.length}
                 </span>{" "}
                 rolls selected for allocation
+                {massMode && selectedRollIds.length ? (
+                  <span className="ml-2 text-xs font-semibold" data-testid="wcm-roll-pick-kg">
+                    · {selectedKg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg
+                    {needKg > 0 ? (
+                      selectedKg + 0.0005 >= needKg ? (
+                        <span className="text-success-fg"> · covers the {needKg.toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg still needed; leftover is returned after the run</span>
+                      ) : (
+                        <span className="text-warning-fg"> · {(needKg - selectedKg).toLocaleString("en-IN", { maximumFractionDigits: 1 })} kg short: add rolls, or run partial (the rest comes back as a balance)</span>
+                      )
+                    ) : null}
+                  </span>
+                ) : null}
               </>
             ) : (
               <>

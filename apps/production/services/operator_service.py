@@ -238,6 +238,7 @@ class OperatorService:
         force_reason: str | None = None,
         material_confirmations=None,
         require_material_confirmations: bool = False,
+        requeue_balance: bool = False,
     ):
         """
         Close-only completion for machine terminal.
@@ -249,6 +250,7 @@ class OperatorService:
             force_reason=force_reason,
             material_confirmations=material_confirmations,
             require_material_confirmations=require_material_confirmations,
+            requeue_balance=requeue_balance,
         )
 
     @staticmethod

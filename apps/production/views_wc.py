@@ -331,6 +331,16 @@ class WCQueueViewSet(WorkCentreScopeMixin, viewsets.ReadOnlyModelViewSet):
             "source": "queue_summary",
         }
 
+    @staticmethod
+    def _compact_partial_flow(job):
+        meta = job.meta_json if isinstance(getattr(job, "meta_json", None), dict) else {}
+        return {
+            "balance_of": meta.get("partial_balance") or None,
+            "quantity_reduced": meta.get("quantity_reduced") or None,
+            "balance_out": None,
+            "preview": None,
+        }
+
     def _compact_job_details(self, job):
         from .services.queue_enrichment import print_color_contract_for_job, resolve_committed_artwork
 
@@ -383,6 +393,7 @@ class WCQueueViewSet(WorkCentreScopeMixin, viewsets.ReadOnlyModelViewSet):
             "current_step_index": job.current_step_index,
             "input_form": job.input_form,
             "output_form": job.output_form,
+            "partial_flow": self._compact_partial_flow(job),
             "execution_model_version": 2,
             "geometry": geometry,
             "layers": layers,
@@ -1264,18 +1275,21 @@ class JobAllocationViewSet(WorkCentreScopeMixin, viewsets.ViewSet):
                     if str(job.status or '').upper() not in {'RUNNING', 'IN_PROGRESS'}:
                         job.status = 'RUNNING'
                     job.save(update_fields=['job_state', 'status', 'updated_at'])
+                requeue_balance = str(request.data.get('requeue_balance', True)).strip().lower() not in {'0', 'false', 'no', 'off', ''}
                 closed_job = JobService.complete_step(
                     job,
                     user=request.user if getattr(request, 'user', None) and request.user.is_authenticated else None,
                     force_reason=reason,
                     material_confirmations=getattr(job, "current_step_material_confirmations", None) or [],
                     require_material_confirmations=False,
+                    requeue_balance=requeue_balance,
                 )
                 return Response({
                     "id": str(assignment_id),
                     "production_job": str(closed_job.id),
                     "status": "COMPLETED",
                     "job_details": ProductionJobSerializer(closed_job).data,
+                    "partial_balance": getattr(closed_job, "_partial_balance", None),
                 })
 
             from apps.production.services import JobService

@@ -96,6 +96,16 @@ export type MachineCompleteResponse = ProductionJob & {
     completion_mode?: 'NORMAL' | 'FORCED_VARIANCE';
     variance_kg?: number;
     force_reason?: string | null;
+    partial_balance?: {
+        batch_number: string;
+        first_job_id: string;
+        first_job_number: string;
+        qty: number;
+        uom: string;
+        work_center_name?: string;
+        released?: boolean;
+        release_error?: string;
+    } | null;
 };
 
 export interface OperatorMachine {
@@ -691,6 +701,7 @@ export const machineService = {
         jobId: string,
         payload?: {
             force_reason?: string;
+            requeue_balance?: boolean;
             material_confirmations?: Array<{
                 requirement_id: string;
                 material_id?: string;

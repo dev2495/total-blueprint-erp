@@ -43,6 +43,19 @@ export function micronText(thickness: unknown) {
   return `${text.split("+").map((part) => part.trim()).join(" + ")} µ`;
 }
 
+/** Thickness of the rolls themselves ("50 µ", or "45 / 50 µ" when they differ), for roll lines. */
+export function rollMicronText(rolls: Array<{ thickness_micron?: unknown }> | null | undefined) {
+  const values = Array.from(
+    new Set(
+      (rolls || [])
+        .map((roll) => Number(roll?.thickness_micron || 0))
+        .filter((value) => Number.isFinite(value) && value > 0)
+        .map((value) => Math.round(value * 10) / 10),
+    ),
+  ).sort((a, b) => a - b);
+  return values.length ? `${values.join(" / ")} µ` : "";
+}
+
 /** Compact display id for long roll / gonny labels. */
 export function compactUnitLabel(value: unknown, kind: "ROLL" | "GONNY" | "CTN") {
   const raw = clean(value);
