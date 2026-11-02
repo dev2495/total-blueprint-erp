@@ -1,0 +1,451 @@
+<title>Roll Styles and Folding</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Devanagari:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a plant work instruction — one reading column, process-ink colour code for the parts of a web (W cyan, flap magenta, seal amber, trim grey). */
+:root {
+  --bg: #f6f8fa;
+  --panel: #ffffff;
+  --fg: #16202a;
+  --muted: #566573;
+  --line: #d6dde4;
+  --cyan: #0a7fae;
+  --magenta: #b4277a;
+  --amber: #b77700;
+  --trim: #8a96a3;
+  --soft: #e9f2f7;
+  --font-body: "IBM Plex Sans", "IBM Plex Sans Devanagari", system-ui, sans-serif;
+  --font-hi: "IBM Plex Sans Devanagari", "IBM Plex Sans", "Noto Sans Devanagari", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151b; --panel: #161f27; --fg: #e5ebf0; --muted: #9aa8b5; --line: #2a3742;
+    --cyan: #4cb8e6; --magenta: #e46aae; --amber: #e7a93a; --trim: #7b8794; --soft: #17303d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151b; --panel: #161f27; --fg: #e5ebf0; --muted: #9aa8b5; --line: #2a3742;
+  --cyan: #4cb8e6; --magenta: #e46aae; --amber: #e7a93a; --trim: #7b8794; --soft: #17303d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+main { max-width: 860px; margin: 0 auto; display: grid; gap: 40px; }
+[lang="hi"] { font-family: var(--font-hi); }
+h1, h2, h3 { line-height: 1.25; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.7rem, 4vw, 2.3rem); font-weight: 700; }
+h2 { font-size: 1.35rem; font-weight: 600; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+section { display: grid; gap: 14px; }
+.lead { color: var(--muted); font-size: 1.05rem; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.ui { font-weight: 600; white-space: nowrap; }
+
+/* language switch */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.langs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.langs button { font: inherit; font-size: .85rem; padding: 6px 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.langs button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.langs button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+body.only-en [lang="hi"], body.only-hi [lang="en"] { display: none !important; }
+.pair { display: grid; gap: 4px; }
+.pair [lang="hi"] { color: var(--muted); }
+body.only-hi .pair [lang="hi"] { color: var(--fg); }
+
+/* the rule */
+.rule { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 12px; }
+.formula { font-family: var(--font-mono); font-size: clamp(1.05rem, 3.4vw, 1.45rem); font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.w { color: var(--cyan); } .f { color: var(--magenta); } .s { color: var(--amber); } .t { color: var(--trim); }
+
+/* forms */
+.forms { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.form { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 8px; min-width: 0; }
+.form svg { width: 100%; height: auto; display: block; }
+.chip { display: inline-block; font-size: .78rem; font-weight: 600; padding: 1px 8px; border-radius: 6px; border: 1px solid; width: fit-content; }
+.chip.open { color: var(--cyan); border-color: var(--cyan); background: var(--soft); }
+.chip.folded { color: var(--magenta); border-color: var(--magenta); }
+.chip.tube { color: var(--amber); border-color: var(--amber); }
+.form small { color: var(--muted); font-size: .85rem; }
+
+/* steps */
+ol.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; counter-reset: s; }
+ol.steps > li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+ol.steps > li::before { content: counter(s); font-family: var(--font-mono); font-weight: 600; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--fg); color: var(--bg); font-size: .85rem; }
+ol.steps > li > div { min-width: 0; display: grid; gap: 4px; }
+
+/* route */
+.route { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.node { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; min-width: 0; }
+.node b { font-size: .92rem; }
+.node span { font-size: .8rem; color: var(--muted); }
+.node.fold { border-color: var(--magenta); box-shadow: inset 0 0 0 1px var(--magenta); }
+.arrow { color: var(--muted); }
+
+/* examples */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: .92rem; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* calculator */
+.calc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 14px; }
+.inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
+input, select { font: inherit; font-family: var(--font-mono); padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); width: 100%; }
+.result { display: grid; gap: 6px; padding: 12px 14px; background: var(--soft); border-radius: 8px; }
+.result .big { font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; }
+
+.note { border-left: 3px solid var(--amber); padding: 8px 12px; background: var(--panel); border-radius: 0 8px 8px 0; display: grid; gap: 4px; }
+ul.plain { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+footer { color: var(--muted); font-size: .85rem; }
+@media (prefers-reduced-motion: no-preference) { .langs button { transition: background .15s; } }
+</style>
+
+<main>
+  <header class="top">
+    <div class="pair">
+      <span class="eyebrow">TPP ERP · Master → Pouch &amp; roll styles</span>
+      <h1 lang="en">Roll styles and folding</h1>
+      <h1 lang="hi">Roll style और folding</h1>
+      <p class="lead" lang="en">How to set up a folded roll, a tube roll or a roll with a flap, so the folding step, the floor and costing all read the same numbers.</p>
+      <p class="lead" lang="hi">Folded roll, tube roll या flap वाला roll कैसे बनाएँ, ताकि folding step, floor और costing सब एक ही नंबर पढ़ें।</p>
+    </div>
+    <div class="langs" role="group" aria-label="Language">
+      <button type="button" data-lang="both" aria-pressed="true">EN + हिन्दी</button>
+      <button type="button" data-lang="en" aria-pressed="false">English</button>
+      <button type="button" data-lang="hi" aria-pressed="false">हिन्दी</button>
+    </div>
+  </header>
+
+  <section aria-labelledby="rule">
+    <div class="pair">
+      <h2 id="rule" lang="en">One rule for every fold</h2>
+      <h2 lang="hi">हर fold का एक ही नियम</h2>
+    </div>
+    <div class="rule">
+      <div class="formula" aria-label="open web equals 2 W plus flap plus seal plus trim">
+        <span>open web =</span><span class="w">2 × W</span><span>+</span><span class="f">flap</span><span>+</span><span class="s">seal</span><span>+</span><span class="t">trim</span>
+      </div>
+      <div class="pair">
+        <p lang="en"><b class="w">W</b> is the roll width you sell or stock (folded or lay-flat). <b class="f">Flap</b> is how much longer one wall is (0 for a plain fold). <b class="s">Seal</b> is the film the edge seal uses when the machine also seals into a tube. <b class="t">Trim</b> is edge trim cut at the folder; it is scrap and is not costed as film.</p>
+        <p lang="hi"><b class="w">W</b> = roll की width जो बेचते या रखते हैं (folded या lay-flat)। <b class="f">Flap</b> = एक दीवार कितनी लंबी है (सीधे fold में 0)। <b class="s">Seal</b> = tube बनाते समय edge seal में लगी film। <b class="t">Trim</b> = folder पर कटा किनारा; यह scrap है, film की कीमत में नहीं गिना जाता।</p>
+      </div>
+      <div class="pair">
+        <p lang="en">Example: Folded <span class="mono">300 mm</span> with a <span class="mono">20 mm</span> flap and <span class="mono">10 mm</span> trim needs <span class="mono">2 × 300 + 20 + 10 = 630 mm</span> of open web.</p>
+        <p lang="hi">उदाहरण: Folded <span class="mono">300 mm</span>, flap <span class="mono">20 mm</span>, trim <span class="mono">10 mm</span> के लिए <span class="mono">2 × 300 + 20 + 10 = 630 mm</span> open web चाहिए।</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="forms">
+    <div class="pair">
+      <h2 id="forms" lang="en">The four roll forms (seen from the roll's end)</h2>
+      <h2 lang="hi">Roll के चार रूप (roll के सिरे से देखने पर)</h2>
+    </div>
+    <div class="forms">
+      <div class="form">
+        <svg viewBox="0 0 200 70" role="img" aria-label="Open web: one flat sheet">
+          <line x1="14" y1="34" x2="186" y2="34" stroke="var(--cyan)" stroke-width="4" stroke-linecap="round"/>
+          <text x="100" y="58" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono, monospace">W = open width</text>
+        </svg>
+        <span class="chip open">Open</span>
+        <h3 lang="en">Open web</h3><h3 lang="hi">Open web (खुली sheet)</h3>
+        <small lang="en">Roll form <span class="ui">FLAT</span>. Can be slit.</small>
+        <small lang="hi">Roll form <span class="ui">FLAT</span>। Slit हो सकता है।</small>
+      </div>
+      <div class="form">
+        <svg viewBox="0 0 200 70" role="img" aria-label="C-fold: folded in half, both walls equal">
+          <path d="M150 22 H40 Q22 22 22 34 Q22 46 40 46 H150" fill="none" stroke="var(--cyan)" stroke-width="4" stroke-linecap="round"/>
+          <text x="100" y="66" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono, monospace">W  (flap 0)</text>
+        </svg>
+        <span class="chip folded">Folded</span>
+        <h3 lang="en">C-fold</h3><h3 lang="hi">C-fold (बीच से मोड़)</h3>
+        <small lang="en">Roll form <span class="ui">FOLDED</span>, flap 0.</small>
+        <small lang="hi">Roll form <span class="ui">FOLDED</span>, flap 0।</small>
+      </div>
+      <div class="form">
+        <svg viewBox="0 0 200 70" role="img" aria-label="J-fold: folded with one wall longer by the flap">
+          <path d="M150 22 H40 Q22 22 22 34 Q22 46 40 46 H150" fill="none" stroke="var(--cyan)" stroke-width="4" stroke-linecap="round"/>
+          <path d="M150 46 H184" fill="none" stroke="var(--magenta)" stroke-width="4" stroke-linecap="round"/>
+          <text x="167" y="62" text-anchor="middle" font-size="11" fill="var(--magenta)" font-family="IBM Plex Mono, monospace">flap</text>
+        </svg>
+        <span class="chip folded">Folded + flap</span>
+        <h3 lang="en">J-fold (with flap)</h3><h3 lang="hi">J-fold (flap के साथ)</h3>
+        <small lang="en">Roll form <span class="ui">FOLDED</span>, type the flap. Courier-bag lip.</small>
+        <small lang="hi">Roll form <span class="ui">FOLDED</span>, flap भरें। Courier bag का होंठ।</small>
+      </div>
+      <div class="form">
+        <svg viewBox="0 0 200 70" role="img" aria-label="Lay-flat tube: closed, sealed at one edge">
+          <path d="M40 22 H160 Q178 22 178 34 Q178 46 160 46 H40 Q22 46 22 34 Q22 22 40 22 Z" fill="none" stroke="var(--cyan)" stroke-width="4"/>
+          <rect x="172" y="26" width="12" height="16" rx="2" fill="var(--amber)"/>
+          <text x="100" y="64" text-anchor="middle" font-size="11" fill="var(--amber)" font-family="IBM Plex Mono, monospace">seal at the edge</text>
+        </svg>
+        <span class="chip tube">Tube</span>
+        <h3 lang="en">Lay-flat tube</h3><h3 lang="hi">Lay-flat tube (नली)</h3>
+        <small lang="en">Roll form <span class="ui">TUBING</span>. Fold + seal, or blown tube.</small>
+        <small lang="hi">Roll form <span class="ui">TUBING</span>। Fold + seal, या blown tube।</small>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="newsize">
+    <div class="pair">
+      <h2 id="newsize" lang="en">Making a new roll size</h2>
+      <h2 lang="hi">नया roll size बनाना</h2>
+    </div>
+    <ol class="steps">
+      <li><div>
+        <p lang="en">Open <span class="ui">Master → Product masters</span>, open the roll product, go to <span class="ui">Sizes</span> and add a size.</p>
+        <p lang="hi"><span class="ui">Master → Product masters</span> खोलें, roll product खोलें, <span class="ui">Sizes</span> में नया size जोड़ें।</p>
+      </div></li>
+      <li><div>
+        <p lang="en">Type <span class="ui">Roll width (mm)</span>. For a folded or tube roll this is the folded / lay-flat width <b class="w">W</b>, not the open width.</p>
+        <p lang="hi"><span class="ui">Roll width (mm)</span> भरें। Folded या tube roll में यह folded / lay-flat width <b class="w">W</b> है, open width नहीं।</p>
+      </div></li>
+      <li><div>
+        <p lang="en">Pick a <span class="ui">Roll style</span> (fastest), or leave it on <span class="ui">None</span> and pick <span class="ui">Roll form</span>: FLAT, FOLDED or TUBING.</p>
+        <p lang="hi"><span class="ui">Roll style</span> चुनें (सबसे आसान), या <span class="ui">None</span> रखकर <span class="ui">Roll form</span> चुनें: FLAT, FOLDED या TUBING।</p>
+      </div></li>
+      <li><div>
+        <p lang="en">For FOLDED or TUBING fill <span class="ui">Flap (mm)</span>, <span class="ui">Seal (mm)</span> and <span class="ui">Fold trim (mm)</span>. The grey note below shows the open web the folder needs. Check it matches the shop floor.</p>
+        <p lang="hi">FOLDED या TUBING में <span class="ui">Flap (mm)</span>, <span class="ui">Seal (mm)</span> और <span class="ui">Fold trim (mm)</span> भरें। नीचे की grey line बताती है folder को कितना open web चाहिए। Floor से मिलान करें।</p>
+      </div></li>
+      <li><div>
+        <p lang="en">Save. Orders that pick this size now carry the form and fold; you add nothing on the sales order.</p>
+        <p lang="hi">Save करें। इस size वाले order में form और fold अपने आप आता है; sales order में कुछ अलग नहीं भरना।</p>
+      </div></li>
+    </ol>
+    <div class="note">
+      <p lang="en">Picking <span class="ui">Roll form</span> by hand removes the roll style from that size (the style would set the form back). A size can keep a style and still type its own flap.</p>
+      <p lang="hi"><span class="ui">Roll form</span> हाथ से चुनने पर उस size से roll style हट जाता है। Size style रखकर भी अपना flap भर सकता है।</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="styles">
+    <div class="pair">
+      <h2 id="styles" lang="en">Roll styles and pouch styles: one page, two tabs</h2>
+      <h2 lang="hi">Roll style और pouch style: एक page, दो tab</h2>
+    </div>
+    <div class="pair">
+      <p lang="en"><span class="ui">Master → Pouch &amp; roll styles</span>. The <span class="ui">Pouch styles</span> tab works as before: a formula turns the pouch size into the stock width. The <span class="ui">Roll styles</span> tab holds named forms with their fold. <span class="ui">New roll style</span> opens a short form: name, <span class="ui">Default stock form</span>, then <span class="ui">Flap</span>, <span class="ui">Seal</span>, <span class="ui">Fold trim</span>. Save and approve; then sizes can use it.</p>
+      <p lang="hi"><span class="ui">Master → Pouch &amp; roll styles</span>। <span class="ui">Pouch styles</span> tab पहले जैसा: formula pouch size से stock width बनाता है। <span class="ui">Roll styles</span> tab में नाम वाले form और उनका fold। <span class="ui">New roll style</span> में नाम, <span class="ui">Default stock form</span>, फिर <span class="ui">Flap</span>, <span class="ui">Seal</span>, <span class="ui">Fold trim</span> भरें। Save और approve करें; फिर sizes इसे ले सकते हैं।</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ready-made style</th><th lang="en">Form</th><th lang="hi">रूप</th><th lang="en">Use it for</th><th lang="hi">कब लें</th></tr></thead>
+        <tbody>
+          <tr><td class="num">ROLL-OPEN</td><td lang="en">Open roll</td><td lang="hi">Open roll</td><td lang="en">Plain film rolls, slit to width</td><td lang="hi">सादे film roll, width पर slit</td></tr>
+          <tr><td class="num">ROLL-FOLDED</td><td lang="en">Folded (C-fold), flap 0</td><td lang="hi">Folded (C-fold), flap 0</td><td lang="en">Folded sheet rolls folded in half</td><td lang="hi">बीच से मुड़े folded sheet roll</td></tr>
+          <tr><td class="num">ROLL-JFOLD-20</td><td lang="en">J-fold, 20 mm flap</td><td lang="hi">J-fold, 20 mm flap</td><td lang="en">Open web = 2W + 20</td><td lang="hi">Open web = 2W + 20</td></tr>
+          <tr><td class="num">ROLL-JFOLD-30</td><td lang="en">J-fold, 30 mm flap</td><td lang="hi">J-fold, 30 mm flap</td><td lang="en">Open web = 2W + 30</td><td lang="hi">Open web = 2W + 30</td></tr>
+          <tr><td class="num">ROLL-JFOLD-40</td><td lang="en">J-fold, 40 mm flap</td><td lang="hi">J-fold, 40 mm flap</td><td lang="en">Courier-bag lip; open web = 2W + 40</td><td lang="hi">Courier bag का होंठ; open web = 2W + 40</td></tr>
+          <tr><td class="num">ROLL-TUBE</td><td lang="en">Lay-flat tube</td><td lang="hi">Lay-flat tube</td><td lang="en">Blown or bought tubing</td><td lang="hi">Blown या खरीदी tubing</td></tr>
+          <tr><td class="num">ROLL-TUBE-SEAL-8</td><td lang="en">Folded + sealed tube, 8 mm seal</td><td lang="hi">मोड़कर seal की tube, 8 mm seal</td><td lang="en">Open web = 2W + 8</td><td lang="hi">Open web = 2W + 8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p lang="en">A pouch made on folded film (side seal on J-fold) uses its pouch style: set <span class="ui">Default stock form</span> to <span class="ui">Folded web</span> and fill the fold there.</p>
+      <p lang="hi">Folded film पर बनने वाला pouch (J-fold पर side seal) अपने pouch style से चलता है: <span class="ui">Default stock form</span> = <span class="ui">Folded web</span> और वहीं fold भरें।</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="route">
+    <div class="pair">
+      <h2 id="route" lang="en">What happens on the floor</h2>
+      <h2 lang="hi">Floor पर क्या होता है</h2>
+    </div>
+    <div class="route" aria-label="Route example: Extrusion, Folding, Flexo printing, Courier bags">
+      <div class="node"><b>EXT</b><span class="mono">Open 630 mm</span></div><span class="arrow">→</span>
+      <div class="node fold"><b>Fold</b><span class="mono">Open 630 → Folded 300 + 20</span></div><span class="arrow">→</span>
+      <div class="node"><b>Flexo</b><span class="mono">Folded 300 + 20</span></div><span class="arrow">→</span>
+      <div class="node"><b>Courier</b><span class="mono">Folded 300 + 20</span></div>
+    </div>
+    <ul class="plain">
+      <li><span lang="en">Steps before the fold step run open web at the open width, so the roll picker offers 630 mm open rolls.</span><span lang="hi"> Fold step से पहले के step open width पर open web चलाते हैं, इसलिए roll picker 630 mm के open roll दिखाता है।</span></li>
+      <li><span lang="en">The fold step screen says <span class="ui">Folding: takes Open 630 mm open web, makes Folded 300 mm + 20 flap</span> and fills in the width. Log the weight; width and flap come from the rule. If you type 640 out of habit, the system still makes 300.</span><span lang="hi"> Fold step की screen पर लिखा आता है <span class="ui">Folding: takes Open 630 mm open web, makes Folded 300 mm + 20 flap</span> और width भरी मिलती है। सिर्फ़ वज़न लिखें; width और flap नियम से आते हैं। आदत से 640 लिख दें तो भी 300 ही बनेगा।</span></li>
+      <li><span lang="en">A roll too narrow to fold is refused with the width it needs, for example "needs 630 mm".</span><span lang="hi"> बहुत संकरा roll मना हो जाता है और ज़रूरी width बताता है, जैसे "needs 630 mm"।</span></li>
+      <li><span lang="en">Later steps take the folded rolls. Every roll list shows the chip: <span class="chip open">Open 640 mm</span> <span class="chip folded">Folded 300 mm + 20 flap</span> <span class="chip tube">Tube 250 mm</span>. The printed roll label shows the same text.</span><span lang="hi"> आगे के step folded roll लेते हैं। हर roll list में chip दिखता है: <span class="chip open">Open 640 mm</span> <span class="chip folded">Folded 300 mm + 20 flap</span> <span class="chip tube">Tube 250 mm</span>। Print होने वाले roll label पर भी यही लिखा आता है।</span></li>
+      <li><span lang="en">In the routes, <span class="ui">Fold</span> folds and <span class="ui">Sheet Seal</span> folds and seals into a tube. The order's form decides which one the machine makes. An open-web order passes through unchanged.</span><span lang="hi"> Route में <span class="ui">Fold</span> मोड़ता है और <span class="ui">Sheet Seal</span> मोड़कर seal करके tube बनाता है। Order का form तय करता है मशीन क्या बनाएगी। Open web वाला order बिना बदले आगे जाता है।</span></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="pouchlink">
+    <div class="pair">
+      <h2 id="pouchlink" lang="en">Pouches made on folded film: linking the pouch style to the fold</h2>
+      <h2 lang="hi">Folded film पर बने pouch: pouch style को fold से जोड़ना</h2>
+    </div>
+    <div class="pair">
+      <p lang="en">Most pouch formulas already give the <b>open web</b>. Side sealing, for example: <span class="mono">open = 2H + 2 × Bottom Gazzet + Flap + 2 × HD</span>. When the route folds that web, the style says two things in its <span class="ui">Fold</span> box:</p>
+      <p lang="hi">ज़्यादातर pouch formula पहले से <b>open web</b> देते हैं। जैसे side sealing: <span class="mono">open = 2H + 2 × Bottom Gazzet + Flap + 2 × HD</span>। जब route इस web को मोड़ता है, तो style के <span class="ui">Fold</span> box में दो बातें लिखी होती हैं:</p>
+    </div>
+    <ul class="plain">
+      <li><span lang="en"><span class="ui">The width formula gives</span> = <span class="ui">The open web before the fold</span>. The open width, the rolls picked before the fold and the kg targets stay exactly what the formula says.</span><span lang="hi"> <span class="ui">The width formula gives</span> = <span class="ui">The open web before the fold</span>। Open width, fold से पहले चुने roll और kg target बिल्कुल formula जितने ही रहते हैं।</span></li>
+      <li><span lang="en"><span class="ui">Flap comes from</span> = <span class="ui">Each size's "Flap" field</span>. Every size keeps its own flap, so the folded width is the two walls: <span class="mono">(open − flap − seal − trim) / 2</span>.</span><span lang="hi"> <span class="ui">Flap comes from</span> = <span class="ui">Each size's "Flap" field</span>। हर size का अपना flap रहता है, तो folded width दोनों दीवारें है: <span class="mono">(open − flap − seal − trim) / 2</span>।</span></li>
+    </ul>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th lang="en">Courier bag size</th><th lang="hi">Courier bag size</th><th>H</th><th>Flap</th><th lang="en">Open web (formula)</th><th lang="hi">Open web (formula)</th><th lang="en">Folded roll</th><th lang="hi">Folded roll</th><th lang="en">Chip on the floor</th><th lang="hi">Floor पर chip</th></tr></thead>
+        <tbody>
+          <tr><td lang="en">10 × 12 in, 2 in flap</td><td lang="hi">10 × 12 inch, 2 inch flap</td><td class="num">305</td><td class="num">50</td><td class="num" lang="en">2 × 305 + 50 = 660 mm</td><td class="num" lang="hi">2 × 305 + 50 = 660 mm</td><td class="num" lang="en">(660 − 50) / 2 = 305 mm</td><td class="num" lang="hi">(660 − 50) / 2 = 305 mm</td><td lang="en"><span class="chip folded">Folded 305 mm + 50 flap</span></td><td lang="hi"><span class="chip folded">Folded 305 mm + 50 flap</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p lang="en">Already set up on 2 Nov: BOPP FLEXO PRINTING and COURIER BAG FLEXO PRINT sizes now use <span class="ui">SIDE-SEALING-ON-FOLD</span>, a linked copy of SIDE-SEALING with these two settings. Orders placed before keep their numbers. Seal and fold trim are 0 until you set them on that one style.</p>
+      <p lang="hi">2 Nov को सेट हो चुका: BOPP FLEXO PRINTING और COURIER BAG FLEXO PRINT के sizes अब <span class="ui">SIDE-SEALING-ON-FOLD</span> पर हैं, जो SIDE-SEALING की जुड़ी copy है और इसमें ये दोनों settings हैं। पहले के orders अपने नंबर रखते हैं। Seal और fold trim 0 हैं, जब तक आप उस एक style पर न भरें।</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="admin">
+    <div class="pair">
+      <h2 id="admin" lang="en">Setting up a new folding route (admins)</h2>
+      <h2 lang="hi">नया folding route सेट करना (admin के लिए)</h2>
+    </div>
+    <ol class="steps">
+      <li><div>
+        <p lang="en"><b>Process Master.</b> Create or open the folding process and set: <span class="ui">Input</span> Roll → <span class="ui">Output</span> Roll; <span class="ui">Roll behaviour</span> Modify existing roll; <span class="ui">Allowed input forms</span> Open web only; <span class="ui">Allowed output forms</span> Open web, Folded web, Lay-flat tube; <span class="ui">Output form</span> "Sales / stock target decides". A process with these settings is a fold step. Fold and Sheet Seal are set like this.</p>
+        <p lang="hi"><b>Process Master.</b> Folding process बनाएँ या खोलें और सेट करें: <span class="ui">Input</span> Roll → <span class="ui">Output</span> Roll; <span class="ui">Roll behaviour</span> Modify existing roll; <span class="ui">Allowed input forms</span> सिर्फ़ Open web; <span class="ui">Allowed output forms</span> Open web, Folded web, Lay-flat tube; <span class="ui">Output form</span> "Sales / stock target decides"। इन settings वाला process fold step है। Fold और Sheet Seal ऐसे ही सेट हैं।</p>
+      </div></li>
+      <li><div>
+        <p lang="en"><b>Work centre.</b> Link the folding machine's work centre to the process, so fold jobs reach that queue and terminal.</p>
+        <p lang="hi"><b>Work centre.</b> Folding मशीन के work centre को process से जोड़ें, ताकि fold job उसी queue और terminal पर आए।</p>
+      </div></li>
+      <li><div>
+        <p lang="en"><b>Route template.</b> Put the fold step where it really happens (before printing if you print on folded film). Steps before it run open web; steps after it run the folded or tube roll. If a later step takes tubes only (gusseting, bottom sealing), the route makes a tube.</p>
+        <p lang="hi"><b>Route template.</b> Fold step वहीं रखें जहाँ असल में होता है (folded film पर print हो तो print से पहले)। उससे पहले के step open web चलाते हैं; बाद के step folded या tube roll। अगर बाद का कोई step सिर्फ़ tube लेता है (gusseting, bottom sealing), तो route tube बनाता है।</p>
+      </div></li>
+      <li><div>
+        <p lang="en"><b>Product.</b> Roll sizes pick a roll style. Pouch sizes pick a pouch style made for the fold: its <span class="ui">Fold</span> box says the formula gives the open web, and where the flap comes from.</p>
+        <p lang="hi"><b>Product.</b> Roll size roll style चुनते हैं। Pouch size fold के लिए बना pouch style चुनते हैं: उसके <span class="ui">Fold</span> box में लिखा हो कि formula open web देता है, और flap कहाँ से आता है।</p>
+      </div></li>
+      <li><div>
+        <p lang="en"><b>Check.</b> Open a job at the fold step on the work-centre screen: <span class="ui">Step stock contract</span> shows "Makes Folded … from … mm open web". The step before shows Open; the step after shows Folded.</p>
+        <p lang="hi"><b>जाँच.</b> Work-centre screen पर fold step का job खोलें: <span class="ui">Step stock contract</span> में "Makes Folded … from … mm open web" दिखेगा। पहले वाला step Open दिखाता है; बाद वाला Folded।</p>
+      </div></li>
+    </ol>
+    <div class="note">
+      <p lang="en">Nothing here needs code: new folds, routes, machines and products are all set up on these screens. Only a brand-new kind of roll shape (for example a gusseted tube) needs a new rule from the developers.</p>
+      <p lang="hi">इसमें code की ज़रूरत नहीं: नए fold, route, मशीन और product इन्हीं screens पर सेट होते हैं। सिर्फ़ बिल्कुल नए तरह के roll आकार (जैसे gusseted tube) के लिए developers से नया नियम चाहिए।</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="examples">
+    <div class="pair">
+      <h2 id="examples" lang="en">Worked examples</h2>
+      <h2 lang="hi">हल किए उदाहरण</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th lang="en">Product</th><th lang="hi">Product</th><th>Roll form</th><th>W</th><th>Flap</th><th>Seal</th><th>Trim</th><th lang="en">Open web needed</th><th lang="hi">चाहिए open web</th><th lang="en">Film area</th><th lang="hi">Film area</th></tr></thead>
+        <tbody>
+          <tr><td lang="en">BOPP folding sheet</td><td lang="hi">BOPP folding sheet</td><td class="num">FOLDED</td><td class="num">400</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num" lang="en">800 mm</td><td class="num" lang="hi">800 mm</td><td class="num" lang="en">800 mm</td><td class="num" lang="hi">800 mm</td></tr>
+          <tr><td lang="en">Courier bag film (J-fold)</td><td lang="hi">Courier bag film (J-fold)</td><td class="num">FOLDED</td><td class="num">300</td><td class="num">40</td><td class="num">0</td><td class="num">10</td><td class="num" lang="en">650 mm</td><td class="num" lang="hi">650 mm</td><td class="num" lang="en">640 mm</td><td class="num" lang="hi">640 mm</td></tr>
+          <tr><td lang="en">LD tubing, folded + sealed</td><td lang="hi">LD tubing, मोड़कर seal</td><td class="num">TUBING</td><td class="num">250</td><td class="num">0</td><td class="num">8</td><td class="num">4</td><td class="num" lang="en">512 mm</td><td class="num" lang="hi">512 mm</td><td class="num" lang="en">508 mm</td><td class="num" lang="hi">508 mm</td></tr>
+          <tr><td lang="en">Plain film roll</td><td lang="hi">सादा film roll</td><td class="num">FLAT</td><td class="num">900</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num" lang="en">900 mm</td><td class="num" lang="hi">900 mm</td><td class="num" lang="en">900 mm</td><td class="num" lang="hi">900 mm</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="calc">
+    <div class="pair">
+      <h2 id="calc" lang="en">Try it</h2>
+      <h2 lang="hi">ख़ुद आज़माएँ</h2>
+    </div>
+    <form class="calc" id="calc-form" autocomplete="off">
+      <div class="inputs">
+        <label for="c-form"><span lang="en">Roll form</span><span lang="hi">Roll form</span>
+          <select id="c-form"><option value="FOLDED">FOLDED</option><option value="TUBING">TUBING</option><option value="FLAT">FLAT</option></select>
+        </label>
+        <label for="c-w"><span>W (mm)</span><input id="c-w" type="number" min="0" step="1" value="300"></label>
+        <label for="c-flap"><span class="f">Flap (mm)</span><input id="c-flap" type="number" min="0" step="1" value="20"></label>
+        <label for="c-seal"><span class="s">Seal (mm)</span><input id="c-seal" type="number" min="0" step="1" value="0"></label>
+        <label for="c-trim"><span class="t">Fold trim (mm)</span><input id="c-trim" type="number" min="0" step="1" value="10"></label>
+        <label for="c-roll"><span lang="en">Open roll on hand (mm)</span><span lang="hi">रखा open roll (mm)</span><input id="c-roll" type="number" min="0" step="1" value="640"></label>
+      </div>
+      <div class="result" aria-live="polite">
+        <div class="big" id="c-open">630 mm</div>
+        <div id="c-text-en" lang="en"></div>
+        <div id="c-text-hi" lang="hi"></div>
+      </div>
+    </form>
+  </section>
+
+  <section aria-labelledby="faq">
+    <div class="pair">
+      <h2 id="faq" lang="en">Common questions</h2>
+      <h2 lang="hi">आम सवाल</h2>
+    </div>
+    <ul class="plain">
+      <li><b lang="en">Do I add a flap on the sales order?</b><b lang="hi"> क्या sales order में flap भरना है?</b><br><span lang="en">No. The size (or its roll / pouch style) carries it into every order line.</span><span lang="hi"> नहीं। Size (या उसका roll / pouch style) हर order line में ले जाता है।</span></li>
+      <li><b lang="en">My old tubing sizes showed as open web.</b><b lang="hi"> पुराने tubing size open web दिखते थे।</b><br><span lang="en">Fixed: the Roll form picker now sets the real form, and existing sizes were corrected.</span><span lang="hi"> ठीक हो गया: Roll form picker अब असली form सेट करता है, और पुराने sizes सुधार दिए गए।</span></li>
+      <li><b lang="en">Can I fold a roll without a job?</b><b lang="hi"> क्या बिना job के roll fold कर सकते हैं?</b><br><span lang="en">Yes: <span class="ui">Stock → Stock conversions</span>, pick <span class="ui">Fold open web</span> or <span class="ui">Fold and seal into tube</span>, fill <span class="ui">Folded width</span>, <span class="ui">Flap</span>, <span class="ui">Seal</span>, <span class="ui">Fold trim</span>, check the preview and post.</span><span lang="hi"> हाँ: <span class="ui">Stock → Stock conversions</span>, <span class="ui">Fold open web</span> या <span class="ui">Fold and seal into tube</span> चुनें, <span class="ui">Folded width</span>, <span class="ui">Flap</span>, <span class="ui">Seal</span>, <span class="ui">Fold trim</span> भरें, preview देखें और post करें।</span></li>
+      <li><b lang="en">The fold step refuses my roll.</b><b lang="hi"> Fold step मेरा roll नहीं ले रहा।</b><br><span lang="en">The roll is narrower than 2W + flap + seal + trim. Pick a wider open roll, or check the flap on the size.</span><span lang="hi"> Roll 2W + flap + seal + trim से संकरा है। चौड़ा open roll लें, या size पर flap जाँचें।</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p lang="en">Total Poly Print ERP · applies from the 2 Nov 2026 release.</p>
+    <p lang="hi">Total Poly Print ERP · 2 Nov 2026 के release से लागू।</p>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var buttons = document.querySelectorAll(".langs button");
+  function setLang(lang) {
+    document.body.classList.toggle("only-en", lang === "en");
+    document.body.classList.toggle("only-hi", lang === "hi");
+    buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === lang)); });
+    try { localStorage.setItem("roll-guide-lang", lang); } catch (e) {}
+  }
+  buttons.forEach(function (b) { b.addEventListener("click", function () { setLang(b.dataset.lang); }); });
+  try { var saved = localStorage.getItem("roll-guide-lang"); if (saved) setLang(saved); } catch (e) {}
+
+  var ids = ["c-form", "c-w", "c-flap", "c-seal", "c-trim", "c-roll"];
+  function num(id) { var v = parseFloat(document.getElementById(id).value); return isFinite(v) && v > 0 ? v : 0; }
+  function fmt(v) { return (Math.round(v * 100) / 100).toLocaleString("en-IN") + " mm"; }
+  function calc() {
+    var form = document.getElementById("c-form").value;
+    var w = num("c-w"), flap = num("c-flap"), seal = num("c-seal"), trim = num("c-trim"), roll = num("c-roll");
+    var folded = form !== "FLAT";
+    var open = folded ? 2 * w + flap + seal + trim : w;
+    var film = folded ? 2 * w + flap + seal : w;
+    document.getElementById("c-open").textContent = (folded ? "Open web " : "Width ") + fmt(open);
+    var en = folded
+      ? "Film area " + fmt(film) + ". "
+      : "An open roll is its own width; no fold. ";
+    var hi = folded
+      ? "Film area " + fmt(film) + "। "
+      : "Open roll की width वही है; कोई fold नहीं। ";
+    if (folded && roll > 0) {
+      if (roll + 20 < open) {
+        en += "A " + fmt(roll) + " roll is too narrow: the fold step refuses it (needs " + fmt(open) + ").";
+        hi += fmt(roll) + " का roll संकरा है: fold step मना करेगा (" + fmt(open) + " चाहिए)।";
+      } else {
+        var edge = Math.max(0, roll - open);
+        en += "A " + fmt(roll) + " roll works; " + fmt(edge) + " extra is edge trim (scrap).";
+        hi += fmt(roll) + " का roll चलेगा; " + fmt(edge) + " ज़्यादा हिस्सा edge trim (scrap) है।";
+      }
+    }
+    document.getElementById("c-text-en").textContent = en;
+    document.getElementById("c-text-hi").textContent = hi;
+  }
+  ids.forEach(function (id) { document.getElementById(id).addEventListener("input", calc); });
+  document.getElementById("calc-form").addEventListener("submit", function (e) { e.preventDefault(); });
+  calc();
+})();
+</script>
