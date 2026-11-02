@@ -1,6 +1,6 @@
 # Folding: roll styles, each step's own form, pouch styles linked to the fold · 2 Nov 2026
 
-Four releases on the same day, parent `e112c0fdf0cd`:
+Five releases on the same day, parent `e112c0fdf0cd`:
 
 | Release | Commit | Migration | What |
 |---|---|---|---|
@@ -8,8 +8,9 @@ Four releases on the same day, parent `e112c0fdf0cd`:
 | 2 | `d5d7ebe25e7c` | none | pouch style formula read as the open web before the fold, flap from a formula field, preset roll styles, `fold_setup --apply-links` |
 | 3 | `2fe6b9383817` | none | the named flap field wins over an empty flap tape; `--apply-links` refreshes linked sizes |
 | 4 | `2d0b16745292` | none | lane groups / sum / narrowest rules only on combine steps; `--apply-process` resets old combine settings on Fold steps |
+| 5 | `ce80cac8f344` | none | granule codes issued to open jobs are held (issue offers free stock only); Change codes on a released job; plain short-code message at output |
 
-Backups before each cutover: f1923224, 8f49dc14, aef38f16, 0b5c1c76 (restore drill PASS each time). Restart windows 54 / 58 / 56 / 58 s.
+Backups before each cutover: f1923224, 8f49dc14, aef38f16, 0b5c1c76, 159c8b0f (restore drill PASS each time). Restart windows 54 / 58 / 56 / 58 / 58 s.
 
 ## The rule
 
@@ -52,3 +53,12 @@ both walls plus flap and seal; trim is edge scrap.
 
 `roll-styles-guide.html` (English + Hindi): roll forms, new roll sizes, styles, pouches on folded film, admin setup for
 new folding routes, worked examples, calculator.
+
+## Release 5: granule code holds (not folding)
+
+Output on SO-2026-0796-d283-B01-1 was refused: METALLOCENE-SLIP was issued as 318 kg of code F0120-LM, the store had ~268 kg,
+and 18 open jobs held 853 kg of F0120-LM issues. Each issue had been checked against stock on hand only. Now
+`GranuleAvailabilityService.held_by_open_jobs` (issued minus consumed on the job's current step, at the job's store) is taken
+off what the issue screen offers and accepts; `POST wc-allocation/change-codes` re-splits a released issue until output uses it;
+a short code at output names the material, code, store and the codes free instead. The store received 3,000 kg F0120-LM at
+16:49 and the job logged at 16:50, before this went live.
