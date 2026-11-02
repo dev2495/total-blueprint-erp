@@ -46,6 +46,7 @@ from apps.materials.stock_forms import (
     stock_form_from_roll_form,
 )
 from apps.production.models import ProductionJob
+from apps.templates.models import TemplateProcessStepRollSpec
 from apps.production.services.stock_form_resolver import StockFormResolver
 
 FOLD_CONFIG = {
@@ -64,6 +65,17 @@ ROLL_STYLES = [
     ("ROLL-TUBE", "Lay-flat tube roll", "LAYFLAT_TUBE", "⭕", "Lay-flat tube (blown or bought). A size may type the seal it takes when the folder seals.", (0, 0, 0)),
     ("ROLL-TUBE-SEAL-8", "Folded + sealed tube · 8 mm seal", "LAYFLAT_TUBE", "⭕", "Folded and edge-sealed into a tube; the seal takes 8 mm. Open web = 2W + 8.", (0, 8, 0)),
 ]
+# Route step settings a fold step must have (one roll in, one out). Steps set up while the process was a
+# combine keep lane groups / 2 rolls / narrowest width / summed gauge, which the WC screen reads as lamination lanes.
+FOLD_STEP_SETTINGS = {
+    "input_roll_count": 1,
+    "combine_mode": "STRICT_ROLL_COUNT",
+    "input_lane_count": 0,
+    "lane_schema": [],
+    "active_min_layer_count": 0,
+    "width_rule": "LOCK_INPUT",
+    "thickness_rule": "INHERIT_INPUT",
+}
 RUNNING_STATES = {"EXECUTING", "PAUSED"}
 CLOSED_STATES = {"COMPLETED", "CANCELLED", "CLOSED"}
 
@@ -168,10 +180,20 @@ class Command(BaseCommand):
             return
         current = {key: getattr(process, key) for key in FOLD_CONFIG}
         self.stdout.write(f"Process {process.code} ({process.name}): {current}")
+        stale = [
+            rs for rs in TemplateProcessStepRollSpec.objects.filter(template_step__process=process).select_related("template_step__template")
+            if any(getattr(rs, key) != value for key, value in FOLD_STEP_SETTINGS.items())
+        ]
+        self.stdout.write(f"  route steps with old (combine) settings: {len(stale)}")
+        for rs in stale:
+            self.stdout.write(
+                f"    {rs.template_step.template.name} step {rs.template_step.sequence_number}: rolls {rs.input_roll_count}, "
+                f"{rs.combine_mode} x{rs.input_lane_count}, width {rs.width_rule}, thickness {rs.thickness_rule}"
+            )
         open_jobs = ProductionJob.objects.filter(current_process=process).exclude(job_state__in=CLOSED_STATES)
         running = [job.job_number for job in open_jobs if str(job.job_state).upper() in RUNNING_STATES]
         self.stdout.write(f"  open jobs at this step: {open_jobs.count()} (running: {', '.join(running) or 'none'})")
-        if current == FOLD_CONFIG:
+        if current == FOLD_CONFIG and not stale:
             self.stdout.write(self.style.SUCCESS("  already set up for folding."))
             return
         self.stdout.write(f"  folding setup: {FOLD_CONFIG}")
@@ -179,10 +201,16 @@ class Command(BaseCommand):
             return
         if running:
             raise CommandError(f"Jobs running on {process.code}: {', '.join(running)}. Finish or pause them first.")
-        for key, value in FOLD_CONFIG.items():
-            setattr(process, key, value)
-        process.save(update_fields=list(FOLD_CONFIG))
-        self.stdout.write(self.style.SUCCESS(f"  {process.code} now folds: open web in, the order's form out."))
+        with transaction.atomic():
+            if current != FOLD_CONFIG:
+                for key, value in FOLD_CONFIG.items():
+                    setattr(process, key, value)
+                process.save(update_fields=list(FOLD_CONFIG))
+            if stale:
+                TemplateProcessStepRollSpec.objects.filter(id__in=[rs.id for rs in stale]).update(**FOLD_STEP_SETTINGS)
+        self.stdout.write(self.style.SUCCESS(
+            f"  {process.code} now folds: open web in, the order's form out; {len(stale)} route step settings reset to one roll in / one out."
+        ))
 
 
 def route_fold_target(template):

@@ -324,3 +324,22 @@ class FoldLinkTests(TestCase):
         self.assertIn("refreshed 2 already linked", out.getvalue())
         size = ProductMasterSize.objects.get(id=made[1].id)
         self.assertEqual((size.child_target_width_mm, size.film_area_width_mm), (D("195.00"), D("430.00")), "(430 - 30 - 10) / 2")
+
+    def test_apply_process_resets_leftover_combine_settings_on_fold_route_steps(self):
+        from apps.templates.models import TemplateProcessStep, TemplateProcessStepRollSpec
+
+        fold = self._process("Fold", "MULTI_INPUT_COMBINE", ["OPEN_WEB"], ["OPEN_WEB"])
+        template = self._route("COURIER OLD", [self._process("EXT-O", "CREATE_NEW", [], []), fold])
+        step = TemplateProcessStep.objects.get(template=template, process=fold)
+        TemplateProcessStepRollSpec.objects.create(template_step=step, input_roll_count=2, combine_mode="LANE_GROUPS",
+                                                   input_lane_count=2, width_rule="MIN_INPUT", thickness_rule="SUM_INPUTS")
+        out = StringIO()
+        call_command("fold_setup", stdout=out)
+        self.assertIn("route steps with old (combine) settings: 1", out.getvalue())
+        call_command("fold_setup", "--apply-process", stdout=StringIO())
+        rs = TemplateProcessStepRollSpec.objects.get(template_step=step)
+        self.assertEqual((rs.input_roll_count, rs.combine_mode, rs.input_lane_count, rs.width_rule, rs.thickness_rule),
+                         (1, "STRICT_ROLL_COUNT", 0, "LOCK_INPUT", "INHERIT_INPUT"))
+        out = StringIO()
+        call_command("fold_setup", stdout=out)
+        self.assertIn("already set up for folding", out.getvalue())

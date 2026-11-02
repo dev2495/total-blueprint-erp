@@ -236,3 +236,30 @@ class FoldRouteTests(walkthroughs.RouteFamilyWalkthroughTests):
         self.assertEqual(RollAllocationService.planned_parent_width(fold), D("310.00"))
         self.assertEqual(RollAllocationService.planned_parent_width(ss), D("155"), "side sealing runs the folded web")
         self.assertEqual(StockFormResolver.for_job_step(ss).input.stock_form, "FOLDED_WEB")
+
+    def test_fold_step_with_leftover_combine_settings_is_still_one_roll_in_one_out(self):
+        # Live 2 Nov: the Fold route steps kept 2 rolls / lane groups x2 / narrowest width / summed gauge from when Fold
+        # was a combine; the WC screen built a phantom "Lane B · Layer 2" from them.
+        from apps.templates.models import TemplateProcessStep, TemplateProcessStepRollSpec
+
+        item, jobs = self._fold_order()
+        fold = jobs["step_2_FOLD"]
+        fold.refresh_from_db()
+        step = TemplateProcessStep.objects.get(template=fold.template, sequence_number=fold.current_step_index + 1)
+        rs = TemplateProcessStepRollSpec.objects.create(template_step=step)
+        # Saved while the process was a combine; the editor would refuse them for a one-roll step today.
+        TemplateProcessStepRollSpec.objects.filter(id=rs.id).update(
+            input_roll_count=2, combine_mode="LANE_GROUPS", input_lane_count=2, width_rule="MIN_INPUT", thickness_rule="SUM_INPUTS",
+        )
+        spec = ExecutionService._resolve_step_roll_spec.__wrapped__(ExecutionService, fold, fold.current_process)
+        self.assertEqual((spec["combine_mode"], spec["input_lane_count"], spec["width_rule"], spec["thickness_rule"]),
+                         ("STRICT_ROLL_COUNT", 0, "LOCK_INPUT", "INHERIT_INPUT"))
+        self.assertTrue(spec["stale_step_settings"])
+        self.assertFalse(ExecutionService._is_lane_group_combine_spec(spec))
+        slots = ExecutionService._build_step_target_slots.__wrapped__(ExecutionService, fold, fold.current_process)
+        self.assertEqual(len(slots), 1, [s.get("lane_label") for s in slots])
+        self.assertNotIn("Lane B", " ".join(str(s.get("lane_label") or "") for s in slots))
+        requirement = ExecutionService._roll_requirement(fold, fold.current_process)
+        self.assertEqual((requirement["mode"], requirement["min_count"]), ("MASS", 1))
+        self.assertEqual(slots[0]["stock_form"], "OPEN_WEB")
+        self.assertEqual(float(slots[0]["min_width_mm"]), 630.0)

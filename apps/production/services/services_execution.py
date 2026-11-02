@@ -1221,6 +1221,31 @@ class ExecutionService:
         if spec.get("operator_entry_mode") == "PROCESS_DEFAULT":
             spec["operator_entry_mode"] = cls._behavior_entry_mode(behavior)
 
+        if behavior != "MULTI_INPUT_COMBINE":
+            # Saved step settings refine the process; they cannot turn it into another kind of step. Lane groups,
+            # multi-roll counts and the sum / narrowest rules belong to combine (lamination) steps: a step whose
+            # process was changed (e.g. Fold, once set up as a combine) keeps its process's own contract.
+            if str(spec.get("combine_mode") or "").upper() == "LANE_GROUPS":
+                spec.update({
+                    "combine_mode": "STRICT_ROLL_COUNT",
+                    "input_lane_count": 0,
+                    "input_roll_count": min(int(spec.get("input_roll_count") or 1), 1),
+                    "lane_schema": [],
+                    "active_min_layer_count": 0,
+                    "stale_step_settings": True,
+                })
+            defaults = {
+                "MODIFY_EXISTING": ("INHERIT_INPUT", "LOCK_INPUT"),
+                "SPLIT": ("INHERIT_INPUT", "OPERATOR_GRID"),
+            }.get(behavior)
+            if defaults:
+                if spec.get("thickness_rule") == "SUM_INPUTS":
+                    spec["thickness_rule"] = defaults[0]
+                    spec["stale_step_settings"] = True
+                if spec.get("width_rule") == "MIN_INPUT":
+                    spec["width_rule"] = defaults[1]
+                    spec["stale_step_settings"] = True
+
         if behavior == "MULTI_INPUT_COMBINE" and str(spec.get("combine_mode") or "").upper() == "LANE_GROUPS":
             layer_count = cls._job_layer_count(job)
             route_lamination_steps = cls._route_lamination_step_count(job)
