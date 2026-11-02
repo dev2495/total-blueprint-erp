@@ -1,14 +1,15 @@
 # Folding: roll styles, each step's own form, pouch styles linked to the fold · 2 Nov 2026
 
-Three releases on the same day, parent `e112c0fdf0cd`:
+Four releases on the same day, parent `e112c0fdf0cd`:
 
 | Release | Commit | Migration | What |
 |---|---|---|---|
 | 1 | `3a81ead7fe1c` | materials.0055 (pouch_styles.style_for) | fold rule, roll styles, each step's own stock form, fold output on the floor, chips, one Pouch / Roll styles page |
 | 2 | `d5d7ebe25e7c` | none | pouch style formula read as the open web before the fold, flap from a formula field, preset roll styles, `fold_setup --apply-links` |
 | 3 | `2fe6b9383817` | none | the named flap field wins over an empty flap tape; `--apply-links` refreshes linked sizes |
+| 4 | `2d0b16745292` | none | lane groups / sum / narrowest rules only on combine steps; `--apply-process` resets old combine settings on Fold steps |
 
-Backups before each cutover: f1923224, 8f49dc14, aef38f16 (restore drill PASS each time). Restart windows 54 / 58 / 56 s.
+Backups before each cutover: f1923224, 8f49dc14, aef38f16, 0b5c1c76 (restore drill PASS each time). Restart windows 54 / 58 / 56 / 58 s.
 
 ## The rule
 
@@ -38,6 +39,8 @@ both walls plus flap and seal; trim is edge scrap.
 - SIDE-SEALING-ON-FOLD v3 and v5 (linked copies, formula = open web, flap = each size's "Flap"); 44 sizes of BOPP FLEXO
   PRINTING (33) and COURIER BAG FLEXO PRINT (11) linked. Open web and kg targets unchanged on every size (checked);
   e.g. courier 10X12-2FT: open 660 -> Folded 305 + 50 flap. Order lines placed earlier keep their snapshots.
+- 5 Fold route steps (3 live + 2 obsolete templates) still had lamination settings (2 rolls, lane groups x2), which showed a
+  phantom "Lane B" on the operator screen; reset to one roll in / one out. The 4 open Fold jobs now show one roll slot.
 
 ## Open for the business
 
