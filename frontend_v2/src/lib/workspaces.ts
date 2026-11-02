@@ -49,7 +49,7 @@ export const WORKSPACES: Workspace[] = [
     blurb: "What we can make: masters, styles, routes, artwork and tooling.",
     tabs: [
       { label: "Product masters", href: "/master/products" },
-      { label: "Pouch styles", href: "/master/pouch-styles" },
+      { label: "Pouch & roll styles", href: "/master/pouch-styles" },
       { label: "Web-width policies", href: "/master/web-width-policies" },
       { label: "Templates", href: "/engineering/templates", group: "Routes", match: ["/engineering", "/dashboard/engineering"] },
       { label: "Routing studio", href: "/engineering/routing" },

@@ -279,6 +279,8 @@ class ProductionJobViewSet(ArchiveScopedListMixin, WorkCentreScopeMixin, viewset
                 "batch_no": roll.batch_no,
                 "width_mm": float(roll.width_mm or 0),
                 "stock_form": getattr(roll, "stock_form", "OPEN_WEB"),
+                "form_text": roll.form_text,
+                "fold": roll.fold,
                 "width_basis": getattr(roll, "width_basis", ""),
                 "thickness_micron": float(roll.thickness_micron or 0),
                 "weight_kg": float(roll.weight_kg or 0),

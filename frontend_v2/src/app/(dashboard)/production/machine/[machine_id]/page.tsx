@@ -82,6 +82,7 @@ import { RollLanesPanel, type RollLane, type ReturnRollPayload } from "@/compone
 import { PartialBalanceChoice } from "@/components/production/partial-balance-choice";
 import { formatPartialQty } from "@/lib/partial-flow";
 import { JobNameTag } from "@/components/spine/job-name-tag";
+import { RollFormChip, rollFormText } from "@/components/rolls/roll-form-chip";
 
 type QueueFilter = "ALL" | "RUNNING" | "READY" | "PAUSED";
 type TerminalTab = "run" | "history";
@@ -213,7 +214,36 @@ function widthBasisForStockForm(stockForm?: unknown) {
   return "OPEN_WEB_WIDTH";
 }
 
+/** Step contract from the backend: input / output form, and whether this step folds (converts). */
+function stepFormContract(context?: any) {
+  const raw = context?.step_form_contract;
+  return raw && typeof raw === "object" && raw.converts ? raw : null;
+}
+
+/** "Folded 300 mm + 20 flap" */
+function foldFormText(row?: any) {
+  if (!row) return "";
+  const width = toNullableNumber(row.width_mm);
+  const flap = toNullableNumber(row.fold?.flap_mm);
+  return `${stockFormLabel(row.stock_form)}${width ? ` ${width} mm` : ""}${flap ? ` + ${flap} flap` : ""}`;
+}
+
 function targetStockContractFromContext(context?: any) {
+  // On a fold step the operator logs the folded / tube output, not the open web it takes in.
+  const converting = stepFormContract(context);
+  if (converting) {
+    const output = converting.output || {};
+    return {
+      stock_form: normalizeStockForm(output.stock_form),
+      width_basis: String(output.width_basis || "").trim().toUpperCase(),
+      slit_policy: String(output.slit_policy || "").trim().toUpperCase(),
+      converts: true,
+      output_width_mm: toNullableNumber(output.width_mm),
+      fold: output.fold || null,
+      input_text: `${stockFormLabel(converting.input?.stock_form)} ${toNullableNumber(converting.input?.width_mm) || ""} mm`.trim(),
+      output_text: foldFormText(output),
+    };
+  }
   const specs = Array.isArray(context?.target_roll_invariant_list)
     ? context.target_roll_invariant_list
     : [];
@@ -259,6 +289,9 @@ function firstOutputWidthFrom(...sources: any[]) {
 }
 
 function resolveDefaultOutputWidth(context?: any): number | null {
+  const converting = stepFormContract(context);
+  const foldedWidth = toNullableNumber(converting?.output?.width_mm);
+  if (foldedWidth && foldedWidth > 0) return foldedWidth;
   const specs = Array.isArray(context?.target_roll_invariant_list)
     ? context.target_roll_invariant_list
     : [];
@@ -277,6 +310,9 @@ function resolveDefaultOutputWidth(context?: any): number | null {
 }
 
 function outputWidthPolicy(context?: any) {
+  if (stepFormContract(context)) {
+    return { editable: false, label: "From the fold rule", widthRule: "FOLD" };
+  }
   const handling =
     context?.current_step_roll_handling || context?.roll_handling || {};
   const widthRule = String(handling?.width_rule || "")
@@ -1405,6 +1441,7 @@ export default function MachineExecutionPage() {
             row.thickness_micron ?? row.thickness,
           ),
           stock_form: normalizeStockForm(row.stock_form),
+          form_text: row.form_text || "",
           width_basis: row.width_basis || "",
           grade: row.grade || row.grade_name || "-",
           location_name: row.location_name || "-",
@@ -1429,6 +1466,7 @@ export default function MachineExecutionPage() {
       width_mm: toNullableNumber(row.width_mm),
       thickness_micron: toNullableNumber(row.thickness_micron),
       stock_form: normalizeStockForm(row.stock_form),
+      form_text: row.form_text || "",
       width_basis: row.width_basis || "",
       grade: row.grade || "-",
       location_name: row.location_name || "-",
@@ -4367,9 +4405,7 @@ function StockFormPills({ roll }: { roll: any }) {
   const basis = roll?.width_basis || widthBasisForStockForm(form);
   return (
     <>
-      <span className="rounded bg-info-bg px-2 py-1 text-caption font-bold text-info-fg ring-1 ring-info-border">
-        {stockFormLabel(form)}
-      </span>
+      <RollFormChip roll={roll} className="px-2 py-1" />
       <span className="rounded bg-info-bg px-2 py-1 text-caption font-bold text-info-fg ring-1 ring-info-border">
         {widthBasisLabel(basis, form)}
       </span>
@@ -5107,6 +5143,16 @@ function ProcessLogForm(props: any) {
                 {stockFormLabel(activeOutputForm)}. Width is interpreted as{" "}
                 {widthBasisLabel(activeWidthBasis, activeOutputForm)}.
               </div>
+              {targetStockContract?.converts ? (
+                <div
+                  className="mt-2 rounded-lg bg-surface-1 px-3 py-2 text-sm font-semibold text-content-1 ring-1 ring-info-border"
+                  data-testid="machine-fold-output"
+                >
+                  Folding: takes {targetStockContract.input_text} open web, makes{" "}
+                  <span className="text-info-fg">{targetStockContract.output_text}</span>. The
+                  width and flap follow the fold rule; edge trim beyond it is logged on the roll.
+                </div>
+              ) : null}
               <div className="mt-1 text-caption font-bold uppercase tracking-wider text-info-fg">
                 {stockFormSelectDisabled
                   ? "Default locked by process policy"
@@ -5155,7 +5201,7 @@ function ProcessLogForm(props: any) {
                 {reservedRolls.length ? (
                   reservedRolls.map((roll: any) => (
                     <SelectItem key={roll.id} value={roll.id}>
-                      {roll.label_id} · {stockFormLabel(roll.stock_form)} ·{" "}
+                      {roll.label_id} · {rollFormText(roll)} ·{" "}
                       {kg(roll.weight_kg)}
                     </SelectItem>
                   ))
@@ -5190,7 +5236,7 @@ function ProcessLogForm(props: any) {
                 {reservedRolls.length ? (
                   reservedRolls.map((roll: any) => (
                     <SelectItem key={roll.id} value={roll.id}>
-                      {roll.label_id} · {stockFormLabel(roll.stock_form)} ·{" "}
+                      {roll.label_id} · {rollFormText(roll)} ·{" "}
                       {kg(roll.weight_kg)}
                     </SelectItem>
                   ))
@@ -5248,7 +5294,7 @@ function ProcessLogForm(props: any) {
                 {reservedRolls.length ? (
                   reservedRolls.map((roll: any) => (
                     <SelectItem key={roll.id} value={roll.id}>
-                      {roll.label_id} · {stockFormLabel(roll.stock_form)} ·{" "}
+                      {roll.label_id} · {rollFormText(roll)} ·{" "}
                       {kg(roll.weight_kg)}
                     </SelectItem>
                   ))
@@ -6491,7 +6537,7 @@ function SublogDialog(props: any) {
                     </SelectItem>
                     {reservedRolls.map((roll: any) => (
                       <SelectItem key={roll.id} value={roll.id}>
-                        {roll.label_id} · {stockFormLabel(roll.stock_form)} ·{" "}
+                        {roll.label_id} · {rollFormText(roll)} ·{" "}
                         {kg(roll.weight_kg)}
                       </SelectItem>
                     ))}

@@ -646,6 +646,7 @@ _COMPUTED_GEOMETRY_KEYS = {
     "effective_height_mm",
     "effective_width_mm",
     "film_area_width_mm",
+    "fold",
     "input_roll_width_mm",
     "pod",
     "pod_enabled",

@@ -26,7 +26,16 @@ from apps.inventory.models import (
     InterPlantChallanItem,
 )
 from apps.materials.models import InventoryMaterial
-from apps.materials.stock_forms import normalize_stock_form, normalize_width_basis
+from apps.materials.stock_forms import (
+    FOLDABLE_FORMS,
+    STOCK_FORM_OPEN_WEB,
+    convert_width,
+    fold_as_json,
+    normalize_fold,
+    normalize_stock_form,
+    normalize_width_basis,
+    open_width_for,
+)
 from apps.inventory.services.bulk_service import BulkService
 from apps.production.services.stock_form_resolver import StockFormResolver
 from apps.production.services.roll_width import auto_max_width, width_tolerance_mm
@@ -4051,9 +4060,81 @@ class ExecutionService:
         return result
 
     @classmethod
+    def _step_form_contract_payload(cls, job):
+        try:
+            steps = StockFormResolver.for_job_step(job)
+        except Exception:
+            logger.warning("step form contract failed for job=%s", getattr(job, "id", None), exc_info=True)
+            return None
+        output = steps.output.as_dict()
+        if steps.input.stock_form != steps.output.stock_form:
+            output["width_mm"] = str(StockFormResolver._child_width(job) or steps.output.width_mm)
+        return {
+            "input": steps.input.as_dict(),
+            "output": output,
+            "converts": steps.input.stock_form != steps.output.stock_form,
+            "fold_step_index": steps.fold_step_index,
+        }
+
+    @classmethod
+    def _form_change_output(cls, job, roll, out_stock_form):
+        """(width, fold meta) of the roll a form-changing step makes from `roll`.
+
+        Open -> folded / tube: the line's folded width when the open roll is wide enough for
+        2W + flap + seal + trim (the extra is edge trim), else what the roll gives. Folded / tube ->
+        open: 2W + the roll's own flap and seal. Raises when the roll is too narrow for the line.
+        """
+        target = StockFormResolver.for_job_step(job).target
+        out_form = normalize_stock_form(out_stock_form)
+        in_form = normalize_stock_form(getattr(roll, "stock_form", None))
+        roll_width = Decimal(str(getattr(roll, "width_mm", 0) or 0))
+        roll_fold = normalize_fold((getattr(roll, "meta_json", None) or {}).get("fold"))
+        if in_form == STOCK_FORM_OPEN_WEB and out_form in FOLDABLE_FORMS:
+            fold = target.fold if target.stock_form == out_form else normalize_fold(None)
+            line_width = StockFormResolver._child_width(job) if target.stock_form == out_form else Decimal("0")
+            if line_width > 0:
+                needed = open_width_for(out_form, line_width, fold)
+                if roll_width + width_tolerance_mm() < needed:
+                    flap = f" + {fold['flap_mm'].normalize():f} flap" if fold["flap_mm"] > 0 else ""
+                    raise ValueError(
+                        f"Roll {roll.label_id} is {roll_width.normalize():f} mm open; folding to "
+                        f"{line_width.normalize():f} mm{flap} needs {needed.normalize():f} mm."
+                    )
+                width = line_width
+            else:
+                width = convert_width(in_form, out_form, roll_width, fold)
+            open_width = open_width_for(out_form, width, fold)
+            meta = fold_as_json(fold)
+            meta["open_width_mm"] = float(open_width)
+            meta["edge_trim_mm"] = float(max(Decimal("0"), roll_width - open_width))
+            return width, meta
+        if out_form in FOLDABLE_FORMS:
+            # Folded <-> tube keeps the lay-flat width and the flap.
+            return convert_width(in_form, out_form, roll_width, roll_fold), fold_as_json(roll_fold)
+        return convert_width(in_form, out_form, roll_width, roll_fold), None
+
+    @classmethod
+    def _spec_form_fields(cls, job, layer, stock_contract):
+        """Form fields of one roll spec: a layer's own form, except while the web is still open ahead of the fold."""
+        layer = layer if isinstance(layer, dict) else {}
+        if StockFormResolver.for_job_step(job).fold_ahead:
+            layer = {}
+        return {
+            "stock_form": layer.get("stock_form") or stock_contract.stock_form,
+            "width_basis": layer.get("width_basis") or stock_contract.width_basis,
+            "slit_policy": layer.get("slit_policy") or stock_contract.slit_policy,
+        }
+
+    @classmethod
     def _run_web_width(cls, job, process, width):
         """The web this step runs on. Before slitting, a line runs its planned parent web (lanes × child + trim,
-        e.g. 3-up 230 mm pouches on a 700 mm web); after slitting each lane is its own child roll."""
+        e.g. 3-up 230 mm pouches on a 700 mm web); after slitting each lane is its own child roll.
+        Up to the route's fold step the web is still open: 2W + flap + seal + trim per lane."""
+        run = cls._run_web_width_before_fold(job, process, width)
+        return StockFormResolver.widen_for_fold(job, run, child_width=width)
+
+    @classmethod
+    def _run_web_width_before_fold(cls, job, process, width):
         try:
             soi = getattr(job, "sales_order_item", None)
             parent = float(
@@ -4075,7 +4156,7 @@ class ExecutionService:
     def _build_step_target_specs(cls, job, process=None):
         process = process or job.current_process or job.process
         spec_hint = cls._resolve_step_roll_spec(job, process)
-        stock_contract = StockFormResolver.from_job(job)
+        stock_contract = StockFormResolver.input_contract(job)
         specs = []
         seen = set()
 
@@ -4176,9 +4257,7 @@ class ExecutionService:
                     "thickness_micron": layer.get("thickness_micron")
                     if layer.get("thickness_micron") is not None
                     else layer.get("thickness"),
-                    "stock_form": layer.get("stock_form") or stock_contract.stock_form,
-                    "width_basis": layer.get("width_basis") or stock_contract.width_basis,
-                    "slit_policy": layer.get("slit_policy") or stock_contract.slit_policy,
+                    **cls._spec_form_fields(job, layer, stock_contract),
                 }
                 # Roll compatibility width is snapshot-driven from stack layer
                 # width when provided; fallback to geometry base width.
@@ -4229,7 +4308,7 @@ class ExecutionService:
         process = process or job.current_process or job.process
         if not process or str(getattr(process, "input_form", "") or "").upper() != "ROLL":
             return []
-        stock_contract = StockFormResolver.from_job(job)
+        stock_contract = StockFormResolver.input_contract(job)
 
         req_width_mm = None
         try:
@@ -4263,9 +4342,7 @@ class ExecutionService:
                 "thickness_micron": raw_spec.get("thickness_micron"),
                 "min_width_mm": raw_spec.get("min_width_mm"),
                 "max_auto_width_mm": raw_spec.get("max_auto_width_mm"),
-                "stock_form": raw_spec.get("stock_form") or stock_contract.stock_form,
-                "width_basis": raw_spec.get("width_basis") or stock_contract.width_basis,
-                "slit_policy": raw_spec.get("slit_policy") or stock_contract.slit_policy,
+                **cls._spec_form_fields(job, raw_spec, stock_contract),
                 "variant_name": raw_spec.get("variant_name"),
             }
             return {key: value for key, value in payload.items() if value not in (None, "")}
@@ -4304,9 +4381,7 @@ class ExecutionService:
                         "max_auto_width_mm": auto_max_width(effective_req_width),
                         "variant_name": layer.get("variant_name") or layer.get("name"),
                         "source_role": "LAYER",
-                        "stock_form": layer.get("stock_form") or stock_contract.stock_form,
-                        "width_basis": layer.get("width_basis") or stock_contract.width_basis,
-                        "slit_policy": layer.get("slit_policy") or stock_contract.slit_policy,
+                        **cls._spec_form_fields(job, layer, stock_contract),
                     },
                     slot_index,
                 )
@@ -4378,9 +4453,7 @@ class ExecutionService:
                         "min_width_mm": effective_req_width,
                         "max_auto_width_mm": auto_max_width(effective_req_width),
                         "variant_name": layer.get("variant_name") or layer.get("name"),
-                        "stock_form": layer.get("stock_form") or stock_contract.stock_form,
-                        "width_basis": layer.get("width_basis") or stock_contract.width_basis,
-                        "slit_policy": layer.get("slit_policy") or stock_contract.slit_policy,
+                        **cls._spec_form_fields(job, layer, stock_contract),
                     },
                     idx + 1,
                 )
@@ -6682,6 +6755,9 @@ class ExecutionService:
                     # UI-required fields
                     'status': res.roll.status,
                     'width_mm': float(res.roll.width_mm) if res.roll.width_mm else 0,
+                    'stock_form': res.roll.stock_form,
+                    'form_text': res.roll.form_text,
+                    'fold': res.roll.fold,
                     'thickness_micron': float(res.roll.thickness_micron) if res.roll.thickness_micron else 0,
                     'grade_name': res.roll.grade.name if getattr(res.roll, "grade", None) else None,
                     'weight_kg': float(res.roll.weight_kg),
@@ -6923,6 +6999,8 @@ class ExecutionService:
                 'width_match_mode': width_match_mode,
                 'can_slit_to_required_width': can_slit_to_required_width,
                 'stock_form': getattr(roll, 'stock_form', 'OPEN_WEB') or 'OPEN_WEB',
+                'form_text': roll.form_text,
+                'fold': roll.fold,
                 'width_basis': getattr(roll, 'width_basis', '') or '',
                 'thickness_micron': float(roll.thickness_micron or 0),
                 'grade_id': str(roll.grade_id) if roll.grade_id else None,
@@ -7702,6 +7780,8 @@ class ExecutionService:
             },
             'target_roll_invariants': target_roll_spec,
             'target_roll_invariant_list': target_roll_specs,
+            # What this step takes and puts out: open web up to the fold step, the line's form after it.
+            'step_form_contract': cls._step_form_contract_payload(job),
             'roll_handling': roll_spec_payload,
             'bom_snapshot': bom_snapshot,
             'bom_layers': refined_bom_layers,
@@ -9485,7 +9565,7 @@ class ExecutionService:
             order_geometry_override = dict(job.mts_order.geometry_override or {})
 
         roll_counter = InventoryRoll.objects.filter(production_job=job).count()
-        target_stock_contract = StockFormResolver.from_job(job)
+        target_stock_contract = StockFormResolver.output_contract(job)
         operator_output_stock_form = kwargs.get("output_stock_form") or kwargs.get("stock_form")
 
         def _resolve_output_stock_form_for_row(input_roll=None, row=None):
@@ -10357,6 +10437,23 @@ class ExecutionService:
                             })
                             out_meta.update(internal_stock_meta)
                             out_stock_form, out_width_basis = _resolve_output_stock_form_for_row(roll, spec_row)
+                            out_width = spec_row.get("width_mm") or width_mm
+                            if normalize_stock_form(out_stock_form) != normalize_stock_form(roll.stock_form):
+                                # Fold / fold-and-seal / open: width and flap follow the fold rule. A typed
+                                # width is kept only when it is a real fold of this roll (a narrower fold
+                                # with more edge trim); the open input width typed by habit is replaced.
+                                rule_width, fold_meta = cls._form_change_output(job, roll, out_stock_form)
+                                typed = spec_row.get("width_mm")
+                                out_width = rule_width
+                                if typed and fold_meta is not None:
+                                    needed = open_width_for(out_stock_form, typed, fold_meta)
+                                    if needed <= Decimal(str(roll.width_mm or 0)) + width_tolerance_mm():
+                                        out_width = typed
+                                        fold_meta["open_width_mm"] = float(needed)
+                                        fold_meta["edge_trim_mm"] = float(max(Decimal("0"), Decimal(str(roll.width_mm or 0)) - needed))
+                                out_meta.pop("fold", None)
+                                if fold_meta is not None:
+                                    out_meta["fold"] = fold_meta
 
                             out_roll = InventoryRoll.objects.create(
                                 label_id=_next_job_roll_label("MOD"),
@@ -10367,7 +10464,7 @@ class ExecutionService:
                                 created_process=process,
                                 parent_roll=roll,
                                 thickness_micron=thickness_micron,
-                                width_mm=spec_row.get("width_mm") or width_mm,
+                                width_mm=out_width,
                                 stock_form=out_stock_form,
                                 width_basis=out_width_basis,
                                 density_gcm3=cls._resolve_density_gcm3(material=out_material, roll=roll),

@@ -80,6 +80,8 @@ export interface PouchStyle {
     locked: boolean
     visual_emoji: string
     visual_svg: string
+    /** POUCH: the formula makes the stock width. ROLL: the roll width is the size width; only form + fold apply. */
+    style_for?: "POUCH" | "ROLL"
     default_stock_form?: "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB" | string
     default_width_basis?: "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH" | string
     default_slit_policy?: "SLIT_ALLOWED" | "EXACT_ONLY" | string
@@ -107,6 +109,7 @@ export interface PouchStylePayload {
     description?: string
     visual_emoji?: string
     visual_svg?: string
+    style_for?: "POUCH" | "ROLL"
     default_stock_form?: "OPEN_WEB" | "LAYFLAT_TUBE" | "FOLDED_WEB" | string
     default_width_basis?: "OPEN_WEB_WIDTH" | "LAYFLAT_WIDTH" | "FOLDED_WIDTH" | string
     default_slit_policy?: "SLIT_ALLOWED" | "EXACT_ONLY" | string

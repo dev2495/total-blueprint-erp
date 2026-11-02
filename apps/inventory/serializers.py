@@ -378,6 +378,8 @@ class InventoryAuditBatchSerializer(serializers.ModelSerializer):
         ]
 
 class InventoryRollSerializer(serializers.ModelSerializer):
+    form_text = serializers.CharField(read_only=True)
+    fold = serializers.JSONField(read_only=True)
     material_name = serializers.CharField(source='material.name', read_only=True)
     material_code = serializers.CharField(source='material.code', read_only=True)
     variant_id = serializers.SerializerMethodField()
@@ -398,7 +400,7 @@ class InventoryRollSerializer(serializers.ModelSerializer):
         model = InventoryRoll
         fields = [
             'id', 'label_id', 'material', 'variant_id', 'material_name', 'material_code', 'family_name',
-            'batch_no', 'thickness_micron', 'width_mm', 'stock_form', 'width_basis', 'density_gcm3', 'length_m',
+            'batch_no', 'thickness_micron', 'width_mm', 'stock_form', 'form_text', 'fold', 'width_basis', 'density_gcm3', 'length_m',
             'grade', 'grade_name',  # Phase 56: Grade
             'plant', 'plant_name',  # Phase 56: Plant
             'original_weight_kg', 'weight_kg', 'net_weight_kg', 'tare_weight_kg', 'gross_weight_kg', 'location', 'location_name',
@@ -902,6 +904,8 @@ class RollMovementSerializer(serializers.ModelSerializer):
 
 
 class RollDetailSerializer(serializers.ModelSerializer):
+    form_text = serializers.CharField(read_only=True)
+    fold = serializers.JSONField(read_only=True)
     """Full roll details with genealogy and movements. Phase 56: Includes grade and plant."""
     material_name = serializers.CharField(source='material.name', read_only=True)
     material_code = serializers.CharField(source='material.code', read_only=True)
@@ -934,7 +938,7 @@ class RollDetailSerializer(serializers.ModelSerializer):
         model = InventoryRoll
         fields = [
             'id', 'label_id', 'material', 'variant_id', 'material_name', 'material_code', 'family_name',
-            'batch_no', 'thickness_micron', 'width_mm', 'stock_form', 'width_basis', 'density_gcm3', 'length_m',
+            'batch_no', 'thickness_micron', 'width_mm', 'stock_form', 'form_text', 'fold', 'width_basis', 'density_gcm3', 'length_m',
             'grade', 'grade_name',  # Phase 56: Grade
             'plant', 'plant_name',  # Phase 56: Plant
             'original_weight_kg', 'weight_kg', 'location', 'location_name', 'location_type',

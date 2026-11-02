@@ -2310,7 +2310,7 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
     audit_area = "MASTER_POUCH_STYLE"
     serializer_class = PouchStyleSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ["formula_kind", "deprecated", "locked"]
+    filterset_fields = ["formula_kind", "deprecated", "locked", "style_for"]
     search_fields = ["code", "name", "description", "notes"]
 
     def get_queryset(self):
@@ -2394,6 +2394,7 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             locked=False,
             visual_emoji=pick("visual_emoji", instance.visual_emoji),
             visual_svg=pick("visual_svg", instance.visual_svg),
+            style_for=instance.style_for,
             default_roll_axis=pick("default_roll_axis", instance.default_roll_axis),
             default_stock_form=pick("default_stock_form", instance.default_stock_form),
             default_width_basis=pick("default_width_basis", instance.default_width_basis),
@@ -2552,6 +2553,8 @@ class PouchStyleMasterViewSet(MasterDataAuditMixin, viewsets.ModelViewSet):
             "width_basis": geometry["width_basis"],
             "slit_policy": geometry["slit_policy"],
             "film_area_factor": float(geometry["film_area_factor"]),
+            "fold": geometry.get("fold"),
+            "open_width_mm": float(geometry["open_width_mm"]) if geometry.get("open_width_mm") is not None else None,
         })
 
 

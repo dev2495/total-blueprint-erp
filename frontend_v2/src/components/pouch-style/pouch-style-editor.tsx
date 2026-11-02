@@ -73,7 +73,7 @@ const STOCK_FORM_OPTIONS = [
     value: "FOLDED_WEB",
     label: "Folded web",
     basis: "FOLDED_WIDTH",
-    factor: 1,
+    factor: 2,
     slit: "EXACT_ONLY",
   },
 ] as const;
@@ -152,9 +152,11 @@ function toneFor(field: string) {
 interface PouchStyleEditorProps {
   id?: string;
   initialMode?: "new" | "edit";
+  /** New page only: start a roll style (form + fold) instead of a pouch style. */
+  initialStyleFor?: "POUCH" | "ROLL";
 }
 
-export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
+export function PouchStyleEditor({ id, initialMode, initialStyleFor = "POUCH" }: PouchStyleEditorProps) {
   const router = useRouter();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -173,7 +175,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
   });
 
   const [draft, setDraft] = React.useState<Partial<PouchStyle>>(() =>
-    emptyDraft(),
+    initialStyleFor === "ROLL" ? emptyRollDraft() : emptyDraft(),
   );
   const [previewInputs, setPreviewInputs] = React.useState<
     Record<string, number>
@@ -214,6 +216,8 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
   ).toUpperCase();
   const filmAreaFactor = resolveFilmAreaFactor(draft, stockForm);
   const rollAxis = normalizeAreaRollAxis(draft.default_roll_axis);
+  const isRollStyle = String(draft.style_for || "POUCH").toUpperCase() === "ROLL";
+  const fold = foldOf(draft.stock_form_options, stockForm);
 
   const set = <K extends keyof PouchStyle>(
     key: K,
@@ -263,14 +267,15 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
       description: draft.description || "",
       visual_emoji: draft.visual_emoji || "🛍️",
       visual_svg: draft.visual_svg || "",
-      default_roll_axis: rollAxis as any,
+      style_for: (isRollStyle ? "ROLL" : "POUCH") as "ROLL" | "POUCH",
+      default_roll_axis: (isRollStyle ? "NONE" : rollAxis) as any,
       default_stock_form: stockForm as any,
       default_width_basis: widthBasis as any,
       default_slit_policy: slitPolicy as any,
       stock_form_options: normalizeStockFormOptions(draft.stock_form_options),
       allowed_fields: allowedFields,
       field_adjustments: cleanFieldAdjustments(draft.field_adjustments || {}),
-      formula_kind: (draft.formula_kind || "LINEAR") as PouchFormulaKind,
+      formula_kind: (isRollStyle ? "SHAPED_OVERRIDE" : draft.formula_kind || "LINEAR") as PouchFormulaKind,
       formula_params: formulaParams,
       formula_ast: (draft.formula_ast as any) || {},
       formula_expression: prettyExpression(
@@ -286,6 +291,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
     allowedFields,
     draft,
     formulaParams,
+    isRollStyle,
     rollAxis,
     stockForm,
     widthBasis,
@@ -303,7 +309,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
   }, [buildPayload, existing, isNew]);
 
   const returnToLanding = React.useCallback(() => {
-    router.push("/master/pouch-styles");
+    router.push(isRollStyle ? "/master/pouch-styles?tab=roll" : "/master/pouch-styles");
   }, [router]);
 
   const saveMutation = useMutation({
@@ -484,6 +490,48 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
     setTerms([...terms, { factors: [{ kind: "NUMBER", value: 1 }] }]);
   }
 
+  const stockAreaPanel = (
+    <StockAreaPolicyPanel
+      stockForm={stockForm}
+      widthBasis={widthBasis}
+      slitPolicy={slitPolicy}
+      filmAreaFactor={filmAreaFactor}
+      fold={fold}
+      onStockFormChange={(nextForm) => {
+        const nextBasis = defaultWidthBasis(nextForm);
+        const nextSlit = defaultSlitPolicy(nextForm);
+        set("default_stock_form", nextForm as any);
+        set("default_width_basis", nextBasis as any);
+        set("default_slit_policy", nextSlit as any);
+        patchStockFormOption(set, draft.stock_form_options, nextForm, {
+          enabled: true,
+          width_basis: nextBasis,
+          slit_policy: nextSlit,
+          film_area_factor: defaultFilmAreaFactor(nextForm),
+        });
+      }}
+      onPatch={(patch) => {
+        const next = {
+          width_basis: widthBasis,
+          slit_policy: slitPolicy,
+          film_area_factor: filmAreaFactor,
+          ...patch,
+          enabled: true,
+        };
+        if (patch.width_basis)
+          set("default_width_basis", patch.width_basis as any);
+        if (patch.slit_policy)
+          set("default_slit_policy", patch.slit_policy as any);
+        patchStockFormOption(
+          set,
+          draft.stock_form_options,
+          stockForm,
+          next,
+        );
+      }}
+    />
+  );
+
   if (!isNew && isLoading) {
     return (
       <div className="p-10 text-center text-sm text-content-3">
@@ -502,13 +550,19 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
     <div className="min-h-screen bg-surface-2 px-4 py-4 sm:px-6">
       <GradientHero
         palette="indigo"
-        eyebrow={isNew ? "MASTER · POUCH STYLE · NEW" : "MASTER · POUCH STYLE"}
+        eyebrow={`MASTER · ${isRollStyle ? "ROLL" : "POUCH"} STYLE${isNew ? " · NEW" : ""}`}
         title={
           isNew
-            ? "Build a pouch shape"
-            : `${draft.visual_emoji || "🛍️"} ${draft.name || draft.code || "Pouch style"}`
+            ? isRollStyle
+              ? "Set up a roll form"
+              : "Build a pouch shape"
+            : `${draft.visual_emoji || "🛍️"} ${draft.name || draft.code || (isRollStyle ? "Roll style" : "Pouch style")}`
         }
-        subtitle="Pick the input fields, build the child stock-width formula, then define how that stock width becomes film area for BOM, costing, and roll allocation."
+        subtitle={
+          isRollStyle
+            ? "Pick the roll's form and, for folded or tube rolls, its flap, seal and fold trim. Roll sizes that use this style take them; the folding step reads them."
+            : "Pick the input fields, build the child stock-width formula, then define how that stock width becomes film area for BOM, costing, and roll allocation."
+        }
         chips={
           [
             !isNew && isLocked
@@ -535,7 +589,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => router.push("/master/pouch-styles")}
+            onClick={() => router.push(isRollStyle ? "/master/pouch-styles?tab=roll" : "/master/pouch-styles")}
             className="inline-flex items-center gap-1 rounded-full bg-surface-1/15 px-3 py-1 text-caption font-bold text-white backdrop-blur ring-1 ring-surface-1/20 hover:bg-surface-1/25"
           >
             <ArrowLeft className="h-3 w-3" /> back to pouch styles
@@ -632,6 +686,21 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
                   placeholder="Stand-up pouch · Acme line"
                 />
               </Field>
+              <Field label="Style for">
+                <Select
+                  value={isRollStyle ? "ROLL" : "POUCH"}
+                  onValueChange={(value) => set("style_for", value as any)}
+                  disabled={!isNew && isLocked}
+                >
+                  <SelectTrigger className="h-9 text-xs" data-testid="style-for-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="POUCH">Pouch sizes (formula)</SelectItem>
+                    <SelectItem value="ROLL">Roll sizes (form and fold)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field label="Emoji">
                 <Input
                   value={draft.visual_emoji || ""}
@@ -660,6 +729,24 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
             </Field>
           </Card>
 
+          {isRollStyle ? (
+            <Card index={2} title="Roll form and fold" tone="emerald">
+              <p className="-mt-1 mb-1 text-caption text-content-3">
+                A roll style has no pouch formula: the roll width is the
+                size&apos;s own width. It only sets the roll&apos;s form and,
+                for folded or tube rolls, the fold the folding step makes.
+              </p>
+              {stockAreaPanel}
+              {isFoldedForm(stockForm) ? (
+                <div className="mt-3 rounded-xl bg-surface-2 px-3 py-2 text-caption text-content-2 ring-1 ring-order-border" data-testid="roll-style-fold-example">
+                  Example: a 300 mm roll needs{" "}
+                  <b>{formatNumber(600 + fold.flap_mm + fold.seal_mm + fold.trim_mm)} mm</b>{" "}
+                  of open web; film area {formatNumber(600 + fold.flap_mm + fold.seal_mm)} mm.
+                </div>
+              ) : null}
+            </Card>
+          ) : (
+          <>
           {/* Allowed fields */}
           <Card index={2} title="Allowed input fields" tone="violet">
             <p className="-mt-1 mb-3 text-caption text-content-3">
@@ -861,44 +948,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
               }}
             />
 
-            <StockAreaPolicyPanel
-              stockForm={stockForm}
-              widthBasis={widthBasis}
-              slitPolicy={slitPolicy}
-              filmAreaFactor={filmAreaFactor}
-              onStockFormChange={(nextForm) => {
-                const nextBasis = defaultWidthBasis(nextForm);
-                const nextSlit = defaultSlitPolicy(nextForm);
-                set("default_stock_form", nextForm as any);
-                set("default_width_basis", nextBasis as any);
-                set("default_slit_policy", nextSlit as any);
-                patchStockFormOption(set, draft.stock_form_options, nextForm, {
-                  enabled: true,
-                  width_basis: nextBasis,
-                  slit_policy: nextSlit,
-                  film_area_factor: defaultFilmAreaFactor(nextForm),
-                });
-              }}
-              onPatch={(patch) => {
-                const next = {
-                  width_basis: widthBasis,
-                  slit_policy: slitPolicy,
-                  film_area_factor: filmAreaFactor,
-                  ...patch,
-                  enabled: true,
-                };
-                if (patch.width_basis)
-                  set("default_width_basis", patch.width_basis as any);
-                if (patch.slit_policy)
-                  set("default_slit_policy", patch.slit_policy as any);
-                patchStockFormOption(
-                  set,
-                  draft.stock_form_options,
-                  stockForm,
-                  next,
-                );
-              }}
-            />
+            {stockAreaPanel}
 
             <div className="mt-4 grid gap-2 md:grid-cols-2">
               <FormulaEquation
@@ -968,10 +1018,13 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
               </div>
             ) : null}
           </Card>
+          </>
+          )}
         </div>
 
         {/* RIGHT */}
         <div className="space-y-5">
+          {!isRollStyle ? (
           <Card index={4} title="Live preview" tone="amber">
             <p className="-mt-1 mb-3 text-caption text-content-3">
               Sample values only. This shows the physical child stock width, the
@@ -1013,6 +1066,7 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
               only owns width and area math.
             </p>
           </Card>
+          ) : null}
 
           <Card index={5} title="Actions" tone="slate">
             <div className="flex flex-col gap-2">
@@ -1112,6 +1166,29 @@ export function PouchStyleEditor({ id, initialMode }: PouchStyleEditorProps) {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function emptyRollDraft(): Partial<PouchStyle> {
+  return {
+    ...emptyDraft(),
+    style_for: "ROLL",
+    visual_emoji: "🧻",
+    default_roll_axis: "NONE",
+    default_stock_form: "FOLDED_WEB",
+    default_width_basis: "FOLDED_WIDTH",
+    default_slit_policy: "EXACT_ONLY",
+    formula_kind: "SHAPED_OVERRIDE",
+    stock_form_options: {
+      ...defaultStockFormOptions(),
+      FOLDED_WEB: {
+        ...defaultStockFormOptions().FOLDED_WEB,
+        enabled: true,
+        flap_mm: 0,
+        seal_mm: 0,
+        trim_mm: 0,
+      },
+    },
+  };
+}
+
 function emptyDraft(): Partial<PouchStyle> {
   return {
     code: "",
@@ -1120,6 +1197,7 @@ function emptyDraft(): Partial<PouchStyle> {
     version: 1,
     locked: false,
     visual_emoji: "🛍️",
+    style_for: "POUCH",
     default_roll_axis: "WIDTH",
     default_stock_form: "OPEN_WEB",
     default_width_basis: "OPEN_WEB_WIDTH",
@@ -1179,20 +1257,22 @@ function styleToPayload(style: PouchStyle) {
   const params = (style.formula_params || {}) as Record<string, any>;
   const terms = Array.isArray(params.terms) ? params.terms : [];
   const trim = Number(params.trim_mm ?? 0);
+  const isRoll = String(style.style_for || "POUCH").toUpperCase() === "ROLL";
   return {
     code: style.code || "",
     name: style.name || "",
     description: style.description || "",
     visual_emoji: style.visual_emoji || "🛍️",
     visual_svg: style.visual_svg || "",
-    default_roll_axis: normalizeAreaRollAxis(style.default_roll_axis) as any,
+    style_for: (isRoll ? "ROLL" : "POUCH") as "ROLL" | "POUCH",
+    default_roll_axis: (isRoll ? "NONE" : normalizeAreaRollAxis(style.default_roll_axis)) as any,
     default_stock_form: stockForm as any,
     default_width_basis: widthBasis as any,
     default_slit_policy: slitPolicy as any,
     stock_form_options: normalizeStockFormOptions(style.stock_form_options),
     allowed_fields: style.allowed_fields || {},
     field_adjustments: cleanFieldAdjustments(style.field_adjustments || {}),
-    formula_kind: (style.formula_kind || "LINEAR") as PouchFormulaKind,
+    formula_kind: (isRoll ? "SHAPED_OVERRIDE" : style.formula_kind || "LINEAR") as PouchFormulaKind,
     formula_params: params,
     formula_ast: (style.formula_ast as any) || {},
     formula_expression:
@@ -1266,7 +1346,28 @@ function prettyExpression(
 }
 
 function defaultFilmAreaFactor(stockForm?: string) {
-  return String(stockForm || "").toUpperCase() === "LAYFLAT_TUBE" ? 2 : 1;
+  return isFoldedForm(stockForm) ? 2 : 1;
+}
+
+/** Folded web and lay-flat tube are both made from one open web: open = 2W + flap + seal + trim. */
+function isFoldedForm(stockForm?: string) {
+  const form = String(stockForm || "").toUpperCase();
+  return form === "LAYFLAT_TUBE" || form === "FOLDED_WEB";
+}
+
+const FOLD_FIELDS = [
+  { key: "flap_mm", label: "Flap (mm)", hint: "Longer wall's extra; 0 = plain fold" },
+  { key: "seal_mm", label: "Seal (mm)", hint: "Film taken by the edge seal (tube)" },
+  { key: "trim_mm", label: "Fold trim (mm)", hint: "Edge trim cut at the folder" },
+] as const;
+
+function foldOf(options: Record<string, any> | undefined, stockForm: string) {
+  const cfg = normalizeStockFormOptions(options)[stockForm] || {};
+  return {
+    flap_mm: Number(cfg.flap_mm || 0),
+    seal_mm: Number(cfg.seal_mm || 0),
+    trim_mm: Number(cfg.trim_mm || 0),
+  };
 }
 
 function defaultWidthBasis(stockForm?: string) {
@@ -1299,7 +1400,7 @@ function defaultStockFormOptions() {
     },
     FOLDED_WEB: {
       enabled: false,
-      film_area_factor: 1,
+      film_area_factor: 2,
       width_basis: "FOLDED_WIDTH",
       slit_policy: "EXACT_ONLY",
     },
@@ -1993,6 +2094,7 @@ function StockAreaPolicyPanel({
   widthBasis,
   slitPolicy,
   filmAreaFactor,
+  fold,
   onStockFormChange,
   onPatch,
 }: {
@@ -2000,6 +2102,7 @@ function StockAreaPolicyPanel({
   widthBasis: string;
   slitPolicy: string;
   filmAreaFactor: number;
+  fold: { flap_mm: number; seal_mm: number; trim_mm: number };
   onStockFormChange: (next: string) => void;
   onPatch: (patch: Record<string, any>) => void;
 }) {
@@ -2094,6 +2197,43 @@ function StockAreaPolicyPanel({
           WCM may slit wider parent rolls.
         </div>
       </div>
+      {isFoldedForm(stockForm) ? (
+        <div className="mt-3 rounded-xl bg-surface-1 p-3 ring-1 ring-order-border" data-testid="style-fold-fields">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-caption font-semibold uppercase tracking-widest text-order-fg">
+              Fold
+            </div>
+            <Badge
+              variant="outline"
+              className="border-order-border bg-surface-2 text-caption font-semibold text-order-fg"
+            >
+              open web = 2W + {formatNumber(fold.flap_mm)} flap + {formatNumber(fold.seal_mm)} seal + {formatNumber(fold.trim_mm)} trim
+            </Badge>
+          </div>
+          <div className="mt-2 grid gap-3 sm:grid-cols-3">
+            {FOLD_FIELDS.map((row) => (
+              <Field key={row.key} label={row.label}>
+                <Input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={Number(fold[row.key] || 0)}
+                  onChange={(event) =>
+                    onPatch({ [row.key]: Math.max(0, Number(event.target.value || 0)) })
+                  }
+                  className="h-9 bg-surface-2 text-right text-xs"
+                />
+                <div className="mt-1 text-[10.5px] text-content-3">{row.hint}</div>
+              </Field>
+            ))}
+          </div>
+          <p className="mt-2 text-[10.5px] text-order-fg">
+            The folding step reads this: it takes open rolls of 2W + flap +
+            seal + trim and puts out {stockFormLabel(stockForm)} of width W.
+            Film area counts both walls, the flap and the seal.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

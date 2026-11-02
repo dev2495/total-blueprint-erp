@@ -394,6 +394,10 @@ class OrderSpineService:
         bits = [form_word]
         if width:
             bits.append(f"{width:g} mm roll" + (f" ({film:g} mm film)" if film and abs(film - width) > 0.01 else ""))
+        fold = geometry.get("fold") if isinstance(geometry.get("fold"), dict) else {}
+        flap = _num(fold.get("flap_mm"))
+        if form in {"FOLDED_WEB", "LAYFLAT_TUBE"} and flap:
+            bits.append(f"{flap:g} mm flap")
         if slit in cls.SLIT_WORDS:
             bits.append(cls.SLIT_WORDS[slit])
         return {"stock_web": " · ".join(bits), "stock_form": form, "stock_width_mm": width or None}

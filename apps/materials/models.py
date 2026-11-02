@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from .naming import normalize_code
 from .stock_forms import (
+    FOLDABLE_FORMS,
     SLIT_POLICY_CHOICES,
     SLIT_POLICY_ALLOWED,
     STOCK_FORM_CHOICES,
@@ -20,9 +21,12 @@ from .stock_forms import (
     default_slit_policy,
     default_width_basis,
     film_area_factor_for_stock_form,
+    film_area_width_for,
     normalize_slit_policy,
     normalize_stock_form,
     normalize_width_basis,
+    roll_form_from_stock_form,
+    stock_form_from_roll_form,
 )
 
 logger = logging.getLogger(__name__)
@@ -439,6 +443,20 @@ class PouchStyleMaster(models.Model):
         help_text="Optional inline SVG cheat-sheet of the pouch shape.",
     )
 
+    STYLE_FOR_CHOICES = [
+        ("POUCH", "Pouch style"),
+        ("ROLL", "Roll style"),
+    ]
+    style_for = models.CharField(
+        max_length=8,
+        choices=STYLE_FOR_CHOICES,
+        default="POUCH",
+        db_index=True,
+        help_text=(
+            "POUCH: the formula turns pouch sizes into a stock width. ROLL: the size width is the roll width; "
+            "the style only sets the roll's form and its fold (flap, seal, trim)."
+        ),
+    )
     default_roll_axis = models.CharField(max_length=10, choices=AXIS_CHOICES, default="WIDTH")
     default_stock_form = models.CharField(
         max_length=24,
@@ -464,7 +482,9 @@ class PouchStyleMaster(models.Model):
         help_text=(
             "Per-stock-form overrides. Example: "
             "{OPEN_WEB:{film_area_factor:1, slit_policy:SLIT_ALLOWED}, "
-            "LAYFLAT_TUBE:{film_area_factor:2, slit_policy:EXACT_ONLY}}."
+            "LAYFLAT_TUBE:{film_area_factor:2, slit_policy:EXACT_ONLY}, "
+            "FOLDED_WEB:{flap_mm:20, seal_mm:0, trim_mm:10}}. "
+            "flap_mm / seal_mm / trim_mm on FOLDED_WEB or LAYFLAT_TUBE describe the fold: open web = 2W + flap + seal + trim."
         ),
     )
 
@@ -542,8 +562,14 @@ class PouchStyleMaster(models.Model):
     def __str__(self):
         return f"{self.name} ({self.code}) v{self.version}"
 
+    @property
+    def is_roll_style(self) -> bool:
+        return str(self.style_for or "").upper() == "ROLL"
+
     def clean(self):
         super().clean()
+        if self.is_roll_style:
+            return
         from .services_pouch_style import formula_axis_contract_error
 
         contract_error = formula_axis_contract_error(
@@ -557,6 +583,11 @@ class PouchStyleMaster(models.Model):
 
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80).upper()
+        self.style_for = "ROLL" if str(self.style_for or "").upper() == "ROLL" else "POUCH"
+        if self.style_for == "ROLL":
+            # A roll style has no pouch formula: the roll size width is the stock width.
+            self.formula_kind = "SHAPED_OVERRIDE"
+            self.default_roll_axis = "NONE"
         self.default_stock_form = normalize_stock_form(self.default_stock_form)
         self.default_width_basis = normalize_width_basis(self.default_width_basis, stock_form=self.default_stock_form)
         self.default_slit_policy = normalize_slit_policy(self.default_slit_policy, stock_form=self.default_stock_form)
@@ -685,8 +716,45 @@ class ProductMasterSize(models.Model):
     def __str__(self):
         return f"{self.product_master.code} / {self.code}"
 
+    def _sync_roll_form(self):
+        """Roll sizes: the editor's Roll form (FLAT / FOLDED / TUBING) is the roll's stock form.
+
+        Before 2 Nov 2026 only geometry_config.roll_form was saved, so a TUBING size stayed OPEN_WEB
+        and its film was counted once. A bound roll style decides the form instead (and the picker
+        is kept in step with it).
+        """
+        try:
+            kind = str(getattr(self.product_master, "product_kind", "") or "").upper() if self.product_master_id else ""
+        except Exception:
+            kind = ""
+        if kind != "ROLL":
+            return
+        geometry = dict(self.geometry_config) if isinstance(self.geometry_config, dict) else {}
+        if self.pouch_style_master_id:
+            form = normalize_stock_form(self.stock_form)
+        else:
+            form = stock_form_from_roll_form(geometry.get("roll_form"))
+            if form is None:
+                return
+        changed = form != normalize_stock_form(self.stock_form)
+        if changed:
+            self.stock_form = form
+            self.width_basis = default_width_basis(form)
+            self.slit_policy = default_slit_policy(form)
+        geometry["roll_form"] = roll_form_from_stock_form(form)
+        for key, value in (("stock_form", self.stock_form), ("width_basis", self.width_basis), ("slit_policy", self.slit_policy)):
+            if key in geometry:
+                geometry[key] = value
+        width = self.child_target_width_mm or self.roll_width_mm or self.width_mm
+        if width not in (None, "") and (changed or form in FOLDABLE_FORMS or self.film_area_width_mm in (None, "")):
+            self.film_area_width_mm = film_area_width_for(form, width, geometry.get("fold"))
+            if "film_area_width_mm" in geometry:
+                geometry["film_area_width_mm"] = float(self.film_area_width_mm)
+        self.geometry_config = geometry
+
     def save(self, *args, **kwargs):
         self.code = normalize_code(self.code, max_length=80)
+        self._sync_roll_form()
         self.stock_form = normalize_stock_form(self.stock_form)
         self.width_basis = normalize_width_basis(self.width_basis, stock_form=self.stock_form)
         self.slit_policy = normalize_slit_policy(self.slit_policy, stock_form=self.stock_form)

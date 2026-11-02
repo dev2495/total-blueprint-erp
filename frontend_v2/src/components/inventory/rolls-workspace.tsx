@@ -58,6 +58,7 @@ import {
   PulseViewV36,
 } from "./pulse-view";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
+import { RollFormChip, rollFormText } from "@/components/rolls/roll-form-chip";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -195,15 +196,6 @@ function stockFormLabel(value: any): string {
   if (normalized === "LAYFLAT_TUBE") return "Lay-flat tube";
   if (normalized === "FOLDED_WEB") return "Folded web";
   return "Open web";
-}
-
-function stockFormTone(value: any): string {
-  const normalized = stockFormValue({ stock_form: value });
-  if (normalized === "LAYFLAT_TUBE")
-    return "bg-warning-bg text-warning-fg ring-warning-border";
-  if (normalized === "FOLDED_WEB")
-    return "bg-order-bg text-order-fg ring-order-border";
-  return "bg-info-bg text-primary ring-info-border";
 }
 
 function intensityFor(kg: number): "0" | "1" | "2" | "3" | "4" {
@@ -1369,14 +1361,7 @@ function TableView({
                   </div>
                 </td>
                 <td className="px-3 py-2">
-                  <span
-                    className={cn(
-                      "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
-                      stockFormTone(r.stock_form),
-                    )}
-                  >
-                    {stockFormLabel(r.stock_form)}
-                  </span>
+                  <RollFormChip roll={r} withWidth={false} />
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-content-2">
                   {fmtNum(Number(r.width_mm || 0))} mm<span className="ml-1 text-content-3">· {inchesText(r.width_mm)}</span>
@@ -1507,14 +1492,7 @@ function GridView({
               </span>
             </div>
             <div className="mt-2">
-              <span
-                className={cn(
-                  "rounded-md px-1.5 py-0.5 text-caption font-bold  ring-1",
-                  stockFormTone(r.stock_form),
-                )}
-              >
-                {stockFormLabel(r.stock_form)}
-              </span>
+              <RollFormChip roll={r} withWidth={false} />
             </div>
             <div className="mt-3 grid grid-cols-3 gap-1.5 rounded-lg bg-surface-2 p-2">
               <div className="text-center">
@@ -1736,14 +1714,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
             >
               {roll.roll_role || "BASE"}
             </span>
-            <span
-              className={cn(
-                "rounded-md px-2 py-0.5 text-caption font-bold  ring-1",
-                stockFormTone(roll.stock_form),
-              )}
-            >
-              {stockFormLabel(roll.stock_form)}
-            </span>
+            <RollFormChip roll={roll} />
             {roll.behavior_source && (
               <span className="rounded-md bg-surface-2 px-2 py-0.5 text-caption font-bold text-content-2 ring-1 ring-line">
                 {roll.behavior_source}
@@ -1769,7 +1740,7 @@ function RollDrawer({ roll, onClose }: { roll: any; onClose: () => void }) {
               label="Thickness"
               value={`${fmtNum(Number(roll.thickness_micron || 0))} μ`}
             />
-            <Stat label="Form" value={stockFormLabel(roll.stock_form)} />
+            <Stat label="Form" value={rollFormText(roll)} />
             <Stat
               label="Length"
               value={`${fmtNum(Number(roll.length_m || 0))} m`}

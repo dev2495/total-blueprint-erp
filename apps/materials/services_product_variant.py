@@ -17,8 +17,11 @@ from .naming import product_variant_code
 from .models import InventoryMaterial, MaterialCodeAlias, ProductMaster, ProductMasterSize, ProductVariant
 from .services_pouch_style import consumption_pitch_axis, resolved_formula_roll_axis
 from .stock_forms import (
+    FOLDABLE_FORMS,
     STOCK_FORM_OPEN_WEB,
-    film_area_factor_for_stock_form,
+    film_area_width_for,
+    fold_as_json,
+    normalize_fold,
     normalize_slit_policy,
     normalize_stock_form,
     normalize_width_basis,
@@ -560,6 +563,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
             "trim_loss_mm": geometry_defaults.get("trim_loss_mm") if "trim_loss_mm" in geometry_defaults else None,
             "trim_apply_to": geometry_defaults.get("trim_apply_to") or "",
             "flap_tape_mm": geometry_defaults.get("flap_tape_mm") if "flap_tape_mm" in geometry_defaults else None,
+            "fold": geometry_defaults.get("fold") if isinstance(geometry_defaults.get("fold"), dict) else None,
             "gusset_apply_to": geometry_defaults.get("gusset_apply_to") or "",
             "gusset_factor": geometry_defaults.get("gusset_factor"),
             "adjustments": geometry_defaults.get("adjustments") if isinstance(geometry_defaults.get("adjustments"), list) else [],
@@ -598,6 +602,7 @@ def _size_from_axis(master: ProductMaster, axis_values: dict[str, Any]) -> dict[
         "trim_loss_mm": src.get("trim_loss_mm"),
         "trim_apply_to": src.get("trim_apply_to") or "",
         "flap_tape_mm": src.get("flap_tape_mm"),
+        "fold": src.get("fold") if isinstance(src.get("fold"), dict) else None,
         "gusset_apply_to": src.get("gusset_apply_to") or "",
         "gusset_factor": src.get("gusset_factor"),
         "adjustments": src.get("adjustments") if isinstance(src.get("adjustments"), list) else [],
@@ -650,12 +655,16 @@ def compute_geometry(master: ProductMaster, axis_values: dict[str, Any]) -> dict
     stock_form = normalize_stock_form(size.get("stock_form") or STOCK_FORM_OPEN_WEB)
     width_basis = normalize_width_basis(size.get("width_basis"), stock_form=stock_form)
     slit_policy = normalize_slit_policy(size.get("slit_policy"), stock_form=stock_form)
+    fold = normalize_fold(size.get("fold")) if stock_form in FOLDABLE_FORMS else None
     film_area_width = Decimal(str(size.get("film_area_width_mm") or 0))
     if film_area_width <= 0 and child_target_width > 0:
-        film_area_width = child_target_width * Decimal(str(film_area_factor_for_stock_form(stock_form)))
+        film_area_width = film_area_width_for(stock_form, child_target_width, fold)
     normalized["stock_form"] = stock_form
     normalized["width_basis"] = width_basis
     normalized["slit_policy"] = slit_policy
+    if fold is not None:
+        # Folded / tube stock made from one open web: open = 2W + flap + seal + trim.
+        normalized["fold"] = fold_as_json(fold)
     if film_area_width > 0:
         normalized["film_area_width_mm"] = float(film_area_width)
         normalized["consumption_web_width_mm"] = float(film_area_width)

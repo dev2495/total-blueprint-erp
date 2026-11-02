@@ -513,6 +513,10 @@ export const inventoryService = {
         child_widths_mm?: Array<number | string>
         trim_mm?: number | string
         reason?: string
+        /** FOLD_OPEN_WEB / FOLD_SEAL_TO_TUBE: folded width W; blank = what the open web gives. */
+        folded_width_mm?: number | string | null
+        /** open web = 2W + flap + seal + trim */
+        fold?: { flap_mm?: number; seal_mm?: number; trim_mm?: number }
     }) => {
         const { data } = await api.post<StockFormConversionResult>(`/api/inventory/rolls/${rollId}/convert-stock-form/`, payload)
         return data

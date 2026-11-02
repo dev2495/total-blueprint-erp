@@ -151,6 +151,43 @@ class StockFormConversionServiceTests(TestCase):
         self.assertEqual(child.width_mm, Decimal("400.00"))
         self.assertEqual(child.weight_kg, Decimal("100.000"))
 
+    def test_fold_with_flap_to_chosen_width_cuts_the_rest_as_edge_trim(self):
+        parent = self._roll("WEB-JFOLD", width="640.00", weight="64.000", stock_form="OPEN_WEB", width_basis="OPEN_WEB_WIDTH")
+
+        result = StockFormConversionService.convert(
+            parent,
+            operation="FOLD_OPEN_WEB",
+            folded_width_mm="300",
+            fold={"flap_mm": 20, "trim_mm": 10},
+            user=self.user,
+        )
+
+        child = InventoryRoll.objects.get(id=result["children"][0]["roll_id"])
+        self.assertEqual((child.stock_form, child.width_mm), ("FOLDED_WEB", Decimal("300.00")))
+        # Film kept = 2 x 300 + 20 = 620 of 640 mm; the other 20 mm is edge trim.
+        self.assertEqual(child.weight_kg, Decimal("62.000"))
+        self.assertEqual(result["scrap_width_mm"], 20.0)
+        self.assertEqual(result["scrap_weight_kg"], 2.0)
+        self.assertEqual(child.meta_json["fold"], {"flap_mm": 20.0, "seal_mm": 0.0, "trim_mm": 10.0, "open_width_mm": 630.0})
+
+        unfolded = StockFormConversionService.convert(child, operation="UNFOLD_FOLDED_WEB", user=self.user)
+        self.assertEqual(unfolded["children"][0]["width_mm"], 620.0)
+        self.assertNotIn("fold", InventoryRoll.objects.get(id=unfolded["children"][0]["roll_id"]).meta_json)
+
+    def test_fold_and_seal_makes_a_tube_and_refuses_a_narrow_roll(self):
+        parent = self._roll("WEB-TUBE", width="520.00", weight="52.000", stock_form="OPEN_WEB", width_basis="OPEN_WEB_WIDTH")
+        result = StockFormConversionService.convert(
+            parent, operation="FOLD_SEAL_TO_TUBE", fold={"seal_mm": 8, "trim_mm": 4}, user=self.user,
+        )
+        child = InventoryRoll.objects.get(id=result["children"][0]["roll_id"])
+        self.assertEqual((child.stock_form, child.width_basis, child.width_mm), ("LAYFLAT_TUBE", "LAYFLAT_WIDTH", Decimal("254.00")))
+
+        narrow = self._roll("WEB-NARROW", width="500.00", weight="50.000", stock_form="OPEN_WEB", width_basis="OPEN_WEB_WIDTH")
+        with self.assertRaisesMessage(ValueError, "needs 630 mm open web"):
+            StockFormConversionService.convert(narrow, operation="FOLD_OPEN_WEB", folded_width_mm="300", fold={"flap_mm": 20, "trim_mm": 10}, user=self.user)
+        narrow.refresh_from_db()
+        self.assertEqual(narrow.status, "AVAILABLE")
+
     def test_invalid_form_operation_rejects_without_mutating_parent(self):
         parent = self._roll(
             "WEB-BAD-TUBE",

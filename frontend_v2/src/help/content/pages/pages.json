@@ -13711,8 +13711,8 @@
       "WORK_CENTER_MANAGER"
     ],
     "summary": {
-      "en": "Change a roll's physical form without a route: slit an open-web jumbo, open a tube into one or two sheets, fold a web or unfold it. Weight and genealogy are kept.",
-      "hi": "Route के बिना roll का रूप बदलें: open-web jumbo slit करें, tube खोलकर एक या दो sheet बनाएँ, web fold या unfold करें। वज़न और genealogy बने रहते हैं।"
+      "en": "Change a roll's physical form without a route: slit an open-web jumbo, open a tube into one or two sheets, fold a web (with a flap if needed), fold and seal it into a tube, or unfold it. Weight and genealogy are kept; edge trim is scrap.",
+      "hi": "Route के बिना roll का रूप बदलें: open-web jumbo slit करें, tube खोलकर एक या दो sheet बनाएँ, web fold करें (ज़रूरत हो तो flap के साथ), fold और seal करके tube बनाएँ, या unfold करें। वज़न और genealogy बने रहते हैं; edge trim scrap है।"
     },
     "purpose": {
       "en": "Use it when the store must prepare a roll for a job, e.g. open a tube for a side-seal job or slit a jumbo to the exact width the WC terminal needs. The parent is used up and children (plus any remainder) become new rolls.",
@@ -13730,8 +13730,8 @@
     ],
     "keyActions": [
       {
-        "en": "1. Pick the operation: \"Slit open-web jumbo\", \"Open tube to one sheet\", \"Open tube to two sheets\", \"Fold open web\" or \"Unfold to open web\".",
-        "hi": "1. Operation चुनें: \"Slit open-web jumbo\", \"Open tube to one sheet\", \"Open tube to two sheets\", \"Fold open web\" या \"Unfold to open web\"।"
+        "en": "1. Pick the operation: \"Slit open-web jumbo\", \"Open tube to one sheet\", \"Open tube to two sheets\", \"Fold open web\", \"Fold and seal into tube\" or \"Unfold to open web\".",
+        "hi": "1. Operation चुनें: \"Slit open-web jumbo\", \"Open tube to one sheet\", \"Open tube to two sheets\", \"Fold open web\", \"Fold and seal into tube\" या \"Unfold to open web\"।"
       },
       {
         "en": "2. Under \"Pick parent roll\" search roll, material, grade or location; only compatible rolls are offered.",
@@ -13740,6 +13740,10 @@
       {
         "en": "3. For slitting enter \"Child widths (mm)\" like 500, 500, 300 and \"Trim per child\".",
         "hi": "3. Slitting में \"Child widths (mm)\" जैसे 500, 500, 300 और \"Trim per child\" भरें।"
+      },
+      {
+        "en": "For a fold fill \"Folded width (mm)\" (or leave it blank), \"Flap (mm)\", \"Seal (mm)\" and \"Fold trim (mm)\".",
+        "hi": "Fold के लिए \"Folded width (mm)\" (या खाली), \"Flap (mm)\", \"Seal (mm)\" और \"Fold trim (mm)\" भरें।"
       },
       {
         "en": "4. Check the preview: each output's form, width and weight, and the remainder.",
@@ -13773,12 +13777,12 @@
       },
       {
         "field": {
-          "en": "Fold / Unfold",
-          "hi": "Fold / Unfold"
+          "en": "Fold / Fold and seal into tube / Unfold",
+          "hi": "Fold / Fold and seal into tube / Unfold"
         },
         "help": {
-          "en": "Fold halves the width; unfold doubles it; weight unchanged.",
-          "hi": "Fold से width आधी; unfold से दोगुनी; वज़न वही।"
+          "en": "Open web = 2W + flap + seal + trim. Leave \"Folded width (mm)\" blank to use the whole roll, or type W: the rest of the open web is edge trim (scrap). \"Flap (mm)\" is the longer wall's extra (0 = plain half fold), \"Seal (mm)\" the film the edge seal takes for a tube. Unfold gives back 2W + the roll's own flap.",
+          "hi": "Open web = 2W + flap + seal + trim। पूरा roll लेने के लिए \"Folded width (mm)\" खाली छोड़ें, या W भरें: बाकी open web edge trim (scrap) है। \"Flap (mm)\" लंबी दीवार का अतिरिक्त हिस्सा (0 = सीधा आधा fold), \"Seal (mm)\" tube के edge seal में लगी film। Unfold से 2W + roll का अपना flap वापस मिलता है।"
         }
       },
       {
@@ -19360,8 +19364,8 @@
   {
     "routePattern": "/master/pouch-styles",
     "title": {
-      "en": "Pouch shapes + formulas",
-      "hi": "Pouch shapes + formulas"
+      "en": "Pouch & roll styles",
+      "hi": "Pouch और roll styles"
     },
     "module": "Master Data",
     "roles": [
@@ -19387,6 +19391,10 @@
       {
         "en": "Search by code, name or formula.",
         "hi": "Code, नाम या formula से search करें।"
+      },
+      {
+        "en": "Two tabs: \"Pouch styles\" (formula from the pouch size) and \"Roll styles\" (a roll size's form and fold: flap, seal, fold trim). The \"New pouch style\" / \"New roll style\" button follows the open tab.",
+        "hi": "दो tab: \"Pouch styles\" (pouch size से formula) और \"Roll styles\" (roll size का form और fold: flap, seal, fold trim)। \"New pouch style\" / \"New roll style\" button खुले tab के हिसाब से है।"
       },
       {
         "en": "Read the chips \"Styles\", \"Locked\" and \"Used by sizes\".",
@@ -19475,6 +19483,10 @@
       {
         "en": "Fill \"Code\" (fixed for ever), \"Name\", optional \"Emoji\", \"Sort order\" and \"Description\".",
         "hi": "\"Code\" (हमेशा के लिए तय), \"Name\", चाहें तो \"Emoji\", \"Sort order\" और \"Description\" भरें।"
+      },
+      {
+        "en": "Set \"Style for\": \"Pouch sizes (formula)\" builds the stock width from the pouch size; \"Roll sizes (form and fold)\" makes a roll style: no formula, the roll width is the size width, and the card \"Roll form and fold\" sets the form and, for Folded web or Lay-flat tube, \"Flap (mm)\", \"Seal (mm)\" and \"Fold trim (mm)\". The folding step reads these.",
+        "hi": "\"Style for\" चुनें: \"Pouch sizes (formula)\" pouch size से stock width बनाता है; \"Roll sizes (form and fold)\" roll style बनाता है: कोई formula नहीं, roll width = size width, और \"Roll form and fold\" card में form और Folded web या Lay-flat tube के लिए \"Flap (mm)\", \"Seal (mm)\", \"Fold trim (mm)\"। Folding step यही पढ़ता है।"
       },
       {
         "en": "Under \"Allowed input fields\" keep Width (W) and Height (H) and use \"Add a field\" for Gusset, Flap reach, Seal overlap, Bottom factor, Stick factor or Direct roll width.",
@@ -19646,6 +19658,10 @@
       {
         "en": "Fill \"Code\" (fixed for ever), \"Name\", optional \"Emoji\", \"Sort order\" and \"Description\".",
         "hi": "\"Code\" (हमेशा के लिए तय), \"Name\", चाहें तो \"Emoji\", \"Sort order\" और \"Description\" भरें।"
+      },
+      {
+        "en": "Set \"Style for\": \"Pouch sizes (formula)\" builds the stock width from the pouch size; \"Roll sizes (form and fold)\" makes a roll style: no formula, the roll width is the size width, and the card \"Roll form and fold\" sets the form and, for Folded web or Lay-flat tube, \"Flap (mm)\", \"Seal (mm)\" and \"Fold trim (mm)\". The folding step reads these.",
+        "hi": "\"Style for\" चुनें: \"Pouch sizes (formula)\" pouch size से stock width बनाता है; \"Roll sizes (form and fold)\" roll style बनाता है: कोई formula नहीं, roll width = size width, और \"Roll form and fold\" card में form और Folded web या Lay-flat tube के लिए \"Flap (mm)\", \"Seal (mm)\", \"Fold trim (mm)\"। Folding step यही पढ़ता है।"
       },
       {
         "en": "Under \"Allowed input fields\" keep Width (W) and Height (H) and use \"Add a field\" for Gusset, Flap reach, Seal overlap, Bottom factor, Stick factor or Direct roll width.",
@@ -20178,6 +20194,16 @@
         "help": {
           "en": "Each pouch size binds an approved pouch style that gives the roll width.",
           "hi": "हर pouch size एक approved pouch style से जुड़ता है जिससे roll width निकलती है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Roll form / Roll style (roll sizes)",
+          "hi": "Roll form / Roll style (roll sizes)"
+        },
+        "help": {
+          "en": "\"Roll form\" FLAT, FOLDED or TUBING is the roll's real form: it decides which rolls the floor may pick and how much film the width holds. For FOLDED or TUBING fill \"Flap (mm)\", \"Seal (mm)\" and \"Fold trim (mm)\"; the note shows the open web the folding step needs (2W + flap + seal + trim). \"Roll style\" fills form and fold in one pick; choosing the Roll form by hand leaves the style.",
+          "hi": "\"Roll form\" FLAT, FOLDED या TUBING roll का असली रूप है: इसी से तय होता है floor कौन से roll ले सकता है और width में कितनी film है। FOLDED या TUBING के लिए \"Flap (mm)\", \"Seal (mm)\" और \"Fold trim (mm)\" भरें; note बताता है folding step को कितना open web चाहिए (2W + flap + seal + trim)। \"Roll style\" एक बार में form और fold भरता है; Roll form हाथ से चुनने पर style हट जाता है।"
         }
       },
       {

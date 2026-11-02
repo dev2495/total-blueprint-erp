@@ -15,7 +15,7 @@ def roll_label_snapshot(roll):
         "batch": str(roll.batch_no or ""),
         "material": roll.material.name, "grade": roll.grade.name if roll.grade else "",
         "width_mm": str(roll.width_mm), "thickness_micron": str(roll.thickness_micron),
-        "weight_kg": str(roll.weight_kg), "stock_form": roll.stock_form,
+        "weight_kg": str(roll.weight_kg), "stock_form": roll.stock_form, "form_text": roll.form_text,
         "location": roll.location.name if roll.location else "",
         "plant": roll.location.plant.name if roll.location and roll.location.plant else "",
     }
@@ -50,7 +50,7 @@ def generate_roll_labels(rows, *, width_mm=101.6, height_mm=50.8):
         for idx,text in enumerate([
             row['material'], f"Grade: {row['grade'] or '-'}",
             f"{row['width_mm']} mm x {row['thickness_micron']} micron",
-            f"{row['weight_kg']} kg | {row['stock_form']}",
+            f"{row['weight_kg']} kg | {row.get('form_text') or row['stock_form']}",
             f"Supplier: {row['supplier_roll'] or '-'}",
             f"Batch: {row['batch'] or '-'}",
             f"{row['plant']} / {row['location']}",

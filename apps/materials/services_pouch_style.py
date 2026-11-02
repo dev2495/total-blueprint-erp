@@ -24,13 +24,17 @@ from decimal import Decimal
 from typing import Any, Dict, Iterable
 
 from .stock_forms import (
+    FOLDABLE_FORMS,
     STOCK_FORM_OPEN_WEB,
     default_slit_policy,
     default_width_basis,
     film_area_factor_for_stock_form,
+    fold_as_json,
+    normalize_fold,
     normalize_slit_policy,
     normalize_stock_form,
     normalize_width_basis,
+    open_width_for,
 )
 
 
@@ -213,11 +217,13 @@ def stock_form_config(style, stock_form: Any = None) -> Dict[str, Any]:
         film_area_factor = Decimal(str(film_area_factor_for_stock_form(chosen_form)))
     if film_area_factor <= 0:
         film_area_factor = Decimal("1")
+    fold = normalize_fold(raw) if chosen_form in FOLDABLE_FORMS else normalize_fold(None)
     return {
         "stock_form": chosen_form,
         "width_basis": width_basis,
         "slit_policy": slit_policy,
         "film_area_factor": film_area_factor,
+        "fold": fold,
     }
 
 
@@ -236,8 +242,9 @@ def compute_stock_geometry(style, inputs: Dict[str, Any], stock_form: Any = None
     stock_width = _to_dec(override_width) if override_width not in (None, "") else compute_child_target_width_mm(style, inputs)
     if stock_width < 0:
         stock_width = Decimal("0")
-    film_area_width = (stock_width * cfg["film_area_factor"]).quantize(Decimal("0.01"))
-    return {
+    fold = cfg["fold"]
+    film_area_width = (stock_width * cfg["film_area_factor"] + fold["flap_mm"] + fold["seal_mm"]).quantize(Decimal("0.01"))
+    result = {
         "stock_width_mm": stock_width.quantize(Decimal("0.01")),
         "child_target_width_mm": stock_width.quantize(Decimal("0.01")),
         "film_area_width_mm": film_area_width,
@@ -246,6 +253,10 @@ def compute_stock_geometry(style, inputs: Dict[str, Any], stock_form: Any = None
         "slit_policy": cfg["slit_policy"],
         "film_area_factor": cfg["film_area_factor"],
     }
+    if cfg["stock_form"] in FOLDABLE_FORMS:
+        result["fold"] = fold_as_json(fold)
+        result["open_width_mm"] = open_width_for(cfg["stock_form"], stock_width, fold)
+    return result
 
 
 _CLOSED_FORMULAS = {

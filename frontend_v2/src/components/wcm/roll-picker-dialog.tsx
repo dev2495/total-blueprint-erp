@@ -39,6 +39,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { wcmService } from "@/services/wcm";
 import { cn } from "@/lib/utils";
+import { RollFormChip, rollFormText } from "@/components/rolls/roll-form-chip";
 
 type Tier = "ORDER_BOUND" | "EXACT" | "WIDER_OK_WITH_SLIT" | "REMAINDER_POOL";
 type SlitMode = "ONE" | "MAX" | "GANG";
@@ -691,17 +692,7 @@ export function WcmRollPickerDialog({
                           ← jumbo {c.parent_roll.label_id}
                         </span>
                       ) : null}
-                      <span
-                        className={cn(
-                          "rounded-md border px-1.5 py-0.5 text-caption font-semibold uppercase tracking-[0.12em]",
-                          String(c.stock_form || "OPEN_WEB").toUpperCase() ===
-                            "OPEN_WEB"
-                            ? "border-info-border bg-info-bg text-info-fg"
-                            : "border-warning-border bg-warning-bg text-warning-fg",
-                        )}
-                      >
-                        {stockFormLabel(c.stock_form)}
-                      </span>
+                      <RollFormChip roll={c} />
                       {selected ? (
                         <CheckCircle2 className="ml-auto h-4 w-4 text-order-fg" />
                       ) : null}
@@ -736,7 +727,7 @@ export function WcmRollPickerDialog({
                       <div>
                         <span className="text-content-4">Form</span>
                         <br />
-                        <b>{stockFormLabel(c.stock_form)}</b>
+                        <b>{rollFormText(c, false)}</b>
                       </div>
                     </div>
                     {c.tier === "WIDER_OK_WITH_SLIT" && c.slit_preview && (

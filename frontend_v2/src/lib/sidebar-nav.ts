@@ -576,7 +576,7 @@ export const NAV_ITEMS: NavItem[] = [
       // Product masters and pouch styles are kept by admin/owner, or by an account given the
       // master-data grant. Sales picks products in the order composer without seeing the masters.
       { title: "Product Master", href: "/master/products", icon: Package, roles: ["ADMIN", "OWNER"], permissions: ["master.manage"] },
-      { title: "Pouch Styles", href: "/master/pouch-styles", icon: Palette, roles: ["ADMIN", "OWNER"], permissions: ["master.manage"] },
+      { title: "Pouch & Roll Styles", href: "/master/pouch-styles", icon: Palette, roles: ["ADMIN", "OWNER"], permissions: ["master.manage"] },
       { title: "Web-Width Policies", href: "/master/web-width-policies", icon: MoveRight, roles: ["ADMIN", "OWNER", "PLANNER"], permissions: ["sales.manage", "production.manage"] },
       { title: "Customers", href: "/sales/customers", icon: Users, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },
       { title: "Quotations", href: "/sales/quotations", icon: FileText, roles: ["ADMIN", "OWNER", "SALES"], permissions: ["sales.manage"] },

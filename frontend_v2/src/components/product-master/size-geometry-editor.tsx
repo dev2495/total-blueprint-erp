@@ -19,6 +19,7 @@ import {
   resolveProductOutputKind,
 } from "@/lib/product-geometry";
 import { PouchStyleBinding } from "@/components/product-master/pouch-style-binding";
+import { RollFoldFields } from "@/components/product-master/roll-fold-fields";
 import type { ProductKind, ProductMasterSize } from "@/services/product-master";
 import { cn } from "@/lib/utils";
 
@@ -266,12 +267,14 @@ export function SizeGeometryEditor({
                   onPatch({
                     roll_form: v,
                     pouch_style: "",
+                    // Picking the form by hand leaves the roll style (the style would set it back).
+                    pouch_style_master: null,
                     geometry_config: {
                       ...geometryConfig,
                       roll_form: v,
                       pouch_style: "",
                     },
-                  })
+                  } as Partial<ProductMasterSize>)
                 }
               >
                 <SelectTrigger className="h-8 rounded-lg text-xs">
@@ -286,6 +289,7 @@ export function SizeGeometryEditor({
                 </SelectContent>
               </Select>
             </EditField>
+            <RollFoldFields row={row} rollForm={styleValue} onPatch={onPatch} />
             <EditField label="Auto roll width">
               <Metric
                 value={geometry.fallbackRollWidthMm}

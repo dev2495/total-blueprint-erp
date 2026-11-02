@@ -7,13 +7,18 @@ from django.db import transaction
 
 from apps.inventory.models import InventoryRoll, RollLink, RollMovement
 from apps.materials.stock_forms import (
+    FOLDABLE_FORMS,
     STOCK_FORM_FOLDED_WEB,
     STOCK_FORM_LAYFLAT_TUBE,
     STOCK_FORM_OPEN_WEB,
     WIDTH_BASIS_FOLDED,
     WIDTH_BASIS_LAYFLAT,
     WIDTH_BASIS_OPEN_WEB,
+    convert_width,
+    fold_as_json,
+    normalize_fold,
     normalize_stock_form,
+    open_width_for,
 )
 
 
@@ -31,6 +36,7 @@ class StockFormConversionService:
     OPEN_TUBE_ONE_WEB = "OPEN_TUBE_ONE_WEB"
     OPEN_TUBE_TWO_WEBS = "OPEN_TUBE_TWO_WEBS"
     FOLD_OPEN_WEB = "FOLD_OPEN_WEB"
+    FOLD_SEAL_TO_TUBE = "FOLD_SEAL_TO_TUBE"
     UNFOLD_FOLDED_WEB = "UNFOLD_FOLDED_WEB"
     SLIT_OPEN_WEB = "SLIT_OPEN_WEB"
 
@@ -63,6 +69,13 @@ class StockFormConversionService:
                 "label": "Fold open web",
                 "from_stock_form": STOCK_FORM_OPEN_WEB,
                 "to_stock_form": STOCK_FORM_FOLDED_WEB,
+                "requires_child_widths": False,
+            },
+            {
+                "code": cls.FOLD_SEAL_TO_TUBE,
+                "label": "Fold and seal into tube",
+                "from_stock_form": STOCK_FORM_OPEN_WEB,
+                "to_stock_form": STOCK_FORM_LAYFLAT_TUBE,
                 "requires_child_widths": False,
             },
             {
@@ -191,12 +204,17 @@ class StockFormConversionService:
         trim_mm: Decimal | str | int | float = 0,
         reason: str = "",
         user=None,
+        folded_width_mm: Decimal | str | int | float | None = None,
+        fold: dict | None = None,
     ) -> dict:
+        """`fold` = {flap_mm, seal_mm, trim_mm} for FOLD_OPEN_WEB / FOLD_SEAL_TO_TUBE; blank = plain half fold.
+        `folded_width_mm` picks the folded width; the open web left over is edge trim."""
         op = str(operation or "").upper().strip()
         if op not in {
             cls.OPEN_TUBE_ONE_WEB,
             cls.OPEN_TUBE_TWO_WEBS,
             cls.FOLD_OPEN_WEB,
+            cls.FOLD_SEAL_TO_TUBE,
             cls.UNFOLD_FOLDED_WEB,
             cls.SLIT_OPEN_WEB,
         }:
@@ -214,11 +232,38 @@ class StockFormConversionService:
 
             children_spec: list[tuple[Decimal, Decimal, str, str, str]] = []
             scrap_width = Decimal("0")
+            parent_fold = normalize_fold((parent.meta_json or {}).get("fold"))
+            child_fold = None
+            scrap_weight = None
 
-            if op == cls.OPEN_TUBE_ONE_WEB:
+            if op in {cls.FOLD_OPEN_WEB, cls.FOLD_SEAL_TO_TUBE}:
+                if parent_form != STOCK_FORM_OPEN_WEB:
+                    raise ValueError("Folding requires open-web stock.")
+                to_form = STOCK_FORM_FOLDED_WEB if op == cls.FOLD_OPEN_WEB else STOCK_FORM_LAYFLAT_TUBE
+                to_basis = WIDTH_BASIS_FOLDED if op == cls.FOLD_OPEN_WEB else WIDTH_BASIS_LAYFLAT
+                child_fold = normalize_fold(fold)
+                if folded_width_mm not in (None, ""):
+                    width = cls._dec(folded_width_mm, field="folded_width_mm")
+                else:
+                    width = convert_width(STOCK_FORM_OPEN_WEB, to_form, parent_width, child_fold)
+                if width <= 0:
+                    raise ValueError("Flap, seal and trim leave no folded width.")
+                needed = open_width_for(to_form, width, child_fold)
+                if needed > parent_width:
+                    raise ValueError(
+                        f"Folding to {width.normalize():f} mm needs {needed.normalize():f} mm open web; "
+                        f"the roll is {parent_width.normalize():f} mm."
+                    )
+                # Edge trim (fold trim + whatever the open web has beyond what the fold needs) is scrap.
+                film_width = needed - child_fold["trim_mm"]
+                scrap_width = parent_width - film_width
+                kept_weight = cls._q_weight(parent_weight * film_width / parent_width)
+                scrap_weight = parent_weight - kept_weight
+                children_spec.append((width, kept_weight, to_form, to_basis, "FOLD" if op == cls.FOLD_OPEN_WEB else "TUBE"))
+            elif op == cls.OPEN_TUBE_ONE_WEB:
                 if parent_form != STOCK_FORM_LAYFLAT_TUBE:
                     raise ValueError("Open tube to one sheet requires lay-flat tube stock.")
-                children_spec.append((parent_width * Decimal("2"), parent_weight, STOCK_FORM_OPEN_WEB, WIDTH_BASIS_OPEN_WEB, "OPEN"))
+                children_spec.append((convert_width(parent_form, STOCK_FORM_OPEN_WEB, parent_width, parent_fold), parent_weight, STOCK_FORM_OPEN_WEB, WIDTH_BASIS_OPEN_WEB, "OPEN"))
             elif op == cls.OPEN_TUBE_TWO_WEBS:
                 if parent_form != STOCK_FORM_LAYFLAT_TUBE:
                     raise ValueError("Open tube to two sheets requires lay-flat tube stock.")
@@ -229,14 +274,10 @@ class StockFormConversionService:
                         (parent_width, parent_weight - each_weight, STOCK_FORM_OPEN_WEB, WIDTH_BASIS_OPEN_WEB, "S2"),
                     ]
                 )
-            elif op == cls.FOLD_OPEN_WEB:
-                if parent_form != STOCK_FORM_OPEN_WEB:
-                    raise ValueError("Fold open web requires open-web stock.")
-                children_spec.append((parent_width / Decimal("2"), parent_weight, STOCK_FORM_FOLDED_WEB, WIDTH_BASIS_FOLDED, "FOLD"))
             elif op == cls.UNFOLD_FOLDED_WEB:
                 if parent_form != STOCK_FORM_FOLDED_WEB:
                     raise ValueError("Unfold requires folded-web stock.")
-                children_spec.append((parent_width * Decimal("2"), parent_weight, STOCK_FORM_OPEN_WEB, WIDTH_BASIS_OPEN_WEB, "OPEN"))
+                children_spec.append((convert_width(parent_form, STOCK_FORM_OPEN_WEB, parent_width, parent_fold), parent_weight, STOCK_FORM_OPEN_WEB, WIDTH_BASIS_OPEN_WEB, "OPEN"))
             elif op == cls.SLIT_OPEN_WEB:
                 if parent_form != STOCK_FORM_OPEN_WEB:
                     raise ValueError("Width slitting requires open-web stock. Use tube-opening for tube stock.")
@@ -282,6 +323,13 @@ class StockFormConversionService:
                     "roll_role": "REMAINDER" if suffix == "REM" else "FORM_CONVERTED",
                     "is_remainder": suffix == "REM",
                 }
+                child_meta.pop("fold", None)
+                if stock_form in FOLDABLE_FORMS:
+                    fold_source = child_fold if child_fold is not None else parent_fold
+                    child_meta["fold"] = {
+                        **fold_as_json(fold_source),
+                        "open_width_mm": float(open_width_for(stock_form, width, fold_source)),
+                    }
                 child = cls._child_roll(
                     parent,
                     width_mm=width,
@@ -322,5 +370,9 @@ class StockFormConversionService:
                 "children": [row for row in child_payloads if not row["is_remainder"]],
                 "remainder": remainder,
                 "scrap_width_mm": float(scrap_width),
-                "scrap_weight_kg": float(cls._q_weight((parent_weight / parent_width) * scrap_width)) if scrap_width else 0.0,
+                "scrap_weight_kg": (
+                    float(cls._q_weight(scrap_weight))
+                    if scrap_weight is not None
+                    else float(cls._q_weight((parent_weight / parent_width) * scrap_width)) if scrap_width else 0.0
+                ),
             }

@@ -368,6 +368,15 @@ class RollAllocationService:
 
     @classmethod
     def planned_parent_width(cls, job) -> Decimal:
+        """The web this step runs on; up to the route's fold step that is the open web (2W + flap + seal + trim)."""
+        width = cls._planned_parent_width_before_fold(job)
+        child = StockFormResolver._child_width(job)
+        if width > 0 and child > 0:
+            return StockFormResolver.widen_for_fold(job, width, child_width=child)
+        return width
+
+    @classmethod
+    def _planned_parent_width_before_fold(cls, job) -> Decimal:
         """
         Return the order-level parent web width WCM should allocate against.
 
@@ -408,7 +417,13 @@ class RollAllocationService:
         Product/sales geometry is the primary source. Older jobs fall back to
         OPEN_WEB so legacy allocation keeps working.
         """
-        contract = StockFormResolver.from_job(job).as_dict()
+        steps = StockFormResolver.for_job_step(job)
+        # Top level = the rolls this step takes (the picker filters on it); output_* = what it puts out.
+        contract = steps.input.as_dict()
+        contract["output_stock_form"] = steps.output.stock_form
+        contract["output"] = steps.output.as_dict()
+        contract["final"] = steps.target.as_dict()
+        contract["fold_step_index"] = steps.fold_step_index
         process = getattr(job, "current_process", None) or getattr(job, "process", None)
         contract["process_capabilities"] = {
             "allowed_input_stock_forms": StockFormResolver._allowed(process, "allowed_input_stock_forms"),
@@ -441,7 +456,7 @@ class RollAllocationService:
                 f"Process {process_label} cannot accept {roll_stock_form} stock. Allowed input forms: {allowed}."
             )
 
-        target_contract_obj = StockFormResolver.from_job(job)
+        target_contract_obj = StockFormResolver.output_contract(job)
         target_form = normalize_stock_form(target_contract_obj.stock_form)
         output_form = StockFormResolver.resolve_output_stock_form(
             process,
@@ -554,6 +569,7 @@ class RollAllocationService:
 
         target_min_w = cls.planned_parent_width(job)
         target_contract = cls.target_stock_contract(job)
+        output_contract = target_contract["output"]
         target_stock_form = target_contract["stock_form"]
         target_slit_policy = target_contract["slit_policy"]
 
@@ -600,7 +616,7 @@ class RollAllocationService:
                 output_stock_form = StockFormResolver.resolve_output_stock_form(
                     process,
                     input_stock_form=roll_stock_form,
-                    target_contract=target_contract,
+                    target_contract=output_contract,
                 )
             except Exception:
                 logger.warning(
@@ -611,7 +627,7 @@ class RollAllocationService:
                     exc_info=True,
                 )
                 continue
-            if output_stock_form != target_stock_form:
+            if output_stock_form != output_contract["stock_form"]:
                 continue
             slit_allowed = (
                 target_slit_policy == "SLIT_ALLOWED"

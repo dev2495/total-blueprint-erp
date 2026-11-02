@@ -8,6 +8,9 @@ from apps.materials.stock_forms import (
     STOCK_FORM_OPEN_WEB,
     WIDTH_BASIS_CHOICES,
     WIDTH_BASIS_OPEN_WEB,
+    describe_form,
+    fold_as_json,
+    FOLDABLE_FORMS,
     normalize_stock_form,
     normalize_width_basis,
 )
@@ -325,7 +328,25 @@ class InventoryRoll(models.Model):
     
     def __str__(self):
         return f"{self.label_id} ({self.material.code}) | {self.weight_kg}kg"
-    
+
+    @property
+    def fold(self) -> dict | None:
+        """{flap_mm, seal_mm, trim_mm, open_width_mm?} of a folded / tube roll, else None."""
+        if normalize_stock_form(self.stock_form) not in FOLDABLE_FORMS:
+            return None
+        raw = (self.meta_json or {}).get("fold")
+        if not isinstance(raw, dict):
+            return fold_as_json(None)
+        data = fold_as_json(raw)
+        if raw.get("open_width_mm") not in (None, ""):
+            data["open_width_mm"] = float(raw["open_width_mm"])
+        return data
+
+    @property
+    def form_text(self) -> str:
+        """Floor text for chips and labels, e.g. "Folded 300 mm + 20 flap"."""
+        return describe_form(self.stock_form, self.width_mm, self.fold)
+
     def save(self, *args, **kwargs):
         self.stock_form = normalize_stock_form(self.stock_form)
         self.width_basis = normalize_width_basis(self.width_basis, stock_form=self.stock_form)

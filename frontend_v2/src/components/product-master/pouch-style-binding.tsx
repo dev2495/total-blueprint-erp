@@ -49,6 +49,7 @@ export function PouchStyleBinding({
         page_size: 200,
         deprecated: false,
         locked: true,
+        style_for: "POUCH",
       }),
     staleTime: 60_000,
   });

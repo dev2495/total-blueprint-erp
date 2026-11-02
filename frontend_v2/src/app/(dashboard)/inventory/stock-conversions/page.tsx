@@ -59,6 +59,12 @@ const FALLBACK_OPERATIONS: StockFormOperation[] = [
     to_stock_form: "FOLDED_WEB",
   },
   {
+    code: "FOLD_SEAL_TO_TUBE",
+    label: "Fold and seal into tube",
+    from_stock_form: "OPEN_WEB",
+    to_stock_form: "LAYFLAT_TUBE",
+  },
+  {
     code: "UNFOLD_FOLDED_WEB",
     label: "Unfold to open web",
     from_stock_form: "FOLDED_WEB",
@@ -75,10 +81,14 @@ function operationIcon(code: string) {
   if (code === "SLIT_OPEN_WEB") return <Scissors className="h-5 w-5" />;
   if (code === "OPEN_TUBE_ONE_WEB" || code === "OPEN_TUBE_TWO_WEBS")
     return <UnfoldVertical className="h-5 w-5" />;
-  if (code === "FOLD_OPEN_WEB")
+  if (code === "FOLD_OPEN_WEB" || code === "FOLD_SEAL_TO_TUBE")
     return <SplitSquareHorizontal className="h-5 w-5" />;
   return <Repeat className="h-5 w-5" />;
 }
+
+const FOLD_OPERATIONS = new Set(["FOLD_OPEN_WEB", "FOLD_SEAL_TO_TUBE"]);
+
+type FoldInput = { foldedWidth: number; flap: number; seal: number; trim: number };
 
 function numberOrZero(value: unknown) {
   const parsed = Number(value);
@@ -102,11 +112,13 @@ function PreviewRows({
   operation,
   childWidths,
   trimMm,
+  fold,
 }: {
   roll?: Roll | null;
   operation?: StockFormOperation;
   childWidths: number[];
   trimMm: number;
+  fold: FoldInput;
 }) {
   const preview = useMemo(() => {
     if (!roll || !operation)
@@ -153,13 +165,27 @@ function PreviewRows({
         });
         break;
       case "FOLD_OPEN_WEB":
+      case "FOLD_SEAL_TO_TUBE": {
+        // open web = 2W + flap + seal + trim; whatever is left of the roll is edge trim.
+        const width =
+          fold.foldedWidth > 0
+            ? fold.foldedWidth
+            : Math.max(0, (parentWidth - fold.flap - fold.seal - fold.trim) / 2);
+        const needed = 2 * width + fold.flap + fold.seal + fold.trim;
+        if (width <= 0) errors.push("Flap, seal and trim leave no folded width.");
+        if (needed > parentWidth)
+          errors.push(`Folding to ${fmt(width)} mm needs ${fmt(needed)} mm open web.`);
+        const film = Math.min(parentWidth, 2 * width + fold.flap + fold.seal);
         rows.push({
-          label: "Folded web",
-          width: parentWidth / 2,
-          weight: parentWeight,
-          form: "FOLDED_WEB",
+          label: operation.code === "FOLD_OPEN_WEB" ? "Folded web" : "Tube",
+          width,
+          weight: film * kgPerMm,
+          form: operation.code === "FOLD_OPEN_WEB" ? "FOLDED_WEB" : "LAYFLAT_TUBE",
         });
+        scrapWidth = Math.max(0, parentWidth - film);
+        scrapKg = scrapWidth * kgPerMm;
         break;
+      }
       case "UNFOLD_FOLDED_WEB":
         rows.push({
           label: "Open web",
@@ -200,7 +226,7 @@ function PreviewRows({
     }
 
     return { rows, errors, scrapWidth, scrapKg, remainder };
-  }, [roll, operation, childWidths, trimMm]);
+  }, [roll, operation, childWidths, trimMm, fold]);
 
   if (!roll || !operation) {
     return (
@@ -285,6 +311,10 @@ export default function StockConversionsPage() {
   const [search, setSearch] = useState("");
   const [childWidthsRaw, setChildWidthsRaw] = useState("500, 500");
   const [trimMm, setTrimMm] = useState("0");
+  const [foldedWidth, setFoldedWidth] = useState("");
+  const [flapMm, setFlapMm] = useState("0");
+  const [sealMm, setSealMm] = useState("0");
+  const [foldTrimMm, setFoldTrimMm] = useState("0");
   const [reason, setReason] = useState("");
 
   const operationsQuery = useQuery({
@@ -348,6 +378,16 @@ export default function StockConversionsPage() {
     [childWidthsRaw],
   );
   const parsedTrim = numberOrZero(trimMm);
+  const fold = useMemo<FoldInput>(
+    () => ({
+      foldedWidth: numberOrZero(foldedWidth),
+      flap: Math.max(0, numberOrZero(flapMm)),
+      seal: Math.max(0, numberOrZero(sealMm)),
+      trim: Math.max(0, numberOrZero(foldTrimMm)),
+    }),
+    [foldedWidth, flapMm, sealMm, foldTrimMm],
+  );
+  const isFoldOperation = FOLD_OPERATIONS.has(String(activeOperation?.code || ""));
 
   const convertMutation = useMutation({
     mutationFn: () =>
@@ -358,6 +398,12 @@ export default function StockConversionsPage() {
           : [],
         trim_mm: parsedTrim,
         reason,
+        ...(isFoldOperation
+          ? {
+              folded_width_mm: fold.foldedWidth > 0 ? fold.foldedWidth : null,
+              fold: { flap_mm: fold.flap, seal_mm: fold.seal, trim_mm: fold.trim },
+            }
+          : {}),
       }),
     onSuccess: (result) => {
       toast({
@@ -595,6 +641,28 @@ export default function StockConversionsPage() {
                     </div>
                   </div>
                 ) : null}
+                {isFoldOperation ? (
+                  <div className="grid gap-3 sm:grid-cols-4" data-testid="stock-conversion-fold-fields">
+                    {[
+                      { label: "Folded width (mm)", value: foldedWidth, set: setFoldedWidth, placeholder: "auto" },
+                      { label: "Flap (mm)", value: flapMm, set: setFlapMm, placeholder: "0" },
+                      { label: "Seal (mm)", value: sealMm, set: setSealMm, placeholder: "0" },
+                      { label: "Fold trim (mm)", value: foldTrimMm, set: setFoldTrimMm, placeholder: "0" },
+                    ].map((field) => (
+                      <div key={field.label}>
+                        <Label className="text-[12px] font-semibold text-content-3">
+                          {field.label}
+                        </Label>
+                        <Input
+                          value={field.value}
+                          onChange={(event) => field.set(event.target.value)}
+                          placeholder={field.placeholder}
+                          className="mt-1 h-11 rounded-2xl font-mono"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <div>
                   <Label className="text-[12px] font-semibold text-content-3">
                     Reason / operator note
@@ -611,6 +679,7 @@ export default function StockConversionsPage() {
                   operation={activeOperation}
                   childWidths={childWidths}
                   trimMm={parsedTrim}
+                  fold={fold}
                 />
                 <Button
                   disabled={!canSubmit}

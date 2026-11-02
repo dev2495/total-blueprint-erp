@@ -126,6 +126,7 @@ import {
   type ProductionFacetOption,
 } from "@/lib/production-facets";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-format";
+import { RollFormChip, rollFormText } from "@/components/rolls/roll-form-chip";
 
 type StepPolicyDraft = {
   issue_policy_mode:
@@ -207,6 +208,23 @@ const WCM_CLOSE_REASON_PRESETS: Record<"SHORT_CLOSE" | "CANCEL", string[]> = {
 function stockFormLabel(value: unknown) {
   const key = String(value || "OPEN_WEB").toUpperCase();
   return STOCK_FORM_LABELS[key] || key.replace(/_/g, " ").toLowerCase();
+}
+
+/** "Makes Folded 300 mm + 20 flap from 630 mm open web" on a fold step; the fold of folded stock elsewhere. */
+function foldContractLabel(contract: Record<string, any>) {
+  const output = contract?.output && typeof contract.output === "object" ? contract.output : null;
+  const describe = (row: Record<string, any> | null) => {
+    if (!row) return "";
+    const width = Number(row.width_mm || 0);
+    const flap = Number(row.fold?.flap_mm || 0);
+    return `${stockFormLabel(row.stock_form)}${width > 0 ? ` ${width} mm` : ""}${flap > 0 ? ` + ${flap} flap` : ""}`;
+  };
+  if (output && normalizeStockForm(output.stock_form) !== normalizeStockForm(contract.stock_form)) {
+    const open = Number(output.open_width_mm || contract.width_mm || 0);
+    return `Makes ${describe(output)}${open > 0 ? ` from ${open} mm open web` : ""}`;
+  }
+  if (contract?.fold && Number(contract.fold.flap_mm || 0) > 0) return describe(contract);
+  return "";
 }
 
 function normalizeStockForm(value: unknown) {
@@ -3510,6 +3528,7 @@ export default function WCMTerminal() {
     selectedTargetWidth && selectedTargetWidth > 0
       ? mmWithInches(selectedTargetWidth)
       : "";
+  const selectedFoldLabel = foldContractLabel(selectedTargetStockContract);
   const selectedContractDetailLabel = [
     stockFormLabel(selectedTargetStockForm),
     selectedTargetWidthBasis ? widthBasisLabel(selectedTargetWidthBasis) : "",
@@ -4012,6 +4031,11 @@ export default function WCMTerminal() {
                 <b className="text-content-1">Step stock contract</b> · Required{" "}
                 {selectedContractDetailLabel || stockFormLabel(selectedTargetStockForm)} · Input {stockFormListLabel(selectedAllowedInputForms)} · Output{" "}
                 {stockFormListLabel(selectedAllowedOutputForms)} · {stockFormConversionLabel}
+                {selectedFoldLabel ? (
+                  <div className="mt-0.5 font-semibold text-order-fg" data-testid="wc-fold-contract">
+                    {selectedFoldLabel}
+                  </div>
+                ) : null}
               </div>
             </div>
             <dl className="grid gap-x-4 gap-y-2.5 sm:grid-cols-2">
@@ -4287,6 +4311,7 @@ export default function WCMTerminal() {
                   <div>
                     <b className="text-content-1">Stock form contract</b> · Required {stockFormLabel(selectedTargetStockForm)} · Allowed input{" "}
                     {stockFormListLabel(selectedAllowedInputForms)} · Output policy {stockFormConversionLabel}
+                    {selectedFoldLabel ? <div className="mt-0.5 font-semibold text-order-fg">{selectedFoldLabel}</div> : null}
                   </div>
                 </div>
                 {rollGuidanceText ? <p className="mt-2 text-[12px] text-content-3">{rollGuidanceText}</p> : null}
@@ -7830,9 +7855,7 @@ function RollAssignmentModal({
                               COMPATIBLE FALLBACK
                             </Badge>
                           )}
-                          <Badge className="border-info-border bg-info-bg text-info-fg text-caption font-bold">
-                            {stockFormLabel(roll.stock_form)}
-                          </Badge>
+                          <RollFormChip roll={roll} />
                         </div>
                         <div className="text-caption font-medium text-content-3">
                           {roll.material_name} • {roll.thickness_micron}μ •{" "}
@@ -7866,7 +7889,7 @@ function RollAssignmentModal({
                         <div className="text-xs font-bold text-content-3">
                           {roll.width_mm}{" "}
                           <span className="text-caption">MM</span> ·{" "}
-                          {stockFormLabel(roll.stock_form)}
+                          {rollFormText(roll, false)}
                         </div>
                         <Button
                           size="sm"
@@ -8052,7 +8075,7 @@ function RollAssignmentModal({
                           </div>
                           <div className="text-caption text-content-3">
                             {roll.material_name} • {roll.thickness_micron}μ •{" "}
-                            {roll.width_mm}mm ({stockFormLabel(roll.stock_form)}
+                            {roll.width_mm}mm ({rollFormText(roll, false)}
                             ) • {roll.grade_name || "—"}
                           </div>
                           {rollWidthPlanLabel(roll) ? (
@@ -8553,7 +8576,7 @@ function RollTransferModal({
                       </div>
                       <div className="text-caption text-content-3">
                         {r.thickness_micron}μ • {r.width_mm}mm (
-                        {stockFormLabel(r.stock_form)}) • {r.weight_kg}kg •{" "}
+                        {rollFormText(r, false)}) • {r.weight_kg}kg •{" "}
                         {r.grade_name || "—"}
                       </div>
                     </div>

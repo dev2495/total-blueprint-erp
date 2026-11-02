@@ -5,7 +5,7 @@ from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, Mat
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
 from .size_naming import standard_size_name
-from .stock_forms import normalize_slit_policy, normalize_stock_form, normalize_width_basis
+from .stock_forms import FOLD_KEYS, FOLDABLE_FORMS, normalize_slit_policy, normalize_stock_form, normalize_width_basis
 from .services_pouch_style import formula_axis_contract_error
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
@@ -1048,9 +1048,23 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
             stock_form = attrs.get("stock_form")
             if stock_form in (None, "") and self.instance is not None:
                 stock_form = getattr(self.instance, "stock_form", None)
-            geometry = compute_stock_geometry(style, self._formula_inputs(attrs, style), stock_form=stock_form)
+            inputs = self._formula_inputs(attrs, style)
+            if getattr(style, "is_roll_style", False):
+                # A roll style keeps the size's own roll width; it only brings the form and fold.
+                stock_form = getattr(style, "default_stock_form", None) or stock_form
+                roll_width = self._value_from_attrs_or_instance(attrs, "roll_width_mm") or self._value_from_attrs_or_instance(attrs, "width_mm")
+                if roll_width not in (None, ""):
+                    inputs["override_width"] = roll_width
+            geometry = compute_stock_geometry(style, inputs, stock_form=stock_form)
         except Exception as exc:
             raise serializers.ValidationError({"pouch_style_master": f"Could not compute child target width: {exc}"}) from exc
+        if geometry.get("fold") is not None:
+            geometry_config = self._value_from_attrs_or_instance(attrs, "geometry_config")
+            geometry_config = dict(geometry_config) if isinstance(geometry_config, dict) else {}
+            if not isinstance(geometry_config.get("fold"), dict) or geometry_config.get("fold_source") == "style":
+                geometry_config["fold"] = geometry["fold"]
+                geometry_config["fold_source"] = "style"
+            attrs["geometry_config"] = geometry_config
         value = geometry.get("child_target_width_mm")
         if value and value > 0:
             attrs["child_target_width_mm"] = value
@@ -1101,6 +1115,11 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
                             "Approve the draft style first."
                         )
                     }
+                )
+            master_kind = str(getattr(master, "product_kind", "") or "").upper() if master is not None else ""
+            if style_changed and getattr(style, "is_roll_style", False) and master_kind and master_kind != "ROLL":
+                raise serializers.ValidationError(
+                    {"pouch_style_master": "A roll style fits roll products only. Pick a pouch style for this size."}
                 )
         if "stock_form" in attrs:
             attrs["stock_form"] = normalize_stock_form(attrs.get("stock_form"))
@@ -1640,6 +1659,7 @@ class PouchStyleSerializer(serializers.ModelSerializer):
             "locked",
             "visual_emoji",
             "visual_svg",
+            "style_for",
             "default_roll_axis",
             "default_stock_form",
             "default_width_basis",
@@ -1739,9 +1759,25 @@ class PouchStyleSerializer(serializers.ModelSerializer):
                 "width_basis": normalize_width_basis(cfg.get("width_basis"), stock_form=form),
                 "slit_policy": normalize_slit_policy(cfg.get("slit_policy"), stock_form=form),
             }
+            if form in FOLDABLE_FORMS:
+                for key in FOLD_KEYS:
+                    if cfg.get(key) in (None, ""):
+                        normalized[form].pop(key, None)
+                        continue
+                    try:
+                        number = float(cfg.get(key))
+                    except (TypeError, ValueError):
+                        raise serializers.ValidationError(f"{form}.{key} must be a number.")
+                    if number < 0:
+                        raise serializers.ValidationError(f"{form}.{key} cannot be negative.")
+                    normalized[form][key] = number
         return normalized
 
     def validate(self, attrs):
+        style_for = str(attrs.get("style_for") or getattr(self.instance, "style_for", "") or "POUCH").upper()
+        if style_for == "ROLL":
+            # Roll styles carry no pouch formula; the model pins it on save.
+            return super().validate(attrs)
         # AST mode requires a non-empty AST.
         kind = (attrs.get("formula_kind") or getattr(self.instance, "formula_kind", "") or "").upper()
         ast = attrs.get("formula_ast", getattr(self.instance, "formula_ast", {}) or {})
