@@ -299,7 +299,8 @@ class FoldLinkTests(TestCase):
             size = ProductMasterSize.objects.create(
                 product_master=master, code=f"200-{flap}", label=f"250 x 200 + {flap}", width_mm=D("250"), height_mm=D("200"),
                 pouch_style_master=style, pouch_style_version=style.version,
-                geometry_config={"pouch_formula_inputs": {"Flap": flap}}, child_target_width_mm=D(str(400 + flap)),
+                # Live sizes also carry an empty flap tape (0): the named "Flap" field must still win.
+                geometry_config={"pouch_formula_inputs": {"Flap": flap}, "flap_tape_mm": 0}, child_target_width_mm=D(str(400 + flap)),
                 film_area_width_mm=D(str(400 + flap)),
             )
             made.append(size)
@@ -313,3 +314,13 @@ class FoldLinkTests(TestCase):
             self.assertEqual(open_width_for("FOLDED_WEB", size.child_target_width_mm, size.geometry_config["fold"]), D(str(400 + flap)) + D("0.00"))
         copy = PouchStyleMaster.objects.get(code="SIDE-SEAL-F-ON-FOLD", version=5)
         self.assertEqual(copy.stock_form_options["FOLDED_WEB"]["flap_field"], "Flap")
+
+        # Refresh: a seal set later on the linked style reaches the sizes already linked.
+        options = dict(copy.stock_form_options)
+        options["FOLDED_WEB"] = {**options["FOLDED_WEB"], "seal_mm": 10}
+        PouchStyleMaster.objects.filter(id=copy.id).update(stock_form_options=options)
+        out = StringIO()
+        call_command("fold_setup", "--apply-links", stdout=out)
+        self.assertIn("refreshed 2 already linked", out.getvalue())
+        size = ProductMasterSize.objects.get(id=made[1].id)
+        self.assertEqual((size.child_target_width_mm, size.film_area_width_mm), (D("195.00"), D("430.00")), "(430 - 30 - 10) / 2")

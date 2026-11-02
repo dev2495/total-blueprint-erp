@@ -236,15 +236,33 @@ def stock_form_config(style, stock_form: Any = None) -> Dict[str, Any]:
 
 
 def flap_from_inputs(inputs: Dict[str, Any], field: str, default: Decimal) -> Decimal:
-    """The size's value of the formula field that is the fold flap (any case; flap / flap_mm fallback)."""
-    wanted = {field.lower()} | ({"flap", "flap_mm"} if "flap" in field.lower() else set())
-    for key, value in (inputs or {}).items():
-        if str(key).lower() in wanted and value not in (None, ""):
-            try:
-                number = Decimal(str(value))
-            except Exception:
-                continue
-            return number if number > 0 else Decimal("0")
+    """The size's value of the formula field that is the fold flap.
+
+    The named field wins (exact, then any case). The generic flap / flap_mm keys (the size's flap tape,
+    often 0) are only a fallback and only when they hold a value above 0.
+    """
+    def number(value):
+        try:
+            parsed = Decimal(str(value))
+        except Exception:
+            return None
+        return parsed if parsed > 0 else Decimal("0")
+
+    inputs = inputs or {}
+    if inputs.get(field) not in (None, ""):
+        found = number(inputs.get(field))
+        if found is not None:
+            return found
+    for key, value in inputs.items():
+        if str(key).lower() == field.lower() and value not in (None, ""):
+            found = number(value)
+            if found is not None:
+                return found
+    if "flap" in field.lower():
+        for key in ("flap", "flap_mm"):
+            found = number(inputs.get(key)) if inputs.get(key) not in (None, "") else None
+            if found:
+                return found
     return default
 
 

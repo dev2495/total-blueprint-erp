@@ -119,9 +119,17 @@ class Command(BaseCommand):
         if not apply:
             return
         linked = 0
+        refreshed = 0
         with transaction.atomic():
             for master, step, target, rows in plan:
                 for size, action, reason in rows:
+                    if action == "refresh":
+                        serializer = ProductMasterSizeSerializer(size, data={}, partial=True)
+                        if not serializer.is_valid():
+                            raise CommandError(f"{master.name} / {size.label}: {serializer.errors}")
+                        serializer.save()
+                        refreshed += 1
+                        continue
                     if action != "link":
                         continue
                     copy, created = linked_style(size.pouch_style_master, target)
@@ -133,7 +141,7 @@ class Command(BaseCommand):
                         raise CommandError(f"{master.name} / {size.label}: {serializer.errors}")
                     serializer.save()
                     linked += 1
-        self.stdout.write(self.style.SUCCESS(f"Linked {linked} sizes to the fold."))
+        self.stdout.write(self.style.SUCCESS(f"Linked {linked} sizes to the fold; refreshed {refreshed} already linked."))
 
     def _sizes(self, *, apply: bool):
         rows = []
@@ -279,7 +287,11 @@ def _fold_route_plan():
         for size in ProductMasterSize.objects.filter(product_master=master, active=True).select_related("pouch_style_master"):
             style = size.pouch_style_master
             form = normalize_stock_form(size.stock_form)
-            if form in FOLDABLE_FORMS:
+            options = (style.stock_form_options or {}) if style is not None and isinstance(style.stock_form_options, dict) else {}
+            if form in FOLDABLE_FORMS and str((options.get(form) or {}).get("formula_basis") or "").upper() == FORMULA_BASIS_OPEN:
+                # Already on a linked style: recompute so the folded width follows the style's current fold.
+                rows.append((size, "refresh", style.code))
+            elif form in FOLDABLE_FORMS:
                 rows.append((size, "keep", f"already {form}"))
             elif style is None:
                 rows.append((size, "skip", "no pouch style: pick one on the size"))
