@@ -172,7 +172,14 @@ class RollFormSyncTests(TestCase):
         size.refresh_from_db()
         self.assertEqual(size.stock_form, "OPEN_WEB", "report only")
 
-        call_command("fold_setup", "--apply-sizes", "--apply-process", stdout=StringIO())
+        call_command("fold_setup", "--apply-sizes", "--apply-process", "--apply-styles", stdout=StringIO())
+        styles = {s.code: s for s in PouchStyleMaster.objects.filter(style_for="ROLL")}
+        self.assertEqual(set(styles), {"ROLL-OPEN", "ROLL-FOLDED", "ROLL-TUBE"})
+        self.assertTrue(all(s.locked and s.formula_kind == "SHAPED_OVERRIDE" for s in styles.values()))
+        folded = styles["ROLL-FOLDED"]
+        self.assertEqual((folded.default_stock_form, folded.default_width_basis, folded.default_slit_policy), ("FOLDED_WEB", "FOLDED_WIDTH", "EXACT_ONLY"))
+        call_command("fold_setup", "--apply-styles", stdout=StringIO())
+        self.assertEqual(PouchStyleMaster.objects.filter(style_for="ROLL").count(), 3, "runs twice safely")
         size.refresh_from_db()
         self.assertEqual(size.stock_form, "LAYFLAT_TUBE")
         process = Process.objects.get(code="Fold")

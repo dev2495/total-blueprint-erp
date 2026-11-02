@@ -7,7 +7,11 @@
    --apply-process sets it to one roll in / one roll out, in [OPEN_WEB], out [OPEN_WEB, FOLDED_WEB,
    LAYFLAT_TUBE], output form from the order. Refused while a job is running on that process.
 
+3. Ready-made roll styles (--apply-styles): Open roll, Folded (C-fold, no flap) and Lay-flat tube, approved and
+   locked, so a roll size can pick one; a size may still type its own flap / seal / trim.
+
     manage.py fold_setup                       # report
+    manage.py fold_setup --apply-styles
     manage.py fold_setup --apply-sizes
     manage.py fold_setup --apply-process --process-code Fold "Sheet Seal"
 
@@ -21,8 +25,13 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.factory.models import Process
-from apps.materials.models import ProductMasterSize
-from apps.materials.stock_forms import normalize_stock_form, stock_form_from_roll_form
+from apps.materials.models import PouchStyleMaster, ProductMasterSize
+from apps.materials.stock_forms import (
+    default_slit_policy,
+    default_width_basis,
+    normalize_stock_form,
+    stock_form_from_roll_form,
+)
 from apps.production.models import ProductionJob
 
 FOLD_CONFIG = {
@@ -31,6 +40,12 @@ FOLD_CONFIG = {
     "allowed_output_stock_forms": ["OPEN_WEB", "FOLDED_WEB", "LAYFLAT_TUBE"],
     "stock_form_output_mode": "TARGET_DECIDES",
 }
+ROLL_STYLES = [
+    # code, name, form, emoji, notes
+    ("ROLL-OPEN", "Open roll", "OPEN_WEB", "🧻", "Open web / sheet roll. Slitting allowed."),
+    ("ROLL-FOLDED", "Folded roll (C-fold)", "FOLDED_WEB", "📁", "Folded in half, no flap. A size may type its own flap for a J-fold."),
+    ("ROLL-TUBE", "Lay-flat tube roll", "LAYFLAT_TUBE", "⭕", "Lay-flat tube. A size may type the seal it takes when the folder seals."),
+]
 RUNNING_STATES = {"EXECUTING", "PAUSED"}
 CLOSED_STATES = {"COMPLETED", "CANCELLED", "CLOSED"}
 
@@ -41,12 +56,29 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--process-code", nargs="+", default=["Fold"], help="Process Master code(s) of the folding steps (default: Fold).")
         parser.add_argument("--apply-sizes", action="store_true", help="Save the mismatched roll sizes.")
+        parser.add_argument("--apply-styles", action="store_true", help="Create the ready-made roll styles that are missing.")
         parser.add_argument("--apply-process", action="store_true", help="Reconfigure the folding process.")
 
     def handle(self, *args, **options):
+        self._styles(apply=bool(options["apply_styles"]))
         self._sizes(apply=bool(options["apply_sizes"]))
         for code in options["process_code"]:
             self._process(code=str(code), apply=bool(options["apply_process"]))
+
+    def _styles(self, *, apply: bool):
+        missing = [row for row in ROLL_STYLES if not PouchStyleMaster.objects.filter(code=row[0]).exists()]
+        self.stdout.write(f"Ready-made roll styles missing: {len(missing)} ({', '.join(row[0] for row in missing) or 'none'})")
+        if not apply or not missing:
+            return
+        with transaction.atomic():
+            for code, name, form, emoji, notes in missing:
+                PouchStyleMaster.objects.create(
+                    code=code, name=name, style_for="ROLL", locked=True, visual_emoji=emoji, notes=notes,
+                    default_stock_form=form, default_width_basis=default_width_basis(form),
+                    default_slit_policy=default_slit_policy(form), sort_order=900,
+                    stock_form_options={form: {"enabled": True, "flap_mm": 0, "seal_mm": 0, "trim_mm": 0}} if form != "OPEN_WEB" else {},
+                )
+        self.stdout.write(self.style.SUCCESS(f"Created {len(missing)} roll styles."))
 
     def _sizes(self, *, apply: bool):
         rows = []
