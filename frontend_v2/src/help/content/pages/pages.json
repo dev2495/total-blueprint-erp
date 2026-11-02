@@ -19559,6 +19559,16 @@
           "en": "Disable hides the style from pickers but keeps history; Reactivate brings it back.",
           "hi": "Disable से style picker से छिप जाता है पर इतिहास रहता है; Reactivate से वापस आता है।"
         }
+      },
+      {
+        "field": {
+          "en": "Fold: \"The width formula gives\" / \"Flap comes from\"",
+          "hi": "Fold: \"The width formula gives\" / \"Flap comes from\""
+        },
+        "help": {
+          "en": "For folded web or lay-flat tube. \"The open web before the fold\" keeps the formula as the open web (rolls before the fold and kg targets stay the same) and makes the stored width (open − flap − seal − trim) / 2. \"Flap comes from\" can be each size's own field (e.g. \"Flap\") instead of one fixed flap. Styles named …-ON-FOLD / …-ON-TUBE are linked copies made for fold routes.",
+          "hi": "Folded web या lay-flat tube के लिए। \"The open web before the fold\" formula को open web मानता है (fold से पहले के roll और kg target वही रहते हैं) और रखी width (open − flap − seal − trim) / 2 बनती है। \"Flap comes from\" में हर size का अपना field (जैसे \"Flap\") चुन सकते हैं, एक तय flap की जगह। …-ON-FOLD / …-ON-TUBE नाम के style fold route के लिए बनी जुड़ी copy हैं।"
+        }
       }
     ],
     "decisionFlowId": "master-data-flow",
@@ -19733,6 +19743,16 @@
         "help": {
           "en": "Disable hides the style from pickers but keeps history; Reactivate brings it back.",
           "hi": "Disable से style picker से छिप जाता है पर इतिहास रहता है; Reactivate से वापस आता है।"
+        }
+      },
+      {
+        "field": {
+          "en": "Fold: \"The width formula gives\" / \"Flap comes from\"",
+          "hi": "Fold: \"The width formula gives\" / \"Flap comes from\""
+        },
+        "help": {
+          "en": "For folded web or lay-flat tube. \"The open web before the fold\" keeps the formula as the open web (rolls before the fold and kg targets stay the same) and makes the stored width (open − flap − seal − trim) / 2. \"Flap comes from\" can be each size's own field (e.g. \"Flap\") instead of one fixed flap. Styles named …-ON-FOLD / …-ON-TUBE are linked copies made for fold routes.",
+          "hi": "Folded web या lay-flat tube के लिए। \"The open web before the fold\" formula को open web मानता है (fold से पहले के roll और kg target वही रहते हैं) और रखी width (open − flap − seal − trim) / 2 बनती है। \"Flap comes from\" में हर size का अपना field (जैसे \"Flap\") चुन सकते हैं, एक तय flap की जगह। …-ON-FOLD / …-ON-TUBE नाम के style fold route के लिए बनी जुड़ी copy हैं।"
         }
       }
     ],

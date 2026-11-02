@@ -497,6 +497,9 @@ export function PouchStyleEditor({ id, initialMode, initialStyleFor = "POUCH" }:
       slitPolicy={slitPolicy}
       filmAreaFactor={filmAreaFactor}
       fold={fold}
+      formulaWidth={isRollStyle ? undefined : liveTarget}
+      showFormulaBasis={!isRollStyle}
+      fieldKeys={isRollStyle ? [] : Object.keys(allowedFields).filter((key) => !["W", "H"].includes(key))}
       onStockFormChange={(nextForm) => {
         const nextBasis = defaultWidthBasis(nextForm);
         const nextSlit = defaultSlitPolicy(nextForm);
@@ -1367,6 +1370,8 @@ function foldOf(options: Record<string, any> | undefined, stockForm: string) {
     flap_mm: Number(cfg.flap_mm || 0),
     seal_mm: Number(cfg.seal_mm || 0),
     trim_mm: Number(cfg.trim_mm || 0),
+    formula_basis: String(cfg.formula_basis || "STOCK_WIDTH").toUpperCase() === "OPEN_WEB" ? "OPEN_WEB" : "STOCK_WIDTH",
+    flap_field: String(cfg.flap_field || ""),
   };
 }
 
@@ -2095,6 +2100,9 @@ function StockAreaPolicyPanel({
   slitPolicy,
   filmAreaFactor,
   fold,
+  formulaWidth,
+  showFormulaBasis = true,
+  fieldKeys = [],
   onStockFormChange,
   onPatch,
 }: {
@@ -2102,7 +2110,13 @@ function StockAreaPolicyPanel({
   widthBasis: string;
   slitPolicy: string;
   filmAreaFactor: number;
-  fold: { flap_mm: number; seal_mm: number; trim_mm: number };
+  fold: { flap_mm: number; seal_mm: number; trim_mm: number; formula_basis: string; flap_field: string };
+  /** Formula input fields, so the flap can be each size's own field value. */
+  fieldKeys?: string[];
+  /** Live result of the width formula for the preview inputs (pouch styles). */
+  formulaWidth?: number;
+  /** Roll styles have no formula. */
+  showFormulaBasis?: boolean;
   onStockFormChange: (next: string) => void;
   onPatch: (patch: Record<string, any>) => void;
 }) {
@@ -2210,6 +2224,67 @@ function StockAreaPolicyPanel({
               open web = 2W + {formatNumber(fold.flap_mm)} flap + {formatNumber(fold.seal_mm)} seal + {formatNumber(fold.trim_mm)} trim
             </Badge>
           </div>
+          {showFormulaBasis ? (
+            <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] sm:items-end">
+              <Field label="The width formula gives">
+                <Select
+                  value={fold.formula_basis}
+                  onValueChange={(value) => onPatch({ formula_basis: value })}
+                >
+                  <SelectTrigger className="h-9 bg-surface-2 text-xs" data-testid="style-formula-basis">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="STOCK_WIDTH">The {stockFormLabel(stockForm)} width</SelectItem>
+                    <SelectItem value="OPEN_WEB">The open web before the fold</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <div className="rounded-lg bg-surface-2 px-3 py-2 text-[10.5px] text-order-fg ring-1 ring-order-border">
+                {fold.formula_basis === "OPEN_WEB" ? (
+                  <>
+                    Open web = formula
+                    {formulaWidth && formulaWidth > 0 ? ` (${formatNumber(formulaWidth)} mm)` : ""}; {stockFormLabel(stockForm)} width = (open − flap − seal − trim) / 2
+                    {formulaWidth && formulaWidth > 0
+                      ? ` = ${formatNumber(Math.max(0, (formulaWidth - fold.flap_mm - fold.seal_mm - fold.trim_mm) / 2))} mm`
+                      : ""}
+                    . Rolls before the fold and kg targets keep the open-web math.
+                  </>
+                ) : (
+                  <>
+                    Formula = {stockFormLabel(stockForm)} width
+                    {formulaWidth && formulaWidth > 0 ? ` (${formatNumber(formulaWidth)} mm)` : ""}; open web = 2W + flap + seal + trim
+                    {formulaWidth && formulaWidth > 0
+                      ? ` = ${formatNumber(2 * formulaWidth + fold.flap_mm + fold.seal_mm + fold.trim_mm)} mm`
+                      : ""}
+                    .
+                  </>
+                )}
+              </div>
+            </div>
+          ) : null}
+          {showFormulaBasis && fieldKeys.length ? (
+            <div className="mt-2 max-w-sm">
+              <Field label="Flap comes from">
+                <Select
+                  value={fold.flap_field || "__FIXED__"}
+                  onValueChange={(value) => onPatch({ flap_field: value === "__FIXED__" ? "" : value })}
+                >
+                  <SelectTrigger className="h-9 bg-surface-2 text-xs" data-testid="style-flap-field">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__FIXED__">The Flap (mm) typed below</SelectItem>
+                    {fieldKeys.map((key) => (
+                      <SelectItem key={key} value={key}>
+                        Each size&apos;s &quot;{key}&quot; field
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          ) : null}
           <div className="mt-2 grid gap-3 sm:grid-cols-3">
             {FOLD_FIELDS.map((row) => (
               <Field key={row.key} label={row.label}>
@@ -2217,7 +2292,7 @@ function StockAreaPolicyPanel({
                   type="number"
                   min={0}
                   step="1"
-                  value={Number(fold[row.key] || 0)}
+                  value={Number((fold as Record<string, any>)[row.key] || 0)}
                   onChange={(event) =>
                     onPatch({ [row.key]: Math.max(0, Number(event.target.value || 0)) })
                   }

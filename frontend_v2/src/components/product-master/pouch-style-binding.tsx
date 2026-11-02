@@ -129,7 +129,7 @@ export function PouchStyleBinding({
     });
   };
 
-  const liveTarget = React.useMemo(() => {
+  const formulaWidth = React.useMemo(() => {
     if (!selected) return null;
     try {
       return computeChildTargetWidthMm(
@@ -145,6 +145,25 @@ export function PouchStyleBinding({
       return null;
     }
   }, [selected, previewInputs]);
+  // A style made for a route with a fold step reads its formula as the open web before the fold:
+  // the stored width is the folded / lay-flat width, the film area stays the open web (same rule as the server).
+  const styleFold = React.useMemo(() => {
+    const read = foldReadOfStyle(selected);
+    if (!read.flapField) return read;
+    // The fold flap is this size's own value of the formula field (e.g. "Flap").
+    const key = Object.keys(previewInputs || {}).find((k) => k.toLowerCase() === read.flapField.toLowerCase());
+    return { ...read, flap: Number(key ? (previewInputs as Record<string, any>)[key] || 0 : read.flap) };
+  }, [selected, previewInputs]);
+  const liveTarget =
+    formulaWidth == null
+      ? null
+      : styleFold.fromOpen
+        ? Math.max(0, Math.round(((formulaWidth - styleFold.flap - styleFold.seal - styleFold.trim) / 2) * 100) / 100)
+        : formulaWidth;
+  const liveFilmArea = (target: number, form: string) =>
+    styleFold.fromOpen && formulaWidth != null
+      ? formulaWidth
+      : target * areaFactorForStockForm(form) + (isFoldedForm(form) ? styleFold.flap + styleFold.seal : 0);
 
   const fallbackTarget =
     !selected &&
@@ -172,7 +191,7 @@ export function PouchStyleBinding({
   const filmAreaWidth =
     Number(row.film_area_width_mm || 0) > 0
       ? Number(row.film_area_width_mm || 0)
-      : Number(finalTarget || 0) * areaFactorForStockForm(stockForm);
+      : liveFilmArea(Number(finalTarget || 0), stockForm);
 
   // Auto-compute and persist target when not in override mode and any input changes.
   React.useEffect(() => {
@@ -196,8 +215,7 @@ export function PouchStyleBinding({
         selected.default_slit_policy ||
         (nextStockForm === "OPEN_WEB" ? "SLIT_ALLOWED" : "EXACT_ONLY"),
     );
-    patch.film_area_width_mm =
-      liveTarget * areaFactorForStockForm(nextStockForm);
+    patch.film_area_width_mm = liveFilmArea(liveTarget, nextStockForm);
     if (
       Number(row.child_target_width_mm || 0) === liveTarget &&
       String(row.stock_form || "") === patch.stock_form &&
@@ -599,10 +617,26 @@ function StockMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function isFoldedForm(stockForm?: string) {
+  const form = String(stockForm || "OPEN_WEB").toUpperCase();
+  return form === "LAYFLAT_TUBE" || form === "FOLDED_WEB";
+}
+
 function areaFactorForStockForm(stockForm?: string) {
-  return String(stockForm || "OPEN_WEB").toUpperCase() === "LAYFLAT_TUBE"
-    ? 2
-    : 1;
+  return isFoldedForm(stockForm) ? 2 : 1;
+}
+
+/** The style's fold for its own form: flap / seal / trim and whether the formula is the open web. */
+function foldReadOfStyle(style?: PouchStyle | null) {
+  const form = String(style?.default_stock_form || "OPEN_WEB").toUpperCase();
+  const cfg = ((style?.stock_form_options || {}) as Record<string, any>)[form] || {};
+  return {
+    fromOpen: isFoldedForm(form) && String(cfg.formula_basis || "").toUpperCase() === "OPEN_WEB",
+    flap: Number(cfg.flap_mm || 0),
+    seal: Number(cfg.seal_mm || 0),
+    trim: Number(cfg.trim_mm || 0),
+    flapField: String(cfg.flap_field || ""),
+  };
 }
 
 function widthBasisForStockForm(stockForm?: string) {

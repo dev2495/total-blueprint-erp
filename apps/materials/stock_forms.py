@@ -113,6 +113,19 @@ def film_area_factor_for_stock_form(stock_form: Any) -> int:
     return 1
 
 
+# What a style's width formula gives for a folded / tube form:
+#   STOCK_WIDTH - the folded / lay-flat width itself (the default; tube styles written for blown tube)
+#   OPEN_WEB    - the open web before the fold; the folded width then comes from the fold rule, so the open
+#                 width, the rolls picked before the fold and the film / kg targets stay what the formula says.
+FORMULA_BASIS_STOCK = "STOCK_WIDTH"
+FORMULA_BASIS_OPEN = "OPEN_WEB"
+
+
+def normalize_formula_basis(value: Any) -> str:
+    raw = str(value or "").upper().strip().replace("-", "_").replace(" ", "_")
+    return FORMULA_BASIS_OPEN if raw in {"OPEN", "OPEN_WEB", "OPEN_WIDTH"} else FORMULA_BASIS_STOCK
+
+
 # Fold geometry: a folded web or a lay-flat tube made from one open web.
 #   open width = 2 x stored width + flap + seal + trim
 # flap  = the longer wall's extra (J-fold, courier-bag lip); 0 for a plain C-fold

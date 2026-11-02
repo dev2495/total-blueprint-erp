@@ -25,12 +25,16 @@ from typing import Any, Dict, Iterable
 
 from .stock_forms import (
     FOLDABLE_FORMS,
+    FORMULA_BASIS_OPEN,
+    FORMULA_BASIS_STOCK,
     STOCK_FORM_OPEN_WEB,
     default_slit_policy,
     default_width_basis,
     film_area_factor_for_stock_form,
     fold_as_json,
+    folded_width_from_open,
     normalize_fold,
+    normalize_formula_basis,
     normalize_slit_policy,
     normalize_stock_form,
     normalize_width_basis,
@@ -218,13 +222,30 @@ def stock_form_config(style, stock_form: Any = None) -> Dict[str, Any]:
     if film_area_factor <= 0:
         film_area_factor = Decimal("1")
     fold = normalize_fold(raw) if chosen_form in FOLDABLE_FORMS else normalize_fold(None)
+    formula_basis = normalize_formula_basis(raw.get("formula_basis")) if chosen_form in FOLDABLE_FORMS else FORMULA_BASIS_STOCK
     return {
         "stock_form": chosen_form,
         "width_basis": width_basis,
         "slit_policy": slit_policy,
         "film_area_factor": film_area_factor,
         "fold": fold,
+        "formula_basis": formula_basis,
+        # The formula input that is the fold's flap (e.g. "Flap"): each size's own flap, not one style value.
+        "flap_field": str(raw.get("flap_field") or "").strip() if chosen_form in FOLDABLE_FORMS else "",
     }
+
+
+def flap_from_inputs(inputs: Dict[str, Any], field: str, default: Decimal) -> Decimal:
+    """The size's value of the formula field that is the fold flap (any case; flap / flap_mm fallback)."""
+    wanted = {field.lower()} | ({"flap", "flap_mm"} if "flap" in field.lower() else set())
+    for key, value in (inputs or {}).items():
+        if str(key).lower() in wanted and value not in (None, ""):
+            try:
+                number = Decimal(str(value))
+            except Exception:
+                continue
+            return number if number > 0 else Decimal("0")
+    return default
 
 
 def compute_stock_geometry(style, inputs: Dict[str, Any], stock_form: Any = None, override_width: Any = None) -> Dict[str, Any]:
@@ -243,7 +264,17 @@ def compute_stock_geometry(style, inputs: Dict[str, Any], stock_form: Any = None
     if stock_width < 0:
         stock_width = Decimal("0")
     fold = cfg["fold"]
-    film_area_width = (stock_width * cfg["film_area_factor"] + fold["flap_mm"] + fold["seal_mm"]).quantize(Decimal("0.01"))
+    if cfg["flap_field"]:
+        fold = {**fold, "flap_mm": flap_from_inputs(inputs, cfg["flap_field"], fold["flap_mm"])}
+    open_from_formula = None
+    if cfg["stock_form"] in FOLDABLE_FORMS and cfg["formula_basis"] == FORMULA_BASIS_OPEN:
+        # The formula gives the open web before the fold: keep it as the open width and the film area
+        # (so rolls before the fold and kg targets match the open-web math), and fold it to the stored width.
+        open_from_formula = stock_width.quantize(Decimal("0.01"))
+        stock_width = folded_width_from_open(open_from_formula, fold)
+        film_area_width = open_from_formula
+    else:
+        film_area_width = (stock_width * cfg["film_area_factor"] + fold["flap_mm"] + fold["seal_mm"]).quantize(Decimal("0.01"))
     result = {
         "stock_width_mm": stock_width.quantize(Decimal("0.01")),
         "child_target_width_mm": stock_width.quantize(Decimal("0.01")),
@@ -255,7 +286,11 @@ def compute_stock_geometry(style, inputs: Dict[str, Any], stock_form: Any = None
     }
     if cfg["stock_form"] in FOLDABLE_FORMS:
         result["fold"] = fold_as_json(fold)
-        result["open_width_mm"] = open_width_for(cfg["stock_form"], stock_width, fold)
+        if open_from_formula is not None:
+            result["fold"]["formula_basis"] = FORMULA_BASIS_OPEN
+        if cfg["flap_field"]:
+            result["fold"]["flap_field"] = cfg["flap_field"]
+        result["open_width_mm"] = open_from_formula if open_from_formula is not None else open_width_for(cfg["stock_form"], stock_width, fold)
     return result
 
 

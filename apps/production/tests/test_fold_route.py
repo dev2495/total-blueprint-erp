@@ -220,3 +220,19 @@ class FoldRouteTests(walkthroughs.RouteFamilyWalkthroughTests):
         width, meta = ExecutionService._form_change_output(seal, printed, "LAYFLAT_TUBE")
         self.assertEqual((width, meta["seal_mm"], meta["open_width_mm"]), (D("250"), 8.0, 512.0))
         self.assertTrue(StockFormResolver.process_accepts_input(self.processes["GZT"], "LAYFLAT_TUBE"))
+
+    def test_pouch_on_a_linked_style_keeps_the_formula_open_web_before_the_fold(self):
+        # Side-seal formula 2 x 150 + 10 = 310 mm open web; the linked style folds it to 155 mm (C-fold).
+        item, jobs = self._fold_order(width=155)
+        geometry = dict(item.geometry_snapshot)
+        geometry.update({"child_target_width_mm": 155, "target_child_width_mm": 155, "film_area_width_mm": 310,
+                         "fold": {"flap_mm": 0, "seal_mm": 0, "trim_mm": 0, "formula_basis": "OPEN_WEB"}})
+        item.geometry_snapshot = geometry
+        item.save(update_fields=["geometry_snapshot"])
+        ext, fold, ss = (jobs[key] for key in ("step_1_EXT", "step_2_FOLD", "step_3_SS"))
+        for job in (ext, fold, ss):
+            job.refresh_from_db()
+        self.assertEqual(RollAllocationService.planned_parent_width(ext), D("310.00"), "extrusion runs the formula's open web")
+        self.assertEqual(RollAllocationService.planned_parent_width(fold), D("310.00"))
+        self.assertEqual(RollAllocationService.planned_parent_width(ss), D("155"), "side sealing runs the folded web")
+        self.assertEqual(StockFormResolver.for_job_step(ss).input.stock_form, "FOLDED_WEB")

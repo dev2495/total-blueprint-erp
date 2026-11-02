@@ -5,7 +5,7 @@ from .models import CommercialFamily, GranuleQualityCode, InventoryMaterial, Mat
 from .chemistry_defaults import normalize_product_master_chemistry_defaults
 from .naming import normalize_code
 from .size_naming import standard_size_name
-from .stock_forms import FOLD_KEYS, FOLDABLE_FORMS, normalize_slit_policy, normalize_stock_form, normalize_width_basis
+from .stock_forms import FOLD_KEYS, FOLDABLE_FORMS, normalize_formula_basis, normalize_slit_policy, normalize_stock_form, normalize_width_basis
 from .services_pouch_style import formula_axis_contract_error
 from apps.inventory.models import InkMaterial
 from apps.recipes.qty_formula import evaluate_qty_formula
@@ -1049,6 +1049,10 @@ class ProductMasterSizeSerializer(serializers.ModelSerializer):
             if stock_form in (None, "") and self.instance is not None:
                 stock_form = getattr(self.instance, "stock_form", None)
             inputs = self._formula_inputs(attrs, style)
+            existing_style_id = getattr(self.instance, "pouch_style_master_id", None) if self.instance is not None else None
+            if str(existing_style_id or "") != str(getattr(style, "id", "") or ""):
+                # Binding a style takes its form (a style made for folded film folds the size).
+                stock_form = getattr(style, "default_stock_form", None) or stock_form
             if getattr(style, "is_roll_style", False):
                 # A roll style keeps the size's own roll width; it only brings the form and fold.
                 stock_form = getattr(style, "default_stock_form", None) or stock_form
@@ -1760,6 +1764,10 @@ class PouchStyleSerializer(serializers.ModelSerializer):
                 "slit_policy": normalize_slit_policy(cfg.get("slit_policy"), stock_form=form),
             }
             if form in FOLDABLE_FORMS:
+                if cfg.get("formula_basis") not in (None, ""):
+                    normalized[form]["formula_basis"] = normalize_formula_basis(cfg.get("formula_basis"))
+                if "flap_field" in cfg:
+                    normalized[form]["flap_field"] = str(cfg.get("flap_field") or "").strip()
                 for key in FOLD_KEYS:
                     if cfg.get(key) in (None, ""):
                         normalized[form].pop(key, None)
