@@ -32,6 +32,11 @@ export type GranuleCodeSourceOption = {
   status_reason?: string;
   can_allocate?: boolean;
   transfer_required?: boolean;
+  /** available_qty_kg is free stock: on hand less what other open jobs were issued and have not used. */
+  on_hand_qty_kg?: number;
+  held_qty_kg?: number;
+  held_by_jobs?: string[];
+  held_job_count?: number;
 };
 
 type Props = {

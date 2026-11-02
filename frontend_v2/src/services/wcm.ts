@@ -374,6 +374,18 @@ export const wcmService = {
         });
         return data;
     },
+    changeCodes: async (
+        assignmentId: string,
+        requirementId: string,
+        allocations: Array<{ granule_code_id: string; source_location_id: string; qty_kg: number }>,
+    ) => {
+        const { data } = await api.post(`/api/production/wc-allocation/change-codes/`, {
+            assignment_id: assignmentId,
+            requirement_id: requirementId,
+            granule_code_allocations: allocations,
+        });
+        return data;
+    },
     requestMaterialTransfer: async (payload: {
         assignment_id: string;
         requirement_id: string;

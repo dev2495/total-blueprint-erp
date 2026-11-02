@@ -177,7 +177,7 @@ class BulkService:
         if qty <= 0:
             raise ValidationError("Quantity to consume must be positive.")
         material = InventoryMaterial.objects.only(
-            "id", "code", "category", "base_uom", "addon_purchase_uom"
+            "id", "code", "name", "category", "base_uom", "addon_purchase_uom"
         ).get(id=material_id)
         cls._validate_material_uom(material, qty_uom)
         quality_code = cls._resolve_granule_code(material_id, granule_code_id, material=material)
@@ -190,11 +190,18 @@ class BulkService:
         # lock with SELECT FOR UPDATE.
         qs = qs.filter(qty_kg__gt=0).order_by("granule_code_id", "updated_at", "id")
         available = qs.aggregate(total=Sum("qty_kg")).get("total") or Decimal("0")
-        if available <= 0:
-            raise ValidationError(f"No stock found for material {material_id} at location {location_id}.")
-        if available < qty:
+        if available <= 0 or available < qty:
+            # Name the material, code and store; a bare id told the floor nothing.
+            label = material.name or material.code or str(material_id)
+            if material.code and material.code != label:
+                label = f"{label} ({material.code})"
             code_label = f" / code {quality_code.code}" if quality_code else ""
-            raise ValidationError(f"Insufficient stock for {material_id}{code_label}. Requested: {qty}, Available: {available}")
+            store = InventoryLocation.objects.filter(id=location_id).values_list("name", flat=True).first() or str(location_id)
+            if available <= 0:
+                raise ValidationError(f"No stock found for {label}{code_label} at {store}.")
+            raise ValidationError(
+                f"Insufficient stock for {label}{code_label} at {store}. Requested: {qty}, Available: {available}"
+            )
 
         remaining = qty
         last_tx = None

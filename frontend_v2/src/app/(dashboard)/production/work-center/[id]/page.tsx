@@ -62,7 +62,7 @@ import { OrderSpine, useOrderSpine } from "@/components/spine/order-spine";
 import { StepFeedCard } from "@/components/spine/step-feed";
 import { JobNameTag } from "@/components/spine/job-name-tag";
 import { type GranuleCodeSourceOption } from "@/components/wcm/granule-code-source-picker";
-import { GranuleAllocationBox } from "@/components/wcm/granule-allocation-box";
+import { GranuleAllocationBox, type GranuleAllocation } from "@/components/wcm/granule-allocation-box";
 import { WcmQueueRow, queueRowModel } from "@/components/wcm/terminal/wcm-queue-row";
 import { WcmJobPlate, madeLineFor } from "@/components/wcm/terminal/wcm-plate";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -856,6 +856,11 @@ export default function WCMTerminal() {
   const [materialIssuePickerOpen, setMaterialIssuePickerOpen] = useState(false);
   // Granule family whose grade-code popup is open (requirement id).
   const [codesFor, setCodesFor] = useState<string | null>(null);
+  // Released job whose issued grade code ran short: a new split for the same issued kg, saved on its own.
+  const [codeChange, setCodeChange] = useState<{
+    requirementId: string;
+    allocations: GranuleAllocation[];
+  } | null>(null);
   const [openSteps, setOpenSteps] = useState<Record<string, string[]>>({});
   const hydratedMaterialJobRef = useRef("");
   const hydratedMaterialSignatureRef = useRef("");
@@ -3018,8 +3023,33 @@ export default function WCMTerminal() {
           err?.message ||
           "Unknown error occurred.",
       });
+      // Grade-code stock moved (another job took it): reload the free kg per code.
+      if (err?.response?.data?.code === "GRANULE_STOCK_CHANGED") void refetchContext();
     },
   });
+
+  const handleSaveCodeChange = () => {
+    if (!activeAssignment || !codeChange) return;
+    const { requirementId, allocations } = codeChange;
+    mutation.mutate(async () => {
+      await wcmService.changeCodes(
+        activeAssignment.id,
+        requirementId,
+        allocations.map((row) => ({
+          granule_code_id: row.granule_code_id,
+          source_location_id: row.source_location_id,
+          qty_kg: Number(row.qty_kg || 0),
+        })),
+      );
+      setMaterialIssueDrafts((prev) => ({
+        ...prev,
+        [requirementId]: { ...prev[requirementId], granule_code_allocations: allocations },
+      }));
+      setCodeChange(null);
+      await refetchContext();
+      queryClient.invalidateQueries({ queryKey: ["wcm-assignment-detail", wcId] });
+    });
+  };
 
   const handleUnassignRoll = (reservationId: string) => {
     if (!activeAssignment) return;
@@ -5036,6 +5066,14 @@ export default function WCMTerminal() {
                             Number(item.qty_kg || 0) > 0,
                         ) &&
                         Math.abs(allocatedKg - issuedKg) <= 0.0001);
+                    const changingCodes =
+                      isReleasedToMachine && codeChange?.requirementId === requirementId;
+                    const changeOk =
+                      changingCodes &&
+                      codeChange.allocations.length > 0 &&
+                      Math.abs(
+                        codeChange.allocations.reduce((sum, item) => sum + Number(item.qty_kg || 0), 0) - issuedKg,
+                      ) <= 0.0001;
                     const overPick = overPickInfoByRequirement.get(requirementId);
                     const rowErrors = materialIssueErrors.filter((error) =>
                       error.startsWith(`${materialName}:`),
@@ -5252,7 +5290,10 @@ export default function WCMTerminal() {
                           </div>
                           <Dialog
                             open={codesFor === requirementId}
-                            onOpenChange={(open) => setCodesFor(open ? requirementId : null)}
+                            onOpenChange={(open) => {
+                              setCodesFor(open ? requirementId : null);
+                              if (!open) setCodeChange(null);
+                            }}
                           >
                             <DialogContent
                               data-testid="wcm-granule-codes-dialog"
@@ -5304,20 +5345,52 @@ export default function WCMTerminal() {
                                       : "No active coded stock is ready for this granule family."}
                                 </div>
                               ) : (
-                                <GranuleAllocationBox
-                                  materialName={materialName}
-                                  issuedKg={issuedKg}
-                                  allocations={allocations}
-                                  options={allocatableCodeOptions as GranuleCodeSourceOption[]}
-                                  disabled={isReleasedToMachine || mutation.isPending}
-                                  onPickerOpenChange={setMaterialIssuePickerOpen}
-                                  onChange={(next) =>
-                                    updateMaterialIssueDraft(requirementId, {
-                                      granule_code_allocations: next,
-                                      is_estimated: false,
-                                    })
-                                  }
-                                />
+                                <>
+                                  {isReleasedToMachine ? (
+                                    <div
+                                      data-testid="wcm-granule-change-codes"
+                                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-info-border bg-info-bg px-3 py-2.5 text-xs font-semibold text-primary"
+                                    >
+                                      <span className="min-w-0 flex-1">
+                                        {changingCodes
+                                          ? `Pick the codes for the same ${Math.max(0, issuedKg).toFixed(3)} kg. Was: ${
+                                              allocations
+                                                .map((item) => `${codeLabelOf(item)} ${Number(item.qty_kg || 0).toFixed(3)}`)
+                                                .join(", ") || "no codes"
+                                            }.`
+                                          : "Released to the machine. If an issued code ran short before output, change the code split here."}
+                                      </span>
+                                      {changingCodes ? null : (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-9 rounded-lg text-xs font-bold"
+                                          disabled={mutation.isPending}
+                                          onClick={() => setCodeChange({ requirementId, allocations: [] })}
+                                        >
+                                          Change codes
+                                        </Button>
+                                      )}
+                                    </div>
+                                  ) : null}
+                                  <GranuleAllocationBox
+                                    materialName={materialName}
+                                    issuedKg={issuedKg}
+                                    allocations={changingCodes ? codeChange.allocations : allocations}
+                                    options={allocatableCodeOptions as GranuleCodeSourceOption[]}
+                                    disabled={(isReleasedToMachine && !changingCodes) || mutation.isPending}
+                                    onPickerOpenChange={setMaterialIssuePickerOpen}
+                                    onChange={(next) =>
+                                      changingCodes
+                                        ? setCodeChange({ requirementId, allocations: next })
+                                        : updateMaterialIssueDraft(requirementId, {
+                                            granule_code_allocations: next,
+                                            is_estimated: false,
+                                          })
+                                    }
+                                  />
+                                </>
                               )}
 
                               {interplantTransfers.length ? (
@@ -5483,9 +5556,25 @@ export default function WCMTerminal() {
                                     {String(nextFamily?.material_name || nextFamily?.category_display || "granule")}
                                   </Button>
                                 ) : null}
-                                <Button type="button" data-testid="wcm-granule-codes-done" onClick={() => setCodesFor(null)}>
-                                  {splitOk ? "Done" : "Close"}
-                                </Button>
+                                {changingCodes ? (
+                                  <>
+                                    <Button type="button" variant="outline" onClick={() => setCodeChange(null)}>
+                                      Keep old codes
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      data-testid="wcm-granule-codes-save-change"
+                                      disabled={!changeOk || mutation.isPending}
+                                      onClick={handleSaveCodeChange}
+                                    >
+                                      Save codes
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button type="button" data-testid="wcm-granule-codes-done" onClick={() => setCodesFor(null)}>
+                                    {splitOk ? "Done" : "Close"}
+                                  </Button>
+                                )}
                               </div>
                             </DialogContent>
                           </Dialog>

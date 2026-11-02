@@ -147,7 +147,99 @@ def _validate_wcm_material_confirmations(job, material_confirmations):
             issue_location_id=source_location_id,
             issue_plant_id=source_plant_id,
             lock=True,
+            exclude_job_id=job.id,
         )
+
+
+def _change_issue_codes(job, requirement_id, raw_allocations):
+    """
+    Re-split one released granule issue across grade codes (same issued kg). Used when the issued code ran
+    short before output; refused once output has consumed part of the issue, because consumption follows the
+    split and the kilograms already taken cannot move to another code.
+    Returns (before allocations, after allocations).
+    """
+    from apps.inventory.services.bulk_service import BulkService
+
+    if str(job.job_state or "").upper() in {"COMPLETED", "CANCELLED"} or str(job.status or "").upper() in {"COMPLETED", "CANCELLED"}:
+        raise ValueError("This job is closed; its issue cannot change.")
+    step_seq = int(job.current_step_index or 0) + 1
+    req = (
+        JobMaterialRequirement.objects.select_related("material")
+        .filter(id=requirement_id, production_job=job, process_step__sequence_number=step_seq)
+        .first()
+    )
+    if not req:
+        raise ValueError("Material is not on this job's current step.")
+    if str(getattr(req.material, "category", "") or "").upper() != "GRANULE":
+        raise ValueError(f"Only granule grade codes can be changed here, not {req.material.name}.")
+    confirmations = [dict(row) for row in (job.current_step_material_confirmations or []) if isinstance(row, dict)]
+    row = next((item for item in confirmations if str(item.get("requirement_id")) == str(req.id)), None)
+    if row is None:
+        raise ValueError(f"{req.material.name} has not been issued yet. Issue it and release the job first.")
+    consumed = Decimal(str(req.consumed_qty or 0)).quantize(Decimal("0.0001"))
+    if consumed > 0:
+        raise ValueError(
+            f"Output already used {consumed} kg of {req.material.name} from this issue, so its codes are fixed. "
+            "Short close the step with the balance requeued and issue the balance with the right code."
+        )
+    if not isinstance(raw_allocations, list) or not raw_allocations:
+        raise ValueError(f"Select at least one grade code for {req.material.name}.")
+
+    source_location_id = GranuleAvailabilityService.job_stock_location_id(job)
+    source_plant_id = job.work_center.plant_id if job.work_center else None
+    allocations = []
+    for allocation in raw_allocations:
+        if not isinstance(allocation, dict):
+            raise ValueError(f"Every {req.material.name} code row must be an object.")
+        allocations.append({
+            "granule_code_id": str(allocation.get("granule_code_id") or "").strip(),
+            "source_location_id": str(allocation.get("source_location_id") or source_location_id or "").strip(),
+            "qty_kg": float(_decimal(allocation.get("qty_kg"), f"{req.material.name} code kg")),
+        })
+    issued = _decimal(row.get("actual_issued_qty"), f"{req.material.name} issued kg")
+    GranuleAvailabilityService.validate_allocations(
+        material=req.material,
+        issued_qty=issued,
+        allocations=allocations,
+        issue_location_id=source_location_id,
+        issue_plant_id=source_plant_id,
+        lock=True,
+        exclude_job_id=job.id,
+    )
+
+    # Release moved codes issued from another store of the plant into the job's store (top_up_bulk_source_location).
+    # Move only what the new split adds there; what the old split moved is already in the job's store.
+    before = list(row.get("granule_code_allocations") or row.get("code_allocations") or [])
+
+    def moved(rows):
+        totals = defaultdict(Decimal)
+        for item in rows:
+            source = str(item.get("source_location_id") or item.get("location_id") or source_location_id or "")
+            if source and job.from_location_id and source != str(job.from_location_id):
+                totals[(source, str(item.get("granule_code_id") or ""))] += Decimal(str(item.get("qty_kg") or 0))
+        return totals
+
+    moved_before = moved(before)
+    for (source, code_id), qty in moved(allocations).items():
+        extra = (qty - moved_before.get((source, code_id), Decimal("0"))).quantize(Decimal("0.0001"))
+        if extra > 0:
+            BulkService.transfer_bulk(
+                material_id=str(req.material_id),
+                qty=extra,
+                from_location_id=source,
+                to_location_id=str(job.from_location_id),
+                reference=f"WCM-CODE-CHANGE {job.job_number}",
+                granule_code_id=code_id,
+                qty_uom=req.uom,
+            )
+
+    row.pop("code_allocations", None)
+    row["granule_code_allocations"] = allocations
+    row["is_estimated"] = False
+    job.current_step_material_confirmations = confirmations
+    job.save(update_fields=["current_step_material_confirmations", "updated_at"])
+    return before, allocations
+
 
 class WCQueueViewSet(WorkCentreScopeMixin, viewsets.ReadOnlyModelViewSet):
     scope_wc_kwarg = "wc_id"
@@ -1070,6 +1162,41 @@ class JobAllocationViewSet(WorkCentreScopeMixin, viewsets.ViewSet):
                 {"detail": str(e), "code": "GRANULE_STOCK_CHANGED"},
                 status=status.HTTP_409_CONFLICT,
             )
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='change-codes')
+    def change_codes(self, request):
+        """Change the grade-code split of one granule issue on a released job (same issued kg)."""
+        assignment_id = request.data.get('assignment_id')
+        requirement_id = request.data.get('requirement_id')
+        if not assignment_id or not requirement_id:
+            return Response({"error": "assignment_id and requirement_id are required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            with transaction.atomic():
+                assignment = WorkCenterAssignment.objects.select_for_update(of=("self",)).select_related(
+                    "work_center", "assigned_machine",
+                ).get(id=assignment_id)
+                job = ProductionJob.objects.select_for_update(of=("self",)).select_related(
+                    "work_center", "from_location",
+                ).get(id=assignment.production_job_id)
+                before, after = _change_issue_codes(job, requirement_id, request.data.get("granule_code_allocations"))
+                _write_wcm_audit(
+                    assignment,
+                    "MATERIAL_ISSUE",
+                    user=request.user,
+                    before_status=assignment.status,
+                    reason="Grade code split changed",
+                    payload={"change": "CODES", "requirement_id": str(requirement_id), "before": before, "after": after},
+                )
+            return Response({
+                "production_job": str(job.id),
+                "material_confirmations": job.current_step_material_confirmations,
+            })
+        except WorkCenterAssignment.DoesNotExist:
+            return Response({"error": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+        except GranuleStockConflict as e:
+            return Response({"detail": str(e), "code": "GRANULE_STOCK_CHANGED"}, status=status.HTTP_409_CONFLICT)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -8895,15 +8895,28 @@ class ExecutionService:
                 - current_split.get(code_id, Decimal("0"))
             ).quantize(Decimal("0.0001"))
             if delta > 0:
-                BulkService.consume_bulk(
-                    material_id=requirement.material_id,
-                    granule_code_id=code_id,
-                    qty=delta,
-                    location_id=consumption_location_id,
-                    job_id=job.id,
-                    reference=consume_reference,
-                    qty_uom=requirement.uom,
-                )
+                try:
+                    BulkService.consume_bulk(
+                        material_id=requirement.material_id,
+                        granule_code_id=code_id,
+                        qty=delta,
+                        location_id=consumption_location_id,
+                        job_id=job.id,
+                        reference=consume_reference,
+                        qty_uom=requirement.uom,
+                    )
+                except ValidationError:
+                    # The issued code ran short after release: say what to do instead of a bare stock error.
+                    short = GranuleAvailabilityService.short_code_message(
+                        job=job,
+                        material=requirement.material,
+                        code_id=code_id,
+                        needed_qty=delta,
+                        location_id=consumption_location_id,
+                    )
+                    if short:
+                        raise ValueError(short)
+                    raise
                 MaterialConsumptionLog.objects.create(
                     production_job=job,
                     material=requirement.material,
@@ -9269,7 +9282,7 @@ class ExecutionService:
         granules = {str(req.material_id): req.material for req in reqs
                     if str(req.material.category or '').upper() == 'GRANULE'}
         granule_options = GranuleAvailabilityService.options_many(
-            granules.values(), issue_location_id=location_id, issue_plant_id=plant_id)
+            granules.values(), issue_location_id=location_id, issue_plant_id=plant_id, exclude_job_id=job.id)
         transfers_by_material = {}
         if granules:
             transfer_items = (InterPlantChallanItem.objects

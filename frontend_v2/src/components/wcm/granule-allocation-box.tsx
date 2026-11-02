@@ -148,6 +148,9 @@ export function GranuleAllocationBox({
                     <span className="block truncate font-mono text-[13px] font-bold text-content-1">{option.code}</span>
                     <span className="block truncate text-caption text-content-3">
                       {option.plant_name} · {option.location_name} · {kg(left)} kg free
+                      {Number(option.held_qty_kg || 0) > 0
+                        ? ` · ${kg(Number(option.held_qty_kg))} kg issued to ${option.held_job_count || 1} other job${(option.held_job_count || 1) === 1 ? "" : "s"}`
+                        : ""}
                     </span>
                   </span>
                   <span className="shrink-0 rounded-lg bg-success-bg px-2 py-1 font-mono text-caption font-bold tabular-nums text-success-fg">
@@ -197,7 +200,7 @@ export function GranuleAllocationBox({
           </Button>
           <div className={cn("text-caption font-semibold md:col-span-3", picked && amount > Number(picked.available_qty_kg || 0) ? "text-warning-fg" : "text-content-3")}>
             {kg(remaining)} kg still needs a grade code
-            {picked ? ` · ${picked.code} has ${kg(Number(picked.available_qty_kg || 0))} kg in ${picked.location_name}` : ""}
+            {picked ? ` · ${picked.code} has ${kg(Number(picked.available_qty_kg || 0))} kg free in ${picked.location_name}` : ""}
           </div>
         </div>
       ) : null}
