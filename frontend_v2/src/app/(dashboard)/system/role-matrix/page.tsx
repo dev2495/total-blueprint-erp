@@ -1,47 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import * as React from "react";
+import { Suspense } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  RefreshCw,
-  RotateCcw,
-  Save,
-  Search,
-  ShieldAlert,
-  ShieldCheck,
-  Sparkles,
-  Wand2,
-} from "lucide-react";
+import { Grid3X3, RefreshCw, ShieldAlert, Users } from "lucide-react";
 
-import { RbacService, type RoleMatrix } from "@/services/rbac";
-import {
-  systemUserService,
-  type PermissionCatalogEntry,
-  type Role,
-} from "@/services/system-users";
-import { PageHeader } from "@/components/ui-custom/page-header";
+import { GradientHero } from "@/components/erp/gradient-hero";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,871 +22,319 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth-provider";
 import { getCanonicalRoleLabel } from "@/lib/roles";
+import { RbacService } from "@/services/rbac";
+import { systemUserService, type Role } from "@/services/system-users";
+import {
+  FLOOR_OPS_BUNDLE,
+  SYSTEM_ROLES,
+  buildPermissionRows,
+  draftFromMatrix,
+  errorDetail,
+  normalizePermissionList,
+  sameList,
+} from "@/components/access/access-model";
+import { RoleMatrixGrid, type RolePreset } from "@/components/access/role-matrix-grid";
+import { PeopleOverrides } from "@/components/access/people-overrides";
 
-const SYSTEM_ROLES = new Set(["OWNER", "ADMIN", "SUPER_ADMIN"]);
-const FLOOR_OPS_BUNDLE = [
-  "users.self_manage",
-  "dashboard.view",
-  "notifications.view",
-  "factory.view",
-  "production.view",
-  "inventory.view",
-  "mrp.view",
-] as const;
-
-type PermissionViewRow = {
-  permission: string;
-  moduleKey: string;
-  actionKey: string;
-  title: string;
-  route?: string;
-  assignable: boolean;
-};
-
-function normalizePermission(permission: string): string {
-  return String(permission || "").trim();
+function userCanManageRbac(user: any): boolean {
+  if (!user) return false;
+  if (user.is_superuser || user.is_owner) return true;
+  const perms: string[] = user.entitlements?.permissions || [];
+  return perms.includes("*") || perms.includes("rbac.manage");
 }
 
-function normalizePermissionList(values: string[]): string[] {
-  return Array.from(
-    new Set(
-      (values || []).map((value) => normalizePermission(value)).filter(Boolean),
-    ),
-  ).sort();
-}
+type PendingConfirm = { roleCode: string; preset: "reset" | "clear-added"; permissions: string[] } | null;
 
-function buildDraftFromMatrix(matrix?: RoleMatrix): Record<string, string[]> {
-  const draft: Record<string, string[]> = {};
-  Object.entries(matrix || {}).forEach(([roleCode, row]) => {
-    const revoked = new Set(normalizePermissionList(row?.revoked_permissions || []));
-    draft[roleCode] = normalizePermissionList([
-      ...(row?.default_permissions || []),
-      ...(row?.database_permissions || []),
-    ]).filter((permission) => !revoked.has(permission));
-  });
-  return draft;
-}
-
-function humanize(value: string): string {
-  return String(value || "")
-    .replace(/[_\-]+/g, " ")
-    .replace(/\./g, " ")
-    .trim()
-    .replace(
-      /\w\S*/g,
-      (part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase(),
-    );
-}
-
-const MODULE_LABELS: Record<string, string> = {
-  BILLS_DOCUMENTS: "Bills & documents",
-};
-
-const MODULE_HINTS: Record<string, string> = {
-  BILLS_DOCUMENTS:
-    "Inventory (Store) holds these by default; Owner and Admin always have them. Tick them here to let another role upload, classify or file bills, record general receipts, manage gate passes or match outward photos. Watchman can never receive office rights. Receiving stock against a bill also needs Inventory or Procurement manage.",
-};
-
-function moduleLabel(moduleKey: string): string {
-  return MODULE_LABELS[moduleKey] || humanize(moduleKey);
-}
-
-function roleLabel(roleCode: string, roleMeta?: Role): string {
-  return getCanonicalRoleLabel(roleCode, roleMeta?.name);
-}
-
-function permissionTitle(
-  permission: string,
-  entry?: PermissionCatalogEntry,
-): string {
-  if (permission === "*") return "Full System Access";
-  if (entry?.label) return entry.label;
-  const moduleName = humanize(entry?.module || permission.split(".")[0] || "");
-  const actionName = humanize(entry?.action || permission.split(".")[1] || "");
-  if (moduleName && actionName) return `${moduleName} · ${actionName}`;
-  return humanize(permission);
-}
-
-function errorDetail(error: unknown): string {
-  const typedError = error as {
-    message?: string;
-    response?: { data?: { detail?: unknown } };
-  };
-  const detail = typedError?.response?.data?.detail;
-  if (typeof detail === "string") return detail;
-  if (detail) return JSON.stringify(detail);
-  return typedError?.message || "Request failed";
-}
-
-export default function RoleMatrixPage() {
+function RolesAndAccess() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user: me } = useAuth();
+  const canManage = userCanManageRbac(me);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tab = searchParams?.get("tab") === "people" ? "people" : "roles";
 
-  const [selectedRole, setSelectedRole] = useState<string>("");
-  const [draftMatrix, setDraftMatrix] = useState<Record<string, string[]>>({});
-  const [unlockSystemRoles, setUnlockSystemRoles] = useState(false);
-  const [easyMode, setEasyMode] = useState(true);
-  const [permissionSearch, setPermissionSearch] = useState("");
-  const [moduleFilter, setModuleFilter] = useState("ALL");
-  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
-  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
-  const [confirmRemoveVisibleOpen, setConfirmRemoveVisibleOpen] =
-    useState(false);
+  const matrixQuery = useQuery({ queryKey: ["role-matrix"], queryFn: RbacService.exportRoleMatrix });
+  const catalogQuery = useQuery({ queryKey: ["role-permission-catalog"], queryFn: systemUserService.getPermissionCatalog });
+  const rolesQuery = useQuery({ queryKey: ["roles"], queryFn: systemUserService.getRoles });
 
-  const matrixQuery = useQuery({
-    queryKey: ["role-matrix"],
-    queryFn: RbacService.exportRoleMatrix,
-  });
+  const saved = React.useMemo(() => draftFromMatrix(matrixQuery.data), [matrixQuery.data]);
+  const [draft, setDraft] = React.useState<Record<string, string[]>>({});
+  const [unlockSystemRoles, setUnlockSystemRoles] = React.useState(false);
+  const [confirm, setConfirm] = React.useState<PendingConfirm>(null);
 
-  const catalogQuery = useQuery({
-    queryKey: ["role-permission-catalog"],
-    queryFn: systemUserService.getPermissionCatalog,
-  });
+  React.useEffect(() => {
+    setDraft(saved);
+  }, [saved]);
 
-  const rolesQuery = useQuery({
-    queryKey: ["roles"],
-    queryFn: systemUserService.getRoles,
-  });
+  const baseline = React.useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(matrixQuery.data || {}).map(([code, row]) => [code, normalizePermissionList(row?.default_permissions)]),
+      ),
+    [matrixQuery.data],
+  );
 
-  useEffect(() => {
-    if (!matrixQuery.data) return;
-    const nextDraft = buildDraftFromMatrix(matrixQuery.data);
-    setDraftMatrix(nextDraft);
-    setSelectedRole((previousRole) => {
-      if (previousRole && nextDraft[previousRole]) return previousRole;
-      return Object.keys(nextDraft).sort()[0] || "";
-    });
-  }, [matrixQuery.data]);
-
-  const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
-  const roleMetaByCode = useMemo(() => {
+  const roleMeta = React.useMemo(() => {
     const map = new Map<string, Role>();
-    roles.forEach((role) => map.set(role.code, role));
+    (rolesQuery.data || []).forEach((role) => map.set(role.code, role));
     return map;
-  }, [roles]);
+  }, [rolesQuery.data]);
 
-  const roleCodes = useMemo(
-    () => Object.keys(draftMatrix).sort(),
-    [draftMatrix],
-  );
-  const selectedRow = selectedRole
-    ? matrixQuery.data?.[selectedRole]
-    : undefined;
-  const baselinePermissions = useMemo(
-    () => normalizePermissionList(selectedRow?.default_permissions || []),
-    [selectedRow],
-  );
-  const baselineSet = useMemo(
-    () => new Set(baselinePermissions),
-    [baselinePermissions],
-  );
-
-  const selectedPermissions = useMemo(
-    () => new Set(draftMatrix[selectedRole] || []),
-    [draftMatrix, selectedRole],
-  );
-
-  const catalogRows = useMemo(
-    () => catalogQuery.data ?? [],
-    [catalogQuery.data],
-  );
-  const catalogByPermission = useMemo(() => {
-    const map = new Map<string, PermissionCatalogEntry>();
-    catalogRows.forEach((entry) => {
-      const permission = normalizePermission(entry.permission);
-      if (permission) map.set(permission, entry);
-    });
-    return map;
-  }, [catalogRows]);
-
-  const catalogPermissionSet = useMemo(() => {
-    const set = new Set<string>();
-    catalogRows.forEach((entry) => {
-      const permission = normalizePermission(entry.permission);
-      if (permission) set.add(permission);
-    });
-    return set;
-  }, [catalogRows]);
-
-  const allPermissions = useMemo(() => {
-    const set = new Set<string>();
-    catalogRows.forEach((entry) => {
-      const permission = normalizePermission(entry.permission);
-      if (permission) set.add(permission);
-    });
-    Object.values(draftMatrix).forEach((values) =>
-      values.forEach((permission) => set.add(normalizePermission(permission))),
-    );
-    return Array.from(set).filter(Boolean).sort();
-  }, [catalogRows, draftMatrix]);
-
-  const permissionRows = useMemo(() => {
-    return allPermissions.map((permission): PermissionViewRow => {
-      const entry = catalogByPermission.get(permission);
-      const moduleKey = String(
-        entry?.module || permission.split(".")[0] || "misc",
-      ).toUpperCase();
-      const actionKey = String(
-        entry?.action || permission.split(".")[1] || "",
-      ).toLowerCase();
-      return {
-        permission,
-        moduleKey,
-        actionKey,
-        title: permissionTitle(permission, entry),
-        route: entry?.route,
-        assignable: Boolean(entry?.assignable ?? permission !== "*"),
-      };
-    });
-  }, [allPermissions, catalogByPermission]);
-
-  const moduleOptions = useMemo(() => {
-    const values = Array.from(
-      new Set(permissionRows.map((row) => row.moduleKey)),
-    ).sort();
-    return ["ALL", ...values];
-  }, [permissionRows]);
-
-  useEffect(() => {
-    if (!moduleOptions.includes(moduleFilter)) setModuleFilter("ALL");
-  }, [moduleFilter, moduleOptions]);
-
-  const filteredPermissionRows = useMemo(() => {
-    const query = permissionSearch.trim().toLowerCase();
-    return permissionRows.filter((row) => {
-      if (easyMode && row.permission === "*") return false;
-      if (moduleFilter !== "ALL" && row.moduleKey !== moduleFilter)
-        return false;
-      if (showSelectedOnly && !selectedPermissions.has(row.permission))
-        return false;
-      if (!query) return true;
-      return `${row.title} ${row.permission} ${row.moduleKey} ${row.actionKey}`
-        .toLowerCase()
-        .includes(query);
-    });
-  }, [
-    easyMode,
-    moduleFilter,
-    permissionSearch,
-    permissionRows,
-    selectedPermissions,
-    showSelectedOnly,
-  ]);
-
-  const groupedPermissionRows = useMemo(() => {
-    const groups: Record<string, PermissionViewRow[]> = {};
-    filteredPermissionRows.forEach((row) => {
-      if (!groups[row.moduleKey]) groups[row.moduleKey] = [];
-      groups[row.moduleKey].push(row);
-    });
-    Object.values(groups).forEach((rows) =>
-      rows.sort((left, right) => left.title.localeCompare(right.title)),
-    );
-    return groups;
-  }, [filteredPermissionRows]);
-
-  const visiblePermissions = useMemo(
+  const columns = React.useMemo(
     () =>
-      filteredPermissionRows
-        .filter((row) => row.assignable)
-        .map((row) => row.permission),
-    [filteredPermissionRows],
+      Object.keys(draft)
+        .map((code) => ({ code, label: getCanonicalRoleLabel(code, roleMeta.get(code)?.name) }))
+        .sort((a, b) => Number(SYSTEM_ROLES.has(a.code)) - Number(SYSTEM_ROLES.has(b.code)) || a.label.localeCompare(b.label)),
+    [draft, roleMeta],
   );
 
-  const visibleNotSelected = useMemo(
+  const rows = React.useMemo(
+    () => buildPermissionRows(catalogQuery.data || [], Object.values(draft).flat()),
+    [catalogQuery.data, draft],
+  );
+  const assignable = React.useMemo(() => new Set(rows.filter((row) => row.assignable).map((row) => row.permission)), [rows]);
+
+  const changedRoles = React.useMemo(
+    () => columns.filter((column) => !sameList(draft[column.code], saved[column.code])),
+    [columns, draft, saved],
+  );
+  const changeCount = React.useMemo(
     () =>
-      visiblePermissions.filter(
-        (permission) => !selectedPermissions.has(permission),
-      ),
-    [visiblePermissions, selectedPermissions],
+      changedRoles.reduce((sum, column) => {
+        const before = new Set(saved[column.code] || []);
+        const after = new Set(draft[column.code] || []);
+        let count = 0;
+        after.forEach((permission) => !before.has(permission) && count++);
+        before.forEach((permission) => !after.has(permission) && count++);
+        return sum + count;
+      }, 0),
+    [changedRoles, draft, saved],
   );
+  const dirty = changedRoles.length > 0;
 
-  const visibleExtraSelected = useMemo(
-    () =>
-      visiblePermissions.filter(
-        (permission) =>
-          selectedPermissions.has(permission) && !baselineSet.has(permission),
-      ),
-    [visiblePermissions, selectedPermissions, baselineSet],
-  );
+  React.useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
-  const readOnlyPresetPermissions = useMemo(
-    () =>
-      permissionRows
-        .filter(
-          (row) =>
-            row.assignable &&
-            (row.actionKey === "view" ||
-              row.permission === "users.self_manage"),
-        )
-        .map((row) => row.permission),
-    [permissionRows],
-  );
+  const locked = (roleCode: string) => SYSTEM_ROLES.has(roleCode) && !unlockSystemRoles;
 
-  const floorOpsPresetPermissions = useMemo(
-    () =>
-      FLOOR_OPS_BUNDLE.filter((permission) =>
-        catalogPermissionSet.has(permission),
-      ),
-    [catalogPermissionSet],
-  );
-
-  const baselineCount = baselinePermissions.length;
-  const selectedCount = selectedPermissions.size;
-  const extraCount = Array.from(selectedPermissions).filter(
-    (permission) => !baselineSet.has(permission),
-  ).length;
-  const isSystemRole = SYSTEM_ROLES.has(selectedRole);
-  const editingLocked = isSystemRole && !unlockSystemRoles;
-  const canEdit = Boolean(selectedRole) && !editingLocked;
-
-  const hasUnsavedChanges = useMemo(() => {
-    const source = buildDraftFromMatrix(matrixQuery.data);
-    const allRoles = new Set([
-      ...Object.keys(source),
-      ...Object.keys(draftMatrix),
-    ]);
-    for (const roleCode of allRoles) {
-      const original = source[roleCode] || [];
-      const current = normalizePermissionList(draftMatrix[roleCode] || []);
-      if (original.length !== current.length) return true;
-      for (let index = 0; index < original.length; index += 1) {
-        if (original[index] !== current[index]) return true;
-      }
-    }
-    return false;
-  }, [matrixQuery.data, draftMatrix]);
-
-  const setRolePermissions = (permissions: string[]) => {
-    if (!selectedRole || editingLocked) return;
-    const normalized = normalizePermissionList(permissions);
-    setDraftMatrix((previous) => ({
-      ...previous,
-      [selectedRole]: normalized,
-    }));
+  const setRole = (roleCode: string, permissions: string[]) => {
+    if (!roleCode || locked(roleCode)) return;
+    setDraft((previous) => ({ ...previous, [roleCode]: normalizePermissionList(permissions) }));
   };
 
-  const togglePermission = (permission: string, checked: boolean) => {
-    if (!selectedRole || editingLocked) return;
-    const row = permissionRows.find((item) => item.permission === permission);
-    if (!row?.assignable) return;
-    setDraftMatrix((previous) => {
-      const current = new Set(previous[selectedRole] || []);
-      if (checked) current.add(permission);
-      else current.delete(permission);
-      return {
-        ...previous,
-        [selectedRole]: normalizePermissionList(Array.from(current)),
-      };
-    });
+  const toggle = (roleCode: string, permissions: string[], on: boolean) => {
+    if (locked(roleCode)) return;
+    const allowed = permissions.filter((permission) => assignable.has(permission));
+    if (!allowed.length) return;
+    const current = new Set(draft[roleCode] || []);
+    allowed.forEach((permission) => (on ? current.add(permission) : current.delete(permission)));
+    setRole(roleCode, Array.from(current));
   };
 
-  const applyAdditivePreset = (permissions: string[], name: string) => {
-    if (!canEdit) return;
-    const current = new Set(draftMatrix[selectedRole] || []);
-    const validPermissions = permissions.filter((permission) =>
-      permissionRows.some(
-        (row) => row.permission === permission && row.assignable,
-      ),
-    );
-    const additions = validPermissions.filter(
-      (permission) => !current.has(permission),
-    );
+  const addPermissions = (roleCode: string, permissions: string[], name: string) => {
+    const current = new Set(draft[roleCode] || []);
+    const additions = permissions.filter((permission) => assignable.has(permission) && !current.has(permission));
     if (!additions.length) {
-      toast({
-        title: "No change",
-        description: `${name} did not add new permissions.`,
-      });
+      toast({ title: "No change", description: `${name} adds nothing new to this role.` });
       return;
     }
-    setRolePermissions([...Array.from(current), ...additions]);
-    toast({
-      title: `${name} applied`,
-      description: `Added ${additions.length} permission${additions.length > 1 ? "s" : ""}.`,
-    });
+    setRole(roleCode, [...Array.from(current), ...additions]);
+    toast({ title: `${name} added`, description: `${additions.length} right${additions.length === 1 ? "" : "s"} added. Save to apply.` });
   };
 
-  const addVisiblePermissions = () => {
-    if (!canEdit) return;
-    if (!visibleNotSelected.length) {
-      toast({
-        title: "No change",
-        description: "All visible permissions are already selected.",
-      });
-      return;
+  const preset = (roleCode: string, kind: RolePreset, visible: string[]) => {
+    if (locked(roleCode)) return;
+    if (kind === "read-only") {
+      addPermissions(
+        roleCode,
+        rows.filter((row) => row.assignable && (row.actionKey === "view" || row.permission === "users.self_manage")).map((row) => row.permission),
+        "Every view right",
+      );
+    } else if (kind === "floor-ops") {
+      addPermissions(roleCode, FLOOR_OPS_BUNDLE.filter((permission) => assignable.has(permission)), "Floor set");
+    } else if (kind === "reset") {
+      setConfirm({ roleCode, preset: "reset", permissions: baseline[roleCode] || [] });
+    } else {
+      const base = new Set(baseline[roleCode] || []);
+      const extras = visible.filter((permission) => (draft[roleCode] || []).includes(permission) && !base.has(permission));
+      if (!extras.length) {
+        toast({ title: "No change", description: "No added rights are shown for this role." });
+        return;
+      }
+      setConfirm({ roleCode, preset: "clear-added", permissions: extras });
     }
-    setRolePermissions([
-      ...(draftMatrix[selectedRole] || []),
-      ...visibleNotSelected,
-    ]);
-    toast({
-      title: "Added visible permissions",
-      description: `Added ${visibleNotSelected.length} permission${visibleNotSelected.length > 1 ? "s" : ""}.`,
-    });
   };
 
-  const removeVisibleExtras = () => {
-    if (!canEdit) return;
-    if (!visibleExtraSelected.length) {
-      toast({
-        title: "No change",
-        description: "No visible extra permissions to remove.",
-      });
-      return;
+  const applyConfirm = () => {
+    if (!confirm) return;
+    if (confirm.preset === "reset") {
+      setRole(confirm.roleCode, confirm.permissions);
+    } else {
+      const remove = new Set(confirm.permissions);
+      setRole(confirm.roleCode, (draft[confirm.roleCode] || []).filter((permission) => !remove.has(permission)));
     }
-    const current = new Set(draftMatrix[selectedRole] || []);
-    visibleExtraSelected.forEach((permission) => current.delete(permission));
-    setRolePermissions(Array.from(current));
-    toast({
-      title: "Visible extras removed",
-      description: `Removed ${visibleExtraSelected.length} permission${visibleExtraSelected.length > 1 ? "s" : ""}.`,
-    });
-  };
-
-  const resetRoleToBaseline = () => {
-    if (!canEdit) return;
-    setRolePermissions(baselinePermissions);
-    toast({
-      title: "Role reset to baseline",
-      description: `Restored ${selectedRole} to baseline defaults.`,
-    });
+    setConfirm(null);
   };
 
   const saveMutation = useMutation({
-    mutationFn: async () => RbacService.importRoleMatrix(draftMatrix),
+    mutationFn: async () => RbacService.importRoleMatrix(draft),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["role-matrix"] });
       toast({
-        title: "Role matrix updated",
-        description: `Updated roles: ${(result.updated_roles || []).join(", ") || "none"}`,
+        title: "Roles saved",
+        description: `Updated: ${(result.updated_roles || []).map((code) => getCanonicalRoleLabel(code)).join(", ") || "none"}`,
       });
     },
-    onError: (error: unknown) => {
-      toast({
-        title: "Save failed",
-        description: errorDetail(error),
-        variant: "destructive",
-      });
-    },
+    onError: (error: unknown) => toast({ title: "Save failed", description: errorDetail(error), variant: "destructive" }),
   });
 
-  const syncDefaultsMutation = useMutation({
+  const syncMutation = useMutation({
     mutationFn: RbacService.syncRoleMatrixDefaults,
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["role-matrix"] });
-      toast({
-        title: "Synced role defaults",
-        description: `Synced roles: ${(result.updated_roles || []).join(", ") || "none"}`,
-      });
+      toast({ title: "Standard sets synced", description: `Synced: ${(result.updated_roles || []).join(", ") || "none"}` });
     },
-    onError: (error: unknown) => {
-      toast({
-        title: "Sync failed",
-        description: errorDetail(error),
-        variant: "destructive",
-      });
-    },
+    onError: (error: unknown) => toast({ title: "Sync failed", description: errorDetail(error), variant: "destructive" }),
   });
 
-  const loading =
-    matrixQuery.isLoading || catalogQuery.isLoading || rolesQuery.isLoading;
+  const setTab = (next: string) => {
+    const params = new URLSearchParams(searchParams?.toString() || "");
+    if (next === "people") params.set("tab", "people");
+    else params.delete("tab");
+    router.replace(`${pathname}${params.toString() ? `?${params}` : ""}`, { scroll: false });
+  };
+
+  const loading = matrixQuery.isLoading || catalogQuery.isLoading || rolesQuery.isLoading;
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Role Matrix"
-        description="Easy mode for role access setup: choose role, apply preset, review, and save."
+    <div className="min-h-screen bg-surface-2 px-4 pb-6 pt-4 sm:px-6">
+      <GradientHero
+        tone="subtle"
+        eyebrow="SYSTEM · ACCESS"
+        title="Roles & access"
+        subtitle="What each role can do, and what one person gets on top of their role."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" asChild>
-              <Link href="/system/governance">Governance Console</Link>
+              <Link href="/system/users">All users</Link>
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => syncDefaultsMutation.mutate()}
-              disabled={syncDefaultsMutation.isPending}
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {syncDefaultsMutation.isPending ? "Syncing..." : "Sync Defaults"}
+            <Button variant="outline" asChild>
+              <Link href="/system/governance">Governance</Link>
             </Button>
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={
-                saveMutation.isPending || !selectedRole || !hasUnsavedChanges
-              }
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {saveMutation.isPending ? "Saving..." : "Save Matrix"}
-            </Button>
+            {canManage ? (
+              <Button variant="outline" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {syncMutation.isPending ? "Syncing…" : "Sync standard sets"}
+              </Button>
+            ) : null}
           </div>
         }
       />
 
-      {loading ? (
-        <Card>
-          <CardContent className="py-10 text-center text-content-3">
-            Loading role matrix...
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Role Setup</CardTitle>
-              <CardDescription>
-                Pick a role, apply safe presets, and fine-tune access.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roleCodes.map((roleCode) => (
-                    <SelectItem key={roleCode} value={roleCode}>
-                      {roleLabel(roleCode, roleMetaByCode.get(roleCode))}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="flex items-center justify-between rounded-md border bg-surface-2 px-3 py-2">
-                <div className="text-xs font-medium text-content-3">
-                  Easy Mode
-                </div>
-                <Switch checked={easyMode} onCheckedChange={setEasyMode} />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <Card className="border-line">
-                  <CardContent className="py-3">
-                    <div className="text-content-3">Base</div>
-                    <div className="text-xl font-semibold">{baselineCount}</div>
-                  </CardContent>
-                </Card>
-                <Card className="border-line">
-                  <CardContent className="py-3">
-                    <div className="text-content-3">Selected</div>
-                    <div className="text-xl font-semibold">{selectedCount}</div>
-                  </CardContent>
-                </Card>
-                <Card className="border-line">
-                  <CardContent className="py-3">
-                    <div className="text-content-3">Extra</div>
-                    <div className="text-xl font-semibold">{extraCount}</div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {hasUnsavedChanges ? (
-                <Badge
-                  variant="outline"
-                  className="w-fit border-warning-border bg-warning-bg text-warning-fg"
-                >
-                  Unsaved changes
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="w-fit border-success-border bg-success-bg text-success-fg"
-                >
-                  All changes saved
-                </Badge>
-              )}
-
-              {isSystemRole ? (
-                <div className="rounded-md border border-warning-border bg-warning-bg px-3 py-2 text-xs text-warning-fg">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 font-semibold">
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                      System role lock
-                    </div>
-                    <Switch
-                      checked={unlockSystemRoles}
-                      onCheckedChange={setUnlockSystemRoles}
-                    />
-                  </div>
-                  <p className="mt-2">
-                    OWNER/ADMIN/SUPER_ADMIN require explicit unlock before any
-                    edit.
-                  </p>
-                </div>
-              ) : null}
-
-              <div className="space-y-2 rounded-md border bg-surface-2 p-3">
-                <div className="text-xs font-semibold text-content-2">
-                  Quick Presets
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled={!canEdit}
-                  onClick={() =>
-                    applyAdditivePreset(
-                      readOnlyPresetPermissions,
-                      "Read-only preset",
-                    )
-                  }
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Read-only preset
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled={!canEdit}
-                  onClick={() =>
-                    applyAdditivePreset(
-                      floorOpsPresetPermissions,
-                      "Floor ops preset",
-                    )
-                  }
-                >
-                  <Wand2 className="mr-2 h-4 w-4" />
-                  Floor ops preset
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start text-warning-fg"
-                  disabled={!canEdit}
-                  onClick={() => setConfirmResetOpen(true)}
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Reset to baseline
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Permission Setup
-              </CardTitle>
-              <CardDescription>
-                {easyMode
-                  ? "Use filters and friendly labels to quickly assign the right access."
-                  : "Advanced mode shows raw permission codes for technical review."}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!selectedRole ? (
-                <div className="rounded-md border border-dashed p-8 text-center text-sm text-content-3">
-                  Select a role to begin editing.
-                </div>
-              ) : (
-                <>
-                  <div className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
-                    <div className="relative">
-                      <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-content-4" />
-                      <Input
-                        value={permissionSearch}
-                        onChange={(event) =>
-                          setPermissionSearch(event.target.value)
-                        }
-                        placeholder="Search permission..."
-                        className="pl-9"
-                      />
-                    </div>
-                    <Select
-                      value={moduleFilter}
-                      onValueChange={setModuleFilter}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Module" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {moduleOptions.map((moduleKey) => (
-                          <SelectItem key={moduleKey} value={moduleKey}>
-                            {moduleKey === "ALL"
-                              ? "All modules"
-                              : moduleLabel(moduleKey)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant={showSelectedOnly ? "default" : "outline"}
-                      onClick={() => setShowSelectedOnly((value) => !value)}
-                    >
-                      Selected only
-                    </Button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <Badge variant="outline">
-                      Visible: {filteredPermissionRows.length}
-                    </Badge>
-                    <Badge variant="outline">
-                      Can add: {visibleNotSelected.length}
-                    </Badge>
-                    <Badge variant="outline">
-                      Visible extras: {visibleExtraSelected.length}
-                    </Badge>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!canEdit || !visibleNotSelected.length}
-                      onClick={addVisiblePermissions}
-                    >
-                      Add visible
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!canEdit || !visibleExtraSelected.length}
-                      onClick={() => setConfirmRemoveVisibleOpen(true)}
-                    >
-                      Remove visible extras
-                    </Button>
-                  </div>
-
-                  <ScrollArea className="h-[560px] rounded-md border p-4">
-                    {Object.entries(groupedPermissionRows).map(
-                      ([moduleKey, rows]) => (
-                        <div key={moduleKey} className="mb-6 last:mb-0">
-                          <div className="mb-2 flex items-center gap-2 border-b pb-2">
-                            <span className="h-2 w-2 rounded-full bg-primary" />
-                            <h4 className="text-sm font-bold uppercase tracking-wide text-content-2">
-                              {moduleLabel(moduleKey)}
-                            </h4>
-                          </div>
-                          {MODULE_HINTS[moduleKey] ? (
-                            <p className="mb-2 text-xs text-content-3">{MODULE_HINTS[moduleKey]}</p>
-                          ) : null}
-                          <div className="grid gap-2 md:grid-cols-2">
-                            {rows.map((row) => {
-                              const checked = selectedPermissions.has(
-                                row.permission,
-                              );
-                              const locked = editingLocked || !row.assignable;
-                              return (
-                                <label
-                                  key={row.permission}
-                                  className={`flex items-start justify-between rounded-md border px-3 py-2 ${
-                                    checked
-                                      ? "bg-info-bg border-info-border"
-                                      : "bg-surface-1"
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <Checkbox
-                                      checked={checked}
-                                      disabled={locked}
-                                      onCheckedChange={(value) =>
-                                        togglePermission(
-                                          row.permission,
-                                          Boolean(value),
-                                        )
-                                      }
-                                    />
-                                    <div>
-                                      <div className="text-xs font-medium text-content-2">
-                                        {easyMode ? row.title : row.permission}
-                                      </div>
-                                      <div className="text-caption text-content-3">
-                                        {row.route || (easyMode ? row.permission : row.title)}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {!row.assignable ? (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-caption"
-                                      >
-                                        Locked
-                                      </Badge>
-                                    ) : null}
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ),
-                    )}
-                    {!filteredPermissionRows.length ? (
-                      <div className="rounded-md border border-dashed p-8 text-center text-sm text-content-3">
-                        No permissions match current filters.
-                      </div>
-                    ) : null}
-                  </ScrollArea>
-                </>
-              )}
-
-              {editingLocked ? (
-                <div className="mt-1 flex items-center gap-2 rounded-md border border-warning-border bg-warning-bg p-3 text-xs text-warning-fg">
-                  <AlertTriangle className="h-4 w-4" />
-                  System role editing is locked. Enable unlock to modify this
-                  role.
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+      <Tabs value={tab} onValueChange={setTab} className="mt-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <TabsList className="h-10">
+            <TabsTrigger value="roles" className="gap-1.5 px-4">
+              <Grid3X3 className="h-4 w-4" /> Roles
+              {dirty ? <span className="ml-1 h-2 w-2 rounded-full bg-warning-fg" aria-label="Unsaved changes" /> : null}
+            </TabsTrigger>
+            <TabsTrigger value="people" className="gap-1.5 px-4">
+              <Users className="h-4 w-4" /> People
+            </TabsTrigger>
+          </TabsList>
+          {tab === "roles" ? (
+            <label className="ml-auto flex h-9 items-center gap-2 rounded-lg border border-warning-border bg-warning-bg px-3 text-xs font-semibold text-warning-fg">
+              <ShieldAlert className="h-4 w-4" />
+              Unlock Owner / Admin columns
+              <Switch checked={unlockSystemRoles} onCheckedChange={setUnlockSystemRoles} aria-label="Unlock system roles" />
+            </label>
+          ) : null}
         </div>
-      )}
 
-      <AlertDialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
+        <TabsContent value="roles" className="mt-3">
+          {loading ? (
+            <div className="grid place-items-center rounded-2xl border border-line bg-surface-1 p-16 text-sm text-content-3">Loading roles…</div>
+          ) : (
+            <RoleMatrixGrid
+              rows={rows}
+              columns={columns}
+              draft={draft}
+              saved={saved}
+              baseline={baseline}
+              unlockSystemRoles={unlockSystemRoles && canManage}
+              onToggle={(roleCode, permissions, on) => canManage && toggle(roleCode, permissions, on)}
+              onPreset={(roleCode, kind, visible) => canManage && preset(roleCode, kind, visible)}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="people" className="mt-3">
+          {loading ? (
+            <div className="grid place-items-center rounded-2xl border border-line bg-surface-1 p-16 text-sm text-content-3">Loading…</div>
+          ) : (
+            <PeopleOverrides rows={rows} roleRights={saved} canManage={canManage} />
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {tab === "roles" && dirty ? (
+        <div className="sticky bottom-3 z-40 mt-3 rounded-2xl border border-warning-border bg-surface-1/95 px-4 py-3 shadow-[0_12px_40px_-16px_rgba(15,23,42,0.45)] backdrop-blur">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="h-2.5 w-2.5 rounded-full bg-warning-fg" />
+            <div className="mr-auto text-sm">
+              <span className="font-bold text-content-1">
+                {changeCount} change{changeCount === 1 ? "" : "s"}
+              </span>{" "}
+              <span className="text-content-3">in {changedRoles.map((column) => column.label).join(", ")}</span>
+            </div>
+            <Button variant="outline" onClick={() => setDraft(saved)} disabled={saveMutation.isPending}>
+              Discard
+            </Button>
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !canManage}>
+              {saveMutation.isPending ? "Saving…" : "Save roles"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <AlertDialog open={Boolean(confirm)} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reset role to baseline?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {confirm?.preset === "reset" ? "Reset to the standard set?" : "Remove the added rights shown?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all custom additions for{" "}
-              <strong>{selectedRole}</strong> and restore default baseline
-              permissions.
+              {confirm?.preset === "reset"
+                ? `${getCanonicalRoleLabel(confirm?.roleCode)} goes back to its standard rights; every addition and removal is undone.`
+                : `${confirm?.permissions.length || 0} added right${confirm?.permissions.length === 1 ? "" : "s"} come off ${getCanonicalRoleLabel(confirm?.roleCode)}. Standard rights stay.`}{" "}
+              Nothing is saved until you press Save roles.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                resetRoleToBaseline();
-                setConfirmResetOpen(false);
-              }}
-            >
-              Reset
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={confirmRemoveVisibleOpen}
-        onOpenChange={setConfirmRemoveVisibleOpen}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove visible extras?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes {visibleExtraSelected.length} visible extra
-              permission
-              {visibleExtraSelected.length === 1 ? "" : "s"} while keeping
-              baseline intact.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                removeVisibleExtras();
-                setConfirmRemoveVisibleOpen(false);
-              }}
-            >
-              Remove
-            </AlertDialogAction>
+            <AlertDialogAction onClick={applyConfirm}>{confirm?.preset === "reset" ? "Reset" : "Remove"}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+export default function RoleMatrixPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-content-3">Loading…</div>}>
+      <RolesAndAccess />
+    </Suspense>
   );
 }

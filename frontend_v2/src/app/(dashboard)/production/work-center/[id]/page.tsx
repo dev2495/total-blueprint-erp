@@ -4087,7 +4087,7 @@ export default function WCMTerminal() {
                 <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-content-3">Artwork</dt>
                 <dd className="mt-0.5 text-[13px]">
                   {detailArtworkId || detailArtworkCode || detailArtworkName ? (
-                    <ArtworkButton artworkId={detailArtworkId || null} artworkCode={detailArtworkCode || null} artworkName={detailArtworkName || null} />
+                    <ArtworkButton jobId={selectedJobId || null} artworkId={detailArtworkId || null} artworkCode={detailArtworkCode || null} artworkName={detailArtworkName || null} />
                   ) : (
                     <span className="text-content-3">none for this step</span>
                   )}
@@ -5789,7 +5789,7 @@ export default function WCMTerminal() {
                     {detailCylinderStatus === "MISSING" ? "Cylinder or artwork missing" : "Print readiness checked"} · ink colours,
                     cylinder readiness and the material block are checked before release.
                   </div>
-                  <ArtworkButton artworkId={detailArtworkId || null} artworkCode={detailArtworkCode || null} artworkName={detailArtworkName || null} />
+                  <ArtworkButton jobId={selectedJobId || null} artworkId={detailArtworkId || null} artworkCode={detailArtworkCode || null} artworkName={detailArtworkName || null} />
                   <CylinderReadyChip status={detailCylinderStatus} ready={detailCylinderReady} />
                   <MaterialBlockChip blocked={detailMaterialBlocked} reason={detailMaterialBlockReason} />
                 </div>

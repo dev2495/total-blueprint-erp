@@ -41,7 +41,29 @@ type ArtworkPayload = {
   image?: string | null;
 };
 
+type JobArtworkPayload = {
+  artwork: ArtworkPayload | null;
+  cylinder_slots: CylinderAssignment[];
+};
+
+/**
+ * The job's own artwork (images + cylinder slots) from the production API, so floor users see it with
+ * production rights alone; the engineering library needs engineering.view.
+ */
+function useJobArtwork(jobId: string | null | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["job-artwork", jobId],
+    queryFn: async () => {
+      const { data } = await api.get<JobArtworkPayload>(`/api/production/jobs/${jobId}/artwork/`);
+      return data;
+    },
+    enabled: enabled && Boolean(jobId),
+    staleTime: 60 * 1000,
+  });
+}
+
 interface CylinderSetCardProps {
+  jobId?: string | null;
   artworkId?: string | null;
   artworkCode?: string | null;
   artworkName?: string | null;
@@ -49,13 +71,15 @@ interface CylinderSetCardProps {
 }
 
 export function CylinderSetCard({
+  jobId,
   artworkId,
   artworkCode,
   artworkName,
   printCapable,
 }: CylinderSetCardProps) {
   const enabled = Boolean(artworkId) && printCapable;
-  const { data, isLoading } = useQuery({
+  const jobArtwork = useJobArtwork(jobId, enabled);
+  const library = useQuery({
     queryKey: ["cylinder-slot-assignments", artworkId],
     queryFn: async () => {
       const { data } = await api.get(
@@ -71,9 +95,11 @@ export function CylinderSetCard({
           : [];
       return list;
     },
-    enabled,
+    enabled: enabled && !jobId,
     staleTime: 30 * 1000,
   });
+  const data = jobId ? jobArtwork.data?.cylinder_slots : library.data;
+  const isLoading = jobId ? jobArtwork.isLoading : library.isLoading;
 
   if (!printCapable) return null;
 
@@ -177,12 +203,14 @@ function SidePanel({
 }
 
 interface ArtworkButtonProps {
+  jobId?: string | null;
   artworkId?: string | null;
   artworkCode?: string | null;
   artworkName?: string | null;
 }
 
 export function ArtworkButton({
+  jobId,
   artworkId,
   artworkCode,
   artworkName,
@@ -220,6 +248,7 @@ export function ArtworkButton({
       <ArtworkDialog
         open={open}
         onOpenChange={setOpen}
+        jobId={jobId || null}
         artworkId={artworkId!}
         artworkCode={artworkCode || ""}
         artworkName={artworkName || ""}
@@ -231,17 +260,20 @@ export function ArtworkButton({
 function ArtworkDialog({
   open,
   onOpenChange,
+  jobId,
   artworkId,
   artworkCode,
   artworkName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  jobId: string | null;
   artworkId: string;
   artworkCode: string;
   artworkName: string;
 }) {
-  const { data, isLoading } = useQuery({
+  const jobArtwork = useJobArtwork(jobId, open);
+  const library = useQuery({
     queryKey: ["artwork-detail", artworkId],
     queryFn: async () => {
       const { data } = await api.get<ArtworkPayload>(
@@ -249,9 +281,11 @@ function ArtworkDialog({
       );
       return data;
     },
-    enabled: open && Boolean(artworkId),
+    enabled: open && Boolean(artworkId) && !jobId,
     staleTime: 60 * 1000,
   });
+  const data = jobId ? jobArtwork.data?.artwork : library.data;
+  const isLoading = jobId ? jobArtwork.isLoading : library.isLoading;
 
   const images = Array.isArray(data?.images) ? data!.images : [];
   const fallbackImage = data?.image;

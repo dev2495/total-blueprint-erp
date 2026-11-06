@@ -10,7 +10,8 @@ from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
+from apps.artwork.media import ArtworkContentNegotiation
 from django.db import connection
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -96,6 +97,64 @@ class ProductionJobViewSet(ArchiveScopedListMixin, WorkCentreScopeMixin, viewset
         if payload is None:
             return Response({"order_id": None, "stations": [], "made": None, "focus_job_id": str(job.id)})
         return Response(payload)
+
+    @action(detail=True, methods=['get'])
+    def artwork(self, request, pk=None):
+        """
+        The job's committed artwork for floor screens (work-centre and machine terminals): images and the
+        cylinder slots to mount. Readable with production rights; the engineering artwork library stays
+        behind engineering.view.
+        """
+        from apps.production.services.queue_enrichment import resolve_committed_artwork
+        from apps.tooling.models import CylinderSlotAssignment
+        from apps.tooling.serializers import CylinderSlotAssignmentSerializer
+
+        job = self.get_object()
+        artwork = resolve_committed_artwork(job)
+        if artwork is None:
+            return Response({"artwork": None, "cylinder_slots": []})
+        images = [
+            {
+                "id": str(image.id),
+                "image": f"/api/production/jobs/{job.id}/artwork-image/{image.id}/",
+                "sort_order": image.sort_order,
+            }
+            for image in artwork.images.all()
+        ]
+        slots = (
+            # Same slots the tooling list shows by default: current artwork version, catalogue-active cylinders.
+            CylinderSlotAssignment.objects.filter(artwork=artwork, artwork__is_current_version=True, cylinder__is_catalog_active=True)
+            .select_related("artwork", "cylinder", "cylinder__artwork", "cylinder__engraving_vendor", "cylinder__storage_location")
+            .order_by("side", "side_slot_index")
+        )
+        return Response({
+            "artwork": {
+                "id": str(artwork.id),
+                "design_code": artwork.design_code,
+                "name": artwork.name,
+                "images": images,
+            },
+            "cylinder_slots": CylinderSlotAssignmentSerializer(slots, many=True).data,
+        })
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path=r'artwork-image/(?P<image_id>[0-9a-f-]{36})',
+        content_negotiation_class=ArtworkContentNegotiation,
+    )
+    def artwork_image(self, request, pk=None, image_id=None):
+        """One image of the job's committed artwork; any other image is not found here."""
+        from apps.artwork.media import artwork_file_response
+        from apps.artwork.models import ArtworkImage
+        from apps.production.services.queue_enrichment import resolve_committed_artwork
+
+        job = self.get_object()
+        artwork = resolve_committed_artwork(job)
+        image = ArtworkImage.objects.filter(id=image_id, artwork=artwork).first() if artwork else None
+        if image is None or not image.image:
+            raise Http404("Artwork image not found for this job.")
+        return artwork_file_response(request, image.image.name.split("artworks/", 1)[-1])
 
     @action(detail=False, methods=['get'])
     def board(self, request):

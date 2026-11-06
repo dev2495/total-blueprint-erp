@@ -116,6 +116,7 @@ export function queueRowModel(assignment: any) {
         : { metric: clean(spec.size.label), unit: "", imperial: "" };
   const gauge = spec.layers.reduce((sum, layer) => sum + Number(layer.thicknessMicron || 0), 0);
   return {
+    jobId: String(assignment?.production_job || job?.id || ""),
     job,
     spec,
     status,
@@ -326,7 +327,7 @@ export function WcmQueueRow({
         </span>
         {row.needsCylinders && (row.artwork.id || row.artwork.code || row.artwork.name) ? (
           <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-            <ArtworkButton artworkId={row.artwork.id || null} artworkCode={row.artwork.code || null} artworkName={row.artwork.name || null} />
+            <ArtworkButton jobId={row.jobId || null} artworkId={row.artwork.id || null} artworkCode={row.artwork.code || null} artworkName={row.artwork.name || null} />
           </span>
         ) : null}
         {row.needsCylinders && row.gates.C.state !== "skip" ? (

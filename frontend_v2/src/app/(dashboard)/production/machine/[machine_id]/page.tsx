@@ -3210,6 +3210,7 @@ export default function MachineExecutionPage() {
                 (selectedJob?.current_step_print_capable ||
                   selectedJob?.committed_artwork_id) ? (
                   <CylinderSetCard
+                    jobId={selectedJob?.id ? String(selectedJob.id) : null}
                     artworkId={selectedJob?.committed_artwork_id || null}
                     artworkCode={selectedJob?.committed_artwork_code || null}
                     artworkName={selectedJob?.committed_artwork_name || null}

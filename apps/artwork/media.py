@@ -14,20 +14,25 @@ class ArtworkContentNegotiation(DefaultContentNegotiation):
         return renderers[0], renderers[0].media_type
 
 
+def artwork_file_response(request, path):
+    """Serve one stored artwork file (path inside MEDIA_ROOT/artworks) with the safe preview headers."""
+    response = serve(request, path, document_root=Path(settings.MEDIA_ROOT) / 'artworks')
+    extension = Path(path).suffix.lower()
+    response['Content-Type'] = ARTWORK_TYPES.get(extension, 'application/octet-stream')
+    if extension not in ARTWORK_TYPES:
+        response['Content-Disposition'] = 'attachment'
+    response['Content-Security-Policy'] = "sandbox allow-downloads; default-src 'none'; frame-ancestors 'self'"
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    response['Cache-Control'] = 'private, no-store'
+    return response
+
+
 class ArtworkMediaView(APIView):
     content_negotiation_class = ArtworkContentNegotiation
 
     def get(self, request, path):
-        response = serve(request, path, document_root=Path(settings.MEDIA_ROOT) / 'artworks')
-        extension = Path(path).suffix.lower()
-        response['Content-Type'] = ARTWORK_TYPES.get(extension, 'application/octet-stream')
-        if extension not in ARTWORK_TYPES:
-            response['Content-Disposition'] = 'attachment'
-        response['Content-Security-Policy'] = "sandbox allow-downloads; default-src 'none'; frame-ancestors 'self'"
-        response['X-Content-Type-Options'] = 'nosniff'
-        response['X-Frame-Options'] = 'SAMEORIGIN'
-        response['Cache-Control'] = 'private, no-store'
-        return response
+        return artwork_file_response(request, path)
 
 
 artwork_media_serve = ArtworkMediaView.as_view()
