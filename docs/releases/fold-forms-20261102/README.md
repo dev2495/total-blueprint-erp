@@ -1,6 +1,6 @@
 # Folding: roll styles, each step's own form, pouch styles linked to the fold · 2 Nov 2026
 
-Five releases on the same day, parent `e112c0fdf0cd`:
+Six releases (2 to 6 Nov), parent `e112c0fdf0cd`:
 
 | Release | Commit | Migration | What |
 |---|---|---|---|
@@ -9,8 +9,9 @@ Five releases on the same day, parent `e112c0fdf0cd`:
 | 3 | `2fe6b9383817` | none | the named flap field wins over an empty flap tape; `--apply-links` refreshes linked sizes |
 | 4 | `2d0b16745292` | none | lane groups / sum / narrowest rules only on combine steps; `--apply-process` resets old combine settings on Fold steps |
 | 5 | `ce80cac8f344` | none | granule codes issued to open jobs are held (issue offers free stock only); Change codes on a released job; plain short-code message at output |
+| 6 | `aba8169c699c` | none | floor screens read the job's own artwork with production rights; Roles & access page rebuilt (roles grid + people overrides) |
 
-Backups before each cutover: f1923224, 8f49dc14, aef38f16, 0b5c1c76, 159c8b0f (restore drill PASS each time). Restart windows 54 / 58 / 56 / 58 / 58 s.
+Backups before each cutover: f1923224, 8f49dc14, aef38f16, 0b5c1c76, 159c8b0f, 9dc34206 (restore drill PASS each time). Restart windows 54 / 58 / 56 / 58 / 58 / 58 s.
 
 ## The rule
 
@@ -62,3 +63,12 @@ and 18 open jobs held 853 kg of F0120-LM issues. Each issue had been checked aga
 off what the issue screen offers and accepts; `POST wc-allocation/change-codes` re-splits a released issue until output uses it;
 a short code at output names the material, code, store and the codes free instead. The store received 3,000 kg F0120-LM at
 16:49 and the job logged at 16:50, before this went live.
+
+## Release 6: floor artwork access, Roles & access page (6 Nov)
+
+Work Center Managers saw "no images" on the terminal artwork popup: it read the engineering artwork library, which needs
+engineering.view, and admins had granted only the menu right page.engineering.artworks.view. `GET
+/api/production/jobs/<id>/artwork/` and `.../artwork-image/<image>/` now serve the job's committed artwork (images, cylinder
+slots) with production rights; the engineering library is unchanged. `/system/role-matrix` is rebuilt: a roles x rights grid
+and a People tab for one person's added rights and work centres / machines (same save APIs and rules as the user editor),
+which flags a page right whose data right is missing. Verified on live as a WCM.
